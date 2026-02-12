@@ -1,0 +1,132 @@
+Copyright (c) 2026 Laurian Avrigeanu
+All rights reserved.
+
+This repository is made publicly viewable for transparency and collaboration.
+
+NON-COMMERCIAL LICENSE GRANT
+
+Subject to the terms below, permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated documentation files (the
+"Software"), to use, copy, modify, merge, publish, and distribute the Software,
+in whole or in part, for NON-COMMERCIAL PURPOSES.
+
+COMMERCIAL USE
+
+Commercial use is any use of the Software where you (or your organization)
+receive money or other compensation, directly or indirectly, as a result of the
+use of the Software.
+
+If you make money from it, the commercial subscription (or a written
+waiver/grant) is required.
+
+Commercial use includes (non-exhaustive examples):
+
+- selling a game/app/tool that uses the Software
+- in-app purchases, DLC, paid expansions, paid mods, or subscriptions
+- ad-supported releases (including sponsorships/brand deals tied to the product)
+- early access, paid demos, paid playtests, paid alpha/beta access
+- crowdfunding (Kickstarter/Indiegogo/etc.) where the funded project uses the Software
+- Patreon/Ko-fi/donations where rewards or funding support development of a product using the Software
+- publisher advances or other third-party funding for a product using the Software
+- using the Software to deliver paid client work or internal commercial work
+
+Non-commercial use generally includes personal learning, academic use, and
+free/open releases that are not monetized in any way and are not developed or
+used for commercial advantage.
+
+Commercial use is permitted only under a paid subscription license, as described
+below, or under a written waiver/grant from the copyright holder.
+
+Commercial Subscription Tiers (monthly, in EUR; based on total company headcount):
+
+- Small studio (1-5): 10 EUR / month
+- Medium studio (6-20): 20 EUR / month
+- Large studio (21-100): 40 EUR / month
+- Corporate (101+): 80 EUR / month
+
+Perpetual Commercial Option (one-time, in EUR; equivalent to 36 months of subscription):
+
+Instead of subscribing monthly, you may purchase a perpetual commercial license
+for your studio/organization.
+
+Pricing is based on your tier at the time of purchase:
+
+- Small studio (1-5): 360 EUR (one-time)
+- Medium studio (6-20): 720 EUR (one-time)
+- Large studio (21-100): 1440 EUR (one-time)
+- Corporate (101+): 2880 EUR (one-time)
+
+A perpetual commercial license grants the right to use the Software commercially
+forever for the purchasing studio/organization, including in multiple titles and
+internal products.
+
+Perpetual licenses do not include subscriber priority support or any response-
+time targets unless explicitly granted in writing.
+
+Small Studio Hardship Waiver:
+If you are a small studio and have budgeting issues, you may request a written
+waiver for commercial use at no cost.
+
+Commercial subscription grants the right to use the Software commercially while
+the subscription is active, and to ship products that include the Software.
+
+Subscriber Support (Priority Issues):
+
+While your commercial subscription is active, you may request priority support
+via the project’s issue tracker. The maintainer’s response-time target is
+1-2 working days. If the maintainer cannot meet this target due to busy
+schedules, medical issues, or other constraints, the maintainer will post an
+explicit written status update as soon as reasonably possible.
+
+Support and response-time targets are provided on a best-effort basis and do not
+constitute a service level agreement (SLA).
+
+Post-Cancellation Distribution Right:
+If you cancel or stop paying, you may continue to distribute products that were
+already shipped while you had an active commercial subscription, but only with
+the last version of the Software you obtained while subscribed. You may not
+obtain further updates for commercial use unless you re-subscribe or receive a
+written waiver/grant.
+
+CONDITIONS
+
+1. Attribution: You must retain this copyright notice and this license text in
+   all copies or substantial portions of the Software.
+2. No trademark rights: This license does not grant permission to use any names,
+   logos, or trademarks of the copyright holder.
+
+CONTRIBUTIONS
+
+By submitting a contribution (code, documentation, tests, or other material) to
+this repository, you agree that your contribution is licensed under the same
+terms as this LICENSE. Contributing does not grant any additional commercial
+rights beyond what is stated in this LICENSE (including the commercial
+subscription requirement above).
+
+SIGNIFICANT CONTRIBUTOR COMMERCIAL GRANT
+
+At the discretion of the copyright holder, individuals or studios that make
+significant contributions to the health of the project (for example: sustained
+high-quality bug reports, substantial bug fixes, reviews, or ongoing maintenance
+help) may be granted a free commercial license.
+
+If granted in writing, this commercial license is intended to be lifetime and
+royalty-free for the recipient, but it is:
+
+- non-transferable,
+- limited to the recipient and their projects,
+- revocable only for cause (for example: fraud, material breach of this LICENSE,
+  or abuse of the grant).
+
+DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+To request permission, see:
+USAGE-PERMISSION-POLICY.md

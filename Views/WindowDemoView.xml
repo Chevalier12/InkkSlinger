@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             Width="760"
+             Height="420"
+             HorizontalAlignment="Center"
+             VerticalAlignment="Center"
+             Background="#131D2A"
+             BorderBrush="#46B8FA"
+             BorderThickness="2"
+             Padding="16">
+  <UserControl.Resources>
+    <Style x:Key="WindowSurfaceStyle" TargetType="Grid">
+      <Style.Setters>
+        <Setter Property="Background" Value="#162334"/>
+      </Style.Setters>
+    </Style>
+    <Style x:Key="WindowTitleStyle" TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Margin" Value="8,8,8,12"/>
+        <Setter Property="Foreground" Value="#D8ECFF"/>
+      </Style.Setters>
+    </Style>
+    <Style x:Key="WindowBodyStyle" TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Margin" Value="8"/>
+        <Setter Property="Foreground" Value="#B9D6EE"/>
+      </Style.Setters>
+    </Style>
+    <Style x:Key="WindowCloseButtonStyle" TargetType="Button">
+      <Style.Setters>
+        <Setter Property="Margin" Value="8"/>
+        <Setter Property="Height" Value="58"/>
+        <Setter Property="Foreground" Value="#EAF4FF"/>
+        <Setter Property="Background" Value="#524258"/>
+        <Setter Property="BorderBrush" Value="#D2AFEC"/>
+      </Style.Setters>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="true">
+          <Setter Property="Background" Value="#66506F"/>
+        </Trigger>
+        <Trigger Property="IsPressed" Value="true">
+          <Setter Property="Background" Value="#433748"/>
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="false">
+          <Setter Property="Background" Value="#242830"/>
+          <Setter Property="BorderBrush" Value="#5A6478"/>
+          <Setter Property="Foreground" Value="#AAB0BE"/>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+  </UserControl.Resources>
+  <Grid Style="{StaticResource WindowSurfaceStyle}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <Label x:Name="WindowTitleLabel"
+           Style="{StaticResource WindowTitleStyle}"
+           Grid.Row="0"
+           Text="Secondary Native Window"/>
+    <Label x:Name="WindowBodyLabel"
+           Style="{StaticResource WindowBodyStyle}"
+           Grid.Row="1"
+           Text="This is a real native window process launched from the main game window.&#10;It uses its own Game instance and its own Window wrapper."/>
+    <Button x:Name="CloseWindowButton"
+            Grid.Row="2"
+            Text="Close This Window"
+            Style="{StaticResource WindowCloseButtonStyle}"
+            Click="OnCloseWindowClick"/>
+  </Grid>
+</UserControl>

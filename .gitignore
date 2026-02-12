@@ -1,0 +1,26 @@
+# Build outputs
+**/bin/
+**/obj/
+**/artifacts/
+**/TestResults/
+
+# Rider / JetBrains
+.idea/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# VS Code
+.vscode/
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+

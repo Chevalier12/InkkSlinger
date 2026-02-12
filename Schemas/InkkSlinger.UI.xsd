@@ -1,0 +1,1603 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:inkkslinger-ui"
+           xmlns="urn:inkkslinger-ui"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+
+  <xs:simpleType name="thicknessType">
+    <xs:restriction base="xs:string" />
+  </xs:simpleType>
+
+  <xs:simpleType name="colorType">
+    <xs:restriction base="xs:string" />
+  </xs:simpleType>
+
+  <xs:simpleType name="textWrappingType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="NoWrap" />
+      <xs:enumeration value="Wrap" />
+      <xs:enumeration value="WrapWithOverflow" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="uiElementBaseType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="DataTemplate" />
+        <xs:element ref="UserControl.Resources" />
+        <xs:element ref="Panel.Resources" />
+        <xs:element ref="Grid.Resources" />
+        <xs:element ref="StackPanel.Resources" />
+        <xs:element ref="Border.Resources" />
+        <xs:element ref="Grid.ColumnDefinitions" />
+        <xs:element ref="Grid.RowDefinitions" />
+        <xs:element ref="Grid" />
+        <xs:element ref="GridSplitter" />
+        <xs:element ref="Panel" />
+        <xs:element ref="StackPanel" />
+        <xs:element ref="VirtualizingStackPanel" />
+        <xs:element ref="Canvas" />
+        <xs:element ref="DockPanel" />
+        <xs:element ref="WrapPanel" />
+        <xs:element ref="UniformGrid" />
+        <xs:element ref="Expander" />
+        <xs:element ref="Border" />
+        <xs:element ref="Image" />
+        <xs:element ref="Rectangle" />
+        <xs:element ref="Ellipse" />
+        <xs:element ref="Line" />
+        <xs:element ref="Polygon" />
+        <xs:element ref="Polyline" />
+        <xs:element ref="Path" />
+        <xs:element ref="UserControl" />
+        <xs:element ref="Label" />
+        <xs:element ref="TextBlock" />
+        <xs:element ref="Button" />
+        <xs:element ref="ToggleButton" />
+        <xs:element ref="CheckBox" />
+        <xs:element ref="RadioButton" />
+        <xs:element ref="ComboBox" />
+        <xs:element ref="ComboBoxItem" />
+        <xs:element ref="TextBox" />
+        <xs:element ref="HeaderedContentControl" />
+        <xs:element ref="HeaderedItemsControl" />
+        <xs:element ref="ContentPresenter" />
+        <xs:element ref="ItemsPresenter" />
+        <xs:element ref="ScrollBar" />
+        <xs:element ref="ScrollViewer" />
+        <xs:element ref="Viewbox" />
+        <xs:element ref="Separator" />
+        <xs:element ref="Slider" />
+        <xs:element ref="ListBox" />
+        <xs:element ref="ListBoxItem" />
+        <xs:element ref="ListView" />
+        <xs:element ref="ListViewItem" />
+        <xs:element ref="TabControl" />
+        <xs:element ref="TabItem" />
+        <xs:element ref="TreeView" />
+        <xs:element ref="TreeViewItem" />
+        <xs:element ref="Popup" />
+        <xs:element ref="ContextMenu" />
+        <xs:element ref="ProgressBar" />
+        <xs:element ref="ResizeGrip" />
+        <xs:element ref="Thumb" />
+        <xs:element ref="ToolTip" />
+      </xs:choice>
+    </xs:sequence>
+
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="resourcesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:any processContents="lax" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="dataTemplateType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:any processContents="lax" />
+    </xs:sequence>
+    <xs:attribute name="DataType" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="styleType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Style.Setters" />
+        <xs:element ref="Style.Triggers" />
+        <xs:element ref="Setter" />
+        <xs:element ref="Trigger" />
+        <xs:element ref="DataTrigger" />
+        <xs:element ref="MultiDataTrigger" />
+        <xs:element ref="EventTrigger" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="TargetType" type="xs:string" use="required" />
+    <xs:attribute name="BasedOn" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="styleSettersType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="Setter" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="styleTriggersType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Trigger" />
+        <xs:element ref="DataTrigger" />
+        <xs:element ref="MultiDataTrigger" />
+        <xs:element ref="EventTrigger" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="setterType">
+    <xs:attribute name="Property" type="xs:string" use="required" />
+    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="triggerType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Trigger.Setters" />
+        <xs:element ref="Trigger.EnterActions" />
+        <xs:element ref="Trigger.ExitActions" />
+        <xs:element ref="Setter" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="Property" type="xs:string" use="required" />
+    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="triggerSettersType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="Setter" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="dataTriggerType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="DataTrigger.Binding" />
+        <xs:element ref="DataTrigger.Setters" />
+        <xs:element ref="DataTrigger.EnterActions" />
+        <xs:element ref="DataTrigger.ExitActions" />
+        <xs:element ref="Setter" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="Binding" type="xs:string" />
+    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="dataTriggerBindingType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="Binding" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="dataTriggerSettersType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="Setter" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="multiDataTriggerType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="MultiDataTrigger.Conditions" />
+        <xs:element ref="MultiDataTrigger.Setters" />
+        <xs:element ref="MultiDataTrigger.EnterActions" />
+        <xs:element ref="MultiDataTrigger.ExitActions" />
+        <xs:element ref="Condition" />
+        <xs:element ref="Setter" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="eventTriggerType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="EventTrigger.Actions" />
+        <xs:element ref="SetValueAction" />
+        <xs:element ref="BeginStoryboard" />
+        <xs:element ref="StopStoryboard" />
+        <xs:element ref="PauseStoryboard" />
+        <xs:element ref="ResumeStoryboard" />
+        <xs:element ref="SeekStoryboard" />
+        <xs:element ref="RemoveStoryboard" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="RoutedEvent" type="xs:string" use="required" />
+    <xs:attribute name="SourceName" type="xs:string" />
+    <xs:attribute name="HandledEventsToo" type="xs:boolean" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="eventTriggerActionsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="SetValueAction" />
+        <xs:element ref="BeginStoryboard" />
+        <xs:element ref="StopStoryboard" />
+        <xs:element ref="PauseStoryboard" />
+        <xs:element ref="ResumeStoryboard" />
+        <xs:element ref="SeekStoryboard" />
+        <xs:element ref="RemoveStoryboard" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="multiDataTriggerConditionsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="Condition" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="conditionType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Condition.Binding" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="Binding" type="xs:string" />
+    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="conditionBindingType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="Binding" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="triggerActionsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="SetValueAction" />
+        <xs:element ref="BeginStoryboard" />
+        <xs:element ref="StopStoryboard" />
+        <xs:element ref="PauseStoryboard" />
+        <xs:element ref="ResumeStoryboard" />
+        <xs:element ref="SeekStoryboard" />
+        <xs:element ref="RemoveStoryboard" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="setValueActionType">
+    <xs:attribute name="Property" type="xs:string" use="required" />
+    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="beginStoryboardActionType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="Storyboard" />
+    </xs:sequence>
+    <xs:attribute name="Name" type="xs:string" />
+    <xs:attribute name="Storyboard" type="xs:string" />
+    <xs:attribute name="HandoffBehavior" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="namedStoryboardActionType">
+    <xs:attribute name="BeginStoryboardName" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="seekStoryboardActionType">
+    <xs:attribute name="BeginStoryboardName" type="xs:string" use="required" />
+    <xs:attribute name="Offset" type="xs:string" />
+    <xs:attribute name="Origin" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="storyboardType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Storyboard.Children" />
+        <xs:element ref="DoubleAnimation" />
+        <xs:element ref="ColorAnimation" />
+        <xs:element ref="PointAnimation" />
+        <xs:element ref="ThicknessAnimation" />
+        <xs:element ref="Int32Animation" />
+        <xs:element ref="DoubleAnimationUsingKeyFrames" />
+        <xs:element ref="ColorAnimationUsingKeyFrames" />
+        <xs:element ref="PointAnimationUsingKeyFrames" />
+        <xs:element ref="ThicknessAnimationUsingKeyFrames" />
+        <xs:element ref="Int32AnimationUsingKeyFrames" />
+        <xs:element ref="ObjectAnimationUsingKeyFrames" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="storyboardChildrenType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="DoubleAnimation" />
+        <xs:element ref="ColorAnimation" />
+        <xs:element ref="PointAnimation" />
+        <xs:element ref="ThicknessAnimation" />
+        <xs:element ref="Int32Animation" />
+        <xs:element ref="DoubleAnimationUsingKeyFrames" />
+        <xs:element ref="ColorAnimationUsingKeyFrames" />
+        <xs:element ref="PointAnimationUsingKeyFrames" />
+        <xs:element ref="ThicknessAnimationUsingKeyFrames" />
+        <xs:element ref="Int32AnimationUsingKeyFrames" />
+        <xs:element ref="ObjectAnimationUsingKeyFrames" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="doubleAnimationType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="DoubleAnimation.EasingFunction" />
+    </xs:sequence>
+    <xs:attribute name="From" type="xs:float" />
+    <xs:attribute name="To" type="xs:float" />
+    <xs:attribute name="By" type="xs:float" />
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="colorAnimationType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="ColorAnimation.EasingFunction" />
+    </xs:sequence>
+    <xs:attribute name="From" type="colorType" />
+    <xs:attribute name="To" type="colorType" />
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="pointAnimationType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="PointAnimation.EasingFunction" />
+    </xs:sequence>
+    <xs:attribute name="From" type="xs:string" />
+    <xs:attribute name="To" type="xs:string" />
+    <xs:attribute name="By" type="xs:string" />
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="thicknessAnimationType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="ThicknessAnimation.EasingFunction" />
+    </xs:sequence>
+    <xs:attribute name="From" type="thicknessType" />
+    <xs:attribute name="To" type="thicknessType" />
+    <xs:attribute name="By" type="thicknessType" />
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="int32AnimationType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="Int32Animation.EasingFunction" />
+    </xs:sequence>
+    <xs:attribute name="From" type="xs:int" />
+    <xs:attribute name="To" type="xs:int" />
+    <xs:attribute name="By" type="xs:int" />
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="doubleAnimationUsingKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="DoubleAnimationUsingKeyFrames.KeyFrames" />
+        <xs:element ref="LinearDoubleKeyFrame" />
+        <xs:element ref="DiscreteDoubleKeyFrame" />
+        <xs:element ref="SplineDoubleKeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="colorAnimationUsingKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="ColorAnimationUsingKeyFrames.KeyFrames" />
+        <xs:element ref="LinearColorKeyFrame" />
+        <xs:element ref="DiscreteColorKeyFrame" />
+        <xs:element ref="SplineColorKeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="pointAnimationUsingKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="PointAnimationUsingKeyFrames.KeyFrames" />
+        <xs:element ref="LinearPointKeyFrame" />
+        <xs:element ref="DiscretePointKeyFrame" />
+        <xs:element ref="SplinePointKeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="thicknessAnimationUsingKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="ThicknessAnimationUsingKeyFrames.KeyFrames" />
+        <xs:element ref="LinearThicknessKeyFrame" />
+        <xs:element ref="DiscreteThicknessKeyFrame" />
+        <xs:element ref="SplineThicknessKeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="int32AnimationUsingKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Int32AnimationUsingKeyFrames.KeyFrames" />
+        <xs:element ref="LinearInt32KeyFrame" />
+        <xs:element ref="DiscreteInt32KeyFrame" />
+        <xs:element ref="SplineInt32KeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="objectAnimationUsingKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="ObjectAnimationUsingKeyFrames.KeyFrames" />
+        <xs:element ref="DiscreteObjectKeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="BeginTime" type="xs:string" />
+    <xs:attribute name="Duration" type="xs:string" />
+    <xs:attribute name="RepeatBehavior" type="xs:string" />
+    <xs:attribute name="AutoReverse" type="xs:boolean" />
+    <xs:attribute name="FillBehavior" type="xs:string" />
+    <xs:attribute name="SpeedRatio" type="xs:float" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="objectKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="DiscreteObjectKeyFrame" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="objectKeyFrameType">
+    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:attribute name="KeyTime" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="doubleKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="LinearDoubleKeyFrame" />
+        <xs:element ref="DiscreteDoubleKeyFrame" />
+        <xs:element ref="SplineDoubleKeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="colorKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="LinearColorKeyFrame" />
+        <xs:element ref="DiscreteColorKeyFrame" />
+        <xs:element ref="SplineColorKeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="pointKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="LinearPointKeyFrame" />
+        <xs:element ref="DiscretePointKeyFrame" />
+        <xs:element ref="SplinePointKeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="thicknessKeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="LinearThicknessKeyFrame" />
+        <xs:element ref="DiscreteThicknessKeyFrame" />
+        <xs:element ref="SplineThicknessKeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="int32KeyFramesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="LinearInt32KeyFrame" />
+        <xs:element ref="DiscreteInt32KeyFrame" />
+        <xs:element ref="SplineInt32KeyFrame" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="doubleKeyFrameType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="SplineDoubleKeyFrame.KeySpline" />
+    </xs:sequence>
+    <xs:attribute name="Value" type="xs:float" use="required" />
+    <xs:attribute name="KeyTime" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="colorKeyFrameType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="SplineColorKeyFrame.KeySpline" />
+    </xs:sequence>
+    <xs:attribute name="Value" type="colorType" use="required" />
+    <xs:attribute name="KeyTime" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="pointKeyFrameType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="SplinePointKeyFrame.KeySpline" />
+    </xs:sequence>
+    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:attribute name="KeyTime" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="thicknessKeyFrameType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="SplineThicknessKeyFrame.KeySpline" />
+    </xs:sequence>
+    <xs:attribute name="Value" type="thicknessType" use="required" />
+    <xs:attribute name="KeyTime" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="int32KeyFrameType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="SplineInt32KeyFrame.KeySpline" />
+    </xs:sequence>
+    <xs:attribute name="Value" type="xs:int" use="required" />
+    <xs:attribute name="KeyTime" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="easingFunctionContainerType">
+    <xs:sequence minOccurs="1" maxOccurs="1">
+      <xs:choice>
+        <xs:element ref="KeySpline" />
+        <xs:element ref="SineEase" />
+        <xs:element ref="QuadraticEase" />
+        <xs:element ref="CubicEase" />
+        <xs:element ref="QuarticEase" />
+        <xs:element ref="QuinticEase" />
+        <xs:element ref="BackEase" />
+        <xs:element ref="BounceEase" />
+        <xs:element ref="CircleEase" />
+        <xs:element ref="ExponentialEase" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="easingFunctionType">
+    <xs:attribute name="EasingMode" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="keySplineType">
+    <xs:attribute name="ControlPoint1" type="xs:string" />
+    <xs:attribute name="ControlPoint2" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="backEaseType">
+    <xs:complexContent>
+      <xs:extension base="easingFunctionType">
+        <xs:attribute name="Amplitude" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="exponentialEaseType">
+    <xs:complexContent>
+      <xs:extension base="easingFunctionType">
+        <xs:attribute name="Exponent" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="bindingType">
+    <xs:attribute name="Path" type="xs:string" />
+    <xs:attribute name="Source" type="xs:string" />
+    <xs:attribute name="ElementName" type="xs:string" />
+    <xs:attribute name="RelativeSource" type="xs:string" />
+    <xs:attribute name="Mode" type="xs:string" />
+    <xs:attribute name="UpdateSourceTrigger" type="xs:string" />
+    <xs:attribute name="FallbackValue" type="xs:string" />
+    <xs:attribute name="TargetNullValue" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="userControlType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Width" type="xs:float" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="HorizontalAlignment" type="xs:string" />
+        <xs:attribute name="VerticalAlignment" type="xs:string" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="thicknessType" />
+        <xs:attribute name="Padding" type="thicknessType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="panelType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Background" type="colorType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="gridType">
+    <xs:complexContent>
+      <xs:extension base="panelType">
+        <xs:anyAttribute processContents="lax" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="gridSplitterType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="ResizeDirection" type="xs:string" />
+        <xs:attribute name="ResizeBehavior" type="xs:string" />
+        <xs:attribute name="KeyboardIncrement" type="xs:float" />
+        <xs:attribute name="DragIncrement" type="xs:float" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="Width" type="xs:float" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="HorizontalAlignment" type="xs:string" />
+        <xs:attribute name="VerticalAlignment" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="gridColumnDefinitionsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="ColumnDefinition" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="gridRowDefinitionsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="RowDefinition" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="columnDefinitionType">
+    <xs:attribute name="Width" type="xs:string" />
+    <xs:attribute name="MinWidth" type="xs:float" />
+    <xs:attribute name="MaxWidth" type="xs:float" />
+  </xs:complexType>
+
+  <xs:complexType name="rowDefinitionType">
+    <xs:attribute name="Height" type="xs:string" />
+    <xs:attribute name="MinHeight" type="xs:float" />
+    <xs:attribute name="MaxHeight" type="xs:float" />
+  </xs:complexType>
+
+  <xs:complexType name="stackPanelType">
+    <xs:complexContent>
+      <xs:extension base="panelType">
+        <xs:attribute name="Orientation" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="virtualizingStackPanelType">
+    <xs:complexContent>
+      <xs:extension base="stackPanelType">
+        <xs:attribute name="IsVirtualizing" type="xs:boolean" />
+        <xs:attribute name="VirtualizationMode" type="xs:string" />
+        <xs:attribute name="CacheLength" type="xs:float" />
+        <xs:attribute name="CacheLengthUnit" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="canvasType">
+    <xs:complexContent>
+      <xs:extension base="panelType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="dockPanelType">
+    <xs:complexContent>
+      <xs:extension base="panelType">
+        <xs:attribute name="LastChildFill" type="xs:boolean" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="wrapPanelType">
+    <xs:complexContent>
+      <xs:extension base="panelType">
+        <xs:attribute name="Orientation" type="xs:string" />
+        <xs:attribute name="ItemWidth" type="xs:float" />
+        <xs:attribute name="ItemHeight" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="uniformGridType">
+    <xs:complexContent>
+      <xs:extension base="panelType">
+        <xs:attribute name="Rows" type="xs:int" />
+        <xs:attribute name="Columns" type="xs:int" />
+        <xs:attribute name="FirstColumn" type="xs:int" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="borderType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="thicknessType" />
+        <xs:attribute name="Padding" type="thicknessType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="imageType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Source" type="xs:string" />
+        <xs:attribute name="Stretch" type="xs:string" />
+        <xs:attribute name="StretchDirection" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="shapeType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Fill" type="colorType" />
+        <xs:attribute name="Stroke" type="colorType" />
+        <xs:attribute name="StrokeThickness" type="xs:float" />
+        <xs:attribute name="Stretch" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="rectangleType">
+    <xs:complexContent>
+      <xs:extension base="shapeType">
+        <xs:attribute name="RadiusX" type="xs:float" />
+        <xs:attribute name="RadiusY" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="ellipseType">
+    <xs:complexContent>
+      <xs:extension base="shapeType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="lineType">
+    <xs:complexContent>
+      <xs:extension base="shapeType">
+        <xs:attribute name="X1" type="xs:float" />
+        <xs:attribute name="Y1" type="xs:float" />
+        <xs:attribute name="X2" type="xs:float" />
+        <xs:attribute name="Y2" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="polygonType">
+    <xs:complexContent>
+      <xs:extension base="shapeType">
+        <xs:attribute name="Points" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="polylineType">
+    <xs:complexContent>
+      <xs:extension base="shapeType">
+        <xs:attribute name="Points" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="pathType">
+    <xs:complexContent>
+      <xs:extension base="shapeType">
+        <xs:sequence minOccurs="0" maxOccurs="unbounded">
+          <xs:choice>
+            <xs:element ref="Path.Data" />
+          </xs:choice>
+        </xs:sequence>
+        <xs:attribute name="Data" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="pathDataType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:choice>
+        <xs:element ref="PathGeometry" />
+        <xs:element ref="GeometryGroup" />
+        <xs:element ref="CombinedGeometry" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="pathGeometryType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Geometry.Transform" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="Data" type="xs:string" />
+    <xs:attribute name="FillRule" type="xs:string" />
+  </xs:complexType>
+
+  <xs:complexType name="geometryGroupType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Geometry.Transform" />
+        <xs:element ref="GeometryGroup.Children" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="FillRule" type="xs:string" />
+  </xs:complexType>
+
+  <xs:complexType name="geometryGroupChildrenType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="PathGeometry" />
+        <xs:element ref="GeometryGroup" />
+        <xs:element ref="CombinedGeometry" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="combinedGeometryType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Geometry.Transform" />
+        <xs:element ref="CombinedGeometry.Geometry1" />
+        <xs:element ref="CombinedGeometry.Geometry2" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="GeometryCombineMode" type="xs:string" />
+  </xs:complexType>
+
+  <xs:complexType name="combinedGeometryChildType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:choice>
+        <xs:element ref="PathGeometry" />
+        <xs:element ref="GeometryGroup" />
+        <xs:element ref="CombinedGeometry" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="geometryTransformType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:choice>
+        <xs:element ref="MatrixTransform" />
+        <xs:element ref="TranslateTransform" />
+        <xs:element ref="ScaleTransform" />
+        <xs:element ref="RotateTransform" />
+        <xs:element ref="SkewTransform" />
+        <xs:element ref="TransformGroup" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="matrixTransformType">
+    <xs:attribute name="Matrix" type="xs:string" />
+  </xs:complexType>
+
+  <xs:complexType name="translateTransformType">
+    <xs:attribute name="X" type="xs:float" />
+    <xs:attribute name="Y" type="xs:float" />
+  </xs:complexType>
+
+  <xs:complexType name="scaleTransformType">
+    <xs:attribute name="ScaleX" type="xs:float" />
+    <xs:attribute name="ScaleY" type="xs:float" />
+    <xs:attribute name="CenterX" type="xs:float" />
+    <xs:attribute name="CenterY" type="xs:float" />
+  </xs:complexType>
+
+  <xs:complexType name="rotateTransformType">
+    <xs:attribute name="Angle" type="xs:float" />
+    <xs:attribute name="CenterX" type="xs:float" />
+    <xs:attribute name="CenterY" type="xs:float" />
+  </xs:complexType>
+
+  <xs:complexType name="skewTransformType">
+    <xs:attribute name="AngleX" type="xs:float" />
+    <xs:attribute name="AngleY" type="xs:float" />
+    <xs:attribute name="CenterX" type="xs:float" />
+    <xs:attribute name="CenterY" type="xs:float" />
+  </xs:complexType>
+
+  <xs:complexType name="transformGroupType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="TransformGroup.Children" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="transformGroupChildrenType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="MatrixTransform" />
+        <xs:element ref="TranslateTransform" />
+        <xs:element ref="ScaleTransform" />
+        <xs:element ref="RotateTransform" />
+        <xs:element ref="SkewTransform" />
+        <xs:element ref="TransformGroup" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="labelType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Text" type="xs:string" />
+        <xs:attribute name="TextWrapping" type="textWrappingType" />
+        <xs:attribute name="Margin" type="thicknessType" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="HorizontalAlignment" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="textBlockType">
+    <xs:complexContent>
+      <xs:extension base="labelType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="buttonType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Text" type="xs:string" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="Margin" type="thicknessType" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="Click" type="xs:string" />
+        <xs:attribute name="Command" type="xs:string" />
+        <xs:attribute name="CommandParameter" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="toggleButtonType">
+    <xs:complexContent>
+      <xs:extension base="buttonType">
+        <xs:attribute name="IsChecked" type="xs:string" />
+        <xs:attribute name="IsThreeState" type="xs:boolean" />
+        <xs:attribute name="Checked" type="xs:string" />
+        <xs:attribute name="Unchecked" type="xs:string" />
+        <xs:attribute name="Indeterminate" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="checkBoxType">
+    <xs:complexContent>
+      <xs:extension base="toggleButtonType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="radioButtonType">
+    <xs:complexContent>
+      <xs:extension base="toggleButtonType">
+        <xs:attribute name="GroupName" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="comboBoxItemType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Text" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="comboBoxType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="SelectedIndex" type="xs:int" />
+        <xs:attribute name="IsDropDownOpen" type="xs:boolean" />
+        <xs:attribute name="MaxDropDownHeight" type="xs:float" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+        <xs:attribute name="Padding" type="thicknessType" />
+        <xs:attribute name="SelectionChanged" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="textBoxType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Text" type="xs:string" />
+        <xs:attribute name="TextWrapping" type="textWrappingType" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="Margin" type="thicknessType" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+        <xs:attribute name="Padding" type="thicknessType" />
+        <xs:attribute name="IsReadOnly" type="xs:boolean" />
+        <xs:attribute name="MaxLength" type="xs:int" />
+        <xs:attribute name="TextChanged" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="contentPresenterType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Content" type="xs:string" />
+        <xs:attribute name="ContentSource" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="itemsPresenterType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="headeredContentControlType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Header" type="xs:string" />
+        <xs:attribute name="Content" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="headeredItemsControlType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Header" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="scrollBarType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Orientation" type="xs:string" />
+        <xs:attribute name="Minimum" type="xs:float" />
+        <xs:attribute name="Maximum" type="xs:float" />
+        <xs:attribute name="Value" type="xs:float" />
+        <xs:attribute name="ViewportSize" type="xs:float" />
+        <xs:attribute name="SmallChange" type="xs:float" />
+        <xs:attribute name="LargeChange" type="xs:float" />
+        <xs:attribute name="Thickness" type="xs:float" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="TrackBrush" type="colorType" />
+        <xs:attribute name="ThumbBrush" type="colorType" />
+        <xs:attribute name="ValueChanged" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="scrollViewerType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="HorizontalOffset" type="xs:float" />
+        <xs:attribute name="VerticalOffset" type="xs:float" />
+        <xs:attribute name="LineScrollAmount" type="xs:float" />
+        <xs:attribute name="HorizontalScrollBarVisibility" type="xs:string" />
+        <xs:attribute name="VerticalScrollBarVisibility" type="xs:string" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="viewboxType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Stretch" type="xs:string" />
+        <xs:attribute name="StretchDirection" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="separatorType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Orientation" type="xs:string" />
+        <xs:attribute name="Thickness" type="xs:float" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="Width" type="xs:float" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="Margin" type="thicknessType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="sliderType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Orientation" type="xs:string" />
+        <xs:attribute name="Minimum" type="xs:float" />
+        <xs:attribute name="Maximum" type="xs:float" />
+        <xs:attribute name="Value" type="xs:float" />
+        <xs:attribute name="SmallChange" type="xs:float" />
+        <xs:attribute name="LargeChange" type="xs:float" />
+        <xs:attribute name="IsSnapToTickEnabled" type="xs:boolean" />
+        <xs:attribute name="TickFrequency" type="xs:float" />
+        <xs:attribute name="IsMoveToPointEnabled" type="xs:boolean" />
+        <xs:attribute name="TrackThickness" type="xs:float" />
+        <xs:attribute name="ThumbSize" type="xs:float" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="TrackBrush" type="colorType" />
+        <xs:attribute name="ThumbBrush" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="Width" type="xs:float" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="Margin" type="thicknessType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="expanderType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Header" type="xs:string" />
+        <xs:attribute name="IsExpanded" type="xs:boolean" />
+        <xs:attribute name="ExpandDirection" type="xs:string" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="HeaderBackground" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+        <xs:attribute name="Padding" type="thicknessType" />
+        <xs:attribute name="HeaderPadding" type="thicknessType" />
+        <xs:attribute name="Width" type="xs:float" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="Margin" type="thicknessType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="listBoxItemType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="SelectedBackground" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="Padding" type="thicknessType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="listBoxType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+        <xs:attribute name="SelectedIndex" type="xs:int" />
+        <xs:attribute name="SelectionMode" type="xs:string" />
+        <xs:attribute name="SelectionChanged" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="tabItemType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Header" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="listViewItemType">
+    <xs:complexContent>
+      <xs:extension base="listBoxItemType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="listViewType">
+    <xs:complexContent>
+      <xs:extension base="listBoxType">
+        <xs:attribute name="View" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="tabControlType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="SelectedIndex" type="xs:int" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="treeViewItemType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Header" type="xs:string" />
+        <xs:attribute name="IsExpanded" type="xs:boolean" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="treeViewType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+        <xs:attribute name="SelectedItemChanged" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="popupType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Title" type="xs:string" />
+        <xs:attribute name="Left" type="xs:float" />
+        <xs:attribute name="Top" type="xs:float" />
+        <xs:attribute name="Width" type="xs:float" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="PlacementMode" type="xs:string" />
+        <xs:attribute name="HorizontalOffset" type="xs:float" />
+        <xs:attribute name="VerticalOffset" type="xs:float" />
+        <xs:attribute name="DismissOnOutsideClick" type="xs:boolean" />
+        <xs:attribute name="CanClose" type="xs:boolean" />
+        <xs:attribute name="CanDragMove" type="xs:boolean" />
+        <xs:attribute name="TitleBarHeight" type="xs:float" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="TitleBarBackground" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+        <xs:attribute name="Padding" type="thicknessType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="contextMenuType">
+    <xs:complexContent>
+      <xs:extension base="listBoxType">
+        <xs:attribute name="IsOpen" type="xs:boolean" />
+        <xs:attribute name="StaysOpen" type="xs:boolean" />
+        <xs:attribute name="PlacementMode" type="xs:string" />
+        <xs:attribute name="HorizontalOffset" type="xs:float" />
+        <xs:attribute name="VerticalOffset" type="xs:float" />
+        <xs:attribute name="Left" type="xs:float" />
+        <xs:attribute name="Top" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="progressBarType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Orientation" type="xs:string" />
+        <xs:attribute name="Minimum" type="xs:float" />
+        <xs:attribute name="Maximum" type="xs:float" />
+        <xs:attribute name="Value" type="xs:float" />
+        <xs:attribute name="IsIndeterminate" type="xs:boolean" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="resizeGripType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="GripSize" type="xs:float" />
+        <xs:attribute name="ResizeIncrement" type="xs:float" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="Foreground" type="colorType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="thumbType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="DragStarted" type="xs:string" />
+        <xs:attribute name="DragDelta" type="xs:string" />
+        <xs:attribute name="DragCompleted" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="toolTipType">
+    <xs:complexContent>
+      <xs:extension base="popupType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:element name="UserControl" type="userControlType" />
+  <xs:element name="Panel" type="panelType" />
+  <xs:element name="Grid" type="gridType" />
+  <xs:element name="GridSplitter" type="gridSplitterType" />
+  <xs:element name="Grid.ColumnDefinitions" type="gridColumnDefinitionsType" />
+  <xs:element name="Grid.RowDefinitions" type="gridRowDefinitionsType" />
+  <xs:element name="UserControl.Resources" type="resourcesType" />
+  <xs:element name="Panel.Resources" type="resourcesType" />
+  <xs:element name="Grid.Resources" type="resourcesType" />
+  <xs:element name="StackPanel.Resources" type="resourcesType" />
+  <xs:element name="Border.Resources" type="resourcesType" />
+  <xs:element name="ColumnDefinition" type="columnDefinitionType" />
+  <xs:element name="RowDefinition" type="rowDefinitionType" />
+  <xs:element name="Style" type="styleType" />
+  <xs:element name="DataTemplate" type="dataTemplateType" />
+  <xs:element name="Style.Setters" type="styleSettersType" />
+  <xs:element name="Style.Triggers" type="styleTriggersType" />
+  <xs:element name="Setter" type="setterType" />
+  <xs:element name="Trigger" type="triggerType" />
+  <xs:element name="Trigger.Setters" type="triggerSettersType" />
+  <xs:element name="Trigger.EnterActions" type="triggerActionsType" />
+  <xs:element name="Trigger.ExitActions" type="triggerActionsType" />
+  <xs:element name="DataTrigger" type="dataTriggerType" />
+  <xs:element name="DataTrigger.Binding" type="dataTriggerBindingType" />
+  <xs:element name="DataTrigger.Setters" type="dataTriggerSettersType" />
+  <xs:element name="DataTrigger.EnterActions" type="triggerActionsType" />
+  <xs:element name="DataTrigger.ExitActions" type="triggerActionsType" />
+  <xs:element name="MultiDataTrigger" type="multiDataTriggerType" />
+  <xs:element name="MultiDataTrigger.Conditions" type="multiDataTriggerConditionsType" />
+  <xs:element name="MultiDataTrigger.Setters" type="triggerSettersType" />
+  <xs:element name="MultiDataTrigger.EnterActions" type="triggerActionsType" />
+  <xs:element name="MultiDataTrigger.ExitActions" type="triggerActionsType" />
+  <xs:element name="EventTrigger" type="eventTriggerType" />
+  <xs:element name="EventTrigger.Actions" type="eventTriggerActionsType" />
+  <xs:element name="Condition" type="conditionType" />
+  <xs:element name="Condition.Binding" type="conditionBindingType" />
+  <xs:element name="SetValueAction" type="setValueActionType" />
+  <xs:element name="BeginStoryboard" type="beginStoryboardActionType" />
+  <xs:element name="StopStoryboard" type="namedStoryboardActionType" />
+  <xs:element name="PauseStoryboard" type="namedStoryboardActionType" />
+  <xs:element name="ResumeStoryboard" type="namedStoryboardActionType" />
+  <xs:element name="SeekStoryboard" type="seekStoryboardActionType" />
+  <xs:element name="RemoveStoryboard" type="namedStoryboardActionType" />
+  <xs:element name="Storyboard" type="storyboardType" />
+  <xs:element name="Storyboard.Children" type="storyboardChildrenType" />
+  <xs:element name="DoubleAnimation" type="doubleAnimationType" />
+  <xs:element name="ColorAnimation" type="colorAnimationType" />
+  <xs:element name="PointAnimation" type="pointAnimationType" />
+  <xs:element name="ThicknessAnimation" type="thicknessAnimationType" />
+  <xs:element name="Int32Animation" type="int32AnimationType" />
+  <xs:element name="DoubleAnimation.EasingFunction" type="easingFunctionContainerType" />
+  <xs:element name="ColorAnimation.EasingFunction" type="easingFunctionContainerType" />
+  <xs:element name="PointAnimation.EasingFunction" type="easingFunctionContainerType" />
+  <xs:element name="ThicknessAnimation.EasingFunction" type="easingFunctionContainerType" />
+  <xs:element name="Int32Animation.EasingFunction" type="easingFunctionContainerType" />
+  <xs:element name="DoubleAnimationUsingKeyFrames" type="doubleAnimationUsingKeyFramesType" />
+  <xs:element name="ColorAnimationUsingKeyFrames" type="colorAnimationUsingKeyFramesType" />
+  <xs:element name="PointAnimationUsingKeyFrames" type="pointAnimationUsingKeyFramesType" />
+  <xs:element name="ThicknessAnimationUsingKeyFrames" type="thicknessAnimationUsingKeyFramesType" />
+  <xs:element name="Int32AnimationUsingKeyFrames" type="int32AnimationUsingKeyFramesType" />
+  <xs:element name="ObjectAnimationUsingKeyFrames" type="objectAnimationUsingKeyFramesType" />
+  <xs:element name="DoubleAnimationUsingKeyFrames.KeyFrames" type="doubleKeyFramesType" />
+  <xs:element name="ColorAnimationUsingKeyFrames.KeyFrames" type="colorKeyFramesType" />
+  <xs:element name="PointAnimationUsingKeyFrames.KeyFrames" type="pointKeyFramesType" />
+  <xs:element name="ThicknessAnimationUsingKeyFrames.KeyFrames" type="thicknessKeyFramesType" />
+  <xs:element name="Int32AnimationUsingKeyFrames.KeyFrames" type="int32KeyFramesType" />
+  <xs:element name="ObjectAnimationUsingKeyFrames.KeyFrames" type="objectKeyFramesType" />
+  <xs:element name="LinearDoubleKeyFrame" type="doubleKeyFrameType" />
+  <xs:element name="DiscreteDoubleKeyFrame" type="doubleKeyFrameType" />
+  <xs:element name="SplineDoubleKeyFrame" type="doubleKeyFrameType" />
+  <xs:element name="SplineDoubleKeyFrame.KeySpline" type="easingFunctionContainerType" />
+  <xs:element name="LinearColorKeyFrame" type="colorKeyFrameType" />
+  <xs:element name="DiscreteColorKeyFrame" type="colorKeyFrameType" />
+  <xs:element name="SplineColorKeyFrame" type="colorKeyFrameType" />
+  <xs:element name="SplineColorKeyFrame.KeySpline" type="easingFunctionContainerType" />
+  <xs:element name="LinearPointKeyFrame" type="pointKeyFrameType" />
+  <xs:element name="DiscretePointKeyFrame" type="pointKeyFrameType" />
+  <xs:element name="SplinePointKeyFrame" type="pointKeyFrameType" />
+  <xs:element name="SplinePointKeyFrame.KeySpline" type="easingFunctionContainerType" />
+  <xs:element name="LinearThicknessKeyFrame" type="thicknessKeyFrameType" />
+  <xs:element name="DiscreteThicknessKeyFrame" type="thicknessKeyFrameType" />
+  <xs:element name="SplineThicknessKeyFrame" type="thicknessKeyFrameType" />
+  <xs:element name="SplineThicknessKeyFrame.KeySpline" type="easingFunctionContainerType" />
+  <xs:element name="LinearInt32KeyFrame" type="int32KeyFrameType" />
+  <xs:element name="DiscreteInt32KeyFrame" type="int32KeyFrameType" />
+  <xs:element name="SplineInt32KeyFrame" type="int32KeyFrameType" />
+  <xs:element name="SplineInt32KeyFrame.KeySpline" type="easingFunctionContainerType" />
+  <xs:element name="DiscreteObjectKeyFrame" type="objectKeyFrameType" />
+  <xs:element name="KeySpline" type="keySplineType" />
+  <xs:element name="SineEase" type="easingFunctionType" />
+  <xs:element name="QuadraticEase" type="easingFunctionType" />
+  <xs:element name="CubicEase" type="easingFunctionType" />
+  <xs:element name="QuarticEase" type="easingFunctionType" />
+  <xs:element name="QuinticEase" type="easingFunctionType" />
+  <xs:element name="BackEase" type="backEaseType" />
+  <xs:element name="BounceEase" type="easingFunctionType" />
+  <xs:element name="CircleEase" type="easingFunctionType" />
+  <xs:element name="ExponentialEase" type="exponentialEaseType" />
+  <xs:element name="Binding" type="bindingType" />
+  <xs:element name="StackPanel" type="stackPanelType" />
+  <xs:element name="VirtualizingStackPanel" type="virtualizingStackPanelType" />
+  <xs:element name="Canvas" type="canvasType" />
+  <xs:element name="DockPanel" type="dockPanelType" />
+  <xs:element name="WrapPanel" type="wrapPanelType" />
+  <xs:element name="UniformGrid" type="uniformGridType" />
+  <xs:element name="Border" type="borderType" />
+  <xs:element name="Image" type="imageType" />
+  <xs:element name="Rectangle" type="rectangleType" />
+  <xs:element name="Ellipse" type="ellipseType" />
+  <xs:element name="Line" type="lineType" />
+  <xs:element name="Polygon" type="polygonType" />
+  <xs:element name="Polyline" type="polylineType" />
+  <xs:element name="Path" type="pathType" />
+  <xs:element name="Path.Data" type="pathDataType" />
+  <xs:element name="PathGeometry" type="pathGeometryType" />
+  <xs:element name="GeometryGroup" type="geometryGroupType" />
+  <xs:element name="GeometryGroup.Children" type="geometryGroupChildrenType" />
+  <xs:element name="CombinedGeometry" type="combinedGeometryType" />
+  <xs:element name="CombinedGeometry.Geometry1" type="combinedGeometryChildType" />
+  <xs:element name="CombinedGeometry.Geometry2" type="combinedGeometryChildType" />
+  <xs:element name="Geometry.Transform" type="geometryTransformType" />
+  <xs:element name="MatrixTransform" type="matrixTransformType" />
+  <xs:element name="TranslateTransform" type="translateTransformType" />
+  <xs:element name="ScaleTransform" type="scaleTransformType" />
+  <xs:element name="RotateTransform" type="rotateTransformType" />
+  <xs:element name="SkewTransform" type="skewTransformType" />
+  <xs:element name="TransformGroup" type="transformGroupType" />
+  <xs:element name="TransformGroup.Children" type="transformGroupChildrenType" />
+  <xs:element name="Label" type="labelType" />
+  <xs:element name="TextBlock" type="textBlockType" />
+  <xs:element name="Button" type="buttonType" />
+  <xs:element name="ToggleButton" type="toggleButtonType" />
+  <xs:element name="CheckBox" type="checkBoxType" />
+  <xs:element name="RadioButton" type="radioButtonType" />
+  <xs:element name="ComboBoxItem" type="comboBoxItemType" />
+  <xs:element name="ComboBox" type="comboBoxType" />
+  <xs:element name="TextBox" type="textBoxType" />
+  <xs:element name="HeaderedContentControl" type="headeredContentControlType" />
+  <xs:element name="HeaderedItemsControl" type="headeredItemsControlType" />
+  <xs:element name="ContentPresenter" type="contentPresenterType" />
+  <xs:element name="ItemsPresenter" type="itemsPresenterType" />
+  <xs:element name="ScrollBar" type="scrollBarType" />
+  <xs:element name="ScrollViewer" type="scrollViewerType" />
+  <xs:element name="Viewbox" type="viewboxType" />
+  <xs:element name="Separator" type="separatorType" />
+  <xs:element name="Slider" type="sliderType" />
+  <xs:element name="Expander" type="expanderType" />
+  <xs:element name="ListBoxItem" type="listBoxItemType" />
+  <xs:element name="ListBox" type="listBoxType" />
+  <xs:element name="ListViewItem" type="listViewItemType" />
+  <xs:element name="ListView" type="listViewType" />
+  <xs:element name="TabItem" type="tabItemType" />
+  <xs:element name="TabControl" type="tabControlType" />
+  <xs:element name="TreeViewItem" type="treeViewItemType" />
+  <xs:element name="TreeView" type="treeViewType" />
+  <xs:element name="Popup" type="popupType" />
+  <xs:element name="ContextMenu" type="contextMenuType" />
+  <xs:element name="ProgressBar" type="progressBarType" />
+  <xs:element name="ResizeGrip" type="resizeGripType" />
+  <xs:element name="Thumb" type="thumbType" />
+  <xs:element name="ToolTip" type="toolTipType" />
+</xs:schema>

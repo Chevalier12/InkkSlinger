@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0B1421"
+             BorderBrush="#2A4A66"
+             BorderThickness="1"
+             Padding="8">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Menu Grid.Row="0" Background="#122134" BorderBrush="#35587A" BorderThickness="1" Padding="4,2,4,2" Margin="0,0,0,6">
+      <MenuItem Header="File">
+        <MenuItem Header="New" InputGestureText="Ctrl+N" Click="OnFileNewClick" />
+        <MenuItem Header="Open" InputGestureText="Ctrl+O" Click="OnFileOpenClick" />
+        <MenuItem Header="Save" InputGestureText="Ctrl+S" Click="OnFileSaveClick" />
+        <MenuItem Header="Exit" InputGestureText="Alt+F4" Click="OnFileExitClick" />
+      </MenuItem>
+      <MenuItem Header="Edit">
+        <MenuItem Header="Undo" InputGestureText="Ctrl+Z" Click="OnEditUndoClick" />
+        <MenuItem Header="Redo" InputGestureText="Ctrl+Y" Click="OnEditRedoClick" />
+      </MenuItem>
+      <MenuItem Header="View">
+        <MenuItem Header="Zoom In" InputGestureText="Ctrl++" Click="OnViewZoomInClick" />
+        <MenuItem Header="Zoom Out" InputGestureText="Ctrl+-" Click="OnViewZoomOutClick" />
+      </MenuItem>
+    </Menu>
+
+    <ToolBarTray Grid.Row="1" Orientation="Vertical" BandSpacing="4" Margin="0,0,0,6">
+      <ToolBar Height="32" Padding="4,2,4,2" Background="#122134" BorderBrush="#35587A">
+        <Button Text="Select" Click="OnToolSelectClick" Width="72" />
+        <Button Text="Brush" Click="OnToolBrushClick" Width="72" />
+        <Button Text="Eraser" Click="OnToolEraserClick" Width="72" />
+        <Separator Orientation="Vertical" Thickness="1" Height="22" Margin="2,0,2,0" />
+        <RepeatButton Text="Zoom +" RepeatDelay="0.2" RepeatInterval="0.06" Width="82" Click="OnZoomPlusClick" />
+        <RepeatButton Text="Zoom -" RepeatDelay="0.2" RepeatInterval="0.06" Width="82" Click="OnZoomMinusClick" />
+      </ToolBar>
+    </ToolBarTray>
+
+    <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="250" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="300" />
+      </Grid.ColumnDefinitions>
+
+      <GroupBox Grid.Column="0" Header="Tools" Margin="0,0,6,0" BorderBrush="#35587A" Background="#0F1C2C">
+        <StackPanel Margin="4">
+          <Button Text="Rectangle" Click="OnShapeRectangleClick" Margin="0,0,0,4" />
+          <Button Text="Ellipse" Click="OnShapeEllipseClick" Margin="0,0,0,4" />
+          <Button Text="Line" Click="OnShapeLineClick" Margin="0,0,0,8" />
+          <Separator Margin="0,2,0,8" />
+          <Label Text="Primary: #3DA9FC" Foreground="#A6CFF1" />
+          <Label Text="Secondary: #EF4565" Foreground="#A6CFF1" Margin="0,2,0,0" />
+          <Label Text="Brush Size: 4 px" Foreground="#A6CFF1" Margin="0,2,0,0" />
+        </StackPanel>
+      </GroupBox>
+
+      <GroupBox Grid.Column="1" Header="Canvas" Margin="0,0,6,0" BorderBrush="#35587A" Background="#0F1C2C">
+        <AdornerDecorator x:Name="CanvasAdornerRoot">
+          <ScrollViewer x:Name="DrawingScrollViewer"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto"
+                        Background="#0A1522"
+                        BorderBrush="#294764"
+                        BorderThickness="1">
+            <Canvas x:Name="DrawingCanvas" Width="1800" Height="1200" Background="#102238">
+              <Border x:Name="SelectedShape"
+                      Width="220"
+                      Height="140"
+                      Background="#2B5A84"
+                      BorderBrush="#8EC8F5"
+                      BorderThickness="2"
+                      Canvas.Left="140"
+                      Canvas.Top="110" />
+              <Border x:Name="OtherShape"
+                      Width="180"
+                      Height="100"
+                      Background="#74426A"
+                      BorderBrush="#D89ACB"
+                      BorderThickness="2"
+                      Canvas.Left="480"
+                      Canvas.Top="300" />
+            </Canvas>
+          </ScrollViewer>
+        </AdornerDecorator>
+      </GroupBox>
+
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <GroupBox Grid.Row="0" Header="Layers" Margin="0,0,0,6" BorderBrush="#35587A" Background="#0F1C2C">
+          <DataGrid x:Name="LayersGrid"
+                    SelectionUnit="FullRow"
+                    ShowRowHeaders="True"
+                    RowHeight="24"
+                    ColumnHeaderHeight="26">
+            <DataGrid.Columns>
+              <DataGridColumn Header="Layer" BindingPath="Name" Width="120" />
+              <DataGridColumn Header="Visible" BindingPath="Visible" Width="70" />
+              <DataGridColumn Header="Opacity" BindingPath="Opacity" Width="80" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </GroupBox>
+
+        <GroupBox Grid.Row="1" Header="History" BorderBrush="#35587A" Background="#0F1C2C">
+          <DataGrid x:Name="HistoryGrid"
+                    SelectionUnit="FullRow"
+                    ShowRowHeaders="True"
+                    RowHeight="24"
+                    ColumnHeaderHeight="26">
+            <DataGrid.Columns>
+              <DataGridColumn Header="Action" BindingPath="Action" Width="170" />
+              <DataGridColumn Header="Time" BindingPath="Time" Width="90" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </GroupBox>
+      </Grid>
+    </Grid>
+
+    <StatusBar Grid.Row="3" Margin="0,6,0,0" Background="#122134" BorderBrush="#35587A">
+      <StatusBarItem x:Name="StatusTextItem" Content="Ready" />
+      <StatusBarItem Content="100%" HorizontalContentAlignment="Right" />
+      <StatusBarItem Content="RGB" HorizontalContentAlignment="Right" />
+      <StatusBarItem x:Name="MouseStatusItem" Content="X: 0 Y: 0" HorizontalContentAlignment="Right" />
+    </StatusBar>
+  </Grid>
+</UserControl>

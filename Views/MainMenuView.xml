@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0A1220"
+             BorderBrush="#2B4762"
+             BorderThickness="1"
+             Padding="14">
+  <UserControl.Resources>
+    <Style TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#DCEEFF" />
+      </Style.Setters>
+    </Style>
+
+    <Style TargetType="Button">
+      <Style.Setters>
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Foreground" Value="#EAF6FF" />
+        <Setter Property="Background" Value="#1A3856" />
+        <Setter Property="BorderBrush" Value="#4E789F" />
+      </Style.Setters>
+      <Style.Triggers>
+        <Trigger Property="IsEnabled" Value="False">
+          <Trigger.Setters>
+            <Setter Property="Background" Value="#253141" />
+            <Setter Property="BorderBrush" Value="#3B4E64" />
+            <Setter Property="Foreground" Value="#8FA7BC" />
+          </Trigger.Setters>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+  </UserControl.Resources>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Background="#111E31"
+            BorderBrush="#2F506F"
+            BorderThickness="1"
+            Padding="12"
+            Margin="0,0,0,10">
+      <StackPanel>
+        <Label Text="{Binding Title}" Foreground="#EDF8FF" />
+        <Label Text="{Binding Description}" Foreground="#B7D2E8" Margin="0,4,0,0" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="320" />
+        <ColumnDefinition Width="10" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0"
+              Background="#101D30"
+              BorderBrush="#2F506F"
+              BorderThickness="1"
+              Padding="12">
+        <StackPanel>
+          <Label Text="Document Actions" Foreground="#E6F5FF" />
+          <Separator Foreground="#3A5C7F" Margin="0,8,0,10" />
+
+          <Button Text="Load 10,000 Lines" Click="OnLoadTenThousandLinesClick" Margin="0,0,0,8" />
+          <Button Text="Load 50,000 Lines" Click="OnLoadFiftyThousandLinesClick" Margin="0,0,0,8" />
+          <Button Text="Append 5,000 Lines" Click="OnAppendFiveThousandLinesClick" Margin="0,0,0,8" />
+          <Button Text="Clear" Click="OnClearClick" Margin="0,0,0,8" />
+
+          <Separator Foreground="#3A5C7F" Margin="0,4,0,10" />
+
+          <Button Text="Toggle Wrap" Click="OnToggleWrapClick" Margin="0,0,0,8" />
+          <Button Text="Copy Telemetry" Click="OnCopyTelemetryClick" Margin="0,0,0,8" />
+          <Button Text="Reset Perf Counters" Click="OnResetPerfCountersClick" Margin="0,0,0,8" />
+
+          <Separator Foreground="#3A5C7F" Margin="0,8,0,10" />
+
+          <Label Text="{Binding DocumentStatsText}" Foreground="#D9ECFF" />
+          <Label Text="{Binding ViewportStatsText}" Foreground="#BAD4EB" Margin="0,4,0,0" />
+          <Label Text="{Binding WrappingText}" Foreground="#BAD4EB" Margin="0,4,0,0" />
+          <Label Text="{Binding InputTimingText}" Foreground="#9FC4E2" Margin="0,8,0,0" TextWrapping="Wrap" />
+          <Label Text="{Binding RenderTimingText}" Foreground="#9FC4E2" Margin="0,4,0,0" TextWrapping="Wrap" />
+          <Label Text="{Binding ViewportTimingText}" Foreground="#9FC4E2" Margin="0,4,0,0" TextWrapping="Wrap" />
+          <Label Text="{Binding CaretTimingText}" Foreground="#9FC4E2" Margin="0,4,0,0" TextWrapping="Wrap" />
+          <Label Text="{Binding FrameLoopTimingText}" Foreground="#9FC4E2" Margin="0,6,0,0" TextWrapping="NoWrap" />
+          <Label Text="{Binding HitchLogText}" Foreground="#F8C89E" Margin="0,4,0,0" TextWrapping="NoWrap" />
+        </StackPanel>
+      </Border>
+
+      <Separator Grid.Column="1" Orientation="Vertical" Foreground="#2A4661" />
+
+      <Border Grid.Column="2"
+              Background="#0F1B2B"
+              BorderBrush="#2F506F"
+              BorderThickness="1"
+              Padding="10">
+        <TextBox x:Name="DemoTextBox"
+                 TextWrapping="Wrap"
+                 HorizontalScrollBarVisibility="Auto"
+                 VerticalScrollBarVisibility="Auto"
+                 Background="#0A1421"
+                 BorderBrush="#294764"
+                 BorderThickness="1"
+                 Padding="10"
+                 TextChanged="OnDemoTextChanged" />
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2"
+            Background="#101C2D"
+            BorderBrush="#2A4967"
+            BorderThickness="1"
+            Padding="10"
+            Margin="0,10,0,0">
+      <Label Text="{Binding Status}" Foreground="#C8DDF1" TextWrapping="Wrap" />
+    </Border>
+  </Grid>
+</UserControl>

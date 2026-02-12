@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="http://schemas.microsoft.com/winfx/2006/xaml"
+           xmlns="http://schemas.microsoft.com/winfx/2006/xaml"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+
+  <xs:attribute name="Name" type="xs:string" />
+  <xs:attribute name="Key" type="xs:string" />
+  <xs:attribute name="Type" type="xs:string" />
+
+</xs:schema>
