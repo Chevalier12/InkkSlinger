@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -8,6 +9,32 @@ namespace InkkSlinger;
 
 public class ListBox : Selector
 {
+    private static readonly bool EnableListBoxTrace = false;
+
+    public static readonly DependencyProperty HorizontalScrollBarVisibilityProperty =
+        DependencyProperty.Register(
+            nameof(HorizontalScrollBarVisibility),
+            typeof(ScrollBarVisibility),
+            typeof(ListBox),
+            new FrameworkPropertyMetadata(ScrollBarVisibility.Disabled, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+
+    public static readonly DependencyProperty VerticalScrollBarVisibilityProperty =
+        DependencyProperty.Register(
+            nameof(VerticalScrollBarVisibility),
+            typeof(ScrollBarVisibility),
+            typeof(ListBox),
+            new FrameworkPropertyMetadata(ScrollBarVisibility.Auto, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+
+    public static readonly DependencyProperty LineScrollAmountProperty =
+        DependencyProperty.Register(
+            nameof(LineScrollAmount),
+            typeof(float),
+            typeof(ListBox),
+            new FrameworkPropertyMetadata(
+                24f,
+                FrameworkPropertyMetadataOptions.None,
+                coerceValueCallback: static (_, value) => value is float amount && amount > 0f ? amount : 1f));
+
     public static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
@@ -32,9 +59,44 @@ public class ListBox : Selector
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float f && f >= 0f ? f : 0f));
 
+    private readonly ScrollViewer _scrollViewer;
+    private readonly ItemsPresenter _itemsPresenter;
+
     public ListBox()
     {
         Focusable = true;
+
+        _itemsPresenter = new ItemsPresenter();
+        _scrollViewer = new ScrollViewer
+        {
+            Content = _itemsPresenter,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            LineScrollAmount = 24f,
+            BorderThickness = 0f,
+            Background = Color.Transparent
+        };
+
+        _scrollViewer.SetVisualParent(this);
+        _scrollViewer.SetLogicalParent(this);
+    }
+
+    public ScrollBarVisibility HorizontalScrollBarVisibility
+    {
+        get => GetValue<ScrollBarVisibility>(HorizontalScrollBarVisibilityProperty);
+        set => SetValue(HorizontalScrollBarVisibilityProperty, value);
+    }
+
+    public ScrollBarVisibility VerticalScrollBarVisibility
+    {
+        get => GetValue<ScrollBarVisibility>(VerticalScrollBarVisibilityProperty);
+        set => SetValue(VerticalScrollBarVisibilityProperty, value);
+    }
+
+    public float LineScrollAmount
+    {
+        get => GetValue<float>(LineScrollAmountProperty);
+        set => SetValue(LineScrollAmountProperty, value);
     }
 
     public Color Background
@@ -53,6 +115,26 @@ public class ListBox : Selector
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
+    }
+
+    public override IEnumerable<UIElement> GetVisualChildren()
+    {
+        foreach (var element in base.GetVisualChildren())
+        {
+            yield return element;
+        }
+
+        yield return _scrollViewer;
+    }
+
+    public override IEnumerable<UIElement> GetLogicalChildren()
+    {
+        foreach (var element in base.GetLogicalChildren())
+        {
+            yield return element;
+        }
+
+        yield return _scrollViewer;
     }
 
     protected override bool IsItemItsOwnContainerOverride(object item)
@@ -134,6 +216,25 @@ public class ListBox : Selector
         }
     }
 
+    protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
+    {
+        base.OnDependencyPropertyChanged(args);
+        Trace($"DependencyChanged {args.Property.Name} old={args.OldValue ?? "null"} new={args.NewValue ?? "null"}");
+
+        if (args.Property == HorizontalScrollBarVisibilityProperty && args.NewValue is ScrollBarVisibility h)
+        {
+            _scrollViewer.HorizontalScrollBarVisibility = h;
+        }
+        else if (args.Property == VerticalScrollBarVisibilityProperty && args.NewValue is ScrollBarVisibility v)
+        {
+            _scrollViewer.VerticalScrollBarVisibility = v;
+        }
+        else if (args.Property == LineScrollAmountProperty && args.NewValue is float amount)
+        {
+            _scrollViewer.LineScrollAmount = amount;
+        }
+    }
+
     protected override void OnKeyDown(RoutedKeyEventArgs args)
     {
         base.OnKeyDown(args);
@@ -208,6 +309,38 @@ public class ListBox : Selector
         }
     }
 
+    protected override Vector2 MeasureOverride(Vector2 availableSize)
+    {
+        Trace($"Measure start available={availableSize} items={Items.Count} containers={ItemContainers.Count}");
+        var desired = base.MeasureOverride(availableSize);
+
+        var border = BorderThickness * 2f;
+        var innerWidth = MathF.Max(0f, availableSize.X - border);
+        var innerHeight = MathF.Max(0f, availableSize.Y - border);
+
+        _scrollViewer.Measure(new Vector2(innerWidth, innerHeight));
+        var scrollDesired = _scrollViewer.DesiredSize;
+
+        desired.X = MathF.Max(desired.X, scrollDesired.X + border);
+        desired.Y = MathF.Max(desired.Y, scrollDesired.Y + border);
+        Trace($"Measure end desired={desired} scrollDesired={scrollDesired}");
+        return desired;
+    }
+
+    protected override Vector2 ArrangeOverride(Vector2 finalSize)
+    {
+        Trace($"Arrange start final={finalSize} items={Items.Count} containers={ItemContainers.Count}");
+        base.ArrangeOverride(finalSize);
+
+        var border = BorderThickness;
+        var width = MathF.Max(0f, finalSize.X - (border * 2f));
+        var height = MathF.Max(0f, finalSize.Y - (border * 2f));
+        _scrollViewer.Arrange(new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, width, height));
+        Trace($"Arrange end viewport=({width:0.##},{height:0.##})");
+
+        return finalSize;
+    }
+
     private void ApplySelectionFromInput(int selectedIndex, bool shiftPressed, bool controlPressed)
     {
         if (SelectionMode != SelectionMode.Multiple)
@@ -256,5 +389,15 @@ public class ListBox : Selector
         {
             UiDrawing.DrawRectStroke(spriteBatch, slot, BorderThickness, BorderBrush, Opacity);
         }
+    }
+
+    private void Trace(string message)
+    {
+        if (!EnableListBoxTrace)
+        {
+            return;
+        }
+
+        Console.WriteLine($"[ListBox#{GetHashCode():X8}] t={Environment.TickCount64} {message}");
     }
 }

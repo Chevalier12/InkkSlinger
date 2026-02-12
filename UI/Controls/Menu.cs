@@ -386,6 +386,30 @@ public class Menu : ItemsControl
 
     private void OnHostPreviewKeyDown(object? sender, RoutedKeyEventArgs args)
     {
+        if (args.Handled || args.IsRepeat)
+        {
+            return;
+        }
+
+        if (args.Modifiers == ModifierKeys.Alt && TryGetAccessKeyFromKey(args.Key, out var accessKey))
+        {
+            var item = FindTopLevelAccessKeyTarget(accessKey);
+            if (item != null)
+            {
+                item.Focus();
+                item.IsHighlighted = true;
+
+                if (item.Items.Count > 0)
+                {
+                    item.OpenSubmenu(focusFirstItem: false);
+                }
+
+                EnterMenuMode(item);
+                args.Handled = true;
+                return;
+            }
+        }
+
         if (!_isMenuMode || args.Key != Keys.Escape)
         {
             return;
@@ -454,5 +478,68 @@ public class Menu : ItemsControl
 
         Panel.SetZIndex(this, _hostOriginalZIndex);
         _hostZRaised = false;
+    }
+
+    private MenuItem? FindTopLevelAccessKeyTarget(char accessKey)
+    {
+        foreach (var item in GetTopLevelItems())
+        {
+            if (TryExtractAccessKey(item.Header, out var key) && key == accessKey)
+            {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryExtractAccessKey(string header, out char accessKey)
+    {
+        accessKey = default;
+        if (string.IsNullOrEmpty(header))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < header.Length - 1; i++)
+        {
+            if (header[i] != '_')
+            {
+                continue;
+            }
+
+            var c = header[i + 1];
+            if (c == '_')
+            {
+                i++;
+                continue;
+            }
+
+            if (char.IsLetterOrDigit(c))
+            {
+                accessKey = char.ToUpperInvariant(c);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetAccessKeyFromKey(Keys key, out char accessKey)
+    {
+        if (key >= Keys.A && key <= Keys.Z)
+        {
+            accessKey = (char)('A' + (key - Keys.A));
+            return true;
+        }
+
+        if (key >= Keys.D0 && key <= Keys.D9)
+        {
+            accessKey = (char)('0' + (key - Keys.D0));
+            return true;
+        }
+
+        accessKey = default;
+        return false;
     }
 }

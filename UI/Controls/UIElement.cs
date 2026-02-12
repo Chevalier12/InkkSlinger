@@ -8,7 +8,16 @@ namespace InkkSlinger;
 
 public class UIElement : DependencyObject
 {
+    static UIElement()
+    {
+        EventManager.RegisterClassHandler<UIElement, RoutedKeyEventArgs>(
+            PreviewKeyDownEvent,
+            static (element, args) => element.TryHandleInputBindings(args));
+    }
+
     private readonly Dictionary<RoutedEvent, List<RoutedHandlerEntry>> _routedHandlers = new();
+    private readonly List<CommandBinding> _commandBindings = new();
+    private readonly List<InputBinding> _inputBindings = new();
     public static readonly DependencyProperty IsVisibleProperty =
         DependencyProperty.Register(
             nameof(IsVisible),
@@ -208,6 +217,10 @@ public class UIElement : DependencyObject
     public UIElement? VisualParent { get; private set; }
 
     public UIElement? LogicalParent { get; private set; }
+
+    public IList<CommandBinding> CommandBindings => _commandBindings;
+
+    public IList<InputBinding> InputBindings => _inputBindings;
 
     public bool IsVisible
     {
@@ -477,8 +490,15 @@ public class UIElement : DependencyObject
 
     internal void NotifyKeyDown(Keys key, bool isRepeat, ModifierKeys modifiers)
     {
-        RaisePreviewKeyDown(key, isRepeat, modifiers);
-        RaiseKeyDown(key, isRepeat, modifiers);
+        var previewArgs = new RoutedKeyEventArgs(PreviewKeyDownEvent, key, isRepeat, modifiers);
+        RaiseRoutedEvent(PreviewKeyDownEvent, previewArgs);
+        if (previewArgs.Handled)
+        {
+            return;
+        }
+
+        var args = new RoutedKeyEventArgs(KeyDownEvent, key, isRepeat, modifiers);
+        RaiseRoutedEvent(KeyDownEvent, args);
     }
 
     internal void NotifyKeyUp(Keys key, ModifierKeys modifiers)
@@ -1176,6 +1196,50 @@ public class UIElement : DependencyObject
         }
     }
 
+    private void TryHandleInputBindings(RoutedKeyEventArgs args)
+    {
+        if (args.Handled || args.IsRepeat)
+        {
+            return;
+        }
+
+        if (_inputBindings.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _inputBindings.Count; i++)
+        {
+            var binding = _inputBindings[i];
+            if (!binding.Gesture.Matches(args))
+            {
+                continue;
+            }
+
+            var target = binding.CommandTarget ?? this;
+            if (binding.Command is RoutedCommand routedCommand)
+            {
+                if (!CommandManager.CanExecute(routedCommand, binding.CommandParameter, target))
+                {
+                    continue;
+                }
+
+                CommandManager.Execute(routedCommand, binding.CommandParameter, target);
+                args.Handled = true;
+                return;
+            }
+
+            if (!binding.Command.CanExecute(binding.CommandParameter))
+            {
+                continue;
+            }
+
+            binding.Command.Execute(binding.CommandParameter);
+            args.Handled = true;
+            return;
+        }
+    }
+
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);
@@ -1202,27 +1266,25 @@ public class UIElement : DependencyObject
 
     private bool TryGetTransformFromRootToThisInverse(out Matrix inverseTransform)
     {
-        inverseTransform = Matrix.Identity;
-        var chain = new List<UIElement>();
-        for (UIElement? current = this; current != null; current = current.VisualParent)
+        return TryGetTransformFromRootToThisInverse(this, out inverseTransform);
+    }
+
+    private static bool TryGetTransformFromRootToThisInverse(UIElement? element, out Matrix inverseTransform)
+    {
+        if (element == null)
         {
-            chain.Add(current);
+            inverseTransform = Matrix.Identity;
+            return false;
         }
 
-        chain.Reverse();
-        var hasTransform = false;
-        foreach (var element in chain)
+        var hasTransform = TryGetTransformFromRootToThisInverse(element.VisualParent, out inverseTransform);
+        if (!element.TryGetLocalRenderTransform(out _, out var localInverse))
         {
-            if (!element.TryGetLocalRenderTransform(out _, out var localInverse))
-            {
-                continue;
-            }
-
-            inverseTransform *= localInverse;
-            hasTransform = true;
+            return hasTransform;
         }
 
-        return hasTransform;
+        inverseTransform *= localInverse;
+        return true;
     }
 
     private readonly struct RoutedHandlerEntry

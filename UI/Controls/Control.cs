@@ -23,11 +23,18 @@ public class Control : FrameworkElement
     public static readonly DependencyProperty CommandParameterProperty =
         DependencyProperty.Register(nameof(CommandParameter), typeof(object), typeof(Control), new FrameworkPropertyMetadata(null));
 
+    public static readonly DependencyProperty CommandTargetProperty =
+        DependencyProperty.Register(nameof(CommandTarget), typeof(UIElement), typeof(Control), new FrameworkPropertyMetadata(null));
+
     private UIElement? _templateRoot;
     private readonly Dictionary<string, UIElement> _namedTemplateChildren = new(StringComparer.Ordinal);
     private readonly List<(DependencyProperty SourceProperty, EventHandler<DependencyPropertyChangedEventArgs> Handler)> _templateBindingHandlers = new();
     private readonly List<FrameworkElement> _styleResourceAncestors = new();
     private readonly TemplateTriggerEngine _templateTriggerEngine;
+    private System.Windows.Input.ICommand? _subscribedCommand;
+    private object? _storedIsEnabledLocalValue = DependencyObject.UnsetValue;
+    private bool _isCommandDisablingIsEnabled;
+    private bool _isUpdatingIsEnabled;
     private bool _isApplyingImplicitStyle;
     private bool _isImplicitStyleActive;
 
@@ -61,6 +68,12 @@ public class Control : FrameworkElement
     {
         get => GetValue(CommandParameterProperty);
         set => SetValue(CommandParameterProperty, value);
+    }
+
+    public UIElement? CommandTarget
+    {
+        get => GetValue<UIElement>(CommandTargetProperty);
+        set => SetValue(CommandTargetProperty, value);
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()
@@ -152,6 +165,25 @@ public class Control : FrameworkElement
         {
             ApplyTemplate();
         }
+
+        if (args.Property == CommandProperty)
+        {
+            RefreshCommandSubscriptions(args.OldValue as System.Windows.Input.ICommand, args.NewValue as System.Windows.Input.ICommand);
+            UpdateCommandEnabledState();
+        }
+        else if (args.Property == CommandParameterProperty || args.Property == CommandTargetProperty)
+        {
+            UpdateCommandEnabledState();
+        }
+        else if (args.Property == IsEnabledProperty)
+        {
+            // If user toggles IsEnabled while command-gated, remember intent but keep disabled.
+            if (_isCommandDisablingIsEnabled && !_isUpdatingIsEnabled)
+            {
+                _storedIsEnabledLocalValue = ReadLocalValue(IsEnabledProperty);
+                UpdateCommandEnabledState();
+            }
+        }
     }
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
@@ -160,6 +192,7 @@ public class Control : FrameworkElement
 
         RefreshResourceScopeSubscriptions();
         UpdateImplicitStyle();
+        UpdateCommandEnabledState();
     }
 
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
@@ -167,6 +200,7 @@ public class Control : FrameworkElement
         base.OnLogicalParentChanged(oldParent, newParent);
         RefreshResourceScopeSubscriptions();
         UpdateImplicitStyle();
+        UpdateCommandEnabledState();
     }
 
     protected virtual Style? GetFallbackStyle()
@@ -181,6 +215,19 @@ public class Control : FrameworkElement
             return false;
         }
 
+        var target = CommandTarget ?? FocusManager.FocusedElement ?? this;
+
+        if (Command is RoutedCommand routedCommand)
+        {
+            if (!CommandManager.CanExecute(routedCommand, CommandParameter, target))
+            {
+                return false;
+            }
+
+            CommandManager.Execute(routedCommand, CommandParameter, target);
+            return true;
+        }
+
         if (!Command.CanExecute(CommandParameter))
         {
             return false;
@@ -188,6 +235,111 @@ public class Control : FrameworkElement
 
         Command.Execute(CommandParameter);
         return true;
+    }
+
+    private void RefreshCommandSubscriptions(System.Windows.Input.ICommand? oldCommand, System.Windows.Input.ICommand? newCommand)
+    {
+        if (ReferenceEquals(_subscribedCommand, oldCommand) && oldCommand != null)
+        {
+            oldCommand.CanExecuteChanged -= OnCommandCanExecuteChanged;
+            _subscribedCommand = null;
+        }
+
+        if (newCommand == null)
+        {
+            return;
+        }
+
+        newCommand.CanExecuteChanged += OnCommandCanExecuteChanged;
+        _subscribedCommand = newCommand;
+    }
+
+    private void OnCommandCanExecuteChanged(object? sender, EventArgs e)
+    {
+        UpdateCommandEnabledState();
+    }
+
+    private void UpdateCommandEnabledState()
+    {
+        if (Command == null)
+        {
+            RestoreIsEnabledIfCommandDisabledIt();
+            return;
+        }
+
+        var target = CommandTarget ?? FocusManager.FocusedElement ?? this;
+        var canExecute = Command is RoutedCommand routedCommand
+            ? CommandManager.CanExecute(routedCommand, CommandParameter, target)
+            : Command.CanExecute(CommandParameter);
+
+        if (canExecute)
+        {
+            RestoreIsEnabledIfCommandDisabledIt();
+            return;
+        }
+
+        if (!_isCommandDisablingIsEnabled)
+        {
+            _storedIsEnabledLocalValue = ReadLocalValue(IsEnabledProperty);
+            _isCommandDisablingIsEnabled = true;
+        }
+
+        if (IsEnabled)
+        {
+            _isUpdatingIsEnabled = true;
+            try
+            {
+                IsEnabled = false;
+            }
+            finally
+            {
+                _isUpdatingIsEnabled = false;
+            }
+        }
+        else
+        {
+            // Still force a local disable so user enabling is remembered but overridden while CanExecute is false.
+            if (!HasLocalValue(IsEnabledProperty))
+            {
+                _isUpdatingIsEnabled = true;
+                try
+                {
+                    IsEnabled = false;
+                }
+                finally
+                {
+                    _isUpdatingIsEnabled = false;
+                }
+            }
+        }
+    }
+
+    private void RestoreIsEnabledIfCommandDisabledIt()
+    {
+        if (!_isCommandDisablingIsEnabled)
+        {
+            return;
+        }
+
+        _isUpdatingIsEnabled = true;
+        try
+        {
+            if (ReferenceEquals(_storedIsEnabledLocalValue, DependencyObject.UnsetValue))
+            {
+                ClearValue(IsEnabledProperty);
+            }
+            else
+            {
+                SetValue(IsEnabledProperty, _storedIsEnabledLocalValue);
+            }
+        }
+        finally
+        {
+            _isUpdatingIsEnabled = false;
+        }
+
+        _storedIsEnabledLocalValue = DependencyObject.UnsetValue;
+        _isCommandDisablingIsEnabled = false;
     }
 
     private void SetTemplateTree(UIElement root)

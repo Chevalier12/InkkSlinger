@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -23,12 +24,13 @@ public class ItemsControl : Control
 
     private readonly ObservableCollection<object> _items = new();
     private readonly List<GeneratedItemContainer> _generatedChildren = new();
-    private ItemsPresenter? _activeItemsPresenter;
+    private readonly List<UIElement> _itemContainers = new();
+    private UIElement? _activeItemsHost;
     private bool _suspendRegeneration;
 
     public ItemsControl()
     {
-        _items.CollectionChanged += (_, _) => RegenerateChildren();
+        _items.CollectionChanged += OnItemsCollectionChanged;
     }
 
     public ObservableCollection<object> Items => _items;
@@ -63,19 +65,13 @@ public class ItemsControl : Control
         set => SetValue(ItemTemplateSelectorProperty, value);
     }
 
-    protected virtual bool IncludeGeneratedChildrenInVisualTree => _activeItemsPresenter == null;
+    protected virtual bool IncludeGeneratedChildrenInVisualTree => _activeItemsHost == null;
 
     protected IReadOnlyList<UIElement> ItemContainers
     {
         get
         {
-            var containers = new List<UIElement>(_generatedChildren.Count);
-            foreach (var entry in _generatedChildren)
-            {
-                containers.Add(entry.Container);
-            }
-
-            return containers;
+            return _itemContainers;
         }
     }
 
@@ -84,25 +80,27 @@ public class ItemsControl : Control
         return ItemContainers;
     }
 
-    internal void AttachItemsPresenter(ItemsPresenter presenter)
+    internal void AttachItemsHost(UIElement host)
     {
-        if (ReferenceEquals(_activeItemsPresenter, presenter))
+        if (ReferenceEquals(_activeItemsHost, host))
         {
             return;
         }
 
-        _activeItemsPresenter = presenter;
+        _activeItemsHost = host;
+        ReparentGeneratedChildren(host);
         InvalidateMeasure();
     }
 
-    internal void DetachItemsPresenter(ItemsPresenter presenter)
+    internal void DetachItemsHost(UIElement host)
     {
-        if (!ReferenceEquals(_activeItemsPresenter, presenter))
+        if (!ReferenceEquals(_activeItemsHost, host))
         {
             return;
         }
 
-        _activeItemsPresenter = null;
+        _activeItemsHost = null;
+        ReparentGeneratedChildren(this);
         InvalidateMeasure();
     }
 
@@ -264,50 +262,245 @@ public class ItemsControl : Control
         {
             var child = entry.Container;
             ClearContainerForItemOverride(child, entry.Item);
-            child.SetVisualParent(null);
-            child.SetLogicalParent(null);
+            DetachFromCurrentParent(child);
         }
 
         _generatedChildren.Clear();
+        _itemContainers.Clear();
 
         for (var i = 0; i < _items.Count; i++)
         {
             var item = _items[i];
-            UIElement? element;
-            var selectedTemplate = DataTemplateResolver.ResolveTemplateForContent(
-                this,
-                item,
-                ItemTemplate,
-                ItemTemplateSelector,
-                this);
-
-            if (selectedTemplate != null)
-            {
-                element = selectedTemplate.Build(item, this);
-            }
-            else if (IsItemItsOwnContainerOverride(item) && item is UIElement uiElement)
-            {
-                element = uiElement;
-            }
-            else
-            {
-                element = CreateContainerForItemOverride(item);
-            }
-
+            var element = BuildContainerForItem(item);
             if (element == null)
             {
                 continue;
             }
 
             PrepareContainerForItemOverride(element, item, i);
-            element.SetVisualParent(this);
-            element.SetLogicalParent(this);
+            var host = _activeItemsHost ?? this;
+            AttachToHost(host, element, i);
             _generatedChildren.Add(new GeneratedItemContainer(item, element));
+            _itemContainers.Add(element);
         }
 
         OnItemsChanged();
-        _activeItemsPresenter?.InvalidateMeasure();
+        (_activeItemsHost as FrameworkElement)?.InvalidateMeasure();
         InvalidateMeasure();
+    }
+
+    private void ReparentGeneratedChildren(UIElement newParent)
+    {
+        for (var i = 0; i < _itemContainers.Count; i++)
+        {
+            var child = _itemContainers[i];
+            if (ReferenceEquals(child.VisualParent, newParent) && ReferenceEquals(child.LogicalParent, newParent))
+            {
+                continue;
+            }
+
+            DetachFromCurrentParent(child);
+            AttachToHost(newParent, child, i);
+        }
+
+        InvalidateMeasure();
+    }
+
+    private UIElement? BuildContainerForItem(object item)
+    {
+        var selectedTemplate = DataTemplateResolver.ResolveTemplateForContent(
+            this,
+            item,
+            ItemTemplate,
+            ItemTemplateSelector,
+            this);
+
+        if (selectedTemplate != null)
+        {
+            return selectedTemplate.Build(item, this);
+        }
+
+        if (IsItemItsOwnContainerOverride(item) && item is UIElement uiElement)
+        {
+            return uiElement;
+        }
+
+        return CreateContainerForItemOverride(item);
+    }
+
+    private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_suspendRegeneration)
+        {
+            return;
+        }
+
+        // Keep behavior equivalent to the old implementation (which rebuilt everything),
+        // but do it incrementally to avoid per-add hitches for large item collections.
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add:
+                InsertNewContainers(e);
+                break;
+            case NotifyCollectionChangedAction.Remove:
+                RemoveOldContainers(e);
+                break;
+            case NotifyCollectionChangedAction.Replace:
+                ReplaceContainers(e);
+                break;
+            case NotifyCollectionChangedAction.Move:
+                MoveContainers(e);
+                break;
+            case NotifyCollectionChangedAction.Reset:
+                RegenerateChildren();
+                return;
+            default:
+                RegenerateChildren();
+                return;
+        }
+
+        OnItemsChanged();
+        (_activeItemsHost as FrameworkElement)?.InvalidateMeasure();
+        InvalidateMeasure();
+    }
+
+    private void InsertNewContainers(NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems == null || e.NewItems.Count == 0)
+        {
+            return;
+        }
+
+        var insertIndex = e.NewStartingIndex < 0 ? _generatedChildren.Count : e.NewStartingIndex;
+        insertIndex = Math.Clamp(insertIndex, 0, _generatedChildren.Count);
+
+        var host = _activeItemsHost ?? this;
+
+        for (var i = 0; i < e.NewItems.Count; i++)
+        {
+            var item = e.NewItems[i]!;
+            var element = BuildContainerForItem(item);
+            if (element == null)
+            {
+                continue;
+            }
+
+            var index = insertIndex + i;
+            PrepareContainerForItemOverride(element, item, index);
+            AttachToHost(host, element, index);
+
+            _generatedChildren.Insert(index, new GeneratedItemContainer(item, element));
+            _itemContainers.Insert(index, element);
+        }
+
+        RefreshContainerPreparationFrom(insertIndex);
+    }
+
+    private void RemoveOldContainers(NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems == null || e.OldItems.Count == 0)
+        {
+            return;
+        }
+
+        var index = e.OldStartingIndex < 0 ? _generatedChildren.Count - 1 : e.OldStartingIndex;
+        index = Math.Clamp(index, 0, Math.Max(0, _generatedChildren.Count - 1));
+
+        var host = _activeItemsHost ?? this;
+
+        for (var i = 0; i < e.OldItems.Count; i++)
+        {
+            if (index < 0 || index >= _generatedChildren.Count)
+            {
+                break;
+            }
+
+            var entry = _generatedChildren[index];
+            ClearContainerForItemOverride(entry.Container, entry.Item);
+            DetachFromHost(host, entry.Container, index);
+
+            _generatedChildren.RemoveAt(index);
+            _itemContainers.RemoveAt(index);
+        }
+
+        RefreshContainerPreparationFrom(index);
+    }
+
+    private void ReplaceContainers(NotifyCollectionChangedEventArgs e)
+    {
+        var index = e.OldStartingIndex >= 0 ? e.OldStartingIndex : e.NewStartingIndex;
+        if (index < 0)
+        {
+            RegenerateChildren();
+            return;
+        }
+
+        // Remove old at index, then insert new at same position.
+        RemoveOldContainers(e);
+        InsertNewContainers(e);
+        RefreshContainerPreparationFrom(index);
+    }
+
+    private void MoveContainers(NotifyCollectionChangedEventArgs e)
+    {
+        // ObservableCollection move is typically single-item; handle generically for Count.
+        if (e.OldItems == null || e.OldItems.Count == 0)
+        {
+            return;
+        }
+
+        if (e.OldStartingIndex < 0 || e.NewStartingIndex < 0)
+        {
+            RegenerateChildren();
+            return;
+        }
+
+        var count = e.OldItems.Count;
+        var oldIndex = e.OldStartingIndex;
+        var newIndex = e.NewStartingIndex;
+        var originalNewIndex = newIndex;
+
+        if (oldIndex == newIndex)
+        {
+            return;
+        }
+
+        oldIndex = Math.Clamp(oldIndex, 0, _generatedChildren.Count - 1);
+        newIndex = Math.Clamp(newIndex, 0, _generatedChildren.Count - 1);
+
+        var movedCount = Math.Min(count, _generatedChildren.Count - oldIndex);
+        var movedEntries = _generatedChildren.GetRange(oldIndex, movedCount);
+        var movedContainers = _itemContainers.GetRange(oldIndex, movedCount);
+
+        _generatedChildren.RemoveRange(oldIndex, movedEntries.Count);
+        _itemContainers.RemoveRange(oldIndex, movedContainers.Count);
+
+        if (newIndex > oldIndex)
+        {
+            newIndex = Math.Max(0, newIndex - movedEntries.Count);
+        }
+
+        _generatedChildren.InsertRange(newIndex, movedEntries);
+        _itemContainers.InsertRange(newIndex, movedContainers);
+
+        (_activeItemsHost as Panel)?.MoveChildRange(oldIndex, movedEntries.Count, originalNewIndex);
+
+        RefreshContainerPreparationFrom(Math.Min(oldIndex, newIndex));
+    }
+
+    private void RefreshContainerPreparationFrom(int startIndex)
+    {
+        if (_generatedChildren.Count == 0)
+        {
+            return;
+        }
+
+        var start = Math.Clamp(startIndex, 0, _generatedChildren.Count - 1);
+        for (var i = start; i < _generatedChildren.Count; i++)
+        {
+            var entry = _generatedChildren[i];
+            PrepareContainerForItemOverride(entry.Container, entry.Item, i);
+        }
     }
 
     private readonly struct GeneratedItemContainer
@@ -321,5 +514,46 @@ public class ItemsControl : Control
         public object Item { get; }
 
         public UIElement Container { get; }
+    }
+
+    private static void AttachToHost(UIElement host, UIElement child, int index)
+    {
+        if (host is Panel panel)
+        {
+            panel.InsertChild(index, child);
+            return;
+        }
+
+        child.SetVisualParent(host);
+        child.SetLogicalParent(host);
+    }
+
+    private static void DetachFromHost(UIElement host, UIElement child, int index)
+    {
+        if (host is Panel panel)
+        {
+            // Best-effort index removal first, falling back to instance removal.
+            if (!panel.RemoveChildAt(index))
+            {
+                panel.RemoveChild(child);
+            }
+
+            return;
+        }
+
+        child.SetVisualParent(null);
+        child.SetLogicalParent(null);
+    }
+
+    private static void DetachFromCurrentParent(UIElement child)
+    {
+        if (child.VisualParent is Panel panel)
+        {
+            panel.RemoveChild(child);
+            return;
+        }
+
+        child.SetVisualParent(null);
+        child.SetLogicalParent(null);
     }
 }

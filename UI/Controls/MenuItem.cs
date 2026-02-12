@@ -413,9 +413,11 @@ public class MenuItem : ItemsControl
             return;
         }
 
-        RaiseClick();
-        OwnerMenu?.NotifyLeafInvoked(this);
-        args.Handled = true;
+        if (InvokeLeaf())
+        {
+            OwnerMenu?.NotifyLeafInvoked(this);
+            args.Handled = true;
+        }
     }
 
     protected override void OnKeyDown(RoutedKeyEventArgs args)
@@ -445,8 +447,10 @@ public class MenuItem : ItemsControl
                 }
                 else
                 {
-                    RaiseClick();
-                    OwnerMenu?.NotifyLeafInvoked(this);
+                    if (InvokeLeaf())
+                    {
+                        OwnerMenu?.NotifyLeafInvoked(this);
+                    }
                 }
 
                 handled = true;
@@ -696,6 +700,17 @@ public class MenuItem : ItemsControl
     private void RaiseClick()
     {
         RaiseRoutedEvent(ClickEvent, new RoutedSimpleEventArgs(ClickEvent));
+    }
+
+    private bool InvokeLeaf()
+    {
+        if (Command != null)
+        {
+            return ExecuteCommand();
+        }
+
+        RaiseClick();
+        return true;
     }
 
     private float MeasureTextWidth(string text)
