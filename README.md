@@ -2,7 +2,7 @@
 
 [![.NET](https://img.shields.io/badge/.NET-9%20%2F%2010-512BD4?logo=dotnet&logoColor=white)](#build-and-test)
 [![MonoGame](https://img.shields.io/badge/MonoGame-DesktopGL-FF7F50)](#vision)
-[![Tests](https://img.shields.io/badge/tests-291%20passed%20%7C%201%20skipped-brightgreen)](#build-and-test)
+[![Tests](https://img.shields.io/badge/tests-290%20passed%20%7C%201%20failed%20%7C%201%20skipped-yellow)](#build-and-test)
 [![WPF Parity](https://img.shields.io/badge/WPF%20parity-ongoing-blue)](#parity-matrix)
 
 InkkSlinger is a custom UI framework for MonoGame/DesktopGL with a single primary objective:
@@ -69,7 +69,7 @@ The current implementation is already deep, but intentionally explicit about gap
 | Tooling support | Implemented | XML schemas in `Schemas/` + `x:Name` source generation. |
 | Items/selection system | Implemented | Items + selection infrastructure exists across list/tree/grid controls, validated by tests. Some broader WPF data features (views/grouping/sorting/etc.) are out of scope for now. |
 | Popup/windowing | Partial | `Popup`, `ContextMenu`, and `Window` exist; deeper edge parity remains ongoing. |
-| Menu/commanding parity depth | Partial | `Menu`/`MenuItem` exist; richer routed-commanding parity remains open. |
+| Menu/commanding parity depth | Partial | Core routed commanding (`RoutedCommand`, `CommandBinding`, `InputBinding`, `KeyGesture`) is implemented and wired through menu/button demo paths; deeper WPF edge parity (navigation/access keys/behavior nuances) remains ongoing. |
 | Adorner layer depth | Partial | Adorner primitives exist; deeper parity (composition behaviors and layout nuances) remains open. |
 | Rich document text stack | Planned | `RichTextBox` and flow-document-level parity not implemented yet. |
 | Full WPF parity | Ongoing | Objective is closest practical parity over time, validated through tests and real behavior. |
@@ -99,9 +99,8 @@ stated otherwise in code/tests.
 
 ### Commanding: Missing WPF Features
 
-- Routed commanding system parity (`RoutedCommand`, `CommandBinding`, command routing)
-- WPF `ICommandSource` ecosystem behaviors across controls (beyond basic `ICommand` usage)
-- `CanExecute` requery behaviors and command manager parity
+- Core routed commanding is implemented; full WPF routed-commanding edge parity remains open
+- WPF `ICommandSource` ecosystem parity across all controls/edge cases
 - Full menu keyboard interaction parity (accelerators, access keys, deeper navigation behaviors)
 
 ### Markup / XAML: Missing WPF Features
@@ -294,7 +293,11 @@ Alternate validation surfaces:
 ```powershell
 dotnet run --project InkkSlinger.csproj -- --main-menu
 dotnet run --project InkkSlinger.csproj -- --window-demo
+dotnet run --project InkkSlinger.csproj -- --paint-shell
+dotnet run --project InkkSlinger.csproj -- --commanding-demo
 ```
+
+Current default launch surface is the commanding demo when no explicit mode flag is provided.
 
 ## Current Parity Focus Areas
 
