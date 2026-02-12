@@ -213,51 +213,93 @@ public abstract class DependencyObject
         DependencyProperty dependencyProperty,
         EffectiveValueEntry entry)
     {
+        object? value;
+        DependencyPropertyValueSource source;
+
         if (entry.HasAnimationValue)
         {
-            return (entry.AnimationValue, DependencyPropertyValueSource.Animation);
+            value = entry.AnimationValue;
+            source = DependencyPropertyValueSource.Animation;
         }
-
-        if (entry.HasLocalValue)
+        else if (entry.HasLocalValue)
         {
-            return (entry.LocalValue, DependencyPropertyValueSource.Local);
+            value = entry.LocalValue;
+            source = DependencyPropertyValueSource.Local;
         }
-
-        if (entry.HasTemplateTriggerValue)
+        else if (entry.HasTemplateTriggerValue)
         {
-            return (entry.TemplateTriggerValue, DependencyPropertyValueSource.TemplateTrigger);
+            value = entry.TemplateTriggerValue;
+            source = DependencyPropertyValueSource.TemplateTrigger;
         }
-
-        if (entry.HasStyleTriggerValue)
+        else if (entry.HasStyleTriggerValue)
         {
-            return (entry.StyleTriggerValue, DependencyPropertyValueSource.StyleTrigger);
+            value = entry.StyleTriggerValue;
+            source = DependencyPropertyValueSource.StyleTrigger;
         }
-
-        if (entry.HasTemplateValue)
+        else if (entry.HasTemplateValue)
         {
-            return (entry.TemplateValue, DependencyPropertyValueSource.Template);
+            value = entry.TemplateValue;
+            source = DependencyPropertyValueSource.Template;
         }
-
-        if (entry.HasStyleValue)
+        else if (entry.HasStyleValue)
         {
-            return (entry.StyleValue, DependencyPropertyValueSource.Style);
+            value = entry.StyleValue;
+            source = DependencyPropertyValueSource.Style;
         }
-
-        var metadata = dependencyProperty.GetMetadata(this);
-        if (metadata.Inherits && this is UIElement element)
+        else
         {
-            for (var parent = element.VisualParent; parent != null; parent = parent.VisualParent)
+            var metadata = dependencyProperty.GetMetadata(this);
+            if (metadata.Inherits && this is UIElement element)
             {
-                if (!dependencyProperty.IsApplicableTo(parent))
+                var foundParentValue = false;
+                value = null;
+                source = DependencyPropertyValueSource.Default;
+
+                for (var parent = element.VisualParent; parent != null; parent = parent.VisualParent)
                 {
-                    continue;
+                    if (!dependencyProperty.IsApplicableTo(parent))
+                    {
+                        continue;
+                    }
+
+                    value = parent.GetValue(dependencyProperty);
+                    source = DependencyPropertyValueSource.Inherited;
+                    foundParentValue = true;
+                    break;
                 }
 
-                return (parent.GetValue(dependencyProperty), DependencyPropertyValueSource.Inherited);
+                if (!foundParentValue)
+                {
+                    value = metadata.DefaultValue;
+                    source = DependencyPropertyValueSource.Default;
+                }
+            }
+            else
+            {
+                value = metadata.DefaultValue;
+                source = DependencyPropertyValueSource.Default;
             }
         }
 
-        return (metadata.DefaultValue, DependencyPropertyValueSource.Default);
+        // WPF-like behavior: IsEnabled cannot be true if any visual ancestor is disabled.
+        // (Without this, a child can SetValue(IsEnabled=true) and re-enable itself under a disabled parent.)
+        if (ReferenceEquals(dependencyProperty, UIElement.IsEnabledProperty) &&
+            this is UIElement enabledElement &&
+            value is bool isEnabled &&
+            isEnabled)
+        {
+            for (var parent = enabledElement.VisualParent; parent != null; parent = parent.VisualParent)
+            {
+                if (!parent.IsEnabled)
+                {
+                    value = false;
+                    source = DependencyPropertyValueSource.Inherited;
+                    break;
+                }
+            }
+        }
+
+        return (value, source);
     }
 
     private (object? Value, DependencyPropertyValueSource Source) GetValueWithSource(DependencyProperty dependencyProperty)

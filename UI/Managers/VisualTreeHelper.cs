@@ -1,34 +1,263 @@
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
 public static class VisualTreeHelper
 {
+    private static readonly bool EnableHitTestTrace = false;
     public static UIElement? HitTest(UIElement root, Vector2 position)
     {
+        var hitTestStart = EnableHitTestTrace ? Stopwatch.GetTimestamp() : 0L;
         if (!root.HitTest(position))
         {
             return null;
         }
 
-        var children = new List<UIElement>();
-        foreach (var child in root.GetVisualChildren())
+        // Hot path: avoid per-node allocations and sorting (ItemsPresenter can have thousands of children).
+        if (root is Panel panel)
         {
-            children.Add(child);
+            var ordered = panel.GetChildrenOrderedByZIndex();
+            for (var i = ordered.Count - 1; i >= 0; i--)
+            {
+                var hit = HitTest(ordered[i], position);
+                if (hit != null)
+                {
+                    return hit;
+                }
+            }
+
+            return root;
         }
 
-        children.Sort(static (a, b) => Panel.GetZIndex(b).CompareTo(Panel.GetZIndex(a)));
-
-        foreach (var child in children)
+        if (root is ItemsPresenter itemsPresenter &&
+            itemsPresenter.TryGetItemContainersForHitTest(out var itemContainers) &&
+            itemContainers.Count > 0)
         {
-            var hit = HitTest(child, position);
+            GetAncestorScrollOffsets(itemsPresenter, out var horizontalOffset, out var verticalOffset);
+            var probeX = position.X + horizontalOffset;
+            var probeY = position.Y + verticalOffset;
+
+            // Items are laid out vertically in order; use an approximate index to avoid scanning the full list.
+            var relativeY = probeY - itemsPresenter.LayoutSlot.Y;
+            var averageHeight = itemsPresenter.DesiredSize.Y / itemContainers.Count;
+            if (!IsFinitePositive(averageHeight))
+            {
+                averageHeight = 24f;
+            }
+
+            var candidate = (int)(relativeY / averageHeight);
+            candidate = Math.Clamp(candidate, 0, itemContainers.Count - 1);
+
+            candidate = RefineIndexByLayoutSlot(itemContainers, probeY, candidate);
+
+            var hit = TryHitContainerAt(itemContainers[candidate], probeX, probeY);
             if (hit != null)
             {
+                if (EnableHitTestTrace)
+                {
+                    var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                    Console.WriteLine(
+                        $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                        $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=candidate hit={hit.GetType().Name} ms={ms:0.###}");
+                }
                 return hit;
             }
+
+            // Fallback: scan forward (hit-test order does not matter for non-overlapping list items).
+            var scanned = 0;
+            for (var i = 0; i < itemContainers.Count; i++)
+            {
+                scanned++;
+                hit = TryHitContainerAt(itemContainers[i], probeX, probeY);
+                if (hit != null)
+                {
+                    if (EnableHitTestTrace)
+                    {
+                        var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                        Console.WriteLine(
+                            $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                            $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
+                    }
+                    return hit;
+                }
+            }
+
+            if (EnableHitTestTrace)
+            {
+                var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                Console.WriteLine(
+                    $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                    $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit=root ms={ms:0.###}");
+            }
+            return root;
+        }
+
+        var childBuffer = ListPool<UIElement>.Rent();
+        try
+        {
+            var minZ = int.MaxValue;
+            var maxZ = int.MinValue;
+
+            foreach (var child in root.GetVisualChildren())
+            {
+                childBuffer.Add(child);
+                var z = Panel.GetZIndex(child);
+                minZ = Math.Min(minZ, z);
+                maxZ = Math.Max(maxZ, z);
+            }
+
+            if (childBuffer.Count == 0)
+            {
+                return root;
+            }
+
+            if (minZ != maxZ)
+            {
+                // Only sort when ZIndex differs. Most trees have all-zero ZIndex and sorting becomes the dominant cost.
+                childBuffer.Sort(static (a, b) => Panel.GetZIndex(b).CompareTo(Panel.GetZIndex(a)));
+                for (var i = 0; i < childBuffer.Count; i++)
+                {
+                    var hit = HitTest(childBuffer[i], position);
+                    if (hit != null)
+                    {
+                        return hit;
+                    }
+                }
+
+                return root;
+            }
+
+            // Common case: no ZIndex variance. Iterate in reverse draw order so later children win.
+            for (var i = childBuffer.Count - 1; i >= 0; i--)
+            {
+                var hit = HitTest(childBuffer[i], position);
+                if (hit != null)
+                {
+                    return hit;
+                }
+            }
+        }
+        finally
+        {
+            ListPool<UIElement>.Return(childBuffer);
         }
 
         return root;
+    }
+
+    private static UIElement? TryHitContainerAt(UIElement container, float x, float y)
+    {
+        if (!container.IsVisible || !container.IsEnabled || !container.IsHitTestVisible)
+        {
+            return null;
+        }
+
+        if (container is not FrameworkElement element)
+        {
+            return null;
+        }
+
+        var slot = element.LayoutSlot;
+        return x >= slot.X && x <= slot.X + slot.Width && y >= slot.Y && y <= slot.Y + slot.Height
+            ? container
+            : null;
+    }
+
+    private static void GetAncestorScrollOffsets(UIElement start, out float horizontalOffset, out float verticalOffset)
+    {
+        horizontalOffset = 0f;
+        verticalOffset = 0f;
+
+        for (var current = start.VisualParent ?? start.LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is not ScrollViewer scrollViewer)
+            {
+                continue;
+            }
+
+            horizontalOffset += scrollViewer.HorizontalOffset;
+            verticalOffset += scrollViewer.VerticalOffset;
+        }
+    }
+
+    private static bool IsFinitePositive(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value) && value > 0f;
+    }
+
+    private static int RefineIndexByLayoutSlot(IReadOnlyList<UIElement> containers, float y, int candidate)
+    {
+        if (containers[candidate] is not FrameworkElement current)
+        {
+            return candidate;
+        }
+
+        var slot = current.LayoutSlot;
+        if (y < slot.Y)
+        {
+            var index = candidate;
+            for (var i = 0; i < 64 && index > 0; i++)
+            {
+                index--;
+                if (containers[index] is FrameworkElement element && y >= element.LayoutSlot.Y)
+                {
+                    return index;
+                }
+            }
+
+            return candidate;
+        }
+
+        if (y > slot.Y + slot.Height)
+        {
+            var index = candidate;
+            for (var i = 0; i < 64 && index < containers.Count - 1; i++)
+            {
+                index++;
+                if (containers[index] is FrameworkElement element &&
+                    y < element.LayoutSlot.Y + element.LayoutSlot.Height)
+                {
+                    return index;
+                }
+            }
+        }
+
+        return candidate;
+    }
+
+    private static class ListPool<T>
+    {
+        private const int MaxPoolSize = 64;
+
+        [ThreadStatic]
+        private static Stack<List<T>>? _pool;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static List<T> Rent()
+        {
+            var pool = _pool;
+            if (pool != null && pool.Count > 0)
+            {
+                return pool.Pop();
+            }
+
+            return new List<T>(8);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Return(List<T> list)
+        {
+            list.Clear();
+
+            _pool ??= new Stack<List<T>>();
+            if (_pool.Count < MaxPoolSize)
+            {
+                _pool.Push(list);
+            }
+        }
     }
 }

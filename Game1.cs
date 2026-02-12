@@ -12,25 +12,31 @@ public class Game1 : Game
     private readonly InkkSlinger.Window _window;
     private readonly bool _isWindowDemo;
     private readonly bool _isPaintShellDemo;
+    private readonly bool _isCommandingDemo;
     private SpriteBatch _spriteBatch = null!;
     private UiRoot _uiRoot = null!;
     private MainMenuView? _mainMenuView;
     private WindowDemoView? _windowDemoView;
     private PaintShellView? _paintShellView;
+    private CommandingMenuDemoView? _commandingMenuDemoView;
     private KeyboardState _previousKeyboardState;
     private long _frameUpdateCounter;
     private long _frameDrawCounter;
+    private int _lastPrintedHitchCount;
 
-    public Game1(bool isWindowDemo = false, bool isPaintShellDemo = false)
+    public Game1(bool isWindowDemo = false, bool isPaintShellDemo = false, bool isCommandingDemo = false)
     {
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
         _isWindowDemo = isWindowDemo;
         _isPaintShellDemo = isPaintShellDemo;
+        _isCommandingDemo = isCommandingDemo;
         Content.RootDirectory = "Content";
         _window.IsMouseVisible = true;
         _window.AllowUserResizing = true;
-        _window.SetClientSize(_isWindowDemo ? 1100 : (_isPaintShellDemo ? 1580 : 1720), _isWindowDemo ? 700 : (_isPaintShellDemo ? 940 : 1080));
+        _window.SetClientSize(
+            _isWindowDemo ? 1100 : (_isPaintShellDemo ? 1580 : (_isCommandingDemo ? 1500 : 1720)),
+            _isWindowDemo ? 700 : (_isPaintShellDemo ? 940 : (_isCommandingDemo ? 900 : 1080)));
         _window.Title = "InkkSlinger";
     }
 
@@ -52,6 +58,11 @@ public class Game1 : Game
         {
             _paintShellView = new PaintShellView();
             root.AddChild(_paintShellView);
+        }
+        else if (_isCommandingDemo)
+        {
+            _commandingMenuDemoView = new CommandingMenuDemoView();
+            root.AddChild(_commandingMenuDemoView);
         }
         else
         {
@@ -78,6 +89,7 @@ public class Game1 : Game
             _mainMenuView?.SetFont(font);
             _windowDemoView?.SetFont(font);
             _paintShellView?.SetFont(font);
+            _commandingMenuDemoView?.SetFont(font);
         }
         catch
         {
@@ -97,7 +109,7 @@ public class Game1 : Game
 
         var preUiStartTicks = Stopwatch.GetTimestamp();
         var keyboardState = Keyboard.GetState();
-        if (!_isWindowDemo && !_isPaintShellDemo)
+        if (!_isWindowDemo)
         {
             HandleWindowDemoInput(keyboardState);
         }
@@ -123,6 +135,18 @@ public class Game1 : Game
             TicksToMilliseconds(uiRootTicks),
             TicksToMilliseconds(baseTicks),
             _uiRoot.LastUpdateTiming);
+
+        // Lightweight hitch logging for diagnosing scroll stalls.
+        // Only poll the snapshot when we detect a large frame time, to avoid overhead in normal runs.
+        if (TicksToMilliseconds(totalTicks) >= 200d || _uiRoot.LastUpdateTiming.TotalMilliseconds >= 200d)
+        {
+            var snapshot = FrameLoopDiagnostics.GetSnapshot();
+            if (snapshot.HitchCount > _lastPrintedHitchCount)
+            {
+                _lastPrintedHitchCount = snapshot.HitchCount;
+                Console.WriteLine(snapshot.LastHitch);
+            }
+        }
     }
 
     protected override void Draw(GameTime gameTime)
@@ -247,6 +271,12 @@ public class Game1 : Game
         if (_isPaintShellDemo)
         {
             _window.Title = $"InkkSlinger Paint Shell | {size.X}x{size.Y}";
+            return;
+        }
+
+        if (_isCommandingDemo)
+        {
+            _window.Title = $"InkkSlinger Commanding Demo | {size.X}x{size.Y}";
             return;
         }
 

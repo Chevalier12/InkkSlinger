@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
@@ -6,6 +8,7 @@ namespace InkkSlinger;
 
 public static class InputManager
 {
+    private static readonly bool EnableInputTrace = false;
     [System.Flags]
     public enum InputVisualStateChangeFlags
     {
@@ -74,9 +77,19 @@ public static class InputManager
         var modifiers = GetModifierKeys(keyboardState);
 
         var pointerPosition = new Vector2(mouseState.X, mouseState.Y);
+        var hitTestStart = Stopwatch.GetTimestamp();
         var hitElement = VisualTreeHelper.HitTest(root, pointerPosition);
+        var hitTestMs = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
         var eventTarget = _mouseCapturedElement ?? hitElement;
         UpdateCursor(_mouseCapturedElement ?? hitElement);
+        if (EnableInputTrace)
+        {
+            Console.WriteLine(
+                $"[Input] t={Environment.TickCount64} ptr=({pointerPosition.X:0.#},{pointerPosition.Y:0.#}) " +
+                $"wheel={mouseState.ScrollWheelValue - _previousMouseState.ScrollWheelValue} " +
+                $"hit={hitElement?.GetType().Name ?? "null"} target={eventTarget?.GetType().Name ?? "null"} " +
+                $"hitMs={hitTestMs:0.###}");
+        }
 
         if (_hoveredElement != hitElement)
         {

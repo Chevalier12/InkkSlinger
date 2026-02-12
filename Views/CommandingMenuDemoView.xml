@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0A1220"
+             BorderBrush="#2B4762"
+             BorderThickness="1"
+             Padding="14">
+  <UserControl.Resources>
+    <Style TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#DCEEFF" />
+      </Style.Setters>
+    </Style>
+
+    <Style TargetType="Button">
+      <Style.Setters>
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Foreground" Value="#EAF6FF" />
+        <Setter Property="Background" Value="#1A3856" />
+        <Setter Property="BorderBrush" Value="#4E789F" />
+      </Style.Setters>
+      <Style.Triggers>
+        <Trigger Property="IsEnabled" Value="False">
+          <Trigger.Setters>
+            <Setter Property="Background" Value="#253141" />
+            <Setter Property="BorderBrush" Value="#3B4E64" />
+            <Setter Property="Foreground" Value="#8FA7BC" />
+          </Trigger.Setters>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style TargetType="TextBox">
+      <Style.Setters>
+        <Setter Property="Background" Value="#0A1421" />
+        <Setter Property="BorderBrush" Value="#294764" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+      </Style.Setters>
+    </Style>
+
+    <Style TargetType="CheckBox">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#DCEEFF" />
+        <Setter Property="Background" Value="#132740" />
+        <Setter Property="BorderBrush" Value="#4E789F" />
+      </Style.Setters>
+    </Style>
+  </UserControl.Resources>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Menu x:Name="MainMenu" Grid.Row="0" Margin="0,0,0,10" />
+
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="380" />
+        <ColumnDefinition Width="10" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0"
+              Background="#101D30"
+              BorderBrush="#2F506F"
+              BorderThickness="1"
+              Padding="12">
+        <StackPanel>
+          <Label Text="Commanding + Menu Parity Demo" Foreground="#EDF8FF" />
+          <Label Text="Try: Alt+F (access key), Ctrl+N (input binding), and toggling focus between Editor/Side to see CanExecute update."
+                 Foreground="#B7D2E8"
+                 Margin="0,4,0,0"
+                 TextWrapping="Wrap" />
+
+          <Separator Foreground="#3A5C7F" Margin="0,10,0,10" />
+
+          <Label Text="CanExecute Controls" Foreground="#E6F5FF" />
+          <CheckBox x:Name="AllowOpenCheckBox"
+                    Text="Allow Open (requires focus in Editor)"
+                    IsChecked="True"
+                    Checked="OnAllowOpenChanged"
+                    Unchecked="OnAllowOpenChanged"
+                    Margin="0,6,0,0" />
+          <Button Text="Invalidate Requery" Click="OnInvalidateRequeryClick" Margin="0,10,0,0" />
+
+          <Separator Foreground="#3A5C7F" Margin="0,12,0,10" />
+
+          <Label Text="Command Sources" Foreground="#E6F5FF" />
+          <Button x:Name="NewButton" Text="New (RoutedCommand)" Margin="0,6,0,0" />
+          <Button x:Name="OpenButton" Text="Open (RoutedCommand)" Margin="0,6,0,0" />
+          <Button x:Name="DirectButton" Text="Direct ICommand (RelayCommand)" Margin="0,6,0,0" />
+
+          <Separator Foreground="#3A5C7F" Margin="0,12,0,10" />
+
+          <Label Text="IsEnabled Coercion Demo" Foreground="#E6F5FF" />
+          <Border Background="#0F1B2B"
+                  BorderBrush="#2F506F"
+                  BorderThickness="1"
+                  Padding="10"
+                  Margin="0,6,0,0"
+                  IsEnabled="False">
+            <StackPanel>
+              <Label Text="Parent IsEnabled=False. Child below tries IsEnabled=True, but must remain disabled."
+                     Foreground="#BAD4EB"
+                     TextWrapping="Wrap" />
+              <Button Text="Must Stay Disabled" IsEnabled="True" Margin="0,8,0,0" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <Separator Grid.Column="1" Orientation="Vertical" Foreground="#2A4661" />
+
+      <Border Grid.Column="2"
+              Background="#0F1B2B"
+              BorderBrush="#2F506F"
+              BorderThickness="1"
+              Padding="12">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+
+          <Label Grid.Row="0" Text="Editor (focus here to enable Open)" Foreground="#E6F5FF" />
+          <TextBox Grid.Row="1" x:Name="EditorTextBox" Height="140" Text="Click here then try Open (menu or button)." />
+
+          <Label Grid.Row="2" Text="Side Panel (focus here to disable Open)" Foreground="#E6F5FF" Margin="0,12,0,0" />
+          <TextBox Grid.Row="3" x:Name="SideTextBox" Height="90" Text="Click here then Open should disable." />
+
+          <Label Grid.Row="4" Text="Log" Foreground="#E6F5FF" Margin="0,14,0,6" />
+          <ListBox Grid.Row="5" x:Name="LogList"
+                   Background="#0A1421"
+                   BorderBrush="#294764"
+                   BorderThickness="1" />
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2"
+            Background="#101C2D"
+            BorderBrush="#2A4967"
+            BorderThickness="1"
+            Padding="10"
+            Margin="0,10,0,0">
+      <Label x:Name="StatusLabel" Text="Ready." Foreground="#C8DDF1" TextWrapping="Wrap" />
+    </Border>
+  </Grid>
+</UserControl>

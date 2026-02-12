@@ -42,7 +42,7 @@ public class Panel : FrameworkElement
         element.SetValue(ZIndexProperty, zIndex);
     }
 
-    public void AddChild(UIElement child)
+    public virtual void AddChild(UIElement child)
     {
         if (_children.Contains(child))
         {
@@ -56,7 +56,22 @@ public class Panel : FrameworkElement
         InvalidateMeasure();
     }
 
-    public bool RemoveChild(UIElement child)
+    public virtual void InsertChild(int index, UIElement child)
+    {
+        if (_children.Contains(child))
+        {
+            return;
+        }
+
+        var clamped = Math.Clamp(index, 0, _children.Count);
+        _children.Insert(clamped, child);
+        child.DependencyPropertyChanged += OnChildDependencyPropertyChanged;
+        child.SetVisualParent(this);
+        child.SetLogicalParent(this);
+        InvalidateMeasure();
+    }
+
+    public virtual bool RemoveChild(UIElement child)
     {
         if (!_children.Remove(child))
         {
@@ -66,6 +81,60 @@ public class Panel : FrameworkElement
         child.DependencyPropertyChanged -= OnChildDependencyPropertyChanged;
         child.SetVisualParent(null);
         child.SetLogicalParent(null);
+        InvalidateMeasure();
+        return true;
+    }
+
+    public virtual bool RemoveChildAt(int index)
+    {
+        if (index < 0 || index >= _children.Count)
+        {
+            return false;
+        }
+
+        var child = _children[index];
+        _children.RemoveAt(index);
+        child.DependencyPropertyChanged -= OnChildDependencyPropertyChanged;
+        child.SetVisualParent(null);
+        child.SetLogicalParent(null);
+        InvalidateMeasure();
+        return true;
+    }
+
+    public virtual bool MoveChildRange(int oldIndex, int count, int newIndex)
+    {
+        if (count <= 0 || _children.Count == 0)
+        {
+            return false;
+        }
+
+        if (oldIndex < 0 || oldIndex >= _children.Count)
+        {
+            return false;
+        }
+
+        var actualCount = Math.Min(count, _children.Count - oldIndex);
+        if (actualCount <= 0)
+        {
+            return false;
+        }
+
+        var clampedNew = Math.Clamp(newIndex, 0, _children.Count - 1);
+        if (clampedNew == oldIndex)
+        {
+            return true;
+        }
+
+        var range = _children.GetRange(oldIndex, actualCount);
+        _children.RemoveRange(oldIndex, actualCount);
+
+        if (clampedNew > oldIndex)
+        {
+            clampedNew = Math.Max(0, clampedNew - actualCount);
+        }
+
+        clampedNew = Math.Clamp(clampedNew, 0, _children.Count);
+        _children.InsertRange(clampedNew, range);
         InvalidateMeasure();
         return true;
     }
@@ -135,7 +204,7 @@ public class Panel : FrameworkElement
         }
     }
 
-    private IReadOnlyList<UIElement> GetChildrenOrderedByZIndex()
+    internal IReadOnlyList<UIElement> GetChildrenOrderedByZIndex()
     {
         _zOrderedChildrenCache.Clear();
         _zOrderedChildrenCache.AddRange(_children);

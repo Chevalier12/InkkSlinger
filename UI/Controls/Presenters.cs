@@ -308,7 +308,21 @@ public class ContentPresenter : FrameworkElement
 
 public class ItemsPresenter : FrameworkElement
 {
+    private static readonly bool EnableItemsPresenterTrace = false;
     private ItemsControl? _itemsOwner;
+
+    internal bool TryGetItemContainersForHitTest(out IReadOnlyList<UIElement> containers)
+    {
+        EnsureOwner();
+        if (_itemsOwner == null)
+        {
+            containers = Array.Empty<UIElement>();
+            return false;
+        }
+
+        containers = _itemsOwner.GetItemContainersForPresenter();
+        return true;
+    }
 
     public override IEnumerable<UIElement> GetVisualChildren()
     {
@@ -356,6 +370,8 @@ public class ItemsPresenter : FrameworkElement
             return Vector2.Zero;
         }
 
+        Trace($"Measure start available={availableSize} owner={_itemsOwner.GetType().Name} items={_itemsOwner.GetItemContainersForPresenter().Count}");
+
         var desired = Vector2.Zero;
         foreach (var child in _itemsOwner.GetItemContainersForPresenter())
         {
@@ -369,6 +385,7 @@ public class ItemsPresenter : FrameworkElement
             desired.Y += element.DesiredSize.Y;
         }
 
+        Trace($"Measure end desired={desired}");
         return desired;
     }
 
@@ -379,6 +396,8 @@ public class ItemsPresenter : FrameworkElement
         {
             return finalSize;
         }
+
+        Trace($"Arrange start final={finalSize} owner={_itemsOwner.GetType().Name} items={_itemsOwner.GetItemContainersForPresenter().Count}");
 
         var y = LayoutSlot.Y;
         foreach (var child in _itemsOwner.GetItemContainersForPresenter())
@@ -393,6 +412,7 @@ public class ItemsPresenter : FrameworkElement
             y += height;
         }
 
+        Trace($"Arrange end final={finalSize}");
         return finalSize;
     }
 
@@ -411,12 +431,12 @@ public class ItemsPresenter : FrameworkElement
 
         if (_itemsOwner != null)
         {
-            _itemsOwner.DetachItemsPresenter(this);
+            _itemsOwner.DetachItemsHost(this);
             _itemsOwner = null;
         }
 
         _itemsOwner = foundOwner;
-        _itemsOwner?.AttachItemsPresenter(this);
+        _itemsOwner?.AttachItemsHost(this);
         InvalidateMeasure();
     }
 
@@ -431,6 +451,16 @@ public class ItemsPresenter : FrameworkElement
         }
 
         return null;
+    }
+
+    private void Trace(string message)
+    {
+        if (!EnableItemsPresenterTrace)
+        {
+            return;
+        }
+
+        Console.WriteLine($"[ItemsPresenter#{GetHashCode():X8}] t={Environment.TickCount64} {message}");
     }
 }
 

@@ -8,6 +8,8 @@ namespace InkkSlinger;
 
 public class ScrollViewer : Control
 {
+    private static readonly bool EnableScrollTrace = false;
+
     public static readonly DependencyProperty ContentProperty =
         DependencyProperty.Register(
             nameof(Content),
@@ -22,14 +24,22 @@ public class ScrollViewer : Control
             typeof(ScrollViewer),
             new FrameworkPropertyMetadata(
                 0f,
-                FrameworkPropertyMetadataOptions.AffectsArrange,
+                FrameworkPropertyMetadataOptions.None,
                 propertyChangedCallback: static (dependencyObject, args) =>
                 {
                     if (dependencyObject is ScrollViewer scrollViewer && args.NewValue is float offset)
                     {
+                        scrollViewer.Trace(
+                            $"HorizontalOffset changed old={args.OldValue} new={args.NewValue} " +
+                            $"scrollable={scrollViewer.ScrollableWidth:0.##}");
                         scrollViewer._viewportHost.HorizontalOffset = offset;
-                        scrollViewer._viewportHost.InvalidateMeasure();
-                        scrollViewer.SyncScrollBars();
+                        // Scrolling should not trigger a full layout pass of the entire UI tree.
+                        // The viewport host applies the offset via a render transform.
+                        scrollViewer._viewportHost.InvalidateVisual();
+                        if (!scrollViewer._isHandlingScrollBarInput)
+                        {
+                            scrollViewer.SyncScrollBars();
+                        }
                     }
                 },
                 coerceValueCallback: static (dependencyObject, value) =>
@@ -50,14 +60,22 @@ public class ScrollViewer : Control
             typeof(ScrollViewer),
             new FrameworkPropertyMetadata(
                 0f,
-                FrameworkPropertyMetadataOptions.AffectsArrange,
+                FrameworkPropertyMetadataOptions.None,
                 propertyChangedCallback: static (dependencyObject, args) =>
                 {
                     if (dependencyObject is ScrollViewer scrollViewer && args.NewValue is float offset)
                     {
+                        scrollViewer.Trace(
+                            $"VerticalOffset changed old={args.OldValue} new={args.NewValue} " +
+                            $"scrollable={scrollViewer.ScrollableHeight:0.##}");
                         scrollViewer._viewportHost.VerticalOffset = offset;
-                        scrollViewer._viewportHost.InvalidateMeasure();
-                        scrollViewer.SyncScrollBars();
+                        // Scrolling should not trigger a full layout pass of the entire UI tree.
+                        // The viewport host applies the offset via a render transform.
+                        scrollViewer._viewportHost.InvalidateVisual();
+                        if (!scrollViewer._isHandlingScrollBarInput)
+                        {
+                            scrollViewer.SyncScrollBars();
+                        }
                     }
                 },
                 coerceValueCallback: static (dependencyObject, value) =>
@@ -127,6 +145,7 @@ public class ScrollViewer : Control
     private bool _showHorizontalScrollBar;
     private bool _showVerticalScrollBar;
     private bool _isUpdatingBarValue;
+    private bool _isHandlingScrollBarInput;
 
     public ScrollViewer()
     {
@@ -315,6 +334,7 @@ public class ScrollViewer : Control
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        Trace($"Measure start available={availableSize} offsets=({HorizontalOffset:0.##},{VerticalOffset:0.##})");
         var desired = base.MeasureOverride(availableSize);
         var border = BorderThickness * 2f;
 
@@ -403,12 +423,17 @@ public class ScrollViewer : Control
 
         CoerceOffsets();
         ConfigureScrollBars();
+        Trace(
+            $"Measure end desired={desired} content={contentSize} viewport=({viewportWidth:0.##},{viewportHeight:0.##}) " +
+            $"extent=({ExtentWidth:0.##},{ExtentHeight:0.##}) scrollable=({ScrollableWidth:0.##},{ScrollableHeight:0.##}) " +
+            $"bars=(h:{_showHorizontalScrollBar},v:{_showVerticalScrollBar})");
 
         return desired;
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        Trace($"Arrange start final={finalSize} offsets=({HorizontalOffset:0.##},{VerticalOffset:0.##})");
         base.ArrangeOverride(finalSize);
 
         var slot = LayoutSlot;
@@ -438,6 +463,9 @@ public class ScrollViewer : Control
 
         CoerceOffsets();
         ConfigureScrollBars();
+        Trace(
+            $"Arrange end viewportRect={_viewportRect} extent=({ExtentWidth:0.##},{ExtentHeight:0.##}) " +
+            $"scrollable=({ScrollableWidth:0.##},{ScrollableHeight:0.##}) offsets=({HorizontalOffset:0.##},{VerticalOffset:0.##})");
 
         return finalSize;
     }
@@ -463,7 +491,15 @@ public class ScrollViewer : Control
         }
 
         var steps = args.Delta / 120f;
-        VerticalOffset -= steps * LineScrollAmount;
+        var nextOffset = MathF.Max(0f, MathF.Min(ScrollableHeight, VerticalOffset - (steps * LineScrollAmount)));
+        Trace(
+            $"MouseWheel delta={args.Delta} steps={steps:0.##} line={LineScrollAmount:0.##} " +
+            $"offsetBefore={VerticalOffset:0.##} offsetAfter={nextOffset:0.##} scrollable={ScrollableHeight:0.##}");
+        if (!AreClose(nextOffset, VerticalOffset))
+        {
+            VerticalOffset = nextOffset;
+        }
+
         args.Handled = true;
     }
 
@@ -536,6 +572,9 @@ public class ScrollViewer : Control
             _verticalScrollBar.SmallChange = LineScrollAmount;
             _verticalScrollBar.Value = VerticalOffset;
             _verticalScrollBar.IsEnabled = ScrollableHeight > 0f;
+            Trace(
+                $"ConfigureScrollBars h(value={_horizontalScrollBar.Value:0.##}, max={_horizontalScrollBar.Maximum:0.##}, vp={_horizontalScrollBar.ViewportSize:0.##}) " +
+                $"v(value={_verticalScrollBar.Value:0.##}, max={_verticalScrollBar.Maximum:0.##}, vp={_verticalScrollBar.ViewportSize:0.##})");
         }
         finally
         {
@@ -545,8 +584,20 @@ public class ScrollViewer : Control
 
     private void CoerceOffsets()
     {
-        HorizontalOffset = MathF.Max(0f, MathF.Min(ScrollableWidth, HorizontalOffset));
-        VerticalOffset = MathF.Max(0f, MathF.Min(ScrollableHeight, VerticalOffset));
+        var coercedHorizontal = MathF.Max(0f, MathF.Min(ScrollableWidth, HorizontalOffset));
+        if (!AreClose(HorizontalOffset, coercedHorizontal))
+        {
+            Trace($"Coerce HorizontalOffset {HorizontalOffset:0.##} -> {coercedHorizontal:0.##}");
+            HorizontalOffset = coercedHorizontal;
+        }
+
+        var coercedVertical = MathF.Max(0f, MathF.Min(ScrollableHeight, VerticalOffset));
+        if (!AreClose(VerticalOffset, coercedVertical))
+        {
+            Trace($"Coerce VerticalOffset {VerticalOffset:0.##} -> {coercedVertical:0.##}");
+            VerticalOffset = coercedVertical;
+        }
+
         _viewportHost.HorizontalOffset = HorizontalOffset;
         _viewportHost.VerticalOffset = VerticalOffset;
     }
@@ -563,6 +614,7 @@ public class ScrollViewer : Control
         {
             _horizontalScrollBar.Value = HorizontalOffset;
             _verticalScrollBar.Value = VerticalOffset;
+            Trace($"SyncScrollBars set h={HorizontalOffset:0.##} v={VerticalOffset:0.##}");
         }
         finally
         {
@@ -577,7 +629,19 @@ public class ScrollViewer : Control
             return;
         }
 
-        HorizontalOffset = _horizontalScrollBar.Value;
+        Trace($"HorizontalScrollBar ValueChanged value={_horizontalScrollBar.Value:0.##}");
+        _isHandlingScrollBarInput = true;
+        try
+        {
+            if (!AreClose(HorizontalOffset, _horizontalScrollBar.Value))
+            {
+                HorizontalOffset = _horizontalScrollBar.Value;
+            }
+        }
+        finally
+        {
+            _isHandlingScrollBarInput = false;
+        }
     }
 
     private void OnVerticalScrollBarValueChanged(object? sender, RoutedSimpleEventArgs args)
@@ -587,7 +651,34 @@ public class ScrollViewer : Control
             return;
         }
 
-        VerticalOffset = _verticalScrollBar.Value;
+        Trace($"VerticalScrollBar ValueChanged value={_verticalScrollBar.Value:0.##}");
+        _isHandlingScrollBarInput = true;
+        try
+        {
+            if (!AreClose(VerticalOffset, _verticalScrollBar.Value))
+            {
+                VerticalOffset = _verticalScrollBar.Value;
+            }
+        }
+        finally
+        {
+            _isHandlingScrollBarInput = false;
+        }
+    }
+
+    private static bool AreClose(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.01f;
+    }
+
+    private void Trace(string message)
+    {
+        if (!EnableScrollTrace)
+        {
+            return;
+        }
+
+        Console.WriteLine($"[ScrollViewer#{GetHashCode():X8}] t={Environment.TickCount64} {message}");
     }
 
     private sealed class ScrollViewportHost : FrameworkElement
@@ -666,13 +757,28 @@ public class ScrollViewer : Control
                 var arrangedWidth = MathF.Max(finalSize.X, ExtentWidth);
                 var arrangedHeight = MathF.Max(finalSize.Y, ExtentHeight);
                 content.Arrange(new LayoutRect(
-                    LayoutSlot.X - HorizontalOffset,
-                    LayoutSlot.Y - VerticalOffset,
+                    LayoutSlot.X,
+                    LayoutSlot.Y,
                     arrangedWidth,
                     arrangedHeight));
             }
 
             return finalSize;
+        }
+
+        protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
+        {
+            // Apply scrolling as a render transform so offset changes do not force a full layout pass.
+            if (HorizontalOffset == 0f && VerticalOffset == 0f)
+            {
+                transform = Matrix.Identity;
+                inverseTransform = Matrix.Identity;
+                return false;
+            }
+
+            transform = Matrix.CreateTranslation(-HorizontalOffset, -VerticalOffset, 0f);
+            inverseTransform = Matrix.CreateTranslation(HorizontalOffset, VerticalOffset, 0f);
+            return true;
         }
 
         protected override bool TryGetClipRect(out LayoutRect clipRect)
@@ -682,3 +788,4 @@ public class ScrollViewer : Control
         }
     }
 }
+

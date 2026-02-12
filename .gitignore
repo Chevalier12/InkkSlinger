@@ -24,3 +24,7 @@ Desktop.ini
 # Logs
 *.log
 
+
+# Local documentation
+Docs/
+
