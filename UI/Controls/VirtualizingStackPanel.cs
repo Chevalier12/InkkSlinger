@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
-public class VirtualizingStackPanel : Panel
+public class VirtualizingStackPanel : Panel, IScrollInfo
 {
     public static readonly DependencyProperty OrientationProperty =
         DependencyProperty.Register(
@@ -58,6 +58,15 @@ public class VirtualizingStackPanel : Panel
 
     private float _averagePrimarySize = 28f;
     private float _maxSecondarySize;
+    private float _extentWidth;
+    private float _extentHeight;
+    private float _viewportWidth;
+    private float _viewportHeight;
+    private float _horizontalOffset;
+    private float _verticalOffset;
+    private bool _canHorizontallyScroll;
+    private bool _canVerticallyScroll = true;
+    private ScrollViewer? _scrollOwner;
 
     private bool _startOffsetsDirty = true;
     private bool _isVirtualizationActive;
@@ -99,6 +108,36 @@ public class VirtualizingStackPanel : Panel
     public int RealizedChildrenCount { get; private set; }
 
     public bool IsVirtualizationActive => _isVirtualizationActive;
+
+    public bool CanHorizontallyScroll
+    {
+        get => _canHorizontallyScroll;
+        set => _canHorizontallyScroll = value;
+    }
+
+    public bool CanVerticallyScroll
+    {
+        get => _canVerticallyScroll;
+        set => _canVerticallyScroll = value;
+    }
+
+    public float ExtentWidth => _extentWidth;
+
+    public float ExtentHeight => _extentHeight;
+
+    public float ViewportWidth => _viewportWidth;
+
+    public float ViewportHeight => _viewportHeight;
+
+    public float HorizontalOffset => _horizontalOffset;
+
+    public float VerticalOffset => _verticalOffset;
+
+    public ScrollViewer? ScrollOwner
+    {
+        get => _scrollOwner;
+        set => _scrollOwner = value;
+    }
 
     public static bool GetIsVirtualizing(UIElement element)
     {
@@ -189,6 +228,12 @@ public class VirtualizingStackPanel : Panel
             SetRealization(-1, -1);
             _isVirtualizationActive = false;
             _maxSecondarySize = 0f;
+            _extentWidth = 0f;
+            _extentHeight = 0f;
+            _viewportWidth = 0f;
+            _viewportHeight = 0f;
+            CoerceOffsets();
+            NotifyScrollOwner();
             return Vector2.Zero;
         }
 
@@ -208,9 +253,11 @@ public class VirtualizingStackPanel : Panel
         var extentPrimary = GetTotalPrimarySize();
         var extentSecondary = ResolveExtentSecondary(availableSize);
 
-        return Orientation == Orientation.Vertical
+        var desired = Orientation == Orientation.Vertical
             ? new Vector2(extentSecondary, extentPrimary)
             : new Vector2(extentPrimary, extentSecondary);
+        UpdateScrollDataFromMeasure(availableSize, desired);
+        return desired;
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
@@ -219,6 +266,12 @@ public class VirtualizingStackPanel : Panel
         {
             SetRealization(-1, -1);
             _isVirtualizationActive = false;
+            _extentWidth = 0f;
+            _extentHeight = 0f;
+            _viewportWidth = MathF.Max(0f, finalSize.X);
+            _viewportHeight = MathF.Max(0f, finalSize.Y);
+            CoerceOffsets();
+            NotifyScrollOwner();
             return finalSize;
         }
 
@@ -238,6 +291,8 @@ public class VirtualizingStackPanel : Panel
             ArrangeRange(finalSize, 0, Children.Count - 1);
         }
 
+        UpdateViewportFromFinalSize(finalSize);
+        NotifyScrollOwner();
         return finalSize;
     }
 
@@ -250,7 +305,131 @@ public class VirtualizingStackPanel : Panel
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
     {
         base.OnLogicalParentChanged(oldParent, newParent);
+        if (oldParent == null && newParent == null)
+        {
+            ScrollOwner = null;
+        }
         InvalidateMeasure();
+    }
+
+    public void LineUp()
+    {
+        SetVerticalOffset(VerticalOffset - MathF.Max(1f, _averagePrimarySize));
+    }
+
+    public void LineDown()
+    {
+        SetVerticalOffset(VerticalOffset + MathF.Max(1f, _averagePrimarySize));
+    }
+
+    public void LineLeft()
+    {
+        SetHorizontalOffset(HorizontalOffset - MathF.Max(1f, _averagePrimarySize));
+    }
+
+    public void LineRight()
+    {
+        SetHorizontalOffset(HorizontalOffset + MathF.Max(1f, _averagePrimarySize));
+    }
+
+    public void PageUp()
+    {
+        SetVerticalOffset(VerticalOffset - MathF.Max(1f, ViewportHeight));
+    }
+
+    public void PageDown()
+    {
+        SetVerticalOffset(VerticalOffset + MathF.Max(1f, ViewportHeight));
+    }
+
+    public void PageLeft()
+    {
+        SetHorizontalOffset(HorizontalOffset - MathF.Max(1f, ViewportWidth));
+    }
+
+    public void PageRight()
+    {
+        SetHorizontalOffset(HorizontalOffset + MathF.Max(1f, ViewportWidth));
+    }
+
+    public void MouseWheelUp()
+    {
+        LineUp();
+    }
+
+    public void MouseWheelDown()
+    {
+        LineDown();
+    }
+
+    public void MouseWheelLeft()
+    {
+        LineLeft();
+    }
+
+    public void MouseWheelRight()
+    {
+        LineRight();
+    }
+
+    public void SetHorizontalOffset(float offset)
+    {
+        var next = MathF.Max(0f, MathF.Min(MaxHorizontalOffset(), offset));
+        if (AreClose(next, _horizontalOffset))
+        {
+            return;
+        }
+
+        _horizontalOffset = next;
+        InvalidateMeasure();
+        InvalidateArrange();
+        NotifyScrollOwner();
+    }
+
+    public void SetVerticalOffset(float offset)
+    {
+        var next = MathF.Max(0f, MathF.Min(MaxVerticalOffset(), offset));
+        if (AreClose(next, _verticalOffset))
+        {
+            return;
+        }
+
+        _verticalOffset = next;
+        InvalidateMeasure();
+        InvalidateArrange();
+        NotifyScrollOwner();
+    }
+
+    public LayoutRect MakeVisible(UIElement visual, LayoutRect rectangle)
+    {
+        if (Orientation == Orientation.Vertical)
+        {
+            var start = rectangle.Y;
+            var end = rectangle.Y + rectangle.Height;
+            if (start < VerticalOffset)
+            {
+                SetVerticalOffset(start);
+            }
+            else if (end > VerticalOffset + ViewportHeight)
+            {
+                SetVerticalOffset(end - ViewportHeight);
+            }
+        }
+        else
+        {
+            var start = rectangle.X;
+            var end = rectangle.X + rectangle.Width;
+            if (start < HorizontalOffset)
+            {
+                SetHorizontalOffset(start);
+            }
+            else if (end > HorizontalOffset + ViewportWidth)
+            {
+                SetHorizontalOffset(end - ViewportWidth);
+            }
+        }
+
+        return rectangle;
     }
 
     private void ArrangeRange(Vector2 finalSize, int firstIndex, int lastIndex)
@@ -296,7 +475,7 @@ public class VirtualizingStackPanel : Panel
 
     private bool IsVirtualizationActiveContext(ViewportContext context)
     {
-        return IsVirtualizing && context.IsInScrollViewer && IsFinitePositive(context.ViewportPrimary);
+        return IsVirtualizing && IsFinitePositive(context.ViewportPrimary);
     }
 
     private float ResolvePrimarySizeForArrange(FrameworkElement child, int index)
@@ -630,14 +809,28 @@ public class VirtualizingStackPanel : Panel
 
     private ViewportContext ResolveViewportContext(Vector2 availableSize)
     {
-        var scrollViewer = FindAncestorScrollViewer();
+        var fallbackViewer = ScrollOwner ?? FindAncestorScrollViewer();
         var viewportPrimary = Orientation == Orientation.Vertical
-            ? scrollViewer?.ViewportHeight ?? float.NaN
-            : scrollViewer?.ViewportWidth ?? float.NaN;
+            ? ViewportHeight
+            : ViewportWidth;
 
         var offsetPrimary = Orientation == Orientation.Vertical
-            ? scrollViewer?.VerticalOffset ?? 0f
-            : scrollViewer?.HorizontalOffset ?? 0f;
+            ? VerticalOffset
+            : HorizontalOffset;
+
+        if (!IsFinitePositive(viewportPrimary) && fallbackViewer != null)
+        {
+            viewportPrimary = Orientation == Orientation.Vertical
+                ? fallbackViewer.ViewportHeight
+                : fallbackViewer.ViewportWidth;
+        }
+
+        if (AreClose(offsetPrimary, 0f) && fallbackViewer != null)
+        {
+            offsetPrimary = Orientation == Orientation.Vertical
+                ? fallbackViewer.VerticalOffset
+                : fallbackViewer.HorizontalOffset;
+        }
 
         if (!IsFinitePositive(viewportPrimary))
         {
@@ -658,7 +851,7 @@ public class VirtualizingStackPanel : Panel
         var endOffset = offsetPrimary + viewportPrimary + cacheLength;
 
         return new ViewportContext(
-            scrollViewer != null,
+            fallbackViewer != null,
             viewportPrimary,
             offsetPrimary,
             startOffset,
@@ -675,6 +868,50 @@ public class VirtualizingStackPanel : Panel
             VirtualizationCacheLengthUnit.Page => cacheLength * MathF.Max(1f, viewportPrimary),
             _ => cacheLength
         };
+    }
+
+    private void UpdateScrollDataFromMeasure(Vector2 availableSize, Vector2 desiredSize)
+    {
+        _extentWidth = MathF.Max(0f, desiredSize.X);
+        _extentHeight = MathF.Max(0f, desiredSize.Y);
+        _viewportWidth = Orientation == Orientation.Vertical
+            ? (IsFinitePositive(availableSize.X) ? availableSize.X : _maxSecondarySize)
+            : (IsFinitePositive(availableSize.X) ? availableSize.X : MathF.Max(1f, _averagePrimarySize * 12f));
+        _viewportHeight = Orientation == Orientation.Vertical
+            ? (IsFinitePositive(availableSize.Y) ? availableSize.Y : MathF.Max(1f, _averagePrimarySize * 12f))
+            : (IsFinitePositive(availableSize.Y) ? availableSize.Y : _maxSecondarySize);
+        _viewportWidth = MathF.Max(0f, _viewportWidth);
+        _viewportHeight = MathF.Max(0f, _viewportHeight);
+        CoerceOffsets();
+        NotifyScrollOwner();
+    }
+
+    private void UpdateViewportFromFinalSize(Vector2 finalSize)
+    {
+        _viewportWidth = MathF.Max(0f, finalSize.X);
+        _viewportHeight = MathF.Max(0f, finalSize.Y);
+        CoerceOffsets();
+    }
+
+    private float MaxHorizontalOffset()
+    {
+        return MathF.Max(0f, ExtentWidth - ViewportWidth);
+    }
+
+    private float MaxVerticalOffset()
+    {
+        return MathF.Max(0f, ExtentHeight - ViewportHeight);
+    }
+
+    private void CoerceOffsets()
+    {
+        _horizontalOffset = MathF.Max(0f, MathF.Min(MaxHorizontalOffset(), _horizontalOffset));
+        _verticalOffset = MathF.Max(0f, MathF.Min(MaxVerticalOffset(), _verticalOffset));
+    }
+
+    private void NotifyScrollOwner()
+    {
+        ScrollOwner?.InvalidateScrollInfo();
     }
 
     private ScrollViewer? FindAncestorScrollViewer()
