@@ -28,7 +28,7 @@ This project exists to close that gap by bringing a familiar WPF-style model int
 |---|---:|---:|
 | Tracked WPF controls | 65 | 12 |
 | Core parity areas (DP, events, input, layout, markup, resources/styles, triggers, binding, templates, animation, virtualization, rendering/invalidation, tooling) | 12 | 0 |
-| Deeper parity tracks (menu/commanding depth, rich text/doc stack, adorner depth, full-edge parity) | 0 | 4 |
+| Deeper parity tracks (menu/commanding depth, rich text/doc stack, adorner depth, full-edge parity) | 1 | 3 |
 
 ## Vision
 
