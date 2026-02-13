@@ -74,7 +74,7 @@ public static class VisualTreeHelper
 
             candidate = RefineIndexByLayoutSlot(itemContainers, probeY, candidate);
 
-            var hit = TryHitContainerAt(itemContainers[candidate], probeX, probeY);
+            var hit = HitTestCore(itemContainers[candidate], position, nextHorizontalOffset, nextVerticalOffset);
             if (hit != null)
             {
                 if (EnableHitTestTrace)
@@ -92,7 +92,7 @@ public static class VisualTreeHelper
             for (var i = 0; i < itemContainers.Count; i++)
             {
                 scanned++;
-                hit = TryHitContainerAt(itemContainers[i], probeX, probeY);
+                hit = HitTestCore(itemContainers[i], position, nextHorizontalOffset, nextVerticalOffset);
                 if (hit != null)
                 {
                     if (EnableHitTestTrace)
@@ -167,24 +167,6 @@ public static class VisualTreeHelper
         }
 
         return root;
-    }
-
-    private static UIElement? TryHitContainerAt(UIElement container, float x, float y)
-    {
-        if (!container.IsVisible || !container.IsEnabled || !container.IsHitTestVisible)
-        {
-            return null;
-        }
-
-        if (container is not FrameworkElement element)
-        {
-            return null;
-        }
-
-        var slot = element.LayoutSlot;
-        return x >= slot.X && x <= slot.X + slot.Width && y >= slot.Y && y <= slot.Y + slot.Height
-            ? container
-            : null;
     }
 
     private static bool IsFinitePositive(float value)

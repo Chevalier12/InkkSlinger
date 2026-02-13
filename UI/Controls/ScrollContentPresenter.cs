@@ -141,6 +141,28 @@ public sealed class ScrollContentPresenter : FrameworkElement
         return true;
     }
 
+    public override bool HitTest(Vector2 point)
+    {
+        if (!IsVisible || !IsEnabled || !IsHitTestVisible)
+        {
+            return false;
+        }
+
+        // Presenter scrolling translates child rendering only; the interactive viewport bounds
+        // stay anchored to this layout slot in root coordinates.
+        var slot = LayoutSlot;
+        return point.X >= slot.X &&
+               point.X <= slot.X + slot.Width &&
+               point.Y >= slot.Y &&
+               point.Y <= slot.Y + slot.Height;
+    }
+
+    internal override bool TryGetRenderBoundsInRootSpace(out LayoutRect bounds)
+    {
+        bounds = LayoutSlot;
+        return bounds.Width > 0f && bounds.Height > 0f;
+    }
+
     protected override bool TryGetClipRect(out LayoutRect clipRect)
     {
         clipRect = LayoutSlot;

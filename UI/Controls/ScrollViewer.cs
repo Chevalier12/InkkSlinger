@@ -327,6 +327,7 @@ public class ScrollViewer : Control
         _presenter.HorizontalOffset = HorizontalOffset;
         _presenter.VerticalOffset = VerticalOffset;
         _presenter.InvalidateVisual();
+        InputManager.NotifyHitTestGeometryChanged();
         SyncScrollBars();
         RaiseScrollChangedIfNeeded();
     }

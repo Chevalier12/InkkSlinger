@@ -353,6 +353,11 @@ public static class InputManager
         _cachedHitElement = null;
     }
 
+    internal static void NotifyHitTestGeometryChanged()
+    {
+        InvalidateHitTestCache();
+    }
+
     private static bool TryReuseHoveredListItemHit(
         UIElement root,
         Vector2 pointerPosition,

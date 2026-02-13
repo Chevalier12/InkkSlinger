@@ -60,11 +60,6 @@
               BorderBrush="#2F506F"
               BorderThickness="1"
               Padding="10">
-        <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Auto"
-                      Background="#0A1421"
-                      BorderBrush="#294764"
-                      BorderThickness="1">
           <ListBox Background="#0A1421"
                    BorderBrush="#294764"
                    BorderThickness="1">
@@ -77,8 +72,97 @@
             <ListBoxItem>
               <Label Text="Label C" Foreground="#DCEEFF" />
             </ListBoxItem>
+                        <ListBoxItem>
+              <Label Text="Label A" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label B" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label C" Foreground="#DCEEFF" />
+            </ListBoxItem>
+                        <ListBoxItem>
+              <Label Text="Label A" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label B" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label C" Foreground="#DCEEFF" />
+            </ListBoxItem>
+                        <ListBoxItem>
+              <Label Text="Label A" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label B" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label C" Foreground="#DCEEFF" />
+            </ListBoxItem>
+                        <ListBoxItem>
+              <Label Text="Label A" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label B" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label C" Foreground="#DCEEFF" />
+            </ListBoxItem>
+                        <ListBoxItem>
+              <Label Text="Label A" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label B" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label C" Foreground="#DCEEFF" />
+            </ListBoxItem>
+                        <ListBoxItem>
+              <Label Text="Label A" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label B" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label C" Foreground="#DCEEFF" />
+            </ListBoxItem>
+                        <ListBoxItem>
+              <Label Text="Label A" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label B" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label C" Foreground="#DCEEFF" />
+            </ListBoxItem>
+                        <ListBoxItem>
+              <Label Text="Label A" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label B" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label C" Foreground="#DCEEFF" />
+            </ListBoxItem>
+                        <ListBoxItem>
+              <Label Text="Label A" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label B" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label C" Foreground="#DCEEFF" />
+            </ListBoxItem>
+                        <ListBoxItem>
+              <Label Text="Label A" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label B" Foreground="#DCEEFF" />
+            </ListBoxItem>
+            <ListBoxItem>
+              <Label Text="Label C" Foreground="#DCEEFF" />
+            </ListBoxItem>
           </ListBox>
-        </ScrollViewer>
       </Border>
     </Grid>
   </Grid>

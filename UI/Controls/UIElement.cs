@@ -276,7 +276,30 @@ public class UIElement : DependencyObject
 
     internal virtual bool TryGetRenderBoundsInRootSpace(out LayoutRect bounds)
     {
-        bounds = LayoutSlot;
+        var slot = LayoutSlot;
+        if (slot.Width <= 0f || slot.Height <= 0f)
+        {
+            bounds = slot;
+            return false;
+        }
+
+        if (!TryGetTransformFromThisToRoot(out var transform))
+        {
+            bounds = slot;
+            return true;
+        }
+
+        var topLeft = Vector2.Transform(new Vector2(slot.X, slot.Y), transform);
+        var topRight = Vector2.Transform(new Vector2(slot.X + slot.Width, slot.Y), transform);
+        var bottomLeft = Vector2.Transform(new Vector2(slot.X, slot.Y + slot.Height), transform);
+        var bottomRight = Vector2.Transform(new Vector2(slot.X + slot.Width, slot.Y + slot.Height), transform);
+
+        var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+        var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+        var maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+        var maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+
+        bounds = new LayoutRect(minX, minY, MathF.Max(0f, maxX - minX), MathF.Max(0f, maxY - minY));
         return bounds.Width > 0f && bounds.Height > 0f;
     }
 
@@ -1298,6 +1321,29 @@ public class UIElement : DependencyObject
     private bool TryGetTransformFromRootToThisInverse(out Matrix inverseTransform)
     {
         return TryGetTransformFromRootToThisInverse(this, out inverseTransform);
+    }
+
+    private bool TryGetTransformFromThisToRoot(out Matrix transform)
+    {
+        return TryGetTransformFromThisToRoot(this, out transform);
+    }
+
+    private static bool TryGetTransformFromThisToRoot(UIElement? element, out Matrix transform)
+    {
+        transform = Matrix.Identity;
+        var hasTransform = false;
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (!current.TryGetLocalRenderTransform(out var localTransform, out _))
+            {
+                continue;
+            }
+
+            transform *= localTransform;
+            hasTransform = true;
+        }
+
+        return hasTransform;
     }
 
     private static bool TryGetTransformFromRootToThisInverse(UIElement? element, out Matrix inverseTransform)
