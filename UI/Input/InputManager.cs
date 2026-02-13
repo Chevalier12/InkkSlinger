@@ -18,7 +18,30 @@ public static class InputManager
         CursorChanged = 1 << 2
     }
 
-    private static MouseState _previousMouseState;
+    private struct PointerState
+    {
+        public int X;
+        public int Y;
+        public int ScrollWheelValue;
+        public ButtonState LeftButton;
+        public ButtonState RightButton;
+        public ButtonState MiddleButton;
+
+        public static PointerState FromMouseState(MouseState state)
+        {
+            return new PointerState
+            {
+                X = state.X,
+                Y = state.Y,
+                ScrollWheelValue = state.ScrollWheelValue,
+                LeftButton = state.LeftButton,
+                RightButton = state.RightButton,
+                MiddleButton = state.MiddleButton
+            };
+        }
+    }
+
+    private static PointerState _previousPointerState;
     private static KeyboardState _previousKeyboardState;
     private static readonly Dictionary<Keys, double> NextKeyRepeatTimes = new();
     private static UIElement? _hoveredElement;
@@ -30,6 +53,13 @@ public static class InputManager
     private static bool _cursorApiAvailable = true;
     private static bool _visualStateChangedThisFrame;
     private static InputVisualStateChangeFlags _visualStateChangeFlagsThisFrame;
+    private static bool _hasCachedHitTest;
+    private static UIElement? _cachedHitRoot;
+    private static UIElement? _cachedHitCapturedElement;
+    private static Vector2 _cachedHitPosition;
+    private static UIElement? _cachedHitElement;
+    private static int _hoverReuseAttempts;
+    private static int _hoverReuseSuccesses;
     private const double KeyRepeatInitialDelaySeconds = 0.35d;
     private const double KeyRepeatIntervalSeconds = 0.045d;
 
@@ -51,6 +81,7 @@ public static class InputManager
         _mouseCapturedElement?.NotifyLostMouseCapture();
         _mouseCapturedElement = element;
         _mouseCapturedElement.NotifyGotMouseCapture();
+        InvalidateHitTestCache();
         return true;
     }
 
@@ -63,30 +94,110 @@ public static class InputManager
 
         _mouseCapturedElement.NotifyLostMouseCapture();
         _mouseCapturedElement = null;
+        InvalidateHitTestCache();
     }
 
     public static void Update(UIElement root, GameTime gameTime)
+    {
+        var pointerState = PointerState.FromMouseState(Mouse.GetState());
+        var keyboardState = Keyboard.GetState();
+        UpdateCore(root, gameTime, pointerState, keyboardState);
+    }
+
+    internal static void UpdateForTesting(
+        UIElement root,
+        GameTime gameTime,
+        Vector2 pointerPosition,
+        int scrollWheelValue = 0,
+        ButtonState leftButton = ButtonState.Released,
+        ButtonState rightButton = ButtonState.Released,
+        ButtonState middleButton = ButtonState.Released,
+        KeyboardState keyboardState = default)
+    {
+        var pointerState = new PointerState
+        {
+            X = (int)pointerPosition.X,
+            Y = (int)pointerPosition.Y,
+            ScrollWheelValue = scrollWheelValue,
+            LeftButton = leftButton,
+            RightButton = rightButton,
+            MiddleButton = middleButton
+        };
+        UpdateCore(root, gameTime, pointerState, keyboardState);
+    }
+
+    private static void UpdateCore(
+        UIElement root,
+        GameTime gameTime,
+        PointerState pointerState,
+        KeyboardState keyboardState)
     {
         _visualStateChangedThisFrame = false;
         _visualStateChangeFlagsThisFrame = InputVisualStateChangeFlags.None;
         var focusedBeforeUpdate = FocusManager.FocusedElement;
         EnsureInputStateIsValid(root);
 
-        var mouseState = Mouse.GetState();
-        var keyboardState = Keyboard.GetState();
         var modifiers = GetModifierKeys(keyboardState);
 
-        var pointerPosition = new Vector2(mouseState.X, mouseState.Y);
-        var hitTestStart = Stopwatch.GetTimestamp();
-        var hitElement = VisualTreeHelper.HitTest(root, pointerPosition);
-        var hitTestMs = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+        var pointerPosition = new Vector2(pointerState.X, pointerState.Y);
+        var pointerMoved = pointerState.X != _previousPointerState.X ||
+                           pointerState.Y != _previousPointerState.Y;
+        var wheelDelta = pointerState.ScrollWheelValue - _previousPointerState.ScrollWheelValue;
+        var wheelChanged = wheelDelta != 0;
+        var mouseButtonsChanged =
+            pointerState.LeftButton != _previousPointerState.LeftButton ||
+            pointerState.RightButton != _previousPointerState.RightButton ||
+            pointerState.MiddleButton != _previousPointerState.MiddleButton;
+
+        var pointerInputChanged = pointerMoved || wheelChanged || mouseButtonsChanged;
+        var canReuseCachedHit = _hasCachedHitTest &&
+                                ReferenceEquals(_cachedHitRoot, root) &&
+                                ReferenceEquals(_cachedHitCapturedElement, _mouseCapturedElement) &&
+                                _cachedHitPosition == pointerPosition;
+
+        UIElement? hitElement = _hoveredElement;
+        var hitTestMs = 0d;
+        if (pointerInputChanged)
+        {
+            if (canReuseCachedHit)
+            {
+                hitElement = _cachedHitElement;
+            }
+            else
+            {
+                _hoverReuseAttempts++;
+                if (!TryReuseHoveredListItemHit(root, pointerPosition, out hitElement))
+                {
+                    var hitTestStart = Stopwatch.GetTimestamp();
+                    hitElement = VisualTreeHelper.HitTest(root, pointerPosition);
+                    hitTestMs = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                }
+                else
+                {
+                    _hoverReuseSuccesses++;
+                }
+
+                CacheHitTestResult(root, pointerPosition, _mouseCapturedElement, hitElement);
+            }
+        }
+        else if (canReuseCachedHit)
+        {
+            hitElement = _cachedHitElement;
+        }
+
         var eventTarget = _mouseCapturedElement ?? hitElement;
-        UpdateCursor(_mouseCapturedElement ?? hitElement);
+        var shouldUpdateCursor = pointerInputChanged ||
+                                 !ReferenceEquals(eventTarget, _hoveredElement) ||
+                                 _mouseCapturedElement != null;
+        if (shouldUpdateCursor)
+        {
+            UpdateCursor(eventTarget ?? _hoveredElement);
+        }
         if (EnableInputTrace)
         {
             Console.WriteLine(
                 $"[Input] t={Environment.TickCount64} ptr=({pointerPosition.X:0.#},{pointerPosition.Y:0.#}) " +
-                $"wheel={mouseState.ScrollWheelValue - _previousMouseState.ScrollWheelValue} " +
+                $"wheel={wheelDelta} " +
                 $"hit={hitElement?.GetType().Name ?? "null"} target={eventTarget?.GetType().Name ?? "null"} " +
                 $"hitMs={hitTestMs:0.###}");
         }
@@ -100,24 +211,30 @@ public static class InputManager
             _visualStateChangeFlagsThisFrame |= InputVisualStateChangeFlags.HoverChanged;
         }
 
-        if (eventTarget != null && (mouseState.X != _previousMouseState.X || mouseState.Y != _previousMouseState.Y))
+        if (eventTarget != null && pointerMoved)
         {
             eventTarget.NotifyMouseMove(pointerPosition, modifiers);
         }
 
-        ProcessMouseButton(mouseState.LeftButton, _previousMouseState.LeftButton, MouseButton.Left, eventTarget, pointerPosition, modifiers, gameTime);
-        ProcessMouseButton(mouseState.RightButton, _previousMouseState.RightButton, MouseButton.Right, eventTarget, pointerPosition, modifiers, gameTime);
-        ProcessMouseButton(mouseState.MiddleButton, _previousMouseState.MiddleButton, MouseButton.Middle, eventTarget, pointerPosition, modifiers, gameTime);
+        if (mouseButtonsChanged)
+        {
+            ProcessMouseButton(pointerState.LeftButton, _previousPointerState.LeftButton, MouseButton.Left, eventTarget, pointerPosition, modifiers, gameTime);
+            ProcessMouseButton(pointerState.RightButton, _previousPointerState.RightButton, MouseButton.Right, eventTarget, pointerPosition, modifiers, gameTime);
+            ProcessMouseButton(pointerState.MiddleButton, _previousPointerState.MiddleButton, MouseButton.Middle, eventTarget, pointerPosition, modifiers, gameTime);
+        }
 
-        var wheelDelta = mouseState.ScrollWheelValue - _previousMouseState.ScrollWheelValue;
-        if (eventTarget != null && wheelDelta != 0)
+        if (eventTarget != null && wheelChanged)
         {
             eventTarget.NotifyMouseWheel(pointerPosition, wheelDelta, modifiers);
         }
 
         if (FocusManager.FocusedElement != null)
         {
-            ProcessKeyboard(root, FocusManager.FocusedElement, keyboardState, modifiers, gameTime.TotalGameTime.TotalSeconds);
+            var keyboardUnchanged = keyboardState.Equals(_previousKeyboardState);
+            if (!keyboardUnchanged || NextKeyRepeatTimes.Count > 0)
+            {
+                ProcessKeyboard(root, FocusManager.FocusedElement, keyboardState, modifiers, gameTime.TotalGameTime.TotalSeconds);
+            }
         }
 
         if (!ReferenceEquals(focusedBeforeUpdate, FocusManager.FocusedElement))
@@ -126,7 +243,7 @@ public static class InputManager
             _visualStateChangeFlagsThisFrame |= InputVisualStateChangeFlags.FocusChanged;
         }
 
-        _previousMouseState = mouseState;
+        _previousPointerState = pointerState;
         _previousKeyboardState = keyboardState;
     }
 
@@ -145,6 +262,7 @@ public static class InputManager
             {
                 _mouseCapturedElement = null;
                 captured.NotifyLostMouseCapture();
+                InvalidateHitTestCache();
             }
         }
 
@@ -167,21 +285,30 @@ public static class InputManager
         {
             _mouseCapturedElement = null;
             element.NotifyLostMouseCapture();
+            InvalidateHitTestCache();
+        }
+
+        if (ReferenceEquals(_hoveredElement, element))
+        {
+            _hoveredElement = null;
+            InvalidateHitTestCache();
         }
 
         if (ReferenceEquals(FocusManager.FocusedElement, element))
         {
             FocusManager.SetFocusedElement(null);
+            InvalidateHitTestCache();
         }
     }
 
     internal static void ResetForTests()
     {
-        _previousMouseState = default;
+        _previousPointerState = default;
         _previousKeyboardState = default;
         _hoveredElement = null;
         _visualStateChangedThisFrame = false;
         _visualStateChangeFlagsThisFrame = InputVisualStateChangeFlags.None;
+        InvalidateHitTestCache();
 
         if (_mouseCapturedElement != null)
         {
@@ -195,6 +322,150 @@ public static class InputManager
         _lastClickPosition = Vector2.Zero;
         _activeCursor = UiCursor.Arrow;
         NextKeyRepeatTimes.Clear();
+        _hoverReuseAttempts = 0;
+        _hoverReuseSuccesses = 0;
+    }
+
+    internal static (int Attempts, int Successes) GetHoverReuseStatsForTests()
+    {
+        return (_hoverReuseAttempts, _hoverReuseSuccesses);
+    }
+
+    private static void CacheHitTestResult(
+        UIElement root,
+        Vector2 pointerPosition,
+        UIElement? capturedElement,
+        UIElement? hitElement)
+    {
+        _hasCachedHitTest = true;
+        _cachedHitRoot = root;
+        _cachedHitCapturedElement = capturedElement;
+        _cachedHitPosition = pointerPosition;
+        _cachedHitElement = hitElement;
+    }
+
+    private static void InvalidateHitTestCache()
+    {
+        _hasCachedHitTest = false;
+        _cachedHitRoot = null;
+        _cachedHitCapturedElement = null;
+        _cachedHitPosition = Vector2.Zero;
+        _cachedHitElement = null;
+    }
+
+    private static bool TryReuseHoveredListItemHit(
+        UIElement root,
+        Vector2 pointerPosition,
+        out UIElement? hitElement)
+    {
+        hitElement = null;
+        if (_mouseCapturedElement != null)
+        {
+            return false;
+        }
+
+        if (_hoveredElement == null)
+        {
+            return false;
+        }
+
+        if (!TryGetListBoxItemAncestor(_hoveredElement, root, out _))
+        {
+            return false;
+        }
+
+        if (!IsElementOnVisualChainToRoot(root, _hoveredElement))
+        {
+            return false;
+        }
+
+        if (!IsPointerInsideElementAndAncestors(root, _hoveredElement, pointerPosition))
+        {
+            return false;
+        }
+
+        hitElement = _hoveredElement;
+        return true;
+    }
+
+    private static bool TryGetListBoxItemAncestor(
+        UIElement element,
+        UIElement root,
+        out ListBoxItem? listBoxItem)
+    {
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (current is ListBoxItem found)
+            {
+                listBoxItem = found;
+                return true;
+            }
+
+            if (ReferenceEquals(current, root))
+            {
+                break;
+            }
+        }
+
+        listBoxItem = null;
+        return false;
+    }
+
+    private static bool IsElementOnVisualChainToRoot(UIElement root, UIElement element)
+    {
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (ReferenceEquals(current, root))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsPointerInsideElementAndAncestors(
+        UIElement root,
+        UIElement element,
+        Vector2 pointerPosition)
+    {
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (!current.IsVisible || !current.IsEnabled || !current.IsHitTestVisible)
+            {
+                return false;
+            }
+
+            if (current is ScrollViewer scrollViewer &&
+                (scrollViewer.HorizontalOffset != 0f || scrollViewer.VerticalOffset != 0f))
+            {
+                // Scroll offsets are applied via render transforms. Fall back to full hit-test for correctness.
+                return false;
+            }
+
+            if (current is FrameworkElement frameworkElement)
+            {
+                var slot = frameworkElement.LayoutSlot;
+                if (pointerPosition.X < slot.X ||
+                    pointerPosition.X > slot.X + slot.Width ||
+                    pointerPosition.Y < slot.Y ||
+                    pointerPosition.Y > slot.Y + slot.Height)
+                {
+                    return false;
+                }
+            }
+            else if (!current.HitTest(pointerPosition))
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(current, root))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void ProcessMouseButton(

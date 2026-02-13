@@ -8,6 +8,10 @@ namespace InkkSlinger;
 
 public class UIElement : DependencyObject
 {
+    private const int RoutePoolMaxSize = 64;
+    [ThreadStatic]
+    private static Stack<List<UIElement>>? _routePool;
+
     static UIElement()
     {
         EventManager.RegisterClassHandler<UIElement, RoutedKeyEventArgs>(
@@ -830,27 +834,35 @@ public class UIElement : DependencyObject
     protected void RaiseRoutedEvent(RoutedEvent routedEvent, RoutedEventArgs args)
     {
         args.OriginalSource ??= this;
-        var route = BuildRoute(this);
-
         if (routedEvent.RoutingStrategy == RoutingStrategy.Direct)
         {
             InvokeRoutedEvent(this, routedEvent, args);
             return;
         }
 
-        if (routedEvent.RoutingStrategy == RoutingStrategy.Tunnel)
+        var route = RentRoute();
+        try
         {
-            for (var i = route.Count - 1; i >= 0; i--)
+            BuildRoute(this, route);
+
+            if (routedEvent.RoutingStrategy == RoutingStrategy.Tunnel)
+            {
+                for (var i = route.Count - 1; i >= 0; i--)
+                {
+                    InvokeRoutedEvent(route[i], routedEvent, args);
+                }
+
+                return;
+            }
+
+            for (var i = 0; i < route.Count; i++)
             {
                 InvokeRoutedEvent(route[i], routedEvent, args);
             }
-
-            return;
         }
-
-        foreach (var element in route)
+        finally
         {
-            InvokeRoutedEvent(element, routedEvent, args);
+            ReturnRoute(route);
         }
     }
 
@@ -989,15 +1001,34 @@ public class UIElement : DependencyObject
         LostKeyboardFocus?.Invoke(this, args);
     }
 
-    private static List<UIElement> BuildRoute(UIElement target)
+    private static void BuildRoute(UIElement target, List<UIElement> route)
     {
-        var route = new List<UIElement>();
+        route.Clear();
         for (var current = target; current != null; current = current.VisualParent)
         {
             route.Add(current);
         }
+    }
 
-        return route;
+    private static List<UIElement> RentRoute()
+    {
+        var pool = _routePool;
+        if (pool != null && pool.Count > 0)
+        {
+            return pool.Pop();
+        }
+
+        return new List<UIElement>(8);
+    }
+
+    private static void ReturnRoute(List<UIElement> route)
+    {
+        route.Clear();
+        _routePool ??= new Stack<List<UIElement>>();
+        if (_routePool.Count < RoutePoolMaxSize)
+        {
+            _routePool.Push(route);
+        }
     }
 
     private void InvokeRoutedEvent(UIElement target, RoutedEvent routedEvent, RoutedEventArgs args)

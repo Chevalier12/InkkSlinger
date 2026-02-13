@@ -11,10 +11,23 @@ public static class VisualTreeHelper
     private static readonly bool EnableHitTestTrace = false;
     public static UIElement? HitTest(UIElement root, Vector2 position)
     {
+        return HitTestCore(root, position, 0f, 0f);
+    }
+
+    private static UIElement? HitTestCore(UIElement root, Vector2 position, float accumulatedHorizontalOffset, float accumulatedVerticalOffset)
+    {
         var hitTestStart = EnableHitTestTrace ? Stopwatch.GetTimestamp() : 0L;
         if (!root.HitTest(position))
         {
             return null;
+        }
+
+        var nextHorizontalOffset = accumulatedHorizontalOffset;
+        var nextVerticalOffset = accumulatedVerticalOffset;
+        if (root is ScrollViewer scrollViewerForOffset)
+        {
+            nextHorizontalOffset += scrollViewerForOffset.HorizontalOffset;
+            nextVerticalOffset += scrollViewerForOffset.VerticalOffset;
         }
 
         // Hot path: avoid per-node allocations and sorting (ItemsPresenter can have thousands of children).
@@ -23,7 +36,7 @@ public static class VisualTreeHelper
             var ordered = panel.GetChildrenOrderedByZIndex();
             for (var i = ordered.Count - 1; i >= 0; i--)
             {
-                var hit = HitTest(ordered[i], position);
+                var hit = HitTestCore(ordered[i], position, nextHorizontalOffset, nextVerticalOffset);
                 if (hit != null)
                 {
                     return hit;
@@ -37,12 +50,19 @@ public static class VisualTreeHelper
             itemsPresenter.TryGetItemContainersForHitTest(out var itemContainers) &&
             itemContainers.Count > 0)
         {
-            GetAncestorScrollOffsets(itemsPresenter, out var horizontalOffset, out var verticalOffset);
-            var probeX = position.X + horizontalOffset;
-            var probeY = position.Y + verticalOffset;
+            var probeX = position.X + nextHorizontalOffset;
+            var probeY = position.Y + nextVerticalOffset;
+            var presenterSlot = itemsPresenter.LayoutSlot;
+            if (probeY < presenterSlot.Y ||
+                probeY > presenterSlot.Y + presenterSlot.Height ||
+                probeX < presenterSlot.X ||
+                probeX > presenterSlot.X + presenterSlot.Width)
+            {
+                return root;
+            }
 
             // Items are laid out vertically in order; use an approximate index to avoid scanning the full list.
-            var relativeY = probeY - itemsPresenter.LayoutSlot.Y;
+            var relativeY = probeY - presenterSlot.Y;
             var averageHeight = itemsPresenter.DesiredSize.Y / itemContainers.Count;
             if (!IsFinitePositive(averageHeight))
             {
@@ -115,16 +135,16 @@ public static class VisualTreeHelper
                 return root;
             }
 
-            if (minZ != maxZ)
+        if (minZ != maxZ)
+        {
+            // Only sort when ZIndex differs. Most trees have all-zero ZIndex and sorting becomes the dominant cost.
+            childBuffer.Sort(static (a, b) => Panel.GetZIndex(b).CompareTo(Panel.GetZIndex(a)));
+            for (var i = 0; i < childBuffer.Count; i++)
             {
-                // Only sort when ZIndex differs. Most trees have all-zero ZIndex and sorting becomes the dominant cost.
-                childBuffer.Sort(static (a, b) => Panel.GetZIndex(b).CompareTo(Panel.GetZIndex(a)));
-                for (var i = 0; i < childBuffer.Count; i++)
+                var hit = HitTestCore(childBuffer[i], position, nextHorizontalOffset, nextVerticalOffset);
+                if (hit != null)
                 {
-                    var hit = HitTest(childBuffer[i], position);
-                    if (hit != null)
-                    {
-                        return hit;
+                    return hit;
                     }
                 }
 
@@ -134,7 +154,7 @@ public static class VisualTreeHelper
             // Common case: no ZIndex variance. Iterate in reverse draw order so later children win.
             for (var i = childBuffer.Count - 1; i >= 0; i--)
             {
-                var hit = HitTest(childBuffer[i], position);
+                var hit = HitTestCore(childBuffer[i], position, nextHorizontalOffset, nextVerticalOffset);
                 if (hit != null)
                 {
                     return hit;
@@ -165,23 +185,6 @@ public static class VisualTreeHelper
         return x >= slot.X && x <= slot.X + slot.Width && y >= slot.Y && y <= slot.Y + slot.Height
             ? container
             : null;
-    }
-
-    private static void GetAncestorScrollOffsets(UIElement start, out float horizontalOffset, out float verticalOffset)
-    {
-        horizontalOffset = 0f;
-        verticalOffset = 0f;
-
-        for (var current = start.VisualParent ?? start.LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
-        {
-            if (current is not ScrollViewer scrollViewer)
-            {
-                continue;
-            }
-
-            horizontalOffset += scrollViewer.HorizontalOffset;
-            verticalOffset += scrollViewer.VerticalOffset;
-        }
     }
 
     private static bool IsFinitePositive(float value)
