@@ -8,6 +8,10 @@ namespace InkkSlinger;
 
 public class UIElement : DependencyObject
 {
+    private const int RoutePoolMaxSize = 64;
+    [ThreadStatic]
+    private static Stack<List<UIElement>>? _routePool;
+
     static UIElement()
     {
         EventManager.RegisterClassHandler<UIElement, RoutedKeyEventArgs>(
@@ -272,7 +276,30 @@ public class UIElement : DependencyObject
 
     internal virtual bool TryGetRenderBoundsInRootSpace(out LayoutRect bounds)
     {
-        bounds = LayoutSlot;
+        var slot = LayoutSlot;
+        if (slot.Width <= 0f || slot.Height <= 0f)
+        {
+            bounds = slot;
+            return false;
+        }
+
+        if (!TryGetTransformFromThisToRoot(out var transform))
+        {
+            bounds = slot;
+            return true;
+        }
+
+        var topLeft = Vector2.Transform(new Vector2(slot.X, slot.Y), transform);
+        var topRight = Vector2.Transform(new Vector2(slot.X + slot.Width, slot.Y), transform);
+        var bottomLeft = Vector2.Transform(new Vector2(slot.X, slot.Y + slot.Height), transform);
+        var bottomRight = Vector2.Transform(new Vector2(slot.X + slot.Width, slot.Y + slot.Height), transform);
+
+        var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+        var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+        var maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+        var maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+
+        bounds = new LayoutRect(minX, minY, MathF.Max(0f, maxX - minX), MathF.Max(0f, maxY - minY));
         return bounds.Width > 0f && bounds.Height > 0f;
     }
 
@@ -546,6 +573,7 @@ public class UIElement : DependencyObject
         var hadPreviousBounds = TryGetRenderBoundsInRootSpace(out var previousBounds);
         var oldParent = VisualParent;
         VisualParent = parent;
+        FocusManager.NotifyFocusGraphInvalidated();
         OnVisualParentChanged(oldParent, parent);
         NotifyBindingTreeChanged(this);
         MarkParentTransitionVisualDirty(previousRoot, hadPreviousBounds, previousBounds);
@@ -562,6 +590,7 @@ public class UIElement : DependencyObject
         var hadPreviousBounds = TryGetRenderBoundsInRootSpace(out var previousBounds);
         var oldParent = LogicalParent;
         LogicalParent = parent;
+        FocusManager.NotifyFocusGraphInvalidated();
         OnLogicalParentChanged(oldParent, parent);
         NotifyBindingTreeChanged(this);
         MarkParentTransitionVisualDirty(previousRoot, hadPreviousBounds, previousBounds);
@@ -830,27 +859,35 @@ public class UIElement : DependencyObject
     protected void RaiseRoutedEvent(RoutedEvent routedEvent, RoutedEventArgs args)
     {
         args.OriginalSource ??= this;
-        var route = BuildRoute(this);
-
         if (routedEvent.RoutingStrategy == RoutingStrategy.Direct)
         {
             InvokeRoutedEvent(this, routedEvent, args);
             return;
         }
 
-        if (routedEvent.RoutingStrategy == RoutingStrategy.Tunnel)
+        var route = RentRoute();
+        try
         {
-            for (var i = route.Count - 1; i >= 0; i--)
+            BuildRoute(this, route);
+
+            if (routedEvent.RoutingStrategy == RoutingStrategy.Tunnel)
+            {
+                for (var i = route.Count - 1; i >= 0; i--)
+                {
+                    InvokeRoutedEvent(route[i], routedEvent, args);
+                }
+
+                return;
+            }
+
+            for (var i = 0; i < route.Count; i++)
             {
                 InvokeRoutedEvent(route[i], routedEvent, args);
             }
-
-            return;
         }
-
-        foreach (var element in route)
+        finally
         {
-            InvokeRoutedEvent(element, routedEvent, args);
+            ReturnRoute(route);
         }
     }
 
@@ -989,15 +1026,34 @@ public class UIElement : DependencyObject
         LostKeyboardFocus?.Invoke(this, args);
     }
 
-    private static List<UIElement> BuildRoute(UIElement target)
+    private static void BuildRoute(UIElement target, List<UIElement> route)
     {
-        var route = new List<UIElement>();
+        route.Clear();
         for (var current = target; current != null; current = current.VisualParent)
         {
             route.Add(current);
         }
+    }
 
-        return route;
+    private static List<UIElement> RentRoute()
+    {
+        var pool = _routePool;
+        if (pool != null && pool.Count > 0)
+        {
+            return pool.Pop();
+        }
+
+        return new List<UIElement>(8);
+    }
+
+    private static void ReturnRoute(List<UIElement> route)
+    {
+        route.Clear();
+        _routePool ??= new Stack<List<UIElement>>();
+        if (_routePool.Count < RoutePoolMaxSize)
+        {
+            _routePool.Push(route);
+        }
     }
 
     private void InvokeRoutedEvent(UIElement target, RoutedEvent routedEvent, RoutedEventArgs args)
@@ -1244,13 +1300,15 @@ public class UIElement : DependencyObject
     {
         base.OnDependencyPropertyChanged(args);
 
-        if ((ReferenceEquals(args.Property, IsEnabledProperty) ||
-             ReferenceEquals(args.Property, IsVisibleProperty) ||
-             ReferenceEquals(args.Property, FocusableProperty)) &&
-            args.NewValue is bool state &&
-            !state)
+        if (ReferenceEquals(args.Property, IsEnabledProperty) ||
+            ReferenceEquals(args.Property, IsVisibleProperty) ||
+            ReferenceEquals(args.Property, FocusableProperty))
         {
-            InputManager.NotifyElementStateInvalidated(this);
+            FocusManager.NotifyFocusGraphInvalidated();
+            if (args.NewValue is bool state && !state)
+            {
+                InputManager.NotifyElementStateInvalidated(this);
+            }
         }
 
         if (!args.Property.GetMetadata(this).Inherits)
@@ -1267,6 +1325,29 @@ public class UIElement : DependencyObject
     private bool TryGetTransformFromRootToThisInverse(out Matrix inverseTransform)
     {
         return TryGetTransformFromRootToThisInverse(this, out inverseTransform);
+    }
+
+    private bool TryGetTransformFromThisToRoot(out Matrix transform)
+    {
+        return TryGetTransformFromThisToRoot(this, out transform);
+    }
+
+    private static bool TryGetTransformFromThisToRoot(UIElement? element, out Matrix transform)
+    {
+        transform = Matrix.Identity;
+        var hasTransform = false;
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (!current.TryGetLocalRenderTransform(out var localTransform, out _))
+            {
+                continue;
+            }
+
+            transform *= localTransform;
+            hasTransform = true;
+        }
+
+        return hasTransform;
     }
 
     private static bool TryGetTransformFromRootToThisInverse(UIElement? element, out Matrix inverseTransform)

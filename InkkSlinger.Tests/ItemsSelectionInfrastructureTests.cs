@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -180,6 +181,64 @@ public class ItemsSelectionInfrastructureTests
         Assert.Empty(listBox.SelectedIndices);
     }
 
+    [Fact]
+    public void ListBox_ClickBottomVisibleItem_AfterScroll_UpdatesSelection()
+    {
+        var root = new Panel
+        {
+            Width = 320f,
+            Height = 260f
+        };
+
+        var listBox = new ListBox
+        {
+            Width = 240f,
+            Height = 180f
+        };
+
+        var items = new List<TestListBoxItem>();
+        for (var i = 0; i < 36; i++)
+        {
+            var item = new TestListBoxItem
+            {
+                Content = new Label { Text = $"Item {i}" }
+            };
+            items.Add(item);
+            listBox.Items.Add(item);
+        }
+
+        root.AddChild(listBox);
+        root.Measure(new Vector2(320f, 260f));
+        root.Arrange(new LayoutRect(0f, 0f, 320f, 260f));
+
+        var internalViewer = FindInnerScrollViewer(listBox);
+        Assert.NotNull(internalViewer);
+        internalViewer!.ScrollToVerticalOffset(internalViewer.ScrollableHeight);
+
+        // Re-arrange after scrolling so hit targets stay deterministic for the test.
+        root.Measure(new Vector2(320f, 260f));
+        root.Arrange(new LayoutRect(0f, 0f, 320f, 260f));
+
+        var clickPoint = new Vector2(
+            listBox.LayoutSlot.X + 14f,
+            listBox.LayoutSlot.Y + listBox.LayoutSlot.Height - 8f);
+
+        var hit = VisualTreeHelper.HitTest(root, clickPoint);
+        Assert.IsType<TestListBoxItem>(hit);
+
+        var clickedItem = (TestListBoxItem)hit!;
+        Assert.False(clickedItem.IsSelected);
+
+        var gameTime = new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16));
+        InputManager.ResetForTests();
+        InputManager.UpdateForTesting(root, gameTime, clickPoint);
+        InputManager.UpdateForTesting(root, gameTime, clickPoint, leftButton: ButtonState.Pressed);
+        InputManager.UpdateForTesting(root, gameTime, clickPoint, leftButton: ButtonState.Released);
+
+        Assert.Same(clickedItem, listBox.SelectedItem);
+        Assert.True(clickedItem.IsSelected);
+    }
+
     private static TestListBox CreateTestListBoxWithItems(int count, out List<TestListBoxItem> containers)
     {
         var listBox = new TestListBox
@@ -202,6 +261,19 @@ public class ItemsSelectionInfrastructureTests
         listBox.Measure(new Vector2(220f, 160f));
         listBox.Arrange(new LayoutRect(0f, 0f, 220f, 160f));
         return listBox;
+    }
+
+    private static ScrollViewer? FindInnerScrollViewer(ListBox listBox)
+    {
+        foreach (var child in listBox.GetVisualChildren())
+        {
+            if (child is ScrollViewer viewer)
+            {
+                return viewer;
+            }
+        }
+
+        return null;
     }
 
     private sealed class TestItemsControl : ItemsControl

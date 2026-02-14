@@ -23,6 +23,8 @@ public class Panel : FrameworkElement
 
     private readonly List<UIElement> _children = new();
     private readonly List<UIElement> _zOrderedChildrenCache = new();
+    private readonly Dictionary<UIElement, int> _childOrderLookup = new();
+    private bool _zOrderCacheDirty = true;
 
     public IReadOnlyList<UIElement> Children => _children;
 
@@ -53,6 +55,7 @@ public class Panel : FrameworkElement
         child.DependencyPropertyChanged += OnChildDependencyPropertyChanged;
         child.SetVisualParent(this);
         child.SetLogicalParent(this);
+        _zOrderCacheDirty = true;
         InvalidateMeasure();
     }
 
@@ -68,6 +71,7 @@ public class Panel : FrameworkElement
         child.DependencyPropertyChanged += OnChildDependencyPropertyChanged;
         child.SetVisualParent(this);
         child.SetLogicalParent(this);
+        _zOrderCacheDirty = true;
         InvalidateMeasure();
     }
 
@@ -81,6 +85,7 @@ public class Panel : FrameworkElement
         child.DependencyPropertyChanged -= OnChildDependencyPropertyChanged;
         child.SetVisualParent(null);
         child.SetLogicalParent(null);
+        _zOrderCacheDirty = true;
         InvalidateMeasure();
         return true;
     }
@@ -97,6 +102,7 @@ public class Panel : FrameworkElement
         child.DependencyPropertyChanged -= OnChildDependencyPropertyChanged;
         child.SetVisualParent(null);
         child.SetLogicalParent(null);
+        _zOrderCacheDirty = true;
         InvalidateMeasure();
         return true;
     }
@@ -135,6 +141,7 @@ public class Panel : FrameworkElement
 
         clampedNew = Math.Clamp(clampedNew, 0, _children.Count);
         _children.InsertRange(clampedNew, range);
+        _zOrderCacheDirty = true;
         InvalidateMeasure();
         return true;
     }
@@ -200,15 +207,28 @@ public class Panel : FrameworkElement
     {
         if (ReferenceEquals(args.Property, ZIndexProperty))
         {
+            _zOrderCacheDirty = true;
             InvalidateArrange();
         }
     }
 
     internal IReadOnlyList<UIElement> GetChildrenOrderedByZIndex()
     {
+        if (!_zOrderCacheDirty)
+        {
+            return _zOrderedChildrenCache;
+        }
+
         _zOrderedChildrenCache.Clear();
         _zOrderedChildrenCache.AddRange(_children);
+        _childOrderLookup.Clear();
+        for (var i = 0; i < _children.Count; i++)
+        {
+            _childOrderLookup[_children[i]] = i;
+        }
+
         _zOrderedChildrenCache.Sort(CompareChildrenByZIndex);
+        _zOrderCacheDirty = false;
         return _zOrderedChildrenCache;
     }
 
@@ -220,6 +240,8 @@ public class Panel : FrameworkElement
             return zIndexComparison;
         }
 
-        return _children.IndexOf(first).CompareTo(_children.IndexOf(second));
+        var firstOrder = _childOrderLookup.TryGetValue(first, out var firstIndex) ? firstIndex : int.MaxValue;
+        var secondOrder = _childOrderLookup.TryGetValue(second, out var secondIndex) ? secondIndex : int.MaxValue;
+        return firstOrder.CompareTo(secondOrder);
     }
 }

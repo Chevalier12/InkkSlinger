@@ -6,6 +6,7 @@ namespace InkkSlinger;
 public static class EventManager
 {
     private static readonly Dictionary<(Type Owner, RoutedEvent RoutedEvent), List<ClassHandlerEntry>> ClassHandlers = new();
+    private static readonly Dictionary<(Type ElementType, RoutedEvent RoutedEvent), ClassHandlerEntry[]> ClassHandlerDispatchCache = new();
 
     public static void RegisterClassHandler<TElement, TArgs>(RoutedEvent routedEvent, Action<TElement, TArgs> handler)
         where TElement : UIElement
@@ -37,29 +38,47 @@ public static class EventManager
                 }
             },
             handledEventsToo));
+        ClassHandlerDispatchCache.Clear();
     }
 
     internal static void InvokeClassHandlers(UIElement element, RoutedEvent routedEvent, RoutedEventArgs args)
     {
-        var type = element.GetType();
+        var dispatchHandlers = GetDispatchHandlers(element.GetType(), routedEvent);
+        for (var i = 0; i < dispatchHandlers.Length; i++)
+        {
+            var handler = dispatchHandlers[i];
+            if (args.Handled && !handler.HandledEventsToo)
+            {
+                continue;
+            }
+
+            handler.Handler(element, args);
+        }
+    }
+
+    private static ClassHandlerEntry[] GetDispatchHandlers(Type elementType, RoutedEvent routedEvent)
+    {
+        var key = (elementType, routedEvent);
+        if (ClassHandlerDispatchCache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var collected = new List<ClassHandlerEntry>();
+        var type = elementType;
         while (type != null && typeof(UIElement).IsAssignableFrom(type))
         {
-            var key = (type, routedEvent);
-            if (ClassHandlers.TryGetValue(key, out var handlers))
+            if (ClassHandlers.TryGetValue((type, routedEvent), out var handlers))
             {
-                foreach (var handler in handlers)
-                {
-                    if (args.Handled && !handler.HandledEventsToo)
-                    {
-                        continue;
-                    }
-
-                    handler.Handler(element, args);
-                }
+                collected.AddRange(handlers);
             }
 
             type = type.BaseType;
         }
+
+        var flattened = collected.Count == 0 ? Array.Empty<ClassHandlerEntry>() : collected.ToArray();
+        ClassHandlerDispatchCache[key] = flattened;
+        return flattened;
     }
 
     private readonly struct ClassHandlerEntry

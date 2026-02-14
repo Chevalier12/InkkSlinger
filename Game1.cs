@@ -13,30 +13,37 @@ public class Game1 : Game
     private readonly bool _isWindowDemo;
     private readonly bool _isPaintShellDemo;
     private readonly bool _isCommandingDemo;
+    private readonly bool _isTwoScrollViewersDemo;
     private SpriteBatch _spriteBatch = null!;
     private UiRoot _uiRoot = null!;
     private MainMenuView? _mainMenuView;
     private WindowDemoView? _windowDemoView;
     private PaintShellView? _paintShellView;
     private CommandingMenuDemoView? _commandingMenuDemoView;
+    private TwoScrollViewersView? _twoScrollViewersView;
     private KeyboardState _previousKeyboardState;
     private long _frameUpdateCounter;
     private long _frameDrawCounter;
     private int _lastPrintedHitchCount;
 
-    public Game1(bool isWindowDemo = false, bool isPaintShellDemo = false, bool isCommandingDemo = false)
+    public Game1(
+        bool isWindowDemo = false,
+        bool isPaintShellDemo = false,
+        bool isCommandingDemo = false,
+        bool isTwoScrollViewersDemo = false)
     {
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
         _isWindowDemo = isWindowDemo;
         _isPaintShellDemo = isPaintShellDemo;
         _isCommandingDemo = isCommandingDemo;
+        _isTwoScrollViewersDemo = isTwoScrollViewersDemo;
         Content.RootDirectory = "Content";
         _window.IsMouseVisible = true;
         _window.AllowUserResizing = true;
         _window.SetClientSize(
-            _isWindowDemo ? 1100 : (_isPaintShellDemo ? 1580 : (_isCommandingDemo ? 1500 : 1720)),
-            _isWindowDemo ? 700 : (_isPaintShellDemo ? 940 : (_isCommandingDemo ? 900 : 1080)));
+            _isWindowDemo ? 1100 : (_isPaintShellDemo ? 1580 : (_isCommandingDemo ? 1500 : (_isTwoScrollViewersDemo ? 1280 : 1720))),
+            _isWindowDemo ? 700 : (_isPaintShellDemo ? 940 : (_isCommandingDemo ? 900 : (_isTwoScrollViewersDemo ? 760 : 1080))));
         _window.Title = "InkkSlinger";
     }
 
@@ -64,6 +71,11 @@ public class Game1 : Game
             _commandingMenuDemoView = new CommandingMenuDemoView();
             root.AddChild(_commandingMenuDemoView);
         }
+        else if (_isTwoScrollViewersDemo)
+        {
+            _twoScrollViewersView = new TwoScrollViewersView();
+            root.AddChild(_twoScrollViewersView);
+        }
         else
         {
             _mainMenuView = new MainMenuView();
@@ -90,6 +102,7 @@ public class Game1 : Game
             _windowDemoView?.SetFont(font);
             _paintShellView?.SetFont(font);
             _commandingMenuDemoView?.SetFont(font);
+            _twoScrollViewersView?.SetFont(font);
         }
         catch
         {
@@ -277,6 +290,12 @@ public class Game1 : Game
         if (_isCommandingDemo)
         {
             _window.Title = $"InkkSlinger Commanding Demo | {size.X}x{size.Y}";
+            return;
+        }
+
+        if (_isTwoScrollViewersDemo)
+        {
+            _window.Title = $"InkkSlinger Two ScrollViewers Demo | {size.X}x{size.Y}";
             return;
         }
 

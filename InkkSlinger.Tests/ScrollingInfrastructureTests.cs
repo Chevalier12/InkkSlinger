@@ -6,6 +6,11 @@ namespace InkkSlinger.Tests;
 
 public class ScrollingInfrastructureTests
 {
+    // Known WPF-first divergence list:
+    // - MouseWheel handling now only marks handled when an offset actually changes.
+    // - Hidden scrollbar visibility can still permit scrolling on that axis.
+    // - Disabled scrollbar visibility disables that axis for IScrollInfo content.
+
     public ScrollingInfrastructureTests()
     {
         Dispatcher.ResetForTests();

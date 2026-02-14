@@ -363,6 +363,59 @@ public class UiInvalidationRenderTests
         }
     }
 
+    [Fact]
+    public void HoverIdentityTransition_MarksBoundedOldAndNewRegions_WhenBoundsAvailable()
+    {
+        var host = new Panel
+        {
+            Width = 400f,
+            Height = 240f
+        };
+
+        var list = new ListBox
+        {
+            Width = 300f,
+            Height = 180f
+        };
+        var first = new PassiveListBoxItem { Height = 24f, Content = new Label { Text = "A" } };
+        var second = new PassiveListBoxItem { Height = 24f, Content = new Label { Text = "B" } };
+        var third = new PassiveListBoxItem { Height = 24f, Content = new Label { Text = "C" } };
+        list.Items.Add(first);
+        list.Items.Add(second);
+        list.Items.Add(third);
+        host.AddChild(list);
+
+        var root = new UiRoot(host);
+        try
+        {
+            host.Measure(new Vector2(400f, 240f));
+            host.Arrange(new LayoutRect(0f, 0f, 400f, 240f));
+
+            Assert.True(root.ExecuteDrawPassForTesting());
+            Assert.False(root.ExecuteDrawPassForTesting());
+
+            var gameTime = CreateGameTime(16);
+            var p1 = ProbePoint(first, 6f, 6f);
+            var p3 = ProbePoint(third, 6f, 6f);
+
+            InputManager.UpdateForTesting(host, gameTime, p1);
+            Assert.True(root.ExecuteDrawPassForTesting());
+            InputManager.SetVisualStateChangeFlagsForTests(InputManager.InputVisualStateChangeFlags.None);
+            Assert.False(root.ExecuteDrawPassForTesting());
+
+            InputManager.UpdateForTesting(host, gameTime, p3);
+
+            Assert.True(root.IsVisualDirty);
+            Assert.True(root.DirtyVisualRegionCount >= 2);
+            Assert.True(root.ExecuteDrawPassForTesting());
+            Assert.True((root.LastForceRedrawReasons & UiRedrawReason.HoverChanged) != 0);
+        }
+        finally
+        {
+            root.Shutdown();
+        }
+    }
+
     private static UiRoot CreateRoot()
     {
         return new UiRoot(new Panel());
@@ -372,5 +425,24 @@ public class UiInvalidationRenderTests
     {
         var total = TimeSpan.FromMilliseconds(totalMilliseconds);
         return new GameTime(total, TimeSpan.FromMilliseconds(16));
+    }
+
+    private static Vector2 ProbePoint(FrameworkElement element, float dx, float dy)
+    {
+        var slot = element.LayoutSlot;
+        var x = MathF.Max(slot.X + 1f, MathF.Min(slot.X + slot.Width - 1f, slot.X + dx));
+        var y = MathF.Max(slot.Y + 1f, MathF.Min(slot.Y + slot.Height - 1f, slot.Y + dy));
+        return new Vector2(x, y);
+    }
+
+    private sealed class PassiveListBoxItem : ListBoxItem
+    {
+        protected override void OnMouseEnter(RoutedMouseEventArgs args)
+        {
+        }
+
+        protected override void OnMouseLeave(RoutedMouseEventArgs args)
+        {
+        }
     }
 }
