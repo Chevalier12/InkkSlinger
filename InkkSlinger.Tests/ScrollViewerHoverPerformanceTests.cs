@@ -72,7 +72,7 @@ public class ScrollViewerHoverPerformanceTests
     [Fact]
     public void InputManager_MovingWithinSameListItem_DoesNotRaiseExtraEnterLeave()
     {
-        var (root, first, _, _) = BuildTrackingListScenario();
+        var (root, _, first, _, _) = BuildTrackingListScenario();
         var gameTime = new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16));
         var p1 = ProbePoint(first, 6f, 6f);
         var p2 = new Vector2(p1.X + 1f, p1.Y);
@@ -89,7 +89,7 @@ public class ScrollViewerHoverPerformanceTests
     [Fact]
     public void InputManager_MovingAcrossAdjacentListItems_RaisesSingleLeaveAndEnter()
     {
-        var (root, first, second, _) = BuildTrackingListScenario();
+        var (root, _, first, second, _) = BuildTrackingListScenario();
         var gameTime = new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16));
         var p1 = ProbePoint(first, 6f, 6f);
         var p2 = ProbePoint(second, 6f, 6f);
@@ -107,7 +107,7 @@ public class ScrollViewerHoverPerformanceTests
     [Fact]
     public void InputManager_MovingWithinSameListItem_StillDispatchesMouseMove()
     {
-        var (root, first, _, _) = BuildTrackingListScenario();
+        var (root, _, first, _, _) = BuildTrackingListScenario();
         var gameTime = new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16));
         var p1 = ProbePoint(first, 6f, 6f);
         var p2 = new Vector2(p1.X + 1f, p1.Y);
@@ -123,7 +123,27 @@ public class ScrollViewerHoverPerformanceTests
         Assert.Equal(initialMoveCount + 2, first.MouseMoveCount);
     }
 
-    private static (Panel Root, TrackingListBoxItem First, TrackingListBoxItem Second, TrackingListBoxItem Third)
+    [Fact]
+    public void InputManager_NonZeroScrollOffset_ReusesWithinSameVisibleItem()
+    {
+        var (root, viewer, first, _, _) = BuildTrackingListScenario();
+        viewer.ScrollToVerticalOffset(4f);
+
+        var gameTime = new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16));
+        var basePoint = ProbePoint(first, 6f, 6f);
+        var p1 = new Vector2(basePoint.X, basePoint.Y - viewer.VerticalOffset);
+        var p2 = new Vector2(p1.X + 1f, p1.Y);
+
+        InputManager.ResetForTests();
+        InputManager.UpdateForTesting(root, gameTime, p1);
+        InputManager.UpdateForTesting(root, gameTime, p2);
+
+        var stats = InputManager.GetHoverReuseStatsForTests();
+        Assert.True(stats.Attempts >= 2);
+        Assert.True(stats.Successes >= 1);
+    }
+
+    private static (Panel Root, ScrollViewer Viewer, TrackingListBoxItem First, TrackingListBoxItem Second, TrackingListBoxItem Third)
         BuildTrackingListScenario()
     {
         var root = new Panel
@@ -158,7 +178,7 @@ public class ScrollViewerHoverPerformanceTests
 
         root.Measure(new Vector2(400f, 240f));
         root.Arrange(new LayoutRect(0f, 0f, 400f, 240f));
-        return (root, first, second, third);
+        return (root, viewer, first, second, third);
     }
 
     private static Vector2 ProbePoint(FrameworkElement element, float dx, float dy)

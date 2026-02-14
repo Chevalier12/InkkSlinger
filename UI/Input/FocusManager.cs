@@ -5,6 +5,13 @@ namespace InkkSlinger;
 public static class FocusManager
 {
     public static event System.EventHandler<FocusChangedEventArgs>? FocusChanged;
+    private static UIElement? _cachedTraversalRoot;
+    private static int _focusGraphVersion;
+    private static int _cachedTraversalVersion = -1;
+    private static readonly List<UIElement> CachedTraversalCandidates = new();
+    private static readonly Dictionary<UIElement, int> CachedCandidateIndices = new();
+    private static int _traversalCacheBuilds;
+    private static int _traversalCacheHits;
 
     public static UIElement? FocusedElement { get; private set; }
 
@@ -32,14 +39,19 @@ public static class FocusManager
 
     public static bool MoveFocus(UIElement root, bool backwards = false)
     {
-        var candidates = new List<UIElement>();
-        CollectFocusableCandidates(root, candidates, new HashSet<UIElement>());
+        GetTraversalCache(root, out var candidates, out var candidateIndices);
         if (candidates.Count == 0)
         {
             return SetFocusedElement(null);
         }
 
-        var currentIndex = FocusedElement == null ? -1 : candidates.IndexOf(FocusedElement);
+        var currentIndex = -1;
+        if (FocusedElement != null &&
+            candidateIndices.TryGetValue(FocusedElement, out var focusedIndex))
+        {
+            currentIndex = focusedIndex;
+        }
+
         var nextIndex = ResolveNextFocusIndex(candidates.Count, currentIndex, backwards);
         return SetFocusedElement(candidates[nextIndex]);
     }
@@ -52,6 +64,55 @@ public static class FocusManager
     internal static void ResetForTests()
     {
         FocusedElement = null;
+        _cachedTraversalRoot = null;
+        _focusGraphVersion = 0;
+        _cachedTraversalVersion = -1;
+        CachedTraversalCandidates.Clear();
+        CachedCandidateIndices.Clear();
+        _traversalCacheBuilds = 0;
+        _traversalCacheHits = 0;
+    }
+
+    internal static void NotifyFocusGraphInvalidated()
+    {
+        unchecked
+        {
+            _focusGraphVersion++;
+        }
+    }
+
+    internal static (int Builds, int Hits) GetTraversalCacheStatsForTests()
+    {
+        return (_traversalCacheBuilds, _traversalCacheHits);
+    }
+
+    private static void GetTraversalCache(
+        UIElement root,
+        out List<UIElement> candidates,
+        out Dictionary<UIElement, int> candidateIndices)
+    {
+        if (ReferenceEquals(_cachedTraversalRoot, root) &&
+            _cachedTraversalVersion == _focusGraphVersion)
+        {
+            _traversalCacheHits++;
+            candidates = CachedTraversalCandidates;
+            candidateIndices = CachedCandidateIndices;
+            return;
+        }
+
+        CachedTraversalCandidates.Clear();
+        CachedCandidateIndices.Clear();
+        CollectFocusableCandidates(root, CachedTraversalCandidates, new HashSet<UIElement>());
+        for (var i = 0; i < CachedTraversalCandidates.Count; i++)
+        {
+            CachedCandidateIndices[CachedTraversalCandidates[i]] = i;
+        }
+
+        _cachedTraversalRoot = root;
+        _cachedTraversalVersion = _focusGraphVersion;
+        _traversalCacheBuilds++;
+        candidates = CachedTraversalCandidates;
+        candidateIndices = CachedCandidateIndices;
     }
 
     private static void CollectFocusableCandidates(UIElement element, IList<UIElement> candidates, ISet<UIElement> visited)

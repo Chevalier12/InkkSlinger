@@ -573,6 +573,7 @@ public class UIElement : DependencyObject
         var hadPreviousBounds = TryGetRenderBoundsInRootSpace(out var previousBounds);
         var oldParent = VisualParent;
         VisualParent = parent;
+        FocusManager.NotifyFocusGraphInvalidated();
         OnVisualParentChanged(oldParent, parent);
         NotifyBindingTreeChanged(this);
         MarkParentTransitionVisualDirty(previousRoot, hadPreviousBounds, previousBounds);
@@ -589,6 +590,7 @@ public class UIElement : DependencyObject
         var hadPreviousBounds = TryGetRenderBoundsInRootSpace(out var previousBounds);
         var oldParent = LogicalParent;
         LogicalParent = parent;
+        FocusManager.NotifyFocusGraphInvalidated();
         OnLogicalParentChanged(oldParent, parent);
         NotifyBindingTreeChanged(this);
         MarkParentTransitionVisualDirty(previousRoot, hadPreviousBounds, previousBounds);
@@ -1298,13 +1300,15 @@ public class UIElement : DependencyObject
     {
         base.OnDependencyPropertyChanged(args);
 
-        if ((ReferenceEquals(args.Property, IsEnabledProperty) ||
-             ReferenceEquals(args.Property, IsVisibleProperty) ||
-             ReferenceEquals(args.Property, FocusableProperty)) &&
-            args.NewValue is bool state &&
-            !state)
+        if (ReferenceEquals(args.Property, IsEnabledProperty) ||
+            ReferenceEquals(args.Property, IsVisibleProperty) ||
+            ReferenceEquals(args.Property, FocusableProperty))
         {
-            InputManager.NotifyElementStateInvalidated(this);
+            FocusManager.NotifyFocusGraphInvalidated();
+            if (args.NewValue is bool state && !state)
+            {
+                InputManager.NotifyElementStateInvalidated(this);
+            }
         }
 
         if (!args.Property.GetMetadata(this).Inherits)

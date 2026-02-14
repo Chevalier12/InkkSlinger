@@ -9,6 +9,8 @@ namespace InkkSlinger;
 public static class VisualTreeHelper
 {
     private static readonly bool EnableHitTestTrace = false;
+    private static int _itemsPresenterNeighborProbeCount;
+    private static int _itemsPresenterFullFallbackCount;
     public static UIElement? HitTest(UIElement root, Vector2 position)
     {
         return HitTestCore(root, position, 0f, 0f);
@@ -72,6 +74,7 @@ public static class VisualTreeHelper
             var candidate = (int)(relativeY / averageHeight);
             candidate = Math.Clamp(candidate, 0, itemContainers.Count - 1);
 
+            candidate = FindCandidateIndexByY(itemContainers, probeY, candidate);
             candidate = RefineIndexByLayoutSlot(itemContainers, probeY, candidate);
 
             var hit = HitTestCore(itemContainers[candidate], position, nextHorizontalOffset, nextVerticalOffset);
@@ -87,10 +90,97 @@ public static class VisualTreeHelper
                 return hit;
             }
 
-            // Fallback: scan forward (hit-test order does not matter for non-overlapping list items).
+            // Fallback: probe nearest neighbors around the predicted index and prune by Y-range when possible.
             var scanned = 0;
+            var monotonicByY = IsMonotonicByY(itemContainers);
+            var searchLeft = true;
+            var searchRight = true;
+            var left = candidate - 1;
+            var right = candidate + 1;
+            while (left >= 0 || right < itemContainers.Count)
+            {
+                if (searchLeft && left >= 0)
+                {
+                    if (monotonicByY &&
+                        TryGetVerticalRange(itemContainers[left], out _, out var leftBottom) &&
+                        probeY > leftBottom)
+                    {
+                        searchLeft = false;
+                    }
+                    else
+                    {
+                        scanned++;
+                        _itemsPresenterNeighborProbeCount++;
+                        hit = HitTestCore(itemContainers[left], position, nextHorizontalOffset, nextVerticalOffset);
+                        if (hit != null)
+                        {
+                            if (EnableHitTestTrace)
+                            {
+                                var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                                Console.WriteLine(
+                                    $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                                    $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
+                            }
+
+                            return hit;
+                        }
+
+                        left--;
+                    }
+                }
+                else
+                {
+                    searchLeft = false;
+                }
+
+                if (searchRight && right < itemContainers.Count)
+                {
+                    if (monotonicByY &&
+                        TryGetVerticalRange(itemContainers[right], out var rightTop, out _) &&
+                        probeY < rightTop)
+                    {
+                        searchRight = false;
+                    }
+                    else
+                    {
+                        scanned++;
+                        _itemsPresenterNeighborProbeCount++;
+                        hit = HitTestCore(itemContainers[right], position, nextHorizontalOffset, nextVerticalOffset);
+                        if (hit != null)
+                        {
+                            if (EnableHitTestTrace)
+                            {
+                                var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                                Console.WriteLine(
+                                    $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                                    $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
+                            }
+
+                            return hit;
+                        }
+
+                        right++;
+                    }
+                }
+                else
+                {
+                    searchRight = false;
+                }
+
+                if (!searchLeft && !searchRight)
+                {
+                    break;
+                }
+            }
+
             for (var i = 0; i < itemContainers.Count; i++)
             {
+                if (i == candidate)
+                {
+                    continue;
+                }
+
+                _itemsPresenterFullFallbackCount++;
                 scanned++;
                 hit = HitTestCore(itemContainers[i], position, nextHorizontalOffset, nextVerticalOffset);
                 if (hit != null)
@@ -100,8 +190,9 @@ public static class VisualTreeHelper
                         var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
                         Console.WriteLine(
                             $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                            $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
+                            $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=full-fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
                     }
+
                     return hit;
                 }
             }
@@ -212,6 +303,94 @@ public static class VisualTreeHelper
         }
 
         return candidate;
+    }
+
+    private static int FindCandidateIndexByY(IReadOnlyList<UIElement> containers, float y, int guess)
+    {
+        if (containers.Count == 0)
+        {
+            return 0;
+        }
+
+        guess = Math.Clamp(guess, 0, containers.Count - 1);
+        if (!IsMonotonicByY(containers))
+        {
+            return guess;
+        }
+
+        var low = 0;
+        var high = containers.Count - 1;
+        while (low <= high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (!TryGetVerticalRange(containers[middle], out var top, out var bottom))
+            {
+                return guess;
+            }
+
+            if (y < top)
+            {
+                high = middle - 1;
+                continue;
+            }
+
+            if (y > bottom)
+            {
+                low = middle + 1;
+                continue;
+            }
+
+            return middle;
+        }
+
+        return Math.Clamp(low, 0, containers.Count - 1);
+    }
+
+    private static bool IsMonotonicByY(IReadOnlyList<UIElement> containers)
+    {
+        var lastTop = float.NegativeInfinity;
+        for (var i = 0; i < containers.Count; i++)
+        {
+            if (!TryGetVerticalRange(containers[i], out var top, out _))
+            {
+                return false;
+            }
+
+            if (top < lastTop)
+            {
+                return false;
+            }
+
+            lastTop = top;
+        }
+
+        return true;
+    }
+
+    private static bool TryGetVerticalRange(UIElement element, out float top, out float bottom)
+    {
+        if (element is FrameworkElement frameworkElement)
+        {
+            var slot = frameworkElement.LayoutSlot;
+            top = slot.Y;
+            bottom = slot.Y + slot.Height;
+            return true;
+        }
+
+        top = 0f;
+        bottom = 0f;
+        return false;
+    }
+
+    internal static (int NeighborProbes, int FullFallbackScans) GetItemsPresenterFallbackStatsForTests()
+    {
+        return (_itemsPresenterNeighborProbeCount, _itemsPresenterFullFallbackCount);
+    }
+
+    internal static void ResetInstrumentationForTests()
+    {
+        _itemsPresenterNeighborProbeCount = 0;
+        _itemsPresenterFullFallbackCount = 0;
     }
 
     private static class ListPool<T>
