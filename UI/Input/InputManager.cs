@@ -172,7 +172,7 @@ public static class InputManager
             else
             {
                 _hoverReuseAttempts++;
-                if (!TryReuseHoveredListItemHit(root, pointerPosition, out rawHitElement))
+                if (!TryReuseHoveredElementHit(root, pointerPosition, out rawHitElement))
                 {
                     var hitTestStart = Stopwatch.GetTimestamp();
                     rawHitElement = VisualTreeHelper.HitTest(root, pointerPosition);
@@ -213,7 +213,6 @@ public static class InputManager
         _hoveredRawElement = rawHitElement;
         if (!ReferenceEquals(_hoveredIdentityElement, hoverIdentityElement))
         {
-            MarkHoverTransitionDirtyRegions(root, previousHoverIdentityElement, hoverIdentityElement);
             _hoveredIdentityElement?.NotifyMouseLeave(pointerPosition, modifiers);
             hoverIdentityElement?.NotifyMouseEnter(pointerPosition, modifiers);
             _hoveredIdentityElement = hoverIdentityElement;
@@ -400,7 +399,7 @@ public static class InputManager
         InvalidateHitTestCache();
     }
 
-    private static bool TryReuseHoveredListItemHit(
+    private static bool TryReuseHoveredElementHit(
         UIElement root,
         Vector2 pointerPosition,
         out UIElement? hitElement)
@@ -411,39 +410,32 @@ public static class InputManager
             return false;
         }
 
-        if (_hoveredIdentityElement == null)
+        if (_hoveredRawElement == null)
         {
             return false;
         }
 
-        if (!TryGetListBoxItemAncestor(_hoveredIdentityElement, root, out _))
+        if (!_hoveredRawElement.IsVisible || !_hoveredRawElement.IsEnabled || !_hoveredRawElement.IsHitTestVisible)
         {
             return false;
         }
 
-        if (!IsElementOnVisualChainToRoot(root, _hoveredIdentityElement))
+        if (!IsElementOnVisualChainToRoot(root, _hoveredRawElement))
         {
             return false;
         }
 
-        if (!IsPointerInsideElementAndAncestors(root, _hoveredIdentityElement, pointerPosition))
+        if (!IsPointerInsideElementAndAncestors(root, _hoveredRawElement, pointerPosition))
         {
             return false;
         }
 
-        if (_hoveredRawElement != null &&
-            IsDescendantOfOrSelf(_hoveredRawElement, _hoveredIdentityElement) &&
-            IsElementOnVisualChainToRoot(root, _hoveredRawElement) &&
-            _hoveredRawElement.IsVisible &&
-            _hoveredRawElement.IsEnabled &&
-            _hoveredRawElement.IsHitTestVisible &&
-            _hoveredRawElement.HitTest(pointerPosition))
+        if (!_hoveredRawElement.HitTest(pointerPosition))
         {
-            hitElement = _hoveredRawElement;
-            return true;
+            return false;
         }
 
-        hitElement = _hoveredIdentityElement;
+        hitElement = _hoveredRawElement;
         return true;
     }
 
@@ -457,30 +449,6 @@ public static class InputManager
         return TryGetListBoxItemAncestor(rawHitElement, root, out var listBoxItem)
             ? listBoxItem
             : rawHitElement;
-    }
-
-    private static void MarkHoverTransitionDirtyRegions(
-        UIElement root,
-        UIElement? previousIdentityElement,
-        UIElement? newIdentityElement)
-    {
-        var uiRoot = UiRoot.Current;
-        if (uiRoot == null || !ReferenceEquals(uiRoot.RootElement, root))
-        {
-            return;
-        }
-
-        if (previousIdentityElement != null &&
-            previousIdentityElement.TryGetRenderBoundsInRootSpace(out var oldBounds))
-        {
-            uiRoot.MarkVisualDirty(oldBounds, UiRedrawReason.HoverChanged);
-        }
-
-        if (newIdentityElement != null &&
-            newIdentityElement.TryGetRenderBoundsInRootSpace(out var newBounds))
-        {
-            uiRoot.MarkVisualDirty(newBounds, UiRedrawReason.HoverChanged);
-        }
     }
 
     private static bool TryGetListBoxItemAncestor(
@@ -531,9 +499,27 @@ public static class InputManager
                 return false;
             }
 
-            if (!current.HitTest(pointerPosition))
+            // Fast path: for elements without local transforms, use direct layout slot bounds check (O(1))
+            // Only ScrollContentPresenter (with scroll offset != 0) has a local transform in practice
+            if (current.HasLocalRenderTransform())
             {
-                return false;
+                // Full HitTest needed to handle scroll offset transforms
+                if (!current.HitTest(pointerPosition))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                // Direct bounds comparison without transform chain walk
+                var layoutSlot = current.LayoutSlot;
+                if (pointerPosition.X < layoutSlot.X ||
+                    pointerPosition.X > layoutSlot.X + layoutSlot.Width ||
+                    pointerPosition.Y < layoutSlot.Y ||
+                    pointerPosition.Y > layoutSlot.Y + layoutSlot.Height)
+                {
+                    return false;
+                }
             }
 
             if (ReferenceEquals(current, root))

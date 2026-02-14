@@ -143,6 +143,48 @@ public class ScrollViewerHoverPerformanceTests
         Assert.True(stats.Successes >= 1);
     }
 
+    [Fact]
+    public void InputManager_LabelsInScrollViewer_SuccessfullyReusesHoverHit()
+    {
+        var root = new Panel
+        {
+            Width = 400f,
+            Height = 240f
+        };
+
+        var scrollViewer = new ScrollViewer
+        {
+            Width = 300f,
+            Height = 180f
+        };
+
+        var stackPanel = new StackPanel();
+        var label1 = new Label { Text = "Label 1", Height = 30f };
+        var label2 = new Label { Text = "Label 2", Height = 30f };
+        var label3 = new Label { Text = "Label 3", Height = 30f };
+        stackPanel.AddChild(label1);
+        stackPanel.AddChild(label2);
+        stackPanel.AddChild(label3);
+
+        scrollViewer.Content = stackPanel;
+        root.AddChild(scrollViewer);
+
+        root.Measure(new Vector2(400f, 240f));
+        root.Arrange(new LayoutRect(0f, 0f, 400f, 240f));
+
+        var gameTime = new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16));
+        var p1 = ProbePoint(label1, 6f, 6f);
+        var p2 = new Vector2(p1.X + 1f, p1.Y);
+
+        InputManager.ResetForTests();
+        InputManager.UpdateForTesting(root, gameTime, p1);
+        InputManager.UpdateForTesting(root, gameTime, p2);
+
+        var stats = InputManager.GetHoverReuseStatsForTests();
+        Assert.True(stats.Attempts >= 2);
+        Assert.True(stats.Successes >= 1);
+    }
+
     private static (Panel Root, ScrollViewer Viewer, TrackingListBoxItem First, TrackingListBoxItem Second, TrackingListBoxItem Third)
         BuildTrackingListScenario()
     {

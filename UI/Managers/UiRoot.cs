@@ -506,12 +506,6 @@ public sealed class UiRoot
         }
 
         var inputFlags = InputManager.VisualStateChangeFlagsThisFrame;
-        if ((inputFlags & InputManager.InputVisualStateChangeFlags.HoverChanged) != 0)
-        {
-            reasons |= UiRedrawReason.HoverChanged;
-            scope = MaxScope(scope, UiRedrawScope.Region);
-        }
-
         if ((inputFlags & InputManager.InputVisualStateChangeFlags.FocusChanged) != 0)
         {
             reasons |= UiRedrawReason.FocusChanged;

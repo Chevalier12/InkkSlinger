@@ -347,13 +347,12 @@ public class UiInvalidationRenderTests
             Assert.False(root.ExecuteDrawPassForTesting());
 
             InputManager.SetVisualStateChangeFlagsForTests(
-                InputManager.InputVisualStateChangeFlags.HoverChanged |
                 InputManager.InputVisualStateChangeFlags.FocusChanged |
                 InputManager.InputVisualStateChangeFlags.CursorChanged);
 
             Assert.True(root.ExecuteDrawPassForTesting());
             Assert.Equal(
-                UiRedrawReason.HoverChanged | UiRedrawReason.FocusChanged | UiRedrawReason.CursorChanged,
+                UiRedrawReason.FocusChanged | UiRedrawReason.CursorChanged,
                 root.LastForceRedrawReasons);
             Assert.Equal(UiRedrawScope.Region, root.LastForceRedrawScope);
         }
@@ -405,10 +404,9 @@ public class UiInvalidationRenderTests
 
             InputManager.UpdateForTesting(host, gameTime, p3);
 
-            Assert.True(root.IsVisualDirty);
-            Assert.True(root.DirtyVisualRegionCount >= 2);
-            Assert.True(root.ExecuteDrawPassForTesting());
-            Assert.True((root.LastForceRedrawReasons & UiRedrawReason.HoverChanged) != 0);
+            // Passive items (no IsMouseOver dependency) should produce NO dirty regions on hover
+            Assert.False(root.IsVisualDirty);
+            Assert.False(root.ExecuteDrawPassForTesting());
         }
         finally
         {

@@ -394,6 +394,11 @@ public class UIElement : DependencyObject
         return false;
     }
 
+    internal bool HasLocalRenderTransform()
+    {
+        return TryGetLocalRenderTransform(out _, out _);
+    }
+
     public virtual bool HitTest(Vector2 point)
     {
         if (!IsVisible || !IsEnabled || !IsHitTestVisible)
