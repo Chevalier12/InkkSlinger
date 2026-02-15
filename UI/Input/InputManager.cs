@@ -10,7 +10,6 @@ public sealed class InputManager
     private readonly List<char> _frameText = new(32);
     private readonly List<Keys> _pressedKeys = new(16);
     private readonly List<Keys> _releasedKeys = new(16);
-    private readonly HashSet<Keys> _keyUnion = new();
 
     private KeyboardState _currentKeyboard;
     private KeyboardState _previousKeyboard;
@@ -43,32 +42,39 @@ public sealed class InputManager
 
         _pressedKeys.Clear();
         _releasedKeys.Clear();
-        _keyUnion.Clear();
         _frameText.Clear();
 
         var currentKeys = _currentKeyboard.GetPressedKeys();
         var previousKeys = _previousKeyboard.GetPressedKeys();
-        for (var i = 0; i < currentKeys.Length; i++)
+        var keyboardUnchanged = currentKeys.Length == previousKeys.Length;
+        if (keyboardUnchanged)
         {
-            _keyUnion.Add(currentKeys[i]);
-        }
-
-        for (var i = 0; i < previousKeys.Length; i++)
-        {
-            _keyUnion.Add(previousKeys[i]);
-        }
-
-        foreach (var key in _keyUnion)
-        {
-            var isDown = _currentKeyboard.IsKeyDown(key);
-            var wasDown = _previousKeyboard.IsKeyDown(key);
-            if (isDown && !wasDown)
+            for (var i = 0; i < currentKeys.Length; i++)
             {
-                _pressedKeys.Add(key);
+                if (!ContainsKey(previousKeys, currentKeys[i]))
+                {
+                    keyboardUnchanged = false;
+                    break;
+                }
             }
-            else if (!isDown && wasDown)
+        }
+
+        if (!keyboardUnchanged)
+        {
+            for (var i = 0; i < currentKeys.Length; i++)
             {
-                _releasedKeys.Add(key);
+                if (!ContainsKey(previousKeys, currentKeys[i]))
+                {
+                    _pressedKeys.Add(currentKeys[i]);
+                }
+            }
+
+            for (var i = 0; i < previousKeys.Length; i++)
+            {
+                if (!ContainsKey(currentKeys, previousKeys[i]))
+                {
+                    _releasedKeys.Add(previousKeys[i]);
+                }
             }
         }
 
@@ -96,5 +102,18 @@ public sealed class InputManager
             MiddlePressed = _currentMouse.MiddleButton == ButtonState.Pressed && _previousMouse.MiddleButton != ButtonState.Pressed,
             MiddleReleased = _currentMouse.MiddleButton != ButtonState.Pressed && _previousMouse.MiddleButton == ButtonState.Pressed
         };
+    }
+
+    private static bool ContainsKey(Keys[] keys, Keys key)
+    {
+        for (var i = 0; i < keys.Length; i++)
+        {
+            if (keys[i] == key)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

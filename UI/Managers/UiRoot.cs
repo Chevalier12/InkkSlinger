@@ -22,6 +22,7 @@ public sealed class UiRoot
         string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_RENDER_CACHE_OVERLAY"), "1", StringComparison.Ordinal);
     private static readonly bool EnableRenderCacheCounterTraceByDefault =
         string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_RENDER_CACHE_COUNTERS"), "1", StringComparison.Ordinal);
+    private static readonly bool ForceBypassMoveHitTest = false;
     private static readonly RasterizerState UiRasterizerState = new()
     {
         ScissorTestEnable = true
@@ -44,11 +45,22 @@ public sealed class UiRoot
     private readonly List<LayoutRect> _lastFrameCachedSubtreeBounds = new();
     private readonly InputManager _inputManager = new();
     private readonly InputDispatchState _inputState = new();
+    private TextBox? _cachedWheelTextBoxTarget;
+    private ScrollViewer? _cachedWheelScrollViewerTarget;
     private int _lastInputHitTestCount;
     private int _lastInputRoutedEventCount;
     private int _lastInputKeyEventCount;
     private int _lastInputTextEventCount;
     private int _lastInputPointerEventCount;
+    private double _lastInputCaptureMs;
+    private double _lastInputDispatchMs;
+    private double _lastInputPointerDispatchMs;
+    private double _lastInputPointerTargetResolveMs;
+    private double _lastInputHoverUpdateMs;
+    private double _lastInputPointerRouteMs;
+    private double _lastInputKeyDispatchMs;
+    private double _lastInputTextDispatchMs;
+    private double _lastVisualUpdateMs;
     private SpriteBatch? _cacheSpriteBatch;
     private long _lastRenderCacheCounterTraceTimestamp;
     private bool _hasMeasureInvalidation;
@@ -186,6 +198,15 @@ public sealed class UiRoot
     {
         return new UiInputMetricsSnapshot(
             LastInputPhaseMs,
+            _lastInputCaptureMs,
+            _lastInputDispatchMs,
+            _lastInputPointerDispatchMs,
+            _lastInputPointerTargetResolveMs,
+            _lastInputHoverUpdateMs,
+            _lastInputPointerRouteMs,
+            _lastInputKeyDispatchMs,
+            _lastInputTextDispatchMs,
+            _lastVisualUpdateMs,
             _lastInputHitTestCount,
             _lastInputRoutedEventCount,
             _lastInputKeyEventCount,
@@ -607,6 +628,15 @@ public sealed class UiRoot
         _lastInputKeyEventCount = 0;
         _lastInputTextEventCount = 0;
         _lastInputPointerEventCount = 0;
+        _lastInputCaptureMs = 0d;
+        _lastInputDispatchMs = 0d;
+        _lastInputPointerDispatchMs = 0d;
+        _lastInputPointerTargetResolveMs = 0d;
+        _lastInputHoverUpdateMs = 0d;
+        _lastInputPointerRouteMs = 0d;
+        _lastInputKeyDispatchMs = 0d;
+        _lastInputTextDispatchMs = 0d;
+        _lastVisualUpdateMs = 0d;
 
         var enableInputPipeline = !string.Equals(
             Environment.GetEnvironmentVariable("INKKSLINGER_ENABLE_INPUT_PIPELINE"),
@@ -614,49 +644,93 @@ public sealed class UiRoot
             StringComparison.Ordinal);
         if (enableInputPipeline)
         {
-            ProcessInputDelta(_inputManager.Capture());
+            var captureStart = Stopwatch.GetTimestamp();
+            var delta = _inputManager.Capture();
+            _lastInputCaptureMs = Stopwatch.GetElapsedTime(captureStart).TotalMilliseconds;
+            var dispatchStart = Stopwatch.GetTimestamp();
+            ProcessInputDelta(delta);
+            _lastInputDispatchMs = Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
         }
 
+        var updateStart = Stopwatch.GetTimestamp();
         _visualRoot.Update(gameTime);
+        _lastVisualUpdateMs = Stopwatch.GetElapsedTime(updateStart).TotalMilliseconds;
+    }
+
+    internal void RunInputDeltaForTests(InputDelta delta)
+    {
+        _lastInputHitTestCount = 0;
+        _lastInputRoutedEventCount = 0;
+        _lastInputKeyEventCount = 0;
+        _lastInputTextEventCount = 0;
+        _lastInputPointerEventCount = 0;
+        _lastInputCaptureMs = 0d;
+        _lastInputDispatchMs = 0d;
+        _lastInputPointerDispatchMs = 0d;
+        _lastInputPointerTargetResolveMs = 0d;
+        _lastInputHoverUpdateMs = 0d;
+        _lastInputPointerRouteMs = 0d;
+        _lastInputKeyDispatchMs = 0d;
+        _lastInputTextDispatchMs = 0d;
+        ProcessInputDelta(delta);
     }
 
     private void ProcessInputDelta(InputDelta delta)
     {
+        var pointerStart = Stopwatch.GetTimestamp();
         _inputState.CurrentModifiers = GetModifiers(delta.Current.Keyboard);
+        var pointerResolveStart = Stopwatch.GetTimestamp();
         var pointerTarget = ResolvePointerTarget(delta);
+        _lastInputPointerTargetResolveMs = Stopwatch.GetElapsedTime(pointerResolveStart).TotalMilliseconds;
+        var hoverTicks = 0L;
+        var pointerRouteTicks = 0L;
         if (delta.PointerMoved)
         {
             var previousHovered = _inputState.HoveredElement;
+            var hoverStart = Stopwatch.GetTimestamp();
             UpdateHover(pointerTarget);
+            hoverTicks += Stopwatch.GetTimestamp() - hoverStart;
             var shouldRouteMove = !ReferenceEquals(previousHovered, _inputState.HoveredElement) ||
                                   _inputState.CapturedPointerElement != null ||
                                   string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_ALWAYS_ROUTE_MOUSEMOVE"), "1", StringComparison.Ordinal);
             if (shouldRouteMove)
             {
+                var routeStart = Stopwatch.GetTimestamp();
                 DispatchPointerMove(pointerTarget, delta.Current.PointerPosition);
+                pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
             }
         }
 
         if (delta.LeftPressed)
         {
+            var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
+            pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
 
         if (delta.LeftReleased)
         {
+            var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseUp(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
+            pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
 
         if (delta.WheelDelta != 0)
         {
+            var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseWheel(pointerTarget, delta.Current.PointerPosition, delta.WheelDelta);
+            pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
+        _lastInputHoverUpdateMs = (double)hoverTicks * 1000d / Stopwatch.Frequency;
+        _lastInputPointerRouteMs = (double)pointerRouteTicks * 1000d / Stopwatch.Frequency;
+        _lastInputPointerDispatchMs = Stopwatch.GetElapsedTime(pointerStart).TotalMilliseconds;
 
         if (delta.IsEmpty)
         {
             return;
         }
 
+        var keyStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < delta.PressedKeys.Count; i++)
         {
             DispatchKeyDown(delta.PressedKeys[i], _inputState.CurrentModifiers);
@@ -666,11 +740,14 @@ public sealed class UiRoot
         {
             DispatchKeyUp(delta.ReleasedKeys[i], _inputState.CurrentModifiers);
         }
+        _lastInputKeyDispatchMs = Stopwatch.GetElapsedTime(keyStart).TotalMilliseconds;
 
+        var textStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < delta.TextInput.Count; i++)
         {
             DispatchTextInput(delta.TextInput[i]);
         }
+        _lastInputTextDispatchMs = Stopwatch.GetElapsedTime(textStart).TotalMilliseconds;
     }
 
     private UIElement? ResolvePointerTarget(InputDelta delta)
@@ -680,9 +757,27 @@ public sealed class UiRoot
             return _inputState.CapturedPointerElement;
         }
 
-        if (!delta.PointerMoved &&
-            !delta.LeftPressed &&
-            !delta.LeftReleased &&
+        var requiresPreciseTarget = delta.LeftPressed || delta.LeftReleased;
+        if (!requiresPreciseTarget)
+        {
+            // CPU-first path: keep current hover target during high-frequency move/wheel
+            // and only re-resolve precisely on button transitions.
+            if (_inputState.HoveredElement != null)
+            {
+                return _inputState.HoveredElement;
+            }
+
+            if (ForceBypassMoveHitTest || string.Equals(
+                    Environment.GetEnvironmentVariable("INKKSLINGER_BYPASS_MOVE_HITTEST"),
+                    "1",
+                    StringComparison.Ordinal))
+            {
+                return _inputState.HoveredElement;
+            }
+        }
+
+        if (!requiresPreciseTarget &&
+            !delta.PointerMoved &&
             delta.WheelDelta == 0)
         {
             return _inputState.HoveredElement;
@@ -710,6 +805,7 @@ public sealed class UiRoot
         }
 
         _inputState.HoveredElement = hovered;
+        RefreshCachedWheelTargets(hovered);
         if (hovered is TextBox newTextBox)
         {
             newTextBox.SetMouseOverFromInput(true);
@@ -797,26 +893,64 @@ public sealed class UiRoot
 
     private void DispatchMouseWheel(UIElement? target, Vector2 pointerPosition, int delta)
     {
-        if (target == null)
+        var resolvedTarget = target ?? _inputState.HoveredElement;
+        if (resolvedTarget == null)
         {
             return;
         }
 
         _lastInputPointerEventCount++;
         _lastInputRoutedEventCount += 2;
-        target.RaiseRoutedEventInternal(UIElement.PreviewMouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
-        target.RaiseRoutedEventInternal(UIElement.MouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.MouseWheelEvent, pointerPosition, delta));
+        resolvedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
+        resolvedTarget.RaiseRoutedEventInternal(UIElement.MouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.MouseWheelEvent, pointerPosition, delta));
 
-        if (TryFindAncestor<TextBox>(target, out var textBox) &&
-            textBox != null &&
-            textBox.HandleMouseWheelFromInput(delta))
+        if (_cachedWheelTextBoxTarget != null &&
+            _cachedWheelTextBoxTarget.HandleMouseWheelFromInput(delta))
         {
             return;
         }
 
-        if (TryFindAncestor<ScrollViewer>(target, out var scrollViewer) && scrollViewer != null)
+        if (_cachedWheelScrollViewerTarget != null)
         {
+            _ = _cachedWheelScrollViewerTarget.HandleMouseWheelFromInput(delta);
+            return;
+        }
+
+        if (TryFindAncestor<TextBox>(resolvedTarget, out var textBox) &&
+            textBox != null &&
+            textBox.HandleMouseWheelFromInput(delta))
+        {
+            _cachedWheelTextBoxTarget = textBox;
+            _cachedWheelScrollViewerTarget = null;
+            return;
+        }
+
+        if (TryFindAncestor<ScrollViewer>(resolvedTarget, out var scrollViewer) && scrollViewer != null)
+        {
+            _cachedWheelScrollViewerTarget = scrollViewer;
+            _cachedWheelTextBoxTarget = null;
             _ = scrollViewer.HandleMouseWheelFromInput(delta);
+        }
+    }
+
+    private void RefreshCachedWheelTargets(UIElement? hovered)
+    {
+        _cachedWheelTextBoxTarget = null;
+        _cachedWheelScrollViewerTarget = null;
+        if (hovered == null)
+        {
+            return;
+        }
+
+        if (TryFindAncestor<TextBox>(hovered, out var textBox) && textBox != null)
+        {
+            _cachedWheelTextBoxTarget = textBox;
+            return;
+        }
+
+        if (TryFindAncestor<ScrollViewer>(hovered, out var scrollViewer) && scrollViewer != null)
+        {
+            _cachedWheelScrollViewerTarget = scrollViewer;
         }
     }
 
@@ -2196,6 +2330,15 @@ public readonly record struct UiRootMetricsSnapshot(
 
 public readonly record struct UiInputMetricsSnapshot(
     double LastInputPhaseMilliseconds,
+    double LastInputCaptureMilliseconds,
+    double LastInputDispatchMilliseconds,
+    double LastInputPointerDispatchMilliseconds,
+    double LastInputPointerTargetResolveMilliseconds,
+    double LastInputHoverUpdateMilliseconds,
+    double LastInputPointerRouteMilliseconds,
+    double LastInputKeyDispatchMilliseconds,
+    double LastInputTextDispatchMilliseconds,
+    double LastVisualUpdateMilliseconds,
     int HitTestCount,
     int RoutedEventCount,
     int KeyEventCount,

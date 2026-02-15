@@ -166,7 +166,7 @@ public class Game1 : Game
             _windowDemoView?.SetFont(font);
             _paintShellView?.SetFont(font);
             _commandingMenuDemoView?.SetFont(font);
-            //_twoScrollViewersView?.SetFont(font);
+            _twoScrollViewersView?.SetFont(font);
             _simpleScrollViewerView?.SetFont(font);
             _simpleStackPanelView?.SetFont(font);
             _scrollViewerTextBoxView?.SetFont(font);
@@ -363,17 +363,31 @@ public class Game1 : Game
         var neighborPerSecond = neighborDelta / sampleSeconds;
         var fullFallbackPerSecond = fullFallbackDelta / sampleSeconds;
         var inputMetrics = _uiRoot.GetInputMetricsSnapshot();
+        var hasInputActivity = inputMetrics.HitTestCount > 0 ||
+                               inputMetrics.RoutedEventCount > 0 ||
+                               inputMetrics.PointerEventCount > 0 ||
+                               inputMetrics.KeyEventCount > 0 ||
+                               inputMetrics.TextEventCount > 0;
 
-        Console.WriteLine(
-            $"[Perf] U:{updatesPerSecond:0.0}/s D:{drawsPerSecond:0.0}/s " +
-            $"LayoutCycles:{layoutCyclesPerSecond:0.0}/s LayoutCalls:{layoutCallsPerSecond:0.0}/s " +
-            $"HitTestNeighbor:{neighborPerSecond:0.0}/s HitTestFullFallback:{fullFallbackPerSecond:0.0}/s " +
-            $"InputMs:{inputMetrics.LastInputPhaseMilliseconds:0.###} Hit:{inputMetrics.HitTestCount} Route:{inputMetrics.RoutedEventCount} Ptr:{inputMetrics.PointerEventCount} Key:{inputMetrics.KeyEventCount} Txt:{inputMetrics.TextEventCount}");
+        if (hasInputActivity)
+        {
+            Console.WriteLine(
+                $"[Perf] U:{updatesPerSecond:0.0}/s D:{drawsPerSecond:0.0}/s " +
+                $"LayoutCycles:{layoutCyclesPerSecond:0.0}/s LayoutCalls:{layoutCallsPerSecond:0.0}/s " +
+                $"HitTestNeighbor:{neighborPerSecond:0.0}/s HitTestFullFallback:{fullFallbackPerSecond:0.0}/s " +
+                $"InputMs:{inputMetrics.LastInputPhaseMilliseconds:0.###} " +
+                $"DispatchMs:{inputMetrics.LastInputDispatchMilliseconds:0.###} " +
+                $"VisualUpdateMs:{inputMetrics.LastVisualUpdateMilliseconds:0.###} " +
+                $"Hit:{inputMetrics.HitTestCount} Route:{inputMetrics.RoutedEventCount} Ptr:{inputMetrics.PointerEventCount} Key:{inputMetrics.KeyEventCount} Txt:{inputMetrics.TextEventCount}");
+        }
 
         _perfTitleSuffix =
             $" | U:{updatesPerSecond:0} D:{drawsPerSecond:0} L:{layoutCyclesPerSecond:0} " +
             $"HN:{neighborPerSecond:0} HF:{fullFallbackPerSecond:0} " +
-            $"I:{inputMetrics.LastInputPhaseMilliseconds:0.##} H:{inputMetrics.HitTestCount:0} R:{inputMetrics.RoutedEventCount:0}";
+            $"I:{inputMetrics.LastInputPhaseMilliseconds:0.##} " +
+            $"ID:{inputMetrics.LastInputDispatchMilliseconds:0.##} " +
+            $"IV:{inputMetrics.LastVisualUpdateMilliseconds:0.##} " +
+            $"H:{inputMetrics.HitTestCount:0} R:{inputMetrics.RoutedEventCount:0}";
         ApplyWindowTitle();
 
         _perfLastNeighborProbeTotal = stats.NeighborProbes;
