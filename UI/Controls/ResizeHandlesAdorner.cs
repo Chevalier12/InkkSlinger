@@ -55,10 +55,6 @@ public class ResizeHandlesAdorner : Adorner
     {
         IsHitTestVisible = true;
 
-        AddThumb(ResizeHandlePosition.TopLeft, UiCursor.SizeNWSE);
-        AddThumb(ResizeHandlePosition.TopRight, UiCursor.SizeNWSE);
-        AddThumb(ResizeHandlePosition.BottomLeft, UiCursor.SizeNWSE);
-        AddThumb(ResizeHandlePosition.BottomRight, UiCursor.SizeNWSE);
     }
 
     public event EventHandler<ResizeHandleDragEventArgs>? HandleDragDelta;
@@ -101,6 +97,11 @@ public class ResizeHandlesAdorner : Adorner
     public override bool HitTest(Vector2 point)
     {
         if (!IsVisible || !IsEnabled || !IsHitTestVisible)
+        {
+            return false;
+        }
+
+        if (!IsPointVisibleThroughClipChain(point))
         {
             return false;
         }
@@ -150,24 +151,6 @@ public class ResizeHandlesAdorner : Adorner
         UiDrawing.DrawRectStroke(spriteBatch, AdornedElement.LayoutSlot, 1f, Stroke, Opacity);
     }
 
-    private void AddThumb(ResizeHandlePosition position, UiCursor cursor)
-    {
-        var thumb = new Thumb
-        {
-            Cursor = cursor,
-            Background = Color.White,
-            BorderBrush = new Color(58, 89, 125)
-        };
-
-        thumb.DragDelta += (_, args) =>
-        {
-            HandleDragDelta?.Invoke(this, new ResizeHandleDragEventArgs(position, args.HorizontalChange, args.VerticalChange));
-        };
-
-        thumb.SetVisualParent(this);
-        thumb.SetLogicalParent(this);
-        _thumbs[position] = thumb;
-    }
 
     private void ArrangeThumb(ResizeHandlePosition position, float x, float y)
     {

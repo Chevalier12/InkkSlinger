@@ -41,7 +41,7 @@ public class RepeatButton : Button
     {
         base.Update(gameTime);
 
-        var isHeld = IsEnabled && IsPressed && ReferenceEquals(InputManager.MouseCapturedElement, this);
+        var isHeld = IsEnabled && IsPressed;
         if (!isHeld)
         {
             _heldSeconds = 0f;
@@ -70,10 +70,4 @@ public class RepeatButton : Button
         }
     }
 
-    protected override void OnLostMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        base.OnLostMouseCapture(args);
-        _heldSeconds = 0f;
-        _repeatStarted = false;
-    }
 }

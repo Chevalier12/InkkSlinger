@@ -9,6 +9,48 @@ internal static class UiDrawing
     private static readonly Dictionary<GraphicsDevice, Texture2D> SolidTextures = new();
     private static readonly Dictionary<GraphicsDevice, Stack<Rectangle>> ClipStacks = new();
     private static readonly Dictionary<GraphicsDevice, Stack<Matrix>> TransformStacks = new();
+    private static readonly Dictionary<GraphicsDevice, SpriteBatchState> ActiveBatchStates = new();
+
+    private readonly record struct SpriteBatchState(
+        SpriteSortMode SortMode,
+        BlendState BlendState,
+        SamplerState SamplerState,
+        DepthStencilState DepthStencilState,
+        RasterizerState RasterizerState);
+
+    public static void SetActiveBatchState(
+        GraphicsDevice graphicsDevice,
+        SpriteSortMode sortMode,
+        BlendState blendState,
+        SamplerState samplerState,
+        DepthStencilState depthStencilState,
+        RasterizerState rasterizerState)
+    {
+        ActiveBatchStates[graphicsDevice] = new SpriteBatchState(
+            sortMode, blendState, samplerState, depthStencilState, rasterizerState);
+    }
+
+    public static void ClearActiveBatchState(GraphicsDevice graphicsDevice)
+    {
+        ActiveBatchStates.Remove(graphicsDevice);
+    }
+
+    private static void FlushAndRestartBatch(SpriteBatch spriteBatch)
+    {
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        if (!ActiveBatchStates.TryGetValue(graphicsDevice, out var state))
+        {
+            return;
+        }
+
+        spriteBatch.End();
+        spriteBatch.Begin(
+            state.SortMode,
+            state.BlendState,
+            state.SamplerState,
+            state.DepthStencilState,
+            state.RasterizerState);
+    }
 
     public static void ResetState(GraphicsDevice graphicsDevice)
     {
@@ -359,6 +401,7 @@ internal static class UiDrawing
         }
 
         stack.Push(clip);
+        FlushAndRestartBatch(spriteBatch);
         graphicsDevice.ScissorRectangle = clip;
     }
 
@@ -371,6 +414,7 @@ internal static class UiDrawing
             stack.Pop();
         }
 
+        FlushAndRestartBatch(spriteBatch);
         graphicsDevice.ScissorRectangle = stack.Count > 0
             ? stack.Peek()
             : GetViewportRectangle(graphicsDevice);

@@ -16,12 +16,10 @@ public sealed class Window : IDisposable
         _graphics = graphics ?? throw new ArgumentNullException(nameof(graphics));
 
         NativeWindow.ClientSizeChanged += OnClientSizeChanged;
-        NativeWindow.TextInput += OnTextInput;
     }
 
     public event EventHandler? ClientSizeChanged;
 
-    public event EventHandler<TextInputEventArgs>? TextInput;
 
     public GameWindow NativeWindow => _game.Window;
 
@@ -128,7 +126,6 @@ public sealed class Window : IDisposable
 
         _disposed = true;
         NativeWindow.ClientSizeChanged -= OnClientSizeChanged;
-        NativeWindow.TextInput -= OnTextInput;
     }
 
     private void OnClientSizeChanged(object? sender, EventArgs e)
@@ -136,8 +133,4 @@ public sealed class Window : IDisposable
         ClientSizeChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnTextInput(object? sender, TextInputEventArgs e)
-    {
-        TextInput?.Invoke(this, e);
-    }
 }

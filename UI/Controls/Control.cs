@@ -215,7 +215,7 @@ public class Control : FrameworkElement
             return false;
         }
 
-        var target = CommandTarget ?? FocusManager.FocusedElement ?? this;
+        var target = CommandTarget ?? this;
 
         if (Command is RoutedCommand routedCommand)
         {
@@ -267,7 +267,7 @@ public class Control : FrameworkElement
             return;
         }
 
-        var target = CommandTarget ?? FocusManager.FocusedElement ?? this;
+        var target = CommandTarget ?? this;
         var canExecute = Command is RoutedCommand routedCommand
             ? CommandManager.CanExecute(routedCommand, CommandParameter, target)
             : Command.CanExecute(CommandParameter);

@@ -8,7 +8,6 @@ public abstract class Adorner : FrameworkElement
     {
         AdornedElement = adornedElement;
         IsHitTestVisible = false;
-        Focusable = false;
     }
 
     public UIElement AdornedElement { get; }

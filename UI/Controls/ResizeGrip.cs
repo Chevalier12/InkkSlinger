@@ -1,7 +1,6 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -61,16 +60,9 @@ public class ResizeGrip : Control
             typeof(ResizeGrip),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    private bool _isDragging;
-    private FrameworkElement? _activeTarget;
-    private Vector2 _dragStartPointer;
-    private float _startWidth;
-    private float _startHeight;
 
     public ResizeGrip()
     {
-        Focusable = true;
-        Cursor = UiCursor.SizeNWSE;
     }
 
     public FrameworkElement? Target
@@ -149,117 +141,12 @@ public class ResizeGrip : Control
         }
     }
 
-    protected override void OnMouseEnter(RoutedMouseEventArgs args)
-    {
-        base.OnMouseEnter(args);
-        IsMouseOver = true;
-    }
 
-    protected override void OnMouseLeave(RoutedMouseEventArgs args)
-    {
-        base.OnMouseLeave(args);
-        IsMouseOver = false;
-    }
 
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
-        if (!IsEnabled)
-        {
-            return;
-        }
 
-        var target = ResolveTarget();
-        if (target == null)
-        {
-            return;
-        }
 
-        _activeTarget = target;
-        _isDragging = true;
-        IsDragging = true;
-        _dragStartPointer = args.Position;
-        _startWidth = ResolveCurrentDimension(target.Width, target.ActualWidth, target.DesiredSize.X);
-        _startHeight = ResolveCurrentDimension(target.Height, target.ActualHeight, target.DesiredSize.Y);
 
-        Focus();
-        CaptureMouse();
-        args.Handled = true;
-    }
 
-    protected override void OnMouseMove(RoutedMouseEventArgs args)
-    {
-        base.OnMouseMove(args);
-        if (!_isDragging || _activeTarget == null)
-        {
-            return;
-        }
-
-        var deltaX = Snap(args.Position.X - _dragStartPointer.X, ResizeIncrement);
-        var deltaY = Snap(args.Position.Y - _dragStartPointer.Y, ResizeIncrement);
-        ApplyResize(_activeTarget, _startWidth + deltaX, _startHeight + deltaY);
-        args.Handled = true;
-    }
-
-    protected override void OnMouseLeftButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonUp(args);
-        EndDrag(releaseCapture: true);
-        args.Handled = true;
-    }
-
-    protected override void OnLostMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        base.OnLostMouseCapture(args);
-        EndDrag(releaseCapture: false);
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        var target = ResolveTarget();
-        if (target == null)
-        {
-            return;
-        }
-
-        var delta = 10f;
-        var width = ResolveCurrentDimension(target.Width, target.ActualWidth, target.DesiredSize.X);
-        var height = ResolveCurrentDimension(target.Height, target.ActualHeight, target.DesiredSize.Y);
-        var handled = true;
-
-        switch (args.Key)
-        {
-            case Keys.Right:
-                width += delta;
-                break;
-            case Keys.Left:
-                width -= delta;
-                break;
-            case Keys.Down:
-                height += delta;
-                break;
-            case Keys.Up:
-                height -= delta;
-                break;
-            default:
-                handled = false;
-                break;
-        }
-
-        if (!handled)
-        {
-            return;
-        }
-
-        ApplyResize(target, width, height);
-        args.Handled = true;
-    }
 
     private FrameworkElement? ResolveTarget()
     {
@@ -289,14 +176,9 @@ public class ResizeGrip : Control
 
     private void EndDrag(bool releaseCapture)
     {
-        _isDragging = false;
         IsDragging = false;
-        _activeTarget = null;
 
-        if (releaseCapture && ReferenceEquals(InputManager.MouseCapturedElement, this))
-        {
-            ReleaseMouseCapture();
-        }
+        _ = releaseCapture;
     }
 
     private static float ResolveCurrentDimension(float explicitSize, float actual, float desired)

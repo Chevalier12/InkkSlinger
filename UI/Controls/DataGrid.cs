@@ -5,7 +5,6 @@ using System.Collections.Specialized;
 using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -160,7 +159,6 @@ public class DataGrid : ItemsControl
 
     public DataGrid()
     {
-        Focusable = true;
 
         _rowsHost = new VirtualizingStackPanel
         {
@@ -440,76 +438,6 @@ public class DataGrid : ItemsControl
         return true;
     }
 
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-
-        if (args.IsRepeat)
-        {
-            return;
-        }
-
-        var rowCount = GetRows().Count;
-        var colCount = _resolvedColumns.Count;
-        if (rowCount == 0)
-        {
-            return;
-        }
-
-        var row = SelectedRowIndex < 0 ? 0 : SelectedRowIndex;
-        var col = SelectedColumnIndex < 0 ? 0 : SelectedColumnIndex;
-        var handled = true;
-
-        switch (args.Key)
-        {
-            case Keys.Down:
-                row = Math.Min(rowCount - 1, row + 1);
-                break;
-            case Keys.Up:
-                row = Math.Max(0, row - 1);
-                break;
-            case Keys.PageDown:
-                row = Math.Min(rowCount - 1, row + Math.Max(1, (int)(ScrollViewerForTesting.ViewportHeight / Math.Max(1f, RowHeight))));
-                break;
-            case Keys.PageUp:
-                row = Math.Max(0, row - Math.Max(1, (int)(ScrollViewerForTesting.ViewportHeight / Math.Max(1f, RowHeight))));
-                break;
-            case Keys.Home:
-                row = 0;
-                col = 0;
-                break;
-            case Keys.End:
-                row = rowCount - 1;
-                col = Math.Max(0, colCount - 1);
-                break;
-            case Keys.Right:
-                if (SelectionUnit == DataGridSelectionUnit.Cell)
-                {
-                    col = Math.Min(Math.Max(0, colCount - 1), col + 1);
-                }
-
-                break;
-            case Keys.Left:
-                if (SelectionUnit == DataGridSelectionUnit.Cell)
-                {
-                    col = Math.Max(0, col - 1);
-                }
-
-                break;
-            default:
-                handled = false;
-                break;
-        }
-
-        if (!handled)
-        {
-            return;
-        }
-
-        Select(row, SelectionUnit == DataGridSelectionUnit.Cell ? col : -1);
-        EnsureRowVisible(row);
-        args.Handled = true;
-    }
 
     internal void NotifyRowPressed(DataGridRow row, int cellIndex)
     {

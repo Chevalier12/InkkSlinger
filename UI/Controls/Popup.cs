@@ -1,7 +1,6 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -154,13 +153,9 @@ public class Popup : ContentControl
 
     private Panel? _host;
     private bool _isOpen;
-    private bool _isDragging;
     private bool _isCloseHovered;
-    private bool _closePressed;
     private bool _updatingPlacement;
     private bool _coercingPlacement;
-    private Vector2 _dragPointerOffset;
-    private UIElement? _focusRestoreTarget;
 
     public string Title
     {
@@ -288,7 +283,6 @@ public class Popup : ContentControl
     {
         HorizontalAlignment = HorizontalAlignment.Left;
         VerticalAlignment = VerticalAlignment.Top;
-        Focusable = true;
         SyncMarginFromPlacement();
     }
 
@@ -298,20 +292,15 @@ public class Popup : ContentControl
         if (_isOpen)
         {
             Activate();
-            Focus();
             return;
         }
 
-        _focusRestoreTarget = FocusManager.FocusedElement;
         _host = host;
         _host.LayoutUpdated += OnHostLayoutUpdated;
-        _host.PreviewMouseDown += OnHostPreviewMouseDown;
-        _host.PreviewKeyDown += OnHostPreviewKeyDown;
         host.AddChild(this);
         _isOpen = true;
         Activate();
         UpdatePlacement();
-        Focus();
         Opened?.Invoke(this, EventArgs.Empty);
     }
 
@@ -332,32 +321,13 @@ public class Popup : ContentControl
             return;
         }
 
-        ReleaseMouseCapture();
-        _isDragging = false;
-        _closePressed = false;
         _isCloseHovered = false;
 
         _host.RemoveChild(this);
         _host.LayoutUpdated -= OnHostLayoutUpdated;
-        _host.PreviewMouseDown -= OnHostPreviewMouseDown;
-        _host.PreviewKeyDown -= OnHostPreviewKeyDown;
         _host = null;
         _isOpen = false;
 
-        var shouldRestoreFocus = FocusManager.FocusedElement != null && IsSelfOrDescendant(FocusManager.FocusedElement);
-        if (shouldRestoreFocus && _focusRestoreTarget != null)
-        {
-            if (!FocusManager.SetFocusedElement(_focusRestoreTarget))
-            {
-                FocusManager.SetFocusedElement(null);
-            }
-        }
-        else if (shouldRestoreFocus)
-        {
-            FocusManager.SetFocusedElement(null);
-        }
-
-        _focusRestoreTarget = null;
         Closed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -520,86 +490,10 @@ public class Popup : ContentControl
         }
     }
 
-    protected override void OnMouseMove(RoutedMouseEventArgs args)
-    {
-        base.OnMouseMove(args);
 
-        var pointer = args.Position;
-        _isCloseHovered = CanClose && TitleBarHeight > 0f && Contains(GetCloseButtonRect(), pointer.X, pointer.Y);
 
-        if (_isDragging && CanDragMove)
-        {
-            Left = pointer.X - _dragPointerOffset.X;
-            Top = pointer.Y - _dragPointerOffset.Y;
-            args.Handled = true;
-        }
-    }
 
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
-        Activate();
 
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        if (CanClose && TitleBarHeight > 0f && Contains(GetCloseButtonRect(), args.Position.X, args.Position.Y))
-        {
-            _closePressed = true;
-            CaptureMouse();
-            args.Handled = true;
-            return;
-        }
-
-        if (CanDragMove && IsInTitleBar(args.Position))
-        {
-            _isDragging = true;
-            _dragPointerOffset = new Vector2(args.Position.X - Left, args.Position.Y - Top);
-            CaptureMouse();
-            args.Handled = true;
-        }
-    }
-
-    protected override void OnMouseLeftButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonUp(args);
-
-        var closeHit = CanClose && TitleBarHeight > 0f && Contains(GetCloseButtonRect(), args.Position.X, args.Position.Y);
-        var shouldClose = _closePressed && closeHit;
-        _closePressed = false;
-
-        _isDragging = false;
-        if (InputManager.MouseCapturedElement == this)
-        {
-            ReleaseMouseCapture();
-        }
-
-        if (shouldClose)
-        {
-            Close();
-            args.Handled = true;
-        }
-    }
-
-    protected override void OnLostMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        base.OnLostMouseCapture(args);
-        _isDragging = false;
-        _closePressed = false;
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-
-        if ((CanClose || DismissOnOutsideClick) && args.Key == Keys.Escape)
-        {
-            Close();
-            args.Handled = true;
-        }
-    }
 
     private bool IsInTitleBar(Vector2 point)
     {
@@ -707,34 +601,7 @@ public class Popup : ContentControl
         UpdatePlacement();
     }
 
-    private void OnHostPreviewMouseDown(object? sender, RoutedMouseButtonEventArgs args)
-    {
-        if (!_isOpen || !DismissOnOutsideClick)
-        {
-            return;
-        }
 
-        var source = args.OriginalSource;
-        if (source != null &&
-            (IsSelfOrDescendant(source) ||
-             (PlacementTarget != null && IsElementDescendantOf(source, PlacementTarget))))
-        {
-            return;
-        }
-
-        Close();
-    }
-
-    private void OnHostPreviewKeyDown(object? sender, RoutedKeyEventArgs args)
-    {
-        if (!_isOpen || args.Key != Keys.Escape || (!CanClose && !DismissOnOutsideClick))
-        {
-            return;
-        }
-
-        Close();
-        args.Handled = true;
-    }
 
     private void UpdatePlacement()
     {

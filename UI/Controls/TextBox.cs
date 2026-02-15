@@ -4,11 +4,10 @@ using System.Diagnostics;
 using System.Text;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
-public class TextBox : Control
+public class TextBox : Control, IRenderDirtyBoundsHintProvider
 {
     private static readonly Lazy<Style> DefaultTextBoxStyle = new(BuildDefaultTextBoxStyle);
 
@@ -169,7 +168,6 @@ public class TextBox : Control
 
     private readonly TextEditingBuffer _editor = new();
     private bool _isUpdatingTextFromEditor;
-    private bool _isSelectingWithMouse;
     private bool _isDraggingVerticalThumb;
     private bool _isDraggingHorizontalThumb;
     private float _verticalThumbDragOffset;
@@ -198,6 +196,9 @@ public class TextBox : Control
     private int _visibleTextBatchCacheTextVersion = -1;
     private int _visibleTextBatchCacheFirstLine = -1;
     private int _visibleTextBatchCacheLastLine = -1;
+    private int _visibleTextBatchCacheTotalLineCount = -1;
+    private int _visibleTextBatchCacheFirstLineStartIndex = -1;
+    private int _visibleTextBatchCacheLastLineStartIndex = -1;
     private string _visibleTextBatchCache = string.Empty;
     private bool _hasVirtualWrapCache;
     private int _virtualWrapCacheTextVersion = -1;
@@ -219,6 +220,8 @@ public class TextBox : Control
     private int _perfIncrementalVirtualEditFallbackCount;
     private int _perfIncrementalNoWrapEditAttemptCount;
     private int _perfIncrementalNoWrapEditSuccessCount;
+    private int _perfLayoutCacheHitCount;
+    private int _perfLayoutCacheMissCount;
     private int _perfViewportLayoutBuildCount;
     private int _perfFullLayoutBuildCount;
     private int _perfVirtualRangeBuildCount;
@@ -268,6 +271,9 @@ public class TextBox : Control
     private bool _previousShowHorizontalScrollBar;
     private bool _previousShowVerticalScrollBar;
     private TextViewportLayoutState _viewportLayoutCache;
+    private bool _hasPendingRenderDirtyBoundsHint;
+    private bool _preserveRenderDirtyBoundsHint;
+    private LayoutRect _pendingRenderDirtyBoundsHint;
     private const int VirtualWrapCheckpointInterval = 128;
     private const int VirtualWrapMinCacheLines = 64;
     private const int VirtualWrapTrimThreshold = 4096;
@@ -279,7 +285,6 @@ public class TextBox : Control
 
     public TextBox()
     {
-        Focusable = true;
         _editor.SetText(Text, preserveCaret: false);
     }
 
@@ -399,6 +404,8 @@ public class TextBox : Control
         private set => SetValue(IsFocusedProperty, value);
     }
 
+    internal bool IsRenderCacheStable => !IsFocused && Selection.IsEmpty;
+
     public int CaretIndex => _editor.CaretIndex;
 
     public int TextLength => _editor.Length;
@@ -417,6 +424,8 @@ public class TextBox : Control
             _perfIncrementalNoWrapEditSuccessCount,
             _perfIncrementalVirtualEditSuccessCount,
             _perfIncrementalVirtualEditFallbackCount,
+            _perfLayoutCacheHitCount,
+            _perfLayoutCacheMissCount,
             _perfViewportLayoutBuildCount,
             _perfFullLayoutBuildCount,
             _perfVirtualRangeBuildCount,
@@ -466,6 +475,8 @@ public class TextBox : Control
         _perfIncrementalNoWrapEditSuccessCount = 0;
         _perfIncrementalVirtualEditSuccessCount = 0;
         _perfIncrementalVirtualEditFallbackCount = 0;
+        _perfLayoutCacheHitCount = 0;
+        _perfLayoutCacheMissCount = 0;
         _perfViewportLayoutBuildCount = 0;
         _perfFullLayoutBuildCount = 0;
         _perfVirtualRangeBuildCount = 0;
@@ -627,6 +638,11 @@ public class TextBox : Control
     protected internal float HorizontalOffsetForTesting => _horizontalOffset;
     protected internal float VerticalOffsetForTesting => _verticalOffset;
 
+    internal void PrimeLayoutCacheForTests(float contentWidth)
+    {
+        _ = BuildLayoutLines(contentWidth);
+    }
+
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
@@ -647,7 +663,7 @@ public class TextBox : Control
             }
         }
 
-        if (!IsEnabled || !IsFocused || FocusManager.FocusedElement != this)
+        if (!IsEnabled || !IsFocused)
         {
             return;
         }
@@ -657,7 +673,7 @@ public class TextBox : Control
         {
             _caretBlinkSeconds = 0f;
             _isCaretVisible = !_isCaretVisible;
-            InvalidateVisual(UiRedrawReason.CaretBlink);
+            InvalidateCaretVisualRegion();
         }
     }
 
@@ -703,13 +719,13 @@ public class TextBox : Control
         var slot = LayoutSlot;
         UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
 
-        if (BorderThickness > 0f)
-        {
-            UiDrawing.DrawRectStroke(spriteBatch, slot, BorderThickness, BorderBrush, Opacity);
-        }
-
         if (Font == null)
         {
+            if (BorderThickness > 0f)
+            {
+                UiDrawing.DrawRectStroke(spriteBatch, slot, BorderThickness, BorderBrush, Opacity);
+            }
+
             return;
         }
 
@@ -722,7 +738,7 @@ public class TextBox : Control
         viewportTicks = Stopwatch.GetTimestamp() - viewportStart;
         ClampOffsets(view.Layout, view.ViewportRect);
         var lineHeight = GetLineHeight();
-        var textY = view.ViewportRect.Y;
+        var textY = view.ViewportRect.Y + GetTextRenderTopInset();
         var totalLineCount = GetLineCount(view.Layout);
         var firstVisibleLine = Math.Clamp((int)MathF.Floor(_verticalOffset / MathF.Max(1f, lineHeight)), 0, Math.Max(0, totalLineCount - 1));
         var lastVisibleLine = Math.Clamp(
@@ -730,417 +746,108 @@ public class TextBox : Control
             0,
             Math.Max(0, totalLineCount - 1));
 
-        if (_editor.HasSelection)
+        UiDrawing.PushClip(spriteBatch, GetTextRenderClipRect(view.ViewportRect));
+        try
         {
-            var selectionStartTicks = Stopwatch.GetTimestamp();
-            var selection = _editor.Selection;
-            for (var lineIndex = firstVisibleLine; lineIndex <= lastVisibleLine; lineIndex++)
+            if (_editor.HasSelection)
             {
-                var line = GetLine(view.Layout, lineIndex);
-                var lineStart = line.StartIndex;
-                var lineEnd = line.StartIndex + line.Length;
-                var selectionStart = Math.Max(selection.Start, lineStart);
-                var selectionEnd = Math.Min(selection.End, lineEnd);
-                if (selectionStart >= selectionEnd)
+                var selectionStartTicks = Stopwatch.GetTimestamp();
+                var selection = _editor.Selection;
+                for (var lineIndex = firstVisibleLine; lineIndex <= lastVisibleLine; lineIndex++)
                 {
-                    continue;
+                    var line = GetLine(view.Layout, lineIndex);
+                    var lineStart = line.StartIndex;
+                    var lineEnd = line.StartIndex + line.Length;
+                    var selectionStart = Math.Max(selection.Start, lineStart);
+                    var selectionEnd = Math.Min(selection.End, lineEnd);
+                    if (selectionStart >= selectionEnd)
+                    {
+                        continue;
+                    }
+
+                    var localStart = selectionStart - lineStart;
+                    var localEnd = selectionEnd - lineStart;
+                    var startX = view.ViewportRect.X + GetLineWidthAtColumn(view.Layout, lineIndex, localStart) - _horizontalOffset;
+                    var endX = view.ViewportRect.X + GetLineWidthAtColumn(view.Layout, lineIndex, localEnd) - _horizontalOffset;
+                    var selectionY = textY + (lineIndex * lineHeight) - _verticalOffset;
+                    UiDrawing.DrawFilledRect(
+                        spriteBatch,
+                        new LayoutRect(startX, selectionY, MathF.Max(0f, endX - startX), lineHeight),
+                        SelectionBrush,
+                        Opacity);
                 }
 
-                var localStart = selectionStart - lineStart;
-                var localEnd = selectionEnd - lineStart;
-                var startX = view.ViewportRect.X + GetLineWidthAtColumn(view.Layout, lineIndex, localStart) - _horizontalOffset;
-                var endX = view.ViewportRect.X + GetLineWidthAtColumn(view.Layout, lineIndex, localEnd) - _horizontalOffset;
-                var selectionY = textY + (lineIndex * lineHeight) - _verticalOffset;
+                selectionTicks = Stopwatch.GetTimestamp() - selectionStartTicks;
+            }
+
+            var textStartTicks = Stopwatch.GetTimestamp();
+            if (CanUseVisibleTextBatchPath(firstVisibleLine, lastVisibleLine))
+            {
+                var batchText = GetVisibleTextBatch(view.Layout, firstVisibleLine, lastVisibleLine);
+                if (batchText.Length > 0)
+                {
+                    DrawTextLine(
+                        spriteBatch,
+                        batchText,
+                        new Vector2(view.ViewportRect.X - _horizontalOffset, textY + (firstVisibleLine * lineHeight) - _verticalOffset),
+                        Foreground * Opacity);
+                }
+            }
+            else
+            {
+                for (var lineIndex = firstVisibleLine; lineIndex <= lastVisibleLine; lineIndex++)
+                {
+                    var lineText = GetLineText(view.Layout, lineIndex);
+                    if (lineText.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    DrawTextLine(
+                        spriteBatch,
+                        lineText,
+                        new Vector2(view.ViewportRect.X - _horizontalOffset, textY + (lineIndex * lineHeight) - _verticalOffset),
+                        Foreground * Opacity);
+                }
+            }
+            textTicks = Stopwatch.GetTimestamp() - textStartTicks;
+
+            if (ShouldDrawCaret() && TryGetCaretRenderRect(view, lineHeight, textY, requireVisibleCaret: true, out var caretRect))
+            {
+                var caretStartTicks = Stopwatch.GetTimestamp();
                 UiDrawing.DrawFilledRect(
                     spriteBatch,
-                    new LayoutRect(startX, selectionY, MathF.Max(0f, endX - startX), lineHeight),
-                    SelectionBrush,
+                    caretRect,
+                    CaretBrush,
                     Opacity);
-            }
-
-            selectionTicks = Stopwatch.GetTimestamp() - selectionStartTicks;
-        }
-
-        var textStartTicks = Stopwatch.GetTimestamp();
-        if (CanUseVisibleTextBatchPath(firstVisibleLine, lastVisibleLine))
-        {
-            var batchText = GetVisibleTextBatch(view.Layout, firstVisibleLine, lastVisibleLine);
-            if (batchText.Length > 0)
-            {
-                DrawTextLine(
-                    spriteBatch,
-                    batchText,
-                    new Vector2(view.ViewportRect.X - _horizontalOffset, textY + (firstVisibleLine * lineHeight) - _verticalOffset),
-                    Foreground * Opacity);
+                caretTicks = Stopwatch.GetTimestamp() - caretStartTicks;
             }
         }
-        else
+        finally
         {
-            for (var lineIndex = firstVisibleLine; lineIndex <= lastVisibleLine; lineIndex++)
-            {
-                var lineText = GetLineText(view.Layout, lineIndex);
-                if (lineText.Length == 0)
-                {
-                    continue;
-                }
-
-                DrawTextLine(
-                    spriteBatch,
-                    lineText,
-                    new Vector2(view.ViewportRect.X - _horizontalOffset, textY + (lineIndex * lineHeight) - _verticalOffset),
-                    Foreground * Opacity);
-            }
-        }
-        textTicks = Stopwatch.GetTimestamp() - textStartTicks;
-
-        if (ShouldDrawCaret())
-        {
-            var caretStartTicks = Stopwatch.GetTimestamp();
-            var caretLineIndex = FindLineIndexForTextIndexWithCaretHint(view.Layout, _editor.CaretIndex, out _);
-            var caretLine = GetLine(view.Layout, caretLineIndex);
-            UpdateCaretLineHint(caretLineIndex, caretLine);
-            var caretColumn = Math.Clamp(_editor.CaretIndex - caretLine.StartIndex, 0, caretLine.Length);
-
-            var caretX = view.ViewportRect.X + GetLineWidthAtColumn(view.Layout, caretLineIndex, caretColumn) - _horizontalOffset;
-            var caretY = textY + (caretLineIndex * lineHeight) - _verticalOffset;
-            UiDrawing.DrawFilledRect(
-                spriteBatch,
-                new LayoutRect(caretX, caretY + 1f, 1f, MathF.Max(1f, lineHeight - 2f)),
-                CaretBrush,
-                Opacity);
-            caretTicks = Stopwatch.GetTimestamp() - caretStartTicks;
+            UiDrawing.PopClip(spriteBatch);
         }
 
         DrawNativeScrollBars(spriteBatch, view);
+        if (BorderThickness > 0f)
+        {
+            UiDrawing.DrawRectStroke(spriteBatch, slot, BorderThickness, BorderBrush, Opacity);
+        }
+
         var renderTotalTicks = Stopwatch.GetTimestamp() - renderStart;
         RecordRenderTiming(renderTotalTicks, viewportTicks, selectionTicks, textTicks, caretTicks);
     }
 
-    protected override void OnMouseEnter(RoutedMouseEventArgs args)
-    {
-        base.OnMouseEnter(args);
-        IsMouseOver = true;
-    }
 
-    protected override void OnMouseLeave(RoutedMouseEventArgs args)
-    {
-        base.OnMouseLeave(args);
-        IsMouseOver = false;
-    }
 
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
 
-        if (!IsEnabled)
-        {
-            return;
-        }
 
-        Focus();
-        var view = BuildTextViewportState();
-        if (TryHandleScrollBarMouseDown(args, view))
-        {
-            args.Handled = true;
-            return;
-        }
 
-        CaptureMouse();
-        _isSelectingWithMouse = true;
-        var extendSelection = (args.Modifiers & ModifierKeys.Shift) != 0;
-        var index = GetTextIndexFromPoint(args.Position);
-        _editor.SetCaret(index, extendSelection);
-        _preferredCaretX = -1f;
-        EnsureCaretVisible();
-        ResetCaretBlink();
 
-        args.Handled = true;
-    }
 
-    protected override void OnMouseMove(RoutedMouseEventArgs args)
-    {
-        base.OnMouseMove(args);
 
-        if ((_isDraggingVerticalThumb || _isDraggingHorizontalThumb) && ReferenceEquals(InputManager.MouseCapturedElement, this))
-        {
-            var view = BuildTextViewportState();
-            HandleScrollBarDrag(args.Position, view);
-            args.Handled = true;
-            return;
-        }
 
-        if (!_isSelectingWithMouse || !ReferenceEquals(InputManager.MouseCapturedElement, this))
-        {
-            return;
-        }
 
-        var index = GetTextIndexFromPoint(args.Position);
-        _editor.SetCaret(index, extendSelection: true);
-        _preferredCaretX = -1f;
-        EnsureCaretVisible();
-        ResetCaretBlink();
-        args.Handled = true;
-    }
-
-    protected override void OnMouseLeftButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonUp(args);
-
-        if (_isDraggingVerticalThumb || _isDraggingHorizontalThumb)
-        {
-            EndScrollBarDrag();
-            if (ReferenceEquals(InputManager.MouseCapturedElement, this))
-            {
-                ReleaseMouseCapture();
-            }
-
-            args.Handled = true;
-            return;
-        }
-
-        _isSelectingWithMouse = false;
-        if (ReferenceEquals(InputManager.MouseCapturedElement, this))
-        {
-            ReleaseMouseCapture();
-        }
-
-        args.Handled = true;
-    }
-
-    protected override void OnLostMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        base.OnLostMouseCapture(args);
-        _isSelectingWithMouse = false;
-        EndScrollBarDrag();
-    }
-
-    protected override void OnGotFocus(RoutedFocusEventArgs args)
-    {
-        base.OnGotFocus(args);
-        IsFocused = true;
-        ResetCaretBlink();
-    }
-
-    protected override void OnLostFocus(RoutedFocusEventArgs args)
-    {
-        base.OnLostFocus(args);
-        CommitPendingTextSync();
-        _hasPendingEnsureCaretVisible = false;
-        IsFocused = false;
-        _isSelectingWithMouse = false;
-        EndScrollBarDrag();
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        var modifiers = args.Modifiers;
-        var extendSelection = (modifiers & ModifierKeys.Shift) != 0;
-        var controlPressed = (modifiers & ModifierKeys.Control) != 0;
-
-        var handled = false;
-        var textMutated = false;
-        var keyInputStartTicks = Stopwatch.GetTimestamp();
-        long commitTicks = 0L;
-        long ensureCaretTicks = 0L;
-
-        switch (args.Key)
-        {
-            case Keys.Left:
-                handled = _editor.MoveCaretLeft(extendSelection, byWord: controlPressed);
-                if (handled)
-                {
-                    _preferredCaretX = -1f;
-                }
-                break;
-            case Keys.Right:
-                handled = _editor.MoveCaretRight(extendSelection, byWord: controlPressed);
-                if (handled)
-                {
-                    _preferredCaretX = -1f;
-                }
-                break;
-            case Keys.Home:
-                handled = _editor.MoveCaretHome(extendSelection);
-                if (handled)
-                {
-                    _preferredCaretX = -1f;
-                }
-                break;
-            case Keys.End:
-                handled = _editor.MoveCaretEnd(extendSelection);
-                if (handled)
-                {
-                    _preferredCaretX = -1f;
-                }
-                break;
-            case Keys.Up:
-                handled = MoveCaretVertical(-1, extendSelection);
-                break;
-            case Keys.Down:
-                handled = MoveCaretVertical(1, extendSelection);
-                break;
-            case Keys.Back:
-                if (!IsReadOnly)
-                {
-                    textMutated = _editor.Backspace(byWord: controlPressed);
-                    handled = textMutated;
-                }
-
-                break;
-            case Keys.Delete:
-                if (!IsReadOnly)
-                {
-                    textMutated = _editor.Delete(byWord: controlPressed);
-                    handled = textMutated;
-                }
-
-                break;
-            case Keys.A:
-                if (controlPressed)
-                {
-                    _editor.SelectAll();
-                    handled = true;
-                }
-
-                break;
-            case Keys.C:
-                if (controlPressed && _editor.HasSelection)
-                {
-                    TextClipboard.SetText(_editor.GetSelectedText());
-                    handled = true;
-                }
-
-                break;
-            case Keys.X:
-                if (controlPressed && !IsReadOnly && _editor.HasSelection)
-                {
-                    TextClipboard.SetText(_editor.GetSelectedText());
-                    textMutated = _editor.DeleteSelectionIfPresent();
-                    handled = true;
-                }
-
-                break;
-            case Keys.V:
-                if (controlPressed && !IsReadOnly && TextClipboard.TryGetText(out var clipboardText))
-                {
-                    textMutated = InsertTextIntoEditor(clipboardText);
-                    handled = true;
-                }
-
-                break;
-            case Keys.Enter:
-                if (!IsReadOnly)
-                {
-                    if (args.IsRepeat)
-                    {
-                        handled = true;
-                        break;
-                    }
-
-                    textMutated = InsertTextIntoEditor("\n");
-                    handled = true;
-                }
-
-                break;
-        }
-
-        if (textMutated)
-        {
-            MarkTextMutationActivity();
-            var commitStartTicks = Stopwatch.GetTimestamp();
-            CommitEditorText(_editor.ConsumeLastEditDelta());
-            commitTicks = Stopwatch.GetTimestamp() - commitStartTicks;
-        }
-
-        if (handled || textMutated)
-        {
-            if (textMutated)
-            {
-                ScheduleEnsureCaretVisible();
-            }
-            else
-            {
-                var ensureCaretStartTicks = Stopwatch.GetTimestamp();
-                EnsureCaretVisible();
-                ensureCaretTicks = Stopwatch.GetTimestamp() - ensureCaretStartTicks;
-            }
-
-            ResetCaretBlink();
-            args.Handled = true;
-        }
-
-        if (textMutated)
-        {
-            var totalTicks = Stopwatch.GetTimestamp() - keyInputStartTicks;
-            var editTicks = Math.Max(0L, totalTicks - commitTicks - ensureCaretTicks);
-            RecordInputMutationTiming(totalTicks, editTicks, commitTicks, ensureCaretTicks);
-        }
-    }
-
-    protected override void OnTextInput(RoutedTextInputEventArgs args)
-    {
-        base.OnTextInput(args);
-
-        if (!IsEnabled || IsReadOnly)
-        {
-            return;
-        }
-
-        if (!TryMapTextInput(args.Character, out var textToInsert))
-        {
-            return;
-        }
-
-        var inputStartTicks = Stopwatch.GetTimestamp();
-        var editStartTicks = Stopwatch.GetTimestamp();
-        if (!InsertTextIntoEditor(textToInsert))
-        {
-            return;
-        }
-        var editTicks = Stopwatch.GetTimestamp() - editStartTicks;
-        MarkTextMutationActivity();
-
-        var commitStartTicks = Stopwatch.GetTimestamp();
-        CommitEditorText(_editor.ConsumeLastEditDelta());
-        var commitTicks = Stopwatch.GetTimestamp() - commitStartTicks;
-        ScheduleEnsureCaretVisible();
-        var ensureCaretTicks = 0L;
-        ResetCaretBlink();
-        args.Handled = true;
-
-        var totalTicks = Stopwatch.GetTimestamp() - inputStartTicks;
-        RecordInputMutationTiming(totalTicks, editTicks, commitTicks, ensureCaretTicks);
-    }
-
-    protected override void OnMouseWheel(RoutedMouseWheelEventArgs args)
-    {
-        base.OnMouseWheel(args);
-
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        var view = BuildTextViewportState();
-        var maxVerticalOffset = GetMaxVerticalOffset(view.Layout, view.ViewportRect);
-        if (maxVerticalOffset <= 0f)
-        {
-            return;
-        }
-
-        var steps = args.Delta / 120f;
-        var lineAmount = MathF.Max(12f, GetLineHeight());
-        _verticalOffset = Math.Clamp(_verticalOffset - (steps * lineAmount), 0f, maxVerticalOffset);
-        InvalidateVisual();
-        args.Handled = true;
-    }
 
     protected override Style? GetFallbackStyle()
     {
@@ -1320,11 +1027,10 @@ public class TextBox : Control
 
     private bool CanUseVirtualWrappedLayout(float contentWidth)
     {
-        return Font != null &&
-               TextWrapping != TextWrapping.NoWrap &&
-               !float.IsInfinity(contentWidth) &&
-               !float.IsNaN(contentWidth) &&
-               contentWidth > 1f;
+        // Virtual wrap currently produces incorrect line realization/extent in
+        // resize scenarios (e.g. wrapped lines not reflowing as width changes).
+        // Fall back to the full wrapping path for correctness.
+        return false;
     }
 
     private TextViewportState BuildTextViewportState()
@@ -1489,7 +1195,8 @@ public class TextBox : Control
         }
 
         var lineHeight = GetLineHeight();
-        var localY = MathF.Max(0f, point.Y - view.ViewportRect.Y + _verticalOffset);
+        var textY = view.ViewportRect.Y + GetTextRenderTopInset();
+        var localY = MathF.Max(0f, point.Y - textY + _verticalOffset);
         var lineIndex = Math.Clamp((int)(localY / lineHeight), 0, lineCount - 1);
         var line = GetLine(view.Layout, lineIndex);
         var localX = MathF.Max(0f, point.X - view.ViewportRect.X + _horizontalOffset);
@@ -1537,10 +1244,25 @@ public class TextBox : Control
 
     private string GetVisibleTextBatch(LayoutResult layout, int firstVisibleLine, int lastVisibleLine)
     {
+        var totalLineCount = GetLineCount(layout);
+        var hasVisibleLines = firstVisibleLine >= 0 &&
+                              lastVisibleLine >= firstVisibleLine &&
+                              firstVisibleLine < totalLineCount &&
+                              lastVisibleLine < totalLineCount;
+        var firstStartIndex = hasVisibleLines
+            ? GetLine(layout, firstVisibleLine).StartIndex
+            : -1;
+        var lastStartIndex = hasVisibleLines
+            ? GetLine(layout, lastVisibleLine).StartIndex
+            : -1;
+
         if (_hasVisibleTextBatchCache &&
             _visibleTextBatchCacheTextVersion == _textVersion &&
             _visibleTextBatchCacheFirstLine == firstVisibleLine &&
-            _visibleTextBatchCacheLastLine == lastVisibleLine)
+            _visibleTextBatchCacheLastLine == lastVisibleLine &&
+            _visibleTextBatchCacheTotalLineCount == totalLineCount &&
+            _visibleTextBatchCacheFirstLineStartIndex == firstStartIndex &&
+            _visibleTextBatchCacheLastLineStartIndex == lastStartIndex)
         {
             return _visibleTextBatchCache;
         }
@@ -1552,6 +1274,9 @@ public class TextBox : Control
             _visibleTextBatchCacheTextVersion = _textVersion;
             _visibleTextBatchCacheFirstLine = firstVisibleLine;
             _visibleTextBatchCacheLastLine = lastVisibleLine;
+            _visibleTextBatchCacheTotalLineCount = totalLineCount;
+            _visibleTextBatchCacheFirstLineStartIndex = firstStartIndex;
+            _visibleTextBatchCacheLastLineStartIndex = lastStartIndex;
             _hasVisibleTextBatchCache = true;
             return _visibleTextBatchCache;
         }
@@ -1575,13 +1300,16 @@ public class TextBox : Control
         _visibleTextBatchCacheTextVersion = _textVersion;
         _visibleTextBatchCacheFirstLine = firstVisibleLine;
         _visibleTextBatchCacheLastLine = lastVisibleLine;
+        _visibleTextBatchCacheTotalLineCount = totalLineCount;
+        _visibleTextBatchCacheFirstLineStartIndex = firstStartIndex;
+        _visibleTextBatchCacheLastLineStartIndex = lastStartIndex;
         _hasVisibleTextBatchCache = true;
         return _visibleTextBatchCache;
     }
 
     private bool ShouldDrawCaret()
     {
-        return IsEnabled && IsFocused && FocusManager.FocusedElement == this && _isCaretVisible;
+        return IsEnabled && IsFocused && _isCaretVisible;
     }
 
     private void DrawNativeScrollBars(SpriteBatch spriteBatch, TextViewportState view)
@@ -1609,54 +1337,6 @@ public class TextBox : Control
         }
     }
 
-    private bool TryHandleScrollBarMouseDown(RoutedMouseButtonEventArgs args, TextViewportState view)
-    {
-        if (view.ShowVerticalScrollBar && IsPointInside(args.Position, view.VerticalTrackRect))
-        {
-            CaptureMouse();
-            if (IsPointInside(args.Position, view.VerticalThumbRect))
-            {
-                _isDraggingVerticalThumb = true;
-                _verticalThumbDragOffset = args.Position.Y - view.VerticalThumbRect.Y;
-            }
-            else
-            {
-                var direction = args.Position.Y < view.VerticalThumbRect.Y ? -1f : 1f;
-                _verticalOffset = Math.Clamp(
-                    _verticalOffset + (direction * MathF.Max(1f, view.ViewportRect.Height * 0.9f)),
-                    0f,
-                    view.MaxVerticalOffset);
-                InvalidateVisual();
-            }
-
-            _isSelectingWithMouse = false;
-            return true;
-        }
-
-        if (view.ShowHorizontalScrollBar && IsPointInside(args.Position, view.HorizontalTrackRect))
-        {
-            CaptureMouse();
-            if (IsPointInside(args.Position, view.HorizontalThumbRect))
-            {
-                _isDraggingHorizontalThumb = true;
-                _horizontalThumbDragOffset = args.Position.X - view.HorizontalThumbRect.X;
-            }
-            else
-            {
-                var direction = args.Position.X < view.HorizontalThumbRect.X ? -1f : 1f;
-                _horizontalOffset = Math.Clamp(
-                    _horizontalOffset + (direction * MathF.Max(1f, view.ViewportRect.Width * 0.9f)),
-                    0f,
-                    view.MaxHorizontalOffset);
-                InvalidateVisual();
-            }
-
-            _isSelectingWithMouse = false;
-            return true;
-        }
-
-        return false;
-    }
 
     private void HandleScrollBarDrag(Vector2 pointer, TextViewportState view)
     {
@@ -1763,11 +1443,21 @@ public class TextBox : Control
         return true;
     }
 
+    public override void InvalidateVisual()
+    {
+        if (!_preserveRenderDirtyBoundsHint)
+        {
+            _hasPendingRenderDirtyBoundsHint = false;
+        }
+
+        base.InvalidateVisual();
+    }
+
     private void ResetCaretBlink()
     {
         _caretBlinkSeconds = 0f;
         _isCaretVisible = true;
-        InvalidateVisual();
+        InvalidateCaretVisualRegion();
     }
 
     private void ScheduleEnsureCaretVisible()
@@ -1781,7 +1471,23 @@ public class TextBox : Control
         _visibleTextBatchCacheTextVersion = -1;
         _visibleTextBatchCacheFirstLine = -1;
         _visibleTextBatchCacheLastLine = -1;
+        _visibleTextBatchCacheTotalLineCount = -1;
+        _visibleTextBatchCacheFirstLineStartIndex = -1;
+        _visibleTextBatchCacheLastLineStartIndex = -1;
         _visibleTextBatchCache = string.Empty;
+    }
+
+    bool IRenderDirtyBoundsHintProvider.TryConsumeRenderDirtyBoundsHint(out LayoutRect bounds)
+    {
+        if (!_hasPendingRenderDirtyBoundsHint)
+        {
+            bounds = default;
+            return false;
+        }
+
+        bounds = _pendingRenderDirtyBoundsHint;
+        _hasPendingRenderDirtyBoundsHint = false;
+        return true;
     }
 
     private void InvalidateLayoutCache()
@@ -1877,6 +1583,159 @@ public class TextBox : Control
         _virtualWrapMaxObservedLineWidth = 0f;
     }
 
+    private void InvalidateCaretVisualRegion()
+    {
+        if (!TryGetCaretRenderRect(requireVisibleCaret: false, out var caretRect))
+        {
+            InvalidateVisual();
+            return;
+        }
+
+        var expanded = ExpandRect(caretRect, 2f);
+        if (expanded.Width <= 0f || expanded.Height <= 0f)
+        {
+            InvalidateVisual();
+            return;
+        }
+
+        if (TryProjectRectToRootSpace(expanded, out var rootSpaceBounds))
+        {
+            expanded = rootSpaceBounds;
+        }
+
+        _pendingRenderDirtyBoundsHint = NormalizeRect(expanded);
+        _hasPendingRenderDirtyBoundsHint = true;
+        _preserveRenderDirtyBoundsHint = true;
+        try
+        {
+            base.InvalidateVisual();
+        }
+        finally
+        {
+            _preserveRenderDirtyBoundsHint = false;
+        }
+    }
+
+    private bool TryGetCaretRenderRect(bool requireVisibleCaret, out LayoutRect caretRect)
+    {
+        if (!IsEnabled || !IsFocused || (requireVisibleCaret && !_isCaretVisible))
+        {
+            caretRect = default;
+            return false;
+        }
+
+        var view = BuildTextViewportState();
+        ClampOffsets(view.Layout, view.ViewportRect);
+        var lineHeight = GetLineHeight();
+        return TryGetCaretRenderRect(view, lineHeight, view.ViewportRect.Y + GetTextRenderTopInset(), requireVisibleCaret, out caretRect);
+    }
+
+    private bool TryGetCaretRenderRect(
+        TextViewportState view,
+        float lineHeight,
+        float textY,
+        bool requireVisibleCaret,
+        out LayoutRect caretRect)
+    {
+        caretRect = default;
+        if (!IsEnabled || !IsFocused || (requireVisibleCaret && !_isCaretVisible))
+        {
+            return false;
+        }
+
+        var lineCount = GetLineCount(view.Layout);
+        if (lineCount <= 0)
+        {
+            return false;
+        }
+
+        var caretLineIndex = FindLineIndexForTextIndexWithCaretHint(view.Layout, _editor.CaretIndex, out _);
+        var caretLine = GetLine(view.Layout, caretLineIndex);
+        UpdateCaretLineHint(caretLineIndex, caretLine);
+        var caretColumn = Math.Clamp(_editor.CaretIndex - caretLine.StartIndex, 0, caretLine.Length);
+
+        var caretX = view.ViewportRect.X + GetLineWidthAtColumn(view.Layout, caretLineIndex, caretColumn) - _horizontalOffset;
+        var caretY = textY + (caretLineIndex * lineHeight) - _verticalOffset;
+        var rawRect = new LayoutRect(caretX, caretY + 1f, 1f, MathF.Max(1f, lineHeight - 2f));
+        caretRect = IntersectRect(rawRect, view.ViewportRect);
+        return caretRect.Width > 0f && caretRect.Height > 0f;
+    }
+
+    private bool TryProjectRectToRootSpace(LayoutRect rect, out LayoutRect projectedRect)
+    {
+        projectedRect = rect;
+        var transform = Matrix.Identity;
+        var hasTransform = false;
+        for (var current = this as UIElement; current != null; current = current.VisualParent)
+        {
+            if (!current.TryGetLocalRenderTransformSnapshot(out var localTransform))
+            {
+                continue;
+            }
+
+            transform *= localTransform;
+            hasTransform = true;
+        }
+
+        if (!hasTransform)
+        {
+            return true;
+        }
+
+        var topLeft = Vector2.Transform(new Vector2(rect.X, rect.Y), transform);
+        var topRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y), transform);
+        var bottomLeft = Vector2.Transform(new Vector2(rect.X, rect.Y + rect.Height), transform);
+        var bottomRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y + rect.Height), transform);
+
+        var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+        var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+        var maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+        var maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+
+        projectedRect = new LayoutRect(minX, minY, MathF.Max(0f, maxX - minX), MathF.Max(0f, maxY - minY));
+        return projectedRect.Width > 0f && projectedRect.Height > 0f;
+    }
+
+    private static LayoutRect IntersectRect(LayoutRect left, LayoutRect right)
+    {
+        var x = MathF.Max(left.X, right.X);
+        var y = MathF.Max(left.Y, right.Y);
+        var rightEdge = MathF.Min(left.X + left.Width, right.X + right.Width);
+        var bottomEdge = MathF.Min(left.Y + left.Height, right.Y + right.Height);
+        return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
+    }
+
+    private static LayoutRect ExpandRect(LayoutRect rect, float padding)
+    {
+        var safePadding = MathF.Max(0f, padding);
+        return new LayoutRect(
+            rect.X - safePadding,
+            rect.Y - safePadding,
+            MathF.Max(0f, rect.Width + (safePadding * 2f)),
+            MathF.Max(0f, rect.Height + (safePadding * 2f)));
+    }
+
+    private static LayoutRect NormalizeRect(LayoutRect rect)
+    {
+        var x = rect.X;
+        var y = rect.Y;
+        var width = rect.Width;
+        var height = rect.Height;
+        if (width < 0f)
+        {
+            x += width;
+            width = -width;
+        }
+
+        if (height < 0f)
+        {
+            y += height;
+            height = -height;
+        }
+
+        return new LayoutRect(x, y, width, height);
+    }
+
     private bool ShouldDeferTextSync(TextEditDelta editDelta)
     {
         if (!editDelta.IsValid)
@@ -1966,8 +1825,7 @@ public class TextBox : Control
 
         // For large documents, avoid UI-thread full-text sync while actively editing.
         if (_editor.Length >= DeferredTextSyncLengthThreshold &&
-            IsFocused &&
-            FocusManager.FocusedElement == this)
+            IsFocused)
         {
             return false;
         }
@@ -2929,10 +2787,12 @@ public class TextBox : Control
             _layoutCacheWrapping == TextWrapping &&
             widthMatches)
         {
+            _perfLayoutCacheHitCount++;
             return _layoutCache;
         }
 
         var text = _editor.Text;
+        _perfLayoutCacheMissCount++;
         _perfFullLayoutBuildCount++;
 
         if (Font == null)
@@ -3348,6 +3208,25 @@ public class TextBox : Control
     private float GetLineHeight()
     {
         return FontStashTextRenderer.GetLineHeight(Font);
+    }
+
+    private float GetTextRenderTopInset()
+    {
+        // FontStash glyph rasterization can sit slightly above the provided origin.
+        // Offset the text baseline so the first row is fully visible within the viewport clip.
+        return FontStashTextRenderer.IsEnabled ? 3f : 0f;
+    }
+
+    private LayoutRect GetTextRenderClipRect(LayoutRect viewportRect)
+    {
+        var verticalBleed = FontStashTextRenderer.IsEnabled ? 6f : 0f;
+        var top = MathF.Max(LayoutSlot.Y, viewportRect.Y - verticalBleed);
+        var bottom = MathF.Min(LayoutSlot.Y + LayoutSlot.Height, viewportRect.Y + viewportRect.Height + verticalBleed);
+        return new LayoutRect(
+            viewportRect.X,
+            top,
+            viewportRect.Width,
+            MathF.Max(0f, bottom - top));
     }
 
     private void CacheViewportLayoutState(TextViewportLayoutState state, LayoutRect innerRect)
@@ -3773,6 +3652,8 @@ public readonly record struct TextBoxPerformanceSnapshot(
     int IncrementalNoWrapEditSuccessCount,
     int IncrementalVirtualEditSuccessCount,
     int IncrementalVirtualEditFallbackCount,
+    int LayoutCacheHitCount,
+    int LayoutCacheMissCount,
     int ViewportLayoutBuildCount,
     int FullLayoutBuildCount,
     int VirtualRangeBuildCount,

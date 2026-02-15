@@ -5,158 +5,190 @@ namespace InkkSlinger;
 
 internal sealed class DirtyRegionTracker
 {
-    private readonly int _maxRegionCount;
     private readonly List<LayoutRect> _regions = new();
-    private LayoutRect _viewportBounds;
+    private readonly int _maxRegionCount;
+    private LayoutRect _viewport;
     private bool _hasViewport;
-    private bool _isFullFrameDirty;
-    private int _fullFrameFallbackCount;
 
-    public DirtyRegionTracker(int maxRegionCount = 32)
+    public DirtyRegionTracker(int maxRegionCount = 12)
     {
         _maxRegionCount = Math.Max(1, maxRegionCount);
     }
 
-    public bool IsFullFrameDirty => _isFullFrameDirty;
+    public bool IsFullFrameDirty { get; private set; }
+
+    public int FullRedrawFallbackCount { get; private set; }
 
     public int RegionCount => _regions.Count;
 
     public IReadOnlyList<LayoutRect> Regions => _regions;
 
-    public int FullFrameFallbackCount => _fullFrameFallbackCount;
-
-    public void SetViewport(LayoutRect viewportBounds)
+    public bool SetViewport(LayoutRect viewport)
     {
-        _viewportBounds = viewportBounds;
+        var normalized = Normalize(viewport);
+        if (_hasViewport && AreEqual(_viewport, normalized))
+        {
+            return false;
+        }
+
         _hasViewport = true;
-    }
-
-    public void MarkFullFrameDirty()
-    {
-        _isFullFrameDirty = true;
-        _regions.Clear();
-    }
-
-    public void AddDirtyRegion(LayoutRect region)
-    {
-        if (_isFullFrameDirty)
+        _viewport = normalized;
+        for (var i = _regions.Count - 1; i >= 0; i--)
         {
-            return;
-        }
-
-        if (TryNormalizeRegion(region, out var normalized) == false)
-        {
-            return;
-        }
-
-        for (var i = 0; i < _regions.Count; i++)
-        {
-            var existing = _regions[i];
-            if (!IntersectsOrTouches(existing, normalized))
+            _regions[i] = ClipToViewport(_regions[i]);
+            if (!IsValid(_regions[i]))
             {
-                continue;
+                _regions.RemoveAt(i);
             }
-
-            _regions[i] = Union(existing, normalized);
-            CollapseFrom(i);
-            return;
         }
 
-        _regions.Add(normalized);
-        if (_regions.Count > _maxRegionCount)
+        return true;
+    }
+
+    public void MarkFullFrameDirty(bool dueToFragmentation)
+    {
+        IsFullFrameDirty = true;
+        _regions.Clear();
+        if (dueToFragmentation)
         {
-            _fullFrameFallbackCount++;
-            MarkFullFrameDirty();
+            FullRedrawFallbackCount++;
         }
     }
 
     public void Clear()
     {
-        _isFullFrameDirty = false;
+        IsFullFrameDirty = false;
         _regions.Clear();
     }
 
-    internal static bool Intersects(LayoutRect left, LayoutRect right)
+    public void AddDirtyRegion(LayoutRect region)
     {
-        return left.X < right.X + right.Width &&
-               left.X + left.Width > right.X &&
-               left.Y < right.Y + right.Height &&
-               left.Y + left.Height > right.Y;
-    }
-
-    internal static LayoutRect Union(LayoutRect left, LayoutRect right)
-    {
-        var x1 = MathF.Min(left.X, right.X);
-        var y1 = MathF.Min(left.Y, right.Y);
-        var x2 = MathF.Max(left.X + left.Width, right.X + right.Width);
-        var y2 = MathF.Max(left.Y + left.Height, right.Y + right.Height);
-        return new LayoutRect(x1, y1, MathF.Max(0f, x2 - x1), MathF.Max(0f, y2 - y1));
-    }
-
-    private bool TryNormalizeRegion(LayoutRect region, out LayoutRect normalized)
-    {
-        var width = MathF.Max(0f, region.Width);
-        var height = MathF.Max(0f, region.Height);
-        if (width <= 0f || height <= 0f)
+        if (IsFullFrameDirty)
         {
-            normalized = default;
-            return false;
+            return;
         }
 
-        var candidate = new LayoutRect(region.X, region.Y, width, height);
-        if (!_hasViewport)
+        var candidate = Normalize(region);
+        if (_hasViewport)
         {
-            normalized = candidate;
-            return true;
+            candidate = ClipToViewport(candidate);
         }
 
-        if (!TryIntersect(candidate, _viewportBounds, out normalized))
+        if (!IsValid(candidate))
         {
-            return false;
+            return;
         }
 
-        return true;
-    }
-
-    private void CollapseFrom(int index)
-    {
-        var current = _regions[index];
-        for (var i = _regions.Count - 1; i > index; i--)
+        for (var i = _regions.Count - 1; i >= 0; i--)
         {
-            if (!IntersectsOrTouches(current, _regions[i]))
+            if (!IntersectsOrTouches(_regions[i], candidate))
             {
                 continue;
             }
 
-            current = Union(current, _regions[i]);
-            _regions[index] = current;
+            candidate = Union(_regions[i], candidate);
             _regions.RemoveAt(i);
+        }
+
+        _regions.Add(candidate);
+        if (_regions.Count > _maxRegionCount)
+        {
+            MarkFullFrameDirty(dueToFragmentation: true);
         }
     }
 
-    private static bool TryIntersect(LayoutRect left, LayoutRect right, out LayoutRect intersection)
+    public double GetDirtyAreaCoverage()
     {
-        var x1 = MathF.Max(left.X, right.X);
-        var y1 = MathF.Max(left.Y, right.Y);
-        var x2 = MathF.Min(left.X + left.Width, right.X + right.Width);
-        var y2 = MathF.Min(left.Y + left.Height, right.Y + right.Height);
-
-        if (x2 <= x1 || y2 <= y1)
+        if (IsFullFrameDirty)
         {
-            intersection = default;
-            return false;
+            return 1d;
         }
 
-        intersection = new LayoutRect(x1, y1, x2 - x1, y2 - y1);
-        return true;
+        if (!_hasViewport || _viewport.Width <= 0f || _viewport.Height <= 0f)
+        {
+            return 0d;
+        }
+
+        var viewportArea = _viewport.Width * _viewport.Height;
+        if (viewportArea <= 0f)
+        {
+            return 0d;
+        }
+
+        double dirtyArea = 0d;
+        for (var i = 0; i < _regions.Count; i++)
+        {
+            var region = _regions[i];
+            dirtyArea += region.Width * region.Height;
+        }
+
+        return Math.Clamp(dirtyArea / viewportArea, 0d, 1d);
+    }
+
+    private LayoutRect ClipToViewport(LayoutRect region)
+    {
+        var left = MathF.Max(_viewport.X, region.X);
+        var top = MathF.Max(_viewport.Y, region.Y);
+        var right = MathF.Min(_viewport.X + _viewport.Width, region.X + region.Width);
+        var bottom = MathF.Min(_viewport.Y + _viewport.Height, region.Y + region.Height);
+        return new LayoutRect(left, top, MathF.Max(0f, right - left), MathF.Max(0f, bottom - top));
+    }
+
+    private static LayoutRect Normalize(LayoutRect region)
+    {
+        var x = region.X;
+        var y = region.Y;
+        var width = region.Width;
+        var height = region.Height;
+
+        if (width < 0f)
+        {
+            x += width;
+            width = -width;
+        }
+
+        if (height < 0f)
+        {
+            y += height;
+            height = -height;
+        }
+
+        return new LayoutRect(x, y, width, height);
+    }
+
+    private static bool IsValid(LayoutRect region)
+    {
+        return region.Width > 0f && region.Height > 0f;
     }
 
     private static bool IntersectsOrTouches(LayoutRect left, LayoutRect right)
     {
-        var horizontalTouch = left.X <= right.X + right.Width &&
-                              left.X + left.Width >= right.X;
-        var verticalTouch = left.Y <= right.Y + right.Height &&
-                            left.Y + left.Height >= right.Y;
-        return horizontalTouch && verticalTouch;
+        var leftRight = left.X + left.Width;
+        var rightRight = right.X + right.Width;
+        var leftBottom = left.Y + left.Height;
+        var rightBottom = right.Y + right.Height;
+
+        return left.X <= rightRight &&
+               leftRight >= right.X &&
+               left.Y <= rightBottom &&
+               leftBottom >= right.Y;
+    }
+
+    private static LayoutRect Union(LayoutRect left, LayoutRect right)
+    {
+        var x = MathF.Min(left.X, right.X);
+        var y = MathF.Min(left.Y, right.Y);
+        var rightEdge = MathF.Max(left.X + left.Width, right.X + right.Width);
+        var bottomEdge = MathF.Max(left.Y + left.Height, right.Y + right.Height);
+        return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
+    }
+
+    private static bool AreEqual(LayoutRect left, LayoutRect right)
+    {
+        const float epsilon = 0.0001f;
+        return MathF.Abs(left.X - right.X) <= epsilon &&
+               MathF.Abs(left.Y - right.Y) <= epsilon &&
+               MathF.Abs(left.Width - right.Width) <= epsilon &&
+               MathF.Abs(left.Height - right.Height) <= epsilon;
     }
 }

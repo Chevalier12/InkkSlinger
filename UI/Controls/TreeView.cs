@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -85,7 +84,6 @@ public class TreeView : ItemsControl
 
     public TreeView()
     {
-        Focusable = true;
     }
 
     public event System.EventHandler<RoutedSimpleEventArgs> SelectedItemChanged
@@ -169,120 +167,7 @@ public class TreeView : ItemsControl
         }
     }
 
-    protected override void OnPreviewMouseDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnPreviewMouseDown(args);
 
-        if (!IsEnabled || args.Button != MouseButton.Left)
-        {
-            return;
-        }
-
-        if (FindItemFromSource(args.OriginalSource) is not TreeViewItem item)
-        {
-            return;
-        }
-
-        if (item.HitExpander(args.Position))
-        {
-            item.IsExpanded = !item.IsExpanded;
-        }
-        else
-        {
-            ApplySelectedItem(item);
-            Focus();
-        }
-
-        args.Handled = true;
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-
-        // Ignore auto-repeat pulses so one key press advances a single step.
-        if (args.IsRepeat)
-        {
-            return;
-        }
-
-        var visible = GetVisibleItems();
-        if (visible.Count == 0)
-        {
-            return;
-        }
-
-        var currentIndex = SelectedItem == null ? -1 : visible.IndexOf(SelectedItem);
-        var handled = true;
-
-        switch (args.Key)
-        {
-            case Keys.Down:
-                ApplySelectedItem(visible[System.Math.Min(visible.Count - 1, currentIndex < 0 ? 0 : currentIndex + 1)]);
-                break;
-            case Keys.Up:
-                ApplySelectedItem(visible[System.Math.Max(0, currentIndex <= 0 ? 0 : currentIndex - 1)]);
-                break;
-            case Keys.Right:
-                if (SelectedItem != null)
-                {
-                    if (SelectedItem.HasChildItems() && !SelectedItem.IsExpanded)
-                    {
-                        SelectedItem.IsExpanded = true;
-                    }
-                    else
-                    {
-                        var firstChild = GetFirstChild(SelectedItem);
-                        if (firstChild != null)
-                        {
-                            ApplySelectedItem(firstChild);
-                        }
-                    }
-                }
-
-                break;
-            case Keys.Left:
-                if (SelectedItem != null)
-                {
-                    if (SelectedItem.IsExpanded)
-                    {
-                        SelectedItem.IsExpanded = false;
-                    }
-                    else
-                    {
-                        var parent = GetParentTreeItem(SelectedItem);
-                        if (parent != null)
-                        {
-                            ApplySelectedItem(parent);
-                        }
-                    }
-                }
-
-                break;
-            case Keys.Home:
-                ApplySelectedItem(visible[0]);
-                break;
-            case Keys.End:
-                ApplySelectedItem(visible[visible.Count - 1]);
-                break;
-            case Keys.Enter:
-            case Keys.Space:
-                if (SelectedItem != null && SelectedItem.HasChildItems())
-                {
-                    SelectedItem.IsExpanded = !SelectedItem.IsExpanded;
-                }
-
-                break;
-            default:
-                handled = false;
-                break;
-        }
-
-        if (handled)
-        {
-            args.Handled = true;
-        }
-    }
 
     private TreeViewItem? FindItemFromSource(UIElement? source)
     {

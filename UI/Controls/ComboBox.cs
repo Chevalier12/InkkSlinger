@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -87,7 +86,6 @@ public class ComboBox : Selector
 
     public ComboBox()
     {
-        Focusable = true;
     }
 
     public bool IsDropDownOpen
@@ -211,65 +209,7 @@ public class ComboBox : Selector
         FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), Foreground * Opacity);
     }
 
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
 
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        Focus();
-        IsDropDownOpen = !IsDropDownOpen;
-        args.Handled = true;
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        var handled = false;
-
-        if (args.Key == Keys.Enter || args.Key == Keys.Space || args.Key == Keys.F4)
-        {
-            IsDropDownOpen = !IsDropDownOpen;
-            handled = true;
-        }
-        else if (args.Key == Keys.Escape && IsDropDownOpen)
-        {
-            IsDropDownOpen = false;
-            handled = true;
-        }
-        else if (args.Key == Keys.Down)
-        {
-            if (!IsDropDownOpen)
-            {
-                SetSelectedIndexInternal(Math.Min(Items.Count - 1, SelectedIndex + 1));
-            }
-
-            handled = true;
-        }
-        else if (args.Key == Keys.Up)
-        {
-            if (!IsDropDownOpen)
-            {
-                SetSelectedIndexInternal(Math.Max(0, SelectedIndex - 1));
-            }
-
-            handled = true;
-        }
-
-        if (handled)
-        {
-            args.Handled = true;
-        }
-    }
 
     private void OnIsDropDownOpenChanged(bool isOpen)
     {

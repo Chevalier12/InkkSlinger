@@ -1,7 +1,6 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -71,7 +70,6 @@ public class GridSplitter : Control
             typeof(GridSplitter),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    private bool _isDragging;
     private Grid? _activeGrid;
     private GridResizeDirection _activeDirection;
     private int _definitionIndexA = -1;
@@ -82,7 +80,6 @@ public class GridSplitter : Control
 
     public GridSplitter()
     {
-        Focusable = true;
     }
 
     public GridResizeDirection ResizeDirection
@@ -162,119 +159,12 @@ public class GridSplitter : Control
         UiDrawing.DrawRectStroke(spriteBatch, slot, 1f, BorderBrush, Opacity);
     }
 
-    protected override void OnMouseEnter(RoutedMouseEventArgs args)
-    {
-        base.OnMouseEnter(args);
-        IsMouseOver = true;
-    }
 
-    protected override void OnMouseLeave(RoutedMouseEventArgs args)
-    {
-        base.OnMouseLeave(args);
-        IsMouseOver = false;
-    }
 
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
-        if (!IsEnabled)
-        {
-            return;
-        }
 
-        if (!BeginDrag(args.Position))
-        {
-            return;
-        }
 
-        Focus();
-        CaptureMouse();
-        args.Handled = true;
-    }
 
-    protected override void OnMouseMove(RoutedMouseEventArgs args)
-    {
-        base.OnMouseMove(args);
-        if (!_isDragging)
-        {
-            return;
-        }
 
-        var pointer = _activeDirection == GridResizeDirection.Columns
-            ? args.Position.X
-            : args.Position.Y;
-        var delta = pointer - _startPointer;
-        delta = Snap(delta, DragIncrement);
-        ApplyResizeDelta(delta);
-        args.Handled = true;
-    }
-
-    protected override void OnMouseLeftButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonUp(args);
-        EndDrag(releaseCapture: true);
-        args.Handled = true;
-    }
-
-    protected override void OnLostMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        base.OnLostMouseCapture(args);
-        EndDrag(releaseCapture: false);
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-        if (!IsEnabled || VisualParent is not Grid grid)
-        {
-            return;
-        }
-
-        var direction = ResolveEffectiveResizeDirection();
-        var delta = 0f;
-        if (direction == GridResizeDirection.Columns)
-        {
-            if (args.Key == Keys.Left)
-            {
-                delta = -KeyboardIncrement;
-            }
-            else if (args.Key == Keys.Right)
-            {
-                delta = KeyboardIncrement;
-            }
-        }
-        else
-        {
-            if (args.Key == Keys.Up)
-            {
-                delta = -KeyboardIncrement;
-            }
-            else if (args.Key == Keys.Down)
-            {
-                delta = KeyboardIncrement;
-            }
-        }
-
-        if (MathF.Abs(delta) < 0.0001f)
-        {
-            return;
-        }
-
-        if (!TryResolveResizeTargets(grid, direction, out var indexA, out var indexB))
-        {
-            return;
-        }
-
-        var sizeA = direction == GridResizeDirection.Columns
-            ? ResolveColumnSize(grid, indexA)
-            : ResolveRowSize(grid, indexA);
-        var sizeB = direction == GridResizeDirection.Columns
-            ? ResolveColumnSize(grid, indexB)
-            : ResolveRowSize(grid, indexB);
-
-        ApplyResize(grid, direction, indexA, indexB, sizeA, sizeB, delta);
-        args.Handled = true;
-    }
 
     private bool BeginDrag(Vector2 pointerPosition)
     {
@@ -301,23 +191,18 @@ public class GridSplitter : Control
             ? ResolveColumnSize(grid, indexB)
             : ResolveRowSize(grid, indexB);
 
-        _isDragging = true;
         IsDragging = true;
         return true;
     }
 
     private void EndDrag(bool releaseCapture)
     {
-        _isDragging = false;
         IsDragging = false;
         _activeGrid = null;
         _definitionIndexA = -1;
         _definitionIndexB = -1;
 
-        if (releaseCapture && ReferenceEquals(InputManager.MouseCapturedElement, this))
-        {
-            ReleaseMouseCapture();
-        }
+        _ = releaseCapture;
     }
 
     private void ApplyResizeDelta(float delta)

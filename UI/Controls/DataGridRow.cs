@@ -35,7 +35,6 @@ public class DataGridRow : Control
 
     public DataGridRow()
     {
-        Focusable = true;
         _rowHeader.SetVisualParent(this);
         _rowHeader.SetLogicalParent(this);
         _detailsPresenter.SetVisualParent(this);
@@ -196,19 +195,6 @@ public class DataGridRow : Control
         UiDrawing.DrawFilledRect(spriteBatch, LayoutSlot, fill, Opacity);
     }
 
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
-
-        if (Owner == null || !IsEnabled)
-        {
-            return;
-        }
-
-        var cellIndex = ResolveCellIndex(args.Position);
-        Owner.NotifyRowPressed(this, cellIndex);
-        args.Handled = true;
-    }
 
     private int ResolveCellIndex(Vector2 point)
     {

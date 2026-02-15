@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -73,7 +72,6 @@ public class TabControl : Selector
 
     public TabControl()
     {
-        Focusable = true;
     }
 
     public SpriteFont? Font
@@ -287,62 +285,7 @@ public class TabControl : Selector
         }
     }
 
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
 
-        for (var i = 0; i < _headerSlots.Count; i++)
-        {
-            var header = _headerSlots[i];
-            if (!Contains(header.Rect, args.Position))
-            {
-                continue;
-            }
-
-            SetSelectedIndexInternal(header.Index);
-            Focus();
-            args.Handled = true;
-            return;
-        }
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-
-        if (!IsEnabled || Items.Count == 0)
-        {
-            return;
-        }
-
-        var handled = false;
-        if (args.Key == Keys.Left)
-        {
-            SetSelectedIndexInternal(Math.Max(0, SelectedIndex - 1));
-            handled = true;
-        }
-        else if (args.Key == Keys.Right)
-        {
-            var next = SelectedIndex < 0 ? 0 : SelectedIndex + 1;
-            SetSelectedIndexInternal(Math.Min(Items.Count - 1, next));
-            handled = true;
-        }
-        else if (args.Key == Keys.Home)
-        {
-            SetSelectedIndexInternal(0);
-            handled = true;
-        }
-        else if (args.Key == Keys.End)
-        {
-            SetSelectedIndexInternal(Items.Count - 1);
-            handled = true;
-        }
-
-        if (handled)
-        {
-            args.Handled = true;
-        }
-    }
 
     private float GetHeaderHeight()
     {

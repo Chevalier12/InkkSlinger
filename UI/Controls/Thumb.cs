@@ -1,7 +1,6 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -45,12 +44,9 @@ public class Thumb : Control
             new FrameworkPropertyMetadata(new Color(164, 164, 164), FrameworkPropertyMetadataOptions.AffectsRender));
 
     private bool _isDragging;
-    private Vector2 _dragStartPointer;
-    private Vector2 _lastPointer;
 
     public Thumb()
     {
-        Focusable = true;
     }
 
     public event System.EventHandler<DragStartedEventArgs> DragStarted
@@ -124,91 +120,21 @@ public class Thumb : Control
         UiDrawing.DrawRectStroke(spriteBatch, slot, 1f, BorderBrush, Opacity);
     }
 
-    protected override void OnMouseEnter(RoutedMouseEventArgs args)
-    {
-        base.OnMouseEnter(args);
-        IsMouseOver = true;
-    }
 
-    protected override void OnMouseLeave(RoutedMouseEventArgs args)
-    {
-        base.OnMouseLeave(args);
-        IsMouseOver = false;
-    }
 
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
-        if (!IsEnabled || _isDragging)
-        {
-            return;
-        }
 
-        _isDragging = true;
-        IsDragging = true;
-        _dragStartPointer = args.Position;
-        _lastPointer = args.Position;
 
-        Focus();
-        CaptureMouse();
-        RaiseRoutedEvent(
-            DragStartedEvent,
-            new DragStartedEventArgs(
-                DragStartedEvent,
-                args.Position.X - LayoutSlot.X,
-                args.Position.Y - LayoutSlot.Y));
-        args.Handled = true;
-    }
 
-    protected override void OnMouseMove(RoutedMouseEventArgs args)
-    {
-        base.OnMouseMove(args);
-        if (!_isDragging)
-        {
-            return;
-        }
-
-        var deltaX = args.Position.X - _lastPointer.X;
-        var deltaY = args.Position.Y - _lastPointer.Y;
-        _lastPointer = args.Position;
-
-        RaiseRoutedEvent(
-            DragDeltaEvent,
-            new DragDeltaEventArgs(DragDeltaEvent, deltaX, deltaY));
-        args.Handled = true;
-    }
-
-    protected override void OnMouseLeftButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonUp(args);
-        if (_isDragging)
-        {
-            EndDrag(canceled: false, releaseCapture: true);
-            args.Handled = true;
-        }
-    }
-
-    protected override void OnLostMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        base.OnLostMouseCapture(args);
-        if (_isDragging)
-        {
-            EndDrag(canceled: true, releaseCapture: false);
-        }
-    }
 
     private void EndDrag(bool canceled, bool releaseCapture)
     {
-        var totalX = _lastPointer.X - _dragStartPointer.X;
-        var totalY = _lastPointer.Y - _dragStartPointer.Y;
+        const float totalX = 0f;
+        const float totalY = 0f;
 
         _isDragging = false;
         IsDragging = false;
 
-        if (releaseCapture && ReferenceEquals(InputManager.MouseCapturedElement, this))
-        {
-            ReleaseMouseCapture();
-        }
+        _ = releaseCapture;
 
         RaiseRoutedEvent(
             DragCompletedEvent,

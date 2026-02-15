@@ -2,26 +2,25 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
 public class UIElement : DependencyObject
 {
     private const int RoutePoolMaxSize = 64;
+
     [ThreadStatic]
     private static Stack<List<UIElement>>? _routePool;
 
-    static UIElement()
-    {
-        EventManager.RegisterClassHandler<UIElement, RoutedKeyEventArgs>(
-            PreviewKeyDownEvent,
-            static (element, args) => element.TryHandleInputBindings(args));
-    }
-
     private readonly Dictionary<RoutedEvent, List<RoutedHandlerEntry>> _routedHandlers = new();
     private readonly List<CommandBinding> _commandBindings = new();
-    private readonly List<InputBinding> _inputBindings = new();
+    private LayoutRect _layoutSlot;
+    private int _measureInvalidationCount;
+    private int _arrangeInvalidationCount;
+    private int _renderInvalidationCount;
+    private int _renderCacheRenderVersion;
+    private int _renderCacheLayoutVersion;
+
     public static readonly DependencyProperty IsVisibleProperty =
         DependencyProperty.Register(
             nameof(IsVisible),
@@ -42,13 +41,6 @@ public class UIElement : DependencyObject
             typeof(bool),
             typeof(UIElement),
             new FrameworkPropertyMetadata(true));
-
-    public static readonly DependencyProperty FocusableProperty =
-        DependencyProperty.Register(
-            nameof(Focusable),
-            typeof(bool),
-            typeof(UIElement),
-            new FrameworkPropertyMetadata(false));
 
     public static readonly DependencyProperty OpacityProperty =
         DependencyProperty.Register(
@@ -74,157 +66,11 @@ public class UIElement : DependencyObject
                     return opacity;
                 }));
 
-    public static readonly DependencyProperty CursorProperty =
-        DependencyProperty.Register(
-            nameof(Cursor),
-            typeof(UiCursor),
-            typeof(UIElement),
-            new FrameworkPropertyMetadata(UiCursor.Arrow, FrameworkPropertyMetadataOptions.Inherits));
-
-    public static readonly RoutedEvent MouseEnterEvent =
-        new(nameof(MouseEnter), RoutingStrategy.Direct);
-
-    public static readonly RoutedEvent MouseLeaveEvent =
-        new(nameof(MouseLeave), RoutingStrategy.Direct);
-
-    public static readonly RoutedEvent MouseMoveEvent =
-        new(nameof(MouseMove), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent PreviewMouseMoveEvent =
-        new(nameof(PreviewMouseMove), RoutingStrategy.Tunnel);
-
-    public static readonly RoutedEvent MouseDownEvent =
-        new(nameof(MouseDown), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent PreviewMouseDownEvent =
-        new(nameof(PreviewMouseDown), RoutingStrategy.Tunnel);
-
-    public static readonly RoutedEvent MouseUpEvent =
-        new(nameof(MouseUp), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent PreviewMouseUpEvent =
-        new(nameof(PreviewMouseUp), RoutingStrategy.Tunnel);
-
-    public static readonly RoutedEvent MouseWheelEvent =
-        new(nameof(MouseWheel), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent PreviewMouseWheelEvent =
-        new(nameof(PreviewMouseWheel), RoutingStrategy.Tunnel);
-
-    public static readonly RoutedEvent MouseDoubleClickEvent =
-        new(nameof(MouseDoubleClick), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent MouseLeftButtonDownEvent =
-        new(nameof(MouseLeftButtonDown), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent MouseLeftButtonUpEvent =
-        new(nameof(MouseLeftButtonUp), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent MouseRightButtonDownEvent =
-        new(nameof(MouseRightButtonDown), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent MouseRightButtonUpEvent =
-        new(nameof(MouseRightButtonUp), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent GotMouseCaptureEvent =
-        new(nameof(GotMouseCapture), RoutingStrategy.Direct);
-
-    public static readonly RoutedEvent LostMouseCaptureEvent =
-        new(nameof(LostMouseCapture), RoutingStrategy.Direct);
-
-    public static readonly RoutedEvent KeyDownEvent =
-        new(nameof(KeyDown), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent PreviewKeyDownEvent =
-        new(nameof(PreviewKeyDown), RoutingStrategy.Tunnel);
-
-    public static readonly RoutedEvent KeyUpEvent =
-        new(nameof(KeyUp), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent PreviewKeyUpEvent =
-        new(nameof(PreviewKeyUp), RoutingStrategy.Tunnel);
-
-    public static readonly RoutedEvent TextInputEvent =
-        new(nameof(TextInput), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent PreviewTextInputEvent =
-        new(nameof(PreviewTextInput), RoutingStrategy.Tunnel);
-
-    public static readonly RoutedEvent GotFocusEvent =
-        new(nameof(GotFocus), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent LostFocusEvent =
-        new(nameof(LostFocus), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent GotKeyboardFocusEvent =
-        new(nameof(GotKeyboardFocus), RoutingStrategy.Bubble);
-
-    public static readonly RoutedEvent LostKeyboardFocusEvent =
-        new(nameof(LostKeyboardFocus), RoutingStrategy.Bubble);
-
-    private LayoutRect _layoutSlot;
-
-    public event System.EventHandler<RoutedMouseEventArgs>? MouseEnter;
-
-    public event System.EventHandler<RoutedMouseEventArgs>? MouseLeave;
-
-    public event System.EventHandler<RoutedMouseEventArgs>? MouseMove;
-
-    public event System.EventHandler<RoutedMouseEventArgs>? PreviewMouseMove;
-
-    public event System.EventHandler<RoutedMouseButtonEventArgs>? MouseDown;
-
-    public event System.EventHandler<RoutedMouseButtonEventArgs>? PreviewMouseDown;
-
-    public event System.EventHandler<RoutedMouseButtonEventArgs>? MouseUp;
-
-    public event System.EventHandler<RoutedMouseButtonEventArgs>? PreviewMouseUp;
-
-    public event System.EventHandler<RoutedMouseWheelEventArgs>? MouseWheel;
-
-    public event System.EventHandler<RoutedMouseWheelEventArgs>? PreviewMouseWheel;
-
-    public event System.EventHandler<RoutedMouseButtonEventArgs>? MouseDoubleClick;
-
-    public event System.EventHandler<RoutedMouseButtonEventArgs>? MouseLeftButtonDown;
-
-    public event System.EventHandler<RoutedMouseButtonEventArgs>? MouseLeftButtonUp;
-
-    public event System.EventHandler<RoutedMouseButtonEventArgs>? MouseRightButtonDown;
-
-    public event System.EventHandler<RoutedMouseButtonEventArgs>? MouseRightButtonUp;
-
-    public event System.EventHandler<RoutedMouseCaptureEventArgs>? GotMouseCapture;
-
-    public event System.EventHandler<RoutedMouseCaptureEventArgs>? LostMouseCapture;
-
-    public event System.EventHandler<RoutedKeyEventArgs>? KeyDown;
-
-    public event System.EventHandler<RoutedKeyEventArgs>? PreviewKeyDown;
-
-    public event System.EventHandler<RoutedKeyEventArgs>? KeyUp;
-
-    public event System.EventHandler<RoutedKeyEventArgs>? PreviewKeyUp;
-
-    public event System.EventHandler<RoutedTextInputEventArgs>? TextInput;
-
-    public event System.EventHandler<RoutedTextInputEventArgs>? PreviewTextInput;
-
-    public event System.EventHandler<RoutedFocusEventArgs>? GotFocus;
-
-    public event System.EventHandler<RoutedFocusEventArgs>? LostFocus;
-
-    public event System.EventHandler<RoutedFocusEventArgs>? GotKeyboardFocus;
-
-    public event System.EventHandler<RoutedFocusEventArgs>? LostKeyboardFocus;
-
     public UIElement? VisualParent { get; private set; }
 
     public UIElement? LogicalParent { get; private set; }
 
     public IList<CommandBinding> CommandBindings => _commandBindings;
-
-    public IList<InputBinding> InputBindings => _inputBindings;
 
     public bool IsVisible
     {
@@ -244,25 +90,31 @@ public class UIElement : DependencyObject
         set => SetValue(IsHitTestVisibleProperty, value);
     }
 
-    public bool Focusable
-    {
-        get => GetValue<bool>(FocusableProperty);
-        set => SetValue(FocusableProperty, value);
-    }
-
     public float Opacity
     {
         get => GetValue<float>(OpacityProperty);
         set => SetValue(OpacityProperty, value);
     }
 
-    public UiCursor Cursor
-    {
-        get => GetValue<UiCursor>(CursorProperty);
-        set => SetValue(CursorProperty, value);
-    }
-
     public LayoutRect LayoutSlot => _layoutSlot;
+
+    public bool NeedsMeasure { get; private set; }
+
+    public bool NeedsArrange { get; private set; }
+
+    public bool NeedsRender { get; private set; }
+
+    public bool SubtreeDirty { get; private set; }
+
+    public int MeasureInvalidationCount => _measureInvalidationCount;
+
+    public int ArrangeInvalidationCount => _arrangeInvalidationCount;
+
+    public int RenderInvalidationCount => _renderInvalidationCount;
+
+    internal int RenderCacheRenderVersion => _renderCacheRenderVersion;
+
+    internal int RenderCacheLayoutVersion => _renderCacheLayoutVersion;
 
     public virtual IEnumerable<UIElement> GetVisualChildren()
     {
@@ -312,19 +164,6 @@ public class UIElement : DependencyObject
         }
 
         return current;
-    }
-
-    internal UiRoot? TryGetOwningUiRoot()
-    {
-        var currentRoot = UiRoot.Current;
-        if (currentRoot == null)
-        {
-            return null;
-        }
-
-        return ReferenceEquals(GetVisualRoot(), currentRoot.RootElement)
-            ? currentRoot
-            : null;
     }
 
     public virtual void Update(GameTime gameTime)
@@ -377,6 +216,11 @@ public class UIElement : DependencyObject
         }
     }
 
+    internal void DrawSelf(SpriteBatch spriteBatch)
+    {
+        OnRender(spriteBatch);
+    }
+
     protected virtual void OnRender(SpriteBatch spriteBatch)
     {
     }
@@ -399,9 +243,78 @@ public class UIElement : DependencyObject
         return TryGetLocalRenderTransform(out _, out _);
     }
 
+    internal bool TryGetLocalClipSnapshot(out LayoutRect clipRect)
+    {
+        return TryGetClipRect(out clipRect);
+    }
+
+    internal bool TryGetLocalRenderTransformSnapshot(out Matrix transform)
+    {
+        return TryGetLocalRenderTransform(out transform, out _);
+    }
+
+    public virtual void InvalidateMeasure()
+    {
+        Dispatcher.VerifyAccess();
+        if (NeedsMeasure)
+        {
+            return;
+        }
+
+        NeedsMeasure = true;
+        _measureInvalidationCount++;
+        _renderCacheLayoutVersion++;
+        MarkSubtreeDirty();
+        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Measure, this);
+        InvalidateArrange();
+        GetInvalidationParent()?.InvalidateMeasure();
+    }
+
+    public virtual void InvalidateArrange()
+    {
+        Dispatcher.VerifyAccess();
+        if (NeedsArrange)
+        {
+            return;
+        }
+
+        NeedsArrange = true;
+        _arrangeInvalidationCount++;
+        _renderCacheLayoutVersion++;
+        MarkSubtreeDirty();
+        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Arrange, this);
+        InvalidateVisual();
+        GetInvalidationParent()?.InvalidateArrange();
+    }
+
+    public virtual void InvalidateVisual()
+    {
+        Dispatcher.VerifyAccess();
+        if (NeedsRender)
+        {
+            return;
+        }
+
+        NeedsRender = true;
+        _renderInvalidationCount++;
+        _renderCacheRenderVersion++;
+        MarkSubtreeDirty();
+        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, this);
+    }
+
+    public void InvalidateRender()
+    {
+        InvalidateVisual();
+    }
+
     public virtual bool HitTest(Vector2 point)
     {
         if (!IsVisible || !IsEnabled || !IsHitTestVisible)
+        {
+            return false;
+        }
+
+        if (!IsPointVisibleThroughClipChain(point))
         {
             return false;
         }
@@ -418,27 +331,13 @@ public class UIElement : DependencyObject
                probePoint.Y <= _layoutSlot.Y + _layoutSlot.Height;
     }
 
-    public bool CaptureMouse()
+    protected bool IsPointVisibleThroughClipChain(Vector2 point)
     {
-        return InputManager.CaptureMouse(this);
+        var accumulatedTransform = Matrix.Identity;
+        return IsPointVisibleThroughClipChain(this, point, ref accumulatedTransform);
     }
 
-    public void ReleaseMouseCapture()
-    {
-        InputManager.ReleaseMouseCapture(this);
-    }
-
-    public bool Focus()
-    {
-        if (!Focusable)
-        {
-            return false;
-        }
-
-        return FocusManager.SetFocusedElement(this);
-    }
-
-    public void AddHandler<TArgs>(RoutedEvent routedEvent, System.EventHandler<TArgs> handler)
+    public void AddHandler<TArgs>(RoutedEvent routedEvent, EventHandler<TArgs> handler)
         where TArgs : RoutedEventArgs
     {
         AddHandler(routedEvent, handler, handledEventsToo: false);
@@ -446,7 +345,7 @@ public class UIElement : DependencyObject
 
     public void AddHandler<TArgs>(
         RoutedEvent routedEvent,
-        System.EventHandler<TArgs> handler,
+        EventHandler<TArgs> handler,
         bool handledEventsToo)
         where TArgs : RoutedEventArgs
     {
@@ -468,7 +367,7 @@ public class UIElement : DependencyObject
             handledEventsToo));
     }
 
-    public void RemoveHandler<TArgs>(RoutedEvent routedEvent, System.EventHandler<TArgs> handler)
+    public void RemoveHandler<TArgs>(RoutedEvent routedEvent, EventHandler<TArgs> handler)
         where TArgs : RoutedEventArgs
     {
         if (!_routedHandlers.TryGetValue(routedEvent, out var handlers))
@@ -486,87 +385,6 @@ public class UIElement : DependencyObject
         }
     }
 
-    internal void NotifyMouseEnter(Vector2 position, ModifierKeys modifiers)
-    {
-        RaiseMouseEnter(position, modifiers);
-    }
-
-    internal void NotifyMouseLeave(Vector2 position, ModifierKeys modifiers)
-    {
-        RaiseMouseLeave(position, modifiers);
-    }
-
-    internal void NotifyMouseMove(Vector2 position, ModifierKeys modifiers)
-    {
-        RaisePreviewMouseMove(position, modifiers);
-        RaiseMouseMove(position, modifiers);
-    }
-
-    internal void NotifyMouseDown(Vector2 position, MouseButton button, int clickCount, ModifierKeys modifiers)
-    {
-        RaisePreviewMouseDown(position, button, clickCount, modifiers);
-        RaiseMouseDown(position, button, clickCount, modifiers);
-    }
-
-    internal void NotifyMouseUp(Vector2 position, MouseButton button, int clickCount, ModifierKeys modifiers)
-    {
-        RaisePreviewMouseUp(position, button, clickCount, modifiers);
-        RaiseMouseUp(position, button, clickCount, modifiers);
-    }
-
-    internal void NotifyMouseWheel(Vector2 position, int delta, ModifierKeys modifiers)
-    {
-        RaisePreviewMouseWheel(position, delta, modifiers);
-        RaiseMouseWheel(position, delta, modifiers);
-    }
-
-    internal void NotifyKeyDown(Keys key, bool isRepeat, ModifierKeys modifiers)
-    {
-        var previewArgs = new RoutedKeyEventArgs(PreviewKeyDownEvent, key, isRepeat, modifiers);
-        RaiseRoutedEvent(PreviewKeyDownEvent, previewArgs);
-        if (previewArgs.Handled)
-        {
-            return;
-        }
-
-        var args = new RoutedKeyEventArgs(KeyDownEvent, key, isRepeat, modifiers);
-        RaiseRoutedEvent(KeyDownEvent, args);
-    }
-
-    internal void NotifyKeyUp(Keys key, ModifierKeys modifiers)
-    {
-        RaisePreviewKeyUp(key, modifiers);
-        RaiseKeyUp(key, modifiers);
-    }
-
-    internal void NotifyTextInput(char character)
-    {
-        RaisePreviewTextInput(character);
-        RaiseTextInput(character);
-    }
-
-    internal void NotifyGotFocus(UIElement? relatedTarget)
-    {
-        RaiseGotFocus(relatedTarget);
-        RaiseGotKeyboardFocus(relatedTarget);
-    }
-
-    internal void NotifyLostFocus(UIElement? relatedTarget)
-    {
-        RaiseLostFocus(relatedTarget);
-        RaiseLostKeyboardFocus(relatedTarget);
-    }
-
-    internal void NotifyGotMouseCapture()
-    {
-        RaiseGotMouseCapture();
-    }
-
-    internal void NotifyLostMouseCapture()
-    {
-        RaiseLostMouseCapture();
-    }
-
     internal void SetVisualParent(UIElement? parent)
     {
         if (ReferenceEquals(VisualParent, parent))
@@ -574,14 +392,11 @@ public class UIElement : DependencyObject
             return;
         }
 
-        var previousRoot = TryGetOwningUiRoot();
-        var hadPreviousBounds = TryGetRenderBoundsInRootSpace(out var previousBounds);
         var oldParent = VisualParent;
         VisualParent = parent;
-        FocusManager.NotifyFocusGraphInvalidated();
         OnVisualParentChanged(oldParent, parent);
+        UiRoot.Current?.NotifyVisualStructureChanged(this, oldParent, parent);
         NotifyBindingTreeChanged(this);
-        MarkParentTransitionVisualDirty(previousRoot, hadPreviousBounds, previousBounds);
     }
 
     internal void SetLogicalParent(UIElement? parent)
@@ -591,18 +406,19 @@ public class UIElement : DependencyObject
             return;
         }
 
-        var previousRoot = TryGetOwningUiRoot();
-        var hadPreviousBounds = TryGetRenderBoundsInRootSpace(out var previousBounds);
         var oldParent = LogicalParent;
         LogicalParent = parent;
-        FocusManager.NotifyFocusGraphInvalidated();
         OnLogicalParentChanged(oldParent, parent);
         NotifyBindingTreeChanged(this);
-        MarkParentTransitionVisualDirty(previousRoot, hadPreviousBounds, previousBounds);
     }
 
     internal void SetLayoutSlot(LayoutRect layoutSlot)
     {
+        if (!AreRectsEqual(_layoutSlot, layoutSlot))
+        {
+            _renderCacheLayoutVersion++;
+        }
+
         _layoutSlot = layoutSlot;
     }
 
@@ -625,240 +441,6 @@ public class UIElement : DependencyObject
 
     protected virtual void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
     {
-    }
-
-    private static void NotifyBindingTreeChanged(UIElement root)
-    {
-        NotifyBindingTreeChanged(root, new HashSet<UIElement>());
-    }
-
-    private void MarkParentTransitionVisualDirty(
-        UiRoot? previousRoot,
-        bool hadPreviousBounds,
-        LayoutRect previousBounds)
-    {
-        if (hadPreviousBounds)
-        {
-            previousRoot?.MarkVisualDirty(previousBounds);
-        }
-
-        if (!TryGetRenderBoundsInRootSpace(out var currentBounds))
-        {
-            return;
-        }
-
-        TryGetOwningUiRoot()?.MarkVisualDirty(currentBounds);
-    }
-
-    private static void NotifyBindingTreeChanged(UIElement element, HashSet<UIElement> visited)
-    {
-        if (!visited.Add(element))
-        {
-            return;
-        }
-
-        BindingOperations.NotifyTargetTreeChanged(element);
-
-        foreach (var child in element.GetVisualChildren())
-        {
-            NotifyBindingTreeChanged(child, visited);
-        }
-
-        foreach (var child in element.GetLogicalChildren())
-        {
-            NotifyBindingTreeChanged(child, visited);
-        }
-    }
-
-    protected void RaiseMouseEnter(Vector2 position, ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedMouseEventArgs(MouseEnterEvent, position, modifiers);
-        RaiseRoutedEvent(MouseEnterEvent, args);
-    }
-
-    protected void RaiseMouseLeave(Vector2 position, ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedMouseEventArgs(MouseLeaveEvent, position, modifiers);
-        RaiseRoutedEvent(MouseLeaveEvent, args);
-    }
-
-    protected void RaiseMouseMove(Vector2 position, ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedMouseEventArgs(MouseMoveEvent, position, modifiers);
-        RaiseRoutedEvent(MouseMoveEvent, args);
-    }
-
-    protected void RaisePreviewMouseMove(Vector2 position, ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedMouseEventArgs(PreviewMouseMoveEvent, position, modifiers);
-        RaiseRoutedEvent(PreviewMouseMoveEvent, args);
-    }
-
-    protected void RaiseMouseDown(
-        Vector2 position,
-        MouseButton button,
-        int clickCount = 1,
-        ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var mouseDownArgs = new RoutedMouseButtonEventArgs(MouseDownEvent, position, button, clickCount, modifiers);
-        RaiseRoutedEvent(MouseDownEvent, mouseDownArgs);
-
-        if (button == MouseButton.Left)
-        {
-            var leftArgs = new RoutedMouseButtonEventArgs(
-                MouseLeftButtonDownEvent,
-                position,
-                button,
-                clickCount,
-                modifiers);
-            RaiseRoutedEvent(MouseLeftButtonDownEvent, leftArgs);
-        }
-        else if (button == MouseButton.Right)
-        {
-            var rightArgs = new RoutedMouseButtonEventArgs(
-                MouseRightButtonDownEvent,
-                position,
-                button,
-                clickCount,
-                modifiers);
-            RaiseRoutedEvent(MouseRightButtonDownEvent, rightArgs);
-        }
-
-        if (clickCount == 2)
-        {
-            var doubleClickArgs = new RoutedMouseButtonEventArgs(
-                MouseDoubleClickEvent,
-                position,
-                button,
-                clickCount,
-                modifiers);
-            RaiseRoutedEvent(MouseDoubleClickEvent, doubleClickArgs);
-        }
-    }
-
-    protected void RaisePreviewMouseDown(
-        Vector2 position,
-        MouseButton button,
-        int clickCount = 1,
-        ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedMouseButtonEventArgs(PreviewMouseDownEvent, position, button, clickCount, modifiers);
-        RaiseRoutedEvent(PreviewMouseDownEvent, args);
-    }
-
-    protected void RaiseMouseUp(
-        Vector2 position,
-        MouseButton button,
-        int clickCount = 1,
-        ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var mouseUpArgs = new RoutedMouseButtonEventArgs(MouseUpEvent, position, button, clickCount, modifiers);
-        RaiseRoutedEvent(MouseUpEvent, mouseUpArgs);
-
-        if (button == MouseButton.Left)
-        {
-            var leftArgs = new RoutedMouseButtonEventArgs(MouseLeftButtonUpEvent, position, button, clickCount, modifiers);
-            RaiseRoutedEvent(MouseLeftButtonUpEvent, leftArgs);
-        }
-        else if (button == MouseButton.Right)
-        {
-            var rightArgs = new RoutedMouseButtonEventArgs(MouseRightButtonUpEvent, position, button, clickCount, modifiers);
-            RaiseRoutedEvent(MouseRightButtonUpEvent, rightArgs);
-        }
-    }
-
-    protected void RaisePreviewMouseUp(
-        Vector2 position,
-        MouseButton button,
-        int clickCount = 1,
-        ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedMouseButtonEventArgs(PreviewMouseUpEvent, position, button, clickCount, modifiers);
-        RaiseRoutedEvent(PreviewMouseUpEvent, args);
-    }
-
-    protected void RaiseMouseWheel(Vector2 position, int delta, ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedMouseWheelEventArgs(MouseWheelEvent, position, delta, modifiers);
-        RaiseRoutedEvent(MouseWheelEvent, args);
-    }
-
-    protected void RaisePreviewMouseWheel(Vector2 position, int delta, ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedMouseWheelEventArgs(PreviewMouseWheelEvent, position, delta, modifiers);
-        RaiseRoutedEvent(PreviewMouseWheelEvent, args);
-    }
-
-    protected void RaiseGotMouseCapture()
-    {
-        var args = new RoutedMouseCaptureEventArgs(GotMouseCaptureEvent);
-        RaiseRoutedEvent(GotMouseCaptureEvent, args);
-    }
-
-    protected void RaiseLostMouseCapture()
-    {
-        var args = new RoutedMouseCaptureEventArgs(LostMouseCaptureEvent);
-        RaiseRoutedEvent(LostMouseCaptureEvent, args);
-    }
-
-    protected void RaiseKeyDown(Keys key, bool isRepeat = false, ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedKeyEventArgs(KeyDownEvent, key, isRepeat, modifiers);
-        RaiseRoutedEvent(KeyDownEvent, args);
-    }
-
-    protected void RaisePreviewKeyDown(Keys key, bool isRepeat = false, ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedKeyEventArgs(PreviewKeyDownEvent, key, isRepeat, modifiers);
-        RaiseRoutedEvent(PreviewKeyDownEvent, args);
-    }
-
-    protected void RaiseKeyUp(Keys key, ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedKeyEventArgs(KeyUpEvent, key, false, modifiers);
-        RaiseRoutedEvent(KeyUpEvent, args);
-    }
-
-    protected void RaisePreviewKeyUp(Keys key, ModifierKeys modifiers = ModifierKeys.None)
-    {
-        var args = new RoutedKeyEventArgs(PreviewKeyUpEvent, key, false, modifiers);
-        RaiseRoutedEvent(PreviewKeyUpEvent, args);
-    }
-
-    protected void RaiseTextInput(char character)
-    {
-        var args = new RoutedTextInputEventArgs(TextInputEvent, character);
-        RaiseRoutedEvent(TextInputEvent, args);
-    }
-
-    protected void RaisePreviewTextInput(char character)
-    {
-        var args = new RoutedTextInputEventArgs(PreviewTextInputEvent, character);
-        RaiseRoutedEvent(PreviewTextInputEvent, args);
-    }
-
-    protected void RaiseGotFocus(UIElement? relatedTarget = null)
-    {
-        var args = new RoutedFocusEventArgs(GotFocusEvent, relatedTarget);
-        RaiseRoutedEvent(GotFocusEvent, args);
-    }
-
-    protected void RaiseLostFocus(UIElement? relatedTarget = null)
-    {
-        var args = new RoutedFocusEventArgs(LostFocusEvent, relatedTarget);
-        RaiseRoutedEvent(LostFocusEvent, args);
-    }
-
-    protected void RaiseGotKeyboardFocus(UIElement? relatedTarget = null)
-    {
-        var args = new RoutedFocusEventArgs(GotKeyboardFocusEvent, relatedTarget);
-        RaiseRoutedEvent(GotKeyboardFocusEvent, args);
-    }
-
-    protected void RaiseLostKeyboardFocus(UIElement? relatedTarget = null)
-    {
-        var args = new RoutedFocusEventArgs(LostKeyboardFocusEvent, relatedTarget);
-        RaiseRoutedEvent(LostKeyboardFocusEvent, args);
     }
 
     protected void RaiseRoutedEvent(RoutedEvent routedEvent, RoutedEventArgs args)
@@ -896,139 +478,29 @@ public class UIElement : DependencyObject
         }
     }
 
-    protected virtual void OnMouseEnter(RoutedMouseEventArgs args)
+    private static void NotifyBindingTreeChanged(UIElement root)
     {
-        MouseEnter?.Invoke(this, args);
+        NotifyBindingTreeChanged(root, new HashSet<UIElement>());
     }
 
-    protected virtual void OnMouseLeave(RoutedMouseEventArgs args)
+    private static void NotifyBindingTreeChanged(UIElement element, HashSet<UIElement> visited)
     {
-        MouseLeave?.Invoke(this, args);
-    }
+        if (!visited.Add(element))
+        {
+            return;
+        }
 
-    protected virtual void OnMouseMove(RoutedMouseEventArgs args)
-    {
-        MouseMove?.Invoke(this, args);
-    }
+        BindingOperations.NotifyTargetTreeChanged(element);
 
-    protected virtual void OnPreviewMouseMove(RoutedMouseEventArgs args)
-    {
-        PreviewMouseMove?.Invoke(this, args);
-    }
+        foreach (var child in element.GetVisualChildren())
+        {
+            NotifyBindingTreeChanged(child, visited);
+        }
 
-    protected virtual void OnMouseDown(RoutedMouseButtonEventArgs args)
-    {
-        MouseDown?.Invoke(this, args);
-    }
-
-    protected virtual void OnPreviewMouseDown(RoutedMouseButtonEventArgs args)
-    {
-        PreviewMouseDown?.Invoke(this, args);
-    }
-
-    protected virtual void OnMouseUp(RoutedMouseButtonEventArgs args)
-    {
-        MouseUp?.Invoke(this, args);
-    }
-
-    protected virtual void OnPreviewMouseUp(RoutedMouseButtonEventArgs args)
-    {
-        PreviewMouseUp?.Invoke(this, args);
-    }
-
-    protected virtual void OnMouseWheel(RoutedMouseWheelEventArgs args)
-    {
-        MouseWheel?.Invoke(this, args);
-    }
-
-    protected virtual void OnPreviewMouseWheel(RoutedMouseWheelEventArgs args)
-    {
-        PreviewMouseWheel?.Invoke(this, args);
-    }
-
-    protected virtual void OnMouseDoubleClick(RoutedMouseButtonEventArgs args)
-    {
-        MouseDoubleClick?.Invoke(this, args);
-    }
-
-    protected virtual void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        MouseLeftButtonDown?.Invoke(this, args);
-    }
-
-    protected virtual void OnMouseLeftButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        MouseLeftButtonUp?.Invoke(this, args);
-    }
-
-    protected virtual void OnMouseRightButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        MouseRightButtonDown?.Invoke(this, args);
-    }
-
-    protected virtual void OnMouseRightButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        MouseRightButtonUp?.Invoke(this, args);
-    }
-
-    protected virtual void OnGotMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        GotMouseCapture?.Invoke(this, args);
-    }
-
-    protected virtual void OnLostMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        LostMouseCapture?.Invoke(this, args);
-    }
-
-    protected virtual void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        KeyDown?.Invoke(this, args);
-    }
-
-    protected virtual void OnPreviewKeyDown(RoutedKeyEventArgs args)
-    {
-        PreviewKeyDown?.Invoke(this, args);
-    }
-
-    protected virtual void OnKeyUp(RoutedKeyEventArgs args)
-    {
-        KeyUp?.Invoke(this, args);
-    }
-
-    protected virtual void OnPreviewKeyUp(RoutedKeyEventArgs args)
-    {
-        PreviewKeyUp?.Invoke(this, args);
-    }
-
-    protected virtual void OnTextInput(RoutedTextInputEventArgs args)
-    {
-        TextInput?.Invoke(this, args);
-    }
-
-    protected virtual void OnPreviewTextInput(RoutedTextInputEventArgs args)
-    {
-        PreviewTextInput?.Invoke(this, args);
-    }
-
-    protected virtual void OnGotFocus(RoutedFocusEventArgs args)
-    {
-        GotFocus?.Invoke(this, args);
-    }
-
-    protected virtual void OnLostFocus(RoutedFocusEventArgs args)
-    {
-        LostFocus?.Invoke(this, args);
-    }
-
-    protected virtual void OnGotKeyboardFocus(RoutedFocusEventArgs args)
-    {
-        GotKeyboardFocus?.Invoke(this, args);
-    }
-
-    protected virtual void OnLostKeyboardFocus(RoutedFocusEventArgs args)
-    {
-        LostKeyboardFocus?.Invoke(this, args);
+        foreach (var child in element.GetLogicalChildren())
+        {
+            NotifyBindingTreeChanged(child, visited);
+        }
     }
 
     private static void BuildRoute(UIElement target, List<UIElement> route)
@@ -1071,172 +543,6 @@ public class UIElement : DependencyObject
     {
         EventManager.InvokeClassHandlers(this, routedEvent, args);
         InvokeInstanceHandlers(routedEvent, args);
-
-        if (args.Handled)
-        {
-            return;
-        }
-
-        if (routedEvent == MouseEnterEvent)
-        {
-            OnMouseEnter((RoutedMouseEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == MouseLeaveEvent)
-        {
-            OnMouseLeave((RoutedMouseEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == MouseMoveEvent)
-        {
-            OnMouseMove((RoutedMouseEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == PreviewMouseMoveEvent)
-        {
-            OnPreviewMouseMove((RoutedMouseEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == MouseDownEvent)
-        {
-            OnMouseDown((RoutedMouseButtonEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == PreviewMouseDownEvent)
-        {
-            OnPreviewMouseDown((RoutedMouseButtonEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == MouseUpEvent)
-        {
-            OnMouseUp((RoutedMouseButtonEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == PreviewMouseUpEvent)
-        {
-            OnPreviewMouseUp((RoutedMouseButtonEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == MouseWheelEvent)
-        {
-            OnMouseWheel((RoutedMouseWheelEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == PreviewMouseWheelEvent)
-        {
-            OnPreviewMouseWheel((RoutedMouseWheelEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == MouseDoubleClickEvent)
-        {
-            OnMouseDoubleClick((RoutedMouseButtonEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == MouseLeftButtonDownEvent)
-        {
-            OnMouseLeftButtonDown((RoutedMouseButtonEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == MouseLeftButtonUpEvent)
-        {
-            OnMouseLeftButtonUp((RoutedMouseButtonEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == MouseRightButtonDownEvent)
-        {
-            OnMouseRightButtonDown((RoutedMouseButtonEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == MouseRightButtonUpEvent)
-        {
-            OnMouseRightButtonUp((RoutedMouseButtonEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == GotMouseCaptureEvent)
-        {
-            OnGotMouseCapture((RoutedMouseCaptureEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == LostMouseCaptureEvent)
-        {
-            OnLostMouseCapture((RoutedMouseCaptureEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == KeyDownEvent)
-        {
-            OnKeyDown((RoutedKeyEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == PreviewKeyDownEvent)
-        {
-            OnPreviewKeyDown((RoutedKeyEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == KeyUpEvent)
-        {
-            OnKeyUp((RoutedKeyEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == PreviewKeyUpEvent)
-        {
-            OnPreviewKeyUp((RoutedKeyEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == TextInputEvent)
-        {
-            OnTextInput((RoutedTextInputEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == PreviewTextInputEvent)
-        {
-            OnPreviewTextInput((RoutedTextInputEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == GotFocusEvent)
-        {
-            OnGotFocus((RoutedFocusEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == LostFocusEvent)
-        {
-            OnLostFocus((RoutedFocusEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == GotKeyboardFocusEvent)
-        {
-            OnGotKeyboardFocus((RoutedFocusEventArgs)args);
-            return;
-        }
-
-        if (routedEvent == LostKeyboardFocusEvent)
-        {
-            OnLostKeyboardFocus((RoutedFocusEventArgs)args);
-        }
     }
 
     private void InvokeInstanceHandlers(RoutedEvent routedEvent, RoutedEventArgs args)
@@ -1257,66 +563,28 @@ public class UIElement : DependencyObject
         }
     }
 
-    private void TryHandleInputBindings(RoutedKeyEventArgs args)
-    {
-        if (args.Handled || args.IsRepeat)
-        {
-            return;
-        }
-
-        if (_inputBindings.Count == 0)
-        {
-            return;
-        }
-
-        for (var i = 0; i < _inputBindings.Count; i++)
-        {
-            var binding = _inputBindings[i];
-            if (!binding.Gesture.Matches(args))
-            {
-                continue;
-            }
-
-            var target = binding.CommandTarget ?? this;
-            if (binding.Command is RoutedCommand routedCommand)
-            {
-                if (!CommandManager.CanExecute(routedCommand, binding.CommandParameter, target))
-                {
-                    continue;
-                }
-
-                CommandManager.Execute(routedCommand, binding.CommandParameter, target);
-                args.Handled = true;
-                return;
-            }
-
-            if (!binding.Command.CanExecute(binding.CommandParameter))
-            {
-                continue;
-            }
-
-            binding.Command.Execute(binding.CommandParameter);
-            args.Handled = true;
-            return;
-        }
-    }
-
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);
 
-        if (ReferenceEquals(args.Property, IsEnabledProperty) ||
-            ReferenceEquals(args.Property, IsVisibleProperty) ||
-            ReferenceEquals(args.Property, FocusableProperty))
+        var metadata = args.Property.GetMetadata(this);
+        var options = metadata.Options;
+        if ((options & FrameworkPropertyMetadataOptions.AffectsMeasure) != 0)
         {
-            FocusManager.NotifyFocusGraphInvalidated();
-            if (args.NewValue is bool state && !state)
-            {
-                InputManager.NotifyElementStateInvalidated(this);
-            }
+            InvalidateMeasure();
         }
 
-        if (!args.Property.GetMetadata(this).Inherits)
+        if ((options & FrameworkPropertyMetadataOptions.AffectsArrange) != 0)
+        {
+            InvalidateArrange();
+        }
+
+        if ((options & FrameworkPropertyMetadataOptions.AffectsRender) != 0)
+        {
+            InvalidateVisual();
+        }
+
+        if (!metadata.Inherits)
         {
             return;
         }
@@ -1371,6 +639,114 @@ public class UIElement : DependencyObject
 
         inverseTransform *= localInverse;
         return true;
+    }
+
+    private static bool IsPointVisibleThroughClipChain(UIElement? element, Vector2 point, ref Matrix accumulatedTransform)
+    {
+        if (element == null)
+        {
+            return true;
+        }
+
+        if (!IsPointVisibleThroughClipChain(element.VisualParent, point, ref accumulatedTransform))
+        {
+            return false;
+        }
+
+        if (element.TryGetClipRect(out var clipRect))
+        {
+            var transformedClip = TransformRect(clipRect, accumulatedTransform);
+            if (!ContainsPoint(transformedClip, point))
+            {
+                return false;
+            }
+        }
+
+        if (element.TryGetLocalRenderTransform(out var localTransform, out _))
+        {
+            accumulatedTransform = localTransform * accumulatedTransform;
+        }
+
+        return true;
+    }
+
+    internal void ClearMeasureInvalidation()
+    {
+        NeedsMeasure = false;
+    }
+
+    internal void ClearArrangeInvalidation()
+    {
+        NeedsArrange = false;
+    }
+
+    internal void ClearRenderInvalidationRecursive()
+    {
+        NeedsRender = false;
+        SubtreeDirty = false;
+        foreach (var child in GetVisualChildren())
+        {
+            child.ClearRenderInvalidationRecursive();
+        }
+    }
+
+    private UIElement? GetInvalidationParent()
+    {
+        return VisualParent ?? LogicalParent;
+    }
+
+    private void MarkSubtreeDirty()
+    {
+        for (var current = this; current != null; current = current.GetInvalidationParent())
+        {
+            if (current.SubtreeDirty)
+            {
+                continue;
+            }
+
+            current.SubtreeDirty = true;
+        }
+    }
+
+    private static bool AreRectsEqual(LayoutRect left, LayoutRect right)
+    {
+        const float epsilon = 0.0001f;
+        return MathF.Abs(left.X - right.X) <= epsilon &&
+               MathF.Abs(left.Y - right.Y) <= epsilon &&
+               MathF.Abs(left.Width - right.Width) <= epsilon &&
+               MathF.Abs(left.Height - right.Height) <= epsilon;
+    }
+
+    private static LayoutRect TransformRect(LayoutRect rect, Matrix transform)
+    {
+        if (transform == Matrix.Identity)
+        {
+            return rect;
+        }
+
+        var topLeft = Vector2.Transform(new Vector2(rect.X, rect.Y), transform);
+        var topRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y), transform);
+        var bottomLeft = Vector2.Transform(new Vector2(rect.X, rect.Y + rect.Height), transform);
+        var bottomRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y + rect.Height), transform);
+
+        var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+        var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+        var maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+        var maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+        return new LayoutRect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    private static bool ContainsPoint(LayoutRect rect, Vector2 point)
+    {
+        if (rect.Width < 0f || rect.Height < 0f)
+        {
+            return false;
+        }
+
+        return point.X >= rect.X &&
+               point.X <= rect.X + rect.Width &&
+               point.Y >= rect.Y &&
+               point.Y <= rect.Y + rect.Height;
     }
 
     private readonly struct RoutedHandlerEntry

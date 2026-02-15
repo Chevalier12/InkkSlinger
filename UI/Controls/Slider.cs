@@ -1,7 +1,6 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -189,12 +188,9 @@ public class Slider : Control
             typeof(Slider),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    private bool _isDraggingThumb;
-    private float _dragPointerOffset;
 
     public Slider()
     {
-        Focusable = true;
     }
 
     public event EventHandler<RoutedSimpleEventArgs> ValueChanged
@@ -339,161 +335,13 @@ public class Slider : Control
         UiDrawing.DrawRectStroke(spriteBatch, thumbRect, 1f, BorderBrush, Opacity);
     }
 
-    protected override void OnMouseEnter(RoutedMouseEventArgs args)
-    {
-        base.OnMouseEnter(args);
-        IsMouseOver = true;
-    }
 
-    protected override void OnMouseLeave(RoutedMouseEventArgs args)
-    {
-        base.OnMouseLeave(args);
-        IsMouseOver = false;
-    }
 
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
-        if (!IsEnabled)
-        {
-            return;
-        }
 
-        Focus();
-        CaptureMouse();
-        var trackRect = GetTrackRect();
-        var thumbRect = GetThumbRect(trackRect);
-        var pointer = GetPointerAlongOrientation(args.Position);
-        var thumbStart = GetThumbStartAlongOrientation(thumbRect);
-        var thumbEnd = GetThumbEndAlongOrientation(thumbRect);
 
-        if (pointer >= thumbStart && pointer <= thumbEnd)
-        {
-            _isDraggingThumb = true;
-            IsDraggingThumb = true;
-            _dragPointerOffset = pointer - thumbStart;
-        }
-        else if (IsMoveToPointEnabled)
-        {
-            Value = ValueFromPointer(pointer, trackRect, useThumbCenterOffset: true);
-        }
-        else
-        {
-            if (pointer < thumbStart)
-            {
-                Value -= LargeChange;
-            }
-            else
-            {
-                Value += LargeChange;
-            }
-        }
 
-        args.Handled = true;
-    }
 
-    protected override void OnMouseMove(RoutedMouseEventArgs args)
-    {
-        base.OnMouseMove(args);
-        if (!_isDraggingThumb || !ReferenceEquals(InputManager.MouseCapturedElement, this))
-        {
-            return;
-        }
 
-        var trackRect = GetTrackRect();
-        var pointer = GetPointerAlongOrientation(args.Position);
-        Value = ValueFromPointer(pointer - _dragPointerOffset, trackRect, useThumbCenterOffset: false);
-        args.Handled = true;
-    }
-
-    protected override void OnMouseLeftButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonUp(args);
-        EndDrag(releaseCapture: true);
-        args.Handled = true;
-    }
-
-    protected override void OnLostMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        base.OnLostMouseCapture(args);
-        EndDrag(releaseCapture: false);
-    }
-
-    protected override void OnMouseWheel(RoutedMouseWheelEventArgs args)
-    {
-        base.OnMouseWheel(args);
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        var steps = args.Delta / 120f;
-        Value += steps * SmallChange;
-        args.Handled = true;
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        var handled = false;
-        if (Orientation == Orientation.Horizontal)
-        {
-            if (args.Key == Keys.Left)
-            {
-                Value -= SmallChange;
-                handled = true;
-            }
-            else if (args.Key == Keys.Right)
-            {
-                Value += SmallChange;
-                handled = true;
-            }
-        }
-        else
-        {
-            if (args.Key == Keys.Down)
-            {
-                Value -= SmallChange;
-                handled = true;
-            }
-            else if (args.Key == Keys.Up)
-            {
-                Value += SmallChange;
-                handled = true;
-            }
-        }
-
-        if (args.Key == Keys.PageDown)
-        {
-            Value -= LargeChange;
-            handled = true;
-        }
-        else if (args.Key == Keys.PageUp)
-        {
-            Value += LargeChange;
-            handled = true;
-        }
-        else if (args.Key == Keys.Home)
-        {
-            Value = Minimum;
-            handled = true;
-        }
-        else if (args.Key == Keys.End)
-        {
-            Value = Maximum;
-            handled = true;
-        }
-
-        if (handled)
-        {
-            args.Handled = true;
-        }
-    }
 
     protected override Style? GetFallbackStyle()
     {
@@ -636,11 +484,7 @@ public class Slider : Control
 
     private void EndDrag(bool releaseCapture)
     {
-        _isDraggingThumb = false;
         IsDraggingThumb = false;
-        if (releaseCapture && ReferenceEquals(InputManager.MouseCapturedElement, this))
-        {
-            ReleaseMouseCapture();
-        }
+        _ = releaseCapture;
     }
 }

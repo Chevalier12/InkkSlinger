@@ -126,7 +126,6 @@ public partial class MainMenuView : UserControl
         }
 
         DemoTextBox.ResetPerformanceSnapshot();
-        FrameLoopDiagnostics.Reset();
         UpdateTelemetry(force: true);
         _viewModel.Status = $"Performance counters reset at {DateTime.Now:HH:mm:ss}.";
     }
@@ -224,24 +223,31 @@ public partial class MainMenuView : UserControl
             $"[Viewport {perf.LastRenderViewportMilliseconds:0.###}, Selection {perf.LastRenderSelectionMilliseconds:0.###}, Text {perf.LastRenderTextMilliseconds:0.###}, Caret {perf.LastRenderCaretMilliseconds:0.###}] Samples={perf.RenderSampleCount}";
         _viewModel.ViewportTimingText =
             $"ViewportState(ms) Last/Avg/Max: {perf.LastViewportStateMilliseconds:0.###} / {perf.AverageViewportStateMilliseconds:0.###} / {perf.MaxViewportStateMilliseconds:0.###} " +
-            $"Hit={perf.ViewportStateCacheHitCount} Miss={perf.ViewportStateCacheMissCount} Calls={perf.ViewportStateSampleCount}";
+            $"Hit={perf.ViewportStateCacheHitCount} Miss={perf.ViewportStateCacheMissCount} Calls={perf.ViewportStateSampleCount} | " +
+            $"LayoutCache Hit={perf.LayoutCacheHitCount} Miss={perf.LayoutCacheMissCount}";
         _viewModel.CaretTimingText =
             $"Caret(ms) Last/Avg/Max: {perf.LastEnsureCaretMilliseconds:0.###} / {perf.AverageEnsureCaretMilliseconds:0.###} / {perf.MaxEnsureCaretMilliseconds:0.###} " +
             $"[Viewport {perf.LastEnsureCaretViewportMilliseconds:0.###}, LineLookup {perf.LastEnsureCaretLineLookupMilliseconds:0.###}, Width {perf.LastEnsureCaretWidthMilliseconds:0.###}, Offset {perf.LastEnsureCaretOffsetAdjustMilliseconds:0.###}] " +
             $"FastPath Hit/Miss={perf.EnsureCaretFastPathHitCount}/{perf.EnsureCaretFastPathMissCount} Samples={perf.EnsureCaretSampleCount}";
 
-        var frame = FrameLoopDiagnostics.GetSnapshot();
-        _viewModel.FrameLoopTimingText =
-            $"Frame U L/A/M {frame.LastUpdateMilliseconds:0.###}/{frame.AverageUpdateMilliseconds:0.###}/{frame.MaxUpdateMilliseconds:0.###} ms " +
-            $"| D {frame.LastDrawMilliseconds:0.###}/{frame.AverageDrawMilliseconds:0.###}/{frame.MaxDrawMilliseconds:0.###} ms " +
-            $"| UiLayout {frame.LastUiLayoutMilliseconds:0.###} ms " +
-            $"| DrawSkip E/S/R {frame.DrawExecutedFrames}/{frame.DrawSkippedFrames}/{frame.DrawSkipRatio:P1} " +
-            $"| LayoutSkip E/S/R {frame.LayoutExecutedFrames}/{frame.LayoutSkippedFrames}/{frame.LayoutSkipRatio:P1} " +
-            $"| DirtyRect L/A/M {frame.LastDirtyRectCount}/{frame.AverageDirtyRectCount:0.##}/{frame.MaxDirtyRectCount} " +
-            $"| DirtyCov L/A/M {frame.LastDirtyViewportCoverage:P1}/{frame.AverageDirtyViewportCoverage:P1}/{frame.MaxDirtyViewportCoverage:P1}";
-        _viewModel.HitchLogText = frame.HitchCount <= 0
-            ? "Hitches: 0"
-            : $"Hitches: {frame.HitchCount} | Last: {frame.LastHitch}";
+        var uiMetrics = UiRoot.Current?.GetMetricsSnapshot();
+        if (uiMetrics is { } metrics)
+        {
+            _viewModel.FrameLoopTimingText =
+                $"UiRoot Draw Exec/Skip: {metrics.DrawExecutedFrameCount}/{metrics.DrawSkippedFrameCount} | " +
+                $"Layout Exec/Skip: {metrics.LayoutExecutedFrameCount}/{metrics.LayoutSkippedFrameCount} | " +
+                $"Dirty: {metrics.LastDirtyAreaPercentage:P1} ({metrics.LastDirtyRectCount} rects) | " +
+                $"Fallbacks: {metrics.FullRedrawFallbackCount}";
+            _viewModel.HitchLogText =
+                $"Toggles Retained/Dirty/Conditional: {BoolToToggle(metrics.UseRetainedRenderList)}/" +
+                $"{BoolToToggle(metrics.UseDirtyRegionRendering)}/{BoolToToggle(metrics.UseConditionalDrawScheduling)} " +
+                $"| Cache H/M/R: {metrics.LastFrameCacheHitCount}/{metrics.LastFrameCacheMissCount}/{metrics.LastFrameCacheRebuildCount}";
+        }
+        else
+        {
+            _viewModel.FrameLoopTimingText = "UiRoot telemetry unavailable.";
+            _viewModel.HitchLogText = "Toggles: n/a";
+        }
     }
 
     private string BuildTelemetryClipboardText()
@@ -254,27 +260,16 @@ public partial class MainMenuView : UserControl
         builder.AppendLine(_viewModel.RenderTimingText);
         builder.AppendLine(_viewModel.ViewportTimingText);
         builder.AppendLine(_viewModel.CaretTimingText);
-        var frame = FrameLoopDiagnostics.GetSnapshot();
-        builder.AppendLine(
-            $"FrameLoop(ms) U Last/Avg/Max: {frame.LastUpdateMilliseconds:0.###} / {frame.AverageUpdateMilliseconds:0.###} / {frame.MaxUpdateMilliseconds:0.###} " +
-            $"[Pre {frame.LastUpdatePreUiMilliseconds:0.###}, UiRoot {frame.LastUpdateUiRootMilliseconds:0.###}, Base {frame.LastUpdateBaseMilliseconds:0.###}; " +
-            $"UiRoot Input {frame.LastUiInputMilliseconds:0.###}, Anim {frame.LastUiAnimationMilliseconds:0.###}, Layout {frame.LastUiLayoutMilliseconds:0.###}, Elem {frame.LastUiElementUpdateMilliseconds:0.###}; " +
-            $"LayoutSkip E/S/R {frame.LayoutExecutedFrames}/{frame.LayoutSkippedFrames}/{frame.LayoutSkipRatio:P2}] " +
-            $"D Last/Avg/Max: {frame.LastDrawMilliseconds:0.###} / {frame.AverageDrawMilliseconds:0.###} / {frame.MaxDrawMilliseconds:0.###} " +
-            $"[Clear {frame.LastDrawClearMilliseconds:0.###}, Begin {frame.LastDrawBeginMilliseconds:0.###}, UiRoot {frame.LastDrawUiRootMilliseconds:0.###}, End {frame.LastDrawEndMilliseconds:0.###}, Base {frame.LastDrawBaseMilliseconds:0.###}; " +
-            $"UiRoot Reset {frame.LastUiResetStateMilliseconds:0.###}, Elem {frame.LastUiElementDrawMilliseconds:0.###}] " +
-            $"DrawSkip Exec/Skip/Ratio: {frame.DrawExecutedFrames}/{frame.DrawSkippedFrames}/{frame.DrawSkipRatio:P2}; " +
-            $"DirtyRect L/A/M: {frame.LastDirtyRectCount}/{frame.AverageDirtyRectCount:0.##}/{frame.MaxDirtyRectCount}; " +
-            $"DirtyAreaPx L/A/M: {frame.LastDirtyPixelArea:0.##}/{frame.AverageDirtyPixelArea:0.##}/{frame.MaxDirtyPixelArea:0.##}; " +
-            $"DirtyCoverage L/A/M: {frame.LastDirtyViewportCoverage:P2}/{frame.AverageDirtyViewportCoverage:P2}/{frame.MaxDirtyViewportCoverage:P2}; " +
-            $"FullFallback Last/Max: {frame.LastFullRedrawFallbackCount}/{frame.MaxFullRedrawFallbackCount}; " +
-            $"LastReasons: {frame.LastDrawReasons}; TopReasons: {frame.TopRedrawReasonsText}");
-        builder.AppendLine(frame.HitchCount <= 0
-            ? "Hitches: 0"
-            : $"Hitches: {frame.HitchCount}\nLast: {frame.LastHitch}\nRecent:\n{frame.RecentHitchesText}");
+        builder.AppendLine(_viewModel.FrameLoopTimingText);
+        builder.AppendLine(_viewModel.HitchLogText);
         builder.Append("Status: ");
         builder.Append(_viewModel.Status);
         return builder.ToString();
+    }
+
+    private static string BoolToToggle(bool enabled)
+    {
+        return enabled ? "On" : "Off";
     }
 
     private static bool TryCopyToSystemClipboard(string text)

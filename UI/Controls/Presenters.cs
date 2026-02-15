@@ -310,6 +310,18 @@ public class ItemsPresenter : FrameworkElement
 {
     private static readonly bool EnableItemsPresenterTrace = false;
     private ItemsControl? _itemsOwner;
+    private ItemsControl? _explicitItemsOwner;
+
+    internal void SetExplicitItemsOwner(ItemsControl? owner)
+    {
+        if (ReferenceEquals(_explicitItemsOwner, owner))
+        {
+            return;
+        }
+
+        _explicitItemsOwner = owner;
+        RefreshOwner();
+    }
 
     internal bool TryGetItemContainersForHitTest(out IReadOnlyList<UIElement> containers)
     {
@@ -423,7 +435,7 @@ public class ItemsPresenter : FrameworkElement
 
     private void EnsureOwner(bool force = false)
     {
-        var foundOwner = FindItemsOwner();
+        var foundOwner = _explicitItemsOwner ?? FindItemsOwner();
         if (!force && ReferenceEquals(foundOwner, _itemsOwner))
         {
             return;

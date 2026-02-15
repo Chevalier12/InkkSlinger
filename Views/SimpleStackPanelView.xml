@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0B1421"
+             BorderBrush="#2A4A66"
+             BorderThickness="1"
+             Padding="12">
+  <StackPanel>
+    <Label Text="Label 1" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 2" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 3" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 4" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 5" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 6" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 7" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 8" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 9" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 10" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 11" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 12" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 13" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 14" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 15" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 16" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 17" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 18" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 19" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 20" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 21" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 22" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 23" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 24" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 25" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 26" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 27" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 28" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 29" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 30" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 31" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 32" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 33" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 34" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 35" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 36" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 37" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 38" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 39" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 40" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 41" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 42" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 43" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 44" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 45" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 46" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 47" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 48" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 49" Foreground="#DCEEFF" Margin="0,0,0,6" />
+    <Label Text="Label 50" Foreground="#DCEEFF" />
+  </StackPanel>
+</UserControl>

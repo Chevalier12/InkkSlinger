@@ -2,11 +2,6 @@ namespace InkkSlinger;
 
 public static class CommandManager
 {
-    static CommandManager()
-    {
-        FocusManager.FocusChanged += (_, _) => InvalidateRequerySuggested();
-    }
-
     public static event System.EventHandler? RequerySuggested;
 
     public static void InvalidateRequerySuggested()

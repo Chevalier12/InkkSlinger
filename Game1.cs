@@ -1,36 +1,65 @@
 using System;
-using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
 public class Game1 : Game
 {
+    private static readonly bool EnableRuntimePerfCounters =
+        !string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_PERF_COUNTERS"), "0", StringComparison.Ordinal);
+    private static readonly bool EnableExperimentalPartialRedraw =
+        string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_EXPERIMENTAL_PARTIAL_REDRAW"), "1", StringComparison.Ordinal);
+    private const double PerfSampleIntervalSeconds = 1.0;
+
     private readonly GraphicsDeviceManager _graphics;
     private readonly InkkSlinger.Window _window;
     private readonly bool _isWindowDemo;
     private readonly bool _isPaintShellDemo;
     private readonly bool _isCommandingDemo;
     private readonly bool _isTwoScrollViewersDemo;
+    private readonly bool _isSimpleScrollViewerDemo;
+    private readonly bool _isSimpleStackPanelDemo;
+    private readonly bool _isScrollViewerTextBoxDemo;
+    private readonly bool _isListBoxDemo;
+    private readonly bool _isItemsPresenterDemo;
     private SpriteBatch _spriteBatch = null!;
+    private RenderTarget2D? _uiCompositeTarget;
+    private Panel _root = null!;
     private UiRoot _uiRoot = null!;
     private MainMenuView? _mainMenuView;
     private WindowDemoView? _windowDemoView;
     private PaintShellView? _paintShellView;
     private CommandingMenuDemoView? _commandingMenuDemoView;
     private TwoScrollViewersView? _twoScrollViewersView;
-    private KeyboardState _previousKeyboardState;
-    private long _frameUpdateCounter;
-    private long _frameDrawCounter;
-    private int _lastPrintedHitchCount;
+    private SimpleScrollViewerView? _simpleScrollViewerView;
+    private SimpleStackPanelView? _simpleStackPanelView;
+    private ScrollViewerTextBoxView? _scrollViewerTextBoxView;
+    private SimpleListBoxView? _simpleListBoxView;
+    private SimpleItemsPresenterView? _simpleItemsPresenterView;
+    private string _baseWindowTitle = "InkkSlinger";
+    private string _perfTitleSuffix = string.Empty;
+    private double _perfAccumulatedSeconds;
+    private int _perfUpdateFrames;
+    private int _perfDrawFrames;
+    private int _perfLayoutCycles;
+    private int _perfLayoutCalls;
+    private int _perfLastNeighborProbeTotal;
+    private int _perfLastFullFallbackTotal;
+    private int _lastViewportWidth;
+    private int _lastViewportHeight;
+    private bool _hasViewportSnapshot;
 
     public Game1(
         bool isWindowDemo = false,
         bool isPaintShellDemo = false,
         bool isCommandingDemo = false,
-        bool isTwoScrollViewersDemo = false)
+        bool isTwoScrollViewersDemo = false,
+        bool isSimpleScrollViewerDemo = false,
+        bool isSimpleStackPanelDemo = false,
+        bool isScrollViewerTextBoxDemo = false,
+        bool isListBoxDemo = false,
+        bool isItemsPresenterDemo = false)
     {
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
@@ -38,20 +67,24 @@ public class Game1 : Game
         _isPaintShellDemo = isPaintShellDemo;
         _isCommandingDemo = isCommandingDemo;
         _isTwoScrollViewersDemo = isTwoScrollViewersDemo;
+        _isSimpleScrollViewerDemo = isSimpleScrollViewerDemo;
+        _isSimpleStackPanelDemo = isSimpleStackPanelDemo;
+        _isScrollViewerTextBoxDemo = isScrollViewerTextBoxDemo;
+        _isListBoxDemo = isListBoxDemo;
+        _isItemsPresenterDemo = isItemsPresenterDemo;
         Content.RootDirectory = "Content";
         _window.IsMouseVisible = true;
         _window.AllowUserResizing = true;
         _window.SetClientSize(
-            _isWindowDemo ? 1100 : (_isPaintShellDemo ? 1580 : (_isCommandingDemo ? 1500 : (_isTwoScrollViewersDemo ? 1280 : 1720))),
-            _isWindowDemo ? 700 : (_isPaintShellDemo ? 940 : (_isCommandingDemo ? 900 : (_isTwoScrollViewersDemo ? 760 : 1080))));
+            _isWindowDemo ? 1100 : (_isPaintShellDemo ? 1580 : (_isCommandingDemo ? 1500 : (_isTwoScrollViewersDemo ? 1280 : (_isSimpleScrollViewerDemo ? 1024 : (_isSimpleStackPanelDemo ? 1024 : (_isScrollViewerTextBoxDemo ? 1024 : (_isListBoxDemo ? 1024 : (_isItemsPresenterDemo ? 1024 : 1720)))))))),
+            _isWindowDemo ? 700 : (_isPaintShellDemo ? 940 : (_isCommandingDemo ? 900 : (_isTwoScrollViewersDemo ? 760 : (_isSimpleScrollViewerDemo ? 720 : (_isSimpleStackPanelDemo ? 720 : (_isScrollViewerTextBoxDemo ? 720 : (_isListBoxDemo ? 720 : (_isItemsPresenterDemo ? 720 : 1080)))))))));
         _window.Title = "InkkSlinger";
     }
 
     protected override void Initialize()
     {
-        var root = new Panel
+        _root = new Panel
         {
-            Focusable = true,
             Background = new Color(18, 22, 30)
         };
 
@@ -59,33 +92,63 @@ public class Game1 : Game
         {
             _windowDemoView = new WindowDemoView();
             _windowDemoView.CloseRequested += OnWindowDemoCloseRequested;
-            root.AddChild(_windowDemoView);
+            _root.AddChild(_windowDemoView);
         }
         else if (_isPaintShellDemo)
         {
             _paintShellView = new PaintShellView();
-            root.AddChild(_paintShellView);
+            _root.AddChild(_paintShellView);
         }
         else if (_isCommandingDemo)
         {
             _commandingMenuDemoView = new CommandingMenuDemoView();
-            root.AddChild(_commandingMenuDemoView);
+            _root.AddChild(_commandingMenuDemoView);
         }
         else if (_isTwoScrollViewersDemo)
         {
             _twoScrollViewersView = new TwoScrollViewersView();
-            root.AddChild(_twoScrollViewersView);
+            _root.AddChild(_twoScrollViewersView);
+        }
+        else if (_isSimpleScrollViewerDemo)
+        {
+            _simpleScrollViewerView = new SimpleScrollViewerView();
+            _root.AddChild(_simpleScrollViewerView);
+        }
+        else if (_isSimpleStackPanelDemo)
+        {
+            _simpleStackPanelView = new SimpleStackPanelView();
+            _root.AddChild(_simpleStackPanelView);
+        }
+        else if (_isScrollViewerTextBoxDemo)
+        {
+            _scrollViewerTextBoxView = new ScrollViewerTextBoxView();
+            _root.AddChild(_scrollViewerTextBoxView);
+        }
+        else if (_isListBoxDemo)
+        {
+            _simpleListBoxView = new SimpleListBoxView();
+            _root.AddChild(_simpleListBoxView);
+        }
+        else if (_isItemsPresenterDemo)
+        {
+            _simpleItemsPresenterView = new SimpleItemsPresenterView();
+            _root.AddChild(_simpleItemsPresenterView);
         }
         else
         {
             _mainMenuView = new MainMenuView();
-            root.AddChild(_mainMenuView);
+            _root.AddChild(_mainMenuView);
         }
-
-        _uiRoot = new UiRoot(root);
-        FrameLoopDiagnostics.Reset();
-        _window.TextInput += OnTextInput;
         _window.ClientSizeChanged += OnClientSizeChanged;
+        _uiRoot = new UiRoot(_root);
+        // Backbuffer contents are not guaranteed to persist across presents on all platforms.
+        // Default to a safe middle ground:
+        // - allow idle frame skipping
+        // - keep partial dirty redraw and subtree caches off unless explicitly requested.
+        _uiRoot.UseRetainedRenderList = EnableExperimentalPartialRedraw;
+        _uiRoot.UseDirtyRegionRendering = EnableExperimentalPartialRedraw;
+        _uiRoot.UseConditionalDrawScheduling = true;
+        _uiRoot.UseElementRenderCaches = EnableExperimentalPartialRedraw;
         RefreshWindowTitle();
 
         base.Initialize();
@@ -103,6 +166,11 @@ public class Game1 : Game
             _paintShellView?.SetFont(font);
             _commandingMenuDemoView?.SetFont(font);
             _twoScrollViewersView?.SetFont(font);
+            _simpleScrollViewerView?.SetFont(font);
+            _simpleStackPanelView?.SetFont(font);
+            _scrollViewerTextBoxView?.SetFont(font);
+            _simpleListBoxView?.SetFont(font);
+            _simpleItemsPresenterView?.SetFont(font);
         }
         catch
         {
@@ -112,93 +180,53 @@ public class Game1 : Game
 
     protected override void Update(GameTime gameTime)
     {
-        var updateStartTicks = Stopwatch.GetTimestamp();
-
-        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
-            Keyboard.GetState().IsKeyDown(Keys.Escape))
-        {
-            Exit();
-        }
-
-        var preUiStartTicks = Stopwatch.GetTimestamp();
-        var keyboardState = Keyboard.GetState();
-        if (!_isWindowDemo)
-        {
-            HandleWindowDemoInput(keyboardState);
-        }
-
-        _previousKeyboardState = keyboardState;
-        var preUiTicks = Stopwatch.GetTimestamp() - preUiStartTicks;
-
-        var uiRootStartTicks = Stopwatch.GetTimestamp();
-        _uiRoot.Update(gameTime, new Vector2(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height));
-        var uiRootTicks = Stopwatch.GetTimestamp() - uiRootStartTicks;
-
-        var baseStartTicks = Stopwatch.GetTimestamp();
+        EnsureBackBufferMatchesClientSize();
+        var viewport = EnsureViewportMatchesBackBuffer();
+        _lastViewportWidth = viewport.Width;
+        _lastViewportHeight = viewport.Height;
+        _hasViewportSnapshot = true;
+        _uiRoot.Update(gameTime, viewport);
+        _perfLayoutCycles++;
+        _perfLayoutCalls += 2;
+        _perfUpdateFrames++;
+        UpdateRuntimePerfCounters(gameTime);
         base.Update(gameTime);
-        var baseTicks = Stopwatch.GetTimestamp() - baseStartTicks;
-
-        var totalTicks = Stopwatch.GetTimestamp() - updateStartTicks;
-        _frameUpdateCounter++;
-        FrameLoopDiagnostics.RecordUpdate(
-            _frameUpdateCounter,
-            gameTime.TotalGameTime,
-            TicksToMilliseconds(totalTicks),
-            TicksToMilliseconds(preUiTicks),
-            TicksToMilliseconds(uiRootTicks),
-            TicksToMilliseconds(baseTicks),
-            _uiRoot.LastUpdateTiming);
-
-        // Lightweight hitch logging for diagnosing scroll stalls.
-        // Only poll the snapshot when we detect a large frame time, to avoid overhead in normal runs.
-        if (TicksToMilliseconds(totalTicks) >= 200d || _uiRoot.LastUpdateTiming.TotalMilliseconds >= 200d)
-        {
-            var snapshot = FrameLoopDiagnostics.GetSnapshot();
-            if (snapshot.HitchCount > _lastPrintedHitchCount)
-            {
-                _lastPrintedHitchCount = snapshot.HitchCount;
-                Console.WriteLine(snapshot.LastHitch);
-            }
-        }
     }
 
     protected override void Draw(GameTime gameTime)
     {
-        var drawStartTicks = Stopwatch.GetTimestamp();
+        var viewport = EnsureViewportMatchesBackBuffer();
+        EnsureUiCompositeTarget(viewport);
 
-        var clearStartTicks = Stopwatch.GetTimestamp();
-        GraphicsDevice.Clear(Color.CornflowerBlue);
-        var clearTicks = Stopwatch.GetTimestamp() - clearStartTicks;
+        if (_uiRoot.ShouldDrawThisFrame(gameTime, viewport, GraphicsDevice))
+        {
+            _perfDrawFrames++;
+            GraphicsDevice.SetRenderTarget(_uiCompositeTarget);
+            GraphicsDevice.Clear(Color.CornflowerBlue);
+            _uiRoot.Draw(_spriteBatch, gameTime);
+            GraphicsDevice.SetRenderTarget(null);
+        }
 
-        const long beginTicks = 0L;
+        if (_uiCompositeTarget != null)
+        {
+            _spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.Opaque,
+                samplerState: SamplerState.LinearClamp,
+                depthStencilState: DepthStencilState.None,
+                rasterizerState: RasterizerState.CullNone);
+            _spriteBatch.Draw(
+                _uiCompositeTarget,
+                new Rectangle(0, 0, viewport.Width, viewport.Height),
+                Color.White);
+            _spriteBatch.End();
+        }
 
-        var uiDrawStartTicks = Stopwatch.GetTimestamp();
-        _uiRoot.Draw(_spriteBatch);
-        var uiDrawTicks = Stopwatch.GetTimestamp() - uiDrawStartTicks;
-
-        const long endTicks = 0L;
-
-        var baseStartTicks = Stopwatch.GetTimestamp();
         base.Draw(gameTime);
-        var baseTicks = Stopwatch.GetTimestamp() - baseStartTicks;
-
-        var totalTicks = Stopwatch.GetTimestamp() - drawStartTicks;
-        _frameDrawCounter++;
-        FrameLoopDiagnostics.RecordDraw(
-            _frameDrawCounter,
-            gameTime.TotalGameTime,
-            TicksToMilliseconds(totalTicks),
-            TicksToMilliseconds(clearTicks),
-            TicksToMilliseconds(beginTicks),
-            TicksToMilliseconds(uiDrawTicks),
-            TicksToMilliseconds(endTicks),
-            TicksToMilliseconds(baseTicks),
-            _uiRoot.LastDrawTiming);
     }
 
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
-        _window.TextInput -= OnTextInput;
         _window.ClientSizeChanged -= OnClientSizeChanged;
 
         if (_windowDemoView != null)
@@ -206,68 +234,20 @@ public class Game1 : Game
             _windowDemoView.CloseRequested -= OnWindowDemoCloseRequested;
         }
 
-        _window.Dispose();
+        _uiCompositeTarget?.Dispose();
+        _uiCompositeTarget = null;
         _uiRoot.Shutdown();
+        _window.Dispose();
         base.OnExiting(sender, args);
-    }
-
-    private static void OnTextInput(object? sender, TextInputEventArgs e)
-    {
-        InputManager.ProcessTextInput(e.Character);
-    }
-
-    private void HandleWindowDemoInput(KeyboardState keyboardState)
-    {
-        if (IsNewKeyPress(keyboardState, Keys.F11))
-        {
-            _window.ToggleFullScreen();
-            RefreshWindowTitle();
-        }
-
-        if (IsNewKeyPress(keyboardState, Keys.F10))
-        {
-            _window.IsBorderless = !_window.IsBorderless;
-            RefreshWindowTitle();
-        }
-
-        if (IsNewKeyPress(keyboardState, Keys.F9))
-        {
-            _window.CenterOnPrimaryDisplay();
-            RefreshWindowTitle();
-        }
-
-        if (IsNewKeyPress(keyboardState, Keys.OemPlus) || IsNewKeyPress(keyboardState, Keys.Add))
-        {
-            ResizeWindowBy(120, 70);
-        }
-
-        if (IsNewKeyPress(keyboardState, Keys.OemMinus) || IsNewKeyPress(keyboardState, Keys.Subtract))
-        {
-            ResizeWindowBy(-120, -70);
-        }
-    }
-
-    private void ResizeWindowBy(int widthDelta, int heightDelta)
-    {
-        if (_window.IsFullScreen)
-        {
-            return;
-        }
-
-        var current = _window.ClientSize;
-        var newWidth = Math.Max(640, current.X + widthDelta);
-        var newHeight = Math.Max(360, current.Y + heightDelta);
-        _window.SetClientSize(newWidth, newHeight);
-        RefreshWindowTitle();
-    }
-
-    private bool IsNewKeyPress(KeyboardState current, Keys key)
-    {
-        return current.IsKeyDown(key) && !_previousKeyboardState.IsKeyDown(key);
     }
 
     private void OnClientSizeChanged(object? sender, EventArgs e)
     {
+        if (_uiRoot != null)
+        {
+            EnsureBackBufferMatchesClientSize();
+        }
+
         RefreshWindowTitle();
     }
 
@@ -277,32 +257,74 @@ public class Game1 : Game
 
         if (_isWindowDemo)
         {
-            _window.Title = $"InkkSlinger Window Demo | {size.X}x{size.Y}";
+            _baseWindowTitle = $"InkkSlinger Window Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
             return;
         }
 
         if (_isPaintShellDemo)
         {
-            _window.Title = $"InkkSlinger Paint Shell | {size.X}x{size.Y}";
+            _baseWindowTitle = $"InkkSlinger Paint Shell | {size.X}x{size.Y}";
+            ApplyWindowTitle();
             return;
         }
 
         if (_isCommandingDemo)
         {
-            _window.Title = $"InkkSlinger Commanding Demo | {size.X}x{size.Y}";
+            _baseWindowTitle = $"InkkSlinger Commanding Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
             return;
         }
 
         if (_isTwoScrollViewersDemo)
         {
-            _window.Title = $"InkkSlinger Two ScrollViewers Demo | {size.X}x{size.Y}";
+            _baseWindowTitle = $"InkkSlinger Two ScrollViewers Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
             return;
         }
 
-        var mode = _window.IsFullScreen ? "Fullscreen" : "Windowed";
-        var border = _window.IsBorderless ? "Borderless" : "Framed";
-        _window.Title =
-            $"InkkSlinger | {size.X}x{size.Y} | {mode} | {border} | F11 Fullscreen, F10 Borderless, F9 Center, +/- Resize";
+        if (_isSimpleScrollViewerDemo)
+        {
+            _baseWindowTitle = $"InkkSlinger ScrollViewer Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
+        if (_isSimpleStackPanelDemo)
+        {
+            _baseWindowTitle = $"InkkSlinger StackPanel Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
+        if (_isScrollViewerTextBoxDemo)
+        {
+            var backBufferSize = _window.BackBufferSize;
+            var viewportText = _hasViewportSnapshot
+                ? $"{_lastViewportWidth}x{_lastViewportHeight}"
+                : "n/a";
+            var textBoxDiagnostics = _scrollViewerTextBoxView?.GetDiagnostics() ?? "TB:n/a";
+            _baseWindowTitle = $"InkkSlinger ScrollViewer + TextBox Demo | C:{size.X}x{size.Y} BB:{backBufferSize.X}x{backBufferSize.Y} VP:{viewportText} {textBoxDiagnostics}";
+            ApplyWindowTitle();
+            return;
+        }
+
+        if (_isListBoxDemo)
+        {
+            _baseWindowTitle = $"InkkSlinger ListBox Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
+        if (_isItemsPresenterDemo)
+        {
+            _baseWindowTitle = $"InkkSlinger ItemsPresenter Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
+        _baseWindowTitle = $"InkkSlinger | {size.X}x{size.Y}";
+        ApplyWindowTitle();
     }
 
     private void OnWindowDemoCloseRequested(object? sender, EventArgs e)
@@ -310,13 +332,118 @@ public class Game1 : Game
         Exit();
     }
 
-    private static double TicksToMilliseconds(long ticks)
+    private void UpdateRuntimePerfCounters(GameTime gameTime)
     {
-        if (ticks <= 0)
+        if (!EnableRuntimePerfCounters)
         {
-            return 0d;
+            return;
         }
 
-        return ticks * 1000d / Stopwatch.Frequency;
+        _perfAccumulatedSeconds += gameTime.ElapsedGameTime.TotalSeconds;
+        if (_perfAccumulatedSeconds < PerfSampleIntervalSeconds)
+        {
+            return;
+        }
+
+        var stats = VisualTreeHelper.GetItemsPresenterFallbackStatsForTests();
+        var neighborDelta = stats.NeighborProbes - _perfLastNeighborProbeTotal;
+        var fullFallbackDelta = stats.FullFallbackScans - _perfLastFullFallbackTotal;
+        var sampleSeconds = _perfAccumulatedSeconds <= 0d ? PerfSampleIntervalSeconds : _perfAccumulatedSeconds;
+        var updatesPerSecond = _perfUpdateFrames / sampleSeconds;
+        var drawsPerSecond = _perfDrawFrames / sampleSeconds;
+        var layoutCyclesPerSecond = _perfLayoutCycles / sampleSeconds;
+        var layoutCallsPerSecond = _perfLayoutCalls / sampleSeconds;
+        var neighborPerSecond = neighborDelta / sampleSeconds;
+        var fullFallbackPerSecond = fullFallbackDelta / sampleSeconds;
+
+        Console.WriteLine(
+            $"[Perf] U:{updatesPerSecond:0.0}/s D:{drawsPerSecond:0.0}/s " +
+            $"LayoutCycles:{layoutCyclesPerSecond:0.0}/s LayoutCalls:{layoutCallsPerSecond:0.0}/s " +
+            $"HitTestNeighbor:{neighborPerSecond:0.0}/s HitTestFullFallback:{fullFallbackPerSecond:0.0}/s");
+
+        _perfTitleSuffix =
+            $" | U:{updatesPerSecond:0} D:{drawsPerSecond:0} L:{layoutCyclesPerSecond:0} " +
+            $"HN:{neighborPerSecond:0} HF:{fullFallbackPerSecond:0}";
+        ApplyWindowTitle();
+
+        _perfLastNeighborProbeTotal = stats.NeighborProbes;
+        _perfLastFullFallbackTotal = stats.FullFallbackScans;
+        _perfAccumulatedSeconds = 0d;
+        _perfUpdateFrames = 0;
+        _perfDrawFrames = 0;
+        _perfLayoutCycles = 0;
+        _perfLayoutCalls = 0;
+    }
+
+    private void ApplyWindowTitle()
+    {
+        if (!EnableRuntimePerfCounters)
+        {
+            _window.Title = _baseWindowTitle;
+            return;
+        }
+
+        _window.Title = $"{_baseWindowTitle}{_perfTitleSuffix}";
+    }
+
+    private void EnsureUiCompositeTarget(Viewport viewport)
+    {
+        if (_uiCompositeTarget != null &&
+            !_uiCompositeTarget.IsDisposed &&
+            _uiCompositeTarget.Width == viewport.Width &&
+            _uiCompositeTarget.Height == viewport.Height)
+        {
+            return;
+        }
+
+        _uiCompositeTarget?.Dispose();
+        _uiCompositeTarget = new RenderTarget2D(
+            GraphicsDevice,
+            Math.Max(1, viewport.Width),
+            Math.Max(1, viewport.Height),
+            false,
+            SurfaceFormat.Color,
+            DepthFormat.None,
+            0,
+            RenderTargetUsage.DiscardContents);
+    }
+
+    private void EnsureBackBufferMatchesClientSize()
+    {
+        var clientSize = _window.ClientSize;
+        if (clientSize.X <= 0 || clientSize.Y <= 0)
+        {
+            return;
+        }
+
+        var viewport = GraphicsDevice.Viewport;
+        var backBufferSize = _window.BackBufferSize;
+        var preferredMatches = clientSize.X == backBufferSize.X && clientSize.Y == backBufferSize.Y;
+        var actualMatches = clientSize.X == viewport.Width && clientSize.Y == viewport.Height;
+        if (preferredMatches && actualMatches)
+        {
+            return;
+        }
+
+        _window.SetClientSize(clientSize.X, clientSize.Y, applyChanges: true);
+    }
+
+    private Viewport EnsureViewportMatchesBackBuffer()
+    {
+        var presentation = GraphicsDevice.PresentationParameters;
+        var targetWidth = Math.Max(1, presentation.BackBufferWidth);
+        var targetHeight = Math.Max(1, presentation.BackBufferHeight);
+        var viewport = GraphicsDevice.Viewport;
+
+        if (viewport.X != 0 ||
+            viewport.Y != 0 ||
+            viewport.Width != targetWidth ||
+            viewport.Height != targetHeight)
+        {
+            viewport = new Viewport(0, 0, targetWidth, targetHeight);
+            GraphicsDevice.Viewport = viewport;
+        }
+
+        return viewport;
     }
 }

@@ -22,12 +22,12 @@ public sealed class RoutedCommand : System.Windows.Input.ICommand
 
     public bool CanExecute(object? parameter)
     {
-        return CanExecute(parameter, FocusManager.FocusedElement);
+        return CanExecute(parameter, null);
     }
 
     public void Execute(object? parameter)
     {
-        Execute(parameter, FocusManager.FocusedElement);
+        Execute(parameter, null);
     }
 
     public bool CanExecute(object? parameter, UIElement? target)

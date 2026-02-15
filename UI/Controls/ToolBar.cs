@@ -453,7 +453,6 @@ public class ToolBar : ItemsControl
     {
         if (_hostPanel != null)
         {
-            _hostPanel.PreviewMouseDown -= OnHostPreviewMouseDown;
             _hostPanel = null;
         }
 
@@ -463,24 +462,8 @@ public class ToolBar : ItemsControl
             return;
         }
 
-        _hostPanel.PreviewMouseDown += OnHostPreviewMouseDown;
     }
 
-    private void OnHostPreviewMouseDown(object? sender, RoutedMouseButtonEventArgs args)
-    {
-        if (!IsOverflowOpen)
-        {
-            return;
-        }
-
-        var source = args.OriginalSource;
-        if (source != null && IsSelfOrDescendant(source))
-        {
-            return;
-        }
-
-        IsOverflowOpen = false;
-    }
 
     private Panel? FindHostPanel()
     {

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -58,7 +57,6 @@ public class Menu : ItemsControl
 
     public Menu()
     {
-        Focusable = true;
     }
 
     public Color Background
@@ -182,27 +180,6 @@ public class Menu : ItemsControl
         }
     }
 
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-
-        if (args.IsRepeat)
-        {
-            return;
-        }
-
-        var focusedItem = FocusManager.FocusedElement as MenuItem;
-        if (focusedItem == null)
-        {
-            return;
-        }
-
-        if (args.Key == Keys.Escape)
-        {
-            CloseAllSubmenus();
-            args.Handled = true;
-        }
-    }
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
@@ -304,7 +281,6 @@ public class Menu : ItemsControl
         }
 
         var target = topLevelItems[nextIndex];
-        target.Focus();
         target.IsHighlighted = true;
 
         foreach (var item in topLevelItems)
@@ -352,8 +328,6 @@ public class Menu : ItemsControl
     {
         if (_hostPanel != null)
         {
-            _hostPanel.PreviewMouseDown -= OnHostPreviewMouseDown;
-            _hostPanel.PreviewKeyDown -= OnHostPreviewKeyDown;
             RestoreHostZIndex();
             _hostPanel = null;
         }
@@ -364,60 +338,9 @@ public class Menu : ItemsControl
             return;
         }
 
-        _hostPanel.PreviewMouseDown += OnHostPreviewMouseDown;
-        _hostPanel.PreviewKeyDown += OnHostPreviewKeyDown;
     }
 
-    private void OnHostPreviewMouseDown(object? sender, RoutedMouseButtonEventArgs args)
-    {
-        if (!_isMenuMode)
-        {
-            return;
-        }
 
-        var source = args.OriginalSource;
-        if (source != null && IsSelfOrDescendant(source))
-        {
-            return;
-        }
-
-        CloseAllSubmenus();
-    }
-
-    private void OnHostPreviewKeyDown(object? sender, RoutedKeyEventArgs args)
-    {
-        if (args.Handled || args.IsRepeat)
-        {
-            return;
-        }
-
-        if (args.Modifiers == ModifierKeys.Alt && TryGetAccessKeyFromKey(args.Key, out var accessKey))
-        {
-            var item = FindTopLevelAccessKeyTarget(accessKey);
-            if (item != null)
-            {
-                item.Focus();
-                item.IsHighlighted = true;
-
-                if (item.Items.Count > 0)
-                {
-                    item.OpenSubmenu(focusFirstItem: false);
-                }
-
-                EnterMenuMode(item);
-                args.Handled = true;
-                return;
-            }
-        }
-
-        if (!_isMenuMode || args.Key != Keys.Escape)
-        {
-            return;
-        }
-
-        CloseAllSubmenus();
-        args.Handled = true;
-    }
 
     private Panel? FindHostPanel()
     {
@@ -525,21 +448,4 @@ public class Menu : ItemsControl
         return false;
     }
 
-    private static bool TryGetAccessKeyFromKey(Keys key, out char accessKey)
-    {
-        if (key >= Keys.A && key <= Keys.Z)
-        {
-            accessKey = (char)('A' + (key - Keys.A));
-            return true;
-        }
-
-        if (key >= Keys.D0 && key <= Keys.D9)
-        {
-            accessKey = (char)('0' + (key - Keys.D0));
-            return true;
-        }
-
-        accessKey = default;
-        return false;
-    }
 }

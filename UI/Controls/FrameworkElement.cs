@@ -243,6 +243,7 @@ public class FrameworkElement : UIElement
             DesiredSize = Vector2.Zero;
             _previousAvailableSize = availableSize;
             _isMeasureValid = true;
+            ClearMeasureInvalidation();
             return;
         }
 
@@ -266,12 +267,12 @@ public class FrameworkElement : UIElement
             measured.Y + margin.Vertical);
 
         _isMeasureValid = true;
+        ClearMeasureInvalidation();
     }
 
     public void Arrange(LayoutRect finalRect)
     {
         Dispatcher.VerifyAccess();
-        var hadOldBounds = TryGetRenderBoundsInRootSpace(out var oldBounds);
         if (_isArrangeValid &&
             _isMeasureValid &&
             AreRectsEqual(_arrangeRect, finalRect))
@@ -286,7 +287,7 @@ public class FrameworkElement : UIElement
             SetLayoutSlot(finalRect);
             RenderSize = Vector2.Zero;
             _isArrangeValid = true;
-            MarkArrangeBoundsDirtyOnRoot(hadOldBounds, oldBounds);
+            ClearArrangeInvalidation();
             return;
         }
 
@@ -316,68 +317,28 @@ public class FrameworkElement : UIElement
         SetLayoutSlot(new LayoutRect(arrangedX, arrangedY, RenderSize.X, RenderSize.Y));
 
         _isArrangeValid = true;
-        MarkArrangeBoundsDirtyOnRoot(hadOldBounds, oldBounds);
+        ClearArrangeInvalidation();
         LayoutUpdated?.Invoke(this, EventArgs.Empty);
     }
 
-    public void InvalidateMeasure()
+    public override void InvalidateMeasure()
     {
         Dispatcher.VerifyAccess();
-        var wasMeasureValid = _isMeasureValid;
         _isMeasureValid = false;
-
-        InvalidateArrange();
-
-        if (!wasMeasureValid)
-        {
-            return;
-        }
-
-        if (VisualParent is FrameworkElement visualParent)
-        {
-            visualParent.InvalidateMeasure();
-            return;
-        }
-
-        if (LogicalParent is FrameworkElement logicalParent)
-        {
-            logicalParent.InvalidateMeasure();
-        }
+        base.InvalidateMeasure();
     }
 
-    public void InvalidateArrange()
+    public override void InvalidateArrange()
     {
         Dispatcher.VerifyAccess();
-        var wasArrangeValid = _isArrangeValid;
         _isArrangeValid = false;
-        MarkLayoutDirtyOnRoot();
-        InvalidateVisual();
-
-        if (!wasArrangeValid)
-        {
-            return;
-        }
-
-        if (VisualParent is FrameworkElement visualParent)
-        {
-            visualParent.InvalidateArrange();
-            return;
-        }
-
-        if (LogicalParent is FrameworkElement logicalParent)
-        {
-            logicalParent.InvalidateArrange();
-        }
+        base.InvalidateArrange();
     }
 
-    public void InvalidateVisual()
+    public override void InvalidateVisual()
     {
-        InvalidateVisual(UiRedrawReason.ExplicitFullInvalidation);
-    }
-
-    public void InvalidateVisual(UiRedrawReason reason)
-    {
-        MarkVisualDirtyOnRoot(reason);
+        Dispatcher.VerifyAccess();
+        base.InvalidateVisual();
     }
 
     public void UpdateLayout()
@@ -455,23 +416,6 @@ public class FrameworkElement : UIElement
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);
-
-        var metadata = args.Property.GetMetadata(this);
-        var options = metadata.Options;
-        if ((options & FrameworkPropertyMetadataOptions.AffectsMeasure) != 0)
-        {
-            InvalidateMeasure();
-        }
-
-        if ((options & FrameworkPropertyMetadataOptions.AffectsArrange) != 0)
-        {
-            InvalidateArrange();
-        }
-
-        if ((options & FrameworkPropertyMetadataOptions.AffectsRender) != 0)
-        {
-            InvalidateVisual();
-        }
 
         if (ReferenceEquals(args.Property, IsVisibleProperty))
         {
@@ -705,67 +649,4 @@ public class FrameworkElement : UIElement
                MathF.Abs(left.Height - right.Height) <= epsilon;
     }
 
-    private void MarkVisualDirtyOnRoot(UiRedrawReason reason)
-    {
-        var root = TryGetOwningUiRoot();
-        if (root == null)
-        {
-            return;
-        }
-
-        if (TryGetRenderBoundsInRootSpace(out var bounds))
-        {
-            root.MarkVisualDirty(bounds, reason);
-            return;
-        }
-
-        root.MarkVisualDirty(reason);
-    }
-
-    private void MarkLayoutDirtyOnRoot()
-    {
-        var root = TryGetOwningUiRoot();
-        if (root == null)
-        {
-            return;
-        }
-
-        root.MarkLayoutDirty();
-    }
-
-    private void MarkArrangeBoundsDirtyOnRoot(bool hadOldBounds, LayoutRect oldBounds)
-    {
-        var root = TryGetOwningUiRoot();
-        if (root == null)
-        {
-            return;
-        }
-
-        var hasNewBounds = TryGetRenderBoundsInRootSpace(out var newBounds);
-        if (hadOldBounds && hasNewBounds)
-        {
-            root.MarkVisualDirty(UnionBounds(oldBounds, newBounds));
-            return;
-        }
-
-        if (hadOldBounds)
-        {
-            root.MarkVisualDirty(oldBounds);
-            return;
-        }
-
-        if (hasNewBounds)
-        {
-            root.MarkVisualDirty(newBounds);
-        }
-    }
-
-    private static LayoutRect UnionBounds(LayoutRect left, LayoutRect right)
-    {
-        var x1 = MathF.Min(left.X, right.X);
-        var y1 = MathF.Min(left.Y, right.Y);
-        var x2 = MathF.Max(left.X + left.Width, right.X + right.Width);
-        var y2 = MathF.Max(left.Y + left.Height, right.Y + right.Height);
-        return new LayoutRect(x1, y1, MathF.Max(0f, x2 - x1), MathF.Max(0f, y2 - y1));
-    }
 }

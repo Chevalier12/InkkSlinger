@@ -89,7 +89,6 @@ public class Button : ContentControl
 
     public Button()
     {
-        Focusable = true;
     }
 
     public event System.EventHandler<RoutedSimpleEventArgs> Click
@@ -181,70 +180,6 @@ public class Button : ContentControl
         return desired;
     }
 
-    protected override void OnMouseEnter(RoutedMouseEventArgs args)
-    {
-        base.OnMouseEnter(args);
-        IsMouseOver = true;
-    }
-
-    protected override void OnMouseLeave(RoutedMouseEventArgs args)
-    {
-        base.OnMouseLeave(args);
-        IsMouseOver = false;
-    }
-
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        IsPressed = true;
-        CaptureMouse();
-        args.Handled = true;
-    }
-
-    protected override void OnMouseLeftButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonUp(args);
-
-        var shouldClick = IsPressed && HitTest(args.Position) && IsEnabled;
-        IsPressed = false;
-
-        if (InputManager.MouseCapturedElement == this)
-        {
-            ReleaseMouseCapture();
-        }
-
-        if (!shouldClick)
-        {
-            return;
-        }
-
-        OnClick();
-        args.Handled = true;
-    }
-
-    protected override void OnLostMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        base.OnLostMouseCapture(args);
-        IsPressed = false;
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-
-        if (!IsEnabled || (args.Key != Keys.Enter && args.Key != Keys.Space))
-        {
-            return;
-        }
-
-        OnClick();
-        args.Handled = true;
-    }
 
     protected virtual void OnClick()
     {
@@ -349,3 +284,4 @@ public class Button : ContentControl
         RaiseRoutedEvent(ClickEvent, args);
     }
 }
+

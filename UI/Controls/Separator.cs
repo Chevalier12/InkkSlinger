@@ -34,7 +34,6 @@ public class Separator : Control
 
     public Separator()
     {
-        Focusable = false;
         IsHitTestVisible = false;
     }
 

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -124,7 +123,6 @@ public class MenuItem : ItemsControl
 
     public MenuItem()
     {
-        Focusable = true;
     }
 
     public event EventHandler<RoutedSimpleEventArgs> Click
@@ -345,188 +343,10 @@ public class MenuItem : ItemsControl
         }
     }
 
-    protected override void OnMouseEnter(RoutedMouseEventArgs args)
-    {
-        base.OnMouseEnter(args);
 
-        IsHighlighted = true;
-        if (OwnerMenu?.IsMenuMode != true)
-        {
-            return;
-        }
 
-        if (IsTopLevelItem())
-        {
-            OwnerMenu.OpenFromHover(this);
-        }
-        else if (GetParentMenuItem() is { } parent)
-        {
-            parent.OpenChildFromHover(this);
-        }
-    }
 
-    protected override void OnMouseLeave(RoutedMouseEventArgs args)
-    {
-        base.OnMouseLeave(args);
 
-        if (!IsSubmenuOpen)
-        {
-            IsHighlighted = false;
-        }
-    }
-
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
-
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        Focus();
-        args.Handled = true;
-    }
-
-    protected override void OnMouseLeftButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonUp(args);
-
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        if (HasChildItems)
-        {
-            if (IsSubmenuOpen && IsTopLevelItem() && OwnerMenu?.IsMenuMode == true)
-            {
-                OwnerMenu.CloseAllSubmenus();
-                IsHighlighted = false;
-                args.Handled = true;
-                return;
-            }
-
-            OpenSubmenu(focusFirstItem: false);
-            OwnerMenu?.EnterMenuMode(this);
-            args.Handled = true;
-            return;
-        }
-
-        if (InvokeLeaf())
-        {
-            OwnerMenu?.NotifyLeafInvoked(this);
-            args.Handled = true;
-        }
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-
-        if (args.IsRepeat)
-        {
-            return;
-        }
-
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        var handled = false;
-
-        switch (args.Key)
-        {
-            case Keys.Enter:
-            case Keys.Space:
-                if (HasChildItems)
-                {
-                    OpenSubmenu(focusFirstItem: true);
-                    OwnerMenu?.EnterMenuMode(this);
-                }
-                else
-                {
-                    if (InvokeLeaf())
-                    {
-                        OwnerMenu?.NotifyLeafInvoked(this);
-                    }
-                }
-
-                handled = true;
-                break;
-
-            case Keys.Down:
-                if (HasChildItems)
-                {
-                    OpenSubmenu(focusFirstItem: true);
-                    OwnerMenu?.EnterMenuMode(this);
-                    handled = true;
-                    break;
-                }
-
-                if (!IsTopLevelItem())
-                {
-                    handled = MoveSibling(1);
-                }
-
-                break;
-
-            case Keys.Up:
-                if (!IsTopLevelItem())
-                {
-                    handled = MoveSibling(-1);
-                }
-
-                break;
-
-            case Keys.Right:
-                if (IsTopLevelItem())
-                {
-                    handled = OwnerMenu?.MoveAcrossTopLevel(this, 1, openSubmenu: OwnerMenu.IsMenuMode) == true;
-                    break;
-                }
-
-                if (HasChildItems)
-                {
-                    OpenSubmenu(focusFirstItem: true);
-                    OwnerMenu?.EnterMenuMode(this);
-                    handled = true;
-                }
-
-                break;
-
-            case Keys.Left:
-                if (IsTopLevelItem())
-                {
-                    handled = OwnerMenu?.MoveAcrossTopLevel(this, -1, openSubmenu: OwnerMenu.IsMenuMode) == true;
-                    break;
-                }
-
-                if (GetParentMenuItem() is { } parent)
-                {
-                    CloseSubmenuRecursive(clearHighlight: true);
-                    parent.IsSubmenuOpen = false;
-                    parent.Focus();
-                    parent.IsHighlighted = true;
-                    handled = true;
-                }
-
-                break;
-
-            case Keys.Escape:
-                OwnerMenu?.CloseAllSubmenus();
-                OwnerMenu?.ExitMenuMode();
-                OwnerMenu?.Focus();
-                handled = true;
-                break;
-        }
-
-        if (handled)
-        {
-            args.Handled = true;
-        }
-    }
 
     internal void SetOwnerMenu(Menu? ownerMenu)
     {
@@ -559,7 +379,6 @@ public class MenuItem : ItemsControl
             if (childItems.Count > 0)
             {
                 childItems[0].IsHighlighted = true;
-                childItems[0].Focus();
             }
         }
     }
@@ -673,7 +492,6 @@ public class MenuItem : ItemsControl
         }
 
         target.IsHighlighted = true;
-        target.Focus();
         return true;
     }
 

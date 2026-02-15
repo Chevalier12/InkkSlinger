@@ -6,6 +6,30 @@ var isPaintShellDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--paint-shell", global::System.StringComparison.OrdinalIgnoreCase));
 var isCommandingDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--commanding-demo", global::System.StringComparison.OrdinalIgnoreCase));
-var isTwoScrollViewersDemo = !isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isCommandingDemo;
-using var game = new InkkSlinger.Game1(isWindowDemo, isPaintShellDemo, isCommandingDemo, isTwoScrollViewersDemo);
+var isSimpleScrollViewerDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--simple-scroll-viewer", global::System.StringComparison.OrdinalIgnoreCase));
+var isSimpleStackPanelDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--simple-stack-panel", global::System.StringComparison.OrdinalIgnoreCase));
+var isScrollViewerTextBoxDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--scrollviewer-textbox-demo", global::System.StringComparison.OrdinalIgnoreCase));
+var isItemsPresenterDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--items-presenter-demo", global::System.StringComparison.OrdinalIgnoreCase));
+var isListBoxDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--listbox-demo", global::System.StringComparison.OrdinalIgnoreCase));
+var isTwoScrollViewersDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--two-scroll-viewers", global::System.StringComparison.OrdinalIgnoreCase));
+if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isCommandingDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo)
+{
+    isScrollViewerTextBoxDemo = true;
+}
+using var game = new InkkSlinger.Game1(
+    isWindowDemo,
+    isPaintShellDemo,
+    isCommandingDemo,
+    isTwoScrollViewersDemo,
+    isSimpleScrollViewerDemo,
+    isSimpleStackPanelDemo,
+    isScrollViewerTextBoxDemo,
+    isListBoxDemo,
+    isItemsPresenterDemo);
 game.Run();

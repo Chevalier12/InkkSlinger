@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0B1421"
+             BorderBrush="#2A4A66"
+             BorderThickness="1"
+             Padding="12">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Label Grid.Row="0"
+           Text="ScrollViewer + Tall TextBox Repro"
+           Foreground="#DCEEFF"
+           Margin="0,0,0,8" />
+
+    <Border Grid.Row="1"
+            Background="#0F1B2B"
+            BorderBrush="#2F506F"
+            BorderThickness="1"
+            Padding="10">
+      <ScrollViewer x:Name="DemoScrollViewer"
+                    Height="280"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto"
+                    Background="#0A1421"
+                    BorderBrush="#294764"
+                    BorderThickness="1">
+        <TextBox x:Name="DemoTextBox"
+                 Height="280"
+                 TextWrapping="Wrap"
+                 HorizontalScrollBarVisibility="Disabled"
+                 VerticalScrollBarVisibility="Auto"
+                 Background="#111111"
+                 BorderBrush="#444444"
+                 BorderThickness="10"
+                 Foreground="#DCEEFF"
+                 Padding="10" />
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</UserControl>

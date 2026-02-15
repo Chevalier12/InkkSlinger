@@ -120,7 +120,6 @@ public class ProgressBar : Control
 
     public ProgressBar()
     {
-        Focusable = false;
         IsHitTestVisible = false;
     }
 

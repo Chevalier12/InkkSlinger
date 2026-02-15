@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -123,12 +122,9 @@ public class Expander : ContentControl
     private UIElement? _headerElement;
     private LayoutRect _headerRect;
     private LayoutRect _contentRect;
-    private bool _isHeaderPressed;
 
     public Expander()
     {
-        Focusable = true;
-        Cursor = UiCursor.Hand;
     }
 
     public event EventHandler<RoutedSimpleEventArgs> Expanded
@@ -295,64 +291,9 @@ public class Expander : ContentControl
         }
     }
 
-    protected override void OnMouseLeftButtonDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonDown(args);
-        if (!IsEnabled)
-        {
-            return;
-        }
 
-        if (!Contains(_headerRect, args.Position))
-        {
-            return;
-        }
 
-        _isHeaderPressed = true;
-        Focus();
-        CaptureMouse();
-        args.Handled = true;
-    }
 
-    protected override void OnMouseLeftButtonUp(RoutedMouseButtonEventArgs args)
-    {
-        base.OnMouseLeftButtonUp(args);
-        var shouldToggle = _isHeaderPressed && Contains(_headerRect, args.Position);
-        _isHeaderPressed = false;
-        if (ReferenceEquals(InputManager.MouseCapturedElement, this))
-        {
-            ReleaseMouseCapture();
-        }
-
-        if (!shouldToggle || !IsEnabled)
-        {
-            return;
-        }
-
-        IsExpanded = !IsExpanded;
-        args.Handled = true;
-    }
-
-    protected override void OnLostMouseCapture(RoutedMouseCaptureEventArgs args)
-    {
-        base.OnLostMouseCapture(args);
-        _isHeaderPressed = false;
-    }
-
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        if (args.Key == Keys.Enter || args.Key == Keys.Space)
-        {
-            IsExpanded = !IsExpanded;
-            args.Handled = true;
-        }
-    }
 
     private Vector2 MeasureHeader(Vector2 availableSize)
     {

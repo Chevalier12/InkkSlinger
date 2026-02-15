@@ -1,16 +1,12 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace InkkSlinger;
 
 public class ListBox : Selector
 {
-    private static readonly bool EnableListBoxTrace = false;
-
     public static readonly DependencyProperty HorizontalScrollBarVisibilityProperty =
         DependencyProperty.Register(
             nameof(HorizontalScrollBarVisibility),
@@ -60,16 +56,18 @@ public class ListBox : Selector
                 coerceValueCallback: static (_, value) => value is float f && f >= 0f ? f : 0f));
 
     private readonly ScrollViewer _scrollViewer;
-    private readonly ItemsPresenter _itemsPresenter;
+    private readonly StackPanel _itemsHost;
 
     public ListBox()
     {
-        Focusable = true;
-
-        _itemsPresenter = new ItemsPresenter();
+        _itemsHost = new StackPanel
+        {
+            Orientation = Orientation.Vertical
+        };
+        AttachItemsHost(_itemsHost);
         _scrollViewer = new ScrollViewer
         {
-            Content = _itemsPresenter,
+            Content = _itemsHost,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             LineScrollAmount = 24f,
@@ -166,7 +164,7 @@ public class ListBox : Selector
 
         if (element is ListBoxItem listBoxItem)
         {
-            listBoxItem.IsSelected = SelectedIndices.Contains(index);
+            listBoxItem.IsSelected = IsSelectedIndex(SelectedIndices, index);
         }
     }
 
@@ -184,42 +182,9 @@ public class ListBox : Selector
         }
     }
 
-    protected override void OnPreviewMouseDown(RoutedMouseButtonEventArgs args)
-    {
-        base.OnPreviewMouseDown(args);
-
-        if (!IsEnabled || args.Button != MouseButton.Left)
-        {
-            return;
-        }
-
-        var controlPressed = (args.Modifiers & ModifierKeys.Control) != 0;
-        var shiftPressed = (args.Modifiers & ModifierKeys.Shift) != 0;
-
-        var source = args.OriginalSource;
-        var selectedIndex = -1;
-        while (source != null && !ReferenceEquals(source, this))
-        {
-            selectedIndex = IndexFromContainer(source);
-            if (selectedIndex >= 0)
-            {
-                break;
-            }
-
-            source = source.VisualParent;
-        }
-
-        if (selectedIndex >= 0)
-        {
-            ApplySelectionFromInput(selectedIndex, shiftPressed, controlPressed);
-            Focus();
-        }
-    }
-
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);
-        Trace($"DependencyChanged {args.Property.Name} old={args.OldValue ?? "null"} new={args.NewValue ?? "null"}");
 
         if (args.Property == HorizontalScrollBarVisibilityProperty && args.NewValue is ScrollBarVisibility h)
         {
@@ -235,149 +200,27 @@ public class ListBox : Selector
         }
     }
 
-    protected override void OnKeyDown(RoutedKeyEventArgs args)
-    {
-        base.OnKeyDown(args);
-
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        // Ignore auto-repeat navigation pulses so a single press advances one item.
-        if (args.IsRepeat)
-        {
-            return;
-        }
-
-        var handled = false;
-        var selected = SelectedIndex;
-        var shiftPressed = (args.Modifiers & ModifierKeys.Shift) != 0;
-        var targetIndex = -1;
-
-        if (args.Key == Keys.Up)
-        {
-            targetIndex = System.Math.Max(0, selected - 1);
-        }
-        else if (args.Key == Keys.Down)
-        {
-            var next = selected < 0 ? 0 : selected + 1;
-            targetIndex = System.Math.Min(Items.Count - 1, next);
-        }
-        else if (args.Key == Keys.Home)
-        {
-            targetIndex = 0;
-        }
-        else if (args.Key == Keys.End)
-        {
-            targetIndex = Items.Count - 1;
-        }
-
-        if (targetIndex >= 0)
-        {
-            if (SelectionMode == SelectionMode.Multiple && shiftPressed)
-            {
-                var anchor = GetSelectionAnchorIndexInternal();
-                if (anchor < 0)
-                {
-                    anchor = selected >= 0 ? selected : targetIndex;
-                    SetSelectionAnchorInternal(anchor);
-                }
-
-                SelectRangeInternal(anchor, targetIndex, clearExisting: true);
-            }
-            else
-            {
-                if (SelectionMode == SelectionMode.Multiple)
-                {
-                    SelectRangeInternal(targetIndex, targetIndex, clearExisting: true);
-                }
-                else
-                {
-                    SetSelectedIndexInternal(targetIndex);
-                }
-
-                SetSelectionAnchorInternal(targetIndex);
-            }
-
-            handled = true;
-        }
-
-        if (handled)
-        {
-            args.Handled = true;
-        }
-    }
-
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        Trace($"Measure start available={availableSize} items={Items.Count} containers={ItemContainers.Count}");
-        var desired = base.MeasureOverride(availableSize);
-
         var border = BorderThickness * 2f;
         var innerWidth = MathF.Max(0f, availableSize.X - border);
         var innerHeight = MathF.Max(0f, availableSize.Y - border);
 
         _scrollViewer.Measure(new Vector2(innerWidth, innerHeight));
         var scrollDesired = _scrollViewer.DesiredSize;
-
-        desired.X = MathF.Max(desired.X, scrollDesired.X + border);
-        desired.Y = MathF.Max(desired.Y, scrollDesired.Y + border);
-        Trace($"Measure end desired={desired} scrollDesired={scrollDesired}");
-        return desired;
+        return new Vector2(
+            MathF.Max(0f, scrollDesired.X + border),
+            MathF.Max(0f, scrollDesired.Y + border));
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
-        Trace($"Arrange start final={finalSize} items={Items.Count} containers={ItemContainers.Count}");
-        base.ArrangeOverride(finalSize);
-
         var border = BorderThickness;
         var width = MathF.Max(0f, finalSize.X - (border * 2f));
         var height = MathF.Max(0f, finalSize.Y - (border * 2f));
         _scrollViewer.Arrange(new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, width, height));
-        Trace($"Arrange end viewport=({width:0.##},{height:0.##})");
 
         return finalSize;
-    }
-
-    private void ApplySelectionFromInput(int selectedIndex, bool shiftPressed, bool controlPressed)
-    {
-        if (SelectionMode != SelectionMode.Multiple)
-        {
-            SetSelectedIndexInternal(selectedIndex);
-            SetSelectionAnchorInternal(selectedIndex);
-            return;
-        }
-
-        if (shiftPressed)
-        {
-            var anchor = GetSelectionAnchorIndexInternal();
-            if (anchor < 0)
-            {
-                anchor = SelectedIndex >= 0 ? SelectedIndex : selectedIndex;
-                SetSelectionAnchorInternal(anchor);
-            }
-
-            SelectRangeInternal(anchor, selectedIndex, clearExisting: !controlPressed);
-            return;
-        }
-
-        if (controlPressed)
-        {
-            ToggleSelectedIndexInternal(selectedIndex);
-            SetSelectionAnchorInternal(selectedIndex);
-            return;
-        }
-
-        if (SelectedIndices.Contains(selectedIndex))
-        {
-            ToggleSelectedIndexInternal(selectedIndex);
-            return;
-        }
-
-        SelectRangeInternal(selectedIndex, selectedIndex, clearExisting: true);
-        SetSelectionAnchorInternal(selectedIndex);
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -391,13 +234,22 @@ public class ListBox : Selector
         }
     }
 
-    private void Trace(string message)
+    protected override bool TryGetClipRect(out LayoutRect clipRect)
     {
-        if (!EnableListBoxTrace)
+        clipRect = LayoutSlot;
+        return true;
+    }
+
+    private static bool IsSelectedIndex(IReadOnlyList<int> selectedIndices, int index)
+    {
+        for (var i = 0; i < selectedIndices.Count; i++)
         {
-            return;
+            if (selectedIndices[i] == index)
+            {
+                return true;
+            }
         }
 
-        Console.WriteLine($"[ListBox#{GetHashCode():X8}] t={Environment.TickCount64} {message}");
+        return false;
     }
 }

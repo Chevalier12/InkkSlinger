@@ -110,6 +110,11 @@ public class AdornerLayer : Panel
             return false;
         }
 
+        if (!IsPointVisibleThroughClipChain(point))
+        {
+            return false;
+        }
+
         foreach (var child in Children)
         {
             if (child.HitTest(point))

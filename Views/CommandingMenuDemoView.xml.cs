@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -22,7 +21,6 @@ public partial class CommandingMenuDemoView : UserControl
         WireCommanding();
         WireInputBindings();
 
-        EditorTextBox?.Focus();
         AppendLog("Ready. Try Alt+F, Ctrl+N, and switching focus between Editor/Side.");
         UpdateStatus("Demo initialized.");
     }
@@ -131,19 +129,7 @@ public partial class CommandingMenuDemoView : UserControl
 
     private void WireInputBindings()
     {
-        var target = (UIElement?)EditorTextBox ?? this;
-
-        InputBindings.Add(new InputBinding(new KeyGesture(Keys.N, ModifierKeys.Control), _newCommand)
-        {
-            CommandTarget = target
-        });
-
-        InputBindings.Add(new InputBinding(new KeyGesture(Keys.O, ModifierKeys.Control), _openCommand)
-        {
-            CommandTarget = target
-        });
-
-        // Intentional: rely on Menu host preview handling for Alt+F access key, not an input binding.
+        // Input pipeline removed in render/layout-only mode.
     }
 
     private void OnAlwaysCanExecute(object? sender, CanExecuteRoutedEventArgs args)
@@ -155,27 +141,8 @@ public partial class CommandingMenuDemoView : UserControl
     private void OnOpenCanExecute(object? sender, CanExecuteRoutedEventArgs args)
     {
         var allowToggle = AllowOpenCheckBox?.IsChecked == true;
-        args.CanExecute = allowToggle && IsFocusedInEditor();
+        args.CanExecute = allowToggle;
         args.Handled = true;
-    }
-
-    private bool IsFocusedInEditor()
-    {
-        if (EditorTextBox == null)
-        {
-            return false;
-        }
-
-        var focused = FocusManager.FocusedElement;
-        for (var current = focused; current != null; current = current.VisualParent ?? current.LogicalParent)
-        {
-            if (ReferenceEquals(current, EditorTextBox))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private void OnNewExecuted(object? sender, ExecutedRoutedEventArgs args)
