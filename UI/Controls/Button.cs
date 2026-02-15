@@ -283,5 +283,30 @@ public class Button : ContentControl
         var args = new RoutedSimpleEventArgs(ClickEvent);
         RaiseRoutedEvent(ClickEvent, args);
     }
+
+    internal void SetMouseOverFromInput(bool isMouseOver)
+    {
+        if (IsMouseOver == isMouseOver)
+        {
+            return;
+        }
+
+        IsMouseOver = isMouseOver;
+    }
+
+    internal void SetPressedFromInput(bool isPressed)
+    {
+        if (IsPressed == isPressed)
+        {
+            return;
+        }
+
+        IsPressed = isPressed;
+    }
+
+    internal void InvokeFromInput()
+    {
+        OnClick();
+    }
 }
 

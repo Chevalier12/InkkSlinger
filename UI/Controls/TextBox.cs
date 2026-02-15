@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Text;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -170,6 +171,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
     private bool _isUpdatingTextFromEditor;
     private bool _isDraggingVerticalThumb;
     private bool _isDraggingHorizontalThumb;
+    private bool _isSelectingWithPointer;
     private float _verticalThumbDragOffset;
     private float _horizontalThumbDragOffset;
     private bool _hasPendingTextSync;
@@ -3610,6 +3612,232 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         }
 
         private readonly record struct Segment(string Source, int Start, int Length);
+    }
+
+    internal void SetMouseOverFromInput(bool isMouseOver)
+    {
+        if (IsMouseOver == isMouseOver)
+        {
+            return;
+        }
+
+        IsMouseOver = isMouseOver;
+    }
+
+    internal void SetFocusedFromInput(bool isFocused)
+    {
+        if (IsFocused == isFocused)
+        {
+            return;
+        }
+
+        IsFocused = isFocused;
+        _caretBlinkSeconds = 0f;
+        _isCaretVisible = isFocused;
+        _isSelectingWithPointer = false;
+        if (!isFocused)
+        {
+            EndScrollBarDrag();
+        }
+
+        InvalidateVisual();
+    }
+
+    internal bool HandleTextInputFromInput(char character)
+    {
+        if (!IsEnabled || !IsFocused || IsReadOnly)
+        {
+            return false;
+        }
+
+        if (!TryMapTextInput(character, out var text))
+        {
+            return false;
+        }
+
+        if (!InsertTextIntoEditor(text))
+        {
+            return false;
+        }
+
+        CommitEditorText(_editor.ConsumeLastEditDelta());
+        MarkTextMutationActivity();
+        _preferredCaretX = -1f;
+        ScheduleEnsureCaretVisible();
+        _caretBlinkSeconds = 0f;
+        _isCaretVisible = true;
+        return true;
+    }
+
+    internal bool HandleKeyDownFromInput(Keys key, ModifierKeys modifiers)
+    {
+        if (!IsEnabled || !IsFocused)
+        {
+            return false;
+        }
+
+        var ctrl = (modifiers & ModifierKeys.Control) != 0;
+        var shift = (modifiers & ModifierKeys.Shift) != 0;
+        var changed = false;
+        var moved = false;
+        var mutationStart = Stopwatch.GetTimestamp();
+        long editTicks = 0L;
+        long commitTicks = 0L;
+        long ensureTicks = 0L;
+
+        switch (key)
+        {
+            case Keys.Left:
+                moved = _editor.MoveCaretLeft(extendSelection: shift, byWord: ctrl);
+                break;
+            case Keys.Right:
+                moved = _editor.MoveCaretRight(extendSelection: shift, byWord: ctrl);
+                break;
+            case Keys.Home:
+                moved = _editor.MoveCaretHome(extendSelection: shift);
+                break;
+            case Keys.End:
+                moved = _editor.MoveCaretEnd(extendSelection: shift);
+                break;
+            case Keys.Up:
+                moved = MoveCaretVertical(-1, extendSelection: shift);
+                break;
+            case Keys.Down:
+                moved = MoveCaretVertical(1, extendSelection: shift);
+                break;
+            case Keys.A:
+                if (ctrl)
+                {
+                    _editor.SelectAll();
+                    moved = true;
+                }
+
+                break;
+            case Keys.Back:
+                if (!IsReadOnly)
+                {
+                    var editStart = Stopwatch.GetTimestamp();
+                    changed = _editor.Backspace(byWord: ctrl);
+                    editTicks = Stopwatch.GetTimestamp() - editStart;
+                }
+
+                break;
+            case Keys.Delete:
+                if (!IsReadOnly)
+                {
+                    var editStart = Stopwatch.GetTimestamp();
+                    changed = _editor.Delete(byWord: ctrl);
+                    editTicks = Stopwatch.GetTimestamp() - editStart;
+                }
+
+                break;
+            case Keys.Enter:
+                if (!IsReadOnly)
+                {
+                    var editStart = Stopwatch.GetTimestamp();
+                    changed = InsertTextIntoEditor(Environment.NewLine);
+                    editTicks = Stopwatch.GetTimestamp() - editStart;
+                }
+
+                break;
+        }
+
+        if (changed)
+        {
+            var commitStart = Stopwatch.GetTimestamp();
+            CommitEditorText(_editor.ConsumeLastEditDelta());
+            commitTicks = Stopwatch.GetTimestamp() - commitStart;
+            MarkTextMutationActivity();
+        }
+
+        if (changed || moved)
+        {
+            _preferredCaretX = -1f;
+            var ensureStart = Stopwatch.GetTimestamp();
+            EnsureCaretVisible();
+            ensureTicks = Stopwatch.GetTimestamp() - ensureStart;
+            _caretBlinkSeconds = 0f;
+            _isCaretVisible = true;
+            InvalidateVisual();
+        }
+
+        if (changed)
+        {
+            RecordInputMutationTiming(
+                Stopwatch.GetTimestamp() - mutationStart,
+                editTicks,
+                commitTicks,
+                ensureTicks);
+        }
+
+        return changed || moved;
+    }
+
+    internal bool HandlePointerDownFromInput(Vector2 pointerPosition, bool extendSelection)
+    {
+        if (!IsEnabled)
+        {
+            return false;
+        }
+
+        var index = GetTextIndexFromPoint(pointerPosition);
+        _editor.SetCaret(index, extendSelection);
+        _isSelectingWithPointer = true;
+        _preferredCaretX = -1f;
+        EnsureCaretVisible();
+        _caretBlinkSeconds = 0f;
+        _isCaretVisible = true;
+        InvalidateVisual();
+        return true;
+    }
+
+    internal bool HandlePointerMoveFromInput(Vector2 pointerPosition)
+    {
+        if (!IsEnabled || !IsFocused || !_isSelectingWithPointer)
+        {
+            return false;
+        }
+
+        var index = GetTextIndexFromPoint(pointerPosition);
+        _editor.SetCaret(index, extendSelection: true);
+        _preferredCaretX = -1f;
+        EnsureCaretVisible();
+        _caretBlinkSeconds = 0f;
+        _isCaretVisible = true;
+        InvalidateVisual();
+        return true;
+    }
+
+    internal bool HandlePointerUpFromInput()
+    {
+        if (!_isSelectingWithPointer)
+        {
+            return false;
+        }
+
+        _isSelectingWithPointer = false;
+        return true;
+    }
+
+    internal bool HandleMouseWheelFromInput(int delta)
+    {
+        if (!IsEnabled || delta == 0)
+        {
+            return false;
+        }
+
+        var before = _verticalOffset;
+        var direction = delta > 0 ? -1f : 1f;
+        _verticalOffset += direction * MathF.Max(16f, GetLineHeight() * 3f);
+        var view = BuildTextViewportState();
+        ClampOffsets(view.Layout, view.ViewportRect);
+        if (MathF.Abs(before - _verticalOffset) <= 0.001f)
+        {
+            return false;
+        }
+
+        InvalidateVisual();
+        return true;
     }
 
     private readonly record struct TextViewportLayoutState(

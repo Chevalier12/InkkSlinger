@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -41,6 +42,13 @@ public sealed class UiRoot
     private readonly IRenderCachePolicy _renderCachePolicy = new DefaultRenderCachePolicy();
     private readonly RenderCacheStore _renderCacheStore = new(MaxElementRenderCacheCount, MaxElementRenderCacheBytes);
     private readonly List<LayoutRect> _lastFrameCachedSubtreeBounds = new();
+    private readonly InputManager _inputManager = new();
+    private readonly InputDispatchState _inputState = new();
+    private int _lastInputHitTestCount;
+    private int _lastInputRoutedEventCount;
+    private int _lastInputKeyEventCount;
+    private int _lastInputTextEventCount;
+    private int _lastInputPointerEventCount;
     private SpriteBatch? _cacheSpriteBatch;
     private long _lastRenderCacheCounterTraceTimestamp;
     private bool _hasMeasureInvalidation;
@@ -174,6 +182,17 @@ public sealed class UiRoot
 
     public UiRedrawReason LastDrawReasons { get; private set; }
 
+    public UiInputMetricsSnapshot GetInputMetricsSnapshot()
+    {
+        return new UiInputMetricsSnapshot(
+            LastInputPhaseMs,
+            _lastInputHitTestCount,
+            _lastInputRoutedEventCount,
+            _lastInputKeyEventCount,
+            _lastInputTextEventCount,
+            _lastInputPointerEventCount);
+    }
+
     public UiRootMetricsSnapshot GetMetricsSnapshot()
     {
         return new UiRootMetricsSnapshot(
@@ -225,6 +244,11 @@ public sealed class UiRoot
     public void EnqueueDeferredOperation(Action operation)
     {
         Dispatcher.EnqueueDeferred(operation);
+    }
+
+    public void EnqueueTextInput(char character)
+    {
+        _inputManager.EnqueueTextInput(character);
     }
 
     public bool ShouldDrawThisFrame(GameTime gameTime, Viewport viewport, GraphicsDevice? graphicsDevice = null)
@@ -578,7 +602,392 @@ public sealed class UiRoot
 
     private void RunInputAndEventsPhase(GameTime gameTime)
     {
+        _lastInputHitTestCount = 0;
+        _lastInputRoutedEventCount = 0;
+        _lastInputKeyEventCount = 0;
+        _lastInputTextEventCount = 0;
+        _lastInputPointerEventCount = 0;
+
+        var enableInputPipeline = !string.Equals(
+            Environment.GetEnvironmentVariable("INKKSLINGER_ENABLE_INPUT_PIPELINE"),
+            "0",
+            StringComparison.Ordinal);
+        if (enableInputPipeline)
+        {
+            ProcessInputDelta(_inputManager.Capture());
+        }
+
         _visualRoot.Update(gameTime);
+    }
+
+    private void ProcessInputDelta(InputDelta delta)
+    {
+        _inputState.CurrentModifiers = GetModifiers(delta.Current.Keyboard);
+        var pointerTarget = ResolvePointerTarget(delta);
+        if (delta.PointerMoved)
+        {
+            var previousHovered = _inputState.HoveredElement;
+            UpdateHover(pointerTarget);
+            var shouldRouteMove = !ReferenceEquals(previousHovered, _inputState.HoveredElement) ||
+                                  _inputState.CapturedPointerElement != null ||
+                                  string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_ALWAYS_ROUTE_MOUSEMOVE"), "1", StringComparison.Ordinal);
+            if (shouldRouteMove)
+            {
+                DispatchPointerMove(pointerTarget, delta.Current.PointerPosition);
+            }
+        }
+
+        if (delta.LeftPressed)
+        {
+            DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
+        }
+
+        if (delta.LeftReleased)
+        {
+            DispatchMouseUp(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
+        }
+
+        if (delta.WheelDelta != 0)
+        {
+            DispatchMouseWheel(pointerTarget, delta.Current.PointerPosition, delta.WheelDelta);
+        }
+
+        if (delta.IsEmpty)
+        {
+            return;
+        }
+
+        for (var i = 0; i < delta.PressedKeys.Count; i++)
+        {
+            DispatchKeyDown(delta.PressedKeys[i], _inputState.CurrentModifiers);
+        }
+
+        for (var i = 0; i < delta.ReleasedKeys.Count; i++)
+        {
+            DispatchKeyUp(delta.ReleasedKeys[i], _inputState.CurrentModifiers);
+        }
+
+        for (var i = 0; i < delta.TextInput.Count; i++)
+        {
+            DispatchTextInput(delta.TextInput[i]);
+        }
+    }
+
+    private UIElement? ResolvePointerTarget(InputDelta delta)
+    {
+        if (_inputState.CapturedPointerElement != null)
+        {
+            return _inputState.CapturedPointerElement;
+        }
+
+        if (!delta.PointerMoved &&
+            !delta.LeftPressed &&
+            !delta.LeftReleased &&
+            delta.WheelDelta == 0)
+        {
+            return _inputState.HoveredElement;
+        }
+
+        _lastInputHitTestCount++;
+        return VisualTreeHelper.HitTest(_visualRoot, delta.Current.PointerPosition);
+    }
+
+    private void UpdateHover(UIElement? hovered)
+    {
+        if (ReferenceEquals(_inputState.HoveredElement, hovered))
+        {
+            return;
+        }
+
+        if (_inputState.HoveredElement is TextBox oldTextBox)
+        {
+            oldTextBox.SetMouseOverFromInput(false);
+        }
+
+        if (_inputState.HoveredElement is Button oldButton)
+        {
+            oldButton.SetMouseOverFromInput(false);
+        }
+
+        _inputState.HoveredElement = hovered;
+        if (hovered is TextBox newTextBox)
+        {
+            newTextBox.SetMouseOverFromInput(true);
+        }
+
+        if (hovered is Button newButton)
+        {
+            newButton.SetMouseOverFromInput(true);
+        }
+    }
+
+    private void DispatchPointerMove(UIElement? target, Vector2 pointerPosition)
+    {
+        var routedTarget = _inputState.CapturedPointerElement ?? target;
+        if (routedTarget == null)
+        {
+            return;
+        }
+
+        _lastInputPointerEventCount++;
+        _lastInputRoutedEventCount += 2;
+        routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseMoveEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseMoveEvent, pointerPosition, MouseButton.Left));
+        routedTarget.RaiseRoutedEventInternal(UIElement.MouseMoveEvent, new MouseRoutedEventArgs(UIElement.MouseMoveEvent, pointerPosition, MouseButton.Left));
+
+        if (_inputState.CapturedPointerElement is TextBox dragTextBox)
+        {
+            dragTextBox.HandlePointerMoveFromInput(pointerPosition);
+        }
+    }
+
+    private void DispatchMouseDown(UIElement? target, Vector2 pointerPosition, MouseButton button)
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        _lastInputPointerEventCount++;
+        _lastInputRoutedEventCount += 2;
+        target.RaiseRoutedEventInternal(UIElement.PreviewMouseDownEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseDownEvent, pointerPosition, button));
+        target.RaiseRoutedEventInternal(UIElement.MouseDownEvent, new MouseRoutedEventArgs(UIElement.MouseDownEvent, pointerPosition, button));
+        SetFocus(target);
+
+        if (target is Button pressedButton)
+        {
+            pressedButton.SetPressedFromInput(true);
+            CapturePointer(target);
+        }
+        else if (target is TextBox textBox)
+        {
+            textBox.HandlePointerDownFromInput(pointerPosition, extendSelection: (_inputState.CurrentModifiers & ModifierKeys.Shift) != 0);
+            CapturePointer(target);
+        }
+    }
+
+    private void DispatchMouseUp(UIElement? target, Vector2 pointerPosition, MouseButton button)
+    {
+        var routedTarget = _inputState.CapturedPointerElement ?? target;
+        if (routedTarget == null)
+        {
+            return;
+        }
+
+        _lastInputPointerEventCount++;
+        _lastInputRoutedEventCount += 2;
+        routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseUpEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseUpEvent, pointerPosition, button));
+        routedTarget.RaiseRoutedEventInternal(UIElement.MouseUpEvent, new MouseRoutedEventArgs(UIElement.MouseUpEvent, pointerPosition, button));
+
+        if (_inputState.CapturedPointerElement is Button pressedButton)
+        {
+            var shouldInvoke = ReferenceEquals(target, pressedButton);
+            pressedButton.SetPressedFromInput(false);
+            if (shouldInvoke)
+            {
+                pressedButton.InvokeFromInput();
+            }
+        }
+        else if (_inputState.CapturedPointerElement is TextBox textBox)
+        {
+            textBox.HandlePointerUpFromInput();
+        }
+
+        ReleasePointer(_inputState.CapturedPointerElement);
+    }
+
+    private void DispatchMouseWheel(UIElement? target, Vector2 pointerPosition, int delta)
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        _lastInputPointerEventCount++;
+        _lastInputRoutedEventCount += 2;
+        target.RaiseRoutedEventInternal(UIElement.PreviewMouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
+        target.RaiseRoutedEventInternal(UIElement.MouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.MouseWheelEvent, pointerPosition, delta));
+
+        if (TryFindAncestor<TextBox>(target, out var textBox) &&
+            textBox != null &&
+            textBox.HandleMouseWheelFromInput(delta))
+        {
+            return;
+        }
+
+        if (TryFindAncestor<ScrollViewer>(target, out var scrollViewer) && scrollViewer != null)
+        {
+            _ = scrollViewer.HandleMouseWheelFromInput(delta);
+        }
+    }
+
+    private void DispatchKeyDown(Keys key, ModifierKeys modifiers)
+    {
+        var target = _inputState.FocusedElement ?? _visualRoot;
+        _lastInputKeyEventCount++;
+        _lastInputRoutedEventCount += 2;
+        target.RaiseRoutedEventInternal(UIElement.PreviewKeyDownEvent, new KeyRoutedEventArgs(UIElement.PreviewKeyDownEvent, key, modifiers));
+        target.RaiseRoutedEventInternal(UIElement.KeyDownEvent, new KeyRoutedEventArgs(UIElement.KeyDownEvent, key, modifiers));
+
+        if ((modifiers & ModifierKeys.Alt) != 0 && key is >= Keys.A and <= Keys.Z)
+        {
+            var accessKey = (char)('A' + (int)(key - Keys.A));
+            if (TryHandleMenuAccessKey(accessKey))
+            {
+                return;
+            }
+        }
+
+        if (_inputState.FocusedElement is TextBox textBox && textBox.HandleKeyDownFromInput(key, modifiers))
+        {
+            return;
+        }
+
+        if (_inputState.FocusedElement is Button button && (key == Keys.Enter || key == Keys.Space))
+        {
+            button.InvokeFromInput();
+            return;
+        }
+
+        if (_inputState.FocusedElement is Menu focusedMenu && focusedMenu.TryHandleKeyDownFromInput(key))
+        {
+            return;
+        }
+
+        _ = InputGestureService.Execute(key, modifiers);
+    }
+
+    private void DispatchKeyUp(Keys key, ModifierKeys modifiers)
+    {
+        var target = _inputState.FocusedElement ?? _visualRoot;
+        _lastInputKeyEventCount++;
+        _lastInputRoutedEventCount += 2;
+        target.RaiseRoutedEventInternal(UIElement.PreviewKeyUpEvent, new KeyRoutedEventArgs(UIElement.PreviewKeyUpEvent, key, modifiers));
+        target.RaiseRoutedEventInternal(UIElement.KeyUpEvent, new KeyRoutedEventArgs(UIElement.KeyUpEvent, key, modifiers));
+    }
+
+    private void DispatchTextInput(char character)
+    {
+        var focused = _inputState.FocusedElement;
+        if (focused == null)
+        {
+            return;
+        }
+
+        _lastInputTextEventCount++;
+        _lastInputRoutedEventCount += 2;
+        focused.RaiseRoutedEventInternal(UIElement.PreviewTextInputEvent, new TextInputRoutedEventArgs(UIElement.PreviewTextInputEvent, character));
+        focused.RaiseRoutedEventInternal(UIElement.TextInputEvent, new TextInputRoutedEventArgs(UIElement.TextInputEvent, character));
+
+        if (focused is TextBox textBox)
+        {
+            _ = textBox.HandleTextInputFromInput(character);
+        }
+    }
+
+    private void SetFocus(UIElement? element)
+    {
+        if (ReferenceEquals(_inputState.FocusedElement, element))
+        {
+            return;
+        }
+
+        var old = _inputState.FocusedElement;
+        _inputState.FocusedElement = element;
+        FocusManager.SetFocus(element);
+
+        if (old is TextBox oldTextBox)
+        {
+            oldTextBox.SetFocusedFromInput(false);
+            old.RaiseRoutedEventInternal(UIElement.LostFocusEvent, new FocusChangedRoutedEventArgs(UIElement.LostFocusEvent, old, element));
+            _lastInputRoutedEventCount++;
+        }
+
+        if (element is TextBox newTextBox)
+        {
+            newTextBox.SetFocusedFromInput(true);
+            element.RaiseRoutedEventInternal(UIElement.GotFocusEvent, new FocusChangedRoutedEventArgs(UIElement.GotFocusEvent, old, element));
+            _lastInputRoutedEventCount++;
+        }
+    }
+
+    private void CapturePointer(UIElement? element)
+    {
+        _inputState.CapturedPointerElement = element;
+        FocusManager.CapturePointer(element);
+    }
+
+    private void ReleasePointer(UIElement? element)
+    {
+        if (!ReferenceEquals(_inputState.CapturedPointerElement, element))
+        {
+            return;
+        }
+
+        _inputState.CapturedPointerElement = null;
+        FocusManager.ReleasePointer(element);
+    }
+
+    private bool TryHandleMenuAccessKey(char accessKey)
+    {
+        var menu = FindFirstVisualOfType<Menu>(_visualRoot);
+        return menu != null && menu.TryHandleAccessKeyFromInput(accessKey);
+    }
+
+    private static ModifierKeys GetModifiers(KeyboardState keyboard)
+    {
+        var modifiers = ModifierKeys.None;
+        if (keyboard.IsKeyDown(Keys.LeftShift) || keyboard.IsKeyDown(Keys.RightShift))
+        {
+            modifiers |= ModifierKeys.Shift;
+        }
+
+        if (keyboard.IsKeyDown(Keys.LeftControl) || keyboard.IsKeyDown(Keys.RightControl))
+        {
+            modifiers |= ModifierKeys.Control;
+        }
+
+        if (keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt))
+        {
+            modifiers |= ModifierKeys.Alt;
+        }
+
+        return modifiers;
+    }
+
+    private static bool TryFindAncestor<TElement>(UIElement start, out TElement? result)
+        where TElement : UIElement
+    {
+        for (var current = start; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is TElement typed)
+            {
+                result = typed;
+                return true;
+            }
+        }
+
+        result = null;
+        return false;
+    }
+
+    private static TElement? FindFirstVisualOfType<TElement>(UIElement root)
+        where TElement : UIElement
+    {
+        if (root is TElement match)
+        {
+            return match;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindFirstVisualOfType<TElement>(child);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private void RunBindingAndDeferredPhase()
@@ -1784,3 +2193,11 @@ public readonly record struct UiRootMetricsSnapshot(
     bool UseRetainedRenderList,
     bool UseDirtyRegionRendering,
     bool UseConditionalDrawScheduling);
+
+public readonly record struct UiInputMetricsSnapshot(
+    double LastInputPhaseMilliseconds,
+    int HitTestCount,
+    int RoutedEventCount,
+    int KeyEventCount,
+    int TextEventCount,
+    int PointerEventCount);

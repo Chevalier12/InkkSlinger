@@ -20,7 +20,7 @@ var isTwoScrollViewersDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--two-scroll-viewers", global::System.StringComparison.OrdinalIgnoreCase));
 if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isCommandingDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo)
 {
-    isScrollViewerTextBoxDemo = true;
+    isTwoScrollViewersDemo = true;
 }
 using var game = new InkkSlinger.Game1(
     isWindowDemo,

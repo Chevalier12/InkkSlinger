@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -446,6 +447,73 @@ public class Menu : ItemsControl
         }
 
         return false;
+    }
+
+    internal bool TryHandleAccessKeyFromInput(char accessKey)
+    {
+        var target = FindTopLevelAccessKeyTarget(char.ToUpperInvariant(accessKey));
+        if (target == null)
+        {
+            return false;
+        }
+
+        EnterMenuMode(target);
+        target.OpenSubmenu(focusFirstItem: false);
+        return true;
+    }
+
+    internal bool TryHandleKeyDownFromInput(Keys key)
+    {
+        if (!_isMenuMode)
+        {
+            return false;
+        }
+
+        var current = GetHighlightedTopLevelItem();
+        switch (key)
+        {
+            case Keys.Escape:
+                CloseAllSubmenus();
+                return true;
+            case Keys.Left:
+                if (current != null)
+                {
+                    return MoveAcrossTopLevel(current, -1, openSubmenu: true);
+                }
+
+                return false;
+            case Keys.Right:
+                if (current != null)
+                {
+                    return MoveAcrossTopLevel(current, 1, openSubmenu: true);
+                }
+
+                return false;
+            case Keys.Enter:
+                if (current != null)
+                {
+                    current.OpenSubmenu(focusFirstItem: true);
+                    return true;
+                }
+
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    private MenuItem? GetHighlightedTopLevelItem()
+    {
+        var items = GetTopLevelItems();
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (items[i].IsHighlighted)
+            {
+                return items[i];
+            }
+        }
+
+        return null;
     }
 
 }

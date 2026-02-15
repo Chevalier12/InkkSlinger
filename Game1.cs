@@ -140,6 +140,7 @@ public class Game1 : Game
             _root.AddChild(_mainMenuView);
         }
         _window.ClientSizeChanged += OnClientSizeChanged;
+        _window.NativeWindow.TextInput += OnTextInput;
         _uiRoot = new UiRoot(_root);
         // Backbuffer contents are not guaranteed to persist across presents on all platforms.
         // Default to a safe middle ground:
@@ -165,7 +166,7 @@ public class Game1 : Game
             _windowDemoView?.SetFont(font);
             _paintShellView?.SetFont(font);
             _commandingMenuDemoView?.SetFont(font);
-            _twoScrollViewersView?.SetFont(font);
+            //_twoScrollViewersView?.SetFont(font);
             _simpleScrollViewerView?.SetFont(font);
             _simpleStackPanelView?.SetFont(font);
             _scrollViewerTextBoxView?.SetFont(font);
@@ -228,6 +229,7 @@ public class Game1 : Game
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
         _window.ClientSizeChanged -= OnClientSizeChanged;
+        _window.NativeWindow.TextInput -= OnTextInput;
 
         if (_windowDemoView != null)
         {
@@ -239,6 +241,11 @@ public class Game1 : Game
         _uiRoot.Shutdown();
         _window.Dispose();
         base.OnExiting(sender, args);
+    }
+
+    private void OnTextInput(object? sender, TextInputEventArgs args)
+    {
+        _uiRoot.EnqueueTextInput(args.Character);
     }
 
     private void OnClientSizeChanged(object? sender, EventArgs e)
@@ -355,15 +362,18 @@ public class Game1 : Game
         var layoutCallsPerSecond = _perfLayoutCalls / sampleSeconds;
         var neighborPerSecond = neighborDelta / sampleSeconds;
         var fullFallbackPerSecond = fullFallbackDelta / sampleSeconds;
+        var inputMetrics = _uiRoot.GetInputMetricsSnapshot();
 
         Console.WriteLine(
             $"[Perf] U:{updatesPerSecond:0.0}/s D:{drawsPerSecond:0.0}/s " +
             $"LayoutCycles:{layoutCyclesPerSecond:0.0}/s LayoutCalls:{layoutCallsPerSecond:0.0}/s " +
-            $"HitTestNeighbor:{neighborPerSecond:0.0}/s HitTestFullFallback:{fullFallbackPerSecond:0.0}/s");
+            $"HitTestNeighbor:{neighborPerSecond:0.0}/s HitTestFullFallback:{fullFallbackPerSecond:0.0}/s " +
+            $"InputMs:{inputMetrics.LastInputPhaseMilliseconds:0.###} Hit:{inputMetrics.HitTestCount} Route:{inputMetrics.RoutedEventCount} Ptr:{inputMetrics.PointerEventCount} Key:{inputMetrics.KeyEventCount} Txt:{inputMetrics.TextEventCount}");
 
         _perfTitleSuffix =
             $" | U:{updatesPerSecond:0} D:{drawsPerSecond:0} L:{layoutCyclesPerSecond:0} " +
-            $"HN:{neighborPerSecond:0} HF:{fullFallbackPerSecond:0}";
+            $"HN:{neighborPerSecond:0} HF:{fullFallbackPerSecond:0} " +
+            $"I:{inputMetrics.LastInputPhaseMilliseconds:0.##} H:{inputMetrics.HitTestCount:0} R:{inputMetrics.RoutedEventCount:0}";
         ApplyWindowTitle();
 
         _perfLastNeighborProbeTotal = stats.NeighborProbes;

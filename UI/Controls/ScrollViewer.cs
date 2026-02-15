@@ -464,6 +464,39 @@ public class ScrollViewer : ContentControl
         SetOffsets(HorizontalOffset, VerticalOffset);
     }
 
+    internal bool HandleMouseWheelFromInput(int delta)
+    {
+        if (!IsEnabled || delta == 0)
+        {
+            return false;
+        }
+
+        var beforeHorizontal = HorizontalOffset;
+        var beforeVertical = VerticalOffset;
+        if (_scrollInfo != null)
+        {
+            if (delta > 0)
+            {
+                _scrollInfo.MouseWheelUp();
+            }
+            else
+            {
+                _scrollInfo.MouseWheelDown();
+            }
+
+            SetOffsets(_scrollInfo.HorizontalOffset, _scrollInfo.VerticalOffset);
+        }
+        else
+        {
+            var amount = MathF.Max(1f, LineScrollAmount);
+            var direction = delta > 0 ? -1f : 1f;
+            SetOffsets(HorizontalOffset, VerticalOffset + (direction * amount));
+        }
+
+        return MathF.Abs(beforeHorizontal - HorizontalOffset) > 0.001f ||
+               MathF.Abs(beforeVertical - VerticalOffset) > 0.001f;
+    }
+
     private void SetOffsets(float horizontal, float vertical)
     {
         var maxHorizontal = MathF.Max(0f, ExtentWidth - ViewportWidth);

@@ -66,6 +66,23 @@ public class UIElement : DependencyObject
                     return opacity;
                 }));
 
+    public static readonly RoutedEvent PreviewMouseMoveEvent = new(nameof(PreviewMouseMoveEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent MouseMoveEvent = new(nameof(MouseMoveEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent PreviewMouseDownEvent = new(nameof(PreviewMouseDownEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent MouseDownEvent = new(nameof(MouseDownEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent PreviewMouseUpEvent = new(nameof(PreviewMouseUpEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent MouseUpEvent = new(nameof(MouseUpEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent PreviewMouseWheelEvent = new(nameof(PreviewMouseWheelEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent MouseWheelEvent = new(nameof(MouseWheelEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent PreviewKeyDownEvent = new(nameof(PreviewKeyDownEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent KeyDownEvent = new(nameof(KeyDownEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent PreviewKeyUpEvent = new(nameof(PreviewKeyUpEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent KeyUpEvent = new(nameof(KeyUpEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent PreviewTextInputEvent = new(nameof(PreviewTextInputEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent TextInputEvent = new(nameof(TextInputEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent GotFocusEvent = new(nameof(GotFocusEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent LostFocusEvent = new(nameof(LostFocusEvent), RoutingStrategy.Bubble);
+
     public UIElement? VisualParent { get; private set; }
 
     public UIElement? LogicalParent { get; private set; }
@@ -476,6 +493,11 @@ public class UIElement : DependencyObject
         {
             ReturnRoute(route);
         }
+    }
+
+    internal void RaiseRoutedEventInternal(RoutedEvent routedEvent, RoutedEventArgs args)
+    {
+        RaiseRoutedEvent(routedEvent, args);
     }
 
     private static void NotifyBindingTreeChanged(UIElement root)

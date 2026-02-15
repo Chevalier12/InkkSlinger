@@ -129,7 +129,10 @@ public partial class CommandingMenuDemoView : UserControl
 
     private void WireInputBindings()
     {
-        // Input pipeline removed in render/layout-only mode.
+        var target = (UIElement?)EditorTextBox ?? this;
+        InputGestureService.Register(Microsoft.Xna.Framework.Input.Keys.N, ModifierKeys.Control, _newCommand, target);
+        InputGestureService.Register(Microsoft.Xna.Framework.Input.Keys.O, ModifierKeys.Control, _openCommand, target);
+        InputGestureService.Register(Microsoft.Xna.Framework.Input.Keys.F4, ModifierKeys.Alt, _exitCommand, target);
     }
 
     private void OnAlwaysCanExecute(object? sender, CanExecuteRoutedEventArgs args)
