@@ -213,9 +213,16 @@ public class UIElement : DependencyObject
         try
         {
             OnRender(spriteBatch);
+            var currentClip = spriteBatch.GraphicsDevice.ScissorRectangle;
 
             foreach (var child in GetVisualChildren())
             {
+                if (child.TryGetRenderBoundsInRootSpace(out var childBounds) &&
+                    !Intersects(childBounds, currentClip))
+                {
+                    continue;
+                }
+
                 child.Draw(spriteBatch);
             }
         }
@@ -500,6 +507,11 @@ public class UIElement : DependencyObject
         RaiseRoutedEvent(routedEvent, args);
     }
 
+    internal bool HasRoutedHandlerForEvent(RoutedEvent routedEvent)
+    {
+        return _routedHandlers.TryGetValue(routedEvent, out var handlers) && handlers.Count > 0;
+    }
+
     private static void NotifyBindingTreeChanged(UIElement root)
     {
         NotifyBindingTreeChanged(root, new HashSet<UIElement>());
@@ -769,6 +781,23 @@ public class UIElement : DependencyObject
                point.X <= rect.X + rect.Width &&
                point.Y >= rect.Y &&
                point.Y <= rect.Y + rect.Height;
+    }
+
+    private static bool Intersects(LayoutRect rect, Rectangle clip)
+    {
+        if (rect.Width <= 0f || rect.Height <= 0f || clip.Width <= 0 || clip.Height <= 0)
+        {
+            return false;
+        }
+
+        var rectRight = rect.X + rect.Width;
+        var rectBottom = rect.Y + rect.Height;
+        var clipRight = clip.X + clip.Width;
+        var clipBottom = clip.Y + clip.Height;
+        return rect.X < clipRight &&
+               rectRight > clip.X &&
+               rect.Y < clipBottom &&
+               rectBottom > clip.Y;
     }
 
     private readonly struct RoutedHandlerEntry

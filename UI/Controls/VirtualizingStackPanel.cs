@@ -75,17 +75,6 @@ public class VirtualizingStackPanel : Panel
     private int _lastArrangedLast = -1;
     private Vector2 _lastArrangeSize;
     private bool _hasArrangedRange;
-    private static int _diagWheelUpCalls;
-    private static int _diagWheelDownCalls;
-    private static int _diagSetVerticalOffsetCalls;
-    private static int _diagSetVerticalOffsetChanges;
-    private static int _diagSetHorizontalOffsetCalls;
-    private static int _diagSetHorizontalOffsetChanges;
-    private static int _diagRealizationChanges;
-    private static int _diagMeasureRangeCalls;
-    private static int _diagArrangeRangeCalls;
-    private static int _diagMeasuredChildren;
-    private static int _diagArrangedChildren;
 
     public Orientation Orientation
     {
@@ -175,34 +164,6 @@ public class VirtualizingStackPanel : Panel
     public static void SetCacheLengthUnit(UIElement element, VirtualizationCacheLengthUnit value)
     {
         element.SetValue(CacheLengthUnitProperty, value);
-    }
-
-    internal static VirtualizingStackPanelScrollDiagnosticsSnapshot GetScrollDiagnosticsAndReset()
-    {
-        var snapshot = new VirtualizingStackPanelScrollDiagnosticsSnapshot(
-            _diagWheelUpCalls,
-            _diagWheelDownCalls,
-            _diagSetVerticalOffsetCalls,
-            _diagSetVerticalOffsetChanges,
-            _diagSetHorizontalOffsetCalls,
-            _diagSetHorizontalOffsetChanges,
-            _diagRealizationChanges,
-            _diagMeasureRangeCalls,
-            _diagArrangeRangeCalls,
-            _diagMeasuredChildren,
-            _diagArrangedChildren);
-        _diagWheelUpCalls = 0;
-        _diagWheelDownCalls = 0;
-        _diagSetVerticalOffsetCalls = 0;
-        _diagSetVerticalOffsetChanges = 0;
-        _diagSetHorizontalOffsetCalls = 0;
-        _diagSetHorizontalOffsetChanges = 0;
-        _diagRealizationChanges = 0;
-        _diagMeasureRangeCalls = 0;
-        _diagArrangeRangeCalls = 0;
-        _diagMeasuredChildren = 0;
-        _diagArrangedChildren = 0;
-        return snapshot;
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()
@@ -415,13 +376,11 @@ public class VirtualizingStackPanel : Panel
 
     public void MouseWheelUp()
     {
-        _diagWheelUpCalls++;
         LineUp();
     }
 
     public void MouseWheelDown()
     {
-        _diagWheelDownCalls++;
         LineDown();
     }
 
@@ -437,14 +396,12 @@ public class VirtualizingStackPanel : Panel
 
     public void SetHorizontalOffset(float offset)
     {
-        _diagSetHorizontalOffsetCalls++;
         var next = MathF.Max(0f, MathF.Min(MaxHorizontalOffset(), offset));
         if (AreClose(next, _horizontalOffset))
         {
             return;
         }
 
-        _diagSetHorizontalOffsetChanges++;
         var oldOffset = _horizontalOffset;
         _horizontalOffset = next;
         if (ShouldRelayoutForOffsetChange(oldOffset, next, isVertical: false))
@@ -464,14 +421,12 @@ public class VirtualizingStackPanel : Panel
 
     public void SetVerticalOffset(float offset)
     {
-        _diagSetVerticalOffsetCalls++;
         var next = MathF.Max(0f, MathF.Min(MaxVerticalOffset(), offset));
         if (AreClose(next, _verticalOffset))
         {
             return;
         }
 
-        _diagSetVerticalOffsetChanges++;
         var oldOffset = _verticalOffset;
         _verticalOffset = next;
         if (ShouldRelayoutForOffsetChange(oldOffset, next, isVertical: true))
@@ -523,7 +478,6 @@ public class VirtualizingStackPanel : Panel
 
     private void ArrangeRange(Vector2 finalSize, int firstIndex, int lastIndex)
     {
-        _diagArrangeRangeCalls++;
         EnsureStartOffsets();
 
         var first = Math.Max(0, firstIndex);
@@ -536,7 +490,6 @@ public class VirtualizingStackPanel : Panel
                 continue;
             }
 
-            _diagArrangedChildren++;
             var primary = ResolvePrimarySizeForArrange(child, i);
             var start = _startOffsets[i];
 
@@ -629,7 +582,6 @@ public class VirtualizingStackPanel : Panel
 
     private void MeasureRange(Vector2 availableSize, int first, int last)
     {
-        _diagMeasureRangeCalls++;
         var childConstraint = GetChildConstraint(availableSize);
 
         var measuredPrimaryTotal = 0f;
@@ -650,7 +602,6 @@ public class VirtualizingStackPanel : Panel
 
             if (child.NeedsMeasure)
             {
-                _diagMeasuredChildren++;
                 child.Measure(childConstraint);
             }
 
@@ -850,7 +801,6 @@ public class VirtualizingStackPanel : Panel
             RealizedChildrenCount = 0;
             if (prevFirst != FirstRealizedIndex || prevLast != LastRealizedIndex)
             {
-                _diagRealizationChanges++;
             }
             return;
         }
@@ -860,7 +810,6 @@ public class VirtualizingStackPanel : Panel
         RealizedChildrenCount = LastRealizedIndex - FirstRealizedIndex + 1;
         if (prevFirst != FirstRealizedIndex || prevLast != LastRealizedIndex)
         {
-            _diagRealizationChanges++;
         }
     }
 
@@ -1118,16 +1067,3 @@ public class VirtualizingStackPanel : Panel
         float StartOffset,
         float EndOffset);
 }
-
-public readonly record struct VirtualizingStackPanelScrollDiagnosticsSnapshot(
-    int WheelUpCalls,
-    int WheelDownCalls,
-    int SetVerticalOffsetCalls,
-    int SetVerticalOffsetChanges,
-    int SetHorizontalOffsetCalls,
-    int SetHorizontalOffsetChanges,
-    int RealizationChanges,
-    int MeasureRangeCalls,
-    int ArrangeRangeCalls,
-    int MeasuredChildren,
-    int ArrangedChildren);

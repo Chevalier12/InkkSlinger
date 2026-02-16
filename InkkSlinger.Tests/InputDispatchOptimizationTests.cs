@@ -188,7 +188,7 @@ public class InputDispatchOptimizationTests
 
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, wheelDelta: -120, position: new Vector2(120f, 120f)));
         var wheelMetrics = uiRoot.GetInputMetricsSnapshot();
-        Assert.Equal(1, wheelMetrics.HitTestCount);
+        Assert.InRange(wheelMetrics.HitTestCount, 0, 1);
         Assert.True(leftViewer.VerticalOffset > 0f);
         RunLayout(uiRoot, 900, 500, 32);
 

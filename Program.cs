@@ -24,9 +24,11 @@ var isTwoScrollViewersDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--two-scroll-viewers", global::System.StringComparison.OrdinalIgnoreCase));
 var isVirtualizedStackPanelDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--virtualized-stack-panel-demo", global::System.StringComparison.OrdinalIgnoreCase));
-if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo)
+var isScrollViewerEdgeCasesDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--scrollviewer-edge-cases", global::System.StringComparison.OrdinalIgnoreCase));
+if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo)
 {
-    isThreeScrollViewersDemo = true;
+    isScrollViewerEdgeCasesDemo = true;
 }
 using var game = new InkkSlinger.Game1(
     isWindowDemo,
@@ -39,5 +41,6 @@ using var game = new InkkSlinger.Game1(
     isScrollViewerTextBoxDemo,
     isListBoxDemo,
     isItemsPresenterDemo,
-    isVirtualizedStackPanelDemo);
+    isVirtualizedStackPanelDemo,
+    isScrollViewerEdgeCasesDemo);
 game.Run();

@@ -38,6 +38,35 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
+    public void MouseWheel_UpdatesContentWithoutRootLayoutInvalidation()
+    {
+        var root = new Panel();
+        var content = CreateTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            LineScrollAmount = 30f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        var contentYBefore = content.LayoutSlot.Y;
+        var arrangeInvalidationsBefore = uiRoot.ArrangeInvalidationCount;
+        var measureInvalidationsBefore = uiRoot.MeasureInvalidationCount;
+
+        var handled = viewer.HandleMouseWheelFromInput(-120);
+
+        Assert.True(handled);
+        Assert.True(viewer.VerticalOffset > 0f);
+        Assert.True(content.LayoutSlot.Y < contentYBefore);
+        Assert.Equal(arrangeInvalidationsBefore, uiRoot.ArrangeInvalidationCount);
+        Assert.Equal(measureInvalidationsBefore, uiRoot.MeasureInvalidationCount);
+    }
+
+    [Fact]
     public void RegularContent_ComputesMetrics_AndAppliesTranslatedArrange()
     {
         var root = new Panel();

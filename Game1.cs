@@ -6,11 +6,8 @@ namespace InkkSlinger;
 
 public class Game1 : Game
 {
-    private static readonly bool EnableRuntimePerfCounters =
-        !string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_PERF_COUNTERS"), "0", StringComparison.Ordinal);
     private static readonly bool EnableExperimentalPartialRedraw =
         string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_EXPERIMENTAL_PARTIAL_REDRAW"), "1", StringComparison.Ordinal);
-    private const double PerfSampleIntervalSeconds = 1.0;
 
     private readonly GraphicsDeviceManager _graphics;
     private readonly InkkSlinger.Window _window;
@@ -25,6 +22,7 @@ public class Game1 : Game
     private readonly bool _isListBoxDemo;
     private readonly bool _isItemsPresenterDemo;
     private readonly bool _isVirtualizedStackPanelDemo;
+    private readonly bool _isScrollViewerEdgeCasesDemo;
     private SpriteBatch _spriteBatch = null!;
     private RenderTarget2D? _uiCompositeTarget;
     private Panel _root = null!;
@@ -41,15 +39,8 @@ public class Game1 : Game
     private SimpleListBoxView? _simpleListBoxView;
     private SimpleItemsPresenterView? _simpleItemsPresenterView;
     private VirtualizedStackPanelView? _virtualizedStackPanelView;
+    private ScrollViewerEdgeCasesView? _scrollViewerEdgeCasesView;
     private string _baseWindowTitle = "InkkSlinger";
-    private string _perfTitleSuffix = string.Empty;
-    private double _perfAccumulatedSeconds;
-    private int _perfUpdateFrames;
-    private int _perfDrawFrames;
-    private int _perfLayoutCycles;
-    private int _perfLayoutCalls;
-    private int _perfLastNeighborProbeTotal;
-    private int _perfLastFullFallbackTotal;
     private int _lastViewportWidth;
     private int _lastViewportHeight;
     private bool _hasViewportSnapshot;
@@ -65,7 +56,8 @@ public class Game1 : Game
         bool isScrollViewerTextBoxDemo = false,
         bool isListBoxDemo = false,
         bool isItemsPresenterDemo = false,
-        bool isVirtualizedStackPanelDemo = false)
+        bool isVirtualizedStackPanelDemo = false,
+        bool isScrollViewerEdgeCasesDemo = false)
     {
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
@@ -80,6 +72,7 @@ public class Game1 : Game
         _isListBoxDemo = isListBoxDemo;
         _isItemsPresenterDemo = isItemsPresenterDemo;
         _isVirtualizedStackPanelDemo = isVirtualizedStackPanelDemo;
+        _isScrollViewerEdgeCasesDemo = isScrollViewerEdgeCasesDemo;
         Content.RootDirectory = "Content";
         _window.IsMouseVisible = true;
         _window.AllowUserResizing = true;
@@ -150,6 +143,11 @@ public class Game1 : Game
             _virtualizedStackPanelView = new VirtualizedStackPanelView();
             _root.AddChild(_virtualizedStackPanelView);
         }
+        else if (_isScrollViewerEdgeCasesDemo)
+        {
+            _scrollViewerEdgeCasesView = new ScrollViewerEdgeCasesView();
+            _root.AddChild(_scrollViewerEdgeCasesView);
+        }
         else
         {
             _mainMenuView = new MainMenuView();
@@ -190,6 +188,7 @@ public class Game1 : Game
             _simpleListBoxView?.SetFont(font);
             _simpleItemsPresenterView?.SetFont(font);
             _virtualizedStackPanelView?.SetFont(font);
+            _scrollViewerEdgeCasesView?.SetFont(font);
         }
         catch
         {
@@ -205,10 +204,6 @@ public class Game1 : Game
         _lastViewportHeight = viewport.Height;
         _hasViewportSnapshot = true;
         _uiRoot.Update(gameTime, viewport);
-        _perfLayoutCycles++;
-        _perfLayoutCalls += 2;
-        _perfUpdateFrames++;
-        UpdateRuntimePerfCounters(gameTime);
         base.Update(gameTime);
     }
 
@@ -219,7 +214,6 @@ public class Game1 : Game
 
         if (_uiRoot.ShouldDrawThisFrame(gameTime, viewport, GraphicsDevice))
         {
-            _perfDrawFrames++;
             GraphicsDevice.SetRenderTarget(_uiCompositeTarget);
             GraphicsDevice.Clear(Color.CornflowerBlue);
             _uiRoot.Draw(_spriteBatch, gameTime);
@@ -362,6 +356,13 @@ public class Game1 : Game
             return;
         }
 
+        if (_isScrollViewerEdgeCasesDemo)
+        {
+            _baseWindowTitle = $"InkkSlinger ScrollViewer Edge Cases | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
         _baseWindowTitle = $"InkkSlinger | {size.X}x{size.Y}";
         ApplyWindowTitle();
     }
@@ -371,87 +372,9 @@ public class Game1 : Game
         Exit();
     }
 
-    private void UpdateRuntimePerfCounters(GameTime gameTime)
-    {
-        if (!EnableRuntimePerfCounters)
-        {
-            return;
-        }
-
-        _perfAccumulatedSeconds += gameTime.ElapsedGameTime.TotalSeconds;
-        if (_perfAccumulatedSeconds < PerfSampleIntervalSeconds)
-        {
-            return;
-        }
-
-        var stats = VisualTreeHelper.GetItemsPresenterFallbackStatsForTests();
-        var neighborDelta = stats.NeighborProbes - _perfLastNeighborProbeTotal;
-        var fullFallbackDelta = stats.FullFallbackScans - _perfLastFullFallbackTotal;
-        var sampleSeconds = _perfAccumulatedSeconds <= 0d ? PerfSampleIntervalSeconds : _perfAccumulatedSeconds;
-        var updatesPerSecond = _perfUpdateFrames / sampleSeconds;
-        var drawsPerSecond = _perfDrawFrames / sampleSeconds;
-        var layoutCyclesPerSecond = _perfLayoutCycles / sampleSeconds;
-        var layoutCallsPerSecond = _perfLayoutCalls / sampleSeconds;
-        var neighborPerSecond = neighborDelta / sampleSeconds;
-        var fullFallbackPerSecond = fullFallbackDelta / sampleSeconds;
-        var inputMetrics = _uiRoot.GetInputMetricsSnapshot();
-        var uiMetrics = _uiRoot.GetMetricsSnapshot();
-        var scrollViewerDiag = ScrollViewer.GetScrollDiagnosticsAndReset();
-        var vspDiag = VirtualizingStackPanel.GetScrollDiagnosticsAndReset();
-        var hasInputActivity = inputMetrics.HitTestCount > 0 ||
-                               inputMetrics.RoutedEventCount > 0 ||
-                               inputMetrics.PointerEventCount > 0 ||
-                               inputMetrics.KeyEventCount > 0 ||
-                               inputMetrics.TextEventCount > 0;
-        var hasScrollActivity = scrollViewerDiag.WheelEvents > 0 ||
-                                scrollViewerDiag.SetOffsetCalls > 0 ||
-                                vspDiag.WheelUpCalls > 0 ||
-                                vspDiag.WheelDownCalls > 0 ||
-                                vspDiag.SetVerticalOffsetCalls > 0 ||
-                                vspDiag.SetHorizontalOffsetCalls > 0;
-        var hasPhaseCostSpike = _uiRoot.LastUpdateMs >= 1.0 ||
-                                _uiRoot.LastDrawMs >= 1.0 ||
-                                _uiRoot.LastLayoutPhaseMs >= 0.5 ||
-                                _uiRoot.LastRenderSchedulingPhaseMs >= 0.5;
-
-        if (hasInputActivity || hasScrollActivity || hasPhaseCostSpike)
-        {
-            var wheelHandledPct = scrollViewerDiag.WheelEvents > 0
-                ? (100f * scrollViewerDiag.WheelHandled / scrollViewerDiag.WheelEvents)
-                : 0f;
-            Console.WriteLine(
-                $"[Perf] U:{updatesPerSecond:0.0}/s D:{drawsPerSecond:0.0}/s " +
-                $"UpdateMs:{_uiRoot.LastUpdateMs:0.###} DrawMs:{_uiRoot.LastDrawMs:0.###} " +
-                $"LayoutMs:{_uiRoot.LastLayoutPhaseMs:0.###} RenderSchedMs:{_uiRoot.LastRenderSchedulingPhaseMs:0.###} " +
-                $"DrawExec:{uiMetrics.DrawExecutedFrameCount} DrawSkip:{uiMetrics.DrawSkippedFrameCount} " +
-                $"SV(W:{scrollViewerDiag.WheelEvents} H:{scrollViewerDiag.WheelHandled} HP:{wheelHandledPct:0}% Set:{scrollViewerDiag.SetOffsetCalls} NoOp:{scrollViewerDiag.SetOffsetNoOpCalls} dY:{scrollViewerDiag.TotalVerticalDelta:0.#}) " +
-                $"VSP(WU:{vspDiag.WheelUpCalls} WD:{vspDiag.WheelDownCalls} SetV:{vspDiag.SetVerticalOffsetCalls}/{vspDiag.SetVerticalOffsetChanges} SetH:{vspDiag.SetHorizontalOffsetCalls}/{vspDiag.SetHorizontalOffsetChanges} Real:{vspDiag.RealizationChanges} MR:{vspDiag.MeasureRangeCalls} AR:{vspDiag.ArrangeRangeCalls} MC:{vspDiag.MeasuredChildren} AC:{vspDiag.ArrangedChildren})");
-        }
-
-        _perfTitleSuffix =
-            $" | U:{updatesPerSecond:0} D:{drawsPerSecond:0} " +
-            $"UM:{_uiRoot.LastUpdateMs:0.##} DM:{_uiRoot.LastDrawMs:0.##} " +
-            $"LM:{_uiRoot.LastLayoutPhaseMs:0.##}";
-        ApplyWindowTitle();
-
-        _perfLastNeighborProbeTotal = stats.NeighborProbes;
-        _perfLastFullFallbackTotal = stats.FullFallbackScans;
-        _perfAccumulatedSeconds = 0d;
-        _perfUpdateFrames = 0;
-        _perfDrawFrames = 0;
-        _perfLayoutCycles = 0;
-        _perfLayoutCalls = 0;
-    }
-
     private void ApplyWindowTitle()
     {
-        if (!EnableRuntimePerfCounters)
-        {
-            _window.Title = _baseWindowTitle;
-            return;
-        }
-
-        _window.Title = $"{_baseWindowTitle}{_perfTitleSuffix}";
+        _window.Title = _baseWindowTitle;
     }
 
     private void EnsureUiCompositeTarget(Viewport viewport)
@@ -547,7 +470,8 @@ public class Game1 : Game
             _isScrollViewerTextBoxDemo ||
             _isListBoxDemo ||
             _isItemsPresenterDemo ||
-            _isVirtualizedStackPanelDemo)
+            _isVirtualizedStackPanelDemo ||
+            _isScrollViewerEdgeCasesDemo)
         {
             return 1024;
         }
@@ -587,7 +511,8 @@ public class Game1 : Game
             _isScrollViewerTextBoxDemo ||
             _isListBoxDemo ||
             _isItemsPresenterDemo ||
-            _isVirtualizedStackPanelDemo)
+            _isVirtualizedStackPanelDemo ||
+            _isScrollViewerEdgeCasesDemo)
         {
             return 720;
         }

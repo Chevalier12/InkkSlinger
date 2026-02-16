@@ -47,6 +47,9 @@ public sealed partial class UiRoot
     private readonly InputDispatchState _inputState = new();
     private TextBox? _cachedWheelTextBoxTarget;
     private ScrollViewer? _cachedWheelScrollViewerTarget;
+    private Vector2 _lastWheelPointerPosition;
+    private long _lastWheelPreciseRetargetTimestamp;
+    private bool _hasLastWheelPointerPosition;
     private int _lastInputHitTestCount;
     private int _lastInputRoutedEventCount;
     private int _lastInputKeyEventCount;
@@ -61,6 +64,29 @@ public sealed partial class UiRoot
     private double _lastInputKeyDispatchMs;
     private double _lastInputTextDispatchMs;
     private double _lastVisualUpdateMs;
+    private int _scrollCpuWheelEventCount;
+    private int _scrollCpuOffsetMutationCount;
+    private int _scrollCpuWheelPreciseRetargetCount;
+    private int _scrollCpuWheelHitTestCount;
+    private int _scrollCpuSampleCount;
+    private int _scrollCpuDrawSampleCount;
+    private int _scrollCpuDrawExecutedCount;
+    private double _scrollCpuUpdateMsTotal;
+    private double _scrollCpuInputMsTotal;
+    private double _scrollCpuLayoutMsTotal;
+    private double _scrollCpuDrawMsTotal;
+    private double _scrollCpuPointerRouteMsTotal;
+    private double _scrollCpuVisualUpdateMsTotal;
+    private double _scrollCpuWheelHandleMsTotal;
+    private double _scrollCpuMaxUpdateMs;
+    private double _scrollCpuMaxInputMs;
+    private double _scrollCpuMaxLayoutMs;
+    private double _scrollCpuMaxDrawMs;
+    private double _scrollCpuMaxPointerRouteMs;
+    private double _scrollCpuMaxVisualUpdateMs;
+    private double _scrollCpuMaxWheelHandleMs;
+    private long _scrollCpuFirstEventTimestamp;
+    private long _scrollCpuLastEventTimestamp;
     private SpriteBatch? _cacheSpriteBatch;
     private long _lastRenderCacheCounterTraceTimestamp;
     private bool _hasMeasureInvalidation;
@@ -260,6 +286,7 @@ public sealed partial class UiRoot
             () => RunRenderSchedulingPhase(viewport));
 
         LastUpdateMs = Stopwatch.GetElapsedTime(updateStart).TotalMilliseconds;
+        ObserveScrollCpuAfterUpdate();
     }
 
     public void EnqueueDeferredOperation(Action operation)

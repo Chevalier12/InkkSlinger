@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0B1421"
+             BorderBrush="#2A4A66"
+             BorderThickness="1"
+             Padding="12">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Background="#111F31"
+            BorderBrush="#315674"
+            BorderThickness="1"
+            Padding="10"
+            Margin="0,0,0,8">
+      <Label Text="ScrollViewer Edge Cases Playground"
+             Foreground="#DCEEFF" />
+    </Border>
+
+    <Border Grid.Row="1"
+            Background="#0F1B2B"
+            BorderBrush="#2F506F"
+            BorderThickness="1"
+            Padding="10"
+            Margin="0,0,0,10">
+      <StackPanel Orientation="Horizontal">
+        <Button Text="Reset"
+                Width="96"
+                Height="30"
+                Margin="0,0,8,0"
+                Click="OnResetClick" />
+        <Button Text="Grow +200"
+                Width="96"
+                Height="30"
+                Margin="0,0,8,0"
+                Click="OnGrowClick" />
+        <Button Text="Shrink -200"
+                Width="96"
+                Height="30"
+                Margin="0,0,8,0"
+                Click="OnShrinkClick" />
+        <Button Text="Toggle Wide Rows"
+                Width="140"
+                Height="30"
+                Margin="0,0,8,0"
+                Click="OnToggleWideRowsClick" />
+        <Button Text="Toggle Nested Viewer"
+                Width="160"
+                Height="30"
+                Click="OnToggleNestedViewerClick" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="10" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" />
+        <RowDefinition Height="10" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <Border Grid.Row="0"
+              Grid.Column="0"
+              Background="#0F1B2B"
+              BorderBrush="#2F506F"
+              BorderThickness="1"
+              Padding="8">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <Label Grid.Row="0"
+                 Text="Auto/Auto: wide + tall content"
+                 Foreground="#CFE4F8"
+                 Margin="0,0,0,6" />
+          <ScrollViewer x:Name="AutoBothViewer"
+                        Grid.Row="1"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto"
+                        Background="#0A1421"
+                        BorderBrush="#294764"
+                        BorderThickness="1">
+            <StackPanel x:Name="AutoBothPanel"
+                        Orientation="Vertical" />
+          </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <Border Grid.Row="0"
+              Grid.Column="2"
+              Background="#0F1B2B"
+              BorderBrush="#2F506F"
+              BorderThickness="1"
+              Padding="8">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <Label Grid.Row="0"
+                 Text="No overflow: should stay at offset 0"
+                 Foreground="#CFE4F8"
+                 Margin="0,0,0,6" />
+          <ScrollViewer x:Name="FitViewer"
+                        Grid.Row="1"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto"
+                        Background="#0A1421"
+                        BorderBrush="#294764"
+                        BorderThickness="1">
+            <StackPanel x:Name="FitPanel"
+                        Orientation="Vertical" />
+          </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <Border Grid.Row="2"
+              Grid.Column="0"
+              Background="#0F1B2B"
+              BorderBrush="#2F506F"
+              BorderThickness="1"
+              Padding="8">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="120" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Label Grid.Row="0"
+                 Text="Tiny viewport stress"
+                 Foreground="#CFE4F8"
+                 Margin="0,0,0,6" />
+          <ScrollViewer x:Name="TinyViewer"
+                        Grid.Row="1"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto"
+                        Background="#0A1421"
+                        BorderBrush="#294764"
+                        BorderThickness="1"
+                        LineScrollAmount="8">
+            <StackPanel x:Name="TinyPanel"
+                        Orientation="Vertical" />
+          </ScrollViewer>
+          <Label Grid.Row="2"
+                 Text="LineScrollAmount=8"
+                 Foreground="#9FC4E2"
+                 Margin="0,6,0,0" />
+        </Grid>
+      </Border>
+
+      <Border Grid.Row="2"
+              Grid.Column="2"
+              Background="#0F1B2B"
+              BorderBrush="#2F506F"
+              BorderThickness="1"
+              Padding="8">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <Label Grid.Row="0"
+                 Text="Nested viewer + ListBox host"
+                 Foreground="#CFE4F8"
+                 Margin="0,0,0,6" />
+          <ScrollViewer x:Name="OuterViewer"
+                        Grid.Row="1"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto"
+                        Background="#0A1421"
+                        BorderBrush="#294764"
+                        BorderThickness="1">
+            <StackPanel x:Name="OuterPanel"
+                        Orientation="Vertical">
+              <Label Text="Outer content starts here"
+                     Foreground="#DCEEFF"
+                     Margin="0,0,0,6" />
+              <ScrollViewer x:Name="InnerViewer"
+                            Height="140"
+                            HorizontalScrollBarVisibility="Auto"
+                            VerticalScrollBarVisibility="Auto"
+                            Background="#101A2B"
+                            BorderBrush="#3B5D80"
+                            BorderThickness="1"
+                            Margin="0,0,0,8">
+                <StackPanel x:Name="InnerPanel"
+                            Orientation="Vertical" />
+              </ScrollViewer>
+              <ListBox x:Name="EdgeListBox"
+                       Height="160"
+                       Background="#0E1828"
+                       BorderBrush="#395A7D"
+                       BorderThickness="1" />
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Grid>
+
+  </Grid>
+</UserControl>

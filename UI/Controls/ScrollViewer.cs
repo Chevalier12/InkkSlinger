@@ -463,10 +463,16 @@ public class ScrollViewer : ContentControl
 
     private void ApplyScrollMetrics(float extentWidth, float extentHeight, float viewportWidth, float viewportHeight)
     {
-        SetIfChanged(ExtentWidthProperty, MathF.Max(0f, extentWidth));
-        SetIfChanged(ExtentHeightProperty, MathF.Max(0f, extentHeight));
-        SetIfChanged(ViewportWidthProperty, MathF.Max(0f, viewportWidth));
-        SetIfChanged(ViewportHeightProperty, MathF.Max(0f, viewportHeight));
+        var previousExtentWidth = ExtentWidth;
+        var previousExtentHeight = ExtentHeight;
+        var previousViewportWidth = ViewportWidth;
+        var previousViewportHeight = ViewportHeight;
+
+        SetIfChanged(ExtentWidthProperty, CoerceNonNegativeFinite(extentWidth, previousExtentWidth));
+        SetIfChanged(ExtentHeightProperty, CoerceNonNegativeFinite(extentHeight, previousExtentHeight));
+        SetIfChanged(ViewportWidthProperty, CoerceViewportMetric(viewportWidth, previousViewportWidth, ExtentWidth));
+        SetIfChanged(ViewportHeightProperty, CoerceViewportMetric(viewportHeight, previousViewportHeight, ExtentHeight));
+
         SetOffsets(HorizontalOffset, VerticalOffset);
     }
 
@@ -508,6 +514,7 @@ public class ScrollViewer : ContentControl
         SetIfChanged(VerticalOffsetProperty, nextVertical);
         var horizontalDelta = MathF.Abs(beforeHorizontal - HorizontalOffset);
         var verticalDelta = MathF.Abs(beforeVertical - VerticalOffset);
+
         _diagHorizontalDelta += horizontalDelta;
         _diagVerticalDelta += verticalDelta;
         if (horizontalDelta <= 0.001f && verticalDelta <= 0.001f)
@@ -515,6 +522,7 @@ public class ScrollViewer : ContentControl
             _diagSetOffsetNoOp++;
         }
 
+        UiRoot.Current?.ObserveScrollCpuOffsetMutation(horizontalDelta, verticalDelta);
         UpdateScrollBars();
     }
 
@@ -568,6 +576,41 @@ public class ScrollViewer : ContentControl
     private static bool AreClose(float left, float right)
     {
         return MathF.Abs(left - right) <= 0.01f;
+    }
+
+    private static float CoerceViewportMetric(float candidate, float previous, float extent)
+    {
+        if (float.IsFinite(candidate) && candidate >= 0f)
+        {
+            return candidate;
+        }
+
+        if (float.IsFinite(previous) && previous >= 0f)
+        {
+            return previous;
+        }
+
+        if (float.IsFinite(extent) && extent >= 0f)
+        {
+            return extent;
+        }
+
+        return 0f;
+    }
+
+    private static float CoerceNonNegativeFinite(float candidate, float previous)
+    {
+        if (float.IsFinite(candidate) && candidate >= 0f)
+        {
+            return candidate;
+        }
+
+        if (float.IsFinite(previous) && previous >= 0f)
+        {
+            return previous;
+        }
+
+        return 0f;
     }
 
 }

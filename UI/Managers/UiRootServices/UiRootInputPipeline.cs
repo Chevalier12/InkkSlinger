@@ -7,6 +7,9 @@ namespace InkkSlinger;
 
 public sealed partial class UiRoot
 {
+    private const double WheelPreciseRetargetCooldownMs = 90d;
+    private const float WheelPointerMoveThresholdSquared = 4f;
+
     private void RunInputAndEventsPhase(GameTime gameTime)
     {
         _lastInputHitTestCount = 0;
@@ -279,6 +282,9 @@ public sealed partial class UiRoot
 
     private void DispatchMouseWheel(UIElement? target, Vector2 pointerPosition, int delta)
     {
+        var wheelHitTestsBefore = _lastInputHitTestCount;
+        var wheelHandleMs = 0d;
+        var didPreciseRetarget = false;
         var resolvedTarget = target ?? _inputState.HoveredElement;
         if (resolvedTarget == null)
         {
@@ -286,36 +292,78 @@ public sealed partial class UiRoot
         }
 
         EnsureCachedWheelTargetsAreCurrent(pointerPosition);
+        if (_cachedWheelTextBoxTarget != null)
+        {
+            resolvedTarget = _cachedWheelTextBoxTarget;
+        }
+        else if (_cachedWheelScrollViewerTarget != null)
+        {
+            resolvedTarget = _cachedWheelScrollViewerTarget;
+        }
+
         var hasCachedWheelTarget = _cachedWheelTextBoxTarget != null || _cachedWheelScrollViewerTarget != null;
         var hasWheelCapableAncestor = TryFindAncestor<TextBox>(resolvedTarget, out _) ||
                                       TryFindAncestor<ScrollViewer>(resolvedTarget, out _);
-        var needsPreciseTarget = !PointerLikelyInsideElement(resolvedTarget, pointerPosition) ||
+        var pointerInsideResolvedTarget = PointerLikelyInsideElement(resolvedTarget, pointerPosition);
+        var pointerInsideCachedTarget =
+            (_cachedWheelTextBoxTarget != null && PointerLikelyInsideElement(_cachedWheelTextBoxTarget, pointerPosition)) ||
+            (_cachedWheelScrollViewerTarget != null && PointerLikelyInsideElement(_cachedWheelScrollViewerTarget, pointerPosition));
+        var needsPreciseTarget = (!pointerInsideResolvedTarget && !pointerInsideCachedTarget) ||
                                  (!hasCachedWheelTarget && !hasWheelCapableAncestor);
-        if (needsPreciseTarget)
+        var pointerMovedSinceLastWheel = !_hasLastWheelPointerPosition ||
+                                         Vector2.DistanceSquared(_lastWheelPointerPosition, pointerPosition) > WheelPointerMoveThresholdSquared;
+        var cooldownElapsed = _lastWheelPreciseRetargetTimestamp == 0L ||
+                              Stopwatch.GetElapsedTime(_lastWheelPreciseRetargetTimestamp).TotalMilliseconds >= WheelPreciseRetargetCooldownMs;
+        var cachedViewerAtEdge = _cachedWheelScrollViewerTarget != null &&
+                                 !CanScrollViewerInWheelDirection(_cachedWheelScrollViewerTarget, delta);
+        var shouldPreciseRetarget = needsPreciseTarget &&
+                                    (!hasCachedWheelTarget || pointerMovedSinceLastWheel || cooldownElapsed || cachedViewerAtEdge);
+        if (shouldPreciseRetarget)
         {
-            _lastInputHitTestCount++;
-            var preciseTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
-            if (preciseTarget != null)
+            if (TryFindWheelCapableTargetAtPointer(pointerPosition, out var fastWheelTarget) &&
+                fastWheelTarget != null)
             {
-                resolvedTarget = preciseTarget;
-                RefreshCachedWheelTargets(preciseTarget);
+                resolvedTarget = fastWheelTarget;
+                RefreshCachedWheelTargets(fastWheelTarget);
             }
+            else
+            {
+                _lastInputHitTestCount++;
+                didPreciseRetarget = true;
+                var preciseTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+                if (preciseTarget != null)
+                {
+                    resolvedTarget = preciseTarget;
+                    RefreshCachedWheelTargets(preciseTarget);
+                }
+            }
+
+            _lastWheelPreciseRetargetTimestamp = Stopwatch.GetTimestamp();
         }
 
         _lastInputPointerEventCount++;
-        _lastInputRoutedEventCount += 2;
-        resolvedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
-        resolvedTarget.RaiseRoutedEventInternal(UIElement.MouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.MouseWheelEvent, pointerPosition, delta));
+        if (HasWheelRoutedEventHandlers(resolvedTarget))
+        {
+            _lastInputRoutedEventCount += 2;
+            resolvedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
+            resolvedTarget.RaiseRoutedEventInternal(UIElement.MouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.MouseWheelEvent, pointerPosition, delta));
+        }
 
         if (_cachedWheelTextBoxTarget != null &&
             _cachedWheelTextBoxTarget.HandleMouseWheelFromInput(delta))
         {
+            TrackWheelPointerPosition(pointerPosition);
+            ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
             return;
         }
 
         if (_cachedWheelScrollViewerTarget != null)
         {
+            var wheelHandleStart = Stopwatch.GetTimestamp();
             _ = _cachedWheelScrollViewerTarget.HandleMouseWheelFromInput(delta);
+            wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
+            TrackWheelPointerPosition(pointerPosition);
+            ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
             return;
         }
 
@@ -325,6 +373,8 @@ public sealed partial class UiRoot
         {
             _cachedWheelTextBoxTarget = textBox;
             _cachedWheelScrollViewerTarget = null;
+            TrackWheelPointerPosition(pointerPosition);
+            ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
             return;
         }
 
@@ -332,8 +382,13 @@ public sealed partial class UiRoot
         {
             _cachedWheelScrollViewerTarget = scrollViewer;
             _cachedWheelTextBoxTarget = null;
+            var wheelHandleStart = Stopwatch.GetTimestamp();
             _ = scrollViewer.HandleMouseWheelFromInput(delta);
+            wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
         }
+
+        TrackWheelPointerPosition(pointerPosition);
+        ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
     }
 
     private void EnsureCachedWheelTargetsAreCurrent(Vector2 pointerPosition)
@@ -354,6 +409,75 @@ public sealed partial class UiRoot
     private static bool PointerLikelyInsideElement(UIElement element, Vector2 pointerPosition)
     {
         return element.HitTest(pointerPosition);
+    }
+
+    private static bool CanScrollViewerInWheelDirection(ScrollViewer viewer, int delta)
+    {
+        var maxVertical = MathF.Max(0f, viewer.ExtentHeight - viewer.ViewportHeight);
+        if (delta < 0)
+        {
+            return viewer.VerticalOffset < maxVertical - 0.01f;
+        }
+
+        if (delta > 0)
+        {
+            return viewer.VerticalOffset > 0.01f;
+        }
+
+        return false;
+    }
+
+    private static bool HasWheelRoutedEventHandlers(UIElement target)
+    {
+        for (var current = target; current != null; current = current.VisualParent)
+        {
+            if (current.HasRoutedHandlerForEvent(UIElement.PreviewMouseWheelEvent) ||
+                current.HasRoutedHandlerForEvent(UIElement.MouseWheelEvent) ||
+                EventManager.HasClassHandlers(current.GetType(), UIElement.PreviewMouseWheelEvent) ||
+                EventManager.HasClassHandlers(current.GetType(), UIElement.MouseWheelEvent))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void TrackWheelPointerPosition(Vector2 pointerPosition)
+    {
+        _lastWheelPointerPosition = pointerPosition;
+        _hasLastWheelPointerPosition = true;
+    }
+
+    private bool TryFindWheelCapableTargetAtPointer(Vector2 pointerPosition, out UIElement? target)
+    {
+        var bestDepth = -1;
+        UIElement? bestTarget = null;
+        FindWheelCapableTargetAtPointer(_visualRoot, pointerPosition, depth: 0, ref bestDepth, ref bestTarget);
+        target = bestTarget;
+        return target != null;
+    }
+
+    private static void FindWheelCapableTargetAtPointer(
+        UIElement element,
+        Vector2 pointerPosition,
+        int depth,
+        ref int bestDepth,
+        ref UIElement? bestTarget)
+    {
+        if (element is TextBox or ScrollViewer)
+        {
+            if (element.HitTest(pointerPosition) && depth >= bestDepth)
+            {
+                bestDepth = depth;
+                bestTarget = element;
+            }
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            FindWheelCapableTargetAtPointer(child, pointerPosition, depth + 1, ref bestDepth, ref bestTarget);
+        }
     }
 
     private void RefreshCachedWheelTargets(UIElement? hovered)
@@ -546,4 +670,5 @@ public sealed partial class UiRoot
 
         return null;
     }
+
 }

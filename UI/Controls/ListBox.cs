@@ -296,9 +296,49 @@ public class ListBox : Selector
             };
         }
 
-        return new StackPanel
+        return new ScrollContentStackPanel
         {
             Orientation = Orientation.Vertical
         };
+    }
+
+    private sealed class ScrollContentStackPanel : StackPanel, IScrollTransformContent
+    {
+        protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
+        {
+            var viewer = FindAncestorScrollViewer();
+            if (viewer == null)
+            {
+                transform = Matrix.Identity;
+                inverseTransform = Matrix.Identity;
+                return false;
+            }
+
+            var offsetX = -viewer.HorizontalOffset;
+            var offsetY = -viewer.VerticalOffset;
+            if (MathF.Abs(offsetX) <= 0.01f && MathF.Abs(offsetY) <= 0.01f)
+            {
+                transform = Matrix.Identity;
+                inverseTransform = Matrix.Identity;
+                return false;
+            }
+
+            transform = Matrix.CreateTranslation(offsetX, offsetY, 0f);
+            inverseTransform = Matrix.CreateTranslation(-offsetX, -offsetY, 0f);
+            return true;
+        }
+
+        private ScrollViewer? FindAncestorScrollViewer()
+        {
+            for (var current = VisualParent ?? LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
+            {
+                if (current is ScrollViewer viewer)
+                {
+                    return viewer;
+                }
+            }
+
+            return null;
+        }
     }
 }

@@ -100,6 +100,7 @@ public sealed partial class UiRoot
         ClearDirtyRenderQueue();
         _dirtyRegions.Clear();
         LastDrawMs = Stopwatch.GetElapsedTime(drawStart).TotalMilliseconds;
+        ObserveScrollCpuAfterDraw();
         TraceRenderCacheCountersIfEnabled();
     }
 }

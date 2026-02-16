@@ -56,6 +56,11 @@ public static class EventManager
         }
     }
 
+    internal static bool HasClassHandlers(Type elementType, RoutedEvent routedEvent)
+    {
+        return GetDispatchHandlers(elementType, routedEvent).Length > 0;
+    }
+
     private static ClassHandlerEntry[] GetDispatchHandlers(Type elementType, RoutedEvent routedEvent)
     {
         var key = (elementType, routedEvent);

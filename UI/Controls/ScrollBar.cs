@@ -33,14 +33,14 @@ public class ScrollBar : Control
             nameof(Value),
             typeof(float),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty ViewportSizeProperty =
         DependencyProperty.Register(
             nameof(ViewportSize),
             typeof(float),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty SmallChangeProperty =
         DependencyProperty.Register(
