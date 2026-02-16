@@ -1,4 +1,6 @@
-# Changelog - 2026-02-16 - Scrollbar Drag Interaction
+# Changelog - Scrollbar Drag Interaction
+
+Date: 2026-02-16
 
 ## Added
 - Full pointer interaction for `ScrollBar` (track hit-testing, thumb press detection, page-step track clicks, and drag-to-value mapping).

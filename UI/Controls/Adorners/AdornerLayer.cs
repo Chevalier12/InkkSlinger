@@ -143,6 +143,12 @@ public class AdornerLayer : Panel
         return finalSize;
     }
 
+    protected override bool TryGetClipRect(out LayoutRect clipRect)
+    {
+        clipRect = LayoutSlot;
+        return clipRect.Width > 0f && clipRect.Height > 0f;
+    }
+
     private bool ContainsAdorner(Adorner adorner)
     {
         foreach (var child in Children)
