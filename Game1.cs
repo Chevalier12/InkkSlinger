@@ -13,6 +13,7 @@ public class Game1 : Game
     private readonly InkkSlinger.Window _window;
     private readonly bool _isWindowDemo;
     private readonly bool _isPaintShellDemo;
+    private readonly bool _isDarkDashboardDemo;
     private readonly bool _isCommandingDemo;
     private readonly bool _isThreeScrollViewersDemo;
     private readonly bool _isTwoScrollViewersDemo;
@@ -30,6 +31,7 @@ public class Game1 : Game
     private MainMenuView? _mainMenuView;
     private WindowDemoView? _windowDemoView;
     private PaintShellView? _paintShellView;
+    private DarkDashboardView? _darkDashboardView;
     private CommandingMenuDemoView? _commandingMenuDemoView;
     private ThreeScrollViewersView? _threeScrollViewersView;
     private TwoScrollViewersView? _twoScrollViewersView;
@@ -48,6 +50,7 @@ public class Game1 : Game
     public Game1(
         bool isWindowDemo = false,
         bool isPaintShellDemo = false,
+        bool isDarkDashboardDemo = false,
         bool isCommandingDemo = false,
         bool isThreeScrollViewersDemo = false,
         bool isTwoScrollViewersDemo = false,
@@ -63,6 +66,7 @@ public class Game1 : Game
         _window = new InkkSlinger.Window(this, _graphics);
         _isWindowDemo = isWindowDemo;
         _isPaintShellDemo = isPaintShellDemo;
+        _isDarkDashboardDemo = isDarkDashboardDemo;
         _isCommandingDemo = isCommandingDemo;
         _isThreeScrollViewersDemo = isThreeScrollViewersDemo;
         _isTwoScrollViewersDemo = isTwoScrollViewersDemo;
@@ -97,6 +101,11 @@ public class Game1 : Game
         {
             _paintShellView = new PaintShellView();
             _root.AddChild(_paintShellView);
+        }
+        else if (_isDarkDashboardDemo)
+        {
+            _darkDashboardView = new DarkDashboardView();
+            _root.AddChild(_darkDashboardView);
         }
         else if (_isCommandingDemo)
         {
@@ -179,6 +188,7 @@ public class Game1 : Game
             _mainMenuView?.SetFont(font);
             _windowDemoView?.SetFont(font);
             _paintShellView?.SetFont(font);
+            _darkDashboardView?.SetFont(font);
             _commandingMenuDemoView?.SetFont(font);
             _threeScrollViewersView?.SetFont(font);
             _twoScrollViewersView?.SetFont(font);
@@ -284,6 +294,13 @@ public class Game1 : Game
         if (_isPaintShellDemo)
         {
             _baseWindowTitle = $"InkkSlinger Paint Shell | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
+        if (_isDarkDashboardDemo)
+        {
+            _baseWindowTitle = $"InkkSlinger Dark Dashboard | {size.X}x{size.Y}";
             ApplyWindowTitle();
             return;
         }
@@ -450,6 +467,11 @@ public class Game1 : Game
             return 1580;
         }
 
+        if (_isDarkDashboardDemo)
+        {
+            return 1580;
+        }
+
         if (_isCommandingDemo)
         {
             return 1500;
@@ -487,6 +509,11 @@ public class Game1 : Game
         }
 
         if (_isPaintShellDemo)
+        {
+            return 940;
+        }
+
+        if (_isDarkDashboardDemo)
         {
             return 940;
         }

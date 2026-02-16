@@ -6,6 +6,8 @@ var isMainMenuDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--main-menu", global::System.StringComparison.OrdinalIgnoreCase));
 var isPaintShellDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--paint-shell", global::System.StringComparison.OrdinalIgnoreCase));
+var isDarkDashboardDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--dark-dashboard", global::System.StringComparison.OrdinalIgnoreCase));
 var isCommandingDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--commanding-demo", global::System.StringComparison.OrdinalIgnoreCase));
 var isThreeScrollViewersDemo = global::System.Array.Exists(args,
@@ -26,13 +28,14 @@ var isVirtualizedStackPanelDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--virtualized-stack-panel-demo", global::System.StringComparison.OrdinalIgnoreCase));
 var isScrollViewerEdgeCasesDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--scrollviewer-edge-cases", global::System.StringComparison.OrdinalIgnoreCase));
-if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo)
+if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo)
 {
-    isPaintShellDemo = true;
+    isDarkDashboardDemo = true;
 }
 using var game = new InkkSlinger.Game1(
     isWindowDemo,
     isPaintShellDemo,
+    isDarkDashboardDemo,
     isCommandingDemo,
     isThreeScrollViewersDemo,
     isTwoScrollViewersDemo,

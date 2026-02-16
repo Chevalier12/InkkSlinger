@@ -1,0 +1,603 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#1A1A1A"
+             Padding="0">
+
+  <UserControl.Resources>
+    <!-- ═══════════════════════════════════════════════════════════════
+         GLOBAL STYLES — Dark Charcoal + Ember Orange palette
+         ═══════════════════════════════════════════════════════════════ -->
+    <Style x:Key="CardStyle" TargetType="Border">
+      <Style.Setters>
+        <Setter Property="Background" Value="#242424" />
+        <Setter Property="BorderBrush" Value="#333333" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="16" />
+      </Style.Setters>
+    </Style>
+
+    <Style x:Key="AccentCardStyle" TargetType="Border">
+      <Style.Setters>
+        <Setter Property="Background" Value="#2A2016" />
+        <Setter Property="BorderBrush" Value="#E8791D" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="16" />
+      </Style.Setters>
+    </Style>
+
+    <Style x:Key="HeadingLabel" TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#F0F0F0" />
+      </Style.Setters>
+    </Style>
+
+    <Style x:Key="SubheadingLabel" TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#909090" />
+      </Style.Setters>
+    </Style>
+
+    <Style x:Key="AccentLabel" TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#E8791D" />
+      </Style.Setters>
+    </Style>
+
+    <Style x:Key="ValueLabel" TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#FFFFFF" />
+      </Style.Setters>
+    </Style>
+
+    <Style x:Key="MutedLabel" TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#666666" />
+      </Style.Setters>
+    </Style>
+
+    <Style x:Key="PrimaryButton" TargetType="Button">
+      <Style.Setters>
+        <Setter Property="Background" Value="#E8791D" />
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="BorderBrush" Value="#FF8C2A" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="16,8,16,8" />
+      </Style.Setters>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Trigger.Setters>
+            <Setter Property="Background" Value="#FF8C2A" />
+            <Setter Property="BorderBrush" Value="#FFAA55" />
+          </Trigger.Setters>
+        </Trigger>
+        <Trigger Property="IsPressed" Value="True">
+          <Trigger.Setters>
+            <Setter Property="Background" Value="#C96510" />
+            <Setter Property="BorderBrush" Value="#E8791D" />
+          </Trigger.Setters>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="GhostButton" TargetType="Button">
+      <Style.Setters>
+        <Setter Property="Background" Value="#00000000" />
+        <Setter Property="Foreground" Value="#909090" />
+        <Setter Property="BorderBrush" Value="#444444" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,6,12,6" />
+      </Style.Setters>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Trigger.Setters>
+            <Setter Property="Background" Value="#2E2E2E" />
+            <Setter Property="Foreground" Value="#E0E0E0" />
+            <Setter Property="BorderBrush" Value="#E8791D" />
+          </Trigger.Setters>
+        </Trigger>
+        <Trigger Property="IsPressed" Value="True">
+          <Trigger.Setters>
+            <Setter Property="Background" Value="#3A2A18" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+          </Trigger.Setters>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="NavButton" TargetType="Button">
+      <Style.Setters>
+        <Setter Property="Background" Value="#00000000" />
+        <Setter Property="Foreground" Value="#808080" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="12,10,12,10" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+      </Style.Setters>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Trigger.Setters>
+            <Setter Property="Background" Value="#2A2A2A" />
+            <Setter Property="Foreground" Value="#E8791D" />
+          </Trigger.Setters>
+        </Trigger>
+        <Trigger Property="IsPressed" Value="True">
+          <Trigger.Setters>
+            <Setter Property="Background" Value="#332210" />
+            <Setter Property="Foreground" Value="#FF8C2A" />
+          </Trigger.Setters>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="ActiveNavButton" TargetType="Button">
+      <Style.Setters>
+        <Setter Property="Background" Value="#2A1F14" />
+        <Setter Property="Foreground" Value="#E8791D" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="12,10,12,10" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+      </Style.Setters>
+    </Style>
+
+    <Style x:Key="SidebarSeparator" TargetType="Separator">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#2A2A2A" />
+      </Style.Setters>
+    </Style>
+  </UserControl.Resources>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       ROOT LAYOUT — Sidebar + Main Content
+       ═══════════════════════════════════════════════════════════════════ -->
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="220" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+
+    <!-- ─────────────────────────────────────────────────────────────────
+         LEFT SIDEBAR — Navigation
+         ───────────────────────────────────────────────────────────────── -->
+    <Border Grid.Column="0"
+            Background="#1E1E1E"
+            BorderBrush="#2A2A2A"
+            BorderThickness="0,0,1,0"
+            Padding="0">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Brand / Logo area -->
+        <Border Grid.Row="0" Padding="20,20,20,16" Background="#1E1E1E" BorderThickness="0">
+          <StackPanel>
+            <StackPanel Orientation="Horizontal">
+              <Border Background="#E8791D" Padding="6,4,6,4" BorderThickness="0">
+                <Label Text="INK" Foreground="#FFFFFF" />
+              </Border>
+              <Label Text="  Studio" Foreground="#C0C0C0" Margin="4,0,0,0" />
+            </StackPanel>
+            <Label Text="Creative Dashboard" Foreground="#555555" Margin="0,6,0,0" />
+          </StackPanel>
+        </Border>
+
+        <Separator Grid.Row="1" Foreground="#2A2A2A" Margin="16,0,16,0" />
+
+        <!-- Navigation Items -->
+        <StackPanel Grid.Row="2" Margin="8,12,8,12">
+          <Label Text="MAIN" Foreground="#555555" Margin="12,0,0,10" />
+          <Button x:Name="NavDashboard" Text="◆  Dashboard" Style="{StaticResource ActiveNavButton}" Click="OnNavDashboardClick" />
+          <Button x:Name="NavProjects"  Text="◇  Projects" Style="{StaticResource NavButton}" Click="OnNavProjectsClick" />
+          <Button x:Name="NavAnalytics" Text="◇  Analytics" Style="{StaticResource NavButton}" Click="OnNavAnalyticsClick" />
+          <Button x:Name="NavMessages"  Text="◇  Messages" Style="{StaticResource NavButton}" Click="OnNavMessagesClick" />
+
+          <Label Text="WORKSPACE" Foreground="#555555" Margin="12,20,0,10" />
+          <Button x:Name="NavFiles"    Text="◇  Files" Style="{StaticResource NavButton}" Click="OnNavFilesClick" />
+          <Button x:Name="NavSettings" Text="◇  Settings" Style="{StaticResource NavButton}" Click="OnNavSettingsClick" />
+          <Button x:Name="NavTeam"     Text="◇  Team" Style="{StaticResource NavButton}" Click="OnNavTeamClick" />
+        </StackPanel>
+
+        <!-- Bottom user area -->
+        <Border Grid.Row="3" Background="#191919" BorderBrush="#2A2A2A" BorderThickness="0,1,0,0" Padding="16,12,16,12">
+          <StackPanel Orientation="Horizontal">
+            <Border Background="#E8791D" Padding="6,4,6,4" BorderThickness="0">
+              <Label Text="LA" Foreground="#FFFFFF" />
+            </Border>
+            <StackPanel Margin="10,0,0,0">
+              <Label Text="Laurian A." Foreground="#D0D0D0" />
+              <Label Text="Admin" Foreground="#666666" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- ─────────────────────────────────────────────────────────────────
+         MAIN CONTENT AREA
+         ───────────────────────────────────────────────────────────────── -->
+    <Border Grid.Column="1" Background="#1A1A1A" Padding="0" BorderThickness="0">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══════ TOP BAR — Search + Actions ═══════ -->
+        <Border Grid.Row="0" Background="#1E1E1E" BorderBrush="#2A2A2A" BorderThickness="0,0,0,1" Padding="24,14,24,14">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Search box -->
+            <Border Grid.Column="0" Background="#262626" BorderBrush="#383838" BorderThickness="1" Padding="0" MaxWidth="400" HorizontalAlignment="Left">
+              <TextBox x:Name="SearchBox"
+                       Text=""
+                       Background="#262626"
+                       Foreground="#A0A0A0"
+                       BorderThickness="0"
+                       Padding="12,8,12,8"
+                       Width="380" />
+            </Border>
+
+            <!-- Action buttons -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+              <Button Text="Export" Style="{StaticResource GhostButton}" Click="OnExportClick" Margin="0,0,8,0" />
+              <Button x:Name="NewProjectBtn" Text="+ New Project" Style="{StaticResource PrimaryButton}" Click="OnNewProjectClick" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <!-- ═══════ SCROLLABLE DASHBOARD CONTENT ═══════ -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="#1A1A1A">
+          <StackPanel Margin="24,24,24,24">
+
+            <!-- Page heading -->
+            <Label Text="Dashboard" Style="{StaticResource HeadingLabel}" Margin="0,0,0,4" />
+            <Label Text="Welcome back. Here's what's happening today." Style="{StaticResource SubheadingLabel}" Margin="0,0,0,24" />
+
+            <!-- ═══════════════════════════════════════════════════════
+                 STATS ROW — 4 metric cards
+                 ═══════════════════════════════════════════════════════ -->
+            <Grid Margin="0,0,0,24">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <!-- Card 1: Total Projects (accent) -->
+              <Border Grid.Column="0" Style="{StaticResource AccentCardStyle}">
+                <StackPanel>
+                  <Label Text="TOTAL PROJECTS" Foreground="#997755" Margin="0,0,0,8" />
+                  <Label x:Name="StatProjects" Text="148" Foreground="#E8791D" />
+                  <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Label Text="▲ 12%" Foreground="#5CBF5C" />
+                    <Label Text="  vs last month" Foreground="#666666" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Card 2: Active Tasks -->
+              <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+                <StackPanel>
+                  <Label Text="ACTIVE TASKS" Foreground="#707070" Margin="0,0,0,8" />
+                  <Label x:Name="StatTasks" Text="36" Style="{StaticResource ValueLabel}" />
+                  <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Label Text="▲ 8%" Foreground="#5CBF5C" />
+                    <Label Text="  vs last month" Foreground="#666666" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Card 3: Team Members -->
+              <Border Grid.Column="4" Style="{StaticResource CardStyle}">
+                <StackPanel>
+                  <Label Text="TEAM MEMBERS" Foreground="#707070" Margin="0,0,0,8" />
+                  <Label x:Name="StatTeam" Text="12" Style="{StaticResource ValueLabel}" />
+                  <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Label Text="● 9 online" Foreground="#5CBF5C" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Card 4: Completion Rate -->
+              <Border Grid.Column="6" Style="{StaticResource CardStyle}">
+                <StackPanel>
+                  <Label Text="COMPLETION RATE" Foreground="#707070" Margin="0,0,0,8" />
+                  <Label x:Name="StatCompletion" Text="94.2%" Style="{StaticResource ValueLabel}" />
+                  <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Label Text="▲ 2.1%" Foreground="#5CBF5C" />
+                    <Label Text="  vs last month" Foreground="#666666" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <!-- ═══════════════════════════════════════════════════════
+                 MIDDLE ROW — Activity Feed + Quick Actions
+                 ═══════════════════════════════════════════════════════ -->
+            <Grid Margin="0,0,0,24">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <!-- Recent Activity card -->
+              <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+                <StackPanel>
+                  <Grid Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Label Grid.Column="0" Text="Recent Activity" Style="{StaticResource HeadingLabel}" />
+                    <Button Grid.Column="1" Text="View All" Style="{StaticResource GhostButton}" Click="OnViewAllActivityClick" />
+                  </Grid>
+
+                  <!-- Activity items -->
+                  <Border Background="#1E1E1E" BorderBrush="#2E2E2E" BorderThickness="1" Padding="14,12,14,12" Margin="0,0,0,8">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <Border Grid.Column="0" Background="#E8791D" Padding="4,2,4,2" Margin="0,0,12,0" BorderThickness="0">
+                        <Label Text="NEW" Foreground="#FFFFFF" />
+                      </Border>
+                      <StackPanel Grid.Column="1">
+                        <Label Text="Brand Identity Redesign" Foreground="#E0E0E0" />
+                        <Label Text="Created by Alex — 2 min ago" Foreground="#666666" />
+                      </StackPanel>
+                      <Label Grid.Column="2" Text="●" Foreground="#E8791D" />
+                    </Grid>
+                  </Border>
+
+                  <Border Background="#1E1E1E" BorderBrush="#2E2E2E" BorderThickness="1" Padding="14,12,14,12" Margin="0,0,0,8">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <Border Grid.Column="0" Background="#3A7A3A" Padding="4,2,4,2" Margin="0,0,12,0" BorderThickness="0">
+                        <Label Text="DONE" Foreground="#FFFFFF" />
+                      </Border>
+                      <StackPanel Grid.Column="1">
+                        <Label Text="Mobile App UI Kit v3.0" Foreground="#E0E0E0" />
+                        <Label Text="Completed by Sarah — 15 min ago" Foreground="#666666" />
+                      </StackPanel>
+                      <Label Grid.Column="2" Text="●" Foreground="#3A7A3A" />
+                    </Grid>
+                  </Border>
+
+                  <Border Background="#1E1E1E" BorderBrush="#2E2E2E" BorderThickness="1" Padding="14,12,14,12" Margin="0,0,0,8">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <Border Grid.Column="0" Background="#4A7AC7" Padding="4,2,4,2" Margin="0,0,12,0" BorderThickness="0">
+                        <Label Text="WIP" Foreground="#FFFFFF" />
+                      </Border>
+                      <StackPanel Grid.Column="1">
+                        <Label Text="E-commerce Dashboard Prototype" Foreground="#E0E0E0" />
+                        <Label Text="Updated by Mike — 1 hr ago" Foreground="#666666" />
+                      </StackPanel>
+                      <Label Grid.Column="2" Text="●" Foreground="#4A7AC7" />
+                    </Grid>
+                  </Border>
+
+                  <Border Background="#1E1E1E" BorderBrush="#2E2E2E" BorderThickness="1" Padding="14,12,14,12" Margin="0,0,0,8">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <Border Grid.Column="0" Background="#C7A034" Padding="4,2,4,2" Margin="0,0,12,0" BorderThickness="0">
+                        <Label Text="REV" Foreground="#FFFFFF" />
+                      </Border>
+                      <StackPanel Grid.Column="1">
+                        <Label Text="Marketing Landing Page" Foreground="#E0E0E0" />
+                        <Label Text="Review requested — 3 hrs ago" Foreground="#666666" />
+                      </StackPanel>
+                      <Label Grid.Column="2" Text="●" Foreground="#C7A034" />
+                    </Grid>
+                  </Border>
+
+                  <Border Background="#1E1E1E" BorderBrush="#2E2E2E" BorderThickness="1" Padding="14,12,14,12">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <Border Grid.Column="0" Background="#8855CC" Padding="4,2,4,2" Margin="0,0,12,0" BorderThickness="0">
+                        <Label Text="ARC" Foreground="#FFFFFF" />
+                      </Border>
+                      <StackPanel Grid.Column="1">
+                        <Label Text="Q4 Design System Updates" Foreground="#E0E0E0" />
+                        <Label Text="Archived by Admin — yesterday" Foreground="#666666" />
+                      </StackPanel>
+                      <Label Grid.Column="2" Text="●" Foreground="#555555" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+
+              <!-- Quick Actions card -->
+              <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+                <StackPanel>
+                  <Label Text="Quick Actions" Style="{StaticResource HeadingLabel}" Margin="0,0,0,16" />
+
+                  <Button Text="+ Create Project" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Click="OnQuickNewProjectClick" Margin="0,0,0,10" />
+                  <Button Text="Invite Member" Style="{StaticResource GhostButton}" HorizontalAlignment="Stretch" Click="OnInviteMemberClick" Margin="0,0,0,10" />
+                  <Button Text="Upload Files" Style="{StaticResource GhostButton}" HorizontalAlignment="Stretch" Click="OnUploadFilesClick" Margin="0,0,0,10" />
+                  <Button Text="Generate Report" Style="{StaticResource GhostButton}" HorizontalAlignment="Stretch" Click="OnGenerateReportClick" Margin="0,0,0,10" />
+
+                  <Separator Foreground="#2A2A2A" Margin="0,6,0,16" />
+
+                  <Label Text="Deadlines This Week" Style="{StaticResource HeadingLabel}" Margin="0,0,0,12" />
+
+                  <Border Background="#1E1E1E" BorderBrush="#2E2E2E" BorderThickness="1" Padding="12,10,12,10" Margin="0,0,0,6">
+                    <StackPanel>
+                      <Label Text="Brand Guide v2" Foreground="#D0D0D0" />
+                      <Label Text="Due: Wed, Feb 18" Foreground="#E8791D" />
+                    </StackPanel>
+                  </Border>
+
+                  <Border Background="#1E1E1E" BorderBrush="#2E2E2E" BorderThickness="1" Padding="12,10,12,10" Margin="0,0,0,6">
+                    <StackPanel>
+                      <Label Text="App Prototype" Foreground="#D0D0D0" />
+                      <Label Text="Due: Fri, Feb 20" Foreground="#C7A034" />
+                    </StackPanel>
+                  </Border>
+
+                  <Border Background="#1E1E1E" BorderBrush="#2E2E2E" BorderThickness="1" Padding="12,10,12,10">
+                    <StackPanel>
+                      <Label Text="Icon Set Delivery" Foreground="#D0D0D0" />
+                      <Label Text="Due: Sat, Feb 21" Foreground="#666666" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <!-- ═══════════════════════════════════════════════════════
+                 BOTTOM ROW — Project Cards Grid
+                 ═══════════════════════════════════════════════════════ -->
+            <Label Text="Active Projects" Style="{StaticResource HeadingLabel}" Margin="0,0,0,14" />
+
+            <Grid Margin="0,0,0,24">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <!-- Project Card 1 -->
+              <Border Grid.Column="0" Background="#242424" BorderBrush="#333333" BorderThickness="1" Padding="0">
+                <StackPanel>
+                  <!-- Colored header strip -->
+                  <Border Background="#E8791D" Padding="16,12,16,12" BorderThickness="0">
+                    <Label Text="Brand Identity" Foreground="#FFFFFF" />
+                  </Border>
+                  <StackPanel Margin="16,14,16,16">
+                    <Label Text="Complete redesign of brand assets including logo, typography, and color system." Foreground="#A0A0A0" Margin="0,0,0,14" />
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <Label Grid.Column="0" Text="Progress" Foreground="#707070" />
+                      <Label Grid.Column="1" Text="72%" Foreground="#E8791D" />
+                    </Grid>
+                    <!-- Progress bar background -->
+                    <Border Background="#333333" Padding="0" Margin="0,6,0,12" Height="4" BorderThickness="0">
+                      <Border Background="#E8791D" HorizontalAlignment="Left" Width="180" BorderThickness="0" />
+                    </Border>
+                    <StackPanel Orientation="Horizontal">
+                      <Label Text="3 members" Foreground="#666666" />
+                      <Label Text="  ·  " Foreground="#444444" />
+                      <Label Text="5 days left" Foreground="#E8791D" />
+                    </StackPanel>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Project Card 2 -->
+              <Border Grid.Column="2" Background="#242424" BorderBrush="#333333" BorderThickness="1" Padding="0">
+                <StackPanel>
+                  <Border Background="#4A7AC7" Padding="16,12,16,12" BorderThickness="0">
+                    <Label Text="Mobile App" Foreground="#FFFFFF" />
+                  </Border>
+                  <StackPanel Margin="16,14,16,16">
+                    <Label Text="Cross-platform mobile application with real-time sync and offline support." Foreground="#A0A0A0" Margin="0,0,0,14" />
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <Label Grid.Column="0" Text="Progress" Foreground="#707070" />
+                      <Label Grid.Column="1" Text="45%" Foreground="#4A7AC7" />
+                    </Grid>
+                    <Border Background="#333333" Padding="0" Margin="0,6,0,12" Height="4" BorderThickness="0">
+                      <Border Background="#4A7AC7" HorizontalAlignment="Left" Width="110" BorderThickness="0" />
+                    </Border>
+                    <StackPanel Orientation="Horizontal">
+                      <Label Text="5 members" Foreground="#666666" />
+                      <Label Text="  ·  " Foreground="#444444" />
+                      <Label Text="12 days left" Foreground="#4A7AC7" />
+                    </StackPanel>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Project Card 3 -->
+              <Border Grid.Column="4" Background="#242424" BorderBrush="#333333" BorderThickness="1" Padding="0">
+                <StackPanel>
+                  <Border Background="#3A7A3A" Padding="16,12,16,12" BorderThickness="0">
+                    <Label Text="Marketing Site" Foreground="#FFFFFF" />
+                  </Border>
+                  <StackPanel Margin="16,14,16,16">
+                    <Label Text="Landing pages and conversion funnels for the Q1 campaign launch." Foreground="#A0A0A0" Margin="0,0,0,14" />
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <Label Grid.Column="0" Text="Progress" Foreground="#707070" />
+                      <Label Grid.Column="1" Text="91%" Foreground="#3A7A3A" />
+                    </Grid>
+                    <Border Background="#333333" Padding="0" Margin="0,6,0,12" Height="4" BorderThickness="0">
+                      <Border Background="#3A7A3A" HorizontalAlignment="Left" Width="228" BorderThickness="0" />
+                    </Border>
+                    <StackPanel Orientation="Horizontal">
+                      <Label Text="2 members" Foreground="#666666" />
+                      <Label Text="  ·  " Foreground="#444444" />
+                      <Label Text="2 days left" Foreground="#5CBF5C" />
+                    </StackPanel>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <!-- ═══════════════════════════════════════════════════════
+                 FOOTER / STATUS BAR
+                 ═══════════════════════════════════════════════════════ -->
+            <Border Background="#1E1E1E" BorderBrush="#2A2A2A" BorderThickness="1" Padding="16,10,16,10">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Label x:Name="StatusLabel" Grid.Column="0" Text="All systems operational" Foreground="#3A7A3A" />
+                <Label Grid.Column="1" Text="INK Studio v2.4.0" Foreground="#444444" />
+              </Grid>
+            </Border>
+
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>
