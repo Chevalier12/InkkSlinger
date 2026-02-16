@@ -10,6 +10,7 @@ public partial class TwoScrollViewersView : UserControl
     {
         var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "TwoScrollViewersView.xml");
         XamlLoader.LoadInto(this, markupPath, this);
+        PopulateVirtualizedPanelItems();
     }
 
     public void SetFont(SpriteFont? font)
@@ -42,6 +43,24 @@ public partial class TwoScrollViewersView : UserControl
         foreach (var child in element.GetVisualChildren())
         {
             ApplyFontRecursive(child, font);
+        }
+    }
+
+    private void PopulateVirtualizedPanelItems()
+    {
+        if (DemoVirtualizedScrollPanel == null)
+        {
+            return;
+        }
+
+        for (var i = 1; i <= 500; i++)
+        {
+            DemoVirtualizedScrollPanel.AddChild(new Label
+            {
+                Text = $"Virtualized Item {i}",
+                Foreground = new Microsoft.Xna.Framework.Color(220, 238, 255),
+                Margin = new Thickness(0f, 0f, 0f, 6f)
+            });
         }
     }
 }

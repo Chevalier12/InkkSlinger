@@ -2,6 +2,11 @@
 
 Date: 2026-02-13
 
+## Superseded
+- 2026-02-15: Replaced by viewer-owned scrolling.
+- `ScrollViewer` no longer uses `IScrollInfo` handoff or `ScrollContentPresenter`.
+- `VirtualizingStackPanel` now relies on ancestor `ScrollViewer` viewport/offset state instead of `ScrollOwner` notifications.
+
 ## Added
 - WPF-style scrolling contracts and event payloads:
   - `UI/Controls/IScrollInfo.cs`

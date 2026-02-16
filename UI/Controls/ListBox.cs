@@ -7,6 +7,22 @@ namespace InkkSlinger;
 
 public class ListBox : Selector
 {
+    public static readonly DependencyProperty IsVirtualizingProperty =
+        DependencyProperty.Register(
+            nameof(IsVirtualizing),
+            typeof(bool),
+            typeof(ListBox),
+            new FrameworkPropertyMetadata(
+                false,
+                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is ListBox listBox && args.NewValue is bool isVirtualizing)
+                    {
+                        listBox.UpdateItemsHost(isVirtualizing);
+                    }
+                }));
+
     public static readonly DependencyProperty HorizontalScrollBarVisibilityProperty =
         DependencyProperty.Register(
             nameof(HorizontalScrollBarVisibility),
@@ -56,14 +72,11 @@ public class ListBox : Selector
                 coerceValueCallback: static (_, value) => value is float f && f >= 0f ? f : 0f));
 
     private readonly ScrollViewer _scrollViewer;
-    private readonly StackPanel _itemsHost;
+    private Panel _itemsHost;
 
     public ListBox()
     {
-        _itemsHost = new StackPanel
-        {
-            Orientation = Orientation.Vertical
-        };
+        _itemsHost = CreateItemsHost(isVirtualizing: false);
         AttachItemsHost(_itemsHost);
         _scrollViewer = new ScrollViewer
         {
@@ -77,6 +90,12 @@ public class ListBox : Selector
 
         _scrollViewer.SetVisualParent(this);
         _scrollViewer.SetLogicalParent(this);
+    }
+
+    public bool IsVirtualizing
+    {
+        get => GetValue<bool>(IsVirtualizingProperty);
+        set => SetValue(IsVirtualizingProperty, value);
     }
 
     public ScrollBarVisibility HorizontalScrollBarVisibility
@@ -251,5 +270,35 @@ public class ListBox : Selector
         }
 
         return false;
+    }
+
+    private void UpdateItemsHost(bool isVirtualizing)
+    {
+        var nextHost = CreateItemsHost(isVirtualizing);
+        if (ReferenceEquals(nextHost, _itemsHost))
+        {
+            return;
+        }
+
+        _itemsHost = nextHost;
+        _scrollViewer.Content = _itemsHost;
+        AttachItemsHost(_itemsHost);
+        InvalidateMeasure();
+    }
+
+    private static Panel CreateItemsHost(bool isVirtualizing)
+    {
+        if (isVirtualizing)
+        {
+            return new VirtualizingStackPanel
+            {
+                Orientation = Orientation.Vertical
+            };
+        }
+
+        return new StackPanel
+        {
+            Orientation = Orientation.Vertical
+        };
     }
 }

@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
-public class VirtualizingStackPanel : Panel, IScrollInfo
+public class VirtualizingStackPanel : Panel
 {
     public static readonly DependencyProperty OrientationProperty =
         DependencyProperty.Register(
@@ -64,12 +65,27 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
     private float _viewportHeight;
     private float _horizontalOffset;
     private float _verticalOffset;
-    private bool _canHorizontallyScroll;
-    private bool _canVerticallyScroll = true;
-    private ScrollViewer? _scrollOwner;
 
     private bool _startOffsetsDirty = true;
     private bool _isVirtualizationActive;
+    private bool _relayoutQueuedFromOffset;
+    private int _lastMeasuredFirst = -1;
+    private int _lastMeasuredLast = -1;
+    private int _lastArrangedFirst = -1;
+    private int _lastArrangedLast = -1;
+    private Vector2 _lastArrangeSize;
+    private bool _hasArrangedRange;
+    private static int _diagWheelUpCalls;
+    private static int _diagWheelDownCalls;
+    private static int _diagSetVerticalOffsetCalls;
+    private static int _diagSetVerticalOffsetChanges;
+    private static int _diagSetHorizontalOffsetCalls;
+    private static int _diagSetHorizontalOffsetChanges;
+    private static int _diagRealizationChanges;
+    private static int _diagMeasureRangeCalls;
+    private static int _diagArrangeRangeCalls;
+    private static int _diagMeasuredChildren;
+    private static int _diagArrangedChildren;
 
     public Orientation Orientation
     {
@@ -109,18 +125,6 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
 
     public bool IsVirtualizationActive => _isVirtualizationActive;
 
-    public bool CanHorizontallyScroll
-    {
-        get => _canHorizontallyScroll;
-        set => _canHorizontallyScroll = value;
-    }
-
-    public bool CanVerticallyScroll
-    {
-        get => _canVerticallyScroll;
-        set => _canVerticallyScroll = value;
-    }
-
     public float ExtentWidth => _extentWidth;
 
     public float ExtentHeight => _extentHeight;
@@ -132,12 +136,6 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
     public float HorizontalOffset => _horizontalOffset;
 
     public float VerticalOffset => _verticalOffset;
-
-    public ScrollViewer? ScrollOwner
-    {
-        get => _scrollOwner;
-        set => _scrollOwner = value;
-    }
 
     public static bool GetIsVirtualizing(UIElement element)
     {
@@ -177,6 +175,34 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
     public static void SetCacheLengthUnit(UIElement element, VirtualizationCacheLengthUnit value)
     {
         element.SetValue(CacheLengthUnitProperty, value);
+    }
+
+    internal static VirtualizingStackPanelScrollDiagnosticsSnapshot GetScrollDiagnosticsAndReset()
+    {
+        var snapshot = new VirtualizingStackPanelScrollDiagnosticsSnapshot(
+            _diagWheelUpCalls,
+            _diagWheelDownCalls,
+            _diagSetVerticalOffsetCalls,
+            _diagSetVerticalOffsetChanges,
+            _diagSetHorizontalOffsetCalls,
+            _diagSetHorizontalOffsetChanges,
+            _diagRealizationChanges,
+            _diagMeasureRangeCalls,
+            _diagArrangeRangeCalls,
+            _diagMeasuredChildren,
+            _diagArrangedChildren);
+        _diagWheelUpCalls = 0;
+        _diagWheelDownCalls = 0;
+        _diagSetVerticalOffsetCalls = 0;
+        _diagSetVerticalOffsetChanges = 0;
+        _diagSetHorizontalOffsetCalls = 0;
+        _diagSetHorizontalOffsetChanges = 0;
+        _diagRealizationChanges = 0;
+        _diagMeasureRangeCalls = 0;
+        _diagArrangeRangeCalls = 0;
+        _diagMeasuredChildren = 0;
+        _diagArrangedChildren = 0;
+        return snapshot;
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()
@@ -221,6 +247,7 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        _relayoutQueuedFromOffset = false;
         EnsureCacheLength();
 
         if (Children.Count == 0)
@@ -233,7 +260,6 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
             _viewportWidth = 0f;
             _viewportHeight = 0f;
             CoerceOffsets();
-            NotifyScrollOwner();
             return Vector2.Zero;
         }
 
@@ -247,7 +273,15 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
 
         var first = ResolveStartIndex(context.StartOffset);
         var last = ResolveEndIndex(context.EndOffset, first);
-        MeasureRange(availableSize, first, last);
+        var canReuseMeasuredRange = first == _lastMeasuredFirst &&
+                                    last == _lastMeasuredLast &&
+                                    !RangeNeedsMeasure(first, last);
+        if (!canReuseMeasuredRange)
+        {
+            MeasureRange(availableSize, first, last);
+            _lastMeasuredFirst = first;
+            _lastMeasuredLast = last;
+        }
         SetRealization(first, last);
 
         var extentPrimary = GetTotalPrimarySize();
@@ -271,7 +305,6 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
             _viewportWidth = MathF.Max(0f, finalSize.X);
             _viewportHeight = MathF.Max(0f, finalSize.Y);
             CoerceOffsets();
-            NotifyScrollOwner();
             return finalSize;
         }
 
@@ -283,16 +316,32 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
             var first = ResolveStartIndex(context.StartOffset);
             var last = ResolveEndIndex(context.EndOffset, first);
             SetRealization(first, last);
-            ArrangeRange(finalSize, first, last);
+            var canReuseArrangeRange = _hasArrangedRange &&
+                                       first == _lastArrangedFirst &&
+                                       last == _lastArrangedLast &&
+                                       AreClose(_lastArrangeSize.X, finalSize.X) &&
+                                       AreClose(_lastArrangeSize.Y, finalSize.Y) &&
+                                       !RangeNeedsArrange(first, last);
+            if (!canReuseArrangeRange)
+            {
+                ArrangeRange(finalSize, first, last);
+                _hasArrangedRange = true;
+                _lastArrangedFirst = first;
+                _lastArrangedLast = last;
+                _lastArrangeSize = finalSize;
+            }
         }
         else
         {
             SetRealization(0, Children.Count - 1);
             ArrangeRange(finalSize, 0, Children.Count - 1);
+            _hasArrangedRange = true;
+            _lastArrangedFirst = 0;
+            _lastArrangedLast = Children.Count - 1;
+            _lastArrangeSize = finalSize;
         }
 
         UpdateViewportFromFinalSize(finalSize);
-        NotifyScrollOwner();
         return finalSize;
     }
 
@@ -305,11 +354,23 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
     {
         base.OnLogicalParentChanged(oldParent, newParent);
-        if (oldParent == null && newParent == null)
-        {
-            ScrollOwner = null;
-        }
         InvalidateMeasure();
+    }
+
+    protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
+    {
+        var offsetX = -HorizontalOffset;
+        var offsetY = -VerticalOffset;
+        if (AreClose(offsetX, 0f) && AreClose(offsetY, 0f))
+        {
+            transform = Matrix.Identity;
+            inverseTransform = Matrix.Identity;
+            return false;
+        }
+
+        transform = Matrix.CreateTranslation(offsetX, offsetY, 0f);
+        inverseTransform = Matrix.CreateTranslation(-offsetX, -offsetY, 0f);
+        return true;
     }
 
     public void LineUp()
@@ -354,11 +415,13 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
 
     public void MouseWheelUp()
     {
+        _diagWheelUpCalls++;
         LineUp();
     }
 
     public void MouseWheelDown()
     {
+        _diagWheelDownCalls++;
         LineDown();
     }
 
@@ -374,30 +437,56 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
 
     public void SetHorizontalOffset(float offset)
     {
+        _diagSetHorizontalOffsetCalls++;
         var next = MathF.Max(0f, MathF.Min(MaxHorizontalOffset(), offset));
         if (AreClose(next, _horizontalOffset))
         {
             return;
         }
 
+        _diagSetHorizontalOffsetChanges++;
+        var oldOffset = _horizontalOffset;
         _horizontalOffset = next;
-        InvalidateMeasure();
-        InvalidateArrange();
-        NotifyScrollOwner();
+        if (ShouldRelayoutForOffsetChange(oldOffset, next, isVertical: false))
+        {
+            if (!_relayoutQueuedFromOffset)
+            {
+                _relayoutQueuedFromOffset = true;
+                InvalidateMeasure();
+                InvalidateArrange();
+            }
+        }
+        else
+        {
+            InvalidateVisual();
+        }
     }
 
     public void SetVerticalOffset(float offset)
     {
+        _diagSetVerticalOffsetCalls++;
         var next = MathF.Max(0f, MathF.Min(MaxVerticalOffset(), offset));
         if (AreClose(next, _verticalOffset))
         {
             return;
         }
 
+        _diagSetVerticalOffsetChanges++;
+        var oldOffset = _verticalOffset;
         _verticalOffset = next;
-        InvalidateMeasure();
-        InvalidateArrange();
-        NotifyScrollOwner();
+        if (ShouldRelayoutForOffsetChange(oldOffset, next, isVertical: true))
+        {
+            if (!_relayoutQueuedFromOffset)
+            {
+                _relayoutQueuedFromOffset = true;
+                InvalidateMeasure();
+                InvalidateArrange();
+            }
+        }
+        else
+        {
+            InvalidateVisual();
+        }
     }
 
     public LayoutRect MakeVisible(UIElement visual, LayoutRect rectangle)
@@ -434,6 +523,7 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
 
     private void ArrangeRange(Vector2 finalSize, int firstIndex, int lastIndex)
     {
+        _diagArrangeRangeCalls++;
         EnsureStartOffsets();
 
         var first = Math.Max(0, firstIndex);
@@ -446,6 +536,7 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
                 continue;
             }
 
+            _diagArrangedChildren++;
             var primary = ResolvePrimarySizeForArrange(child, i);
             var start = _startOffsets[i];
 
@@ -538,6 +629,7 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
 
     private void MeasureRange(Vector2 availableSize, int first, int last)
     {
+        _diagMeasureRangeCalls++;
         var childConstraint = GetChildConstraint(availableSize);
 
         var measuredPrimaryTotal = 0f;
@@ -556,7 +648,11 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
                 continue;
             }
 
-            child.Measure(childConstraint);
+            if (child.NeedsMeasure)
+            {
+                _diagMeasuredChildren++;
+                child.Measure(childConstraint);
+            }
 
             var childPrimary = Orientation == Orientation.Vertical ? child.DesiredSize.Y : child.DesiredSize.X;
             var childSecondary = Orientation == Orientation.Vertical ? child.DesiredSize.X : child.DesiredSize.Y;
@@ -579,6 +675,65 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
         }
 
         _maxSecondarySize = measuredSecondaryMax;
+    }
+
+    private bool RangeNeedsMeasure(int first, int last)
+    {
+        var clampedFirst = Math.Max(0, first);
+        var clampedLast = Math.Min(Children.Count - 1, last);
+        for (var i = clampedFirst; i <= clampedLast; i++)
+        {
+            if (Children[i] is FrameworkElement child && child.NeedsMeasure)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool RangeNeedsArrange(int first, int last)
+    {
+        var clampedFirst = Math.Max(0, first);
+        var clampedLast = Math.Min(Children.Count - 1, last);
+        for (var i = clampedFirst; i <= clampedLast; i++)
+        {
+            if (Children[i] is FrameworkElement child && child.NeedsArrange)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool ShouldRelayoutForOffsetChange(float oldOffset, float newOffset, bool isVertical)
+    {
+        if (!_isVirtualizationActive || Children.Count == 0 || AreClose(oldOffset, newOffset))
+        {
+            return false;
+        }
+
+        var viewportPrimary = isVertical ? _viewportHeight : _viewportWidth;
+        if (!IsFinitePositive(viewportPrimary))
+        {
+            return true;
+        }
+
+        EnsureStartOffsets();
+        if (FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex || _startOffsets.Count == 0)
+        {
+            return true;
+        }
+
+        var first = Math.Clamp(FirstRealizedIndex, 0, _startOffsets.Count - 1);
+        var last = Math.Clamp(LastRealizedIndex, first, _startOffsets.Count - 1);
+        var realizedStart = _startOffsets[first];
+        var realizedEnd = _startOffsets[last] + _primarySizes[last];
+        var windowStart = newOffset;
+        var windowEnd = newOffset + viewportPrimary;
+        var guardBand = MathF.Max(MathF.Max(1f, _averagePrimarySize) * 4f, viewportPrimary * 0.15f);
+        return windowStart < realizedStart + guardBand || windowEnd > realizedEnd - guardBand;
     }
 
     private Vector2 GetChildConstraint(Vector2 availableSize)
@@ -686,17 +841,27 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
 
     private void SetRealization(int first, int last)
     {
+        var prevFirst = FirstRealizedIndex;
+        var prevLast = LastRealizedIndex;
         if (Children.Count == 0 || first < 0 || last < first)
         {
             FirstRealizedIndex = -1;
             LastRealizedIndex = -1;
             RealizedChildrenCount = 0;
+            if (prevFirst != FirstRealizedIndex || prevLast != LastRealizedIndex)
+            {
+                _diagRealizationChanges++;
+            }
             return;
         }
 
         FirstRealizedIndex = Math.Clamp(first, 0, Children.Count - 1);
         LastRealizedIndex = Math.Clamp(last, FirstRealizedIndex, Children.Count - 1);
         RealizedChildrenCount = LastRealizedIndex - FirstRealizedIndex + 1;
+        if (prevFirst != FirstRealizedIndex || prevLast != LastRealizedIndex)
+        {
+            _diagRealizationChanges++;
+        }
     }
 
     private int ResolveStartIndex(float startOffset)
@@ -809,7 +974,7 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
 
     private ViewportContext ResolveViewportContext(Vector2 availableSize)
     {
-        var fallbackViewer = ScrollOwner ?? FindAncestorScrollViewer();
+        var fallbackViewer = FindAncestorScrollViewer();
         var viewportPrimary = Orientation == Orientation.Vertical
             ? ViewportHeight
             : ViewportWidth;
@@ -851,7 +1016,6 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
         var endOffset = offsetPrimary + viewportPrimary + cacheLength;
 
         return new ViewportContext(
-            fallbackViewer != null,
             viewportPrimary,
             offsetPrimary,
             startOffset,
@@ -872,24 +1036,50 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
 
     private void UpdateScrollDataFromMeasure(Vector2 availableSize, Vector2 desiredSize)
     {
+        var ancestorViewer = FindAncestorScrollViewer();
+        var ownerViewportWidth = ancestorViewer?.ViewportWidth ?? 0f;
+        var ownerViewportHeight = ancestorViewer?.ViewportHeight ?? 0f;
         _extentWidth = MathF.Max(0f, desiredSize.X);
         _extentHeight = MathF.Max(0f, desiredSize.Y);
         _viewportWidth = Orientation == Orientation.Vertical
-            ? (IsFinitePositive(availableSize.X) ? availableSize.X : _maxSecondarySize)
-            : (IsFinitePositive(availableSize.X) ? availableSize.X : MathF.Max(1f, _averagePrimarySize * 12f));
+            ? (IsFinitePositive(availableSize.X)
+                ? availableSize.X
+                : (IsFinitePositive(ownerViewportWidth) ? ownerViewportWidth : _maxSecondarySize))
+            : (IsFinitePositive(availableSize.X)
+                ? availableSize.X
+                : (IsFinitePositive(ownerViewportWidth) ? ownerViewportWidth : MathF.Max(1f, _averagePrimarySize * 12f)));
         _viewportHeight = Orientation == Orientation.Vertical
-            ? (IsFinitePositive(availableSize.Y) ? availableSize.Y : MathF.Max(1f, _averagePrimarySize * 12f))
-            : (IsFinitePositive(availableSize.Y) ? availableSize.Y : _maxSecondarySize);
+            ? (IsFinitePositive(availableSize.Y)
+                ? availableSize.Y
+                : (IsFinitePositive(ownerViewportHeight) ? ownerViewportHeight : MathF.Max(1f, _averagePrimarySize * 12f)))
+            : (IsFinitePositive(availableSize.Y)
+                ? availableSize.Y
+                : (IsFinitePositive(ownerViewportHeight) ? ownerViewportHeight : _maxSecondarySize));
         _viewportWidth = MathF.Max(0f, _viewportWidth);
         _viewportHeight = MathF.Max(0f, _viewportHeight);
         CoerceOffsets();
-        NotifyScrollOwner();
     }
 
     private void UpdateViewportFromFinalSize(Vector2 finalSize)
     {
-        _viewportWidth = MathF.Max(0f, finalSize.X);
-        _viewportHeight = MathF.Max(0f, finalSize.Y);
+        var viewportWidth = MathF.Max(0f, finalSize.X);
+        var viewportHeight = MathF.Max(0f, finalSize.Y);
+        var ancestorViewer = FindAncestorScrollViewer();
+        if (ancestorViewer != null)
+        {
+            if (IsFinitePositive(ancestorViewer.ViewportWidth))
+            {
+                viewportWidth = ancestorViewer.ViewportWidth;
+            }
+
+            if (IsFinitePositive(ancestorViewer.ViewportHeight))
+            {
+                viewportHeight = ancestorViewer.ViewportHeight;
+            }
+        }
+
+        _viewportWidth = viewportWidth;
+        _viewportHeight = viewportHeight;
         CoerceOffsets();
     }
 
@@ -909,11 +1099,6 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
         _verticalOffset = MathF.Max(0f, MathF.Min(MaxVerticalOffset(), _verticalOffset));
     }
 
-    private void NotifyScrollOwner()
-    {
-        ScrollOwner?.InvalidateScrollInfo();
-    }
-
     private ScrollViewer? FindAncestorScrollViewer()
     {
         for (var current = VisualParent ?? LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
@@ -928,9 +1113,21 @@ public class VirtualizingStackPanel : Panel, IScrollInfo
     }
 
     private readonly record struct ViewportContext(
-        bool IsInScrollViewer,
         float ViewportPrimary,
         float OffsetPrimary,
         float StartOffset,
         float EndOffset);
 }
+
+public readonly record struct VirtualizingStackPanelScrollDiagnosticsSnapshot(
+    int WheelUpCalls,
+    int WheelDownCalls,
+    int SetVerticalOffsetCalls,
+    int SetVerticalOffsetChanges,
+    int SetHorizontalOffsetCalls,
+    int SetHorizontalOffsetChanges,
+    int RealizationChanges,
+    int MeasureRangeCalls,
+    int ArrangeRangeCalls,
+    int MeasuredChildren,
+    int ArrangedChildren);

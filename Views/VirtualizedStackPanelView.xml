@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0B1421"
+             BorderBrush="#2A4A66"
+             BorderThickness="1"
+             Padding="12">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto"
+                Background="#0A1421"
+                BorderBrush="#294764"
+                BorderThickness="1">
+    <VirtualizingStackPanel x:Name="DemoVirtualizedStackPanel"
+                            Orientation="Vertical" />
+  </ScrollViewer>
+</UserControl>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -79,61 +80,61 @@ public class ScrollBar : Control
     public Orientation Orientation
     {
         get => GetValue<Orientation>(OrientationProperty);
-        set => SetValue(OrientationProperty, value);
+        set => SetIfChanged(OrientationProperty, value);
     }
 
     public float Minimum
     {
         get => GetValue<float>(MinimumProperty);
-        set => SetValue(MinimumProperty, value);
+        set => SetIfChanged(MinimumProperty, value);
     }
 
     public float Maximum
     {
         get => GetValue<float>(MaximumProperty);
-        set => SetValue(MaximumProperty, value);
+        set => SetIfChanged(MaximumProperty, value);
     }
 
     public float Value
     {
         get => GetValue<float>(ValueProperty);
-        set => SetValue(ValueProperty, value);
+        set => SetIfChanged(ValueProperty, value);
     }
 
     public float ViewportSize
     {
         get => GetValue<float>(ViewportSizeProperty);
-        set => SetValue(ViewportSizeProperty, value);
+        set => SetIfChanged(ViewportSizeProperty, value);
     }
 
     public float SmallChange
     {
         get => GetValue<float>(SmallChangeProperty);
-        set => SetValue(SmallChangeProperty, value);
+        set => SetIfChanged(SmallChangeProperty, value);
     }
 
     public float LargeChange
     {
         get => GetValue<float>(LargeChangeProperty);
-        set => SetValue(LargeChangeProperty, value);
+        set => SetIfChanged(LargeChangeProperty, value);
     }
 
     public float Thickness
     {
         get => GetValue<float>(ThicknessProperty);
-        set => SetValue(ThicknessProperty, value);
+        set => SetIfChanged(ThicknessProperty, value);
     }
 
     public Color TrackBrush
     {
         get => GetValue<Color>(TrackBrushProperty);
-        set => SetValue(TrackBrushProperty, value);
+        set => SetIfChanged(TrackBrushProperty, value);
     }
 
     public Color ThumbBrush
     {
         get => GetValue<Color>(ThumbBrushProperty);
-        set => SetValue(ThumbBrushProperty, value);
+        set => SetIfChanged(ThumbBrushProperty, value);
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
@@ -197,5 +198,30 @@ public class ScrollBar : Control
         var horizontalTravel = MathF.Max(0f, trackWidth - thumbWidth);
         var horizontalT = range <= 0.01f ? 0f : MathF.Max(0f, MathF.Min(1f, offset / range));
         return new LayoutRect(track.X + (horizontalTravel * horizontalT), track.Y, thumbWidth, track.Height);
+    }
+
+    private void SetIfChanged(DependencyProperty property, float value)
+    {
+        if (AreClose(GetValue<float>(property), value))
+        {
+            return;
+        }
+
+        SetValue(property, value);
+    }
+
+    private void SetIfChanged<T>(DependencyProperty property, T value)
+    {
+        if (EqualityComparer<T>.Default.Equals(GetValue<T>(property), value))
+        {
+            return;
+        }
+
+        SetValue(property, value);
+    }
+
+    private static bool AreClose(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.01f;
     }
 }

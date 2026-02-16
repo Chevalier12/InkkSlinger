@@ -1,3 +1,5 @@
+using InkkSlinger;
+
 var isWindowDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--window-demo", global::System.StringComparison.OrdinalIgnoreCase));
 var isMainMenuDemo = global::System.Array.Exists(args,
@@ -18,7 +20,9 @@ var isListBoxDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--listbox-demo", global::System.StringComparison.OrdinalIgnoreCase));
 var isTwoScrollViewersDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--two-scroll-viewers", global::System.StringComparison.OrdinalIgnoreCase));
-if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isCommandingDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo)
+var isVirtualizedStackPanelDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--virtualized-stack-panel-demo", global::System.StringComparison.OrdinalIgnoreCase));
+if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isCommandingDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo)
 {
     isTwoScrollViewersDemo = true;
 }
@@ -31,5 +35,6 @@ using var game = new InkkSlinger.Game1(
     isSimpleStackPanelDemo,
     isScrollViewerTextBoxDemo,
     isListBoxDemo,
-    isItemsPresenterDemo);
+    isItemsPresenterDemo,
+    isVirtualizedStackPanelDemo);
 game.Run();

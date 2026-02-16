@@ -43,11 +43,8 @@
                       Background="#0A1421"
                       BorderBrush="#294764"
                       BorderThickness="1">
-          <StackPanel>
-            <Label Text="Label 1" Foreground="#DCEEFF" Margin="0,0,0,8" />
-            <Label Text="Label 2" Foreground="#DCEEFF" Margin="0,0,0,8" />
-            <Label Text="Label 3" Foreground="#DCEEFF" />
-          </StackPanel>
+          <VirtualizingStackPanel x:Name="DemoVirtualizedScrollPanel"
+                                  Orientation="Vertical" />
         </ScrollViewer>
       </Border>
 

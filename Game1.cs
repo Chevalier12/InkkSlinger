@@ -23,6 +23,7 @@ public class Game1 : Game
     private readonly bool _isScrollViewerTextBoxDemo;
     private readonly bool _isListBoxDemo;
     private readonly bool _isItemsPresenterDemo;
+    private readonly bool _isVirtualizedStackPanelDemo;
     private SpriteBatch _spriteBatch = null!;
     private RenderTarget2D? _uiCompositeTarget;
     private Panel _root = null!;
@@ -37,6 +38,7 @@ public class Game1 : Game
     private ScrollViewerTextBoxView? _scrollViewerTextBoxView;
     private SimpleListBoxView? _simpleListBoxView;
     private SimpleItemsPresenterView? _simpleItemsPresenterView;
+    private VirtualizedStackPanelView? _virtualizedStackPanelView;
     private string _baseWindowTitle = "InkkSlinger";
     private string _perfTitleSuffix = string.Empty;
     private double _perfAccumulatedSeconds;
@@ -59,7 +61,8 @@ public class Game1 : Game
         bool isSimpleStackPanelDemo = false,
         bool isScrollViewerTextBoxDemo = false,
         bool isListBoxDemo = false,
-        bool isItemsPresenterDemo = false)
+        bool isItemsPresenterDemo = false,
+        bool isVirtualizedStackPanelDemo = false)
     {
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
@@ -72,12 +75,11 @@ public class Game1 : Game
         _isScrollViewerTextBoxDemo = isScrollViewerTextBoxDemo;
         _isListBoxDemo = isListBoxDemo;
         _isItemsPresenterDemo = isItemsPresenterDemo;
+        _isVirtualizedStackPanelDemo = isVirtualizedStackPanelDemo;
         Content.RootDirectory = "Content";
         _window.IsMouseVisible = true;
         _window.AllowUserResizing = true;
-        _window.SetClientSize(
-            _isWindowDemo ? 1100 : (_isPaintShellDemo ? 1580 : (_isCommandingDemo ? 1500 : (_isTwoScrollViewersDemo ? 1280 : (_isSimpleScrollViewerDemo ? 1024 : (_isSimpleStackPanelDemo ? 1024 : (_isScrollViewerTextBoxDemo ? 1024 : (_isListBoxDemo ? 1024 : (_isItemsPresenterDemo ? 1024 : 1720)))))))),
-            _isWindowDemo ? 700 : (_isPaintShellDemo ? 940 : (_isCommandingDemo ? 900 : (_isTwoScrollViewersDemo ? 760 : (_isSimpleScrollViewerDemo ? 720 : (_isSimpleStackPanelDemo ? 720 : (_isScrollViewerTextBoxDemo ? 720 : (_isListBoxDemo ? 720 : (_isItemsPresenterDemo ? 720 : 1080)))))))));
+        _window.SetClientSize(GetInitialWindowWidth(), GetInitialWindowHeight());
         _window.Title = "InkkSlinger";
     }
 
@@ -134,6 +136,11 @@ public class Game1 : Game
             _simpleItemsPresenterView = new SimpleItemsPresenterView();
             _root.AddChild(_simpleItemsPresenterView);
         }
+        else if (_isVirtualizedStackPanelDemo)
+        {
+            _virtualizedStackPanelView = new VirtualizedStackPanelView();
+            _root.AddChild(_virtualizedStackPanelView);
+        }
         else
         {
             _mainMenuView = new MainMenuView();
@@ -172,6 +179,7 @@ public class Game1 : Game
             _scrollViewerTextBoxView?.SetFont(font);
             _simpleListBoxView?.SetFont(font);
             _simpleItemsPresenterView?.SetFont(font);
+            _virtualizedStackPanelView?.SetFont(font);
         }
         catch
         {
@@ -330,6 +338,13 @@ public class Game1 : Game
             return;
         }
 
+        if (_isVirtualizedStackPanelDemo)
+        {
+            _baseWindowTitle = $"InkkSlinger VirtualizedStackPanel Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
         _baseWindowTitle = $"InkkSlinger | {size.X}x{size.Y}";
         ApplyWindowTitle();
     }
@@ -363,31 +378,43 @@ public class Game1 : Game
         var neighborPerSecond = neighborDelta / sampleSeconds;
         var fullFallbackPerSecond = fullFallbackDelta / sampleSeconds;
         var inputMetrics = _uiRoot.GetInputMetricsSnapshot();
+        var uiMetrics = _uiRoot.GetMetricsSnapshot();
+        var scrollViewerDiag = ScrollViewer.GetScrollDiagnosticsAndReset();
+        var vspDiag = VirtualizingStackPanel.GetScrollDiagnosticsAndReset();
         var hasInputActivity = inputMetrics.HitTestCount > 0 ||
                                inputMetrics.RoutedEventCount > 0 ||
                                inputMetrics.PointerEventCount > 0 ||
                                inputMetrics.KeyEventCount > 0 ||
                                inputMetrics.TextEventCount > 0;
+        var hasScrollActivity = scrollViewerDiag.WheelEvents > 0 ||
+                                scrollViewerDiag.SetOffsetCalls > 0 ||
+                                vspDiag.WheelUpCalls > 0 ||
+                                vspDiag.WheelDownCalls > 0 ||
+                                vspDiag.SetVerticalOffsetCalls > 0 ||
+                                vspDiag.SetHorizontalOffsetCalls > 0;
+        var hasPhaseCostSpike = _uiRoot.LastUpdateMs >= 1.0 ||
+                                _uiRoot.LastDrawMs >= 1.0 ||
+                                _uiRoot.LastLayoutPhaseMs >= 0.5 ||
+                                _uiRoot.LastRenderSchedulingPhaseMs >= 0.5;
 
-        if (hasInputActivity)
+        if (hasInputActivity || hasScrollActivity || hasPhaseCostSpike)
         {
+            var wheelHandledPct = scrollViewerDiag.WheelEvents > 0
+                ? (100f * scrollViewerDiag.WheelHandled / scrollViewerDiag.WheelEvents)
+                : 0f;
             Console.WriteLine(
                 $"[Perf] U:{updatesPerSecond:0.0}/s D:{drawsPerSecond:0.0}/s " +
-                $"LayoutCycles:{layoutCyclesPerSecond:0.0}/s LayoutCalls:{layoutCallsPerSecond:0.0}/s " +
-                $"HitTestNeighbor:{neighborPerSecond:0.0}/s HitTestFullFallback:{fullFallbackPerSecond:0.0}/s " +
-                $"InputMs:{inputMetrics.LastInputPhaseMilliseconds:0.###} " +
-                $"DispatchMs:{inputMetrics.LastInputDispatchMilliseconds:0.###} " +
-                $"VisualUpdateMs:{inputMetrics.LastVisualUpdateMilliseconds:0.###} " +
-                $"Hit:{inputMetrics.HitTestCount} Route:{inputMetrics.RoutedEventCount} Ptr:{inputMetrics.PointerEventCount} Key:{inputMetrics.KeyEventCount} Txt:{inputMetrics.TextEventCount}");
+                $"UpdateMs:{_uiRoot.LastUpdateMs:0.###} DrawMs:{_uiRoot.LastDrawMs:0.###} " +
+                $"LayoutMs:{_uiRoot.LastLayoutPhaseMs:0.###} RenderSchedMs:{_uiRoot.LastRenderSchedulingPhaseMs:0.###} " +
+                $"DrawExec:{uiMetrics.DrawExecutedFrameCount} DrawSkip:{uiMetrics.DrawSkippedFrameCount} " +
+                $"SV(W:{scrollViewerDiag.WheelEvents} H:{scrollViewerDiag.WheelHandled} HP:{wheelHandledPct:0}% Set:{scrollViewerDiag.SetOffsetCalls} NoOp:{scrollViewerDiag.SetOffsetNoOpCalls} dY:{scrollViewerDiag.TotalVerticalDelta:0.#}) " +
+                $"VSP(WU:{vspDiag.WheelUpCalls} WD:{vspDiag.WheelDownCalls} SetV:{vspDiag.SetVerticalOffsetCalls}/{vspDiag.SetVerticalOffsetChanges} SetH:{vspDiag.SetHorizontalOffsetCalls}/{vspDiag.SetHorizontalOffsetChanges} Real:{vspDiag.RealizationChanges} MR:{vspDiag.MeasureRangeCalls} AR:{vspDiag.ArrangeRangeCalls} MC:{vspDiag.MeasuredChildren} AC:{vspDiag.ArrangedChildren})");
         }
 
         _perfTitleSuffix =
-            $" | U:{updatesPerSecond:0} D:{drawsPerSecond:0} L:{layoutCyclesPerSecond:0} " +
-            $"HN:{neighborPerSecond:0} HF:{fullFallbackPerSecond:0} " +
-            $"I:{inputMetrics.LastInputPhaseMilliseconds:0.##} " +
-            $"ID:{inputMetrics.LastInputDispatchMilliseconds:0.##} " +
-            $"IV:{inputMetrics.LastVisualUpdateMilliseconds:0.##} " +
-            $"H:{inputMetrics.HitTestCount:0} R:{inputMetrics.RoutedEventCount:0}";
+            $" | U:{updatesPerSecond:0} D:{drawsPerSecond:0} " +
+            $"UM:{_uiRoot.LastUpdateMs:0.##} DM:{_uiRoot.LastDrawMs:0.##} " +
+            $"LM:{_uiRoot.LastLayoutPhaseMs:0.##}";
         ApplyWindowTitle();
 
         _perfLastNeighborProbeTotal = stats.NeighborProbes;
@@ -469,5 +496,75 @@ public class Game1 : Game
         }
 
         return viewport;
+    }
+
+    private int GetInitialWindowWidth()
+    {
+        if (_isWindowDemo)
+        {
+            return 1100;
+        }
+
+        if (_isPaintShellDemo)
+        {
+            return 1580;
+        }
+
+        if (_isCommandingDemo)
+        {
+            return 1500;
+        }
+
+        if (_isTwoScrollViewersDemo)
+        {
+            return 1280;
+        }
+
+        if (_isSimpleScrollViewerDemo ||
+            _isSimpleStackPanelDemo ||
+            _isScrollViewerTextBoxDemo ||
+            _isListBoxDemo ||
+            _isItemsPresenterDemo ||
+            _isVirtualizedStackPanelDemo)
+        {
+            return 1024;
+        }
+
+        return 1720;
+    }
+
+    private int GetInitialWindowHeight()
+    {
+        if (_isWindowDemo)
+        {
+            return 700;
+        }
+
+        if (_isPaintShellDemo)
+        {
+            return 940;
+        }
+
+        if (_isCommandingDemo)
+        {
+            return 900;
+        }
+
+        if (_isTwoScrollViewersDemo)
+        {
+            return 760;
+        }
+
+        if (_isSimpleScrollViewerDemo ||
+            _isSimpleStackPanelDemo ||
+            _isScrollViewerTextBoxDemo ||
+            _isListBoxDemo ||
+            _isItemsPresenterDemo ||
+            _isVirtualizedStackPanelDemo)
+        {
+            return 720;
+        }
+
+        return 1080;
     }
 }

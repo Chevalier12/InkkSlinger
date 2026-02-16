@@ -100,10 +100,15 @@ public class ScrollViewer : ContentControl
 
     private readonly ScrollBar _horizontalBar;
     private readonly ScrollBar _verticalBar;
-    private IScrollInfo? _scrollInfo;
     private LayoutRect _contentViewportRect;
     private bool _showHorizontalBar;
     private bool _showVerticalBar;
+    private static int _diagWheelEvents;
+    private static int _diagWheelHandled;
+    private static int _diagSetOffsetCalls;
+    private static int _diagSetOffsetNoOp;
+    private static float _diagVerticalDelta;
+    private static float _diagHorizontalDelta;
 
     public ScrollViewer()
     {
@@ -243,13 +248,28 @@ public class ScrollViewer : ContentControl
     public void InvalidateScrollInfo()
     {
         InvalidateMeasure();
-        InvalidateArrange();
+    }
+
+    internal static ScrollViewerScrollDiagnosticsSnapshot GetScrollDiagnosticsAndReset()
+    {
+        var snapshot = new ScrollViewerScrollDiagnosticsSnapshot(
+            _diagWheelEvents,
+            _diagWheelHandled,
+            _diagSetOffsetCalls,
+            _diagSetOffsetNoOp,
+            _diagHorizontalDelta,
+            _diagVerticalDelta);
+        _diagWheelEvents = 0;
+        _diagWheelHandled = 0;
+        _diagSetOffsetCalls = 0;
+        _diagSetOffsetNoOp = 0;
+        _diagHorizontalDelta = 0f;
+        _diagVerticalDelta = 0f;
+        return snapshot;
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        AttachScrollInfoIfNeeded();
-
         var border = MathF.Max(0f, BorderThickness);
         var contentBounds = new LayoutRect(
             LayoutSlot.X + border,
@@ -263,18 +283,7 @@ public class ScrollViewer : ContentControl
         _showVerticalBar = decision.ShowVerticalBar;
         _contentViewportRect = decision.ViewportRect;
 
-        _horizontalBar.Thickness = MathF.Max(8f, ScrollBarThickness);
-        _verticalBar.Thickness = MathF.Max(8f, ScrollBarThickness);
-        _horizontalBar.ViewportSize = ViewportWidth;
-        _verticalBar.ViewportSize = ViewportHeight;
-        _horizontalBar.Minimum = 0f;
-        _verticalBar.Minimum = 0f;
-        _horizontalBar.Maximum = ExtentWidth;
-        _verticalBar.Maximum = ExtentHeight;
-        _horizontalBar.Value = HorizontalOffset;
-        _verticalBar.Value = VerticalOffset;
-        _horizontalBar.IsVisible = _showHorizontalBar;
-        _verticalBar.IsVisible = _showVerticalBar;
+        UpdateScrollBars();
 
         var desiredWidth = decision.ViewportRect.Width + (border * 2f) + (_showVerticalBar ? ScrollBarThickness : 0f);
         var desiredHeight = decision.ViewportRect.Height + (border * 2f) + (_showHorizontalBar ? ScrollBarThickness : 0f);
@@ -283,24 +292,23 @@ public class ScrollViewer : ContentControl
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
-        AttachScrollInfoIfNeeded();
-
         var border = MathF.Max(0f, BorderThickness);
         var fullRect = new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, MathF.Max(0f, finalSize.X - (border * 2f)), MathF.Max(0f, finalSize.Y - (border * 2f)));
-        var decision = ResolveBarsAndMeasureContent(fullRect);
-
+        var decision = ResolveBarsForArrange(fullRect);
         _showHorizontalBar = decision.ShowHorizontalBar;
         _showVerticalBar = decision.ShowVerticalBar;
         _contentViewportRect = decision.ViewportRect;
-        ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight);
 
         if (ContentElement is FrameworkElement content)
         {
             var arrangedWidth = MathF.Max(decision.ViewportWidth, decision.ExtentWidth);
             var arrangedHeight = MathF.Max(decision.ViewportHeight, decision.ExtentHeight);
+            var contentX = decision.ViewportRect.X - HorizontalOffset;
+            var contentY = decision.ViewportRect.Y - VerticalOffset;
+
             content.Arrange(new LayoutRect(
-                decision.ViewportRect.X - HorizontalOffset,
-                decision.ViewportRect.Y - VerticalOffset,
+                contentX,
+                contentY,
                 arrangedWidth,
                 arrangedHeight));
         }
@@ -308,7 +316,7 @@ public class ScrollViewer : ContentControl
         var barThickness = MathF.Max(0f, ScrollBarThickness);
         if (_showHorizontalBar)
         {
-            _horizontalBar.IsVisible = true;
+            SetIfChanged(_horizontalBar, true);
             _horizontalBar.Arrange(new LayoutRect(
                 fullRect.X,
                 fullRect.Y + fullRect.Height - barThickness,
@@ -317,12 +325,12 @@ public class ScrollViewer : ContentControl
         }
         else
         {
-            _horizontalBar.IsVisible = false;
+            SetIfChanged(_horizontalBar, false);
         }
 
         if (_showVerticalBar)
         {
-            _verticalBar.IsVisible = true;
+            SetIfChanged(_verticalBar, true);
             _verticalBar.Arrange(new LayoutRect(
                 fullRect.X + fullRect.Width - barThickness,
                 fullRect.Y,
@@ -331,17 +339,10 @@ public class ScrollViewer : ContentControl
         }
         else
         {
-            _verticalBar.IsVisible = false;
+            SetIfChanged(_verticalBar, false);
         }
 
-        _horizontalBar.Minimum = 0f;
-        _verticalBar.Minimum = 0f;
-        _horizontalBar.Maximum = ExtentWidth;
-        _verticalBar.Maximum = ExtentHeight;
-        _horizontalBar.ViewportSize = ViewportWidth;
-        _verticalBar.ViewportSize = ViewportHeight;
-        _horizontalBar.Value = HorizontalOffset;
-        _verticalBar.Value = VerticalOffset;
+        UpdateScrollBars();
 
         return finalSize;
     }
@@ -357,32 +358,13 @@ public class ScrollViewer : ContentControl
 
     protected override bool TryGetClipRect(out LayoutRect clipRect)
     {
-        clipRect = _contentViewportRect;
+        var barThickness = MathF.Max(0f, ScrollBarThickness);
+        clipRect = new LayoutRect(
+            _contentViewportRect.X,
+            _contentViewportRect.Y,
+            _contentViewportRect.Width + (_showVerticalBar ? barThickness : 0f),
+            _contentViewportRect.Height + (_showHorizontalBar ? barThickness : 0f));
         return true;
-    }
-
-    protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
-    {
-        base.OnDependencyPropertyChanged(args);
-        if (args.Property == ContentProperty)
-        {
-            AttachScrollInfoIfNeeded();
-        }
-    }
-
-    private void AttachScrollInfoIfNeeded()
-    {
-        if (_scrollInfo != null && !ReferenceEquals(_scrollInfo, ContentElement))
-        {
-            _scrollInfo.ScrollOwner = null;
-            _scrollInfo = null;
-        }
-
-        if (ContentElement is IScrollInfo info && !ReferenceEquals(info, _scrollInfo))
-        {
-            _scrollInfo = info;
-            _scrollInfo.ScrollOwner = this;
-        }
     }
 
     private (bool ShowHorizontalBar, bool ShowVerticalBar, float ExtentWidth, float ExtentHeight, float ViewportWidth, float ViewportHeight, LayoutRect ViewportRect)
@@ -424,16 +406,48 @@ public class ScrollViewer : ContentControl
             new LayoutRect(bounds.X, bounds.Y, finalViewportWidth, finalViewportHeight));
     }
 
+    private (bool ShowHorizontalBar, bool ShowVerticalBar, float ExtentWidth, float ExtentHeight, float ViewportWidth, float ViewportHeight, LayoutRect ViewportRect)
+        ResolveBarsForArrange(LayoutRect bounds)
+    {
+        var barSize = MathF.Max(0f, ScrollBarThickness);
+        var extentWidth = MathF.Max(0f, ExtentWidth);
+        var extentHeight = MathF.Max(0f, ExtentHeight);
+        var showHorizontal = HorizontalScrollBarVisibility == ScrollBarVisibility.Visible;
+        var showVertical = VerticalScrollBarVisibility == ScrollBarVisibility.Visible;
+
+        for (var i = 0; i < 2; i++)
+        {
+            var viewportWidth = MathF.Max(0f, bounds.Width - (showVertical ? barSize : 0f));
+            var viewportHeight = MathF.Max(0f, bounds.Height - (showHorizontal ? barSize : 0f));
+
+            if (HorizontalScrollBarVisibility == ScrollBarVisibility.Auto)
+            {
+                showHorizontal = extentWidth > viewportWidth + 0.01f;
+            }
+
+            if (VerticalScrollBarVisibility == ScrollBarVisibility.Auto)
+            {
+                showVertical = extentHeight > viewportHeight + 0.01f;
+            }
+        }
+
+        var finalViewportWidth = MathF.Max(0f, bounds.Width - (showVertical ? barSize : 0f));
+        var finalViewportHeight = MathF.Max(0f, bounds.Height - (showHorizontal ? barSize : 0f));
+
+        return (
+            showHorizontal,
+            showVertical,
+            extentWidth,
+            extentHeight,
+            finalViewportWidth,
+            finalViewportHeight,
+            new LayoutRect(bounds.X, bounds.Y, finalViewportWidth, finalViewportHeight));
+    }
+
     private void MeasureContent(float viewportWidth, float viewportHeight, out float extentWidth, out float extentHeight)
     {
         var canScrollHorizontally = HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled;
         var canScrollVertically = VerticalScrollBarVisibility != ScrollBarVisibility.Disabled;
-
-        if (_scrollInfo != null)
-        {
-            _scrollInfo.CanHorizontallyScroll = canScrollHorizontally;
-            _scrollInfo.CanVerticallyScroll = canScrollVertically;
-        }
 
         if (ContentElement is FrameworkElement content)
         {
@@ -443,29 +457,22 @@ public class ScrollViewer : ContentControl
             content.Measure(constraint);
         }
 
-        extentWidth = _scrollInfo?.ExtentWidth ?? (ContentElement as FrameworkElement)?.DesiredSize.X ?? 0f;
-        extentHeight = _scrollInfo?.ExtentHeight ?? (ContentElement as FrameworkElement)?.DesiredSize.Y ?? 0f;
+        extentWidth = (ContentElement as FrameworkElement)?.DesiredSize.X ?? 0f;
+        extentHeight = (ContentElement as FrameworkElement)?.DesiredSize.Y ?? 0f;
     }
 
     private void ApplyScrollMetrics(float extentWidth, float extentHeight, float viewportWidth, float viewportHeight)
     {
-        ExtentWidth = MathF.Max(0f, extentWidth);
-        ExtentHeight = MathF.Max(0f, extentHeight);
-        ViewportWidth = MathF.Max(0f, viewportWidth);
-        ViewportHeight = MathF.Max(0f, viewportHeight);
-
-        if (_scrollInfo != null)
-        {
-            HorizontalOffset = MathF.Max(0f, MathF.Min(_scrollInfo.HorizontalOffset, MathF.Max(0f, ExtentWidth - ViewportWidth)));
-            VerticalOffset = MathF.Max(0f, MathF.Min(_scrollInfo.VerticalOffset, MathF.Max(0f, ExtentHeight - ViewportHeight)));
-            return;
-        }
-
+        SetIfChanged(ExtentWidthProperty, MathF.Max(0f, extentWidth));
+        SetIfChanged(ExtentHeightProperty, MathF.Max(0f, extentHeight));
+        SetIfChanged(ViewportWidthProperty, MathF.Max(0f, viewportWidth));
+        SetIfChanged(ViewportHeightProperty, MathF.Max(0f, viewportHeight));
         SetOffsets(HorizontalOffset, VerticalOffset);
     }
 
     internal bool HandleMouseWheelFromInput(int delta)
     {
+        _diagWheelEvents++;
         if (!IsEnabled || delta == 0)
         {
             return false;
@@ -473,47 +480,108 @@ public class ScrollViewer : ContentControl
 
         var beforeHorizontal = HorizontalOffset;
         var beforeVertical = VerticalOffset;
-        if (_scrollInfo != null)
-        {
-            if (delta > 0)
-            {
-                _scrollInfo.MouseWheelUp();
-            }
-            else
-            {
-                _scrollInfo.MouseWheelDown();
-            }
+        var amount = MathF.Max(1f, LineScrollAmount);
+        var direction = delta > 0 ? -1f : 1f;
+        SetOffsets(HorizontalOffset, VerticalOffset + (direction * amount));
 
-            SetOffsets(_scrollInfo.HorizontalOffset, _scrollInfo.VerticalOffset);
-        }
-        else
+        var handled = MathF.Abs(beforeHorizontal - HorizontalOffset) > 0.001f ||
+                      MathF.Abs(beforeVertical - VerticalOffset) > 0.001f;
+        if (handled)
         {
-            var amount = MathF.Max(1f, LineScrollAmount);
-            var direction = delta > 0 ? -1f : 1f;
-            SetOffsets(HorizontalOffset, VerticalOffset + (direction * amount));
+            _diagWheelHandled++;
         }
 
-        return MathF.Abs(beforeHorizontal - HorizontalOffset) > 0.001f ||
-               MathF.Abs(beforeVertical - VerticalOffset) > 0.001f;
+        return handled;
     }
 
     private void SetOffsets(float horizontal, float vertical)
     {
+        _diagSetOffsetCalls++;
+        var beforeHorizontal = HorizontalOffset;
+        var beforeVertical = VerticalOffset;
         var maxHorizontal = MathF.Max(0f, ExtentWidth - ViewportWidth);
         var maxVertical = MathF.Max(0f, ExtentHeight - ViewportHeight);
-
         var nextHorizontal = MathF.Max(0f, MathF.Min(maxHorizontal, horizontal));
         var nextVertical = MathF.Max(0f, MathF.Min(maxVertical, vertical));
 
-        if (_scrollInfo != null)
+        SetIfChanged(HorizontalOffsetProperty, nextHorizontal);
+        SetIfChanged(VerticalOffsetProperty, nextVertical);
+        var horizontalDelta = MathF.Abs(beforeHorizontal - HorizontalOffset);
+        var verticalDelta = MathF.Abs(beforeVertical - VerticalOffset);
+        _diagHorizontalDelta += horizontalDelta;
+        _diagVerticalDelta += verticalDelta;
+        if (horizontalDelta <= 0.001f && verticalDelta <= 0.001f)
         {
-            _scrollInfo.SetHorizontalOffset(nextHorizontal);
-            _scrollInfo.SetVerticalOffset(nextVertical);
-            nextHorizontal = MathF.Max(0f, MathF.Min(maxHorizontal, _scrollInfo.HorizontalOffset));
-            nextVertical = MathF.Max(0f, MathF.Min(maxVertical, _scrollInfo.VerticalOffset));
+            _diagSetOffsetNoOp++;
         }
 
-        HorizontalOffset = nextHorizontal;
-        VerticalOffset = nextVertical;
+        if ((horizontalDelta > 0.001f || verticalDelta > 0.001f) && ContentElement is VirtualizingStackPanel virtualizingPanel)
+        {
+            virtualizingPanel.InvalidateMeasure();
+            virtualizingPanel.InvalidateArrange();
+        }
+
+        UpdateScrollBars();
     }
+
+    private void UpdateScrollBars()
+    {
+        var thickness = MathF.Max(8f, ScrollBarThickness);
+        SetIfChanged(ScrollBar.ThicknessProperty, _horizontalBar, thickness);
+        SetIfChanged(ScrollBar.ThicknessProperty, _verticalBar, thickness);
+        SetIfChanged(ScrollBar.ViewportSizeProperty, _horizontalBar, ViewportWidth);
+        SetIfChanged(ScrollBar.ViewportSizeProperty, _verticalBar, ViewportHeight);
+        SetIfChanged(ScrollBar.MinimumProperty, _horizontalBar, 0f);
+        SetIfChanged(ScrollBar.MinimumProperty, _verticalBar, 0f);
+        SetIfChanged(ScrollBar.MaximumProperty, _horizontalBar, ExtentWidth);
+        SetIfChanged(ScrollBar.MaximumProperty, _verticalBar, ExtentHeight);
+        SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, HorizontalOffset);
+        SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
+        SetIfChanged(_horizontalBar, _showHorizontalBar);
+        SetIfChanged(_verticalBar, _showVerticalBar);
+    }
+
+    private void SetIfChanged(DependencyProperty property, float value)
+    {
+        if (AreClose(GetValue<float>(property), value))
+        {
+            return;
+        }
+
+        SetValue(property, value);
+    }
+
+    private static void SetIfChanged(ScrollBar scrollBar, bool value)
+    {
+        if (scrollBar.IsVisible == value)
+        {
+            return;
+        }
+
+        scrollBar.IsVisible = value;
+    }
+
+    private static void SetIfChanged(DependencyProperty property, ScrollBar scrollBar, float value)
+    {
+        if (AreClose(scrollBar.GetValue<float>(property), value))
+        {
+            return;
+        }
+
+        scrollBar.SetValue(property, value);
+    }
+
+    private static bool AreClose(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.01f;
+    }
+
 }
+
+public readonly record struct ScrollViewerScrollDiagnosticsSnapshot(
+    int WheelEvents,
+    int WheelHandled,
+    int SetOffsetCalls,
+    int SetOffsetNoOpCalls,
+    float TotalHorizontalDelta,
+    float TotalVerticalDelta);

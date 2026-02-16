@@ -53,7 +53,76 @@ public class InputDispatchOptimizationTests
         Assert.True(wheel.PointerEventCount > 0);
     }
 
-    private static InputDelta CreateDelta(bool pointerMoved, Vector2 position, int wheelDelta = 0)
+    [Fact]
+    public void PointerClick_UsesPreciseHitTest_AfterHoverReuse()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 400f, 200f));
+        var left = new Button();
+        left.SetLayoutSlot(new LayoutRect(20f, 20f, 120f, 40f));
+        var right = new Button();
+        right.SetLayoutSlot(new LayoutRect(220f, 20f, 120f, 40f));
+        root.AddChild(left);
+        root.AddChild(right);
+
+        var leftClicks = 0;
+        var rightClicks = 0;
+        left.Click += (_, _) => leftClicks++;
+        right.Click += (_, _) => rightClicks++;
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 30f)));
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+
+        // Move to the right button with max-savings hover reuse: no new hit-test.
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(230f, 30f)));
+        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+
+        // Click transition must force precise targeting.
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: new Vector2(230f, 30f), leftPressed: true));
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: new Vector2(230f, 30f), leftReleased: true));
+        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+
+        Assert.Equal(0, leftClicks);
+        Assert.Equal(1, rightClicks);
+    }
+
+    [Fact]
+    public void ListHover_ManyItems_StaysLowHitTestRate()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 500f, 600f));
+        var listBox = new ListBox();
+        listBox.SetLayoutSlot(new LayoutRect(10f, 10f, 320f, 500f));
+        for (var i = 0; i < 1000; i++)
+        {
+            listBox.Items.Add($"Item {i}");
+        }
+
+        root.AddChild(listBox);
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(40f, 40f)));
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+
+        for (var i = 0; i < 25; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(40f, 40f + i)));
+            Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+        }
+    }
+
+    private static InputDelta CreateDelta(
+        bool pointerMoved,
+        Vector2 position,
+        int wheelDelta = 0,
+        bool leftPressed = false,
+        bool leftReleased = false)
     {
         var previous = new InputSnapshot(default(KeyboardState), default(MouseState), position);
         var current = new InputSnapshot(default(KeyboardState), default(MouseState), position);
@@ -66,8 +135,8 @@ public class InputDispatchOptimizationTests
             TextInput = new List<char>(),
             PointerMoved = pointerMoved,
             WheelDelta = wheelDelta,
-            LeftPressed = false,
-            LeftReleased = false,
+            LeftPressed = leftPressed,
+            LeftReleased = leftReleased,
             RightPressed = false,
             RightReleased = false,
             MiddlePressed = false,
