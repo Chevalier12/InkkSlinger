@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Xunit;
 
@@ -32,16 +34,15 @@ public class InputDispatchOptimizationTests
     public void MouseWheel_WithHoveredTarget_AvoidsHitTesting()
     {
         var root = new Panel();
-        root.SetLayoutSlot(new LayoutRect(0f, 0f, 400f, 300f));
         var scrollViewer = new ScrollViewer
         {
             Content = new StackPanel()
         };
-        scrollViewer.SetLayoutSlot(new LayoutRect(10f, 10f, 200f, 120f));
         root.AddChild(scrollViewer);
 
         var uiRoot = new UiRoot(root);
         uiRoot.RebuildRenderListForTests();
+        RunLayout(uiRoot, 400, 300, 16);
 
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 30f)));
         var move = uiRoot.GetInputMetricsSnapshot();
@@ -51,6 +52,147 @@ public class InputDispatchOptimizationTests
         var wheel = uiRoot.GetInputMetricsSnapshot();
         Assert.Equal(0, wheel.HitTestCount);
         Assert.True(wheel.PointerEventCount > 0);
+    }
+
+    [Fact]
+    public void MouseWheel_ReTargetsScrollViewer_WhenHoverReuseStalesTarget()
+    {
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(48f) });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
+
+        var header = new Border();
+        Grid.SetRow(header, 0);
+        root.AddChild(header);
+
+        var scrollViewer = new ScrollViewer
+        {
+            Content = CreateTallStackPanel(120),
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            LineScrollAmount = 30f
+        };
+        Grid.SetRow(scrollViewer, 1);
+        root.AddChild(scrollViewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 220, 16);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 20f)));
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 120f)));
+        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+        Assert.Equal(0f, scrollViewer.VerticalOffset);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, wheelDelta: -120, position: new Vector2(30f, 120f)));
+        Assert.True(scrollViewer.VerticalOffset > 0f);
+    }
+
+    [Fact]
+    public void MouseWheel_ScrollsVirtualizingStackPanelInsideScrollViewer()
+    {
+        var root = new Panel();
+        var virtualizingPanel = new VirtualizingStackPanel
+        {
+            Orientation = Orientation.Vertical,
+            IsVirtualizing = true
+        };
+        for (var i = 0; i < 500; i++)
+        {
+            virtualizingPanel.AddChild(new Label
+            {
+                Text = $"Item {i}",
+                Margin = new Thickness(0f, 0f, 0f, 6f)
+            });
+        }
+
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            LineScrollAmount = 24f,
+            Content = virtualizingPanel
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        RunLayout(uiRoot, 360, 260, 16);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(40f, 40f)));
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+        Assert.Equal(0f, viewer.VerticalOffset);
+
+        for (var i = 0; i < 20; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, wheelDelta: -120, position: new Vector2(40f, 40f)));
+        }
+        RunLayout(uiRoot, 360, 260, 32);
+
+        Assert.True(viewer.VerticalOffset >= 20f);
+        Assert.True(virtualizingPanel.FirstRealizedIndex > 0);
+    }
+
+    [Fact]
+    public void MouseWheel_ReTargetsFromListBoxToVirtualizingScrollViewer_InTwoPaneLayout()
+    {
+        var root = new Grid();
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+
+        var leftVirtualizingPanel = new VirtualizingStackPanel
+        {
+            Orientation = Orientation.Vertical,
+            IsVirtualizing = true
+        };
+        for (var i = 0; i < 500; i++)
+        {
+            leftVirtualizingPanel.AddChild(new Label
+            {
+                Text = $"Virtualized {i}",
+                Margin = new Thickness(0f, 0f, 0f, 6f)
+            });
+        }
+
+        var leftViewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            LineScrollAmount = 24f,
+            Content = leftVirtualizingPanel
+        };
+        Grid.SetColumn(leftViewer, 0);
+        root.AddChild(leftViewer);
+
+        var rightListBox = new ListBox();
+        for (var i = 0; i < 200; i++)
+        {
+            rightListBox.Items.Add($"Right {i}");
+        }
+
+        Grid.SetColumn(rightListBox, 1);
+        root.AddChild(rightListBox);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        RunLayout(uiRoot, 900, 500, 16);
+        Assert.True(leftViewer.ExtentHeight > leftViewer.ViewportHeight);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(700f, 120f)));
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(120f, 120f)));
+        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+        Assert.Equal(0f, leftViewer.VerticalOffset);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, wheelDelta: -120, position: new Vector2(120f, 120f)));
+        var wheelMetrics = uiRoot.GetInputMetricsSnapshot();
+        Assert.Equal(1, wheelMetrics.HitTestCount);
+        Assert.True(leftViewer.VerticalOffset > 0f);
+        RunLayout(uiRoot, 900, 500, 32);
+
+        Assert.True(leftViewer.VerticalOffset > 0f);
     }
 
     [Fact]
@@ -143,4 +285,33 @@ public class InputDispatchOptimizationTests
             MiddleReleased = false
         };
     }
+
+    private static StackPanel CreateTallStackPanel(int itemCount)
+    {
+        var panel = new StackPanel();
+        for (var i = 0; i < itemCount; i++)
+        {
+            panel.AddChild(new Border { Height = 20f, Margin = new Thickness(0f, 0f, 0f, 2f) });
+        }
+
+        return panel;
+    }
+
+    private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
+    {
+        const string inputPipelineVariable = "INKKSLINGER_ENABLE_INPUT_PIPELINE";
+        var previous = Environment.GetEnvironmentVariable(inputPipelineVariable);
+        Environment.SetEnvironmentVariable(inputPipelineVariable, "0");
+        try
+        {
+            uiRoot.Update(
+                new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
+                new Viewport(0, 0, width, height));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(inputPipelineVariable, previous);
+        }
+    }
+
 }

@@ -285,6 +285,23 @@ public sealed partial class UiRoot
             return;
         }
 
+        EnsureCachedWheelTargetsAreCurrent(pointerPosition);
+        var hasCachedWheelTarget = _cachedWheelTextBoxTarget != null || _cachedWheelScrollViewerTarget != null;
+        var hasWheelCapableAncestor = TryFindAncestor<TextBox>(resolvedTarget, out _) ||
+                                      TryFindAncestor<ScrollViewer>(resolvedTarget, out _);
+        var needsPreciseTarget = !PointerLikelyInsideElement(resolvedTarget, pointerPosition) ||
+                                 (!hasCachedWheelTarget && !hasWheelCapableAncestor);
+        if (needsPreciseTarget)
+        {
+            _lastInputHitTestCount++;
+            var preciseTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+            if (preciseTarget != null)
+            {
+                resolvedTarget = preciseTarget;
+                RefreshCachedWheelTargets(preciseTarget);
+            }
+        }
+
         _lastInputPointerEventCount++;
         _lastInputRoutedEventCount += 2;
         resolvedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
@@ -317,6 +334,26 @@ public sealed partial class UiRoot
             _cachedWheelTextBoxTarget = null;
             _ = scrollViewer.HandleMouseWheelFromInput(delta);
         }
+    }
+
+    private void EnsureCachedWheelTargetsAreCurrent(Vector2 pointerPosition)
+    {
+        if (_cachedWheelTextBoxTarget != null &&
+            !PointerLikelyInsideElement(_cachedWheelTextBoxTarget, pointerPosition))
+        {
+            _cachedWheelTextBoxTarget = null;
+        }
+
+        if (_cachedWheelScrollViewerTarget != null &&
+            !PointerLikelyInsideElement(_cachedWheelScrollViewerTarget, pointerPosition))
+        {
+            _cachedWheelScrollViewerTarget = null;
+        }
+    }
+
+    private static bool PointerLikelyInsideElement(UIElement element, Vector2 pointerPosition)
+    {
+        return element.HitTest(pointerPosition);
     }
 
     private void RefreshCachedWheelTargets(UIElement? hovered)

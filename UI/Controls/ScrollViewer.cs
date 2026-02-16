@@ -515,12 +515,6 @@ public class ScrollViewer : ContentControl
             _diagSetOffsetNoOp++;
         }
 
-        if ((horizontalDelta > 0.001f || verticalDelta > 0.001f) && ContentElement is VirtualizingStackPanel virtualizingPanel)
-        {
-            virtualizingPanel.InvalidateMeasure();
-            virtualizingPanel.InvalidateArrange();
-        }
-
         UpdateScrollBars();
     }
 

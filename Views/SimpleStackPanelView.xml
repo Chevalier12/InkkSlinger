@@ -10,6 +10,7 @@
              BorderBrush="#2A4A66"
              BorderThickness="1"
              Padding="12">
+             <ScrollViewer>
   <StackPanel>
     <Label Text="Label 1" Foreground="#DCEEFF" Margin="0,0,0,6" />
     <Label Text="Label 2" Foreground="#DCEEFF" Margin="0,0,0,6" />
@@ -62,4 +63,5 @@
     <Label Text="Label 49" Foreground="#DCEEFF" Margin="0,0,0,6" />
     <Label Text="Label 50" Foreground="#DCEEFF" />
   </StackPanel>
+  </ScrollViewer>
 </UserControl>

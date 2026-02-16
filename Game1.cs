@@ -17,6 +17,7 @@ public class Game1 : Game
     private readonly bool _isWindowDemo;
     private readonly bool _isPaintShellDemo;
     private readonly bool _isCommandingDemo;
+    private readonly bool _isThreeScrollViewersDemo;
     private readonly bool _isTwoScrollViewersDemo;
     private readonly bool _isSimpleScrollViewerDemo;
     private readonly bool _isSimpleStackPanelDemo;
@@ -32,6 +33,7 @@ public class Game1 : Game
     private WindowDemoView? _windowDemoView;
     private PaintShellView? _paintShellView;
     private CommandingMenuDemoView? _commandingMenuDemoView;
+    private ThreeScrollViewersView? _threeScrollViewersView;
     private TwoScrollViewersView? _twoScrollViewersView;
     private SimpleScrollViewerView? _simpleScrollViewerView;
     private SimpleStackPanelView? _simpleStackPanelView;
@@ -56,6 +58,7 @@ public class Game1 : Game
         bool isWindowDemo = false,
         bool isPaintShellDemo = false,
         bool isCommandingDemo = false,
+        bool isThreeScrollViewersDemo = false,
         bool isTwoScrollViewersDemo = false,
         bool isSimpleScrollViewerDemo = false,
         bool isSimpleStackPanelDemo = false,
@@ -69,6 +72,7 @@ public class Game1 : Game
         _isWindowDemo = isWindowDemo;
         _isPaintShellDemo = isPaintShellDemo;
         _isCommandingDemo = isCommandingDemo;
+        _isThreeScrollViewersDemo = isThreeScrollViewersDemo;
         _isTwoScrollViewersDemo = isTwoScrollViewersDemo;
         _isSimpleScrollViewerDemo = isSimpleScrollViewerDemo;
         _isSimpleStackPanelDemo = isSimpleStackPanelDemo;
@@ -105,6 +109,11 @@ public class Game1 : Game
         {
             _commandingMenuDemoView = new CommandingMenuDemoView();
             _root.AddChild(_commandingMenuDemoView);
+        }
+        else if (_isThreeScrollViewersDemo)
+        {
+            _threeScrollViewersView = new ThreeScrollViewersView();
+            _root.AddChild(_threeScrollViewersView);
         }
         else if (_isTwoScrollViewersDemo)
         {
@@ -173,6 +182,7 @@ public class Game1 : Game
             _windowDemoView?.SetFont(font);
             _paintShellView?.SetFont(font);
             _commandingMenuDemoView?.SetFont(font);
+            _threeScrollViewersView?.SetFont(font);
             _twoScrollViewersView?.SetFont(font);
             _simpleScrollViewerView?.SetFont(font);
             _simpleStackPanelView?.SetFont(font);
@@ -287,6 +297,13 @@ public class Game1 : Game
         if (_isCommandingDemo)
         {
             _baseWindowTitle = $"InkkSlinger Commanding Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
+        if (_isThreeScrollViewersDemo)
+        {
+            _baseWindowTitle = $"InkkSlinger Three ScrollViewers Demo | {size.X}x{size.Y}";
             ApplyWindowTitle();
             return;
         }
@@ -515,6 +532,11 @@ public class Game1 : Game
             return 1500;
         }
 
+        if (_isThreeScrollViewersDemo)
+        {
+            return 1440;
+        }
+
         if (_isTwoScrollViewersDemo)
         {
             return 1280;
@@ -548,6 +570,11 @@ public class Game1 : Game
         if (_isCommandingDemo)
         {
             return 900;
+        }
+
+        if (_isThreeScrollViewersDemo)
+        {
+            return 820;
         }
 
         if (_isTwoScrollViewersDemo)
