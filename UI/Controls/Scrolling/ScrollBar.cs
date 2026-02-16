@@ -7,6 +7,7 @@ namespace InkkSlinger;
 
 public class ScrollBar : Control
 {
+    private const float ValueEpsilon = 0.01f;
     public static readonly DependencyProperty OrientationProperty =
         DependencyProperty.Register(
             nameof(Orientation),
@@ -170,6 +171,69 @@ public class ScrollBar : Control
         }
     }
 
+    internal LayoutRect GetThumbRectForInput()
+    {
+        return GetThumbRect(LayoutSlot);
+    }
+
+    internal bool HitTestTrack(Vector2 point)
+    {
+        var track = LayoutSlot;
+        return point.X >= track.X &&
+               point.X <= track.X + track.Width &&
+               point.Y >= track.Y &&
+               point.Y <= track.Y + track.Height;
+    }
+
+    internal bool TryHandlePointerDown(Vector2 pointerPosition, out float value, out bool startDrag, out float dragOffset)
+    {
+        value = Value;
+        startDrag = false;
+        dragOffset = 0f;
+
+        if (!HitTestTrack(pointerPosition))
+        {
+            return false;
+        }
+
+        var thumb = GetThumbRectForInput();
+        var pointerAxis = GetPointerAxis(pointerPosition);
+        var thumbStart = GetAxisStart(thumb);
+        var thumbEnd = GetAxisEnd(thumb);
+
+        if (pointerAxis >= thumbStart && pointerAxis <= thumbEnd)
+        {
+            startDrag = true;
+            dragOffset = pointerAxis - thumbStart;
+            value = CoerceValue(Value);
+            return true;
+        }
+
+        var next = Value + (pointerAxis < thumbStart ? -MathF.Max(1f, LargeChange) : MathF.Max(1f, LargeChange));
+        value = CoerceValue(next);
+        return true;
+    }
+
+    internal float GetValueFromDragPointer(Vector2 pointerPosition, float dragOffset)
+    {
+        var track = LayoutSlot;
+        var thumb = GetThumbRect(track);
+        var range = GetScrollableRange();
+        if (range <= ValueEpsilon)
+        {
+            return Minimum;
+        }
+
+        var trackLength = GetAxisLength(track);
+        var thumbLength = GetAxisLength(thumb);
+        var travel = MathF.Max(1f, trackLength - thumbLength);
+        var pointerAxis = GetPointerAxis(pointerPosition);
+        var trackStart = GetAxisStart(track);
+        var thumbStart = MathF.Max(0f, MathF.Min(travel, pointerAxis - trackStart - dragOffset));
+        var normalized = thumbStart / travel;
+        return CoerceValue(Minimum + (normalized * range));
+    }
+
     private LayoutRect GetThumbRect(LayoutRect track)
     {
         var extent = MathF.Max(0f, Maximum - Minimum);
@@ -200,6 +264,43 @@ public class ScrollBar : Control
         return new LayoutRect(track.X + (horizontalTravel * horizontalT), track.Y, thumbWidth, track.Height);
     }
 
+    private float GetScrollableRange()
+    {
+        var extent = MathF.Max(0f, Maximum - Minimum);
+        return MathF.Max(0f, extent - MathF.Max(0f, ViewportSize));
+    }
+
+    private float CoerceValue(float value)
+    {
+        var maxValue = Minimum + GetScrollableRange();
+        if (maxValue < Minimum)
+        {
+            maxValue = Minimum;
+        }
+
+        return MathF.Max(Minimum, MathF.Min(maxValue, value));
+    }
+
+    private float GetPointerAxis(Vector2 pointerPosition)
+    {
+        return Orientation == Orientation.Vertical ? pointerPosition.Y : pointerPosition.X;
+    }
+
+    private float GetAxisStart(LayoutRect rect)
+    {
+        return Orientation == Orientation.Vertical ? rect.Y : rect.X;
+    }
+
+    private float GetAxisEnd(LayoutRect rect)
+    {
+        return Orientation == Orientation.Vertical ? rect.Y + rect.Height : rect.X + rect.Width;
+    }
+
+    private float GetAxisLength(LayoutRect rect)
+    {
+        return Orientation == Orientation.Vertical ? rect.Height : rect.Width;
+    }
+
     private void SetIfChanged(DependencyProperty property, float value)
     {
         if (AreClose(GetValue<float>(property), value))
@@ -222,6 +323,6 @@ public class ScrollBar : Control
 
     private static bool AreClose(float left, float right)
     {
-        return MathF.Abs(left - right) <= 0.01f;
+        return MathF.Abs(left - right) <= ValueEpsilon;
     }
 }

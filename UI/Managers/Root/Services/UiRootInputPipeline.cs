@@ -301,6 +301,10 @@ public sealed partial class UiRoot
         {
             dragTextBox.HandlePointerMoveFromInput(pointerPosition);
         }
+        else if (_inputState.CapturedPointerElement is ScrollViewer dragScrollViewer)
+        {
+            dragScrollViewer.HandlePointerMoveFromInput(pointerPosition);
+        }
     }
 
     private void DispatchMouseDown(UIElement? target, Vector2 pointerPosition, MouseButton button)
@@ -327,6 +331,18 @@ public sealed partial class UiRoot
         {
             textBox.HandlePointerDownFromInput(pointerPosition, extendSelection: (_inputState.CurrentModifiers & ModifierKeys.Shift) != 0);
             CapturePointer(target);
+        }
+        else if (target is ScrollBar scrollBar &&
+                 TryFindAncestor<ScrollViewer>(scrollBar, out var owningScrollViewer) &&
+                 owningScrollViewer != null &&
+                 owningScrollViewer.HandlePointerDownFromInput(pointerPosition))
+        {
+            CapturePointer(owningScrollViewer);
+        }
+        else if (target is ScrollViewer scrollViewer &&
+                 scrollViewer.HandlePointerDownFromInput(pointerPosition))
+        {
+            CapturePointer(scrollViewer);
         }
     }
 
@@ -357,6 +373,10 @@ public sealed partial class UiRoot
         else if (_inputState.CapturedPointerElement is TextBox textBox)
         {
             textBox.HandlePointerUpFromInput();
+        }
+        else if (_inputState.CapturedPointerElement is ScrollViewer scrollViewer)
+        {
+            scrollViewer.HandlePointerUpFromInput();
         }
 
         ReleasePointer(_inputState.CapturedPointerElement);
@@ -610,7 +630,7 @@ public sealed partial class UiRoot
 
     private static bool IsClickCapableElement(UIElement element)
     {
-        if (element is Button or TextBox)
+        if (element is Button or TextBox or ScrollViewer or ScrollBar)
         {
             return true;
         }

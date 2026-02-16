@@ -103,6 +103,10 @@ public class ScrollViewer : ContentControl
     private LayoutRect _contentViewportRect;
     private bool _showHorizontalBar;
     private bool _showVerticalBar;
+    private bool _isDraggingHorizontalBar;
+    private bool _isDraggingVerticalBar;
+    private float _horizontalBarDragOffset;
+    private float _verticalBarDragOffset;
     private static int _diagWheelEvents;
     private static int _diagWheelHandled;
     private static int _diagSetOffsetCalls;
@@ -266,6 +270,74 @@ public class ScrollViewer : ContentControl
         _diagHorizontalDelta = 0f;
         _diagVerticalDelta = 0f;
         return snapshot;
+    }
+
+    internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
+    {
+        if (!IsEnabled)
+        {
+            return false;
+        }
+
+        if (_showVerticalBar &&
+            _verticalBar.TryHandlePointerDown(pointerPosition, out var verticalValue, out var startVerticalDrag, out var verticalDragOffset))
+        {
+            SetOffsets(HorizontalOffset, verticalValue);
+            _isDraggingVerticalBar = startVerticalDrag;
+            _verticalBarDragOffset = startVerticalDrag ? verticalDragOffset : 0f;
+            _isDraggingHorizontalBar = false;
+            _horizontalBarDragOffset = 0f;
+            return true;
+        }
+
+        if (_showHorizontalBar &&
+            _horizontalBar.TryHandlePointerDown(pointerPosition, out var horizontalValue, out var startHorizontalDrag, out var horizontalDragOffset))
+        {
+            SetOffsets(horizontalValue, VerticalOffset);
+            _isDraggingHorizontalBar = startHorizontalDrag;
+            _horizontalBarDragOffset = startHorizontalDrag ? horizontalDragOffset : 0f;
+            _isDraggingVerticalBar = false;
+            _verticalBarDragOffset = 0f;
+            return true;
+        }
+
+        return false;
+    }
+
+    internal bool HandlePointerMoveFromInput(Vector2 pointerPosition)
+    {
+        var handled = false;
+        if (_isDraggingVerticalBar)
+        {
+            var value = _verticalBar.GetValueFromDragPointer(pointerPosition, _verticalBarDragOffset);
+            var before = VerticalOffset;
+            SetOffsets(HorizontalOffset, value);
+            handled = handled || MathF.Abs(before - VerticalOffset) > 0.001f;
+        }
+
+        if (_isDraggingHorizontalBar)
+        {
+            var value = _horizontalBar.GetValueFromDragPointer(pointerPosition, _horizontalBarDragOffset);
+            var before = HorizontalOffset;
+            SetOffsets(value, VerticalOffset);
+            handled = handled || MathF.Abs(before - HorizontalOffset) > 0.001f;
+        }
+
+        return handled;
+    }
+
+    internal bool HandlePointerUpFromInput()
+    {
+        if (!_isDraggingHorizontalBar && !_isDraggingVerticalBar)
+        {
+            return false;
+        }
+
+        _isDraggingHorizontalBar = false;
+        _isDraggingVerticalBar = false;
+        _horizontalBarDragOffset = 0f;
+        _verticalBarDragOffset = 0f;
+        return true;
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
