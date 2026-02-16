@@ -54,7 +54,7 @@ public class ResizeHandlesAdorner : Adorner
         : base(adornedElement)
     {
         IsHitTestVisible = true;
-
+        InitializeHandles();
     }
 
     public event EventHandler<ResizeHandleDragEventArgs>? HandleDragDelta;
@@ -154,7 +154,34 @@ public class ResizeHandlesAdorner : Adorner
 
     private void ArrangeThumb(ResizeHandlePosition position, float x, float y)
     {
-        var thumb = _thumbs[position];
+        if (!_thumbs.TryGetValue(position, out var thumb))
+        {
+            return;
+        }
+
         thumb.Arrange(new LayoutRect(x, y, HandleSize, HandleSize));
+    }
+
+    private void InitializeHandles()
+    {
+        CreateHandle(ResizeHandlePosition.TopLeft);
+        CreateHandle(ResizeHandlePosition.TopRight);
+        CreateHandle(ResizeHandlePosition.BottomLeft);
+        CreateHandle(ResizeHandlePosition.BottomRight);
+    }
+
+    private void CreateHandle(ResizeHandlePosition position)
+    {
+        var thumb = new Thumb();
+        thumb.SetVisualParent(this);
+        thumb.SetLogicalParent(this);
+        thumb.DragDelta += (_, args) =>
+        {
+            HandleDragDelta?.Invoke(
+                this,
+                new ResizeHandleDragEventArgs(position, args.HorizontalChange, args.VerticalChange));
+        };
+
+        _thumbs[position] = thumb;
     }
 }
