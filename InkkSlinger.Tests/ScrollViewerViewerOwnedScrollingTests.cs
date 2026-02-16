@@ -136,6 +136,44 @@ public class ScrollViewerViewerOwnedScrollingTests
         Assert.True(virtualizingPanel.LastRealizedIndex > initialLast);
     }
 
+    [Fact]
+    public void VirtualizingStackPanel_RearrangesChildren_WhenViewerHorizontalOriginChanges()
+    {
+        var root = new Panel();
+        var virtualizingPanel = new VirtualizingStackPanel
+        {
+            Orientation = Orientation.Vertical,
+            IsVirtualizing = true,
+            CacheLength = 0.5f,
+            CacheLengthUnit = VirtualizationCacheLengthUnit.Page
+        };
+
+        for (var i = 0; i < 40; i++)
+        {
+            virtualizingPanel.AddChild(new Border { Width = 700f, Height = 24f });
+        }
+
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = virtualizingPanel
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+
+        var firstChild = Assert.IsAssignableFrom<FrameworkElement>(virtualizingPanel.Children[0]);
+        var childXBefore = firstChild.LayoutSlot.X;
+
+        viewer.ScrollToHorizontalOffset(120f);
+        RunLayout(uiRoot, 320, 200, 32);
+
+        Assert.True(viewer.HorizontalOffset > 0f);
+        Assert.True(firstChild.LayoutSlot.X < childXBefore);
+    }
+
     private static StackPanel CreateTallStackPanel(int itemCount)
     {
         var panel = new StackPanel();

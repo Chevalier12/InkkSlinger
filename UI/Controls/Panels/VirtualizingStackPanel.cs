@@ -74,6 +74,7 @@ public class VirtualizingStackPanel : Panel
     private int _lastArrangedFirst = -1;
     private int _lastArrangedLast = -1;
     private Vector2 _lastArrangeSize;
+    private Vector2 _lastArrangeOrigin;
     private bool _hasArrangedRange;
 
     public Orientation Orientation
@@ -277,11 +278,14 @@ public class VirtualizingStackPanel : Panel
             var first = ResolveStartIndex(context.StartOffset);
             var last = ResolveEndIndex(context.EndOffset, first);
             SetRealization(first, last);
+            var currentOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
             var canReuseArrangeRange = _hasArrangedRange &&
                                        first == _lastArrangedFirst &&
                                        last == _lastArrangedLast &&
                                        AreClose(_lastArrangeSize.X, finalSize.X) &&
                                        AreClose(_lastArrangeSize.Y, finalSize.Y) &&
+                                       AreClose(_lastArrangeOrigin.X, currentOrigin.X) &&
+                                       AreClose(_lastArrangeOrigin.Y, currentOrigin.Y) &&
                                        !RangeNeedsArrange(first, last);
             if (!canReuseArrangeRange)
             {
@@ -290,6 +294,7 @@ public class VirtualizingStackPanel : Panel
                 _lastArrangedFirst = first;
                 _lastArrangedLast = last;
                 _lastArrangeSize = finalSize;
+                _lastArrangeOrigin = currentOrigin;
             }
         }
         else
@@ -300,6 +305,7 @@ public class VirtualizingStackPanel : Panel
             _lastArrangedFirst = 0;
             _lastArrangedLast = Children.Count - 1;
             _lastArrangeSize = finalSize;
+            _lastArrangeOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
         }
 
         UpdateViewportFromFinalSize(finalSize);

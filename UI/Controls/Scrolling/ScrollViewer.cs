@@ -254,6 +254,12 @@ public class ScrollViewer : ContentControl
         InvalidateMeasure();
     }
 
+    internal bool TryGetContentViewportClipRect(out LayoutRect clipRect)
+    {
+        clipRect = _contentViewportRect;
+        return clipRect.Width > 0f && clipRect.Height > 0f;
+    }
+
     internal static ScrollViewerScrollDiagnosticsSnapshot GetScrollDiagnosticsAndReset()
     {
         var snapshot = new ScrollViewerScrollDiagnosticsSnapshot(
