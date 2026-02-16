@@ -26,14 +26,14 @@ public class ScrollViewer : ContentControl
             nameof(HorizontalOffset),
             typeof(float),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty VerticalOffsetProperty =
         DependencyProperty.Register(
             nameof(VerticalOffset),
             typeof(float),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty ExtentWidthProperty =
         DependencyProperty.Register(
@@ -298,20 +298,7 @@ public class ScrollViewer : ContentControl
         _showHorizontalBar = decision.ShowHorizontalBar;
         _showVerticalBar = decision.ShowVerticalBar;
         _contentViewportRect = decision.ViewportRect;
-
-        if (ContentElement is FrameworkElement content)
-        {
-            var arrangedWidth = MathF.Max(decision.ViewportWidth, decision.ExtentWidth);
-            var arrangedHeight = MathF.Max(decision.ViewportHeight, decision.ExtentHeight);
-            var contentX = decision.ViewportRect.X - HorizontalOffset;
-            var contentY = decision.ViewportRect.Y - VerticalOffset;
-
-            content.Arrange(new LayoutRect(
-                contentX,
-                contentY,
-                arrangedWidth,
-                arrangedHeight));
-        }
+        ArrangeContentForCurrentOffsets();
 
         var barThickness = MathF.Max(0f, ScrollBarThickness);
         if (_showHorizontalBar)
@@ -522,8 +509,46 @@ public class ScrollViewer : ContentControl
             _diagSetOffsetNoOp++;
         }
 
+        if ((horizontalDelta > 0.001f || verticalDelta > 0.001f) &&
+            !NeedsMeasure &&
+            !NeedsArrange &&
+            !UsesTransformBasedContentScrolling())
+        {
+            ArrangeContentForCurrentOffsets();
+        }
+
         UiRoot.Current?.ObserveScrollCpuOffsetMutation(horizontalDelta, verticalDelta);
-        UpdateScrollBars();
+        UpdateScrollBarValues();
+    }
+
+    private void ArrangeContentForCurrentOffsets()
+    {
+        if (ContentElement is not FrameworkElement content)
+        {
+            return;
+        }
+
+        if (_contentViewportRect.Width <= 0f || _contentViewportRect.Height <= 0f)
+        {
+            return;
+        }
+
+        var arrangedWidth = MathF.Max(ViewportWidth, ExtentWidth);
+        var arrangedHeight = MathF.Max(ViewportHeight, ExtentHeight);
+        var useTransformScrolling = UsesTransformBasedContentScrolling();
+        var contentX = useTransformScrolling ? _contentViewportRect.X : _contentViewportRect.X - HorizontalOffset;
+        var contentY = useTransformScrolling ? _contentViewportRect.Y : _contentViewportRect.Y - VerticalOffset;
+
+        content.Arrange(new LayoutRect(
+            contentX,
+            contentY,
+            arrangedWidth,
+            arrangedHeight));
+    }
+
+    private bool UsesTransformBasedContentScrolling()
+    {
+        return ContentElement is IScrollTransformContent;
     }
 
     private void UpdateScrollBars()
@@ -541,6 +566,12 @@ public class ScrollViewer : ContentControl
         SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
         SetIfChanged(_horizontalBar, _showHorizontalBar);
         SetIfChanged(_verticalBar, _showVerticalBar);
+    }
+
+    private void UpdateScrollBarValues()
+    {
+        SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, HorizontalOffset);
+        SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
     }
 
     private void SetIfChanged(DependencyProperty property, float value)

@@ -9,6 +9,7 @@ public sealed partial class UiRoot
 {
     private const double WheelPreciseRetargetCooldownMs = 90d;
     private const float WheelPointerMoveThresholdSquared = 4f;
+    private const float ClickPointerReuseThresholdSquared = 9f;
 
     private void RunInputAndEventsPhase(GameTime gameTime)
     {
@@ -68,13 +69,20 @@ public sealed partial class UiRoot
     {
         var pointerStart = Stopwatch.GetTimestamp();
         _inputState.CurrentModifiers = GetModifiers(delta.Current.Keyboard);
+        var clickResolveHitTests = 0;
         var pointerResolveStart = Stopwatch.GetTimestamp();
+        var clickHitTestsBeforeResolve = _lastInputHitTestCount;
         var pointerTarget = ResolvePointerTarget(delta);
+        if (delta.LeftPressed || delta.LeftReleased)
+        {
+            clickResolveHitTests = Math.Max(0, _lastInputHitTestCount - clickHitTestsBeforeResolve);
+        }
         _lastInputPointerTargetResolveMs = Stopwatch.GetElapsedTime(pointerResolveStart).TotalMilliseconds;
         var hoverTicks = 0L;
         var pointerRouteTicks = 0L;
         if (delta.PointerMoved)
         {
+            var moveHitTestsBefore = _lastInputHitTestCount;
             var previousHovered = _inputState.HoveredElement;
             var hoverStart = Stopwatch.GetTimestamp();
             UpdateHover(pointerTarget);
@@ -88,19 +96,41 @@ public sealed partial class UiRoot
                 DispatchPointerMove(pointerTarget, delta.Current.PointerPosition);
                 pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
             }
+
+            ObserveMoveCpuPointerDispatch(_lastInputHitTestCount - moveHitTestsBefore);
         }
 
         if (delta.LeftPressed)
         {
+            _lastClickDownTarget = pointerTarget;
+            _lastClickDownPointerPosition = delta.Current.PointerPosition;
+            _hasLastClickDownPointerPosition = true;
             var routeStart = Stopwatch.GetTimestamp();
+            var clickHitTestsBefore = _lastInputHitTestCount;
+            var clickDispatchStart = Stopwatch.GetTimestamp();
             DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
+            var clickHandleMs = Stopwatch.GetElapsedTime(clickDispatchStart).TotalMilliseconds;
+            var clickHitTests = Math.Max(0, _lastInputHitTestCount - clickHitTestsBefore) + clickResolveHitTests;
+            clickResolveHitTests = 0;
+            ObserveClickCpuPointerDispatch(isDown: true, clickHitTests, clickHandleMs);
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
 
         if (delta.LeftReleased)
         {
             var routeStart = Stopwatch.GetTimestamp();
+            var clickHitTestsBefore = _lastInputHitTestCount;
+            var clickDispatchStart = Stopwatch.GetTimestamp();
             DispatchMouseUp(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
+            var clickHandleMs = Stopwatch.GetElapsedTime(clickDispatchStart).TotalMilliseconds;
+            var clickHitTests = Math.Max(0, _lastInputHitTestCount - clickHitTestsBefore) + clickResolveHitTests;
+            clickResolveHitTests = 0;
+            ObserveClickCpuPointerDispatch(isDown: false, clickHitTests, clickHandleMs);
+            _lastClickUpTarget = pointerTarget;
+            _lastClickUpPointerPosition = delta.Current.PointerPosition;
+            _hasLastClickUpPointerPosition = true;
+            _lastClickDownTarget = null;
+            _hasLastClickDownPointerPosition = false;
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
 
@@ -143,10 +173,35 @@ public sealed partial class UiRoot
     {
         if (_inputState.CapturedPointerElement != null)
         {
+            if (delta.LeftPressed || delta.LeftReleased)
+            {
+                _clickCpuResolveCapturedCount++;
+            }
             return _inputState.CapturedPointerElement;
         }
 
+        if (delta.LeftPressed &&
+            !delta.PointerMoved &&
+            _lastClickUpTarget != null &&
+            _hasLastClickUpPointerPosition &&
+            Vector2.DistanceSquared(_lastClickUpPointerPosition, delta.Current.PointerPosition) <= ClickPointerReuseThresholdSquared)
+        {
+            _clickCpuResolveCachedCount++;
+            return _lastClickUpTarget;
+        }
+
+        if (delta.LeftReleased &&
+            !delta.PointerMoved &&
+            _lastClickDownTarget != null &&
+            _hasLastClickDownPointerPosition &&
+            Vector2.DistanceSquared(_lastClickDownPointerPosition, delta.Current.PointerPosition) <= ClickPointerReuseThresholdSquared)
+        {
+            _clickCpuResolveCachedCount++;
+            return _lastClickDownTarget;
+        }
+
         var requiresPreciseTarget = delta.LeftPressed || delta.LeftReleased;
+        var pointerPosition = delta.Current.PointerPosition;
         if (!requiresPreciseTarget)
         {
             // CPU-first path: keep current hover target during high-frequency move/wheel
@@ -172,8 +227,30 @@ public sealed partial class UiRoot
             return _inputState.HoveredElement;
         }
 
+        if (requiresPreciseTarget)
+        {
+            if (_cachedClickTarget != null &&
+                TryResolveClickTargetFromCandidate(_cachedClickTarget, pointerPosition, out var cachedClickTarget) &&
+                cachedClickTarget != null)
+            {
+                _clickCpuResolveCachedCount++;
+                return cachedClickTarget;
+            }
+
+            if (TryResolveClickTargetFromHovered(pointerPosition, out var hoveredClickTarget) &&
+                hoveredClickTarget != null)
+            {
+                _clickCpuResolveHoveredCount++;
+                return hoveredClickTarget;
+            }
+        }
+
         _lastInputHitTestCount++;
-        return VisualTreeHelper.HitTest(_visualRoot, delta.Current.PointerPosition);
+        if (requiresPreciseTarget)
+        {
+            _clickCpuResolveHitTestCount++;
+        }
+        return VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
     }
 
     private void UpdateHover(UIElement? hovered)
@@ -195,6 +272,7 @@ public sealed partial class UiRoot
 
         _inputState.HoveredElement = hovered;
         RefreshCachedWheelTargets(hovered);
+        RefreshCachedClickTarget(hovered);
         if (hovered is TextBox newTextBox)
         {
             newTextBox.SetMouseOverFromInput(true);
@@ -232,6 +310,8 @@ public sealed partial class UiRoot
             return;
         }
 
+        RefreshCachedClickTarget(target);
+
         _lastInputPointerEventCount++;
         _lastInputRoutedEventCount += 2;
         target.RaiseRoutedEventInternal(UIElement.PreviewMouseDownEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseDownEvent, pointerPosition, button));
@@ -257,6 +337,8 @@ public sealed partial class UiRoot
         {
             return;
         }
+
+        RefreshCachedClickTarget(routedTarget);
 
         _lastInputPointerEventCount++;
         _lastInputRoutedEventCount += 2;
@@ -498,6 +580,66 @@ public sealed partial class UiRoot
         if (TryFindAncestor<ScrollViewer>(hovered, out var scrollViewer) && scrollViewer != null)
         {
             _cachedWheelScrollViewerTarget = scrollViewer;
+        }
+    }
+
+    private bool TryResolveClickTargetFromHovered(Vector2 pointerPosition, out UIElement? target)
+    {
+        return TryResolveClickTargetFromCandidate(_inputState.HoveredElement, pointerPosition, out target);
+    }
+
+    private static bool TryResolveClickTargetFromCandidate(UIElement? candidate, Vector2 pointerPosition, out UIElement? target)
+    {
+        target = null;
+        if (candidate == null || !PointerLikelyInsideElement(candidate, pointerPosition))
+        {
+            return false;
+        }
+
+        for (var current = candidate; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (IsClickCapableElement(current))
+            {
+                target = current;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsClickCapableElement(UIElement element)
+    {
+        if (element is Button or TextBox)
+        {
+            return true;
+        }
+
+        return element.HasRoutedHandlerForEvent(UIElement.PreviewMouseDownEvent) ||
+               element.HasRoutedHandlerForEvent(UIElement.MouseDownEvent) ||
+               element.HasRoutedHandlerForEvent(UIElement.PreviewMouseUpEvent) ||
+               element.HasRoutedHandlerForEvent(UIElement.MouseUpEvent) ||
+               EventManager.HasClassHandlers(element.GetType(), UIElement.PreviewMouseDownEvent) ||
+               EventManager.HasClassHandlers(element.GetType(), UIElement.MouseDownEvent) ||
+               EventManager.HasClassHandlers(element.GetType(), UIElement.PreviewMouseUpEvent) ||
+               EventManager.HasClassHandlers(element.GetType(), UIElement.MouseUpEvent);
+    }
+
+    private void RefreshCachedClickTarget(UIElement? anchor)
+    {
+        _cachedClickTarget = null;
+        if (anchor == null)
+        {
+            return;
+        }
+
+        for (var current = anchor; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (IsClickCapableElement(current))
+            {
+                _cachedClickTarget = current;
+                return;
+            }
         }
     }
 

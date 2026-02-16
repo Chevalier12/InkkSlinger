@@ -25,6 +25,7 @@ public sealed partial class UiRoot
         if (_scrollCpuWheelEventCount == 0 && _scrollCpuOffsetMutationCount == 0)
         {
             _scrollCpuFirstEventTimestamp = Stopwatch.GetTimestamp();
+            _scrollCpuFirstProcessCpuTime = Process.GetCurrentProcess().TotalProcessorTime;
         }
 
         _scrollCpuLastEventTimestamp = Stopwatch.GetTimestamp();
@@ -46,6 +47,7 @@ public sealed partial class UiRoot
         if (_scrollCpuWheelEventCount == 0 && _scrollCpuOffsetMutationCount == 0)
         {
             _scrollCpuFirstEventTimestamp = Stopwatch.GetTimestamp();
+            _scrollCpuFirstProcessCpuTime = Process.GetCurrentProcess().TotalProcessorTime;
         }
 
         _scrollCpuLastEventTimestamp = Stopwatch.GetTimestamp();
@@ -130,6 +132,12 @@ public sealed partial class UiRoot
         }
 
         var durationMs = Stopwatch.GetElapsedTime(_scrollCpuFirstEventTimestamp).TotalMilliseconds;
+        var elapsedSeconds = Math.Max(0d, durationMs / 1000d);
+        var cpuTimeSeconds = (Process.GetCurrentProcess().TotalProcessorTime - _scrollCpuFirstProcessCpuTime).TotalSeconds;
+        var logicalProcessors = Math.Max(1, Environment.ProcessorCount);
+        var processCpuPct = elapsedSeconds > 0d
+            ? Math.Max(0d, (cpuTimeSeconds / elapsedSeconds) * 100d / logicalProcessors)
+            : 0d;
         var avgUpdateMs = _scrollCpuUpdateMsTotal / _scrollCpuSampleCount;
         var avgInputMs = _scrollCpuInputMsTotal / _scrollCpuSampleCount;
         var avgLayoutMs = _scrollCpuLayoutMsTotal / _scrollCpuSampleCount;
@@ -148,7 +156,7 @@ public sealed partial class UiRoot
             $"route={avgRouteMs:0.0}ms visualUpd={avgVisualUpdateMs:0.0}ms wheelHandle={avgWheelHandleMs:0.0}ms) " +
             $"max(update={_scrollCpuMaxUpdateMs:0.0}ms input={_scrollCpuMaxInputMs:0.0}ms layout={_scrollCpuMaxLayoutMs:0.0}ms draw={_scrollCpuMaxDrawMs:0.0}ms " +
             $"route={_scrollCpuMaxPointerRouteMs:0.0}ms visualUpd={_scrollCpuMaxVisualUpdateMs:0.0}ms wheelHandle={_scrollCpuMaxWheelHandleMs:0.0}ms) " +
-            $"wheelHitTests={_scrollCpuWheelHitTestCount} preciseRetarget={_scrollCpuWheelPreciseRetargetCount}";
+            $"wheelHitTests={_scrollCpuWheelHitTestCount} preciseRetarget={_scrollCpuWheelPreciseRetargetCount} cpu={processCpuPct:0.0}%";
 
         Debug.WriteLine(summary);
         Console.WriteLine(summary);
@@ -180,5 +188,6 @@ public sealed partial class UiRoot
         _scrollCpuMaxWheelHandleMs = 0d;
         _scrollCpuFirstEventTimestamp = 0L;
         _scrollCpuLastEventTimestamp = 0L;
+        _scrollCpuFirstProcessCpuTime = TimeSpan.Zero;
     }
 }

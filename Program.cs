@@ -28,7 +28,7 @@ var isScrollViewerEdgeCasesDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--scrollviewer-edge-cases", global::System.StringComparison.OrdinalIgnoreCase));
 if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo)
 {
-    isScrollViewerEdgeCasesDemo = true;
+    isThreeScrollViewersDemo = true;
 }
 using var game = new InkkSlinger.Game1(
     isWindowDemo,
