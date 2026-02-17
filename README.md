@@ -2,33 +2,24 @@
 
 [![.NET](https://img.shields.io/badge/.NET-9%20%2F%2010-512BD4?logo=dotnet&logoColor=white)](#build-and-test)
 [![MonoGame](https://img.shields.io/badge/MonoGame-DesktopGL-FF7F50)](#vision)
-[![Tests](https://img.shields.io/badge/tests-290%20passed%20%7C%201%20failed%20%7C%201%20skipped-yellow)](#build-and-test)
-[![WPF Parity](https://img.shields.io/badge/WPF%20parity-ongoing-blue)](#parity-matrix)
+[![WPF Parity](https://img.shields.io/badge/WPF%20parity-ongoing-blue)](#wpf-parity-position)
 
-InkkSlinger is a custom UI framework for MonoGame/DesktopGL with a single primary objective:
+InkkSlinger is a custom UI framework for MonoGame/DesktopGL with one primary objective:
 
 **achieve practical WPF parity as closely as possible** across APIs, behavior, composition model, and authoring workflow.
 
-This repository is framework-first.  
+This repository is framework-first.
 The files in `Views/` are validation/demo surfaces used to exercise framework features and regressions, not the end product.
 
 ## Why This Exists
 
-WPF provides a powerful UI model, but it is tied to its own runtime stack and not directly available in game-oriented rendering pipelines like MonoGame/DesktopGL.
+WPF provides a strong UI model, but it is not directly available inside game-oriented rendering pipelines like MonoGame/DesktopGL.
 
-This project exists to close that gap by bringing a familiar WPF-style model into a real-time game loop:
+This project closes that gap by bringing WPF-style composition into a real-time loop:
 
-- build complex desktop-style UI in a MonoGame host
-- preserve WPF-like composition and authoring patterns
-- validate behavior against parity expectations through tests
-
-## Parity Snapshot
-
-| Category | Implemented | Planned / Open |
-|---|---:|---:|
-| Tracked WPF controls | 65 | 12 |
-| Core parity areas (DP, events, input, layout, markup, resources/styles, triggers, binding, templates, animation, virtualization, rendering/invalidation, tooling) | 12 | 0 |
-| Deeper parity tracks (menu/commanding depth, rich text/doc stack, adorner depth, full-edge parity) | 1 | 3 |
+- build desktop-style UI in a MonoGame host
+- preserve familiar WPF-like authoring patterns
+- validate behavior through parity-focused tests
 
 ## Vision
 
@@ -36,209 +27,150 @@ Bring a WPF-like development model into a game/render-loop environment by implem
 
 - dependency properties and metadata-driven behavior
 - routed events and focus/input semantics
-- layout and measure/arrange style composition
-- styling, resources, triggers, and templating
+- measure/arrange style layout composition
+- resources, styles, triggers, and templating
 - MVVM-style binding primitives
-- animation/timeline orchestration
-- broad control coverage with parity-focused tests
+- timeline/storyboard-driven animation
+- broad control coverage with regression tests
 
 ## WPF Parity Position
 
-Parity is treated as a long-running engineering target, not a marketing claim.  
-The current implementation is already deep, but intentionally explicit about gaps.
+Parity is treated as a long-running engineering target, not a marketing claim.
+The implementation is broad and deep, but intentionally explicit about gaps.
 
-## Parity Matrix
+### Parity Summary
 
-| Area | Status | Detail |
-|---|---|---|
-| Dependency property system | Implemented | `DependencyObject`, `DependencyProperty`, metadata/value-source model is present. |
-| Routed events | Implemented | Routed event registration, args types, and event manager infrastructure are in place. |
-| Input/focus/capture | Implemented | Focus management and input processing pipeline are integrated with UI update loop. |
-| Layout system | Implemented | Measure/arrange pipeline is implemented across core panels and controls. |
-| Markup loading | Implemented | XML markup loading via `XamlLoader`, including diagnostics with line/position context. |
-| Resources + styles | Implemented | `x:Key`, static resource lookup, implicit styles, `BasedOn`, style precedence behavior. |
-| Trigger system | Implemented | `Trigger`, `DataTrigger`, `MultiDataTrigger`, enter/exit action support. |
-| Binding system | Implemented | `Path`, `Source`, `ElementName`, `RelativeSource`, plus lifecycle rebinding behavior. See “Not Yet Implemented / Out of Scope” for omitted WPF binding features (converters, MultiBinding, validation, etc.). |
-| Templates | Implemented | `ControlTemplate`, `DataTemplate`, template selection/resolution pipeline. |
-| Animation system | Implemented | Storyboards, timelines, keyframes, easing primitives, trigger-driven animation hooks. |
-| Virtualization | Implemented | `VirtualizingStackPanel` and virtualization behavior for large collections. |
-| Invalidation/render efficiency | Implemented | Dirty-region tracking and cached-frame composition in `UiRoot`. |
-| Hit testing | Implemented | Hit testing is supported (`VisualTreeHelper.HitTest`, `IsHitTestVisible`). |
-| Drawing/geometry | Implemented | Shape/geometry primitives and transforms are implemented (`UI/Geometry`, `UI/Controls/Shape`). Rendering fidelity is WPF-inspired but not guaranteed to match every WPF edge behavior. |
-| Basic text | Implemented | Text rendering/layout primitives exist (`UI/Text`, wrapping, selection/caret behaviors in text controls). Advanced typography/IME/document features are explicitly out of scope for now. |
-| Tooling support | Implemented | XML schemas in `Schemas/` + `x:Name` source generation. |
-| Items/selection system | Implemented | Items + selection infrastructure exists across list/tree/grid controls, validated by tests. Some broader WPF data features (views/grouping/sorting/etc.) are out of scope for now. |
-| Popup/windowing | Partial | `Popup`, `ContextMenu`, and `Window` exist; deeper edge parity remains ongoing. |
-| Menu/commanding parity depth | Partial | Core routed commanding (`RoutedCommand`, `CommandBinding`, `InputBinding`, `KeyGesture`) is implemented and wired through menu/button demo paths; deeper WPF edge parity (navigation/access keys/behavior nuances) remains ongoing. |
-| Adorner layer depth | Partial | Adorner primitives exist; deeper parity (composition behaviors and layout nuances) remains open. |
-| Rich document text stack | Planned | `RichTextBox` and flow-document-level parity not implemented yet. |
-| Full WPF parity | Ongoing | Objective is closest practical parity over time, validated through tests and real behavior. |
+This matrix is compiled from `TODO.md` completed work, concrete type coverage under `UI/`, and the current regression suite.
 
-## Not Yet Implemented / Out of Scope (For Now)
+| Area | Implemented Parity Surface | Evidence | Status |
+|---|---|---|---|
+| Dependency property system | Core DP registration, metadata callbacks/options, value source layering | `UI/Core/DependencyProperties/DependencyObject.cs`, `UI/Core/DependencyProperties/DependencyProperty.cs`, `UI/Core/DependencyProperties/FrameworkPropertyMetadata.cs` | Implemented |
+| Routed event model | Routed event registration/dispatch + routed args types | `UI/Events/Core/EventManager.cs`, `UI/Events/Core/RoutedEvent.cs`, `UI/Events/Args/*` | Implemented |
+| Input + focus pipeline | Input snapshots/delta, dispatch state, focus management integrated into root update | `UI/Input/Core/InputManager.cs`, `UI/Input/Core/FocusManager.cs`, `UI/Managers/Root/Services/UiRootInputPipeline.cs` | Implemented |
+| UI dispatcher/phase model | Deferred operations + strict frame phase ordering | `UI/Core/Threading/Dispatcher.cs`, `UI/Managers/Root/Services/UiRootFrameState.cs`, `InkkSlinger.Tests/DispatcherPhaseOrderTests.cs` | Implemented (tested) |
+| Layout framework | Measure/arrange across framework elements and panels | `UI/Controls/Base/FrameworkElement.cs`, `UI/Managers/Layout/LayoutManager.cs`, `UI/Controls/Panels/*` | Implemented |
+| Visual tree utilities | Tree traversal + hit-test support for input/render decisions | `UI/Managers/Tree/VisualTreeHelper.cs` | Implemented |
+| Resource dictionaries | Local/tree/app resource resolution with dictionary change notifications | `UI/Resources/Core/ResourceDictionary.cs`, `UI/Resources/Core/ResourceResolver.cs`, `UI/Resources/Types/ResourceDictionaryChangedEventArgs.cs` | Implemented |
+| Style system | `Style`, `Setter`, implicit/explicit style application, `BasedOn` support | `UI/Styling/Core/Style.cs`, `UI/Styling/Core/Setter.cs`, `TODO.md` (`Completed Milestones`) | Implemented |
+| Trigger framework | Property/data/multi-data/event triggers + condition evaluation | `UI/Styling/Triggers/Trigger.cs`, `UI/Styling/Triggers/DataTrigger.cs`, `UI/Styling/Triggers/MultiDataTrigger.cs`, `UI/Styling/Triggers/EventTrigger.cs` | Implemented |
+| Trigger action runtime | `SetValueAction` + storyboard action family in trigger execution path | `UI/Styling/Actions/SetValueAction.cs`, `UI/Styling/Actions/StoryboardActions.cs`, `UI/Xaml/Core/XamlLoader.cs` (`BuildTriggerAction`) | Implemented |
+| Control templating | `ControlTemplate`, template binding, template trigger engine | `UI/Templating/Core/ControlTemplate.cs`, `UI/Templating/Core/TemplateBinding.cs`, `UI/Templating/Core/TemplateTriggerEngine.cs` | Implemented |
+| Data templating | `DataTemplate`, selector, resolver pipeline | `UI/Templating/Data/DataTemplate.cs`, `UI/Templating/Data/DataTemplateSelector.cs`, `UI/Templating/Data/DataTemplateResolver.cs` | Implemented |
+| Binding core | `Path`, `Source`, `ElementName`, `RelativeSource`, modes and update triggers | `UI/Binding/Core/Binding.cs`, `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/BindingOperations.cs`, `UI/Binding/Types/BindingEnums.cs` | Implemented |
+| Binding lifecycle robustness | Rebind behavior on source/data-context/tree changes | `TODO.md` (`Completed Milestones`: binding lifecycle robustness) | Implemented |
+| Routed commanding core | `RoutedCommand`, command bindings, can-execute/execute pipeline | `UI/Commanding/RoutedCommand.cs`, `UI/Commanding/CommandManager.cs`, `UI/Commanding/CommandBinding.cs`, `InkkSlinger.Tests/CommandingTests.cs` | Implemented (tested) |
+| Gesture-to-command bridge | Runtime keyboard chord routing into routed commands | `UI/Input/Core/InputGestureService.cs`, `Views/CommandingMenuDemoView.xml.cs` | Implemented |
+| XAML/XML loader | Runtime object graph construction, attached properties, handlers, bindings, templates, triggers | `UI/Xaml/Core/XamlLoader.cs` | Implemented |
+| XAML diagnostics | Element/attribute error reporting with contextual diagnostics | `UI/Xaml/Core/XamlLoader.cs`, `TODO.md` (`Completed Milestones`: better diagnostics) | Implemented |
+| XML schema/tooling | Authoring schemas for framework + `x:` namespace support | `Schemas/InkkSlinger.UI.xsd`, `Schemas/Xaml2006.xsd`, `TODO.md` (`Completed Milestones`) | Implemented |
+| Name scope + source gen | `x:Name` mapping via runtime scope + incremental generator | `UI/Core/Naming/NameScope.cs`, `InkkSlinger.XamlNameGenerator/XNameGenerator.cs`, `InkkSlinger.Tests/XNameSourceGeneratorTests.cs` | Implemented (tested) |
+| Animation timeline system | Timelines/storyboards, begin/stop/pause/resume/seek, handoff modes | `UI/Animation/Timelines/*`, `UI/Animation/Core/AnimationManager.cs`, `UI/Animation/Types/AnimationPrimitives.cs` | Implemented |
+| Keyframe/easing support | Double/color/point/thickness/int/object keyframes + easing/key-spline support | `UI/Animation/KeyFrames/*`, `UI/Animation/Easing/Easing.cs`, `UI/Animation/Types/*` | Implemented |
+| Geometry and shapes | Shape primitives + geometry/transform model + path markup parsing | `UI/Controls/Primitives/Shape.cs`, `UI/Geometry/Core/Geometry.cs`, `UI/Geometry/Core/Transform.cs`, `UI/Geometry/Parsing/PathMarkupParser.cs` | Implemented |
+| Text layout primitives | Shared text layout, wrapping, text rendering integration | `UI/Text/Core/TextLayout.cs`, `UI/Text/Types/TextWrapping.cs`, `UI/Rendering/Text/FontStashTextRenderer.cs` | Implemented |
+| Text editing pipeline | Selection/edit/clipboard buffer + textbox parity checks | `UI/Text/Editing/TextEditingBuffer.cs`, `UI/Text/Editing/TextSelection.cs`, `UI/Text/Editing/TextClipboard.cs`, `InkkSlinger.Tests/TextEditingBufferTests.cs`, `InkkSlinger.Tests/TextPipelineParityTests.cs` | Implemented (tested) |
+| Scrolling primitives | `ScrollViewer`, `ScrollBar`, visibility and owner-scrolling behavior | `UI/Controls/Scrolling/ScrollViewer.cs`, `UI/Controls/Scrolling/ScrollBar.cs`, `InkkSlinger.Tests/ScrollViewerViewerOwnedScrollingTests.cs` | Implemented (tested) |
+| Virtualization | Virtualizing panel infrastructure for large item collections | `UI/Controls/Panels/VirtualizingStackPanel.cs`, `UI/Controls/Scrolling/VirtualizationEnums.cs`, `TODO.md` (`WPF Parity Gaps`: virtualization checked) | Implemented |
+| Rendering invalidation | Dirty region tracking + conditional draw scheduling | `UI/Rendering/DirtyRegions/DirtyRegionTracker.cs`, `UI/Managers/Root/Services/UiRootFrameState.cs`, `InkkSlinger.Tests/DirtyRegionTrackingTests.cs`, `InkkSlinger.Tests/ConditionalDrawTests.cs` | Implemented (tested) |
+| Render caching | Element cache policy/store + visual-layer cache behavior | `UI/Rendering/Cache/RenderCachePolicy.cs`, `UI/Rendering/Cache/RenderCacheStore.cs`, `InkkSlinger.Tests/RenderCachePolicyTests.cs`, `InkkSlinger.Tests/VisualLayerCachingTests.cs` | Implemented (tested) |
+| Render queue and invalidation correctness | Queue ordering and invalidation semantics in root draw/update pipeline | `UI/Managers/Root/UiRoot.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/InvalidationFlagsTests.cs` | Implemented (tested) |
+| Adorner infrastructure | Adorner base/layer/decorator + clipping/selection adorners | `UI/Controls/Adorners/*`, `UI/Controls/Selection/SelectionRectangleAdorner.cs`, `InkkSlinger.Tests/AdornerClippingTests.cs` | Implemented (tested) |
+| Control breadth snapshot | 65 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `65/77`) | Broad |
+| Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs` | Implemented (ongoing depth) |
+| Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
+| Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Managers/Root/Services/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
+| Regression safety net | 15 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (15 files, no skipped tests found) | Implemented |
 
-This project aims for practical WPF parity, but the term “WPF parity” is easy to
-misread as “everything in WPF exists here.” It does not.
+### Implemented Foundations
 
-Below is a detailed list of major WPF areas/features that are either not
-implemented yet, implemented only partially, or intentionally out of scope right
-now. If you need any of these, please treat them as open work unless explicitly
-stated otherwise in code/tests.
+- Dependency property system (`DependencyObject`, `DependencyProperty`, metadata/value-source model)
+- Routed event infrastructure (`EventManager`, routed args and routing strategies)
+- Input/focus pipeline integrated with UI update loop
+- Layout system across base elements and panel/control composition
+- XML markup loading via `XamlLoader`
+- Resources, styles, setters, triggers, and visual state primitives
+- Binding primitives (`Path`, `Source`, `ElementName`, `RelativeSource`)
+- Templates (`ControlTemplate`, `DataTemplate`, selectors/resolvers)
+- Storyboards, timelines, keyframes, easing, and animation manager
+- Virtualization primitives (`VirtualizingStackPanel` and scrolling infrastructure)
+- Dirty-region-aware rendering and cache policy in `UiRoot`/`UI/Rendering`
+- Tooling support via schemas and `x:Name` source generation
 
-### Data Binding: Missing WPF Features
+### Not Yet Implemented / Out of Scope (For Now)
 
-- Value converters: `IValueConverter`, `IMultiValueConverter`
-- `MultiBinding` (multi-source binding)
-- Binding validation stack: `Validation`, `ValidationRule`, `Binding.ValidationRules`
-- `IDataErrorInfo` and `INotifyDataErrorInfo` pipelines
-- `UpdateSourceExceptionFilter`-style hooks and WPF-specific binding error behaviors
-- WPF binding diagnostics/tracing feature parity
-- WPF `CollectionView` integration and collection view behaviors (current item, filtering, sorting, grouping)
-- `PriorityBinding`
-- `BindingGroup`
-- `MultiDataTrigger` does exist, but WPF-level binding + trigger interaction edge cases are not claimed as complete
+This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitations (`not supported` guards), schema coverage, and missing-type checks.
 
-### Commanding: Missing WPF Features
+| Area | Gap / Limitation | Evidence | State |
+|---|---|---|---|
+| Control coverage | `AccessText` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `Calendar` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `DatePicker` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `DocumentViewer` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `Frame` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `GroupItem` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `InkCanvas` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `Page` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `PasswordBox` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `RichTextBox` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Parity track | Menu + commanding ecosystem depth (keyboard/menu edge behavior) | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
+| Parity track | Rich text + document layer depth (flow-document model) | `TODO.md` (`## WPF Parity Gaps`) | Not implemented |
+| Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
+| Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
+| Binding API | `IValueConverter` / `IMultiValueConverter` interfaces | No matching types in `UI/Binding` | Not implemented |
+| Binding API | `MultiBinding` | No matching types in `UI/Binding` | Not implemented |
+| Binding API | `PriorityBinding` | No matching types in `UI/Binding` | Not implemented |
+| Binding API | `BindingGroup` | No matching types in `UI/Binding` | Not implemented |
+| Binding API | Validation stack (`Validation`, `ValidationRule`, data-error pipelines) | No matching validation types in `UI/Binding` | Not implemented |
+| Binding API | `IDataErrorInfo` / `INotifyDataErrorInfo` binding error pipelines | No matching data-error integration in `UI/Binding` | Not implemented |
+| Binding API | `UpdateSourceExceptionFilter` behavior hooks | No matching support in `UI/Binding` | Not implemented |
+| Data/view layer | WPF `CollectionView` stack (current item/filter/sort/group) | No matching collection-view types in `UI/Binding`/`UI/Controls` | Not implemented |
+| Binding API | `BindingMode` lacks WPF `OneWayToSource` and `Default` | `UI/Binding/Types/BindingEnums.cs` | Partial |
+| Binding API | `UpdateSourceTrigger` lacks WPF `LostFocus` and `Default` | `UI/Binding/Types/BindingEnums.cs` | Partial |
+| XAML binding parser | Unrecognized binding attributes are rejected | `UI/Xaml/Core/XamlLoader.cs` (`BuildBindingElement`) | Partial |
+| XAML binding parser | Unrecognized binding keys are rejected | `UI/Xaml/Core/XamlLoader.cs` (`ParseBinding`) | Partial |
+| XAML `RelativeSource` parser | Only `Mode`, `AncestorType`, `AncestorLevel` keys are accepted | `UI/Xaml/Core/XamlLoader.cs` (`ParseRelativeSource`) | Partial |
+| XAML resources | `DynamicResource` markup path is absent (only `StaticResource` parsing path exists) | `UI/Xaml/Core/XamlLoader.cs` (`TryParseStaticResourceKey`) | Not implemented |
+| XAML language | General WPF `MarkupExtension` ecosystem | No `MarkupExtension` base in `UI/`; parser uses explicit special cases | Not implemented |
+| XAML language | Broader `x:` metadata surface (`x:Class`, `x:Static`, etc.) | `UI/Xaml/Core/XamlLoader.cs` (`ApplyAttributes` handles `x:Name`/`x:Key` paths only) | Partial |
+| XAML tooling | WPF designer/Blend/XAML compilation parity | Runtime loader path in `UI/Xaml/Core/XamlLoader.cs`; no compile-time XAML toolchain in repo | Not implemented |
+| Resources/XAML | Full merged-dictionary authoring + WPF merge edge semantics | Runtime merge API in `UI/Resources/Core/ResourceDictionary.cs`; no dedicated merged-dictionary parse path in `UI/Xaml/Core/XamlLoader.cs` | Partial |
+| Styling/XAML | Trigger actions are limited to `SetValueAction`, `BeginStoryboard`, `StopStoryboard`, `PauseStoryboard`, `ResumeStoryboard`, `SeekStoryboard`, `RemoveStoryboard` | `UI/Xaml/Core/XamlLoader.cs` (`BuildTriggerAction`) | Partial |
+| Styling API | `MultiTrigger` | No matching type in `UI/Styling/Triggers` | Not implemented |
+| Styling API | `EventSetter` | No matching type in `UI/Styling` | Not implemented |
+| Commanding/Input API | Declarative `InputBinding` / `KeyGesture` / `MouseGesture` model | No matching types in `UI/`; imperative registration via `UI/Input/Core/InputGestureService.cs` | Partial |
+| Commanding API | `RoutedUICommand` surface | No matching `RoutedUICommand` type in `UI/Commanding` | Not implemented |
+| Commanding API | `ICommandSource` ecosystem parity across controls | No matching `ICommandSource` type in `UI/`; command hookup is control-specific | Partial |
+| Container behavior | `UserControl` custom `ControlTemplate` is blocked (`NotSupportedException`) | `UI/Controls/Containers/UserControl.cs` | Not supported |
+| Geometry path parser | Path commands `S/s`, `T/t`, `A/a` are rejected | `UI/Geometry/Parsing/PathMarkupParser.cs` | Partial |
+| Text pipeline | Virtual wrapped text layout optimization is intentionally disabled for correctness during resize reflow | `UI/Controls/Inputs/TextBox.cs` (`CanUseVirtualWrappedLayout`) | Temporarily disabled |
+| Framework services | `Freezable` semantics and related WPF service patterns | No `Freezable` infrastructure in `UI/` | Not implemented |
+| Layout parity | Layout rounding / DPI-specific rounding parity (`UseLayoutRounding`-style behavior) | No matching layout-rounding API in `UI/Layout`/`UI/Controls` | Not implemented |
+| Input stack | Touch/stylus/tablet pipelines | No corresponding types under `UI/Input` | Not implemented |
+| Accessibility | UI automation / `AutomationPeer` layer | No corresponding types in `UI/`; no automation tree APIs | Not implemented |
+| Rendering parity | Pixel-identical WPF rendering/composition fidelity | Framework targets MonoGame parity behavior, not WPF pixel-clone output | Out of scope |
 
-- Core routed commanding is implemented; full WPF routed-commanding edge parity remains open
-- WPF `ICommandSource` ecosystem parity across all controls/edge cases
-- Full menu keyboard interaction parity (accelerators, access keys, deeper navigation behaviors)
+## UI Architecture Map
 
-### Markup / XAML: Missing WPF Features
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-16):
 
-Markup loading exists, but WPF XAML is an ecosystem. Not currently claimed:
-
-- Full WPF XAML language feature parity (`MarkupExtension` breadth, type converters parity, XAML namespace breadth)
-- `DynamicResource` semantics and WPF-level resource invalidation behaviors (only what is implemented is supported)
-- Full design-time tooling parity (WPF designer, blend behaviors, etc.)
-- XAML compilation parity (this project uses runtime loading and its own pipeline)
-
-### Styles / Resources / Templating: Missing WPF Features
-
-- Full WPF resource dictionary merge behavior parity (`MergedDictionaries`-level edge behaviors)
-- WPF theme dictionary system parity and theme fallback rules
-- Full Visual State Manager parity (`VSM` is present as primitives, but not claimed as WPF-complete)
-- Template binding parity beyond what is implemented and tested (WPF has many subtle ordering/precedence rules)
-
-### Text / Typography: Missing WPF Features
-
-“Basic text” exists. The following are not claimed:
-
-- IME composition and WPF-level text services integration
-- Advanced typography shaping/bidi behaviors at WPF fidelity
-- Flow document stack (FlowDocument, `Paragraph`, `Run`, `Inline`, etc.)
-- Rich document controls (`RichTextBox`) and document viewers
-- Printing and document pagination parity
-
-### Accessibility / Automation: Missing WPF Features
-
-- UI Automation / `AutomationPeer` infrastructure
-- Accessibility semantics parity (screen reader integration, automation tree parity)
-
-### Rendering / Graphics: Missing WPF Features
-
-Rendering is WPF-inspired in structure, but not a pixel-identical WPF clone:
-
-- WPF hardware acceleration pipeline parity (WPF is DirectX-based; this project is MonoGame-based)
-- Pixel-identical text and shape rasterization parity with WPF
-- Full WPF effect stack parity (BlurEffect/DropShadowEffect-style behaviors)
-- Full WPF composition visual layer parity (WPF has a dedicated composition engine)
-
-### Layout: Missing WPF Features
-
-Layout is implemented and widely used, but WPF layout has many edge rules:
-
-- Layout rounding and DPI rounding parity (beyond what is implemented)
-- Every WPF panel/control layout edge case and rounding rule
-- Full attached layout property behavior parity across all controls (only what is implemented is supported)
-
-### Input / Focus: Missing WPF Features
-
-Input/focus/capture is implemented, but WPF’s input stack is large:
-
-- WPF keyboard navigation parity in all edge cases (focus scopes, access keys, full traversal semantics)
-- Tablet/stylus input stack parity
-- Touch input stack parity (manipulations, inertia, etc.)
-
-### DataGrid / Virtualization: Missing WPF Features
-
-Virtualization exists, but:
-
-- WPF virtualization modes, recycling semantics, and all edge cases are not claimed as complete
-- Full DataGrid feature parity (grouping, column types, edit pipelines, validation, clipboard, etc.)
-
-### Media / Interop: Missing WPF Features
-
-- Media stack parity (`MediaElement`) beyond stub/non-existence
-- Web/content interop parity (`Frame`, navigation stack)
-
-### General WPF “Surface Area” Not Tracked
-
-The repository tracks a large set of controls and core behaviors, but it does
-not currently claim parity across WPF’s full surface area, including:
-
-- Attached behaviors ecosystem parity, `Freezable` semantics, and many framework service patterns
-- Full dependency property metadata option parity and every precedence rule edge case
-- Localization, globalization, and resource culture behaviors at WPF parity
-
-## Control Coverage Snapshot
-
-Checklist source of truth: `TODO.md` (`## WPF Control Coverage`).
-
-- Implemented: `65`
-- Not yet implemented: `12`
-- Total tracked controls: `77`
-
-Implemented controls:
-
-`Border`, `Button`, `Canvas`, `CheckBox`, `ComboBox`, `ComboBoxItem`, `ContentControl`, `ContentPresenter`, `ContextMenu`, `Control`, `DataGrid`, `DataGridCell`, `DataGridColumnHeader`, `DataGridDetailsPresenter`, `DataGridRow`, `DataGridRowHeader`, `Decorator`, `DockPanel`, `Expander`, `Grid`, `GridSplitter`, `GroupBox`, `HeaderedContentControl`, `HeaderedItemsControl`, `Image`, `ItemsControl`, `Label`, `ListBox`, `ListBoxItem`, `ListView`, `ListViewItem`, `Menu`, `MenuItem`, `Panel`, `Popup`, `ProgressBar`, `RadioButton`, `RepeatButton`, `ResizeGrip`, `ScrollBar`, `ScrollViewer`, `Separator`, `Slider`, `StackPanel`, `StatusBar`, `StatusBarItem`, `TabControl`, `TabItem`, `TextBlock`, `TextBox`, `Thumb`, `ToggleButton`, `ToolBar`, `ToolBarOverflowPanel`, `ToolBarPanel`, `ToolBarTray`, `ToolTip`, `TreeView`, `TreeViewItem`, `UniformGrid`, `UserControl`, `Viewbox`, `VirtualizingStackPanel`, `WrapPanel`, `Window`
-
-Open controls:
-
-`AccessText`, `Calendar`, `DatePicker`, `DocumentViewer`, `Frame`, `GroupItem`, `InkCanvas`, `InkPresenter`, `MediaElement`, `Page`, `PasswordBox`, `RichTextBox`
-
-## Architecture Overview
-
-### Host Layer
-
-- `Program.cs` selects runtime mode.
-- `Game1.cs` runs the MonoGame update/draw lifecycle and initializes UI root surfaces.
-
-### UI Core
-
-- `UI/Core/`: dependency property system, value precedence, metadata/callback infrastructure, dispatcher.
-- `UI/Events/`: routed event registration/dispatch model and event args.
-- `UI/Input/`: keyboard/mouse routing, focus behavior, capture/cursor state handling.
-
-### Visual/Layout/Rendering
-
-- `UI/Controls/`: framework and concrete controls.
-- `UI/Managers/LayoutManager.cs`: layout orchestration for visual tree updates.
-- `UI/Managers/UiRoot.cs`: top-level update/draw pipeline, redraw decisioning, dirty-region behavior.
-- `UI/Rendering/`: draw helpers and dirty-region tracking primitives.
-
-### Authoring/Composition
-
-- `UI/Xaml/XamlLoader.cs`: XML parsing, object construction, property assignment, template/style/binding hookup.
-- `Schemas/`: XML schema support for editor assistance and authoring validation.
-
-### MVVM/Binding/Styling/Templating
-
-- `UI/Binding/`: bindings and expression plumbing.
-- `UI/Styling/`: styles, setters, triggers, condition/action behavior.
-- `UI/Templating/`: control/data templates and resolution logic.
-- `UI/Resources/`: resource dictionary stack and resolution behavior.
-
-### Animation
-
-- `UI/Animation/`: storyboards, timeline model, keyframes, easing, animation manager/property path resolution.
-
-### Source Generation
-
-- `InkkSlinger.XamlNameGenerator/`: incremental Roslyn generator that produces strongly-typed backing members for `x:Name` references in XML views.
-
-### Tests
-
-- `InkkSlinger.Tests/`: parity/regression test suite spanning controls, layout, rendering invalidation, templating, binding, animation, and source generation behavior.
+- `UI/Animation`: timelines, keyframes, easing, animation orchestration
+- `UI/Binding`: bindings, expressions, operations, command helpers
+- `UI/Commanding`: routed command infrastructure
+- `UI/Controls`: base layer + buttons, containers, data grid, inputs, items, panels, primitives, scrolling, selection, adorners
+- `UI/Core`: dependency properties, naming, dispatcher
+- `UI/Events`: routed event core, args, routing strategy
+- `UI/Geometry`: geometry and transform primitives + path parsing
+- `UI/Input`: focus/input managers and input state snapshots
+- `UI/Layout`: shared layout types (`Thickness`, alignment, orientation, etc.)
+- `UI/Managers`: layout manager, visual tree helper, `UiRoot` services and diagnostics
+- `UI/Rendering`: draw pipeline, dirty regions, cache, text renderer
+- `UI/Resources`: dictionaries and resolution/application resources
+- `UI/Styling`: styles, setters, visual states, triggers, trigger actions
+- `UI/Templating`: control/data templates and trigger engine
+- `UI/Text`: text layout and editing pipeline
+- `UI/Xaml`: runtime XML loading
 
 ## Runtime Model
 
@@ -255,93 +187,98 @@ This keeps behavior deterministic while reducing unnecessary redraw work for lar
 
 ## Markup Model
 
-- Markup files use `.xml` (WPF-inspired structure with `x:` support).
-- `x:Name` is supported and mapped to generated members.
-- Schemas are included for local editor assistance:
+- Markup files use `.xml` (WPF-inspired structure with `x:` support)
+- `x:Name` is supported and mapped to generated members
+- Schemas for editor assistance:
   - `Schemas/InkkSlinger.UI.xsd`
   - `Schemas/Xaml2006.xsd`
 
 ## Build and Test
 
-Prerequisites:
+Prerequisite:
 
 - .NET SDK 10.x recommended
-
-Build:
 
 ```powershell
 dotnet restore InkkSlinger.sln
 dotnet build InkkSlinger.sln -v minimal
-```
-
-Run tests:
-
-```powershell
 dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal
 ```
 
 ## Running the Host Application
 
-Default host mode:
+| Mode | Command |
+|---|---|
+| Default host mode | `dotnet run --project InkkSlinger.csproj` |
+| Dark dashboard demo | `dotnet run --project InkkSlinger.csproj -- --dark-dashboard` |
+| Main menu demo | `dotnet run --project InkkSlinger.csproj -- --main-menu` |
+| Window demo | `dotnet run --project InkkSlinger.csproj -- --window-demo` |
+| Paint shell demo | `dotnet run --project InkkSlinger.csproj -- --paint-shell` |
+| Commanding demo | `dotnet run --project InkkSlinger.csproj -- --commanding-demo` |
+
+Current default launch surface is the dark dashboard demo when no explicit mode flag is provided.
+
+## Environment Variables
+
+Environment switches are string-based and compared using ordinal checks.
+
+- `enable-with-1` flags: only exact `"1"` enables; any other value (or unset) disables.
+- `disable-with-0` flags: exact `"0"` disables; any other value (or unset) enables.
+- Most flags are read at startup (`UiRoot` construction / `Game1` init). A few input flags are checked during update.
+
+PowerShell example:
 
 ```powershell
-dotnet run --project InkkSlinger.csproj
-```
-
-Alternate validation surfaces:
-
-```powershell
-dotnet run --project InkkSlinger.csproj -- --main-menu
-dotnet run --project InkkSlinger.csproj -- --window-demo
-dotnet run --project InkkSlinger.csproj -- --paint-shell
+$env:INKKSLINGER_EXPERIMENTAL_PARTIAL_REDRAW = "1"
+$env:INKKSLINGER_RENDER_CACHE_OVERLAY = "1"
 dotnet run --project InkkSlinger.csproj -- --commanding-demo
+Remove-Item Env:INKKSLINGER_EXPERIMENTAL_PARTIAL_REDRAW
+Remove-Item Env:INKKSLINGER_RENDER_CACHE_OVERLAY
 ```
 
-Current default launch surface is the commanding demo when no explicit mode flag is provided.
+### Rendering and Frame Scheduling
 
-## Current Parity Focus Areas
+| Variable | Mode | Default | Read Timing | Effect |
+|---|---|---|---|---|
+| `INKKSLINGER_EXPERIMENTAL_PARTIAL_REDRAW` | enable-with-1 | disabled | `Game1` startup | Sets `UseRetainedRenderList`, `UseDirtyRegionRendering`, and `UseElementRenderCaches` together. |
+| `INKKSLINGER_RECURSIVE_DRAW_FALLBACK` | enable-with-1 | disabled | `UiRoot` construction | Forces fallback away from retained render queue default path. |
+| `INKKSLINGER_RETAINED_RENDER_QUEUE` | disable-with-0 | enabled | `UiRoot` construction | Controls retained render list default (`UseRetainedRenderList`). |
+| `INKKSLINGER_DIRTY_REGION_RENDERING` | disable-with-0 | enabled | `UiRoot` construction | Controls dirty region rendering default (`UseDirtyRegionRendering`). |
+| `INKKSLINGER_CONDITIONAL_DRAW` | disable-with-0 | enabled | `UiRoot` construction | Controls conditional draw scheduling default (`UseConditionalDrawScheduling`). |
+| `INKKSLINGER_ALWAYS_DRAW` | enable-with-1 | disabled | `UiRoot` construction | Enables `AlwaysDrawCompatibilityMode` (forces draw every frame). |
+| `INKKSLINGER_RENDER_CACHE` | disable-with-0 | enabled | `UiRoot` construction | Controls element render cache default (`UseElementRenderCaches`). |
+| `INKKSLINGER_RENDER_CACHE_OVERLAY` | enable-with-1 | disabled | `UiRoot` construction | Enables cached-subtree bounds overlay (`ShowCachedSubtreeBoundsOverlay`). |
+| `INKKSLINGER_RENDER_CACHE_COUNTERS` | enable-with-1 | disabled | `UiRoot` construction | Enables cache counter tracing (`TraceRenderCacheCounters`). |
 
-Based on `TODO.md`, priority remaining areas include:
+### Input Pipeline
 
-- deeper menu and commanding behavior parity
-- rich document text stack (`RichTextBox` + flow-document style concepts)
-- additional advanced parity edges where WPF behavior is broader
+| Variable | Mode | Default | Read Timing | Effect |
+|---|---|---|---|---|
+| `INKKSLINGER_ENABLE_INPUT_PIPELINE` | disable-with-0 | enabled | each update | Disables `_inputManager.Capture()` + input delta processing when set to `"0"`. |
+| `INKKSLINGER_ALWAYS_ROUTE_MOUSEMOVE` | enable-with-1 | disabled | each pointer move | Forces routing `PreviewMouseMove`/`MouseMove` even when hover target is unchanged. |
+| `INKKSLINGER_BYPASS_MOVE_HITTEST` | enable-with-1 | disabled | pointer target resolution | Skips non-precise move/wheel hit-test fallback path and reuses hovered target path. |
 
-## Repository Layout
+### CPU Diagnostics Logging
 
-```text
-InkkSlinger/
-|-- InkkSlinger.sln
-|-- README.md
-|-- LICENSE
-|-- TODO.md
-|-- USAGE-PERMISSION-POLICY.md
-|-- InkkSlinger.csproj
-|-- Program.cs
-|-- Game1.cs
-|-- UI/
-|-- Schemas/
-|-- Views/
-|-- ViewModels/
-|-- Content/
-|-- InkkSlinger.XamlNameGenerator/
-|-- InkkSlinger.Tests/
-```
+| Variable | Mode | Default | Read Timing | Effect |
+|---|---|---|---|---|
+| `INKKSLINGER_SCROLL_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits scroll CPU summaries to `Debug` + `Console`. |
+| `INKKSLINGER_MOVE_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits pointer-move CPU summaries to `Debug` + `Console`. |
+| `INKKSLINGER_CLICK_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits click CPU summaries to `Debug` + `Console`. |
 
 ## Notes
 
-- The framework is intentionally explicit about parity gaps and tracks them in `TODO.md`.
+- The framework tracks parity gaps in `TODO.md`.
 - Usage is permission-based. See `LICENSE` and `USAGE-PERMISSION-POLICY.md`.
 
 ## License and Usage
 
 This repository is source-available under a permission-based model:
 
-- Default: permitted for non-commercial use under `LICENSE`.
-- Commercial use is available via a paid monthly subscription, a one-time perpetual option (see `LICENSE`), or a written waiver/grant (see `USAGE-PERMISSION-POLICY.md`). If you make money from a product that uses InkkSlinger, assume commercial use.
-- Subscribers get updates and priority issue support. Response-time target: 1-2 working days, with an explicit status update if the maintainer cannot meet that target due to schedule/medical/etc. See `LICENSE` for details.
-- Significant contributors may be granted a free lifetime commercial license at maintainer discretion (see `LICENSE` / `USAGE-PERMISSION-POLICY.md`).
-- If a commercial waiver/grant is given, the maintainer may list your studio/project in this repository (for example in `README.md`) as an approved user.
+- Default: permitted for non-commercial use under `LICENSE`
+- Commercial use: subscription, one-time perpetual option, or written waiver/grant (see `LICENSE` and `USAGE-PERMISSION-POLICY.md`)
+- If you make money from a product using InkkSlinger, assume commercial use
+- Significant contributors may be granted a free lifetime commercial license at maintainer discretion
 
 ## Contributing and Governance
 
@@ -350,4 +287,4 @@ This repository is source-available under a permission-based model:
 
 ## Commercial License FAQ
 
-- See `COMMERCIAL-LICENSE-FAQ.md` for 10 concrete scenarios.
+- See `COMMERCIAL-LICENSE-FAQ.md` for scenario-based examples
