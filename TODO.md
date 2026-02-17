@@ -34,6 +34,16 @@
 - [x] `ResizeGrip` control support with drag and keyboard resizing.
 - [x] `Thumb` control support with drag lifecycle events and demo.
 
+## Diagnostics Backlog
+- [ ] Tail-latency diagnostics (`p95`/`p99`) for `LastUpdateMs`, `LastInputPhaseMs`, `LastLayoutPhaseMs`, and `LastDrawMs` in click/move/scroll windows.
+- [ ] Frame-budget miss diagnostics (for example 16.6ms/8.3ms targets) with dominant phase attribution.
+- [ ] Dirty-region effectiveness diagnostics: partial redraw success rate, dirty-rect merge ratio, and full-redraw fallback trigger breakdown.
+- [ ] Render-cache churn diagnostics: per-frame hit/miss/rebuild ratios and top invalidation sources.
+- [ ] Allocation and GC diagnostics during interaction windows (allocated bytes delta, Gen0/1/2 collection deltas).
+- [ ] Input-routing complexity diagnostics: route depth and handler invocation counts for pointer/wheel/key routes.
+- [ ] No-op invalidation diagnostics (invalidations that produce no layout/visual delta).
+- [ ] Per-control hot-spot diagnostics (sampled top N controls by cumulative layout/draw/dispatch time).
+
 ## WPF Drawing & Geometry Coverage
 - [x] `Path`
 - [x] `Ellipse`
