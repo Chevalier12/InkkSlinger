@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -188,19 +189,45 @@ public class Control : FrameworkElement
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
+        var start = Stopwatch.GetTimestamp();
         base.OnVisualParentChanged(oldParent, newParent);
 
-        RefreshResourceScopeSubscriptions();
-        UpdateImplicitStyle();
+        if (ShouldTrackImplicitStyleScopes())
+        {
+            RefreshResourceScopeSubscriptions();
+            UpdateImplicitStyle();
+        }
+        else
+        {
+            ClearResourceScopeSubscriptions();
+        }
+
         UpdateCommandEnabledState();
+        UiFrameworkPopulationPhaseDiagnostics.Observe("Control.OnVisualParentChanged.Total", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
     }
 
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
     {
+        var start = Stopwatch.GetTimestamp();
         base.OnLogicalParentChanged(oldParent, newParent);
-        RefreshResourceScopeSubscriptions();
-        UpdateImplicitStyle();
+        if (VisualParent != null)
+        {
+            UiFrameworkPopulationPhaseDiagnostics.Observe("Control.OnLogicalParentChanged.Total", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+            return;
+        }
+
+        if (ShouldTrackImplicitStyleScopes())
+        {
+            RefreshResourceScopeSubscriptions();
+            UpdateImplicitStyle();
+        }
+        else
+        {
+            ClearResourceScopeSubscriptions();
+        }
+
         UpdateCommandEnabledState();
+        UiFrameworkPopulationPhaseDiagnostics.Observe("Control.OnLogicalParentChanged.Total", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
     }
 
     protected virtual Style? GetFallbackStyle()
@@ -543,16 +570,26 @@ public class Control : FrameworkElement
 
     private void RefreshResourceScopeSubscriptions()
     {
+        ClearResourceScopeSubscriptions();
+
+        var visited = new HashSet<FrameworkElement>();
+        AddAncestorScopeSubscriptions(VisualParent, visited);
+        AddAncestorScopeSubscriptions(LogicalParent, visited);
+    }
+
+    private void ClearResourceScopeSubscriptions()
+    {
         foreach (var ancestor in _styleResourceAncestors)
         {
             ancestor.Resources.Changed -= OnResourceScopeChanged;
         }
 
         _styleResourceAncestors.Clear();
+    }
 
-        var visited = new HashSet<FrameworkElement>();
-        AddAncestorScopeSubscriptions(VisualParent, visited);
-        AddAncestorScopeSubscriptions(LogicalParent, visited);
+    private bool ShouldTrackImplicitStyleScopes()
+    {
+        return ShouldApplyImplicitStyle();
     }
 
     private void AddAncestorScopeSubscriptions(UIElement? start, ISet<FrameworkElement> visited)

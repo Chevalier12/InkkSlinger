@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -11,6 +12,8 @@ public class UIElement : DependencyObject
 
     [ThreadStatic]
     private static Stack<List<UIElement>>? _routePool;
+    private static readonly object InheritablePropertyCacheLock = new();
+    private static readonly Dictionary<Type, List<DependencyProperty>> InheritablePropertiesByType = new();
 
     private readonly Dictionary<RoutedEvent, List<RoutedHandlerEntry>> _routedHandlers = new();
     private readonly List<CommandBinding> _commandBindings = new();
@@ -20,6 +23,8 @@ public class UIElement : DependencyObject
     private int _renderInvalidationCount;
     private int _renderCacheRenderVersion;
     private int _renderCacheLayoutVersion;
+    private bool _suppressNextLogicalBindingTreeNotify;
+    private bool _suppressNextLogicalParentChanged;
 
     public static readonly DependencyProperty IsVisibleProperty =
         DependencyProperty.Register(
@@ -279,36 +284,62 @@ public class UIElement : DependencyObject
 
     public virtual void InvalidateMeasure()
     {
+        var totalStart = Stopwatch.GetTimestamp();
         Dispatcher.VerifyAccess();
         if (NeedsMeasure)
         {
             return;
         }
 
+        var phaseStart = Stopwatch.GetTimestamp();
         NeedsMeasure = true;
         _measureInvalidationCount++;
         _renderCacheLayoutVersion++;
         MarkSubtreeDirty();
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.InvalidateMeasure.Mark", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
         UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Measure, this);
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.InvalidateMeasure.NotifyRoot", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
         InvalidateArrange();
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.InvalidateMeasure.CascadeArrange", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
         GetInvalidationParent()?.InvalidateMeasure();
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.InvalidateMeasure.PropagateParent", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.InvalidateMeasure.Total", Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds);
     }
 
     public virtual void InvalidateArrange()
     {
+        var totalStart = Stopwatch.GetTimestamp();
         Dispatcher.VerifyAccess();
         if (NeedsArrange)
         {
             return;
         }
 
+        var phaseStart = Stopwatch.GetTimestamp();
         NeedsArrange = true;
         _arrangeInvalidationCount++;
         _renderCacheLayoutVersion++;
         MarkSubtreeDirty();
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.InvalidateArrange.Mark", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
         UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Arrange, this);
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.InvalidateArrange.NotifyRoot", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
         InvalidateVisual();
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.InvalidateArrange.CascadeVisual", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
         GetInvalidationParent()?.InvalidateArrange();
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.InvalidateArrange.PropagateParent", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.InvalidateArrange.Total", Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds);
     }
 
     public virtual void InvalidateVisual()
@@ -411,29 +442,69 @@ public class UIElement : DependencyObject
 
     internal void SetVisualParent(UIElement? parent)
     {
+        var totalStart = Stopwatch.GetTimestamp();
         if (ReferenceEquals(VisualParent, parent))
         {
             return;
         }
 
+        var phaseStart = Stopwatch.GetTimestamp();
         var oldParent = VisualParent;
         VisualParent = parent;
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.SetVisualParent.Assign", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
         OnVisualParentChanged(oldParent, parent);
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.SetVisualParent.OnVisualParentChanged", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
         UiRoot.Current?.NotifyVisualStructureChanged(this, oldParent, parent);
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.SetVisualParent.NotifyVisualStructureChanged", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
         NotifyBindingTreeChanged(this);
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.SetVisualParent.NotifyBindingTreeChanged", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+        _suppressNextLogicalBindingTreeNotify = true;
+        _suppressNextLogicalParentChanged = true;
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.SetVisualParent.Total", Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds);
     }
 
     internal void SetLogicalParent(UIElement? parent)
     {
+        var totalStart = Stopwatch.GetTimestamp();
         if (ReferenceEquals(LogicalParent, parent))
         {
             return;
         }
 
+        var phaseStart = Stopwatch.GetTimestamp();
         var oldParent = LogicalParent;
         LogicalParent = parent;
-        OnLogicalParentChanged(oldParent, parent);
-        NotifyBindingTreeChanged(this);
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.SetLogicalParent.Assign", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
+        var shouldRunLogicalParentChanged = !(ReferenceEquals(parent, VisualParent) && _suppressNextLogicalParentChanged);
+        if (shouldRunLogicalParentChanged)
+        {
+            OnLogicalParentChanged(oldParent, parent);
+        }
+
+        _suppressNextLogicalParentChanged = false;
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.SetLogicalParent.OnLogicalParentChanged", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+
+        phaseStart = Stopwatch.GetTimestamp();
+        var shouldNotifyBindingTree = !ReferenceEquals(parent, VisualParent) && !_suppressNextLogicalBindingTreeNotify;
+        if (shouldNotifyBindingTree)
+        {
+            NotifyBindingTreeChanged(this);
+        }
+
+        _suppressNextLogicalBindingTreeNotify = false;
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            "UIElement.SetLogicalParent.NotifyBindingTreeChanged",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds,
+            shouldNotifyBindingTree ? 1 : 0);
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.SetLogicalParent.Total", Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds);
     }
 
     internal void SetLayoutSlot(LayoutRect layoutSlot)
@@ -448,19 +519,49 @@ public class UIElement : DependencyObject
 
     protected virtual void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
-        var registeredProperties = new List<DependencyProperty>(DependencyProperty.GetRegisteredProperties());
-        foreach (var property in registeredProperties)
+        var phaseStart = Stopwatch.GetTimestamp();
+        var inheritableProperties = new[]
+        {
+            UIElement.IsEnabledProperty,
+            FrameworkElement.DataContextProperty
+        };
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.OnVisualParentChanged.GetRegisteredProperties", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds, inheritableProperties.Length);
+
+        phaseStart = Stopwatch.GetTimestamp();
+        var propagatedCount = 0;
+        foreach (var property in inheritableProperties)
         {
             if (!property.IsApplicableTo(this))
             {
                 continue;
             }
 
-            if (property.GetMetadata(this).Inherits)
+            var metadata = property.GetMetadata(this);
+            object? oldInheritedValue;
+            object? newInheritedValue;
+            if (oldParent == null)
+            {
+                oldInheritedValue = metadata.DefaultValue;
+                newInheritedValue = ResolveInheritedValueFromParentChain(newParent, property);
+            }
+            else if (newParent == null)
+            {
+                oldInheritedValue = ResolveInheritedValueFromParentChain(oldParent, property);
+                newInheritedValue = metadata.DefaultValue;
+            }
+            else
+            {
+                oldInheritedValue = ResolveInheritedValueFromParentChain(oldParent, property);
+                newInheritedValue = ResolveInheritedValueFromParentChain(newParent, property);
+            }
+
+            if (!Equals(oldInheritedValue, newInheritedValue))
             {
                 NotifyInheritedPropertyChanged(property);
+                propagatedCount++;
             }
         }
+        UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.OnVisualParentChanged.PropagateInherited", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds, propagatedCount);
     }
 
     protected virtual void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
@@ -514,7 +615,57 @@ public class UIElement : DependencyObject
 
     private static void NotifyBindingTreeChanged(UIElement root)
     {
-        NotifyBindingTreeChanged(root, new HashSet<UIElement>());
+        var start = Stopwatch.GetTimestamp();
+        var visited = new HashSet<UIElement>();
+        NotifyBindingTreeChanged(root, visited);
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            "UIElement.NotifyBindingTreeChanged.Total",
+            Stopwatch.GetElapsedTime(start).TotalMilliseconds,
+            visited.Count);
+    }
+
+    private static List<DependencyProperty> GetInheritablePropertiesForType(Type elementType)
+    {
+        lock (InheritablePropertyCacheLock)
+        {
+            if (InheritablePropertiesByType.TryGetValue(elementType, out var cached))
+            {
+                return cached;
+            }
+
+            var properties = new List<DependencyProperty>();
+            foreach (var property in DependencyProperty.GetRegisteredProperties())
+            {
+                if (!property.IsApplicableTo(elementType))
+                {
+                    continue;
+                }
+
+                if (property.GetMetadata(elementType).Inherits)
+                {
+                    properties.Add(property);
+                }
+            }
+
+            InheritablePropertiesByType[elementType] = properties;
+            return properties;
+        }
+    }
+
+    private object? ResolveInheritedValueFromParentChain(UIElement? parent, DependencyProperty property)
+    {
+        var metadata = property.GetMetadata(this);
+        for (var current = parent; current != null; current = current.VisualParent)
+        {
+            if (!property.IsApplicableTo(current))
+            {
+                continue;
+            }
+
+            return current.GetValue(property);
+        }
+
+        return metadata.DefaultValue;
     }
 
     private static void NotifyBindingTreeChanged(UIElement element, HashSet<UIElement> visited)

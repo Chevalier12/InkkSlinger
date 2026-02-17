@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-02-16
+Generated: 2026-02-17
 
 ```text
 UI/
@@ -211,6 +211,8 @@ UI/
         UiRootRenderCache.cs
         UiRootRetainedTree.cs
         Diagnostics/
+          UiFrameworkFileLoadDiagnostics.cs
+          UiFrameworkPopulationPhaseDiagnostics.cs
           UiRootClickCpuDiagnostics.cs
           UiRootMoveCpuDiagnostics.cs
           UiRootScrollCpuDiagnostics.cs

@@ -5,6 +5,7 @@ using System.IO;
 using System.Collections;
 using System.Linq;
 using System.Reflection;
+using System.Diagnostics;
 using System.Xml;
 using System.Xml.Linq;
 using Microsoft.Xna.Framework;
@@ -23,12 +24,24 @@ public static class XamlLoader
 
     public static UIElement LoadFromFile(string path, object? codeBehind = null)
     {
+        var fileReadStart = Stopwatch.GetTimestamp();
         var xaml = File.ReadAllText(path);
-        return LoadFromString(xaml, codeBehind);
+        UiFrameworkFileLoadDiagnostics.Observe(
+            "XamlLoader.File.ReadAllText",
+            Stopwatch.GetElapsedTime(fileReadStart).TotalMilliseconds,
+            xaml.Length);
+
+        var loadStart = Stopwatch.GetTimestamp();
+        var root = LoadFromString(xaml, codeBehind);
+        UiFrameworkFileLoadDiagnostics.Observe(
+            "XamlLoader.LoadFromFile",
+            Stopwatch.GetElapsedTime(loadStart).TotalMilliseconds);
+        return root;
     }
 
     public static UIElement LoadFromString(string xaml, object? codeBehind = null)
     {
+        var parseStart = Stopwatch.GetTimestamp();
         XDocument document;
         try
         {
@@ -43,7 +56,12 @@ public static class XamlLoader
         {
             throw CreateXamlException("XAML document has no root element.", document);
         }
+        UiFrameworkFileLoadDiagnostics.Observe(
+            "XamlLoader.ParseDocument",
+            Stopwatch.GetElapsedTime(parseStart).TotalMilliseconds,
+            xaml.Length);
 
+        var loadStart = Stopwatch.GetTimestamp();
         var rootElement = document.Root;
         var rootType = ResolveElementType(rootElement.Name.LocalName);
         if (Activator.CreateInstance(rootType) is not UIElement uiRoot)
@@ -61,6 +79,11 @@ public static class XamlLoader
                 ApplyAttributes(uiRoot, rootElement, codeBehind, rootScope);
                 ApplyChildren(uiRoot, rootElement, codeBehind, rootScope);
             });
+            UiFrameworkFileLoadDiagnostics.Observe(
+                "XamlLoader.LoadFromString",
+                Stopwatch.GetElapsedTime(loadStart).TotalMilliseconds);
+            UiFrameworkFileLoadDiagnostics.Flush();
+            UiFrameworkPopulationPhaseDiagnostics.Flush();
             return uiRoot;
         }
         finally
@@ -71,12 +94,18 @@ public static class XamlLoader
 
     public static void LoadInto(UserControl target, string path, object? codeBehind = null)
     {
+        var fileReadStart = Stopwatch.GetTimestamp();
         var xaml = File.ReadAllText(path);
+        UiFrameworkFileLoadDiagnostics.Observe(
+            "XamlLoader.File.ReadAllText",
+            Stopwatch.GetElapsedTime(fileReadStart).TotalMilliseconds,
+            xaml.Length);
         LoadIntoFromString(target, xaml, codeBehind);
     }
 
     public static void LoadIntoFromString(UserControl target, string xaml, object? codeBehind = null)
     {
+        var parseStart = Stopwatch.GetTimestamp();
         XDocument document;
         try
         {
@@ -91,7 +120,12 @@ public static class XamlLoader
         {
             throw CreateXamlException("XAML document has no root element.", document);
         }
+        UiFrameworkFileLoadDiagnostics.Observe(
+            "XamlLoader.ParseDocument",
+            Stopwatch.GetElapsedTime(parseStart).TotalMilliseconds,
+            xaml.Length);
 
+        var loadStart = Stopwatch.GetTimestamp();
         var root = document.Root;
         var rootType = ResolveElementType(root.Name.LocalName);
         if (!typeof(UserControl).IsAssignableFrom(rootType))
@@ -109,6 +143,11 @@ public static class XamlLoader
                 target.Content = null;
                 ApplyChildren(target, root, codeBehind, target);
             });
+            UiFrameworkFileLoadDiagnostics.Observe(
+                "XamlLoader.LoadIntoFromString",
+                Stopwatch.GetElapsedTime(loadStart).TotalMilliseconds);
+            UiFrameworkFileLoadDiagnostics.Flush();
+            UiFrameworkPopulationPhaseDiagnostics.Flush();
         }
         finally
         {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -37,12 +38,15 @@ public class ItemsControl : Control
 
     public void AddItems(IEnumerable<object> items)
     {
+        var diagnosticsStart = Stopwatch.GetTimestamp();
+        var addedCount = 0;
         _suspendRegeneration = true;
         try
         {
             foreach (var item in items)
             {
                 _items.Add(item);
+                addedCount++;
             }
         }
         finally
@@ -51,6 +55,10 @@ public class ItemsControl : Control
         }
 
         RegenerateChildren();
+        UiFrameworkFileLoadDiagnostics.Observe(
+            $"{GetType().Name}.AddItems",
+            Stopwatch.GetElapsedTime(diagnosticsStart).TotalMilliseconds,
+            addedCount);
     }
 
     public DataTemplate? ItemTemplate
@@ -253,6 +261,8 @@ public class ItemsControl : Control
 
     private void RegenerateChildren()
     {
+        var diagnosticsStart = Stopwatch.GetTimestamp();
+        var phaseStart = diagnosticsStart;
         if (_suspendRegeneration)
         {
             return;
@@ -264,10 +274,19 @@ public class ItemsControl : Control
             ClearContainerForItemOverride(child, entry.Item);
             DetachFromCurrentParent(child);
         }
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{GetType().Name}.Regenerate.ClearExisting",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds,
+            _generatedChildren.Count);
 
+        phaseStart = Stopwatch.GetTimestamp();
         _generatedChildren.Clear();
         _itemContainers.Clear();
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{GetType().Name}.Regenerate.ClearLists",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
 
+        phaseStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < _items.Count; i++)
         {
             var item = _items[i];
@@ -283,14 +302,27 @@ public class ItemsControl : Control
             _generatedChildren.Add(new GeneratedItemContainer(item, element));
             _itemContainers.Add(element);
         }
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{GetType().Name}.Regenerate.BuildPrepareAttach",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds,
+            _items.Count);
 
+        phaseStart = Stopwatch.GetTimestamp();
         OnItemsChanged();
         (_activeItemsHost as FrameworkElement)?.InvalidateMeasure();
         InvalidateMeasure();
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{GetType().Name}.Regenerate.ItemsChangedInvalidate",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
+        UiFrameworkFileLoadDiagnostics.Observe(
+            $"{GetType().Name}.RegenerateChildren",
+            Stopwatch.GetElapsedTime(diagnosticsStart).TotalMilliseconds,
+            _generatedChildren.Count);
     }
 
     private void ReparentGeneratedChildren(UIElement newParent)
     {
+        var diagnosticsStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < _itemContainers.Count; i++)
         {
             var child = _itemContainers[i];
@@ -304,6 +336,10 @@ public class ItemsControl : Control
         }
 
         InvalidateMeasure();
+        UiFrameworkFileLoadDiagnostics.Observe(
+            $"{GetType().Name}.ReparentGeneratedChildren",
+            Stopwatch.GetElapsedTime(diagnosticsStart).TotalMilliseconds,
+            _itemContainers.Count);
     }
 
     private UIElement? BuildContainerForItem(object item)
@@ -330,6 +366,8 @@ public class ItemsControl : Control
 
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        var diagnosticsStart = Stopwatch.GetTimestamp();
+        var changedCount = Math.Max(e.NewItems?.Count ?? 0, e.OldItems?.Count ?? 0);
         if (_suspendRegeneration)
         {
             return;
@@ -353,15 +391,27 @@ public class ItemsControl : Control
                 break;
             case NotifyCollectionChangedAction.Reset:
                 RegenerateChildren();
+                UiFrameworkFileLoadDiagnostics.Observe(
+                    $"{GetType().Name}.ItemsChanged.Reset",
+                    Stopwatch.GetElapsedTime(diagnosticsStart).TotalMilliseconds,
+                    _items.Count);
                 return;
             default:
                 RegenerateChildren();
+                UiFrameworkFileLoadDiagnostics.Observe(
+                    $"{GetType().Name}.ItemsChanged.Other",
+                    Stopwatch.GetElapsedTime(diagnosticsStart).TotalMilliseconds,
+                    changedCount);
                 return;
         }
 
         OnItemsChanged();
         (_activeItemsHost as FrameworkElement)?.InvalidateMeasure();
         InvalidateMeasure();
+        UiFrameworkFileLoadDiagnostics.Observe(
+            $"{GetType().Name}.ItemsChanged.{e.Action}",
+            Stopwatch.GetElapsedTime(diagnosticsStart).TotalMilliseconds,
+            changedCount);
     }
 
     private void InsertNewContainers(NotifyCollectionChangedEventArgs e)
@@ -371,11 +421,16 @@ public class ItemsControl : Control
             return;
         }
 
+        var phaseStart = Stopwatch.GetTimestamp();
         var insertIndex = e.NewStartingIndex < 0 ? _generatedChildren.Count : e.NewStartingIndex;
         insertIndex = Math.Clamp(insertIndex, 0, _generatedChildren.Count);
 
         var host = _activeItemsHost ?? this;
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{GetType().Name}.ItemsAdd.ResolveInsertPoint",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
 
+        phaseStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < e.NewItems.Count; i++)
         {
             var item = e.NewItems[i]!;
@@ -392,8 +447,17 @@ public class ItemsControl : Control
             _generatedChildren.Insert(index, new GeneratedItemContainer(item, element));
             _itemContainers.Insert(index, element);
         }
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{GetType().Name}.ItemsAdd.BuildPrepareAttachInsert",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds,
+            e.NewItems.Count);
 
+        phaseStart = Stopwatch.GetTimestamp();
         RefreshContainerPreparationFrom(insertIndex);
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{GetType().Name}.ItemsAdd.RefreshPreparation",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds,
+            _generatedChildren.Count - insertIndex);
     }
 
     private void RemoveOldContainers(NotifyCollectionChangedEventArgs e)
@@ -403,11 +467,16 @@ public class ItemsControl : Control
             return;
         }
 
+        var phaseStart = Stopwatch.GetTimestamp();
         var index = e.OldStartingIndex < 0 ? _generatedChildren.Count - 1 : e.OldStartingIndex;
         index = Math.Clamp(index, 0, Math.Max(0, _generatedChildren.Count - 1));
 
         var host = _activeItemsHost ?? this;
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{GetType().Name}.ItemsRemove.ResolveIndex",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
 
+        phaseStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < e.OldItems.Count; i++)
         {
             if (index < 0 || index >= _generatedChildren.Count)
@@ -422,8 +491,16 @@ public class ItemsControl : Control
             _generatedChildren.RemoveAt(index);
             _itemContainers.RemoveAt(index);
         }
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{GetType().Name}.ItemsRemove.ClearDetachRemove",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds,
+            e.OldItems.Count);
 
+        phaseStart = Stopwatch.GetTimestamp();
         RefreshContainerPreparationFrom(index);
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{GetType().Name}.ItemsRemove.RefreshPreparation",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
     }
 
     private void ReplaceContainers(NotifyCollectionChangedEventArgs e)
@@ -518,14 +595,21 @@ public class ItemsControl : Control
 
     private static void AttachToHost(UIElement host, UIElement child, int index)
     {
+        var phaseStart = Stopwatch.GetTimestamp();
         if (host is Panel panel)
         {
             panel.InsertChild(index, child);
+            UiFrameworkPopulationPhaseDiagnostics.Observe(
+                $"{host.GetType().Name}.AttachToHost",
+                Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
             return;
         }
 
         child.SetVisualParent(host);
         child.SetLogicalParent(host);
+        UiFrameworkPopulationPhaseDiagnostics.Observe(
+            $"{host.GetType().Name}.AttachToHost",
+            Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
     }
 
     private static void DetachFromHost(UIElement host, UIElement child, int index)
