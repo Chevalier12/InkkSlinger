@@ -21,6 +21,12 @@ This project closes that gap by bringing WPF-style composition into a real-time 
 - preserve familiar WPF-like authoring patterns
 - validate behavior through parity-focused tests
 
+## For Who This Is
+
+Me.
+
+This framework is unapologetically opinionated. It exists to satisfy a very specific bar for architecture, behavior, and authoring feel.
+
 ## Vision
 
 Bring a WPF-like development model into a game/render-loop environment by implementing:
