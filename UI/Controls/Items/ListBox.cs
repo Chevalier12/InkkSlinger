@@ -90,6 +90,8 @@ public class ListBox : Selector
 
         _scrollViewer.SetVisualParent(this);
         _scrollViewer.SetLogicalParent(this);
+
+        AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnMouseDownSelectItem);
     }
 
     public bool IsVirtualizing
@@ -284,6 +286,54 @@ public class ListBox : Selector
         _scrollViewer.Content = _itemsHost;
         AttachItemsHost(_itemsHost);
         InvalidateMeasure();
+    }
+
+    private void OnMouseDownSelectItem(object? sender, MouseRoutedEventArgs args)
+    {
+        if (!IsEnabled || args.Button != MouseButton.Left)
+        {
+            return;
+        }
+
+        var container = FindContainerFromSource(args.OriginalSource as UIElement);
+        if (container == null)
+        {
+            return;
+        }
+
+        var index = IndexFromContainer(container);
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (SelectionMode == SelectionMode.Single)
+        {
+            SetSelectedIndexInternal(index);
+        }
+        else
+        {
+            ToggleSelectedIndexInternal(index);
+            SetSelectionAnchorInternal(index);
+        }
+    }
+
+    private ListBoxItem? FindContainerFromSource(UIElement? source)
+    {
+        for (var current = source; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is ListBoxItem listBoxItem && IndexFromContainer(listBoxItem) >= 0)
+            {
+                return listBoxItem;
+            }
+
+            if (ReferenceEquals(current, this))
+            {
+                break;
+            }
+        }
+
+        return null;
     }
 
     private static Panel CreateItemsHost(bool isVirtualizing)

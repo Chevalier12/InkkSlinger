@@ -149,6 +149,15 @@ public class Selector : ItemsControl
     {
         SyncSelectionPropertiesFromModel();
 
+        if (this is ListBox listBox)
+        {
+            ListBoxSelectCPUDiagnostics.ObserveSelectionChanged(
+                listBox,
+                SelectedIndex,
+                args.AddedItems.Count,
+                args.RemovedItems.Count);
+        }
+
         var routedArgs = new SelectionChangedEventArgs(
             SelectionChangedEvent,
             args.RemovedItems,

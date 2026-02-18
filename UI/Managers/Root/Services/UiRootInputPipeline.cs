@@ -10,6 +10,8 @@ public sealed partial class UiRoot
     private const double WheelPreciseRetargetCooldownMs = 90d;
     private const float WheelPointerMoveThresholdSquared = 4f;
     private const float ClickPointerReuseThresholdSquared = 9f;
+    private string _lastPointerResolvePath = "None";
+    private HitTestMetrics? _lastPointerResolveHitTestMetrics;
 
     private void RunInputAndEventsPhase(GameTime gameTime)
     {
@@ -107,6 +109,13 @@ public sealed partial class UiRoot
             _hasLastClickDownPointerPosition = true;
             var routeStart = Stopwatch.GetTimestamp();
             var clickHitTestsBefore = _lastInputHitTestCount;
+            ListBoxSelectCPUDiagnostics.ObservePointerDownCandidate(
+                pointerTarget,
+                delta.Current.PointerPosition,
+                _lastInputPointerTargetResolveMs,
+                Math.Max(0, clickResolveHitTests),
+                _lastPointerResolvePath,
+                _lastPointerResolveHitTestMetrics);
             var clickDispatchStart = Stopwatch.GetTimestamp();
             DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
             var clickHandleMs = Stopwatch.GetElapsedTime(clickDispatchStart).TotalMilliseconds;
@@ -171,8 +180,11 @@ public sealed partial class UiRoot
 
     private UIElement? ResolvePointerTarget(InputDelta delta)
     {
+        _lastPointerResolvePath = "None";
+        _lastPointerResolveHitTestMetrics = null;
         if (_inputState.CapturedPointerElement != null)
         {
+            _lastPointerResolvePath = "Captured";
             if (delta.LeftPressed || delta.LeftReleased)
             {
                 _clickCpuResolveCapturedCount++;
@@ -186,6 +198,7 @@ public sealed partial class UiRoot
             _hasLastClickUpPointerPosition &&
             Vector2.DistanceSquared(_lastClickUpPointerPosition, delta.Current.PointerPosition) <= ClickPointerReuseThresholdSquared)
         {
+            _lastPointerResolvePath = "ReuseLastClickUp";
             _clickCpuResolveCachedCount++;
             return _lastClickUpTarget;
         }
@@ -196,6 +209,7 @@ public sealed partial class UiRoot
             _hasLastClickDownPointerPosition &&
             Vector2.DistanceSquared(_lastClickDownPointerPosition, delta.Current.PointerPosition) <= ClickPointerReuseThresholdSquared)
         {
+            _lastPointerResolvePath = "ReuseLastClickDown";
             _clickCpuResolveCachedCount++;
             return _lastClickDownTarget;
         }
@@ -208,6 +222,7 @@ public sealed partial class UiRoot
             // and only re-resolve precisely on button transitions.
             if (_inputState.HoveredElement != null)
             {
+                _lastPointerResolvePath = "HoverReuse";
                 return _inputState.HoveredElement;
             }
 
@@ -216,6 +231,7 @@ public sealed partial class UiRoot
                     "1",
                     StringComparison.Ordinal))
             {
+                _lastPointerResolvePath = "HoverBypass";
                 return _inputState.HoveredElement;
             }
         }
@@ -224,15 +240,25 @@ public sealed partial class UiRoot
             !delta.PointerMoved &&
             delta.WheelDelta == 0)
         {
+            _lastPointerResolvePath = "HoverNoInput";
             return _inputState.HoveredElement;
         }
 
         if (requiresPreciseTarget)
         {
+            if (TryResolvePreciseClickTargetWithinAnchorSubtree(_cachedClickTarget, pointerPosition, out var cachedAnchorTarget) &&
+                cachedAnchorTarget != null)
+            {
+                _lastPointerResolvePath = "CachedAnchorSubtreeHitTest";
+                _clickCpuResolveCachedCount++;
+                return cachedAnchorTarget;
+            }
+
             if (_cachedClickTarget != null &&
                 TryResolveClickTargetFromCandidate(_cachedClickTarget, pointerPosition, out var cachedClickTarget) &&
                 cachedClickTarget != null)
             {
+                _lastPointerResolvePath = "CachedClickCandidate";
                 _clickCpuResolveCachedCount++;
                 return cachedClickTarget;
             }
@@ -240,8 +266,17 @@ public sealed partial class UiRoot
             if (TryResolveClickTargetFromHovered(pointerPosition, out var hoveredClickTarget) &&
                 hoveredClickTarget != null)
             {
+                _lastPointerResolvePath = "HoveredClickCandidate";
                 _clickCpuResolveHoveredCount++;
                 return hoveredClickTarget;
+            }
+
+            if (TryResolvePreciseClickTargetWithinHoveredSubtree(pointerPosition, out var hoveredSubtreeTarget) &&
+                hoveredSubtreeTarget != null)
+            {
+                _lastPointerResolvePath = "HoveredSubtreeHitTest";
+                _clickCpuResolveHoveredCount++;
+                return hoveredSubtreeTarget;
             }
         }
 
@@ -250,7 +285,10 @@ public sealed partial class UiRoot
         {
             _clickCpuResolveHitTestCount++;
         }
-        return VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        _lastPointerResolvePath = "HitTest";
+        var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
+        _lastPointerResolveHitTestMetrics = metrics;
+        return hit;
     }
 
     private void UpdateHover(UIElement? hovered)
@@ -608,10 +646,44 @@ public sealed partial class UiRoot
         return TryResolveClickTargetFromCandidate(_inputState.HoveredElement, pointerPosition, out target);
     }
 
+    private bool TryResolvePreciseClickTargetWithinHoveredSubtree(Vector2 pointerPosition, out UIElement? target)
+    {
+        return TryResolvePreciseClickTargetWithinAnchorSubtree(_inputState.HoveredElement, pointerPosition, out target);
+    }
+
+    private bool TryResolvePreciseClickTargetWithinAnchorSubtree(UIElement? anchor, Vector2 pointerPosition, out UIElement? target)
+    {
+        target = null;
+        if (anchor == null || !PointerLikelyInsideElement(anchor, pointerPosition))
+        {
+            return false;
+        }
+
+        _lastInputHitTestCount++;
+        _clickCpuResolveHitTestCount++;
+        var hit = VisualTreeHelper.HitTest(anchor, pointerPosition, out var metrics);
+        _lastPointerResolveHitTestMetrics = metrics;
+        if (hit == null)
+        {
+            return false;
+        }
+
+        target = hit;
+        return true;
+    }
+
     private static bool TryResolveClickTargetFromCandidate(UIElement? candidate, Vector2 pointerPosition, out UIElement? target)
     {
         target = null;
         if (candidate == null || !PointerLikelyInsideElement(candidate, pointerPosition))
+        {
+            return false;
+        }
+
+        // Avoid pinning click targeting to ScrollViewer via cached-hover reuse:
+        // for item controls hosted inside ScrollViewer (ListBox/ListView), this can
+        // bypass child hit-testing and break per-item click semantics.
+        if (candidate is ScrollViewer)
         {
             return false;
         }

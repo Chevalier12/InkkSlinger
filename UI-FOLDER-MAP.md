@@ -152,6 +152,11 @@ UI/
       Dispatcher.cs
     Types/
   Diagnostics/
+    UiFrameworkFileLoadDiagnostics.cs
+    UiFrameworkPopulationPhaseDiagnostics.cs
+    UiRootClickCpuDiagnostics.cs
+    UiRootMoveCpuDiagnostics.cs
+    UiRootScrollCpuDiagnostics.cs
   Events/
     Args/
       FocusChangedRoutedEventArgs.cs
@@ -210,12 +215,6 @@ UI/
         UiRootLayoutScheduler.cs
         UiRootRenderCache.cs
         UiRootRetainedTree.cs
-        Diagnostics/
-          UiFrameworkFileLoadDiagnostics.cs
-          UiFrameworkPopulationPhaseDiagnostics.cs
-          UiRootClickCpuDiagnostics.cs
-          UiRootMoveCpuDiagnostics.cs
-          UiRootScrollCpuDiagnostics.cs
     Tree/
       VisualTreeHelper.cs
   Rendering/

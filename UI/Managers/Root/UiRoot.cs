@@ -471,4 +471,16 @@ public sealed partial class UiRoot
         return _renderCachePolicy.CanCache(visual, context);
     }
 
+    internal bool TryGetLastPointerResolveHitTestMetricsForTests(out HitTestMetrics metrics)
+    {
+        if (_lastPointerResolveHitTestMetrics.HasValue)
+        {
+            metrics = _lastPointerResolveHitTestMetrics.Value;
+            return true;
+        }
+
+        metrics = default;
+        return false;
+    }
+
 }

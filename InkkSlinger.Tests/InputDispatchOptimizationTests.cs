@@ -259,6 +259,78 @@ public class InputDispatchOptimizationTests
         }
     }
 
+    [Fact]
+    public void ListBox_ClickingDifferentItems_UpdatesSelectedIndex()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 500f, 700f));
+
+        var listBox = new ListBox();
+        listBox.SetLayoutSlot(new LayoutRect(20f, 20f, 260f, 620f));
+        for (var i = 0; i < 40; i++)
+        {
+            listBox.Items.Add($"Item {i}");
+        }
+
+        root.AddChild(listBox);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        RunLayout(uiRoot, 500, 700, 16);
+
+        var firstIndex = FindFirstVisibleListBoxItemIndex(listBox);
+        Assert.True(firstIndex >= 0);
+        var secondIndex = firstIndex + 3;
+        Assert.True(secondIndex < listBox.Items.Count);
+
+        var firstPosition = GetCenterPointForItem(listBox, firstIndex);
+        var secondPosition = GetCenterPointForItem(listBox, secondIndex);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: firstPosition));
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: firstPosition, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: firstPosition, leftReleased: true));
+        Assert.Equal(firstIndex, listBox.SelectedIndex);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: secondPosition, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: secondPosition, leftReleased: true));
+        Assert.Equal(secondIndex, listBox.SelectedIndex);
+    }
+
+    [Fact]
+    public void ListBox_ClickResolve_UsesSmallSubtreeHitTestAfterFirstClick()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 1200f, 700f));
+
+        var listBox = new ListBox();
+        listBox.SetLayoutSlot(new LayoutRect(20f, 20f, 320f, 620f));
+        for (var i = 0; i < 600; i++)
+        {
+            listBox.Items.Add($"Item {i}");
+        }
+
+        root.AddChild(listBox);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        RunLayout(uiRoot, 1200, 700, 16);
+
+        var firstPoint = GetCenterPointForItem(listBox, 5);
+        var secondPoint = GetCenterPointForItem(listBox, 6);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: firstPoint));
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: firstPoint, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: firstPoint, leftReleased: true));
+        Assert.Equal(5, listBox.SelectedIndex);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: secondPoint, leftPressed: true));
+        Assert.True(uiRoot.TryGetLastPointerResolveHitTestMetricsForTests(out var metrics));
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: secondPoint, leftReleased: true));
+
+        Assert.Equal(6, listBox.SelectedIndex);
+        Assert.InRange(metrics.NodesVisited, 1, 32);
+    }
+
     private static InputDelta CreateDelta(
         bool pointerMoved,
         Vector2 position,
@@ -295,6 +367,73 @@ public class InputDispatchOptimizationTests
         }
 
         return panel;
+    }
+
+    private static int FindFirstVisibleListBoxItemIndex(ListBox listBox)
+    {
+        foreach (var visualChild in listBox.GetVisualChildren())
+        {
+            if (visualChild is not ScrollViewer scrollViewer)
+            {
+                continue;
+            }
+
+            var hostPanel = FindScrollViewerHostPanel(scrollViewer);
+            if (hostPanel == null)
+            {
+                return -1;
+            }
+
+            for (var itemIndex = 0; itemIndex < hostPanel.Children.Count; itemIndex++)
+            {
+                if (hostPanel.Children[itemIndex] is FrameworkElement child && child.LayoutSlot.Height > 0f)
+                {
+                    return itemIndex;
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    private static Vector2 GetCenterPointForItem(ListBox listBox, int index)
+    {
+        foreach (var visualChild in listBox.GetVisualChildren())
+        {
+            if (visualChild is not ScrollViewer scrollViewer)
+            {
+                continue;
+            }
+
+            var hostPanel = FindScrollViewerHostPanel(scrollViewer);
+            if (hostPanel == null)
+            {
+                break;
+            }
+
+            if (index < 0 || index >= hostPanel.Children.Count || hostPanel.Children[index] is not FrameworkElement item)
+            {
+                break;
+            }
+
+            var slot = item.LayoutSlot;
+            return new Vector2(slot.X + (slot.Width * 0.5f), slot.Y + (slot.Height * 0.5f));
+        }
+
+        throw new InvalidOperationException($"Could not resolve click point for ListBox item index {index}.");
+    }
+
+    private static Panel? FindScrollViewerHostPanel(ScrollViewer scrollViewer)
+    {
+        foreach (var child in scrollViewer.GetVisualChildren())
+        {
+            if (child is Panel panel)
+            {
+                return panel;
+            }
+        }
+
+        return null;
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
