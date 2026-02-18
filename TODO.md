@@ -19,6 +19,7 @@
 - [x] Layout and resize correctness under viewport changes and DPI-like scaling scenarios.
 - [x] Rendering and invalidation efficiency pass (reduced redundant invalidations/updates).
 - [x] Performance pass completed and baseline behavior verified in tests.
+- [x] Wheel input routing fix: when hover-bypass mode is enabled and hover target is null, wheel now falls back to normal target resolution instead of dropping the event.
 - [x] Better XAML diagnostics with element/property context plus line/position details.
 - [x] Shared text layout module introduced (`TextLayout`) with reusable wrapping support (`TextWrapping` enum).
 - [x] Text wrapping wired into text-bearing controls (`TextBlock`/`Label`, `Button`, popup title rendering path).
