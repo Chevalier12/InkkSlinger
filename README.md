@@ -137,7 +137,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | XAML binding parser | Unrecognized binding attributes are rejected | `UI/Xaml/Core/XamlLoader.cs` (`BuildBindingElement`) | Partial |
 | XAML binding parser | Unrecognized binding keys are rejected | `UI/Xaml/Core/XamlLoader.cs` (`ParseBinding`) | Partial |
 | XAML `RelativeSource` parser | Only `Mode`, `AncestorType`, `AncestorLevel` keys are accepted | `UI/Xaml/Core/XamlLoader.cs` (`ParseRelativeSource`) | Partial |
-| XAML resources | `DynamicResource` markup path is absent (only `StaticResource` parsing path exists) | `UI/Xaml/Core/XamlLoader.cs` (`TryParseStaticResourceKey`) | Not implemented |
+| XAML resources | `DynamicResource` markup support for attribute-based dependency and attached properties; setter/trigger values remain deferred | `UI/Xaml/Core/XamlLoader.cs` (`TryParseDynamicResourceKey`, `TryApplyDynamicResourceExpression`, `ApplyAttachedProperty`) | Partial |
 | XAML language | General WPF `MarkupExtension` ecosystem | No `MarkupExtension` base in `UI/`; parser uses explicit special cases | Not implemented |
 | XAML language | Broader `x:` metadata surface (`x:Class`, `x:Static`, etc.) | `UI/Xaml/Core/XamlLoader.cs` (`ApplyAttributes` handles `x:Name`/`x:Key` paths only) | Partial |
 | XAML tooling | WPF designer/Blend/XAML compilation parity | Runtime loader path in `UI/Xaml/Core/XamlLoader.cs`; no compile-time XAML toolchain in repo | Not implemented |

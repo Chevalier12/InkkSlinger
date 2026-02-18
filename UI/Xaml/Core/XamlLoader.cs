@@ -467,6 +467,11 @@ public static class XamlLoader
                     continue;
                 }
 
+                if (TryApplyDynamicResourceExpression(target, localName, value))
+                {
+                    continue;
+                }
+
                 if (TryAttachEventHandler(target, localName, value, codeBehind))
                 {
                     continue;
@@ -1042,6 +1047,13 @@ public static class XamlLoader
             var valueText = GetRequiredAttributeValue(actionElement, nameof(Setter.Value));
 
             object convertedValue;
+            if (TryParseDynamicResourceKey(valueText, out _))
+            {
+                throw CreateXamlException(
+                    "DynamicResource is not supported in Setter/Trigger action values yet; use StaticResource or direct property assignment.",
+                    actionElement);
+            }
+
             if (TryParseStaticResourceKey(valueText, out var staticResourceKey))
             {
                 var resolved = ResolveStaticResourceValue(staticResourceKey, resourceScope);
@@ -1166,6 +1178,13 @@ public static class XamlLoader
         var dependencyProperty = ResolveSetterProperty(styleTargetType, propertyText);
         var valueText = GetRequiredAttributeValue(element, nameof(Setter.Value));
         object convertedValue;
+        if (TryParseDynamicResourceKey(valueText, out _))
+        {
+            throw CreateXamlException(
+                "DynamicResource is not supported in Setter/Trigger action values yet; use StaticResource or direct property assignment.",
+                element);
+        }
+
         if (TryParseStaticResourceKey(valueText, out var staticResourceKey))
         {
             var resolved = ResolveStaticResourceValue(staticResourceKey, resourceScope);
@@ -1343,6 +1362,32 @@ public static class XamlLoader
         if (string.IsNullOrWhiteSpace(keyText))
         {
             throw CreateXamlException("StaticResource markup requires a resource key.");
+        }
+
+        key = keyText;
+        return true;
+    }
+
+    private static bool TryParseDynamicResourceKey(string valueText, out string key)
+    {
+        key = string.Empty;
+        var trimmed = valueText.Trim();
+        if (!trimmed.StartsWith("{", StringComparison.Ordinal) ||
+            !trimmed.EndsWith("}", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var markupBody = trimmed[1..^1].Trim();
+        if (!markupBody.StartsWith("DynamicResource", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var keyText = markupBody["DynamicResource".Length..].Trim();
+        if (string.IsNullOrWhiteSpace(keyText))
+        {
+            throw CreateXamlException("DynamicResource markup requires a resource key.");
         }
 
         key = keyText;
@@ -1592,6 +1637,30 @@ public static class XamlLoader
         var bindingScope = target as FrameworkElement ?? resourceScope;
         var binding = ParseBinding(bindingBody, dependencyProperty.PropertyType, bindingScope);
         BindingOperations.SetBinding(dependencyObject, dependencyProperty, binding);
+        return true;
+    }
+
+    private static bool TryApplyDynamicResourceExpression(object target, string propertyName, string valueText)
+    {
+        if (!TryParseDynamicResourceKey(valueText, out var dynamicResourceKey))
+        {
+            return false;
+        }
+
+        if (target is not FrameworkElement frameworkElement)
+        {
+            throw CreateXamlException(
+                $"DynamicResource markup on '{target.GetType().Name}.{propertyName}' requires a FrameworkElement target.");
+        }
+
+        var dependencyProperty = ResolveDependencyProperty(target.GetType(), propertyName);
+        if (dependencyProperty == null)
+        {
+            throw CreateXamlException(
+                $"DynamicResource markup on '{target.GetType().Name}.{propertyName}' requires a dependency property named '{propertyName}Property'.");
+        }
+
+        frameworkElement.SetResourceReference(dependencyProperty, dynamicResourceKey);
         return true;
     }
 
@@ -2027,6 +2096,25 @@ public static class XamlLoader
         var ownerTypeName = attachedPropertyName[..separatorIndex];
         var propertyName = attachedPropertyName[(separatorIndex + 1)..];
         var ownerType = ResolveElementType(ownerTypeName);
+
+        if (TryParseDynamicResourceKey(valueText, out var dynamicResourceKey))
+        {
+            var dependencyProperty = ResolveDependencyProperty(ownerType, propertyName);
+            if (dependencyProperty == null)
+            {
+                throw CreateXamlException(
+                    $"Attached property '{ownerType.Name}.{propertyName}' requires a dependency property named '{propertyName}Property' for DynamicResource usage.");
+            }
+
+            if (target is not FrameworkElement frameworkElement)
+            {
+                throw CreateXamlException(
+                    $"DynamicResource markup on attached property '{ownerType.Name}.{propertyName}' requires a FrameworkElement target.");
+            }
+
+            frameworkElement.SetResourceReference(dependencyProperty, dynamicResourceKey);
+            return;
+        }
 
         var setter = ownerType.GetMethod(
             $"Set{propertyName}",

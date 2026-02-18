@@ -446,6 +446,7 @@ public class FrameworkElement : UIElement
         DetachResourceParent();
         AttachResourceParent(newParent as FrameworkElement);
         RefreshResourceBindings();
+        NotifyDescendantResourcesChanged();
         UiFrameworkPopulationPhaseDiagnostics.Observe("FrameworkElement.OnVisualParentChanged.Resources", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
 
         phaseStart = Stopwatch.GetTimestamp();
@@ -476,6 +477,7 @@ public class FrameworkElement : UIElement
         DetachResourceParent();
         AttachResourceParent(newParent as FrameworkElement);
         RefreshResourceBindings();
+        NotifyDescendantResourcesChanged();
         UiFrameworkPopulationPhaseDiagnostics.Observe("FrameworkElement.OnLogicalParentChanged.Resources", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
 
         phaseStart = Stopwatch.GetTimestamp();
