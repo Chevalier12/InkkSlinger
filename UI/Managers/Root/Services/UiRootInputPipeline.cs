@@ -145,6 +145,7 @@ public sealed partial class UiRoot
 
         if (delta.WheelDelta != 0)
         {
+            TraceWheelRouting($"InputDelta wheel detected: delta={delta.WheelDelta}, pointer={FormatWheelPointer(delta.Current.PointerPosition)}, pointerResolvePath={_lastPointerResolvePath}, pointerTarget={DescribeWheelElement(pointerTarget)}, hovered={DescribeWheelElement(_inputState.HoveredElement)}");
             var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseWheel(pointerTarget, delta.Current.PointerPosition, delta.WheelDelta);
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
@@ -226,10 +227,11 @@ public sealed partial class UiRoot
                 return _inputState.HoveredElement;
             }
 
-            if (ForceBypassMoveHitTest || string.Equals(
+            if ((ForceBypassMoveHitTest || string.Equals(
                     Environment.GetEnvironmentVariable("INKKSLINGER_BYPASS_MOVE_HITTEST"),
                     "1",
-                    StringComparison.Ordinal))
+                    StringComparison.Ordinal)) &&
+                _inputState.HoveredElement != null)
             {
                 _lastPointerResolvePath = "HoverBypass";
                 return _inputState.HoveredElement;
@@ -428,8 +430,11 @@ public sealed partial class UiRoot
         var resolvedTarget = target ?? _inputState.HoveredElement;
         if (resolvedTarget == null)
         {
+            TraceWheelRouting($"DispatchMouseWheel ignored: no resolved target, delta={delta}, pointer={FormatWheelPointer(pointerPosition)}");
             return;
         }
+
+        TraceWheelRouting($"DispatchMouseWheel start: delta={delta}, pointer={FormatWheelPointer(pointerPosition)}, incomingTarget={DescribeWheelElement(target)}, hovered={DescribeWheelElement(_inputState.HoveredElement)}, cachedTextBox={DescribeWheelElement(_cachedWheelTextBoxTarget)}, cachedScrollViewer={DescribeWheelElement(_cachedWheelScrollViewerTarget)}");
 
         EnsureCachedWheelTargetsAreCurrent(pointerPosition);
         if (_cachedWheelTextBoxTarget != null)
@@ -458,6 +463,8 @@ public sealed partial class UiRoot
                                  !CanScrollViewerInWheelDirection(_cachedWheelScrollViewerTarget, delta);
         var shouldPreciseRetarget = needsPreciseTarget &&
                                     (!hasCachedWheelTarget || pointerMovedSinceLastWheel || cooldownElapsed || cachedViewerAtEdge);
+        TraceWheelRouting($"DispatchMouseWheel resolve: resolvedTarget={DescribeWheelElement(resolvedTarget)}, needsPreciseTarget={needsPreciseTarget}, hasCachedWheelTarget={hasCachedWheelTarget}, pointerInsideResolved={pointerInsideResolvedTarget}, pointerInsideCached={pointerInsideCachedTarget}, pointerMovedSinceLastWheel={pointerMovedSinceLastWheel}, cooldownElapsed={cooldownElapsed}, cachedViewerAtEdge={cachedViewerAtEdge}, shouldPreciseRetarget={shouldPreciseRetarget}");
+
         if (shouldPreciseRetarget)
         {
             if (TryFindWheelCapableTargetAtPointer(pointerPosition, out var fastWheelTarget) &&
@@ -465,6 +472,7 @@ public sealed partial class UiRoot
             {
                 resolvedTarget = fastWheelTarget;
                 RefreshCachedWheelTargets(fastWheelTarget);
+                TraceWheelRouting($"DispatchMouseWheel fast-retarget hit: target={DescribeWheelElement(fastWheelTarget)}");
             }
             else
             {
@@ -475,6 +483,11 @@ public sealed partial class UiRoot
                 {
                     resolvedTarget = preciseTarget;
                     RefreshCachedWheelTargets(preciseTarget);
+                    TraceWheelRouting($"DispatchMouseWheel precise-hit-test target={DescribeWheelElement(preciseTarget)}");
+                }
+                else
+                {
+                    TraceWheelRouting("DispatchMouseWheel precise-hit-test returned null");
                 }
             }
 
@@ -487,11 +500,13 @@ public sealed partial class UiRoot
             _lastInputRoutedEventCount += 2;
             resolvedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
             resolvedTarget.RaiseRoutedEventInternal(UIElement.MouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.MouseWheelEvent, pointerPosition, delta));
+            TraceWheelRouting($"DispatchMouseWheel routed events raised on {DescribeWheelElement(resolvedTarget)}");
         }
 
         if (_cachedWheelTextBoxTarget != null &&
             _cachedWheelTextBoxTarget.HandleMouseWheelFromInput(delta))
         {
+            TraceWheelRouting($"DispatchMouseWheel handled by cached TextBox {DescribeWheelElement(_cachedWheelTextBoxTarget)}");
             TrackWheelPointerPosition(pointerPosition);
             ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
             return;
@@ -499,9 +514,13 @@ public sealed partial class UiRoot
 
         if (_cachedWheelScrollViewerTarget != null)
         {
+            var cachedViewer = _cachedWheelScrollViewerTarget;
+            var beforeHorizontal = cachedViewer.HorizontalOffset;
+            var beforeVertical = cachedViewer.VerticalOffset;
             var wheelHandleStart = Stopwatch.GetTimestamp();
-            _ = _cachedWheelScrollViewerTarget.HandleMouseWheelFromInput(delta);
+            var handled = cachedViewer.HandleMouseWheelFromInput(delta);
             wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
+            TraceWheelRouting($"DispatchMouseWheel cached ScrollViewer attempt: target={DescribeWheelElement(cachedViewer)}, handled={handled}, offsets(before=({beforeHorizontal:0.###},{beforeVertical:0.###}), after=({cachedViewer.HorizontalOffset:0.###},{cachedViewer.VerticalOffset:0.###})), handleMs={wheelHandleMs:0.###}");
             TrackWheelPointerPosition(pointerPosition);
             ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
             return;
@@ -513,6 +532,7 @@ public sealed partial class UiRoot
         {
             _cachedWheelTextBoxTarget = textBox;
             _cachedWheelScrollViewerTarget = null;
+            TraceWheelRouting($"DispatchMouseWheel handled by ancestor TextBox {DescribeWheelElement(textBox)}");
             TrackWheelPointerPosition(pointerPosition);
             ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
             return;
@@ -522,9 +542,16 @@ public sealed partial class UiRoot
         {
             _cachedWheelScrollViewerTarget = scrollViewer;
             _cachedWheelTextBoxTarget = null;
+            var beforeHorizontal = scrollViewer.HorizontalOffset;
+            var beforeVertical = scrollViewer.VerticalOffset;
             var wheelHandleStart = Stopwatch.GetTimestamp();
-            _ = scrollViewer.HandleMouseWheelFromInput(delta);
+            var handled = scrollViewer.HandleMouseWheelFromInput(delta);
             wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
+            TraceWheelRouting($"DispatchMouseWheel handled by ancestor ScrollViewer {DescribeWheelElement(scrollViewer)} handled={handled}, offsets(before=({beforeHorizontal:0.###},{beforeVertical:0.###}), after=({scrollViewer.HorizontalOffset:0.###},{scrollViewer.VerticalOffset:0.###})), handleMs={wheelHandleMs:0.###}");
+        }
+        else
+        {
+            TraceWheelRouting($"DispatchMouseWheel ended with no wheel-capable ancestor for resolved target {DescribeWheelElement(resolvedTarget)}");
         }
 
         TrackWheelPointerPosition(pointerPosition);
@@ -536,12 +563,14 @@ public sealed partial class UiRoot
         if (_cachedWheelTextBoxTarget != null &&
             !PointerLikelyInsideElement(_cachedWheelTextBoxTarget, pointerPosition))
         {
+            TraceWheelRouting($"EnsureCachedWheelTargetsAreCurrent cleared cached TextBox {DescribeWheelElement(_cachedWheelTextBoxTarget)} for pointer {FormatWheelPointer(pointerPosition)}");
             _cachedWheelTextBoxTarget = null;
         }
 
         if (_cachedWheelScrollViewerTarget != null &&
             !PointerLikelyInsideElement(_cachedWheelScrollViewerTarget, pointerPosition))
         {
+            TraceWheelRouting($"EnsureCachedWheelTargetsAreCurrent cleared cached ScrollViewer {DescribeWheelElement(_cachedWheelScrollViewerTarget)} for pointer {FormatWheelPointer(pointerPosition)}");
             _cachedWheelScrollViewerTarget = null;
         }
     }
@@ -622,23 +651,31 @@ public sealed partial class UiRoot
 
     private void RefreshCachedWheelTargets(UIElement? hovered)
     {
+        var previousTextBox = _cachedWheelTextBoxTarget;
+        var previousScrollViewer = _cachedWheelScrollViewerTarget;
         _cachedWheelTextBoxTarget = null;
         _cachedWheelScrollViewerTarget = null;
         if (hovered == null)
         {
+            TraceWheelRouting($"RefreshCachedWheelTargets cleared caches from hovered=null, previousTextBox={DescribeWheelElement(previousTextBox)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
             return;
         }
 
         if (TryFindAncestor<TextBox>(hovered, out var textBox) && textBox != null)
         {
             _cachedWheelTextBoxTarget = textBox;
+            TraceWheelRouting($"RefreshCachedWheelTargets hovered={DescribeWheelElement(hovered)} -> cached TextBox {DescribeWheelElement(textBox)}, previousTextBox={DescribeWheelElement(previousTextBox)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
             return;
         }
 
         if (TryFindAncestor<ScrollViewer>(hovered, out var scrollViewer) && scrollViewer != null)
         {
             _cachedWheelScrollViewerTarget = scrollViewer;
+            TraceWheelRouting($"RefreshCachedWheelTargets hovered={DescribeWheelElement(hovered)} -> cached ScrollViewer {DescribeWheelElement(scrollViewer)}, previousTextBox={DescribeWheelElement(previousTextBox)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
+            return;
         }
+
+        TraceWheelRouting($"RefreshCachedWheelTargets hovered={DescribeWheelElement(hovered)} found no wheel-capable ancestor, previousTextBox={DescribeWheelElement(previousTextBox)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
     }
 
     private bool TryResolveClickTargetFromHovered(Vector2 pointerPosition, out UIElement? target)

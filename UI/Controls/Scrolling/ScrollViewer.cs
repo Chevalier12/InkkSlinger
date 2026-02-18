@@ -107,6 +107,7 @@ public class ScrollViewer : ContentControl
     private bool _isDraggingVerticalBar;
     private float _horizontalBarDragOffset;
     private float _verticalBarDragOffset;
+    private int _inputScrollMutationDepth;
     private static int _diagWheelEvents;
     private static int _diagWheelHandled;
     private static int _diagSetOffsetCalls;
@@ -282,31 +283,35 @@ public class ScrollViewer : ContentControl
     {
         if (!IsEnabled)
         {
+            ScrollWheelRoutingDiagnostics.Trace(this, $"HandlePointerDown ignored (disabled) pointer={ScrollWheelRoutingDiagnostics.FormatPointer(pointerPosition)}");
             return false;
         }
 
         if (_showVerticalBar &&
             _verticalBar.TryHandlePointerDown(pointerPosition, out var verticalValue, out var startVerticalDrag, out var verticalDragOffset))
         {
-            SetOffsets(HorizontalOffset, verticalValue);
+            RunWithinInputScrollMutation(() => SetOffsets(HorizontalOffset, verticalValue));
             _isDraggingVerticalBar = startVerticalDrag;
             _verticalBarDragOffset = startVerticalDrag ? verticalDragOffset : 0f;
             _isDraggingHorizontalBar = false;
             _horizontalBarDragOffset = 0f;
+            ScrollWheelRoutingDiagnostics.Trace(this, $"HandlePointerDown vertical bar hit pointer={ScrollWheelRoutingDiagnostics.FormatPointer(pointerPosition)}, value={verticalValue:0.###}, startDrag={startVerticalDrag}, dragOffset={verticalDragOffset:0.###}");
             return true;
         }
 
         if (_showHorizontalBar &&
             _horizontalBar.TryHandlePointerDown(pointerPosition, out var horizontalValue, out var startHorizontalDrag, out var horizontalDragOffset))
         {
-            SetOffsets(horizontalValue, VerticalOffset);
+            RunWithinInputScrollMutation(() => SetOffsets(horizontalValue, VerticalOffset));
             _isDraggingHorizontalBar = startHorizontalDrag;
             _horizontalBarDragOffset = startHorizontalDrag ? horizontalDragOffset : 0f;
             _isDraggingVerticalBar = false;
             _verticalBarDragOffset = 0f;
+            ScrollWheelRoutingDiagnostics.Trace(this, $"HandlePointerDown horizontal bar hit pointer={ScrollWheelRoutingDiagnostics.FormatPointer(pointerPosition)}, value={horizontalValue:0.###}, startDrag={startHorizontalDrag}, dragOffset={horizontalDragOffset:0.###}");
             return true;
         }
 
+        ScrollWheelRoutingDiagnostics.Trace(this, $"HandlePointerDown no scrollbar hit pointer={ScrollWheelRoutingDiagnostics.FormatPointer(pointerPosition)}, showHorizontal={_showHorizontalBar}, showVertical={_showVerticalBar}");
         return false;
     }
 
@@ -317,7 +322,7 @@ public class ScrollViewer : ContentControl
         {
             var value = _verticalBar.GetValueFromDragPointer(pointerPosition, _verticalBarDragOffset);
             var before = VerticalOffset;
-            SetOffsets(HorizontalOffset, value);
+            RunWithinInputScrollMutation(() => SetOffsets(HorizontalOffset, value));
             handled = handled || MathF.Abs(before - VerticalOffset) > 0.001f;
         }
 
@@ -325,7 +330,7 @@ public class ScrollViewer : ContentControl
         {
             var value = _horizontalBar.GetValueFromDragPointer(pointerPosition, _horizontalBarDragOffset);
             var before = HorizontalOffset;
-            SetOffsets(value, VerticalOffset);
+            RunWithinInputScrollMutation(() => SetOffsets(value, VerticalOffset));
             handled = handled || MathF.Abs(before - HorizontalOffset) > 0.001f;
         }
 
@@ -546,6 +551,7 @@ public class ScrollViewer : ContentControl
         _diagWheelEvents++;
         if (!IsEnabled || delta == 0)
         {
+            ScrollWheelRoutingDiagnostics.Trace(this, $"HandleMouseWheel ignored enabled={IsEnabled}, delta={delta}");
             return false;
         }
 
@@ -553,7 +559,7 @@ public class ScrollViewer : ContentControl
         var beforeVertical = VerticalOffset;
         var amount = MathF.Max(1f, LineScrollAmount);
         var direction = delta > 0 ? -1f : 1f;
-        SetOffsets(HorizontalOffset, VerticalOffset + (direction * amount));
+        RunWithinInputScrollMutation(() => SetOffsets(HorizontalOffset, VerticalOffset + (direction * amount)));
 
         var handled = MathF.Abs(beforeHorizontal - HorizontalOffset) > 0.001f ||
                       MathF.Abs(beforeVertical - VerticalOffset) > 0.001f;
@@ -562,6 +568,7 @@ public class ScrollViewer : ContentControl
             _diagWheelHandled++;
         }
 
+        ScrollWheelRoutingDiagnostics.Trace(this, $"HandleMouseWheel delta={delta}, lineAmount={amount:0.###}, handled={handled}, offsets(before=({beforeHorizontal:0.###},{beforeVertical:0.###}), after=({HorizontalOffset:0.###},{VerticalOffset:0.###})), viewport=({ViewportWidth:0.###},{ViewportHeight:0.###}), extent=({ExtentWidth:0.###},{ExtentHeight:0.###})");
         return handled;
     }
 
@@ -597,6 +604,25 @@ public class ScrollViewer : ContentControl
 
         UiRoot.Current?.ObserveScrollCpuOffsetMutation(horizontalDelta, verticalDelta);
         UpdateScrollBarValues();
+        if (_inputScrollMutationDepth > 0 &&
+            horizontalDelta <= 0.001f &&
+            verticalDelta <= 0.001f)
+        {
+            ScrollWheelRoutingDiagnostics.Trace(this, $"SetOffsets no-op requested=({horizontal:0.###},{vertical:0.###}), clamped=({nextHorizontal:0.###},{nextVertical:0.###}), max=({maxHorizontal:0.###},{maxVertical:0.###}), viewport=({ViewportWidth:0.###},{ViewportHeight:0.###}), extent=({ExtentWidth:0.###},{ExtentHeight:0.###})");
+        }
+    }
+
+    private void RunWithinInputScrollMutation(Action action)
+    {
+        _inputScrollMutationDepth++;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _inputScrollMutationDepth--;
+        }
     }
 
     private void ArrangeContentForCurrentOffsets()
