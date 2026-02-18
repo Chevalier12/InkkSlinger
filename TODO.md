@@ -28,6 +28,7 @@
 - [x] Declarative commanding input model: `UIElement.InputBindings` + `KeyBinding`/`KeyGesture` routing, XAML authoring support, and menu shortcut auto-text derivation when unset.
 - [x] Binding parity gap #5 shipped: `PriorityBinding`, `BindingGroup` (inherited + named group resolution), and `UpdateSourceExceptionFilter` across `Binding`/`MultiBinding` with XAML + schema + regression coverage.
 - [x] Binding regression safety-net expansion: added coverage for `BindingGroup` atomic commit/rollback, `PriorityBinding` edge cases, `UpdateSourceExceptionFilter` semantics, parser negative cases, and mode-trigger-validation matrix combinations.
+- [x] Frame-latency diagnostics shipped (`INKKSLINGER_FRAME_LATENCY_LOGS`): alert-only 60 FPS thresholds, `event->next-draw` latency focus, miss-rate/dominant-phase attribution, and coalescing-aware sampling for move/scroll.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
@@ -40,8 +41,8 @@
 - [x] `Thumb` control support with drag lifecycle events and demo.
 
 ## Diagnostics Backlog
-- [ ] Tail-latency diagnostics (`p95`/`p99`) for `LastUpdateMs`, `LastInputPhaseMs`, `LastLayoutPhaseMs`, and `LastDrawMs` in click/move/scroll windows.
-- [ ] Frame-budget miss diagnostics (for example 16.6ms/8.3ms targets) with dominant phase attribution.
+- [x] Tail-latency diagnostics (`p95`/`p99`) for click/move/scroll interaction windows, based on `event->next-draw` latency.
+- [x] Frame-budget miss diagnostics for 60 FPS (`16.6ms`) with dominant phase attribution (`input`, `layout`, `draw`, `other update`).
 - [ ] Dirty-region effectiveness diagnostics: partial redraw success rate, dirty-rect merge ratio, and full-redraw fallback trigger breakdown.
 - [ ] Render-cache churn diagnostics: per-frame hit/miss/rebuild ratios and top invalidation sources.
 - [ ] Allocation and GC diagnostics during interaction windows (allocated bytes delta, Gen0/1/2 collection deltas).

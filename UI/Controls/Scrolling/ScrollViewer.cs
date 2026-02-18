@@ -641,7 +641,7 @@ public class ScrollViewer : ContentControl
             ArrangeContentForCurrentOffsets();
         }
 
-        UiRoot.Current?.ObserveScrollCpuOffsetMutation(horizontalDelta, verticalDelta);
+        UiRoot.Current?.ObserveScrollCpuOffsetMutation(horizontalDelta, verticalDelta, _inputScrollMutationDepth > 0);
         UpdateScrollBarValues();
         if (_inputScrollMutationDepth > 0 &&
             horizontalDelta <= 0.001f &&

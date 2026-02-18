@@ -103,6 +103,7 @@ public sealed partial class UiRoot
         ObserveScrollCpuAfterDraw();
         ObserveClickCpuAfterDraw();
         ObserveMoveCpuAfterDraw();
+        ObserveFrameLatencyAfterDraw();
         TraceRenderCacheCountersIfEnabled();
     }
 }

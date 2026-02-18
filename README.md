@@ -282,6 +282,7 @@ Remove-Item Env:INKKSLINGER_RENDER_CACHE_OVERLAY
 | `INKKSLINGER_SCROLL_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits scroll CPU summaries to `Debug` + `Console`. |
 | `INKKSLINGER_MOVE_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits pointer-move CPU summaries to `Debug` + `Console`. |
 | `INKKSLINGER_CLICK_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits click CPU summaries to `Debug` + `Console`. |
+| `INKKSLINGER_FRAME_LATENCY_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits alert-only click/move/scroll frame latency diagnostics for 60 FPS targets (`event->next-draw` p95/p99, 16.6ms miss rate, dominant miss phase); move/scroll sampling is coalescing-aware (latest event per draw). |
 | `INKKSLINGER_WHEEL_ROUTE_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits detailed wheel-target routing traces (`[WheelRoute]`) to `Debug` + `Console`. |
 | `INKKSLINGER_LISTBOX_SELECT_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits ListBox selection/click diagnostics to `Debug` + `Console`. |
 | `INKKSLINGER_FILE_LOAD_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework file-load diagnostics to `Debug` + `Console`. |

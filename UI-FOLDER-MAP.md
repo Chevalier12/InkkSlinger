@@ -174,9 +174,11 @@ UI/
   Diagnostics/
     ListBoxSelectCPUDiagnostics.cs
     ScrollWheelRoutingDiagnostics.cs
+    TextBoxFrameworkDiagnostics.cs
     UiFrameworkFileLoadDiagnostics.cs
     UiFrameworkPopulationPhaseDiagnostics.cs
     UiRootClickCpuDiagnostics.cs
+    UiRootFrameLatencyDiagnostics.cs
     UiRootMoveCpuDiagnostics.cs
     UiRootScrollCpuDiagnostics.cs
     UiRootWheelRoutingDiagnostics.cs

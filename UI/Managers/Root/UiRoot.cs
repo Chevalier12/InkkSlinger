@@ -71,6 +71,9 @@ public sealed partial class UiRoot
     private double _lastInputKeyDispatchMs;
     private double _lastInputTextDispatchMs;
     private double _lastVisualUpdateMs;
+    private readonly FrameLatencyWindowDiagnostics _scrollFrameLatencyDiagnostics = new("Scroll", coalesceToLatestEventPerDraw: true);
+    private readonly FrameLatencyWindowDiagnostics _clickFrameLatencyDiagnostics = new("Click", coalesceToLatestEventPerDraw: false);
+    private readonly FrameLatencyWindowDiagnostics _moveFrameLatencyDiagnostics = new("Move", coalesceToLatestEventPerDraw: true);
     private int _scrollCpuWheelEventCount;
     private int _scrollCpuOffsetMutationCount;
     private int _scrollCpuWheelPreciseRetargetCount;
@@ -364,6 +367,7 @@ public sealed partial class UiRoot
         ObserveScrollCpuAfterUpdate();
         ObserveClickCpuAfterUpdate();
         ObserveMoveCpuAfterUpdate();
+        ObserveFrameLatencyAfterUpdate();
     }
 
     public void EnqueueDeferredOperation(Action operation)

@@ -99,6 +99,7 @@ public sealed partial class UiRoot
                 pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
             }
 
+            ObserveFrameLatencyMoveEvent();
             ObserveMoveCpuPointerDispatch(_lastInputHitTestCount - moveHitTestsBefore);
         }
 
@@ -121,6 +122,7 @@ public sealed partial class UiRoot
             var clickHandleMs = Stopwatch.GetElapsedTime(clickDispatchStart).TotalMilliseconds;
             var clickHitTests = Math.Max(0, _lastInputHitTestCount - clickHitTestsBefore) + clickResolveHitTests;
             clickResolveHitTests = 0;
+            ObserveFrameLatencyClickEvent();
             ObserveClickCpuPointerDispatch(isDown: true, clickHitTests, clickHandleMs);
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
@@ -134,6 +136,7 @@ public sealed partial class UiRoot
             var clickHandleMs = Stopwatch.GetElapsedTime(clickDispatchStart).TotalMilliseconds;
             var clickHitTests = Math.Max(0, _lastInputHitTestCount - clickHitTestsBefore) + clickResolveHitTests;
             clickResolveHitTests = 0;
+            ObserveFrameLatencyClickEvent();
             ObserveClickCpuPointerDispatch(isDown: false, clickHitTests, clickHandleMs);
             _lastClickUpTarget = pointerTarget;
             _lastClickUpPointerPosition = delta.Current.PointerPosition;
@@ -145,6 +148,7 @@ public sealed partial class UiRoot
 
         if (delta.WheelDelta != 0)
         {
+            ObserveFrameLatencyScrollEvent();
             TraceWheelRouting($"InputDelta wheel detected: delta={delta.WheelDelta}, pointer={FormatWheelPointer(delta.Current.PointerPosition)}, pointerResolvePath={_lastPointerResolvePath}, pointerTarget={DescribeWheelElement(pointerTarget)}, hovered={DescribeWheelElement(_inputState.HoveredElement)}");
             var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseWheel(pointerTarget, delta.Current.PointerPosition, delta.WheelDelta);

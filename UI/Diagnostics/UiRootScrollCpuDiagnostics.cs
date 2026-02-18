@@ -10,8 +10,13 @@ public sealed partial class UiRoot
     private static readonly bool IsScrollCpuDiagnosticsEnabled =
         string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_SCROLL_CPU_LOGS"), "1", StringComparison.Ordinal);
 
-    internal void ObserveScrollCpuOffsetMutation(double horizontalDelta, double verticalDelta)
+    internal void ObserveScrollCpuOffsetMutation(double horizontalDelta, double verticalDelta, bool isInputMutation)
     {
+        if (isInputMutation && (horizontalDelta > 0.001d || verticalDelta > 0.001d))
+        {
+            ObserveFrameLatencyScrollEvent();
+        }
+
         if (!IsScrollCpuDiagnosticsEnabled)
         {
             return;
