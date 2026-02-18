@@ -3335,14 +3335,21 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider
 
     private float GetTextRenderTopInset()
     {
-        // FontStash glyph rasterization can sit slightly above the provided origin.
-        // Offset the text baseline so the first row is fully visible within the viewport clip.
-        return FontStashTextRenderer.IsEnabled ? 3f : 0f;
+        if (!FontStashTextRenderer.IsEnabled)
+        {
+            return 0f;
+        }
+
+        var lineHeight = GetLineHeight();
+        var measuredHeight = GetMeasuredGlyphHeight();
+        return MathF.Floor((lineHeight - measuredHeight) * 0.5f);
     }
 
     private LayoutRect GetTextRenderClipRect(LayoutRect viewportRect)
     {
-        var verticalBleed = FontStashTextRenderer.IsEnabled ? 6f : 0f;
+        var verticalBleed = FontStashTextRenderer.IsEnabled
+            ? MathF.Ceiling(GetMeasuredGlyphVerticalOverflow() + 1f)
+            : 0f;
         var top = MathF.Max(LayoutSlot.Y, viewportRect.Y - verticalBleed);
         var bottom = MathF.Min(LayoutSlot.Y + LayoutSlot.Height, viewportRect.Y + viewportRect.Height + verticalBleed);
         return new LayoutRect(
@@ -3350,6 +3357,19 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider
             top,
             viewportRect.Width,
             MathF.Max(0f, bottom - top));
+    }
+
+    private float GetMeasuredGlyphVerticalOverflow()
+    {
+        var lineHeight = GetLineHeight();
+        var measuredHeight = GetMeasuredGlyphHeight();
+        return MathF.Max(0f, measuredHeight - lineHeight);
+    }
+
+    private float GetMeasuredGlyphHeight()
+    {
+        var measured = FontStashTextRenderer.MeasureHeight(Font, "Ag");
+        return measured > 0f ? measured : GetLineHeight();
     }
 
     private void CacheViewportLayoutState(TextViewportLayoutState state, LayoutRect innerRect)

@@ -114,6 +114,26 @@ internal static class FontStashTextRenderer
         return spriteFont?.MeasureString(text).X ?? 0f;
     }
 
+    public static float MeasureHeight(SpriteFont? spriteFont, string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 0f;
+        }
+
+        if (IsEnabled)
+        {
+            if (!TryGetFont(GetRenderFontSize(spriteFont), out var font))
+            {
+                return 0f;
+            }
+
+            return font.MeasureString(text).Y;
+        }
+
+        return spriteFont?.MeasureString(text).Y ?? 0f;
+    }
+
     public static float GetLineHeight(SpriteFont? spriteFont)
     {
         if (IsEnabled)
