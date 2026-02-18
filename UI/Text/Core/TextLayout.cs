@@ -14,7 +14,7 @@ public static class TextLayout
 
     public static TextLayoutResult Layout(string? text, SpriteFont? font, float availableWidth, TextWrapping wrapping)
     {
-        if (font == null || string.IsNullOrEmpty(text))
+        if (string.IsNullOrEmpty(text))
         {
             return TextLayoutResult.Empty;
         }
@@ -30,7 +30,7 @@ public static class TextLayout
         return result;
     }
 
-    private static TextLayoutResult BuildLayout(string text, SpriteFont font, float availableWidth, TextWrapping wrapping)
+        private static TextLayoutResult BuildLayout(string text, SpriteFont? font, float availableWidth, TextWrapping wrapping)
     {
         if (wrapping == TextWrapping.NoWrap ||
             float.IsInfinity(availableWidth) ||
@@ -50,7 +50,7 @@ public static class TextLayout
         return BuildResult(lines, font);
     }
 
-    private static TextLayoutResult BuildNoWrapLayout(string text, SpriteFont font)
+        private static TextLayoutResult BuildNoWrapLayout(string text, SpriteFont? font)
     {
         var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         var measured = new Vector2(
@@ -59,7 +59,7 @@ public static class TextLayout
         return new TextLayoutResult(lines, measured);
     }
 
-    private static void LayoutParagraph(string paragraph, SpriteFont font, float availableWidth, IList<string> lines)
+    private static void LayoutParagraph(string paragraph, SpriteFont? font, float availableWidth, IList<string> lines)
     {
         if (paragraph.Length == 0)
         {
@@ -104,7 +104,7 @@ public static class TextLayout
         lines.Add(line.TrimEnd());
     }
 
-    private static void BreakLongToken(string token, SpriteFont font, float availableWidth, IList<string> lines)
+    private static void BreakLongToken(string token, SpriteFont? font, float availableWidth, IList<string> lines)
     {
         var start = 0;
         while (start < token.Length)
@@ -160,7 +160,7 @@ public static class TextLayout
         return true;
     }
 
-    private static TextLayoutResult BuildResult(IReadOnlyList<string> lines, SpriteFont font)
+    private static TextLayoutResult BuildResult(IReadOnlyList<string> lines, SpriteFont? font)
     {
         if (lines.Count == 0)
         {
@@ -210,7 +210,7 @@ public static class TextLayout
 
     private readonly struct TextLayoutCacheKey : IEquatable<TextLayoutCacheKey>
     {
-        private TextLayoutCacheKey(string text, SpriteFont font, int widthBucket, TextWrapping wrapping)
+        private TextLayoutCacheKey(string text, SpriteFont? font, int widthBucket, TextWrapping wrapping)
         {
             Text = text;
             Font = font;
@@ -220,13 +220,13 @@ public static class TextLayout
 
         private string Text { get; }
 
-        private SpriteFont Font { get; }
+        private SpriteFont? Font { get; }
 
         private int WidthBucket { get; }
 
         private TextWrapping Wrapping { get; }
 
-        public static TextLayoutCacheKey Create(string text, SpriteFont font, float width, TextWrapping wrapping)
+        public static TextLayoutCacheKey Create(string text, SpriteFont? font, float width, TextWrapping wrapping)
         {
             return new TextLayoutCacheKey(text, font, QuantizeWidth(width), wrapping);
         }
@@ -248,7 +248,7 @@ public static class TextLayout
         {
             return HashCode.Combine(
                 StringComparer.Ordinal.GetHashCode(Text),
-                RuntimeHelpers.GetHashCode(Font),
+                Font is null ? 0 : RuntimeHelpers.GetHashCode(Font),
                 WidthBucket,
                 (int)Wrapping);
         }

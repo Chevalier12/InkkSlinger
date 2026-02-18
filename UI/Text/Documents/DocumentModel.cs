@@ -133,6 +133,8 @@ public sealed class List : Block
     }
 
     public TextElementCollection<List, ListItem> Items { get; }
+
+    public bool IsOrdered { get; set; }
 }
 
 public sealed class ListItem : TextElement
@@ -463,6 +465,9 @@ public static class FlowDocumentPlainText
                     break;
                 case Span span:
                     AppendInlineText(span.Inlines, buffer);
+                    break;
+                case InlineUIContainer:
+                    buffer.Append('\uFFFC');
                     break;
             }
         }

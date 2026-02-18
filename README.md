@@ -81,7 +81,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Render caching | Element cache policy/store + visual-layer cache behavior | `UI/Rendering/Cache/RenderCachePolicy.cs`, `UI/Rendering/Cache/RenderCacheStore.cs`, `InkkSlinger.Tests/RenderCachePolicyTests.cs`, `InkkSlinger.Tests/VisualLayerCachingTests.cs` | Implemented (tested) |
 | Render queue and invalidation correctness | Queue ordering and invalidation semantics in root draw/update pipeline | `UI/Managers/Root/UiRoot.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/InvalidationFlagsTests.cs` | Implemented (tested) |
 | Adorner infrastructure | Adorner base/layer/decorator + clipping/selection adorners | `UI/Controls/Adorners/*`, `UI/Controls/Selection/SelectionRectangleAdorner.cs`, `InkkSlinger.Tests/AdornerClippingTests.cs` | Implemented (tested) |
-| Control breadth snapshot | 66 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `66/77`) | Broad |
+| Control breadth snapshot | 67 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `67/77`) | Broad |
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
@@ -119,8 +119,6 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `Page` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
-| Control coverage | `RichTextBox` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
-| Parity track | Rich text + document layer depth (flow-document model) | `TODO.md` (`## WPF Parity Gaps`) | Not implemented |
 | Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
 | Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
 | Binding API | `IValueConverter` / `IMultiValueConverter` interfaces | `UI/Binding/Converters/IValueConverter.cs`, `UI/Binding/Converters/IMultiValueConverter.cs` | Implemented |
@@ -233,8 +231,9 @@ Primary validation machine for current development/testing:
 | Menu parity lab | `dotnet run --project InkkSlinger.csproj -- --menu-parity-demo` |
 | Binding parity gap #5 demo | `dotnet run --project InkkSlinger.csproj -- --binding-parity-gap5-demo` |
 | RichTextBox demo | `dotnet run --project InkkSlinger.csproj -- --richtextbox-demo` |
+| RichText diagnostics lab | `dotnet run --project InkkSlinger.csproj -- --richtext-diagnostics-lab` |
 
-Current default launch surface is the binding parity gap #5 demo when no explicit mode flag is provided.
+Current default launch surface is the rich text diagnostics lab when no explicit mode flag is provided.
 
 ## Environment Variables
 
@@ -289,6 +288,9 @@ Remove-Item Env:INKKSLINGER_RENDER_CACHE_OVERLAY
 | `INKKSLINGER_FILE_LOAD_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework file-load diagnostics to `Debug` + `Console`. |
 | `INKKSLINGER_POPULATION_PHASE_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework population-phase diagnostics to `Debug` + `Console`. |
 | `INKKSLINGER_TEXTBOX_FRAMEWORK_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits TextBox framework timing summaries (commit, render, viewport, caret, text-sync) to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_LAYOUT_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits per-layout rich-text cache/build timing summaries to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_EDIT_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits rich-text edit command timing summaries to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_CLIPBOARD_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits rich-text clipboard serialize/deserialize timing and fallback diagnostics to `Debug` + `Console`. |
 
 ## Notes
 

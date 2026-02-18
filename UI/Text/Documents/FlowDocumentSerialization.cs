@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Xml.Linq;
 
 namespace InkkSlinger;
@@ -41,6 +43,58 @@ public static class FlowDocumentSerializer
         return document;
     }
 
+    public static string SerializeRange(FlowDocument document, DocumentTextSelection selection)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        var range = selection.ToRange();
+        var startOffset = DocumentPointers.GetDocumentOffset(range.Start);
+        var endOffset = DocumentPointers.GetDocumentOffset(range.End);
+        return SerializeRange(document, startOffset, endOffset);
+    }
+
+    public static string SerializeRange(FlowDocument document, int startOffset, int endOffset)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (endOffset <= startOffset)
+        {
+            return Serialize(CreateDefaultFlowDocument());
+        }
+
+        var fragment = BuildDocumentFragment(document, startOffset, endOffset);
+        return Serialize(fragment);
+    }
+
+    public static FlowDocument DeserializeFragment(string xml)
+    {
+        if (string.IsNullOrWhiteSpace(xml))
+        {
+            return CreateDefaultFlowDocument();
+        }
+
+        var root = XElement.Parse(xml);
+        if (string.Equals(root.Name.LocalName, nameof(FlowDocument), StringComparison.Ordinal))
+        {
+            var document = Deserialize(xml);
+            EnsureDocumentHasParagraph(document);
+            return document;
+        }
+
+        if (string.Equals(root.Name.LocalName, "FlowDocumentFragment", StringComparison.Ordinal))
+        {
+            var document = new FlowDocument();
+            foreach (var child in root.Elements())
+            {
+                document.Blocks.Add(DeserializeBlock(child));
+            }
+
+            EnsureDocumentHasParagraph(document);
+            return document;
+        }
+
+        throw new InvalidOperationException(
+            $"Root element must be '{nameof(FlowDocument)}' or 'FlowDocumentFragment'.");
+    }
+
     private static XElement SerializeBlock(Block block)
     {
         return block switch
@@ -79,6 +133,11 @@ public static class FlowDocumentSerializer
     private static XElement SerializeList(List list)
     {
         var element = new XElement(nameof(List));
+        if (list.IsOrdered)
+        {
+            element.SetAttributeValue(nameof(List.IsOrdered), true);
+        }
+
         foreach (var item in list.Items)
         {
             var itemElement = new XElement(nameof(ListItem));
@@ -185,6 +244,8 @@ public static class FlowDocumentSerializer
                 }
 
                 return spanElement;
+            case InlineUIContainer:
+                return new XElement(nameof(InlineUIContainer));
             default:
                 return new XElement(inline.GetType().Name);
         }
@@ -232,7 +293,10 @@ public static class FlowDocumentSerializer
 
     private static List DeserializeList(XElement element)
     {
-        var list = new List();
+        var list = new List
+        {
+            IsOrdered = bool.TryParse((string?)element.Attribute(nameof(List.IsOrdered)), out var ordered) && ordered
+        };
         foreach (var itemElement in element.Elements(nameof(ListItem)))
         {
             var item = new ListItem();
@@ -308,6 +372,8 @@ public static class FlowDocumentSerializer
                 return DeserializeSpan(element, hyperlink);
             case nameof(Span):
                 return DeserializeSpan(element, new Span());
+            case nameof(InlineUIContainer):
+                return new InlineUIContainer();
             default:
                 throw new InvalidOperationException($"Unsupported inline element '{element.Name.LocalName}'.");
         }
@@ -322,5 +388,176 @@ public static class FlowDocumentSerializer
         }
 
         return span;
+    }
+
+    private static FlowDocument BuildDocumentFragment(FlowDocument source, int startOffset, int endOffset)
+    {
+        var fragment = new FlowDocument();
+        var paragraphs = FlowDocumentPlainText.EnumerateParagraphs(source).ToList();
+        var offset = 0;
+        for (var i = 0; i < paragraphs.Count; i++)
+        {
+            var paragraph = paragraphs[i];
+            var paragraphLength = GetParagraphLogicalLength(paragraph);
+            var paragraphStart = offset;
+            var paragraphEnd = paragraphStart + paragraphLength;
+
+            if (startOffset < paragraphEnd && endOffset > paragraphStart)
+            {
+                var localStart = Math.Max(0, startOffset - paragraphStart);
+                var localEnd = Math.Min(paragraphLength, endOffset - paragraphStart);
+                fragment.Blocks.Add(SliceParagraph(paragraph, localStart, localEnd));
+            }
+
+            offset = paragraphEnd;
+            if (i < paragraphs.Count - 1)
+            {
+                offset += 1;
+            }
+        }
+
+        EnsureDocumentHasParagraph(fragment);
+        return fragment;
+    }
+
+    private static Paragraph SliceParagraph(Paragraph source, int start, int end)
+    {
+        var paragraph = new Paragraph();
+        var offset = 0;
+        foreach (var inline in source.Inlines)
+        {
+            var length = GetInlineLogicalLength(inline);
+            var inlineStart = offset;
+            var inlineEnd = inlineStart + length;
+            var overlapStart = Math.Max(start, inlineStart);
+            var overlapEnd = Math.Min(end, inlineEnd);
+            if (overlapStart < overlapEnd)
+            {
+                var sliced = SliceInline(inline, overlapStart - inlineStart, overlapEnd - inlineStart);
+                if (sliced != null)
+                {
+                    paragraph.Inlines.Add(sliced);
+                }
+            }
+
+            offset = inlineEnd;
+        }
+
+        if (paragraph.Inlines.Count == 0)
+        {
+            paragraph.Inlines.Add(new Run(string.Empty));
+        }
+
+        return paragraph;
+    }
+
+    private static Inline? SliceInline(Inline inline, int localStart, int localEnd)
+    {
+        switch (inline)
+        {
+            case Run run:
+                if (localEnd <= localStart)
+                {
+                    return null;
+                }
+
+                var clampedStart = Math.Clamp(localStart, 0, run.Text.Length);
+                var clampedEnd = Math.Clamp(localEnd, clampedStart, run.Text.Length);
+                var text = run.Text.Substring(clampedStart, clampedEnd - clampedStart);
+                return new Run(text);
+            case LineBreak:
+                return localStart < 1 && localEnd > 0 ? new LineBreak() : null;
+            case Hyperlink hyperlink:
+                return SliceSpan(
+                    hyperlink,
+                    new Hyperlink { NavigateUri = hyperlink.NavigateUri },
+                    localStart,
+                    localEnd);
+            case Bold bold:
+                return SliceSpan(bold, new Bold(), localStart, localEnd);
+            case Italic italic:
+                return SliceSpan(italic, new Italic(), localStart, localEnd);
+            case Underline underline:
+                return SliceSpan(underline, new Underline(), localStart, localEnd);
+            case Span span:
+                return SliceSpan(span, new Span(), localStart, localEnd);
+            case InlineUIContainer:
+                return localStart < 1 && localEnd > 0 ? new InlineUIContainer() : null;
+            default:
+                return null;
+        }
+    }
+
+    private static TSpan? SliceSpan<TSpan>(Span source, TSpan destination, int start, int end)
+        where TSpan : Span
+    {
+        var offset = 0;
+        foreach (var child in source.Inlines)
+        {
+            var length = GetInlineLogicalLength(child);
+            var childStart = offset;
+            var childEnd = childStart + length;
+            var overlapStart = Math.Max(start, childStart);
+            var overlapEnd = Math.Min(end, childEnd);
+            if (overlapStart < overlapEnd)
+            {
+                var sliced = SliceInline(child, overlapStart - childStart, overlapEnd - childStart);
+                if (sliced != null)
+                {
+                    destination.Inlines.Add(sliced);
+                }
+            }
+
+            offset = childEnd;
+        }
+
+        return destination.Inlines.Count == 0 ? null : destination;
+    }
+
+    private static int GetParagraphLogicalLength(Paragraph paragraph)
+    {
+        var length = 0;
+        foreach (var inline in paragraph.Inlines)
+        {
+            length += GetInlineLogicalLength(inline);
+        }
+
+        return length;
+    }
+
+    private static int GetInlineLogicalLength(Inline inline)
+    {
+        switch (inline)
+        {
+            case Run run:
+                return run.Text.Length;
+            case LineBreak:
+                return 1;
+            case InlineUIContainer:
+                return 1;
+            case Span span:
+                return span.Inlines.Sum(GetInlineLogicalLength);
+            default:
+                return 0;
+        }
+    }
+
+    private static FlowDocument CreateDefaultFlowDocument()
+    {
+        var document = new FlowDocument();
+        EnsureDocumentHasParagraph(document);
+        return document;
+    }
+
+    private static void EnsureDocumentHasParagraph(FlowDocument document)
+    {
+        if (document.Blocks.Count > 0)
+        {
+            return;
+        }
+
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run(string.Empty));
+        document.Blocks.Add(paragraph);
     }
 }

@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0F1723"
+             BorderBrush="#2E4A66"
+             BorderThickness="1"
+             Padding="12">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Background="#132131"
+            BorderBrush="#2F4E69"
+            BorderThickness="1"
+            Padding="10"
+            Margin="0,0,0,10">
+      <StackPanel>
+        <Label Text="RichText Diagnostics Lab" Foreground="#E7F2FF" />
+        <Label Text="Use this surface to validate rich commands, structure transforms, hyperlink activation, clipboard behavior, and performance snapshots."
+               Foreground="#A8C4DE"
+               TextWrapping="Wrap"
+               Margin="0,6,0,0" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="12" />
+        <ColumnDefinition Width="420" />
+      </Grid.ColumnDefinitions>
+
+      <RichTextBox x:Name="Editor"
+                   Grid.Column="0"
+                   Background="#0B1220"
+                   BorderBrush="#3E6287"
+                   BorderThickness="1"
+                   Padding="10"
+                   TextWrapping="Wrap" />
+
+      <Border Grid.Column="2"
+              Background="#121E2A"
+              BorderBrush="#355473"
+              BorderThickness="1"
+              Padding="10">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel>
+            <Label Text="Actions" Foreground="#E7F2FF" />
+
+            <Grid Margin="0,8,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Button Grid.Column="0" Text="Seed Document" Click="OnSeedDocumentClick" />
+              <Button Grid.Column="2" Text="Select All" Click="OnSelectAllClick" />
+            </Grid>
+
+            <Grid Margin="0,8,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Button Grid.Column="0" Text="Indent List" Click="OnIndentClick" />
+              <Button Grid.Column="2" Text="Outdent List" Click="OnOutdentClick" />
+            </Grid>
+
+            <Grid Margin="0,8,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Button Grid.Column="0" Text="Insert Table" Click="OnInsertTableClick" />
+              <Button Grid.Column="2" Text="Split Cell" Click="OnSplitCellClick" />
+            </Grid>
+
+            <Grid Margin="0,8,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Button Grid.Column="0" Text="Merge Cells" Click="OnMergeCellsClick" />
+              <Button Grid.Column="2" Text="Toggle Bold" Click="OnToggleBoldClick" />
+            </Grid>
+
+            <Grid Margin="0,8,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Button Grid.Column="0" Text="Copy" Click="OnCopyClick" />
+              <Button Grid.Column="2" Text="Paste" Click="OnPasteClick" />
+            </Grid>
+
+            <Grid Margin="0,8,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Button Grid.Column="0" Text="Undo" Click="OnUndoClick" />
+              <Button Grid.Column="2" Text="Redo" Click="OnRedoClick" />
+            </Grid>
+
+            <Grid Margin="0,8,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Button Grid.Column="0" Text="Stress Edit x200" Click="OnStressEditClick" />
+              <Button Grid.Column="2" Text="Refresh Snapshot" Click="OnRefreshSnapshotClick" />
+            </Grid>
+
+            <CheckBox x:Name="ReadOnlyCheck"
+                      Margin="0,10,0,0"
+                      Text="Read-only"
+                      Checked="OnReadOnlyChanged"
+                      Unchecked="OnReadOnlyChanged" />
+
+            <Border Margin="0,10,0,0"
+                    Background="#0D1822"
+                    BorderBrush="#33516C"
+                    BorderThickness="1"
+                    Padding="8">
+              <Label x:Name="SnapshotLabel"
+                     Foreground="#D1E8FF"
+                     TextWrapping="Wrap"
+                     Text="Snapshot will appear here." />
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2"
+            Margin="0,10,0,0"
+            Background="#111D29"
+            BorderBrush="#33516C"
+            BorderThickness="1"
+            Padding="8">
+      <StackPanel>
+        <Label Text="Event Log" Foreground="#E7F2FF" />
+        <ListBox x:Name="LogList"
+                 Margin="0,6,0,0"
+                 Height="150"
+                 Background="#0A121B"
+                 BorderBrush="#2E4D68"
+                 BorderThickness="1" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

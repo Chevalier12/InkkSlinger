@@ -29,6 +29,10 @@
 - [x] Binding parity gap #5 shipped: `PriorityBinding`, `BindingGroup` (inherited + named group resolution), and `UpdateSourceExceptionFilter` across `Binding`/`MultiBinding` with XAML + schema + regression coverage.
 - [x] Binding regression safety-net expansion: added coverage for `BindingGroup` atomic commit/rollback, `PriorityBinding` edge cases, `UpdateSourceExceptionFilter` semantics, parser negative cases, and mode-trigger-validation matrix combinations.
 - [x] Frame-latency diagnostics shipped (`INKKSLINGER_FRAME_LATENCY_LOGS`): alert-only 60 FPS thresholds, `event->next-draw` latency focus, miss-rate/dominant-phase attribution, and coalescing-aware sampling for move/scroll.
+- [x] Rich document XAML strict-validation pass: explicit container child handling, invalid-structure enforcement, attribute validation (`TableCell` spans, `Hyperlink.NavigateUri`, `LineBreak` metadata-only), and rich parser regression coverage.
+- [x] Rich clipboard fidelity pass: range-based fragment serialization/deserialization, rich-fragment-first paste with plain-text fallback on invalid payload, and regression coverage for copy/cut/paste semantics.
+- [x] Rich advanced-structure pass: list indent/outdent transforms, table insert/split/merge and cell navigation behavior (`Tab`/`Shift+Tab`, boundary delete handling), hyperlink activation routing, and inline/block UI-container boundary support in rich layout/serialization.
+- [x] Rich diagnostics/perf hardening pass: `RichTextBoxPerformanceSnapshot` metrics (layout cache + p95/p99 build timing, render/selection timing, undo depth/op counts, clipboard serde timing), env-var-driven rich diagnostics logs, and regression tests for bounded local-edit invalidation/allocation behavior.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
@@ -79,7 +83,7 @@ plain panel hosts (for example `StackPanel`) use transform-based scrolling by de
 Storyboards, timelines, keyframes, easing, trigger-driven animations.
 - [x] Binding parity gap #5:
 `PriorityBinding`, `BindingGroup`, `UpdateSourceExceptionFilter`, plus dedicated demo surface (`--binding-parity-gap5-demo`).
-- [ ] Rich text and document layer:
+- [x] Rich text and document layer:
 `RichTextBox` and flow-document style content stack.
 - [ ] Advanced layout/adornment layer depth:
 Adorner composition behaviors and layout nuances beyond the current primitives.
@@ -137,7 +141,7 @@ Popup/menu/window interaction parity and additional edge behavior validation.
 - [x] RadioButton
 - [x] RepeatButton
 - [x] ResizeGrip
-- [ ] RichTextBox
+- [x] RichTextBox
 - [x] ScrollBar
 - [x] ScrollViewer
 - [x] Separator

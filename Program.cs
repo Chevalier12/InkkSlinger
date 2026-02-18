@@ -36,9 +36,11 @@ var isBindingParityGap5Demo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--binding-parity-gap5-demo", global::System.StringComparison.OrdinalIgnoreCase));
 var isRichTextBoxDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--richtextbox-demo", global::System.StringComparison.OrdinalIgnoreCase));
-if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo && !isPasswordBoxDemo && !isMenuParityDemo && !isBindingParityGap5Demo && !isRichTextBoxDemo)
+var isRichTextDiagnosticsLabDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--richtext-diagnostics-lab", global::System.StringComparison.OrdinalIgnoreCase));
+if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo && !isPasswordBoxDemo && !isMenuParityDemo && !isBindingParityGap5Demo && !isRichTextBoxDemo && !isRichTextDiagnosticsLabDemo)
 {
-    isBindingParityGap5Demo = true;
+    isRichTextDiagnosticsLabDemo = true;
 }
 using var game = new InkkSlinger.Game1(
     isWindowDemo,
@@ -57,5 +59,6 @@ using var game = new InkkSlinger.Game1(
     isPasswordBoxDemo,
     isMenuParityDemo,
     isBindingParityGap5Demo,
-    isRichTextBoxDemo);
+    isRichTextBoxDemo,
+    isRichTextDiagnosticsLabDemo);
 game.Run();

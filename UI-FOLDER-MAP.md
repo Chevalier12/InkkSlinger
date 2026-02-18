@@ -107,7 +107,9 @@ UI/
       DataGridRow.cs
       DataGridRowHeader.cs
     Inputs/
+      ITextInputControl.cs
       PasswordBox.cs
+      RichTextBox.cs
       Slider.cs
       TextBox.cs
     Items/
@@ -173,6 +175,7 @@ UI/
       Dispatcher.cs
   Diagnostics/
     ListBoxSelectCPUDiagnostics.cs
+    RichTextBoxDiagnostics.cs
     ScrollWheelRoutingDiagnostics.cs
     TextBoxFrameworkDiagnostics.cs
     UiFrameworkFileLoadDiagnostics.cs
@@ -185,6 +188,7 @@ UI/
   Events/
     Args/
       FocusChangedRoutedEventArgs.cs
+      HyperlinkNavigateRoutedEventArgs.cs
       KeyRoutedEventArgs.cs
       MouseRoutedEventArgs.cs
       MouseWheelRoutedEventArgs.cs

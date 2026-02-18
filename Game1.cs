@@ -28,6 +28,7 @@ public class Game1 : Game
     private readonly bool _isMenuParityDemo;
     private readonly bool _isBindingParityGap5Demo;
     private readonly bool _isRichTextBoxDemo;
+    private readonly bool _isRichTextDiagnosticsLabDemo;
     private SpriteBatch _spriteBatch = null!;
     private RenderTarget2D? _uiCompositeTarget;
     private Panel _root = null!;
@@ -50,6 +51,7 @@ public class Game1 : Game
     private MenuParityLabView? _menuParityLabView;
     private BindingParityGap5DemoView? _bindingParityGap5DemoView;
     private RichTextBoxDemoView? _richTextBoxDemoView;
+    private RichTextDiagnosticsLabView? _richTextDiagnosticsLabView;
     private string _baseWindowTitle = "InkkSlinger";
     private int _lastViewportWidth;
     private int _lastViewportHeight;
@@ -72,7 +74,8 @@ public class Game1 : Game
         bool isPasswordBoxDemo = false,
         bool isMenuParityDemo = false,
         bool isBindingParityGap5Demo = false,
-        bool isRichTextBoxDemo = false)
+        bool isRichTextBoxDemo = false,
+        bool isRichTextDiagnosticsLabDemo = false)
     {
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
@@ -93,6 +96,7 @@ public class Game1 : Game
         _isMenuParityDemo = isMenuParityDemo;
         _isBindingParityGap5Demo = isBindingParityGap5Demo;
         _isRichTextBoxDemo = isRichTextBoxDemo;
+        _isRichTextDiagnosticsLabDemo = isRichTextDiagnosticsLabDemo;
         Content.RootDirectory = "Content";
         _window.IsMouseVisible = true;
         _window.AllowUserResizing = true;
@@ -193,6 +197,11 @@ public class Game1 : Game
             _richTextBoxDemoView = new RichTextBoxDemoView();
             _root.AddChild(_richTextBoxDemoView);
         }
+        else if (_isRichTextDiagnosticsLabDemo)
+        {
+            _richTextDiagnosticsLabView = new RichTextDiagnosticsLabView();
+            _root.AddChild(_richTextDiagnosticsLabView);
+        }
         else
         {
             _mainMenuView = new MainMenuView();
@@ -239,6 +248,7 @@ public class Game1 : Game
             _menuParityLabView?.SetFont(font);
             _bindingParityGap5DemoView?.SetFont(font);
             _richTextBoxDemoView?.SetFont(font);
+            _richTextDiagnosticsLabView?.SetFont(font);
         }
         catch
         {
@@ -448,6 +458,13 @@ public class Game1 : Game
             return;
         }
 
+        if (_isRichTextDiagnosticsLabDemo)
+        {
+            _baseWindowTitle = $"InkkSlinger RichText Diagnostics Lab | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
         _baseWindowTitle = $"InkkSlinger | {size.X}x{size.Y}";
         ApplyWindowTitle();
     }
@@ -565,7 +582,8 @@ public class Game1 : Game
             _isPasswordBoxDemo ||
             _isMenuParityDemo ||
             _isBindingParityGap5Demo ||
-            _isRichTextBoxDemo)
+            _isRichTextBoxDemo ||
+            _isRichTextDiagnosticsLabDemo)
         {
             return 1024;
         }
@@ -615,7 +633,8 @@ public class Game1 : Game
             _isPasswordBoxDemo ||
             _isMenuParityDemo ||
             _isBindingParityGap5Demo ||
-            _isRichTextBoxDemo)
+            _isRichTextBoxDemo ||
+            _isRichTextDiagnosticsLabDemo)
         {
             return 720;
         }
