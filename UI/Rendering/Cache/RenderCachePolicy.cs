@@ -62,6 +62,11 @@ internal sealed class DefaultRenderCachePolicy : IRenderCachePolicy
             return passwordBox.IsRenderCacheStable;
         }
 
+        if (visual is RichTextBox richTextBox)
+        {
+            return richTextBox.IsRenderCacheStable;
+        }
+
         if (visual is TextBlock)
         {
             return true;

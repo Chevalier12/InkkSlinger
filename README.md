@@ -232,6 +232,7 @@ Primary validation machine for current development/testing:
 | PasswordBox demo | `dotnet run --project InkkSlinger.csproj -- --passwordbox-demo` |
 | Menu parity lab | `dotnet run --project InkkSlinger.csproj -- --menu-parity-demo` |
 | Binding parity gap #5 demo | `dotnet run --project InkkSlinger.csproj -- --binding-parity-gap5-demo` |
+| RichTextBox demo | `dotnet run --project InkkSlinger.csproj -- --richtextbox-demo` |
 
 Current default launch surface is the binding parity gap #5 demo when no explicit mode flag is provided.
 

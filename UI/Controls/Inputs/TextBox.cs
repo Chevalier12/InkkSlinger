@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
-public class TextBox : Control, IRenderDirtyBoundsHintProvider
+public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputControl
 {
     private static readonly Lazy<Style> DefaultTextBoxStyle = new(BuildDefaultTextBoxStyle);
 
@@ -3649,7 +3649,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         private readonly record struct Segment(string Source, int Start, int Length);
     }
 
-    internal void SetMouseOverFromInput(bool isMouseOver)
+    public void SetMouseOverFromInput(bool isMouseOver)
     {
         if (IsMouseOver == isMouseOver)
         {
@@ -3659,7 +3659,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         IsMouseOver = isMouseOver;
     }
 
-    internal void SetFocusedFromInput(bool isFocused)
+    public void SetFocusedFromInput(bool isFocused)
     {
         if (IsFocused == isFocused)
         {
@@ -3679,7 +3679,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         InvalidateVisual();
     }
 
-    internal bool HandleTextInputFromInput(char character)
+    public bool HandleTextInputFromInput(char character)
     {
         if (!IsEnabled || !IsFocused || IsReadOnly)
         {
@@ -3721,7 +3721,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         return true;
     }
 
-    internal bool HandleKeyDownFromInput(Keys key, ModifierKeys modifiers)
+    public bool HandleKeyDownFromInput(Keys key, ModifierKeys modifiers)
     {
         if (!IsEnabled || !IsFocused)
         {
@@ -3825,7 +3825,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         return changed || moved;
     }
 
-    internal bool HandlePointerDownFromInput(Vector2 pointerPosition, bool extendSelection)
+    public bool HandlePointerDownFromInput(Vector2 pointerPosition, bool extendSelection)
     {
         if (!IsEnabled)
         {
@@ -3843,7 +3843,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         return true;
     }
 
-    internal bool HandlePointerMoveFromInput(Vector2 pointerPosition)
+    public bool HandlePointerMoveFromInput(Vector2 pointerPosition)
     {
         if (!IsEnabled || !IsFocused || !_isSelectingWithPointer)
         {
@@ -3860,7 +3860,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         return true;
     }
 
-    internal bool HandlePointerUpFromInput()
+    public bool HandlePointerUpFromInput()
     {
         if (!_isSelectingWithPointer)
         {
@@ -3871,7 +3871,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         return true;
     }
 
-    internal bool HandleMouseWheelFromInput(int delta)
+    public bool HandleMouseWheelFromInput(int delta)
     {
         if (!IsEnabled || delta == 0)
         {

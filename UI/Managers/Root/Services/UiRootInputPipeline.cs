@@ -304,13 +304,9 @@ public sealed partial class UiRoot
             return;
         }
 
-        if (_inputState.HoveredElement is TextBox oldTextBox)
+        if (_inputState.HoveredElement is ITextInputControl oldTextInput)
         {
-            oldTextBox.SetMouseOverFromInput(false);
-        }
-        else if (_inputState.HoveredElement is PasswordBox oldPasswordBox)
-        {
-            oldPasswordBox.SetMouseOverFromInput(false);
+            oldTextInput.SetMouseOverFromInput(false);
         }
 
         if (_inputState.HoveredElement is Button oldButton)
@@ -321,13 +317,9 @@ public sealed partial class UiRoot
         _inputState.HoveredElement = hovered;
         RefreshCachedWheelTargets(hovered);
         RefreshCachedClickTarget(hovered);
-        if (hovered is TextBox newTextBox)
+        if (hovered is ITextInputControl newTextInput)
         {
-            newTextBox.SetMouseOverFromInput(true);
-        }
-        else if (hovered is PasswordBox newPasswordBox)
-        {
-            newPasswordBox.SetMouseOverFromInput(true);
+            newTextInput.SetMouseOverFromInput(true);
         }
 
         if (hovered is Button newButton)
@@ -349,13 +341,9 @@ public sealed partial class UiRoot
         routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseMoveEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseMoveEvent, pointerPosition, MouseButton.Left));
         routedTarget.RaiseRoutedEventInternal(UIElement.MouseMoveEvent, new MouseRoutedEventArgs(UIElement.MouseMoveEvent, pointerPosition, MouseButton.Left));
 
-        if (_inputState.CapturedPointerElement is TextBox dragTextBox)
+        if (_inputState.CapturedPointerElement is ITextInputControl dragTextInput)
         {
-            dragTextBox.HandlePointerMoveFromInput(pointerPosition);
-        }
-        else if (_inputState.CapturedPointerElement is PasswordBox dragPasswordBox)
-        {
-            dragPasswordBox.HandlePointerMoveFromInput(pointerPosition);
+            dragTextInput.HandlePointerMoveFromInput(pointerPosition);
         }
         else if (_inputState.CapturedPointerElement is ScrollViewer dragScrollViewer)
         {
@@ -412,14 +400,9 @@ public sealed partial class UiRoot
             pressedButton.SetPressedFromInput(true);
             CapturePointer(target);
         }
-        else if (target is TextBox textBox)
+        else if (target is ITextInputControl textInput)
         {
-            textBox.HandlePointerDownFromInput(pointerPosition, extendSelection: (_inputState.CurrentModifiers & ModifierKeys.Shift) != 0);
-            CapturePointer(target);
-        }
-        else if (target is PasswordBox passwordBox)
-        {
-            passwordBox.HandlePointerDownFromInput(pointerPosition, extendSelection: (_inputState.CurrentModifiers & ModifierKeys.Shift) != 0);
+            textInput.HandlePointerDownFromInput(pointerPosition, extendSelection: (_inputState.CurrentModifiers & ModifierKeys.Shift) != 0);
             CapturePointer(target);
         }
         else if (target is ScrollBar scrollBar &&
@@ -460,13 +443,9 @@ public sealed partial class UiRoot
                 pressedButton.InvokeFromInput();
             }
         }
-        else if (_inputState.CapturedPointerElement is TextBox textBox)
+        else if (_inputState.CapturedPointerElement is ITextInputControl textInput)
         {
-            textBox.HandlePointerUpFromInput();
-        }
-        else if (_inputState.CapturedPointerElement is PasswordBox passwordBox)
-        {
-            passwordBox.HandlePointerUpFromInput();
+            textInput.HandlePointerUpFromInput();
         }
         else if (_inputState.CapturedPointerElement is ScrollViewer scrollViewer)
         {
@@ -509,8 +488,7 @@ public sealed partial class UiRoot
         }
 
         var hasCachedWheelTarget = _cachedWheelTextInputTarget != null || _cachedWheelScrollViewerTarget != null;
-        var hasWheelCapableAncestor = TryFindAncestor<TextBox>(resolvedTarget, out _) ||
-                                      TryFindAncestor<PasswordBox>(resolvedTarget, out _) ||
+        var hasWheelCapableAncestor = TryFindWheelTextInputAncestor(resolvedTarget, out _) ||
                                       TryFindAncestor<ScrollViewer>(resolvedTarget, out _);
         var pointerInsideResolvedTarget = PointerLikelyInsideElement(resolvedTarget, pointerPosition);
         var pointerInsideCachedTarget =
@@ -696,7 +674,7 @@ public sealed partial class UiRoot
         ref int bestDepth,
         ref UIElement? bestTarget)
     {
-        if (element is TextBox or PasswordBox or ScrollViewer)
+        if (element is ITextInputControl or ScrollViewer)
         {
             if (element.HitTest(pointerPosition) && depth >= bestDepth)
             {
@@ -801,7 +779,7 @@ public sealed partial class UiRoot
 
     private static bool IsClickCapableElement(UIElement element)
     {
-        if (element is Button or TextBox or PasswordBox or ScrollViewer or ScrollBar)
+        if (element is Button or ITextInputControl or ScrollViewer or ScrollBar)
         {
             return true;
         }
@@ -868,11 +846,8 @@ public sealed partial class UiRoot
             return;
         }
 
-        if (_inputState.FocusedElement is TextBox textBox && textBox.HandleKeyDownFromInput(key, modifiers))
-        {
-            return;
-        }
-        if (_inputState.FocusedElement is PasswordBox passwordBox && passwordBox.HandleKeyDownFromInput(key, modifiers))
+        if (_inputState.FocusedElement is ITextInputControl focusedTextInput &&
+            focusedTextInput.HandleKeyDownFromInput(key, modifiers))
         {
             return;
         }
@@ -914,13 +889,9 @@ public sealed partial class UiRoot
         focused.RaiseRoutedEventInternal(UIElement.PreviewTextInputEvent, new TextInputRoutedEventArgs(UIElement.PreviewTextInputEvent, character));
         focused.RaiseRoutedEventInternal(UIElement.TextInputEvent, new TextInputRoutedEventArgs(UIElement.TextInputEvent, character));
 
-        if (focused is TextBox textBox)
+        if (focused is ITextInputControl textInput)
         {
-            _ = textBox.HandleTextInputFromInput(character);
-        }
-        else if (focused is PasswordBox passwordBox)
-        {
-            _ = passwordBox.HandleTextInputFromInput(character);
+            _ = textInput.HandleTextInputFromInput(character);
         }
     }
 
@@ -935,28 +906,16 @@ public sealed partial class UiRoot
         _inputState.FocusedElement = element;
         FocusManager.SetFocus(element);
 
-        if (old is TextBox oldTextBox)
+        if (old is ITextInputControl oldTextInput)
         {
-            oldTextBox.SetFocusedFromInput(false);
-            old.RaiseRoutedEventInternal(UIElement.LostFocusEvent, new FocusChangedRoutedEventArgs(UIElement.LostFocusEvent, old, element));
-            _lastInputRoutedEventCount++;
-        }
-        else if (old is PasswordBox oldPasswordBox)
-        {
-            oldPasswordBox.SetFocusedFromInput(false);
+            oldTextInput.SetFocusedFromInput(false);
             old.RaiseRoutedEventInternal(UIElement.LostFocusEvent, new FocusChangedRoutedEventArgs(UIElement.LostFocusEvent, old, element));
             _lastInputRoutedEventCount++;
         }
 
-        if (element is TextBox newTextBox)
+        if (element is ITextInputControl newTextInput)
         {
-            newTextBox.SetFocusedFromInput(true);
-            element.RaiseRoutedEventInternal(UIElement.GotFocusEvent, new FocusChangedRoutedEventArgs(UIElement.GotFocusEvent, old, element));
-            _lastInputRoutedEventCount++;
-        }
-        else if (element is PasswordBox newPasswordBox)
-        {
-            newPasswordBox.SetFocusedFromInput(true);
+            newTextInput.SetFocusedFromInput(true);
             element.RaiseRoutedEventInternal(UIElement.GotFocusEvent, new FocusChangedRoutedEventArgs(UIElement.GotFocusEvent, old, element));
             _lastInputRoutedEventCount++;
         }
@@ -1037,24 +996,20 @@ public sealed partial class UiRoot
     {
         return element switch
         {
-            TextBox textBox => textBox.HandleMouseWheelFromInput(delta),
-            PasswordBox passwordBox => passwordBox.HandleMouseWheelFromInput(delta),
+            ITextInputControl textInput => textInput.HandleMouseWheelFromInput(delta),
             _ => false
         };
     }
 
     private static bool TryFindWheelTextInputAncestor(UIElement start, out UIElement? textInput)
     {
-        if (TryFindAncestor<TextBox>(start, out var textBox) && textBox != null)
+        for (var current = start; current != null; current = current.VisualParent ?? current.LogicalParent)
         {
-            textInput = textBox;
-            return true;
-        }
-
-        if (TryFindAncestor<PasswordBox>(start, out var passwordBox) && passwordBox != null)
-        {
-            textInput = passwordBox;
-            return true;
+            if (current is ITextInputControl)
+            {
+                textInput = current;
+                return true;
+            }
         }
 
         textInput = null;

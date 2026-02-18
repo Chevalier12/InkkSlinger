@@ -62,6 +62,26 @@
         <xs:element ref="ComboBoxItem" />
         <xs:element ref="TextBox" />
         <xs:element ref="PasswordBox" />
+        <xs:element ref="RichTextBox" />
+        <xs:element ref="RichTextBox.Document" />
+        <xs:element ref="FlowDocument" />
+        <xs:element ref="Paragraph" />
+        <xs:element ref="Run" />
+        <xs:element ref="Span" />
+        <xs:element ref="Bold" />
+        <xs:element ref="Italic" />
+        <xs:element ref="Underline" />
+        <xs:element ref="LineBreak" />
+        <xs:element ref="Hyperlink" />
+        <xs:element ref="Section" />
+        <xs:element ref="List" />
+        <xs:element ref="ListItem" />
+        <xs:element ref="Table" />
+        <xs:element ref="TableRowGroup" />
+        <xs:element ref="TableRow" />
+        <xs:element ref="TableCell" />
+        <xs:element ref="InlineUIContainer" />
+        <xs:element ref="BlockUIContainer" />
         <xs:element ref="HeaderedContentControl" />
         <xs:element ref="HeaderedItemsControl" />
         <xs:element ref="ContentPresenter" />
@@ -1238,6 +1258,255 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="richTextBoxType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="TextWrapping" type="textWrappingType" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="Margin" type="thicknessType" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+        <xs:attribute name="Padding" type="thicknessType" />
+        <xs:attribute name="IsReadOnly" type="xs:boolean" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="flowDocumentType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="FlowDocument.Blocks" />
+        <xs:element ref="Paragraph" />
+        <xs:element ref="Section" />
+        <xs:element ref="List" />
+        <xs:element ref="Table" />
+        <xs:element ref="BlockUIContainer" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="flowDocumentBlocksType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Paragraph" />
+        <xs:element ref="Section" />
+        <xs:element ref="List" />
+        <xs:element ref="Table" />
+        <xs:element ref="BlockUIContainer" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="paragraphType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Paragraph.Inlines" />
+        <xs:element ref="Run" />
+        <xs:element ref="Span" />
+        <xs:element ref="Bold" />
+        <xs:element ref="Italic" />
+        <xs:element ref="Underline" />
+        <xs:element ref="Hyperlink" />
+        <xs:element ref="LineBreak" />
+        <xs:element ref="InlineUIContainer" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="inlinesContainerType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Run" />
+        <xs:element ref="Span" />
+        <xs:element ref="Bold" />
+        <xs:element ref="Italic" />
+        <xs:element ref="Underline" />
+        <xs:element ref="Hyperlink" />
+        <xs:element ref="LineBreak" />
+        <xs:element ref="InlineUIContainer" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="runType">
+    <xs:attribute name="Text" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="spanType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Span.Inlines" />
+        <xs:element ref="Run" />
+        <xs:element ref="Span" />
+        <xs:element ref="Bold" />
+        <xs:element ref="Italic" />
+        <xs:element ref="Underline" />
+        <xs:element ref="Hyperlink" />
+        <xs:element ref="LineBreak" />
+        <xs:element ref="InlineUIContainer" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="hyperlinkType">
+    <xs:complexContent>
+      <xs:extension base="spanType">
+        <xs:attribute name="NavigateUri" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="lineBreakType">
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="sectionType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Section.Blocks" />
+        <xs:element ref="Paragraph" />
+        <xs:element ref="Section" />
+        <xs:element ref="List" />
+        <xs:element ref="Table" />
+        <xs:element ref="BlockUIContainer" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="blocksContainerType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Paragraph" />
+        <xs:element ref="Section" />
+        <xs:element ref="List" />
+        <xs:element ref="Table" />
+        <xs:element ref="BlockUIContainer" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="listType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="List.Items" />
+        <xs:element ref="ListItem" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="listItemsContainerType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="ListItem" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="listItemType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="ListItem.Blocks" />
+        <xs:element ref="Paragraph" />
+        <xs:element ref="Section" />
+        <xs:element ref="List" />
+        <xs:element ref="Table" />
+        <xs:element ref="BlockUIContainer" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="tableType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="Table.RowGroups" />
+        <xs:element ref="TableRowGroup" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="tableRowGroupsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="TableRowGroup" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="tableRowGroupType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="TableRowGroup.Rows" />
+        <xs:element ref="TableRow" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="tableRowsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="TableRow" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="tableRowType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="TableRow.Cells" />
+        <xs:element ref="TableCell" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="tableCellsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="TableCell" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="tableCellType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="TableCell.Blocks" />
+        <xs:element ref="Paragraph" />
+        <xs:element ref="Section" />
+        <xs:element ref="List" />
+        <xs:element ref="Table" />
+        <xs:element ref="BlockUIContainer" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="RowSpan" type="xs:int" />
+    <xs:attribute name="ColumnSpan" type="xs:int" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="inlineUiContainerType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:any processContents="lax" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="blockUiContainerType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:any processContents="lax" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
   <xs:complexType name="contentPresenterType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
@@ -1677,6 +1946,36 @@
   <xs:element name="ComboBox" type="comboBoxType" />
   <xs:element name="TextBox" type="textBoxType" />
   <xs:element name="PasswordBox" type="passwordBoxType" />
+  <xs:element name="RichTextBox" type="richTextBoxType" />
+  <xs:element name="RichTextBox.Document" type="flowDocumentType" />
+  <xs:element name="FlowDocument" type="flowDocumentType" />
+  <xs:element name="FlowDocument.Blocks" type="flowDocumentBlocksType" />
+  <xs:element name="Paragraph" type="paragraphType" />
+  <xs:element name="Paragraph.Inlines" type="inlinesContainerType" />
+  <xs:element name="Run" type="runType" />
+  <xs:element name="Span" type="spanType" />
+  <xs:element name="Span.Inlines" type="inlinesContainerType" />
+  <xs:element name="Bold" type="spanType" />
+  <xs:element name="Italic" type="spanType" />
+  <xs:element name="Underline" type="spanType" />
+  <xs:element name="LineBreak" type="lineBreakType" />
+  <xs:element name="Hyperlink" type="hyperlinkType" />
+  <xs:element name="InlineUIContainer" type="inlineUiContainerType" />
+  <xs:element name="BlockUIContainer" type="blockUiContainerType" />
+  <xs:element name="Section" type="sectionType" />
+  <xs:element name="Section.Blocks" type="blocksContainerType" />
+  <xs:element name="List" type="listType" />
+  <xs:element name="List.Items" type="listItemsContainerType" />
+  <xs:element name="ListItem" type="listItemType" />
+  <xs:element name="ListItem.Blocks" type="blocksContainerType" />
+  <xs:element name="Table" type="tableType" />
+  <xs:element name="Table.RowGroups" type="tableRowGroupsType" />
+  <xs:element name="TableRowGroup" type="tableRowGroupType" />
+  <xs:element name="TableRowGroup.Rows" type="tableRowsType" />
+  <xs:element name="TableRow" type="tableRowType" />
+  <xs:element name="TableRow.Cells" type="tableCellsType" />
+  <xs:element name="TableCell" type="tableCellType" />
+  <xs:element name="TableCell.Blocks" type="blocksContainerType" />
   <xs:element name="HeaderedContentControl" type="headeredContentControlType" />
   <xs:element name="HeaderedItemsControl" type="headeredItemsControlType" />
   <xs:element name="ContentPresenter" type="contentPresenterType" />

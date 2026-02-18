@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0F1723"
+             BorderBrush="#2E4A66"
+             BorderThickness="1"
+             Padding="14">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Label Grid.Row="0"
+           Text="RichTextBox Demo (FlowDocument + Undo/Redo)"
+           Foreground="#E7F2FF"
+           Margin="0,0,0,10" />
+
+    <RichTextBox x:Name="Editor"
+                 Grid.Row="1"
+                 Height="520"
+                 TextWrapping="Wrap"
+                 Background="#0B1220"
+                 BorderBrush="#3E6287"
+                 BorderThickness="1"
+                 Padding="10">
+      <RichTextBox.Document>
+        <FlowDocument>
+          <FlowDocument.Blocks>
+            <Paragraph>
+              <Paragraph.Inlines>
+                <Run Text="Welcome to " />
+                <Bold>
+                  <Span.Inlines>
+                    <Run Text="InkkSlinger RichTextBox" />
+                  </Span.Inlines>
+                </Bold>
+                <Run Text=". Try typing, selection, copy/paste and Ctrl+Z/Ctrl+Y." />
+              </Paragraph.Inlines>
+            </Paragraph>
+          </FlowDocument.Blocks>
+        </FlowDocument>
+      </RichTextBox.Document>
+    </RichTextBox>
+  </Grid>
+</UserControl>
