@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0B1424"
+             BorderBrush="#2A4768"
+             BorderThickness="1"
+             Padding="12">
+  <UserControl.Resources>
+    <RoutedCommand x:Key="OpenConsoleCommand" />
+    <RoutedCommand x:Key="OpenClassLibCommand" />
+    <RoutedCommand x:Key="OpenSettingsCommand" />
+    <RoutedCommand x:Key="RunCommand" />
+    <RoutedCommand x:Key="AboutCommand" />
+
+    <Style TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#D6EAFE" />
+      </Style.Setters>
+    </Style>
+
+    <Style TargetType="TextBox">
+      <Style.Setters>
+        <Setter Property="Background" Value="#0A1829" />
+        <Setter Property="BorderBrush" Value="#325678" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8" />
+      </Style.Setters>
+    </Style>
+  </UserControl.Resources>
+
+  <UIElement.InputBindings>
+    <KeyBinding Key="N" Modifiers="Control" Command="{StaticResource OpenConsoleCommand}" />
+    <KeyBinding Key="R" Modifiers="Control" Command="{StaticResource RunCommand}" />
+    <KeyBinding Key="F1" Command="{StaticResource AboutCommand}" />
+  </UIElement.InputBindings>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Menu x:Name="MainMenu" Grid.Row="0" Margin="0,0,0,8" />
+
+    <Border Grid.Row="1"
+            Background="#13243A"
+            BorderBrush="#2E4F70"
+            BorderThickness="1"
+            Padding="8"
+            Margin="0,0,0,8">
+      <Label Text="Checklist: F10 activate menu bar | Alt+F mnemonic | Left/Right across top menus | Up/Down sibling navigation | Right opens nested submenu | Left returns to parent | Enter/Space invoke leaf | Esc closes and restores focus" TextWrapping="Wrap" />
+    </Border>
+
+    <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0"
+              Background="#101F33"
+              BorderBrush="#2E4F70"
+              BorderThickness="1"
+              Padding="10">
+        <StackPanel>
+          <Label Text="Editor Focus Zone" Foreground="#ECF6FF" />
+          <TextBox x:Name="EditorTextBox" Height="140" Text="Click here, then use F10/Alt+F and Esc to verify focus restore." />
+
+          <Label Text="Status" Foreground="#ECF6FF" Margin="0,12,0,6" />
+          <Label x:Name="StatusLabel" Text="Ready." TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+
+      <Separator Grid.Column="1" Orientation="Vertical" Foreground="#2A4762" />
+
+      <Border Grid.Column="2"
+              Background="#101F33"
+              BorderBrush="#2E4F70"
+              BorderThickness="1"
+              Padding="10">
+        <StackPanel>
+          <Label Text="Side Focus Zone" Foreground="#ECF6FF" />
+          <TextBox x:Name="SideTextBox" Height="90" Text="Switch focus here, then open menus and close with Esc." />
+
+          <Label Text="Log" Foreground="#ECF6FF" Margin="0,12,0,6" />
+          <ListBox x:Name="LogList"
+                   Height="280"
+                   Background="#081221"
+                   BorderBrush="#2E4F70"
+                   BorderThickness="1" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="3"
+            Background="#101D31"
+            BorderBrush="#2E4F70"
+            BorderThickness="1"
+            Padding="8"
+            Margin="0,8,0,0">
+      <Label Text="Tip: top-level mnemonic headers intentionally include escaped markers (for example _View and __Literal)." TextWrapping="Wrap" />
+    </Border>
+  </Grid>
+</UserControl>

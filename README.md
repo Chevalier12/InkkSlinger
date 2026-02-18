@@ -65,7 +65,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Binding core | `Path`, `Source`, `ElementName`, `RelativeSource`, modes and update triggers | `UI/Binding/Core/Binding.cs`, `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/BindingOperations.cs`, `UI/Binding/Types/BindingEnums.cs` | Implemented |
 | Binding lifecycle robustness | Rebind behavior on source/data-context/tree changes | `TODO.md` (`Completed Milestones`: binding lifecycle robustness) | Implemented |
 | Routed commanding core | `RoutedCommand`, command bindings, can-execute/execute pipeline | `UI/Commanding/RoutedCommand.cs`, `UI/Commanding/CommandManager.cs`, `UI/Commanding/CommandBinding.cs`, `InkkSlinger.Tests/CommandingTests.cs` | Implemented (tested) |
-| Gesture-to-command bridge | Declarative `InputBindings`/`KeyBinding` keyboard chord routing into commands | `UI/Input/Core/InputGestureService.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Controls/Base/UIElement.cs`, `Views/CommandingMenuDemoView.xml.cs` | Implemented |
+| Gesture-to-command bridge | Declarative `InputBindings`/`KeyBinding` keyboard chord routing into commands, including menu-mode key routing integration | `UI/Input/Core/InputGestureService.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Controls/Base/UIElement.cs`, `UI/Managers/Root/Services/UiRootInputPipeline.cs`, `InkkSlinger.Tests/MenuParityInputTests.cs` | Implemented |
 | XAML/XML loader | Runtime object graph construction, attached properties, handlers, bindings, templates, triggers | `UI/Xaml/Core/XamlLoader.cs` | Implemented |
 | XAML diagnostics | Element/attribute error reporting with contextual diagnostics | `UI/Xaml/Core/XamlLoader.cs`, `TODO.md` (`Completed Milestones`: better diagnostics) | Implemented |
 | XML schema/tooling | Authoring schemas for framework + `x:` namespace support | `Schemas/InkkSlinger.UI.xsd`, `Schemas/Xaml2006.xsd`, `TODO.md` (`Completed Milestones`) | Implemented |
@@ -85,7 +85,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 15 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (15 files, no skipped tests found) | Implemented |
+| Regression safety net | 22 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (22 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -120,7 +120,6 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `Page` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `RichTextBox` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
-| Parity track | Menu + commanding ecosystem depth (keyboard/menu edge behavior) | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
 | Parity track | Rich text + document layer depth (flow-document model) | `TODO.md` (`## WPF Parity Gaps`) | Not implemented |
 | Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
 | Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
@@ -159,7 +158,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 ## UI Architecture Map
 
-The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-16):
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-18):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers
@@ -231,8 +230,9 @@ Primary validation machine for current development/testing:
 | Paint shell demo | `dotnet run --project InkkSlinger.csproj -- --paint-shell` |
 | Commanding demo | `dotnet run --project InkkSlinger.csproj -- --commanding-demo` |
 | PasswordBox demo | `dotnet run --project InkkSlinger.csproj -- --passwordbox-demo` |
+| Menu parity lab | `dotnet run --project InkkSlinger.csproj -- --menu-parity-demo` |
 
-Current default launch surface is the password-box demo when no explicit mode flag is provided.
+Current default launch surface is the menu parity lab when no explicit mode flag is provided.
 
 ## Environment Variables
 

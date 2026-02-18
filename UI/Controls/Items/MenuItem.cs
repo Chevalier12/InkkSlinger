@@ -211,7 +211,7 @@ public class MenuItem : ItemsControl
 
     internal Menu? OwnerMenu { get; private set; }
 
-    private bool HasChildItems => Items.Count > 0;
+    internal bool HasChildItems => Items.Count > 0;
 
     protected override bool IncludeGeneratedChildrenInVisualTree => IsSubmenuOpen;
 
@@ -251,7 +251,7 @@ public class MenuItem : ItemsControl
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var padding = Padding;
-        var headerTextWidth = MeasureTextWidth(Header);
+        var headerTextWidth = MeasureTextWidth(GetDisplayHeaderText());
         var gestureText = GetEffectiveInputGestureText();
         var gestureTextWidth = string.IsNullOrWhiteSpace(gestureText) ? 0f : MeasureTextWidth(gestureText) + 14f;
         var glyphWidth = HasChildItems ? 12f : 0f;
@@ -329,7 +329,7 @@ public class MenuItem : ItemsControl
         var padding = Padding;
         var textX = LayoutSlot.X + padding.Left;
         var textY = LayoutSlot.Y + ((LayoutSlot.Height - GetLineHeight()) / 2f);
-        FontStashTextRenderer.DrawString(spriteBatch, Font, Header, new Vector2(textX, textY), Foreground * Opacity);
+        FontStashTextRenderer.DrawString(spriteBatch, Font, GetDisplayHeaderText(), new Vector2(textX, textY), Foreground * Opacity);
 
         var gestureText = GetEffectiveInputGestureText();
         if (!string.IsNullOrWhiteSpace(gestureText) && !IsTopLevelItem())
@@ -380,6 +380,11 @@ public class MenuItem : ItemsControl
             var childItems = GetChildMenuItems();
             if (childItems.Count > 0)
             {
+                for (var i = 1; i < childItems.Count; i++)
+                {
+                    childItems[i].IsHighlighted = false;
+                }
+
                 childItems[0].IsHighlighted = true;
             }
         }
@@ -430,12 +435,12 @@ public class MenuItem : ItemsControl
         }
     }
 
-    private MenuItem? GetParentMenuItem()
+    internal MenuItem? GetParentMenuItem()
     {
         return VisualParent as MenuItem ?? LogicalParent as MenuItem;
     }
 
-    private IReadOnlyList<MenuItem> GetChildMenuItems()
+    internal IReadOnlyList<MenuItem> GetChildMenuItems()
     {
         var children = new List<MenuItem>();
         foreach (var child in ItemContainers)
@@ -449,7 +454,7 @@ public class MenuItem : ItemsControl
         return children;
     }
 
-    private bool MoveSibling(int delta)
+    internal bool MoveSibling(int delta)
     {
         var parent = GetParentMenuItem();
         if (parent == null)
@@ -497,7 +502,7 @@ public class MenuItem : ItemsControl
         return true;
     }
 
-    private void OpenChildFromHover(MenuItem hoveredChild)
+    internal void OpenChildFromHover(MenuItem hoveredChild)
     {
         var children = GetChildMenuItems();
         foreach (var child in children)
@@ -522,7 +527,7 @@ public class MenuItem : ItemsControl
         RaiseRoutedEvent(ClickEvent, new RoutedSimpleEventArgs(ClickEvent));
     }
 
-    private bool InvokeLeaf()
+    internal bool InvokeLeaf()
     {
         if (Command != null)
         {
@@ -578,5 +583,123 @@ public class MenuItem : ItemsControl
         return InputGestureService.TryGetFirstGestureTextForCommand(Command, routeStart, out var gestureText)
             ? gestureText
             : string.Empty;
+    }
+
+    internal MenuItem? GetFirstChildMenuItem()
+    {
+        var children = GetChildMenuItems();
+        return children.Count > 0 ? children[0] : null;
+    }
+
+    internal MenuItem? GetLastChildMenuItem()
+    {
+        var children = GetChildMenuItems();
+        return children.Count > 0 ? children[^1] : null;
+    }
+
+    internal MenuItem? GetHighlightedChild()
+    {
+        foreach (var child in GetChildMenuItems())
+        {
+            if (child.IsHighlighted)
+            {
+                return child;
+            }
+        }
+
+        return null;
+    }
+
+    internal bool HandlePointerDownFromInput()
+    {
+        if (OwnerMenu == null)
+        {
+            return false;
+        }
+
+        if (IsTopLevelItem())
+        {
+            if (OwnerMenu.IsMenuMode && IsSubmenuOpen)
+            {
+                OwnerMenu.CloseAllSubmenus(restoreFocus: true);
+            }
+            else
+            {
+                OwnerMenu.EnterMenuMode(this, FocusManager.GetFocusedElement());
+                if (HasChildItems)
+                {
+                    OpenSubmenu(focusFirstItem: false);
+                }
+            }
+
+            return true;
+        }
+
+        if (OwnerMenu.IsMenuMode)
+        {
+            if (GetParentMenuItem() is { } parent)
+            {
+                parent.OpenChildFromHover(this);
+            }
+            else
+            {
+                IsHighlighted = true;
+            }
+
+            if (HasChildItems)
+            {
+                OpenSubmenu(focusFirstItem: false);
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    internal bool HandlePointerUpFromInput()
+    {
+        if (OwnerMenu == null || !OwnerMenu.IsMenuMode)
+        {
+            return false;
+        }
+
+        if (HasChildItems)
+        {
+            OpenSubmenu(focusFirstItem: false);
+            return true;
+        }
+
+        var invoked = InvokeLeaf();
+        if (invoked)
+        {
+            OwnerMenu.NotifyLeafInvoked(this);
+        }
+
+        return invoked;
+    }
+
+    internal void HandlePointerMoveFromInput()
+    {
+        if (OwnerMenu == null || !OwnerMenu.IsMenuMode)
+        {
+            return;
+        }
+
+        if (IsTopLevelItem())
+        {
+            OwnerMenu.OpenFromHover(this);
+            return;
+        }
+
+        if (GetParentMenuItem() is { } parent)
+        {
+            parent.OpenChildFromHover(this);
+        }
+    }
+
+    private string GetDisplayHeaderText()
+    {
+        return MenuAccessText.StripAccessMarkers(Header);
     }
 }

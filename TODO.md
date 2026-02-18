@@ -64,8 +64,8 @@
 `ControlTemplate` parity expansion, template triggers, richer template binding behavior, named-part conventions.
 - [x] Items system parity:
 `HeaderedContentControl`, `HeaderedItemsControl`, `ContentPresenter`, `ItemsPresenter`.
-- [ ] Menu and commanding ecosystem:
-`Menu`, `MenuItem`, declarative key-binding routing parity shipped; additional keyboard/menu edge behaviors still ongoing.
+- [x] Menu and commanding ecosystem:
+`Menu`, `MenuItem`, declarative key-binding routing parity shipped, including menu-mode keyboard traversal (`F10`, `Alt+<letter>`, nested arrow navigation, `Esc` close/focus restore), pointer-driven menu-mode interactions, and parity-lab validation surface.
 - [x] Virtualization:
 `VirtualizingStackPanel` and container virtualization behavior for large lists/trees.
 - [x] Transform-based `ScrollViewer` content scrolling parity:

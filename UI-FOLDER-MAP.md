@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-02-17
+Generated: 2026-02-18
 
 ```text
 UI/
@@ -32,14 +32,14 @@ UI/
       IMultiValueConverter.cs
       IValueConverter.cs
     Core/
-      BindingBase.cs
       Binding.cs
+      BindingBase.cs
       BindingExpression.cs
       BindingExpressionUtilities.cs
+      BindingOperations.cs
       IBindingExpression.cs
       MultiBinding.cs
       MultiBindingExpression.cs
-      BindingOperations.cs
     Types/
       BindingEnums.cs
     Validation/
@@ -103,6 +103,7 @@ UI/
       DataGridRow.cs
       DataGridRowHeader.cs
     Inputs/
+      PasswordBox.cs
       Slider.cs
       TextBox.cs
     Items/
@@ -114,6 +115,7 @@ UI/
       ListView.cs
       ListViewItem.cs
       Menu.cs
+      MenuAccessText.cs
       MenuItem.cs
       TabControl.cs
       TabItem.cs
@@ -165,13 +167,15 @@ UI/
       NameScopeService.cs
     Threading/
       Dispatcher.cs
-    Types/
   Diagnostics/
+    ListBoxSelectCPUDiagnostics.cs
+    ScrollWheelRoutingDiagnostics.cs
     UiFrameworkFileLoadDiagnostics.cs
     UiFrameworkPopulationPhaseDiagnostics.cs
     UiRootClickCpuDiagnostics.cs
     UiRootMoveCpuDiagnostics.cs
     UiRootScrollCpuDiagnostics.cs
+    UiRootWheelRoutingDiagnostics.cs
   Events/
     Args/
       FocusChangedRoutedEventArgs.cs
@@ -204,6 +208,9 @@ UI/
       InputDispatchState.cs
       InputSnapshot.cs
     Types/
+      InputBinding.cs
+      KeyBinding.cs
+      KeyGesture.cs
       ModifierKeys.cs
       MouseButton.cs
   Layout/
@@ -220,8 +227,6 @@ UI/
       FrameworkElementExtensions.cs
       LayoutManager.cs
     Root/
-      UiRoot.cs
-      UiRootTypes.cs
       Services/
         UiRootDirtyRegionOps.cs
         UiRootDraw.cs
@@ -230,6 +235,8 @@ UI/
         UiRootLayoutScheduler.cs
         UiRootRenderCache.cs
         UiRootRetainedTree.cs
+      UiRoot.cs
+      UiRootTypes.cs
     Tree/
       VisualTreeHelper.cs
   Rendering/

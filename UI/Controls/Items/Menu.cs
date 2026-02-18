@@ -55,6 +55,9 @@ public class Menu : ItemsControl
     private bool _isMenuMode;
     private bool _hostZRaised;
     private int _hostOriginalZIndex;
+    private UIElement? _focusBeforeMenuMode;
+    private UIElement? _pendingFocusRestore;
+    private MenuItem? _activeTopLevelItem;
 
     public Menu()
     {
@@ -208,11 +211,17 @@ public class Menu : ItemsControl
         return result;
     }
 
-    internal void EnterMenuMode(MenuItem source)
+    internal void EnterMenuMode(MenuItem source, UIElement? previousFocus = null)
     {
         var topLevel = source.GetTopLevelAncestor();
+        if (!_isMenuMode)
+        {
+            _focusBeforeMenuMode = previousFocus;
+        }
+
         _isMenuMode = true;
         EnsureOnTopOfHost();
+        _activeTopLevelItem = topLevel;
 
         foreach (var item in GetTopLevelItems())
         {
@@ -228,10 +237,11 @@ public class Menu : ItemsControl
     internal void ExitMenuMode()
     {
         _isMenuMode = false;
+        _activeTopLevelItem = null;
         RestoreHostZIndex();
     }
 
-    internal void CloseAllSubmenus()
+    internal void CloseAllSubmenus(bool restoreFocus)
     {
         foreach (var item in GetTopLevelItems())
         {
@@ -239,12 +249,25 @@ public class Menu : ItemsControl
         }
 
         _isMenuMode = false;
+        _activeTopLevelItem = null;
         RestoreHostZIndex();
+
+        if (restoreFocus)
+        {
+            _pendingFocusRestore = _focusBeforeMenuMode;
+        }
+
+        _focusBeforeMenuMode = null;
+    }
+
+    internal void CloseAllSubmenus()
+    {
+        CloseAllSubmenus(restoreFocus: false);
     }
 
     internal void NotifyLeafInvoked(MenuItem source)
     {
-        CloseAllSubmenus();
+        CloseAllSubmenus(restoreFocus: true);
         if (source.GetTopLevelAncestor() is { } topLevel)
         {
             topLevel.IsHighlighted = false;
@@ -282,6 +305,7 @@ public class Menu : ItemsControl
         }
 
         var target = topLevelItems[nextIndex];
+        _activeTopLevelItem = target;
         target.IsHighlighted = true;
 
         foreach (var item in topLevelItems)
@@ -295,7 +319,7 @@ public class Menu : ItemsControl
         if (openSubmenu)
         {
             target.OpenSubmenu(focusFirstItem: false);
-            EnterMenuMode(target);
+            EnterMenuMode(target, _focusBeforeMenuMode);
         }
 
         return true;
@@ -313,6 +337,7 @@ public class Menu : ItemsControl
             if (ReferenceEquals(item, topLevelItem))
             {
                 item.IsHighlighted = true;
+                _activeTopLevelItem = item;
                 if (item.Items.Count > 0)
                 {
                     item.IsSubmenuOpen = true;
@@ -408,7 +433,7 @@ public class Menu : ItemsControl
     {
         foreach (var item in GetTopLevelItems())
         {
-            if (TryExtractAccessKey(item.Header, out var key) && key == accessKey)
+            if (MenuAccessText.TryExtractAccessKey(item.Header, out var key) && key == accessKey)
             {
                 return item;
             }
@@ -417,39 +442,7 @@ public class Menu : ItemsControl
         return null;
     }
 
-    private static bool TryExtractAccessKey(string header, out char accessKey)
-    {
-        accessKey = default;
-        if (string.IsNullOrEmpty(header))
-        {
-            return false;
-        }
-
-        for (var i = 0; i < header.Length - 1; i++)
-        {
-            if (header[i] != '_')
-            {
-                continue;
-            }
-
-            var c = header[i + 1];
-            if (c == '_')
-            {
-                i++;
-                continue;
-            }
-
-            if (char.IsLetterOrDigit(c))
-            {
-                accessKey = char.ToUpperInvariant(c);
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    internal bool TryHandleAccessKeyFromInput(char accessKey)
+    internal bool TryHandleAccessKeyFromInput(char accessKey, UIElement? previousFocus)
     {
         var target = FindTopLevelAccessKeyTarget(char.ToUpperInvariant(accessKey));
         if (target == null)
@@ -457,49 +450,135 @@ public class Menu : ItemsControl
             return false;
         }
 
-        EnterMenuMode(target);
+        EnterMenuMode(target, previousFocus);
         target.OpenSubmenu(focusFirstItem: false);
         return true;
     }
 
-    internal bool TryHandleKeyDownFromInput(Keys key)
+    internal bool TryHandleKeyDownFromInput(Keys key, ModifierKeys modifiers)
     {
         if (!_isMenuMode)
         {
             return false;
         }
 
-        var current = GetHighlightedTopLevelItem();
+        _ = modifiers;
+        var currentTop = GetHighlightedTopLevelItem();
+        if (currentTop == null && _activeTopLevelItem != null)
+        {
+            currentTop = _activeTopLevelItem;
+            currentTop.IsHighlighted = true;
+        }
+
+        currentTop ??= GetFirstTopLevelItem();
+        if (currentTop == null)
+        {
+            return false;
+        }
+
+        var current = GetDeepestHighlightedItem(currentTop);
         switch (key)
         {
             case Keys.Escape:
-                CloseAllSubmenus();
+                CloseAllSubmenus(restoreFocus: true);
                 return true;
             case Keys.Left:
-                if (current != null)
+                if (!ReferenceEquals(current, currentTop))
                 {
-                    return MoveAcrossTopLevel(current, -1, openSubmenu: true);
+                    return TryMoveLeftWithinSubmenu(current);
                 }
 
-                return false;
+                return MoveAcrossTopLevel(currentTop, -1, openSubmenu: true);
             case Keys.Right:
-                if (current != null)
+                if (!ReferenceEquals(current, currentTop))
                 {
-                    return MoveAcrossTopLevel(current, 1, openSubmenu: true);
+                    if (current.HasChildItems)
+                    {
+                        current.OpenSubmenu(focusFirstItem: true);
+                        return true;
+                    }
+
+                    return false;
                 }
 
-                return false;
+                return MoveAcrossTopLevel(currentTop, 1, openSubmenu: true);
+            case Keys.Down:
+                if (ReferenceEquals(current, currentTop))
+                {
+                    currentTop.OpenSubmenu(focusFirstItem: true);
+                    return true;
+                }
+
+                return current.MoveSibling(1);
+            case Keys.Up:
+                if (ReferenceEquals(current, currentTop))
+                {
+                    currentTop.OpenSubmenu(focusFirstItem: false);
+                    if (currentTop.GetLastChildMenuItem() is { } last)
+                    {
+                        last.IsHighlighted = true;
+                        return true;
+                    }
+
+                    return false;
+                }
+
+                return current.MoveSibling(-1);
             case Keys.Enter:
-                if (current != null)
+            case Keys.Space:
+                if (ReferenceEquals(current, currentTop))
+                {
+                    currentTop.OpenSubmenu(focusFirstItem: true);
+                    return true;
+                }
+
+                if (current.HasChildItems)
                 {
                     current.OpenSubmenu(focusFirstItem: true);
                     return true;
                 }
 
-                return false;
+                if (current.InvokeLeaf())
+                {
+                    NotifyLeafInvoked(current);
+                    return true;
+                }
+
+                return true;
             default:
                 return false;
         }
+    }
+
+    internal bool TryActivateMenuBarFromKeyboard(UIElement? previousFocus)
+    {
+        var first = GetFirstTopLevelItem();
+        if (first == null)
+        {
+            return false;
+        }
+
+        EnterMenuMode(first, previousFocus);
+        foreach (var item in GetTopLevelItems())
+        {
+            item.CloseSubmenuRecursive(clearHighlight: true);
+        }
+
+        first.IsHighlighted = true;
+        _activeTopLevelItem = first;
+        return true;
+    }
+
+    internal bool ContainsElement(UIElement element)
+    {
+        return IsSelfOrDescendant(element);
+    }
+
+    internal bool TryConsumePendingFocusRestore(out UIElement? element)
+    {
+        element = _pendingFocusRestore;
+        _pendingFocusRestore = null;
+        return element != null;
     }
 
     private MenuItem? GetHighlightedTopLevelItem()
@@ -514,6 +593,36 @@ public class Menu : ItemsControl
         }
 
         return null;
+    }
+
+    private MenuItem? GetFirstTopLevelItem()
+    {
+        var items = GetTopLevelItems();
+        return items.Count > 0 ? items[0] : null;
+    }
+
+    private static MenuItem GetDeepestHighlightedItem(MenuItem root)
+    {
+        var current = root;
+        while (current.GetHighlightedChild() is { } child)
+        {
+            current = child;
+        }
+
+        return current;
+    }
+
+    private bool TryMoveLeftWithinSubmenu(MenuItem current)
+    {
+        var parent = current.GetParentMenuItem();
+        if (parent == null)
+        {
+            return false;
+        }
+
+        current.CloseSubmenuRecursive(clearHighlight: true);
+        parent.IsHighlighted = true;
+        return true;
     }
 
 }

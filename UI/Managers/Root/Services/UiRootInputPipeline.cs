@@ -357,10 +357,25 @@ public sealed partial class UiRoot
         {
             dragScrollViewer.HandlePointerMoveFromInput(pointerPosition);
         }
+        else if (_inputState.CapturedPointerElement == null && target is MenuItem menuItem)
+        {
+            menuItem.HandlePointerMoveFromInput();
+            if (menuItem.OwnerMenu is { } ownerMenu)
+            {
+                TrySynchronizeMenuFocusRestore(ownerMenu);
+            }
+        }
     }
 
     private void DispatchMouseDown(UIElement? target, Vector2 pointerPosition, MouseButton button)
     {
+        if (TryFindMenuInMenuMode(out var activeMenu) &&
+            (target == null || !activeMenu.ContainsElement(target)))
+        {
+            activeMenu.CloseAllSubmenus(restoreFocus: true);
+            TrySynchronizeMenuFocusRestore(activeMenu);
+        }
+
         if (target == null)
         {
             return;
@@ -372,7 +387,21 @@ public sealed partial class UiRoot
         _lastInputRoutedEventCount += 2;
         target.RaiseRoutedEventInternal(UIElement.PreviewMouseDownEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseDownEvent, pointerPosition, button));
         target.RaiseRoutedEventInternal(UIElement.MouseDownEvent, new MouseRoutedEventArgs(UIElement.MouseDownEvent, pointerPosition, button));
-        SetFocus(target);
+        if (target is not Menu && target is not MenuItem)
+        {
+            SetFocus(target);
+        }
+
+        if (target is MenuItem menuItemTarget)
+        {
+            _ = menuItemTarget.HandlePointerDownFromInput();
+            if (menuItemTarget.OwnerMenu is { } ownerMenu)
+            {
+                TrySynchronizeMenuFocusRestore(ownerMenu);
+            }
+
+            return;
+        }
 
         if (target is Button pressedButton)
         {
@@ -438,6 +467,14 @@ public sealed partial class UiRoot
         else if (_inputState.CapturedPointerElement is ScrollViewer scrollViewer)
         {
             scrollViewer.HandlePointerUpFromInput();
+        }
+        else if (_inputState.CapturedPointerElement == null && target is MenuItem menuItemTarget)
+        {
+            _ = menuItemTarget.HandlePointerUpFromInput();
+            if (menuItemTarget.OwnerMenu is { } ownerMenu)
+            {
+                TrySynchronizeMenuFocusRestore(ownerMenu);
+            }
         }
 
         ReleasePointer(_inputState.CapturedPointerElement);
@@ -801,6 +838,16 @@ public sealed partial class UiRoot
         target.RaiseRoutedEventInternal(UIElement.PreviewKeyDownEvent, new KeyRoutedEventArgs(UIElement.PreviewKeyDownEvent, key, modifiers));
         target.RaiseRoutedEventInternal(UIElement.KeyDownEvent, new KeyRoutedEventArgs(UIElement.KeyDownEvent, key, modifiers));
 
+        if (key == Keys.F10 && modifiers == ModifierKeys.None)
+        {
+            var menu = FindFirstVisualOfType<Menu>(_visualRoot);
+            if (menu != null && menu.TryActivateMenuBarFromKeyboard(_inputState.FocusedElement))
+            {
+                TrySynchronizeMenuFocusRestore(menu);
+                return;
+            }
+        }
+
         if ((modifiers & ModifierKeys.Alt) != 0 && key is >= Keys.A and <= Keys.Z)
         {
             var accessKey = (char)('A' + (int)(key - Keys.A));
@@ -808,6 +855,13 @@ public sealed partial class UiRoot
             {
                 return;
             }
+        }
+
+        if (TryFindMenuInMenuMode(out var activeMenu) &&
+            activeMenu.TryHandleKeyDownFromInput(key, modifiers))
+        {
+            TrySynchronizeMenuFocusRestore(activeMenu);
+            return;
         }
 
         if (_inputState.FocusedElement is TextBox textBox && textBox.HandleKeyDownFromInput(key, modifiers))
@@ -825,8 +879,9 @@ public sealed partial class UiRoot
             return;
         }
 
-        if (_inputState.FocusedElement is Menu focusedMenu && focusedMenu.TryHandleKeyDownFromInput(key))
+        if (_inputState.FocusedElement is Menu focusedMenu && focusedMenu.TryHandleKeyDownFromInput(key, modifiers))
         {
+            TrySynchronizeMenuFocusRestore(focusedMenu);
             return;
         }
 
@@ -923,7 +978,34 @@ public sealed partial class UiRoot
     private bool TryHandleMenuAccessKey(char accessKey)
     {
         var menu = FindFirstVisualOfType<Menu>(_visualRoot);
-        return menu != null && menu.TryHandleAccessKeyFromInput(accessKey);
+        if (menu == null || !menu.TryHandleAccessKeyFromInput(accessKey, _inputState.FocusedElement))
+        {
+            return false;
+        }
+
+        TrySynchronizeMenuFocusRestore(menu);
+        return true;
+    }
+
+    private bool TryFindMenuInMenuMode(out Menu menu)
+    {
+        var candidate = FindFirstVisualOfType<Menu>(_visualRoot);
+        if (candidate != null && candidate.IsMenuMode)
+        {
+            menu = candidate;
+            return true;
+        }
+
+        menu = null!;
+        return false;
+    }
+
+    private void TrySynchronizeMenuFocusRestore(Menu menu)
+    {
+        if (menu.TryConsumePendingFocusRestore(out var focusTarget) && focusTarget != null)
+        {
+            SetFocus(focusTarget);
+        }
     }
 
     private static ModifierKeys GetModifiers(KeyboardState keyboard)

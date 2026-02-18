@@ -30,9 +30,11 @@ var isScrollViewerEdgeCasesDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--scrollviewer-edge-cases", global::System.StringComparison.OrdinalIgnoreCase));
 var isPasswordBoxDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--passwordbox-demo", global::System.StringComparison.OrdinalIgnoreCase));
-if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo && !isPasswordBoxDemo)
+var isMenuParityDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--menu-parity-demo", global::System.StringComparison.OrdinalIgnoreCase));
+if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo && !isPasswordBoxDemo && !isMenuParityDemo)
 {
-    isPasswordBoxDemo = true;
+    isMenuParityDemo = true;
 }
 using var game = new InkkSlinger.Game1(
     isWindowDemo,
@@ -48,5 +50,6 @@ using var game = new InkkSlinger.Game1(
     isItemsPresenterDemo,
     isVirtualizedStackPanelDemo,
     isScrollViewerEdgeCasesDemo,
-    isPasswordBoxDemo);
+    isPasswordBoxDemo,
+    isMenuParityDemo);
 game.Run();
