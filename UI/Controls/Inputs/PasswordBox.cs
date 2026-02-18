@@ -166,6 +166,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider
                     if (dependencyObject is PasswordBox passwordBox)
                     {
                         passwordBox._glyphWidthCache.Clear();
+                        passwordBox.InvalidateLayoutCache();
                     }
                 }));
 
@@ -913,9 +914,13 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider
         if (ReferenceEquals(args.Property, FontProperty) ||
             ReferenceEquals(args.Property, TextWrappingProperty) ||
             ReferenceEquals(args.Property, PaddingProperty) ||
-            ReferenceEquals(args.Property, BorderThicknessProperty))
+            ReferenceEquals(args.Property, BorderThicknessProperty) ||
+            ReferenceEquals(args.Property, PasswordCharProperty) ||
+            ReferenceEquals(args.Property, RevealPasswordProperty))
         {
-            if (ReferenceEquals(args.Property, FontProperty))
+            if (ReferenceEquals(args.Property, FontProperty) ||
+                ReferenceEquals(args.Property, PasswordCharProperty) ||
+                ReferenceEquals(args.Property, RevealPasswordProperty))
             {
                 _glyphWidthCache.Clear();
             }
@@ -2031,7 +2036,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider
 
         var adjustStartTicks = Stopwatch.GetTimestamp();
         var maxHorizontalOffset = GetMaxHorizontalOffset(view.Layout, view.ViewportRect);
-        var maxVerticalOffset = GetMaxVerticalOffset(view.Layout, view.ViewportRect);
+        _ = GetMaxVerticalOffset(view.Layout, view.ViewportRect);
 
         if (caretX < _horizontalOffset)
         {
@@ -2042,17 +2047,8 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider
             _horizontalOffset = caretX - MathF.Max(0f, view.ViewportRect.Width - 1f);
         }
 
-        if (caretY < _verticalOffset)
-        {
-            _verticalOffset = caretY;
-        }
-        else if (caretY + lineHeight > _verticalOffset + view.ViewportRect.Height)
-        {
-            _verticalOffset = (caretY + lineHeight) - view.ViewportRect.Height;
-        }
-
         _horizontalOffset = Math.Clamp(_horizontalOffset, 0f, maxHorizontalOffset);
-        _verticalOffset = Math.Clamp(_verticalOffset, 0f, maxVerticalOffset);
+        _verticalOffset = 0f;
         offsetAdjustTicks = Stopwatch.GetTimestamp() - adjustStartTicks;
 
         var totalTicks = Stopwatch.GetTimestamp() - ensureCaretStartTicks;
@@ -2072,8 +2068,10 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider
 
     private float GetMaxVerticalOffset(LayoutResult layout, LayoutRect contentRect)
     {
-        var extentHeight = GetLineCount(layout) * GetLineHeight();
-        return MathF.Max(0f, extentHeight - contentRect.Height);
+        _ = layout;
+        _ = contentRect;
+        // PasswordBox is single-line by design; vertical scrolling is intentionally disabled.
+        return 0f;
     }
 
     private int GetLineCount(LayoutResult layout)
@@ -3086,33 +3084,72 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider
         var widths = new float[line.Length + 1];
         if (line.Length > 0)
         {
-            var offset = 0f;
-            if (layout.IsVirtualized && _hasVirtualWrapCache)
+            // In reveal mode, use prefix measurement against the full rendered string so
+            // caret/hit-testing aligns with actual glyph placement (kerning/shaping aware).
+            if (RevealPassword)
             {
-                for (var i = 0; i < line.Length; i++)
+                if (layout.IsVirtualized && _hasVirtualWrapCache)
                 {
-                    if (!TryGetVirtualWrapChar(line.StartIndex + i, out var ch))
+                    var prefixBuilder = new StringBuilder(line.Length);
+                    for (var i = 0; i < line.Length; i++)
                     {
-                        break;
+                        if (!TryGetVirtualWrapChar(line.StartIndex + i, out var ch))
+                        {
+                            break;
+                        }
+
+                        prefixBuilder.Append(ch);
+                        widths[i + 1] = FontStashTextRenderer.MeasureWidth(Font, prefixBuilder.ToString());
+                    }
+                }
+                else
+                {
+                    var text = _editor.Text;
+                    if (line.StartIndex < 0 || line.StartIndex + line.Length > text.Length)
+                    {
+                        _linePrefixWidthCache[lineIndex] = widths;
+                        return widths;
                     }
 
-                    offset += MeasureCharacterWidth(ch);
-                    widths[i + 1] = offset;
+                    var lineText = text.Substring(line.StartIndex, line.Length);
+                    var prefixBuilder = new StringBuilder(line.Length);
+                    for (var i = 0; i < lineText.Length; i++)
+                    {
+                        prefixBuilder.Append(lineText[i]);
+                        widths[i + 1] = FontStashTextRenderer.MeasureWidth(Font, prefixBuilder.ToString());
+                    }
                 }
             }
             else
             {
-                var text = _editor.Text;
-                if (line.StartIndex < 0 || line.StartIndex + line.Length > text.Length)
+                var offset = 0f;
+                if (layout.IsVirtualized && _hasVirtualWrapCache)
                 {
-                    _linePrefixWidthCache[lineIndex] = widths;
-                    return widths;
-                }
+                    for (var i = 0; i < line.Length; i++)
+                    {
+                        if (!TryGetVirtualWrapChar(line.StartIndex + i, out var ch))
+                        {
+                            break;
+                        }
 
-                for (var i = 0; i < line.Length; i++)
+                        offset += MeasureCharacterWidth(ch);
+                        widths[i + 1] = offset;
+                    }
+                }
+                else
                 {
-                    offset += MeasureCharacterWidth(text[line.StartIndex + i]);
-                    widths[i + 1] = offset;
+                    var text = _editor.Text;
+                    if (line.StartIndex < 0 || line.StartIndex + line.Length > text.Length)
+                    {
+                        _linePrefixWidthCache[lineIndex] = widths;
+                        return widths;
+                    }
+
+                    for (var i = 0; i < line.Length; i++)
+                    {
+                        offset += MeasureCharacterWidth(text[line.StartIndex + i]);
+                        widths[i + 1] = offset;
+                    }
                 }
             }
         }
