@@ -710,6 +710,8 @@
     <xs:attribute name="ValidatesOnDataErrors" type="xs:boolean" />
     <xs:attribute name="ValidatesOnNotifyDataErrors" type="xs:boolean" />
     <xs:attribute name="ValidatesOnExceptions" type="xs:boolean" />
+    <xs:attribute name="BindingGroupName" type="xs:string" />
+    <xs:attribute name="UpdateSourceExceptionFilter" type="xs:string" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -727,6 +729,34 @@
     <xs:attribute name="ValidatesOnDataErrors" type="xs:boolean" />
     <xs:attribute name="ValidatesOnNotifyDataErrors" type="xs:boolean" />
     <xs:attribute name="ValidatesOnExceptions" type="xs:boolean" />
+    <xs:attribute name="BindingGroupName" type="xs:string" />
+    <xs:attribute name="UpdateSourceExceptionFilter" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="priorityBindingType">
+    <xs:sequence minOccurs="1" maxOccurs="unbounded">
+      <xs:element ref="Binding" />
+    </xs:sequence>
+    <xs:attribute name="Mode" type="xs:string" />
+    <xs:attribute name="UpdateSourceTrigger" type="xs:string" />
+    <xs:attribute name="FallbackValue" type="xs:string" />
+    <xs:attribute name="TargetNullValue" type="xs:string" />
+    <xs:attribute name="BindingGroupName" type="xs:string" />
+    <xs:attribute name="UpdateSourceExceptionFilter" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="bindingGroupType">
+    <xs:attribute name="Name" type="xs:string" />
+    <xs:attribute name="Culture" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="frameworkElementBindingGroupType">
+    <xs:sequence>
+      <xs:element ref="BindingGroup" />
+    </xs:sequence>
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -1603,6 +1633,9 @@
   <xs:element name="ExponentialEase" type="exponentialEaseType" />
   <xs:element name="Binding" type="bindingType" />
   <xs:element name="MultiBinding" type="multiBindingType" />
+  <xs:element name="PriorityBinding" type="priorityBindingType" />
+  <xs:element name="BindingGroup" type="bindingGroupType" />
+  <xs:element name="FrameworkElement.BindingGroup" type="frameworkElementBindingGroupType" />
   <xs:element name="UIElement.InputBindings" type="inputBindingsType" />
   <xs:element name="KeyBinding" type="keyBindingType" />
   <xs:element name="StackPanel" type="stackPanelType" />

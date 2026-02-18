@@ -25,6 +25,7 @@ public static class BindingOperations
         {
             Binding singleBinding => new BindingExpression(target, dependencyProperty, singleBinding),
             MultiBinding multiBinding => new MultiBindingExpression(target, dependencyProperty, multiBinding),
+            PriorityBinding priorityBinding => new PriorityBindingExpression(target, dependencyProperty, priorityBinding),
             _ => throw new System.NotSupportedException($"Binding type '{binding.GetType().Name}' is not supported.")
         };
 

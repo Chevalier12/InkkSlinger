@@ -21,4 +21,8 @@ public sealed class MultiBinding : BindingBase
     public bool ValidatesOnNotifyDataErrors { get; set; }
 
     public bool ValidatesOnExceptions { get; set; }
+
+    public string? BindingGroupName { get; set; }
+
+    public UpdateSourceExceptionFilterCallback? UpdateSourceExceptionFilter { get; set; }
 }

@@ -526,7 +526,8 @@ public class UIElement : DependencyObject
         var inheritableProperties = new[]
         {
             UIElement.IsEnabledProperty,
-            FrameworkElement.DataContextProperty
+            FrameworkElement.DataContextProperty,
+            FrameworkElement.BindingGroupProperty
         };
         UiFrameworkPopulationPhaseDiagnostics.Observe("UIElement.OnVisualParentChanged.GetRegisteredProperties", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds, inheritableProperties.Length);
 

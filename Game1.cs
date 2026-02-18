@@ -26,6 +26,7 @@ public class Game1 : Game
     private readonly bool _isScrollViewerEdgeCasesDemo;
     private readonly bool _isPasswordBoxDemo;
     private readonly bool _isMenuParityDemo;
+    private readonly bool _isBindingParityGap5Demo;
     private SpriteBatch _spriteBatch = null!;
     private RenderTarget2D? _uiCompositeTarget;
     private Panel _root = null!;
@@ -46,6 +47,7 @@ public class Game1 : Game
     private ScrollViewerEdgeCasesView? _scrollViewerEdgeCasesView;
     private PasswordBoxDemoView? _passwordBoxDemoView;
     private MenuParityLabView? _menuParityLabView;
+    private BindingParityGap5DemoView? _bindingParityGap5DemoView;
     private string _baseWindowTitle = "InkkSlinger";
     private int _lastViewportWidth;
     private int _lastViewportHeight;
@@ -66,7 +68,8 @@ public class Game1 : Game
         bool isVirtualizedStackPanelDemo = false,
         bool isScrollViewerEdgeCasesDemo = false,
         bool isPasswordBoxDemo = false,
-        bool isMenuParityDemo = false)
+        bool isMenuParityDemo = false,
+        bool isBindingParityGap5Demo = false)
     {
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
@@ -85,6 +88,7 @@ public class Game1 : Game
         _isScrollViewerEdgeCasesDemo = isScrollViewerEdgeCasesDemo;
         _isPasswordBoxDemo = isPasswordBoxDemo;
         _isMenuParityDemo = isMenuParityDemo;
+        _isBindingParityGap5Demo = isBindingParityGap5Demo;
         Content.RootDirectory = "Content";
         _window.IsMouseVisible = true;
         _window.AllowUserResizing = true;
@@ -175,6 +179,11 @@ public class Game1 : Game
             _menuParityLabView = new MenuParityLabView();
             _root.AddChild(_menuParityLabView);
         }
+        else if (_isBindingParityGap5Demo)
+        {
+            _bindingParityGap5DemoView = new BindingParityGap5DemoView();
+            _root.AddChild(_bindingParityGap5DemoView);
+        }
         else
         {
             _mainMenuView = new MainMenuView();
@@ -219,6 +228,7 @@ public class Game1 : Game
             _scrollViewerEdgeCasesView?.SetFont(font);
             _passwordBoxDemoView?.SetFont(font);
             _menuParityLabView?.SetFont(font);
+            _bindingParityGap5DemoView?.SetFont(font);
         }
         catch
         {
@@ -414,6 +424,13 @@ public class Game1 : Game
             return;
         }
 
+        if (_isBindingParityGap5Demo)
+        {
+            _baseWindowTitle = $"InkkSlinger Binding Parity Gap #5 Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
         _baseWindowTitle = $"InkkSlinger | {size.X}x{size.Y}";
         ApplyWindowTitle();
     }
@@ -529,7 +546,8 @@ public class Game1 : Game
             _isVirtualizedStackPanelDemo ||
             _isScrollViewerEdgeCasesDemo ||
             _isPasswordBoxDemo ||
-            _isMenuParityDemo)
+            _isMenuParityDemo ||
+            _isBindingParityGap5Demo)
         {
             return 1024;
         }
@@ -577,7 +595,8 @@ public class Game1 : Game
             _isVirtualizedStackPanelDemo ||
             _isScrollViewerEdgeCasesDemo ||
             _isPasswordBoxDemo ||
-            _isMenuParityDemo)
+            _isMenuParityDemo ||
+            _isBindingParityGap5Demo)
         {
             return 720;
         }

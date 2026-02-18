@@ -34,15 +34,19 @@ UI/
     Core/
       Binding.cs
       BindingBase.cs
+      BindingGroup.cs
       BindingExpression.cs
       BindingExpressionUtilities.cs
       BindingOperations.cs
       IBindingExpression.cs
       MultiBinding.cs
       MultiBindingExpression.cs
+      PriorityBinding.cs
+      PriorityBindingExpression.cs
     Types/
       BindingEnums.cs
     Validation/
+      UpdateSourceExceptionFilterCallback.cs
       Validation.cs
       ValidationError.cs
       ValidationResult.cs

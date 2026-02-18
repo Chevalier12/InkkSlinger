@@ -125,11 +125,11 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
 | Binding API | `IValueConverter` / `IMultiValueConverter` interfaces | `UI/Binding/Converters/IValueConverter.cs`, `UI/Binding/Converters/IMultiValueConverter.cs` | Implemented |
 | Binding API | `MultiBinding` | `UI/Binding/Core/MultiBinding.cs`, `UI/Binding/Core/MultiBindingExpression.cs`, `UI/Xaml/Core/XamlLoader.cs` | Implemented |
-| Binding API | `PriorityBinding` | No matching types in `UI/Binding` | Not implemented |
-| Binding API | `BindingGroup` | No matching types in `UI/Binding` | Not implemented |
+| Binding API | `PriorityBinding` | `UI/Binding/Core/PriorityBinding.cs`, `UI/Binding/Core/PriorityBindingExpression.cs`, `UI/Xaml/Core/XamlLoader.cs` | Implemented |
+| Binding API | `BindingGroup` | `UI/Binding/Core/BindingGroup.cs`, `UI/Controls/Base/FrameworkElement.cs`, `UI/Binding/Core/BindingExpressionUtilities.cs` | Implemented |
 | Binding API | Validation stack (`Validation`, `ValidationRule`, data-error pipelines) | `UI/Binding/Validation/Validation.cs`, `UI/Binding/Validation/ValidationRule.cs`, `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/MultiBindingExpression.cs` | Implemented |
 | Binding API | `IDataErrorInfo` / `INotifyDataErrorInfo` binding error pipelines | `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/MultiBindingExpression.cs` | Implemented |
-| Binding API | `UpdateSourceExceptionFilter` behavior hooks | No matching support in `UI/Binding` | Not implemented |
+| Binding API | `UpdateSourceExceptionFilter` behavior hooks | `UI/Binding/Validation/UpdateSourceExceptionFilterCallback.cs`, `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/MultiBindingExpression.cs`, `UI/Xaml/Core/XamlLoader.cs` | Implemented |
 | Data/view layer | WPF `CollectionView` stack (current item/filter/sort/group) | No matching collection-view types in `UI/Binding`/`UI/Controls` | Not implemented |
 | Binding API | `BindingMode` includes WPF `OneWayToSource` and `Default` | `UI/Binding/Types/BindingEnums.cs`, `UI/Binding/Core/BindingExpressionUtilities.cs` | Implemented |
 | Binding API | `UpdateSourceTrigger` includes WPF `LostFocus` and `Default` | `UI/Binding/Types/BindingEnums.cs`, `UI/Binding/Core/BindingExpressionUtilities.cs` | Implemented |
@@ -231,8 +231,9 @@ Primary validation machine for current development/testing:
 | Commanding demo | `dotnet run --project InkkSlinger.csproj -- --commanding-demo` |
 | PasswordBox demo | `dotnet run --project InkkSlinger.csproj -- --passwordbox-demo` |
 | Menu parity lab | `dotnet run --project InkkSlinger.csproj -- --menu-parity-demo` |
+| Binding parity gap #5 demo | `dotnet run --project InkkSlinger.csproj -- --binding-parity-gap5-demo` |
 
-Current default launch surface is the menu parity lab when no explicit mode flag is provided.
+Current default launch surface is the binding parity gap #5 demo when no explicit mode flag is provided.
 
 ## Environment Variables
 

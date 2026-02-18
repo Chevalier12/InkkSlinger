@@ -97,6 +97,13 @@ public class FrameworkElement : UIElement
             typeof(FrameworkElement),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty BindingGroupProperty =
+        DependencyProperty.Register(
+            nameof(BindingGroup),
+            typeof(BindingGroup),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.Inherits));
+
     private bool _isMeasureValid;
     private bool _isArrangeValid;
     private Vector2 _previousAvailableSize = new(float.NaN, float.NaN);
@@ -185,6 +192,12 @@ public class FrameworkElement : UIElement
     {
         get => GetValue<Style>(StyleProperty);
         set => SetValue(StyleProperty, value);
+    }
+
+    public BindingGroup? BindingGroup
+    {
+        get => GetValue<BindingGroup>(BindingGroupProperty);
+        set => SetValue(BindingGroupProperty, value);
     }
 
     public ResourceDictionary Resources { get; } = new();

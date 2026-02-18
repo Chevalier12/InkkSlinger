@@ -21,6 +21,13 @@ public sealed class BindingExpression : IBindingExpression
     private bool _isUpdatingTarget;
     private bool _isUpdatingSource;
     private EventHandler<FocusChangedRoutedEventArgs>? _lostFocusHandler;
+    private BindingGroup? _bindingGroup;
+
+    public DependencyObject Target => _target;
+
+    public DependencyProperty TargetProperty => _targetProperty;
+
+    public BindingBase Binding => _binding;
 
     public BindingExpression(DependencyObject target, DependencyProperty targetProperty, Binding binding)
     {
@@ -34,6 +41,7 @@ public sealed class BindingExpression : IBindingExpression
         AttachLostFocusHandlerIfNeeded();
 
         RebindSourceSubscriptions();
+        RebindBindingGroup();
 
         if (_effectiveMode == BindingMode.OneWayToSource)
         {
@@ -139,7 +147,12 @@ public sealed class BindingExpression : IBindingExpression
                         throw;
                     }
 
-                    SetPersistentValidationError(new ValidationError(null, _binding, ex));
+                    SetPersistentValidationError(
+                        BindingExpressionUtilities.CreateExceptionValidationError(
+                            _binding,
+                            this,
+                            ex,
+                            _binding.UpdateSourceExceptionFilter));
                     PublishValidationErrors(source);
                     return;
                 }
@@ -162,7 +175,12 @@ public sealed class BindingExpression : IBindingExpression
                     throw;
                 }
 
-                SetPersistentValidationError(new ValidationError(null, _binding, ex));
+                SetPersistentValidationError(
+                    BindingExpressionUtilities.CreateExceptionValidationError(
+                        _binding,
+                        this,
+                        ex,
+                        _binding.UpdateSourceExceptionFilter));
                 PublishValidationErrors(source);
                 return;
             }
@@ -182,12 +200,14 @@ public sealed class BindingExpression : IBindingExpression
         DetachLostFocusHandler();
         DetachSourceSubscriptions();
         DetachNotifyDataErrorSubscriptions();
+        AttachToBindingGroup(null);
         Validation.ClearErrors(_target, this);
     }
 
     public void OnTargetTreeChanged()
     {
         RebindSourceSubscriptions();
+        RebindBindingGroup();
 
         if (BindingExpressionUtilities.SupportsSourceToTarget(_effectiveMode))
         {
@@ -367,6 +387,11 @@ public sealed class BindingExpression : IBindingExpression
     {
         if (!ReferenceEquals(e.Property, _targetProperty))
         {
+            if (_target is FrameworkElement && ReferenceEquals(e.Property, FrameworkElement.BindingGroupProperty))
+            {
+                RebindBindingGroup();
+            }
+
             if (UsesDataContextSource() &&
                 _target is FrameworkElement &&
                 ReferenceEquals(e.Property, FrameworkElement.DataContextProperty))
@@ -394,6 +419,26 @@ public sealed class BindingExpression : IBindingExpression
         {
             UpdateSource();
         }
+    }
+
+    public bool TryValidateForBindingGroup(List<ValidationError> errors)
+    {
+        if (!BindingExpressionUtilities.SupportsTargetToSource(_effectiveMode))
+        {
+            return true;
+        }
+
+        return TryUpdateSourceCore(applySourceUpdate: false, errors);
+    }
+
+    public bool TryUpdateSourceForBindingGroup(List<ValidationError> errors)
+    {
+        if (!BindingExpressionUtilities.SupportsTargetToSource(_effectiveMode))
+        {
+            return true;
+        }
+
+        return TryUpdateSourceCore(applySourceUpdate: true, errors);
     }
 
     private void AttachLostFocusHandlerIfNeeded()
@@ -607,5 +652,101 @@ public sealed class BindingExpression : IBindingExpression
         public INotifyDataErrorInfo Notifier { get; }
 
         public EventHandler<DataErrorsChangedEventArgs> Handler { get; }
+    }
+
+    private bool TryUpdateSourceCore(bool applySourceUpdate, List<ValidationError> errors)
+    {
+        var source = ResolveSource();
+        if (source == null)
+        {
+            return true;
+        }
+
+        var targetValue = _target.GetValue(_targetProperty);
+        object? candidateValue = targetValue;
+
+        if (_binding.Converter != null)
+        {
+            try
+            {
+                candidateValue = _binding.Converter.ConvertBack(
+                    targetValue,
+                    ResolveLeafTargetType(source),
+                    _binding.ConverterParameter,
+                    _binding.ConverterCulture ?? CultureInfo.CurrentCulture);
+            }
+            catch (Exception ex)
+            {
+                if (!_binding.ValidatesOnExceptions)
+                {
+                    throw;
+                }
+
+                errors.Add(BindingExpressionUtilities.CreateExceptionValidationError(
+                    _binding,
+                    this,
+                    ex,
+                    _binding.UpdateSourceExceptionFilter));
+                return false;
+            }
+        }
+
+        var isValid = ValidateCandidateValue(candidateValue);
+        if (!isValid)
+        {
+            errors.AddRange(_persistentValidationErrors);
+            return false;
+        }
+
+        if (!applySourceUpdate)
+        {
+            return true;
+        }
+
+        try
+        {
+            if (!BindingExpressionUtilities.TrySetPathValue(source, _binding.Path, candidateValue))
+            {
+                errors.Add(new ValidationError(null, _binding, $"Failed to assign value to path '{_binding.Path}'."));
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!_binding.ValidatesOnExceptions)
+            {
+                throw;
+            }
+
+            errors.Add(BindingExpressionUtilities.CreateExceptionValidationError(
+                _binding,
+                this,
+                ex,
+                _binding.UpdateSourceExceptionFilter));
+            return false;
+        }
+
+        return true;
+    }
+
+    private void RebindBindingGroup()
+    {
+        AttachToBindingGroup(BindingExpressionUtilities.ResolveBindingGroup(_target, _binding.BindingGroupName));
+    }
+
+    private void AttachToBindingGroup(BindingGroup? bindingGroup)
+    {
+        if (ReferenceEquals(_bindingGroup, bindingGroup))
+        {
+            return;
+        }
+
+        if (_bindingGroup != null)
+        {
+            _bindingGroup.UnregisterExpression(this);
+        }
+
+        _bindingGroup = bindingGroup;
+        _bindingGroup?.RegisterExpression(this);
     }
 }

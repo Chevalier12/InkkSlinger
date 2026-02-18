@@ -20,6 +20,13 @@ public sealed class MultiBindingExpression : IBindingExpression
     private bool _isUpdatingTarget;
     private bool _isUpdatingSource;
     private EventHandler<FocusChangedRoutedEventArgs>? _lostFocusHandler;
+    private BindingGroup? _bindingGroup;
+
+    public DependencyObject Target => _target;
+
+    public DependencyProperty TargetProperty => _targetProperty;
+
+    public BindingBase Binding => _multiBinding;
 
     public MultiBindingExpression(DependencyObject target, DependencyProperty targetProperty, MultiBinding multiBinding)
     {
@@ -33,6 +40,7 @@ public sealed class MultiBindingExpression : IBindingExpression
         AttachLostFocusHandlerIfNeeded();
 
         RebindSourceSubscriptions();
+        RebindBindingGroup();
 
         if (_effectiveMode == BindingMode.OneWayToSource)
         {
@@ -97,7 +105,12 @@ public sealed class MultiBindingExpression : IBindingExpression
                     throw;
                 }
 
-                SetPersistentValidationError(new ValidationError(null, _multiBinding, ex));
+                SetPersistentValidationError(
+                    BindingExpressionUtilities.CreateExceptionValidationError(
+                        _multiBinding,
+                        this,
+                        ex,
+                        _multiBinding.UpdateSourceExceptionFilter));
                 ApplyTargetValue(_multiBinding.FallbackValue);
                 PublishValidationErrors();
                 return;
@@ -175,7 +188,12 @@ public sealed class MultiBindingExpression : IBindingExpression
                     throw;
                 }
 
-                SetPersistentValidationError(new ValidationError(null, _multiBinding, ex));
+                SetPersistentValidationError(
+                    BindingExpressionUtilities.CreateExceptionValidationError(
+                        _multiBinding,
+                        this,
+                        ex,
+                        _multiBinding.UpdateSourceExceptionFilter));
                 PublishValidationErrors();
                 return;
             }
@@ -224,12 +242,14 @@ public sealed class MultiBindingExpression : IBindingExpression
         DetachLostFocusHandler();
         DetachSourceSubscriptions();
         DetachNotifyDataErrorSubscriptions();
+        AttachToBindingGroup(null);
         Validation.ClearErrors(_target, this);
     }
 
     public void OnTargetTreeChanged()
     {
         RebindSourceSubscriptions();
+        RebindBindingGroup();
         if (BindingExpressionUtilities.SupportsSourceToTarget(_effectiveMode))
         {
             UpdateTarget();
@@ -383,6 +403,11 @@ public sealed class MultiBindingExpression : IBindingExpression
     {
         if (!ReferenceEquals(e.Property, _targetProperty))
         {
+            if (_target is FrameworkElement && ReferenceEquals(e.Property, FrameworkElement.BindingGroupProperty))
+            {
+                RebindBindingGroup();
+            }
+
             if (UsesDataContextSource() &&
                 _target is FrameworkElement &&
                 ReferenceEquals(e.Property, FrameworkElement.DataContextProperty))
@@ -410,6 +435,26 @@ public sealed class MultiBindingExpression : IBindingExpression
         {
             UpdateSource();
         }
+    }
+
+    public bool TryValidateForBindingGroup(List<ValidationError> errors)
+    {
+        if (!BindingExpressionUtilities.SupportsTargetToSource(_effectiveMode))
+        {
+            return true;
+        }
+
+        return TryUpdateSourceCore(applySourceUpdates: false, errors);
+    }
+
+    public bool TryUpdateSourceForBindingGroup(List<ValidationError> errors)
+    {
+        if (!BindingExpressionUtilities.SupportsTargetToSource(_effectiveMode))
+        {
+            return true;
+        }
+
+        return TryUpdateSourceCore(applySourceUpdates: true, errors);
     }
 
     private bool UsesDataContextSource()
@@ -651,5 +696,114 @@ public sealed class MultiBindingExpression : IBindingExpression
 
             return false;
         }
+    }
+
+    private bool TryUpdateSourceCore(bool applySourceUpdates, List<ValidationError> errors)
+    {
+        if (_multiBinding.Converter == null)
+        {
+            errors.Add(new ValidationError(null, _multiBinding, "MultiBinding requires a Converter."));
+            return false;
+        }
+
+        var targetValue = _target.GetValue(_targetProperty);
+        foreach (var validationRule in _multiBinding.ValidationRules)
+        {
+            var validationResult = validationRule.Validate(targetValue, _multiBinding.ConverterCulture ?? CultureInfo.CurrentCulture);
+            if (!validationResult.IsValid)
+            {
+                errors.Add(new ValidationError(validationRule, _multiBinding, validationResult.ErrorContent));
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            return false;
+        }
+
+        var targetTypes = new Type[_multiBinding.Bindings.Count];
+        for (var i = 0; i < _multiBinding.Bindings.Count; i++)
+        {
+            targetTypes[i] = ResolveLeafTargetType(_multiBinding.Bindings[i]);
+        }
+
+        object?[] convertedBack;
+        try
+        {
+            convertedBack = _multiBinding.Converter.ConvertBack(
+                targetValue,
+                targetTypes,
+                _multiBinding.ConverterParameter,
+                _multiBinding.ConverterCulture ?? CultureInfo.CurrentCulture);
+        }
+        catch (Exception ex)
+        {
+            if (!_multiBinding.ValidatesOnExceptions)
+            {
+                throw;
+            }
+
+            errors.Add(BindingExpressionUtilities.CreateExceptionValidationError(
+                _multiBinding,
+                this,
+                ex,
+                _multiBinding.UpdateSourceExceptionFilter));
+            return false;
+        }
+
+        if (convertedBack.Length != _multiBinding.Bindings.Count)
+        {
+            errors.Add(new ValidationError(null, _multiBinding, "ConvertBack result count does not match child binding count."));
+            return false;
+        }
+
+        if (!applySourceUpdates)
+        {
+            return true;
+        }
+
+        for (var i = 0; i < _multiBinding.Bindings.Count; i++)
+        {
+            var childBinding = _multiBinding.Bindings[i];
+            var source = BindingExpressionUtilities.ResolveSource(_target, childBinding);
+            if (source == null)
+            {
+                continue;
+            }
+
+            if (BindingExpressionUtilities.TrySetPathValue(source, childBinding.Path, convertedBack[i]))
+            {
+                continue;
+            }
+
+            errors.Add(new ValidationError(
+                null,
+                _multiBinding,
+                $"Failed to assign ConvertBack value to child binding path '{childBinding.Path}'."));
+            return false;
+        }
+
+        return true;
+    }
+
+    private void RebindBindingGroup()
+    {
+        AttachToBindingGroup(BindingExpressionUtilities.ResolveBindingGroup(_target, _multiBinding.BindingGroupName));
+    }
+
+    private void AttachToBindingGroup(BindingGroup? bindingGroup)
+    {
+        if (ReferenceEquals(_bindingGroup, bindingGroup))
+        {
+            return;
+        }
+
+        if (_bindingGroup != null)
+        {
+            _bindingGroup.UnregisterExpression(this);
+        }
+
+        _bindingGroup = bindingGroup;
+        _bindingGroup?.RegisterExpression(this);
     }
 }

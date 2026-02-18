@@ -213,6 +213,48 @@ internal static class BindingExpressionUtilities
         return string.Equals(observedPropertyName, changedPropertyName, StringComparison.Ordinal);
     }
 
+    public static BindingGroup? ResolveBindingGroup(DependencyObject target, string? bindingGroupName)
+    {
+        if (target is not UIElement targetElement)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(bindingGroupName))
+        {
+            return target switch
+            {
+                FrameworkElement targetFrameworkElement => targetFrameworkElement.GetValue<BindingGroup>(FrameworkElement.BindingGroupProperty),
+                _ => FindNearestBindingGroup(targetElement)
+            };
+        }
+
+        return FindNamedBindingGroup(targetElement, bindingGroupName);
+    }
+
+    public static ValidationError CreateExceptionValidationError(
+        BindingBase binding,
+        object bindingExpression,
+        Exception exception,
+        UpdateSourceExceptionFilterCallback? exceptionFilter)
+    {
+        if (exceptionFilter != null)
+        {
+            var filtered = exceptionFilter(bindingExpression, exception);
+            if (filtered is ValidationError validationError)
+            {
+                return validationError;
+            }
+
+            if (filtered != null)
+            {
+                return new ValidationError(null, binding, filtered);
+            }
+        }
+
+        return new ValidationError(null, binding, exception);
+    }
+
     private static object? ResolveElementNameSource(DependencyObject target, string name)
     {
         if (target is not FrameworkElement targetElement)
@@ -275,13 +317,56 @@ internal static class BindingExpressionUtilities
     private static FrameworkElement? GetElementTreeRoot(FrameworkElement element)
     {
         UIElement current = element;
-        UIElement? next = current.VisualParent ?? current.LogicalParent;
+        UIElement? next = GetTreeParent(current);
         while (next != null)
         {
             current = next;
-            next = current.VisualParent ?? current.LogicalParent;
+            next = GetTreeParent(current);
         }
 
         return current as FrameworkElement;
+    }
+
+    private static BindingGroup? FindNearestBindingGroup(UIElement targetElement)
+    {
+        for (var current = targetElement; current != null; current = GetTreeParent(current))
+        {
+            if (current is not FrameworkElement frameworkElement)
+            {
+                continue;
+            }
+
+            var group = frameworkElement.GetValue<BindingGroup>(FrameworkElement.BindingGroupProperty);
+            if (group != null)
+            {
+                return group;
+            }
+        }
+
+        return null;
+    }
+
+    private static BindingGroup? FindNamedBindingGroup(UIElement targetElement, string bindingGroupName)
+    {
+        for (var current = targetElement; current != null; current = GetTreeParent(current))
+        {
+            if (current is not FrameworkElement frameworkElement)
+            {
+                continue;
+            }
+
+            var group = frameworkElement.GetValue<BindingGroup>(FrameworkElement.BindingGroupProperty);
+            if (group != null && string.Equals(group.Name, bindingGroupName, StringComparison.Ordinal))
+            {
+                return group;
+            }
+        }
+
+        return null;
+    }
+
+    private static UIElement? GetTreeParent(UIElement element)
+    {
+        return element.VisualParent ?? element.LogicalParent;
     }
 }

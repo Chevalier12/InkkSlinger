@@ -26,6 +26,7 @@
 - [x] XML markup migration completed for views (`.xaml` -> `.xml`) with runtime/project path updates.
 - [x] Schema/tooling hardening for XML authoring: expanded `InkkSlinger.UI.xsd` for resources/styles/triggers/bindings and added local `Xaml2006.xsd` mapping support for `x:` namespace.
 - [x] Declarative commanding input model: `UIElement.InputBindings` + `KeyBinding`/`KeyGesture` routing, XAML authoring support, and menu shortcut auto-text derivation when unset.
+- [x] Binding parity gap #5 shipped: `PriorityBinding`, `BindingGroup` (inherited + named group resolution), and `UpdateSourceExceptionFilter` across `Binding`/`MultiBinding` with XAML + schema + regression coverage.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
@@ -74,6 +75,8 @@ plain panel hosts (for example `StackPanel`) use transform-based scrolling by de
 `DataTemplate` parity expansion and template selection support.
 - [x] Animation system:
 Storyboards, timelines, keyframes, easing, trigger-driven animations.
+- [x] Binding parity gap #5:
+`PriorityBinding`, `BindingGroup`, `UpdateSourceExceptionFilter`, plus dedicated demo surface (`--binding-parity-gap5-demo`).
 - [ ] Rich text and document layer:
 `RichTextBox` and flow-document style content stack.
 - [ ] Advanced layout/adornment layer depth:

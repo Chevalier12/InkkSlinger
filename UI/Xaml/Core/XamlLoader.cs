@@ -341,7 +341,8 @@ public static class XamlLoader
             var childElement = contentElements[0];
             var childName = childElement.Name.LocalName;
             if (string.Equals(childName, nameof(Binding), StringComparison.Ordinal) ||
-                string.Equals(childName, nameof(MultiBinding), StringComparison.Ordinal))
+                string.Equals(childName, nameof(MultiBinding), StringComparison.Ordinal) ||
+                string.Equals(childName, nameof(PriorityBinding), StringComparison.Ordinal))
             {
                 var dependencyProperty = ResolveDependencyProperty(targetType, propertyName);
                 if (dependencyProperty == null)
@@ -352,9 +353,20 @@ public static class XamlLoader
                 }
 
                 var bindingScope = target as FrameworkElement ?? resourceScope;
-                BindingBase bindingBase = string.Equals(childName, nameof(Binding), StringComparison.Ordinal)
-                    ? BuildBindingElement(childElement, dependencyProperty.PropertyType, bindingScope)
-                    : BuildMultiBindingElement(childElement, dependencyProperty.PropertyType, bindingScope);
+                BindingBase bindingBase;
+                if (string.Equals(childName, nameof(Binding), StringComparison.Ordinal))
+                {
+                    bindingBase = BuildBindingElement(childElement, dependencyProperty.PropertyType, bindingScope);
+                }
+                else if (string.Equals(childName, nameof(MultiBinding), StringComparison.Ordinal))
+                {
+                    bindingBase = BuildMultiBindingElement(childElement, dependencyProperty.PropertyType, bindingScope);
+                }
+                else
+                {
+                    bindingBase = BuildPriorityBindingElement(childElement, dependencyProperty.PropertyType, bindingScope);
+                }
+
                 BindingOperations.SetBinding(dependencyObject, dependencyProperty, bindingBase);
                 return true;
             }
@@ -397,6 +409,16 @@ public static class XamlLoader
         if (string.Equals(element.Name.LocalName, nameof(MultiBinding), StringComparison.Ordinal))
         {
             return BuildMultiBindingElement(element, typeof(object), resourceScope);
+        }
+
+        if (string.Equals(element.Name.LocalName, nameof(PriorityBinding), StringComparison.Ordinal))
+        {
+            return BuildPriorityBindingElement(element, typeof(object), resourceScope);
+        }
+
+        if (string.Equals(element.Name.LocalName, nameof(BindingGroup), StringComparison.Ordinal))
+        {
+            return BuildBindingGroupElement(element);
         }
 
         var type = ResolveElementType(element.Name.LocalName);
@@ -650,6 +672,80 @@ public static class XamlLoader
         }
 
         return multiBinding;
+    }
+
+    private static PriorityBinding BuildPriorityBindingElement(XElement element, Type targetPropertyType, FrameworkElement? resourceScope)
+    {
+        var priorityBinding = new PriorityBinding();
+
+        foreach (var attribute in element.Attributes())
+        {
+            if (attribute.IsNamespaceDeclaration)
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(attribute.Name.NamespaceName))
+            {
+                continue;
+            }
+
+            var localName = attribute.Name.LocalName;
+            var rawValue = attribute.Value;
+            if (TryApplyPriorityBindingOption(priorityBinding, localName, rawValue, targetPropertyType, resourceScope))
+            {
+                continue;
+            }
+
+            throw CreateXamlException($"PriorityBinding attribute '{localName}' is not supported.", attribute);
+        }
+
+        foreach (var child in element.Elements())
+        {
+            if (!string.Equals(child.Name.LocalName, nameof(Binding), StringComparison.Ordinal))
+            {
+                throw CreateXamlException("PriorityBinding can only contain Binding child elements.", child);
+            }
+
+            priorityBinding.Bindings.Add(BuildBindingElement(child, typeof(object), resourceScope));
+        }
+
+        if (priorityBinding.Bindings.Count == 0)
+        {
+            throw CreateXamlException("PriorityBinding requires at least one child Binding.", element);
+        }
+
+        return priorityBinding;
+    }
+
+    private static BindingGroup BuildBindingGroupElement(XElement element)
+    {
+        var bindingGroup = new BindingGroup();
+        foreach (var attribute in element.Attributes())
+        {
+            if (attribute.IsNamespaceDeclaration || !string.IsNullOrEmpty(attribute.Name.NamespaceName))
+            {
+                continue;
+            }
+
+            var localName = attribute.Name.LocalName;
+            var rawValue = attribute.Value;
+            if (string.Equals(localName, nameof(BindingGroup.Name), StringComparison.OrdinalIgnoreCase))
+            {
+                bindingGroup.Name = rawValue;
+                continue;
+            }
+
+            if (string.Equals(localName, nameof(BindingGroup.Culture), StringComparison.OrdinalIgnoreCase))
+            {
+                bindingGroup.Culture = CultureInfo.GetCultureInfo(rawValue);
+                continue;
+            }
+
+            throw CreateXamlException($"BindingGroup attribute '{localName}' is not supported.", attribute);
+        }
+
+        return bindingGroup;
     }
 
     private static DataTemplate BuildDataTemplate(XElement element, object? codeBehind, FrameworkElement? resourceScope)
@@ -1798,6 +1894,21 @@ public static class XamlLoader
             return true;
         }
 
+        if (string.Equals(key, nameof(Binding.BindingGroupName), StringComparison.OrdinalIgnoreCase))
+        {
+            binding.BindingGroupName = rawValue;
+            return true;
+        }
+
+        if (string.Equals(key, nameof(Binding.UpdateSourceExceptionFilter), StringComparison.OrdinalIgnoreCase))
+        {
+            binding.UpdateSourceExceptionFilter = ResolveBindingResource<UpdateSourceExceptionFilterCallback>(
+                rawValue,
+                resourceScope,
+                nameof(Binding.UpdateSourceExceptionFilter));
+            return true;
+        }
+
         return false;
     }
 
@@ -1869,6 +1980,74 @@ public static class XamlLoader
         if (string.Equals(key, nameof(MultiBinding.ValidatesOnExceptions), StringComparison.OrdinalIgnoreCase))
         {
             multiBinding.ValidatesOnExceptions = bool.Parse(rawValue);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.BindingGroupName), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.BindingGroupName = rawValue;
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.UpdateSourceExceptionFilter), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.UpdateSourceExceptionFilter = ResolveBindingResource<UpdateSourceExceptionFilterCallback>(
+                rawValue,
+                resourceScope,
+                nameof(MultiBinding.UpdateSourceExceptionFilter));
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryApplyPriorityBindingOption(
+        PriorityBinding priorityBinding,
+        string key,
+        string rawValue,
+        Type targetPropertyType,
+        FrameworkElement? resourceScope)
+    {
+        if (string.Equals(key, nameof(PriorityBinding.Mode), StringComparison.OrdinalIgnoreCase))
+        {
+            priorityBinding.Mode = (BindingMode)Enum.Parse(typeof(BindingMode), rawValue, ignoreCase: true);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(PriorityBinding.UpdateSourceTrigger), StringComparison.OrdinalIgnoreCase))
+        {
+            priorityBinding.UpdateSourceTrigger = (UpdateSourceTrigger)Enum.Parse(typeof(UpdateSourceTrigger), rawValue, ignoreCase: true);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(PriorityBinding.FallbackValue), StringComparison.OrdinalIgnoreCase))
+        {
+            priorityBinding.FallbackValue = targetPropertyType == typeof(object)
+                ? ParseLooseValue(rawValue)
+                : ConvertValue(rawValue, targetPropertyType);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(PriorityBinding.TargetNullValue), StringComparison.OrdinalIgnoreCase))
+        {
+            priorityBinding.TargetNullValue = targetPropertyType == typeof(object)
+                ? ParseLooseValue(rawValue)
+                : ConvertValue(rawValue, targetPropertyType);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(PriorityBinding.BindingGroupName), StringComparison.OrdinalIgnoreCase))
+        {
+            priorityBinding.BindingGroupName = rawValue;
+            return true;
+        }
+
+        if (string.Equals(key, nameof(PriorityBinding.UpdateSourceExceptionFilter), StringComparison.OrdinalIgnoreCase))
+        {
+            priorityBinding.UpdateSourceExceptionFilter = ResolveBindingResource<UpdateSourceExceptionFilterCallback>(
+                rawValue,
+                resourceScope,
+                nameof(PriorityBinding.UpdateSourceExceptionFilter));
             return true;
         }
 

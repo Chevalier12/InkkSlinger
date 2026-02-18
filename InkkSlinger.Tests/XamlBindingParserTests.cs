@@ -58,6 +58,53 @@ public class XamlBindingParserTests
     }
 
     [Fact]
+    public void PriorityBindingElement_ParsesAndApplies()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <TextBox x:Name="Fallback" Text="fallback-value" />
+    <TextBlock x:Name="Output">
+      <TextBlock.Text>
+        <PriorityBinding>
+          <Binding Path="Text" ElementName="MissingElement" />
+          <Binding Path="Text" ElementName="Fallback" />
+        </PriorityBinding>
+      </TextBlock.Text>
+    </TextBlock>
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var output = (TextBlock?)root.FindName("Output");
+
+        Assert.NotNull(output);
+        Assert.Equal("fallback-value", output!.Text);
+    }
+
+    [Fact]
+    public void FrameworkElementBindingGroupPropertyElement_ParsesAndApplies()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid x:Name="Root">
+    <FrameworkElement.BindingGroup>
+      <BindingGroup Name="RootGroup" />
+    </FrameworkElement.BindingGroup>
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var grid = (Grid?)root.FindName("Root");
+
+        Assert.NotNull(grid);
+        Assert.NotNull(grid!.BindingGroup);
+        Assert.Equal("RootGroup", grid.BindingGroup!.Name);
+    }
+
+    [Fact]
     public void BindingMarkup_WithUnsupportedConverterResourceType_Throws()
     {
         const string xaml = """
@@ -136,5 +183,122 @@ public class XamlBindingParserTests
         var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
         Assert.Contains("NotARealKey", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Line", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BindingMarkup_UpdateSourceExceptionFilter_FromStaticResource_ParsesAndInvokes()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <TextBox x:Name="Input"
+             Text="{Binding Path=Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True, UpdateSourceExceptionFilter={StaticResource Filter}}" />
+  </Grid>
+</UserControl>
+""";
+
+        var host = new UserControl();
+        host.Resources.Add("Filter", new UpdateSourceExceptionFilterCallback(static (_, _) => "xaml-filtered"));
+        XamlLoader.LoadIntoFromString(host, xaml);
+        host.DataContext = new ThrowingSetterViewModel();
+
+        var input = (TextBox?)host.FindName("Input");
+        Assert.NotNull(input);
+
+        input!.Text = "boom";
+
+        Assert.True(Validation.GetHasError(input));
+        Assert.Contains(
+            Validation.GetErrors(input),
+            error => string.Equals(error.ErrorContent?.ToString(), "xaml-filtered", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void PriorityBindingElement_WithUnsupportedAttribute_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <TextBlock>
+      <TextBlock.Text>
+        <PriorityBinding UnknownOption="x">
+          <Binding Path="Text" ElementName="Missing" />
+        </PriorityBinding>
+      </TextBlock.Text>
+    </TextBlock>
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("UnknownOption", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void PriorityBindingElement_WithNonBindingChild_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <TextBlock>
+      <TextBlock.Text>
+        <PriorityBinding>
+          <TextBox />
+        </PriorityBinding>
+      </TextBlock.Text>
+    </TextBlock>
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("can only contain Binding", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void FrameworkElementBindingGroup_WithInvalidCulture_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <FrameworkElement.BindingGroup>
+      <BindingGroup Culture="a*b" />
+    </FrameworkElement.BindingGroup>
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("culture", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BindingMarkup_UpdateSourceExceptionFilter_WithWrongResourceType_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <Style x:Key="NotFilter" TargetType="{x:Type TextBlock}" />
+  </UserControl.Resources>
+  <Grid>
+    <TextBox x:Name="Input"
+             Text="{Binding Path=Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True, UpdateSourceExceptionFilter={StaticResource NotFilter}}" />
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("UpdateSourceExceptionFilter", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class ThrowingSetterViewModel
+    {
+        private string _value = "seed";
+
+        public string Value
+        {
+            get => _value;
+            set => throw new InvalidOperationException("setter failed");
+        }
     }
 }

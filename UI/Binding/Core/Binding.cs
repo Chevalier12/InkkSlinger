@@ -31,4 +31,8 @@ public sealed class Binding : BindingBase
     public bool ValidatesOnNotifyDataErrors { get; set; }
 
     public bool ValidatesOnExceptions { get; set; }
+
+    public string? BindingGroupName { get; set; }
+
+    public UpdateSourceExceptionFilterCallback? UpdateSourceExceptionFilter { get; set; }
 }

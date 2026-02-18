@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#111820"
+             BorderBrush="#32485E"
+             BorderThickness="1"
+             Padding="14">
+  <UserControl.Resources>
+    <PriorityGateConverter x:Key="PrimaryGate" Enabled="False" />
+
+    <Style TargetType="Label">
+      <Style.Setters>
+        <Setter Property="Foreground" Value="#D5E8FA" />
+      </Style.Setters>
+    </Style>
+
+    <Style TargetType="TextBox">
+      <Style.Setters>
+        <Setter Property="Background" Value="#0A121B" />
+        <Setter Property="BorderBrush" Value="#3A5D7E" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8" />
+      </Style.Setters>
+    </Style>
+
+    <Style TargetType="Button">
+      <Style.Setters>
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Background" Value="#1B3956" />
+        <Setter Property="BorderBrush" Value="#4D78A2" />
+        <Setter Property="Foreground" Value="#E8F4FF" />
+      </Style.Setters>
+    </Style>
+  </UserControl.Resources>
+
+  <Grid x:Name="RootGroupHost">
+    <FrameworkElement.BindingGroup>
+      <BindingGroup Name="RootGroup" />
+    </FrameworkElement.BindingGroup>
+
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Background="#14202C"
+            BorderBrush="#2F4B63"
+            BorderThickness="1"
+            Padding="10"
+            Margin="0,0,0,10">
+      <Label Text="Binding Parity Gap #5 Demo: PriorityBinding + BindingGroup + UpdateSourceExceptionFilter" />
+    </Border>
+
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="10" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0" Background="#0F1822" BorderBrush="#2E4D68" BorderThickness="1" Padding="10">
+        <StackPanel>
+          <Label Text="PriorityBinding" Foreground="#EDF7FF" />
+          <CheckBox x:Name="UsePrimaryCheck"
+                    Text="Enable primary source (via converter gate)"
+                    Checked="OnUsePrimaryChanged"
+                    Unchecked="OnUsePrimaryChanged"
+                    Margin="0,6,0,0" />
+          <Label Text="Primary source text" Margin="0,10,0,0" />
+          <TextBox x:Name="PrimarySourceInput"
+                   Text="{Binding Path=PrimaryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+          <Label Text="Secondary source text" Margin="0,10,0,0" />
+          <TextBox x:Name="SecondarySourceInput"
+                   Text="{Binding Path=SecondaryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+          <Label Text="Effective output (PriorityBinding)" Margin="0,10,0,0" />
+          <Border Background="#1A2B3D" BorderBrush="#3A5D7E" BorderThickness="1" Padding="8" Margin="0,4,0,0">
+            <TextBlock x:Name="PriorityOutput" Foreground="#F8FCFF">
+              <TextBlock.Text>
+                <PriorityBinding FallbackValue="[priority fallback]">
+                  <Binding Path="PrimaryText"
+                           Converter="{StaticResource PrimaryGate}"
+                           ValidatesOnExceptions="True" />
+                  <Binding Path="SecondaryText" />
+                </PriorityBinding>
+              </TextBlock.Text>
+            </TextBlock>
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <Separator Grid.Column="1" Orientation="Vertical" Foreground="#2A445C" />
+
+      <Border Grid.Column="2" Background="#0F1822" BorderBrush="#2E4D68" BorderThickness="1" Padding="10">
+        <StackPanel>
+          <Label Text="BindingGroup (named groups + explicit commit)" Foreground="#EDF7FF" />
+          <Label Text="RootGroup draft" Margin="0,8,0,0" />
+          <TextBox x:Name="RootInput"
+                   Text="{Binding Path=RootValue, Mode=TwoWay, UpdateSourceTrigger=Explicit, BindingGroupName=RootGroup}" />
+
+          <Grid x:Name="InnerGroupHost" Margin="0,10,0,0">
+            <FrameworkElement.BindingGroup>
+              <BindingGroup Name="InnerGroup" />
+            </FrameworkElement.BindingGroup>
+            <Border Background="#132130" BorderBrush="#2E4D68" BorderThickness="1" Padding="8">
+              <StackPanel>
+                <Label Text="InnerGroup draft" />
+                <TextBox x:Name="InnerInput"
+                         Text="{Binding Path=InnerValue, Mode=TwoWay, UpdateSourceTrigger=Explicit, BindingGroupName=InnerGroup}" />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <Grid Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="8" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Text="Commit RootGroup" Click="OnCommitRootClick" />
+            <Button Grid.Column="2" Text="Commit InnerGroup" Click="OnCommitInnerClick" />
+          </Grid>
+
+          <Grid Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="8" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Text="Validate RootGroup" Click="OnValidateRootClick" />
+            <Button Grid.Column="2" Text="Cancel RootGroup" Click="OnCancelRootClick" />
+          </Grid>
+
+          <Label Text="Committed values" Margin="0,10,0,0" />
+          <Label Text="{Binding Path=CommittedSummary}" Foreground="#BFE2FF" />
+
+          <Label Text="UpdateSourceExceptionFilter demo" Margin="0,10,0,0" />
+          <TextBox x:Name="FaultyInput" />
+          <Label Text="Type in the box above. Source setter throws; filter converts exception into validation content."
+                 TextWrapping="Wrap"
+                 Foreground="#9FC1DF"
+                 Margin="0,4,0,0" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2"
+            Background="#131F2B"
+            BorderBrush="#2E4D68"
+            BorderThickness="1"
+            Padding="10"
+            Margin="0,10,0,0">
+      <StackPanel>
+        <Label x:Name="StatusLabel" Text="Ready." />
+        <ListBox x:Name="LogList"
+                 Margin="0,6,0,0"
+                 Height="140"
+                 Background="#0A121B"
+                 BorderBrush="#2E4D68"
+                 BorderThickness="1" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>
