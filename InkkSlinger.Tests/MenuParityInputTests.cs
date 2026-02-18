@@ -79,6 +79,38 @@ public class MenuParityInputTests
     }
 
     [Fact]
+    public void Right_FromFirstLevelLeaf_MovesAcrossTopLevel_AndOpensTargetSubmenu()
+    {
+        var fixture = CreateFixture();
+        FocusByClick(fixture.UiRoot, fixture.EditorTextBox);
+
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.E, new KeyboardState(Keys.LeftAlt)));
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Down));
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Right));
+
+        Assert.True(fixture.Menu.IsMenuMode);
+        Assert.False(fixture.EditMenuItem.IsHighlighted);
+        Assert.True(fixture.FileMenuItem.IsHighlighted);
+        Assert.True(fixture.FileMenuItem.IsSubmenuOpen);
+    }
+
+    [Fact]
+    public void Left_FromFirstLevelLeaf_MovesAcrossTopLevel_AndOpensTargetSubmenu()
+    {
+        var fixture = CreateFixture();
+        FocusByClick(fixture.UiRoot, fixture.EditorTextBox);
+
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.E, new KeyboardState(Keys.LeftAlt)));
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Down));
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Left));
+
+        Assert.True(fixture.Menu.IsMenuMode);
+        Assert.False(fixture.EditMenuItem.IsHighlighted);
+        Assert.True(fixture.FileMenuItem.IsHighlighted);
+        Assert.True(fixture.FileMenuItem.IsSubmenuOpen);
+    }
+
+    [Fact]
     public void Enter_OnLeaf_ExecutesOnce_AndClosesMenus()
     {
         var fixture = CreateFixture();

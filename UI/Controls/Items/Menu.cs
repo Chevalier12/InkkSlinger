@@ -485,6 +485,12 @@ public class Menu : ItemsControl
             case Keys.Left:
                 if (!ReferenceEquals(current, currentTop))
                 {
+                    if (current.GetParentMenuItem() is { } firstLevelParent &&
+                        ReferenceEquals(firstLevelParent, currentTop))
+                    {
+                        return MoveAcrossTopLevel(currentTop, -1, openSubmenu: true);
+                    }
+
                     return TryMoveLeftWithinSubmenu(current);
                 }
 
@@ -496,6 +502,12 @@ public class Menu : ItemsControl
                     {
                         current.OpenSubmenu(focusFirstItem: true);
                         return true;
+                    }
+
+                    if (current.GetParentMenuItem() is { } firstLevelParent &&
+                        ReferenceEquals(firstLevelParent, currentTop))
+                    {
+                        return MoveAcrossTopLevel(currentTop, 1, openSubmenu: true);
                     }
 
                     return false;
