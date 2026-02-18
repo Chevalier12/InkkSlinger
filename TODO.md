@@ -126,7 +126,7 @@ Popup/menu/window interaction parity and additional edge behavior validation.
 - [x] MenuItem
 - [ ] Page
 - [x] Panel
-- [ ] PasswordBox
+- [x] PasswordBox
 - [x] Popup
 - [x] ProgressBar
 - [x] RadioButton

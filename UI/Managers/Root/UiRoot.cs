@@ -52,7 +52,7 @@ public sealed partial class UiRoot
     private UIElement? _lastClickUpTarget;
     private Vector2 _lastClickUpPointerPosition;
     private bool _hasLastClickUpPointerPosition;
-    private TextBox? _cachedWheelTextBoxTarget;
+    private UIElement? _cachedWheelTextInputTarget;
     private ScrollViewer? _cachedWheelScrollViewerTarget;
     private Vector2 _lastWheelPointerPosition;
     private long _lastWheelPreciseRetargetTimestamp;

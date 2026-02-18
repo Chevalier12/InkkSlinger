@@ -61,6 +61,7 @@
         <xs:element ref="ComboBox" />
         <xs:element ref="ComboBoxItem" />
         <xs:element ref="TextBox" />
+        <xs:element ref="PasswordBox" />
         <xs:element ref="HeaderedContentControl" />
         <xs:element ref="HeaderedItemsControl" />
         <xs:element ref="ContentPresenter" />
@@ -1186,6 +1187,27 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="passwordBoxType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Password" type="xs:string" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="Margin" type="thicknessType" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+        <xs:attribute name="Padding" type="thicknessType" />
+        <xs:attribute name="IsReadOnly" type="xs:boolean" />
+        <xs:attribute name="MaxLength" type="xs:int" />
+        <xs:attribute name="PasswordChar" type="xs:string" />
+        <xs:attribute name="RevealPassword" type="xs:boolean" />
+        <xs:attribute name="AllowClipboardCopy" type="xs:boolean" />
+        <xs:attribute name="PasswordChanged" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="contentPresenterType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
@@ -1621,6 +1643,7 @@
   <xs:element name="ComboBoxItem" type="comboBoxItemType" />
   <xs:element name="ComboBox" type="comboBoxType" />
   <xs:element name="TextBox" type="textBoxType" />
+  <xs:element name="PasswordBox" type="passwordBoxType" />
   <xs:element name="HeaderedContentControl" type="headeredContentControlType" />
   <xs:element name="HeaderedItemsControl" type="headeredItemsControlType" />
   <xs:element name="ContentPresenter" type="contentPresenterType" />

@@ -231,8 +231,9 @@ Primary validation machine for current development/testing:
 | Window demo | `dotnet run --project InkkSlinger.csproj -- --window-demo` |
 | Paint shell demo | `dotnet run --project InkkSlinger.csproj -- --paint-shell` |
 | Commanding demo | `dotnet run --project InkkSlinger.csproj -- --commanding-demo` |
+| PasswordBox demo | `dotnet run --project InkkSlinger.csproj -- --passwordbox-demo` |
 
-Current default launch surface is the dark dashboard demo when no explicit mode flag is provided.
+Current default launch surface is the password-box demo when no explicit mode flag is provided.
 
 ## Environment Variables
 

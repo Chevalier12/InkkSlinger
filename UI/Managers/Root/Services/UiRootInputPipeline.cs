@@ -304,6 +304,10 @@ public sealed partial class UiRoot
         {
             oldTextBox.SetMouseOverFromInput(false);
         }
+        else if (_inputState.HoveredElement is PasswordBox oldPasswordBox)
+        {
+            oldPasswordBox.SetMouseOverFromInput(false);
+        }
 
         if (_inputState.HoveredElement is Button oldButton)
         {
@@ -316,6 +320,10 @@ public sealed partial class UiRoot
         if (hovered is TextBox newTextBox)
         {
             newTextBox.SetMouseOverFromInput(true);
+        }
+        else if (hovered is PasswordBox newPasswordBox)
+        {
+            newPasswordBox.SetMouseOverFromInput(true);
         }
 
         if (hovered is Button newButton)
@@ -340,6 +348,10 @@ public sealed partial class UiRoot
         if (_inputState.CapturedPointerElement is TextBox dragTextBox)
         {
             dragTextBox.HandlePointerMoveFromInput(pointerPosition);
+        }
+        else if (_inputState.CapturedPointerElement is PasswordBox dragPasswordBox)
+        {
+            dragPasswordBox.HandlePointerMoveFromInput(pointerPosition);
         }
         else if (_inputState.CapturedPointerElement is ScrollViewer dragScrollViewer)
         {
@@ -370,6 +382,11 @@ public sealed partial class UiRoot
         else if (target is TextBox textBox)
         {
             textBox.HandlePointerDownFromInput(pointerPosition, extendSelection: (_inputState.CurrentModifiers & ModifierKeys.Shift) != 0);
+            CapturePointer(target);
+        }
+        else if (target is PasswordBox passwordBox)
+        {
+            passwordBox.HandlePointerDownFromInput(pointerPosition, extendSelection: (_inputState.CurrentModifiers & ModifierKeys.Shift) != 0);
             CapturePointer(target);
         }
         else if (target is ScrollBar scrollBar &&
@@ -414,6 +431,10 @@ public sealed partial class UiRoot
         {
             textBox.HandlePointerUpFromInput();
         }
+        else if (_inputState.CapturedPointerElement is PasswordBox passwordBox)
+        {
+            passwordBox.HandlePointerUpFromInput();
+        }
         else if (_inputState.CapturedPointerElement is ScrollViewer scrollViewer)
         {
             scrollViewer.HandlePointerUpFromInput();
@@ -434,24 +455,25 @@ public sealed partial class UiRoot
             return;
         }
 
-        TraceWheelRouting($"DispatchMouseWheel start: delta={delta}, pointer={FormatWheelPointer(pointerPosition)}, incomingTarget={DescribeWheelElement(target)}, hovered={DescribeWheelElement(_inputState.HoveredElement)}, cachedTextBox={DescribeWheelElement(_cachedWheelTextBoxTarget)}, cachedScrollViewer={DescribeWheelElement(_cachedWheelScrollViewerTarget)}");
+        TraceWheelRouting($"DispatchMouseWheel start: delta={delta}, pointer={FormatWheelPointer(pointerPosition)}, incomingTarget={DescribeWheelElement(target)}, hovered={DescribeWheelElement(_inputState.HoveredElement)}, cachedTextBox={DescribeWheelElement(_cachedWheelTextInputTarget)}, cachedScrollViewer={DescribeWheelElement(_cachedWheelScrollViewerTarget)}");
 
         EnsureCachedWheelTargetsAreCurrent(pointerPosition);
-        if (_cachedWheelTextBoxTarget != null)
+        if (_cachedWheelTextInputTarget != null)
         {
-            resolvedTarget = _cachedWheelTextBoxTarget;
+            resolvedTarget = _cachedWheelTextInputTarget;
         }
         else if (_cachedWheelScrollViewerTarget != null)
         {
             resolvedTarget = _cachedWheelScrollViewerTarget;
         }
 
-        var hasCachedWheelTarget = _cachedWheelTextBoxTarget != null || _cachedWheelScrollViewerTarget != null;
+        var hasCachedWheelTarget = _cachedWheelTextInputTarget != null || _cachedWheelScrollViewerTarget != null;
         var hasWheelCapableAncestor = TryFindAncestor<TextBox>(resolvedTarget, out _) ||
+                                      TryFindAncestor<PasswordBox>(resolvedTarget, out _) ||
                                       TryFindAncestor<ScrollViewer>(resolvedTarget, out _);
         var pointerInsideResolvedTarget = PointerLikelyInsideElement(resolvedTarget, pointerPosition);
         var pointerInsideCachedTarget =
-            (_cachedWheelTextBoxTarget != null && PointerLikelyInsideElement(_cachedWheelTextBoxTarget, pointerPosition)) ||
+            (_cachedWheelTextInputTarget != null && PointerLikelyInsideElement(_cachedWheelTextInputTarget, pointerPosition)) ||
             (_cachedWheelScrollViewerTarget != null && PointerLikelyInsideElement(_cachedWheelScrollViewerTarget, pointerPosition));
         var needsPreciseTarget = (!pointerInsideResolvedTarget && !pointerInsideCachedTarget) ||
                                  (!hasCachedWheelTarget && !hasWheelCapableAncestor);
@@ -503,10 +525,9 @@ public sealed partial class UiRoot
             TraceWheelRouting($"DispatchMouseWheel routed events raised on {DescribeWheelElement(resolvedTarget)}");
         }
 
-        if (_cachedWheelTextBoxTarget != null &&
-            _cachedWheelTextBoxTarget.HandleMouseWheelFromInput(delta))
+        if (TryHandleTextInputWheel(_cachedWheelTextInputTarget, delta))
         {
-            TraceWheelRouting($"DispatchMouseWheel handled by cached TextBox {DescribeWheelElement(_cachedWheelTextBoxTarget)}");
+            TraceWheelRouting($"DispatchMouseWheel handled by cached text input {DescribeWheelElement(_cachedWheelTextInputTarget)}");
             TrackWheelPointerPosition(pointerPosition);
             ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
             return;
@@ -526,13 +547,13 @@ public sealed partial class UiRoot
             return;
         }
 
-        if (TryFindAncestor<TextBox>(resolvedTarget, out var textBox) &&
-            textBox != null &&
-            textBox.HandleMouseWheelFromInput(delta))
+        if (TryFindWheelTextInputAncestor(resolvedTarget, out var textInput) &&
+            textInput != null &&
+            TryHandleTextInputWheel(textInput, delta))
         {
-            _cachedWheelTextBoxTarget = textBox;
+            _cachedWheelTextInputTarget = textInput;
             _cachedWheelScrollViewerTarget = null;
-            TraceWheelRouting($"DispatchMouseWheel handled by ancestor TextBox {DescribeWheelElement(textBox)}");
+            TraceWheelRouting($"DispatchMouseWheel handled by ancestor text input {DescribeWheelElement(textInput)}");
             TrackWheelPointerPosition(pointerPosition);
             ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
             return;
@@ -541,7 +562,7 @@ public sealed partial class UiRoot
         if (TryFindAncestor<ScrollViewer>(resolvedTarget, out var scrollViewer) && scrollViewer != null)
         {
             _cachedWheelScrollViewerTarget = scrollViewer;
-            _cachedWheelTextBoxTarget = null;
+            _cachedWheelTextInputTarget = null;
             var beforeHorizontal = scrollViewer.HorizontalOffset;
             var beforeVertical = scrollViewer.VerticalOffset;
             var wheelHandleStart = Stopwatch.GetTimestamp();
@@ -560,11 +581,11 @@ public sealed partial class UiRoot
 
     private void EnsureCachedWheelTargetsAreCurrent(Vector2 pointerPosition)
     {
-        if (_cachedWheelTextBoxTarget != null &&
-            !PointerLikelyInsideElement(_cachedWheelTextBoxTarget, pointerPosition))
+        if (_cachedWheelTextInputTarget != null &&
+            !PointerLikelyInsideElement(_cachedWheelTextInputTarget, pointerPosition))
         {
-            TraceWheelRouting($"EnsureCachedWheelTargetsAreCurrent cleared cached TextBox {DescribeWheelElement(_cachedWheelTextBoxTarget)} for pointer {FormatWheelPointer(pointerPosition)}");
-            _cachedWheelTextBoxTarget = null;
+            TraceWheelRouting($"EnsureCachedWheelTargetsAreCurrent cleared cached text input {DescribeWheelElement(_cachedWheelTextInputTarget)} for pointer {FormatWheelPointer(pointerPosition)}");
+            _cachedWheelTextInputTarget = null;
         }
 
         if (_cachedWheelScrollViewerTarget != null &&
@@ -634,7 +655,7 @@ public sealed partial class UiRoot
         ref int bestDepth,
         ref UIElement? bestTarget)
     {
-        if (element is TextBox or ScrollViewer)
+        if (element is TextBox or PasswordBox or ScrollViewer)
         {
             if (element.HitTest(pointerPosition) && depth >= bestDepth)
             {
@@ -651,31 +672,31 @@ public sealed partial class UiRoot
 
     private void RefreshCachedWheelTargets(UIElement? hovered)
     {
-        var previousTextBox = _cachedWheelTextBoxTarget;
+        var previousTextInput = _cachedWheelTextInputTarget;
         var previousScrollViewer = _cachedWheelScrollViewerTarget;
-        _cachedWheelTextBoxTarget = null;
+        _cachedWheelTextInputTarget = null;
         _cachedWheelScrollViewerTarget = null;
         if (hovered == null)
         {
-            TraceWheelRouting($"RefreshCachedWheelTargets cleared caches from hovered=null, previousTextBox={DescribeWheelElement(previousTextBox)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
+            TraceWheelRouting($"RefreshCachedWheelTargets cleared caches from hovered=null, previousTextInput={DescribeWheelElement(previousTextInput)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
             return;
         }
 
-        if (TryFindAncestor<TextBox>(hovered, out var textBox) && textBox != null)
+        if (TryFindWheelTextInputAncestor(hovered, out var textInput) && textInput != null)
         {
-            _cachedWheelTextBoxTarget = textBox;
-            TraceWheelRouting($"RefreshCachedWheelTargets hovered={DescribeWheelElement(hovered)} -> cached TextBox {DescribeWheelElement(textBox)}, previousTextBox={DescribeWheelElement(previousTextBox)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
+            _cachedWheelTextInputTarget = textInput;
+            TraceWheelRouting($"RefreshCachedWheelTargets hovered={DescribeWheelElement(hovered)} -> cached text input {DescribeWheelElement(textInput)}, previousTextInput={DescribeWheelElement(previousTextInput)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
             return;
         }
 
         if (TryFindAncestor<ScrollViewer>(hovered, out var scrollViewer) && scrollViewer != null)
         {
             _cachedWheelScrollViewerTarget = scrollViewer;
-            TraceWheelRouting($"RefreshCachedWheelTargets hovered={DescribeWheelElement(hovered)} -> cached ScrollViewer {DescribeWheelElement(scrollViewer)}, previousTextBox={DescribeWheelElement(previousTextBox)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
+            TraceWheelRouting($"RefreshCachedWheelTargets hovered={DescribeWheelElement(hovered)} -> cached ScrollViewer {DescribeWheelElement(scrollViewer)}, previousTextInput={DescribeWheelElement(previousTextInput)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
             return;
         }
 
-        TraceWheelRouting($"RefreshCachedWheelTargets hovered={DescribeWheelElement(hovered)} found no wheel-capable ancestor, previousTextBox={DescribeWheelElement(previousTextBox)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
+        TraceWheelRouting($"RefreshCachedWheelTargets hovered={DescribeWheelElement(hovered)} found no wheel-capable ancestor, previousTextInput={DescribeWheelElement(previousTextInput)}, previousScrollViewer={DescribeWheelElement(previousScrollViewer)}");
     }
 
     private bool TryResolveClickTargetFromHovered(Vector2 pointerPosition, out UIElement? target)
@@ -739,7 +760,7 @@ public sealed partial class UiRoot
 
     private static bool IsClickCapableElement(UIElement element)
     {
-        if (element is Button or TextBox or ScrollViewer or ScrollBar)
+        if (element is Button or TextBox or PasswordBox or ScrollViewer or ScrollBar)
         {
             return true;
         }
@@ -793,6 +814,10 @@ public sealed partial class UiRoot
         {
             return;
         }
+        if (_inputState.FocusedElement is PasswordBox passwordBox && passwordBox.HandleKeyDownFromInput(key, modifiers))
+        {
+            return;
+        }
 
         if (_inputState.FocusedElement is Button button && (key == Keys.Enter || key == Keys.Space))
         {
@@ -834,6 +859,10 @@ public sealed partial class UiRoot
         {
             _ = textBox.HandleTextInputFromInput(character);
         }
+        else if (focused is PasswordBox passwordBox)
+        {
+            _ = passwordBox.HandleTextInputFromInput(character);
+        }
     }
 
     private void SetFocus(UIElement? element)
@@ -853,10 +882,22 @@ public sealed partial class UiRoot
             old.RaiseRoutedEventInternal(UIElement.LostFocusEvent, new FocusChangedRoutedEventArgs(UIElement.LostFocusEvent, old, element));
             _lastInputRoutedEventCount++;
         }
+        else if (old is PasswordBox oldPasswordBox)
+        {
+            oldPasswordBox.SetFocusedFromInput(false);
+            old.RaiseRoutedEventInternal(UIElement.LostFocusEvent, new FocusChangedRoutedEventArgs(UIElement.LostFocusEvent, old, element));
+            _lastInputRoutedEventCount++;
+        }
 
         if (element is TextBox newTextBox)
         {
             newTextBox.SetFocusedFromInput(true);
+            element.RaiseRoutedEventInternal(UIElement.GotFocusEvent, new FocusChangedRoutedEventArgs(UIElement.GotFocusEvent, old, element));
+            _lastInputRoutedEventCount++;
+        }
+        else if (element is PasswordBox newPasswordBox)
+        {
+            newPasswordBox.SetFocusedFromInput(true);
             element.RaiseRoutedEventInternal(UIElement.GotFocusEvent, new FocusChangedRoutedEventArgs(UIElement.GotFocusEvent, old, element));
             _lastInputRoutedEventCount++;
         }
@@ -906,6 +947,34 @@ public sealed partial class UiRoot
         return modifiers;
     }
 
+    private static bool TryHandleTextInputWheel(UIElement? element, int delta)
+    {
+        return element switch
+        {
+            TextBox textBox => textBox.HandleMouseWheelFromInput(delta),
+            PasswordBox passwordBox => passwordBox.HandleMouseWheelFromInput(delta),
+            _ => false
+        };
+    }
+
+    private static bool TryFindWheelTextInputAncestor(UIElement start, out UIElement? textInput)
+    {
+        if (TryFindAncestor<TextBox>(start, out var textBox) && textBox != null)
+        {
+            textInput = textBox;
+            return true;
+        }
+
+        if (TryFindAncestor<PasswordBox>(start, out var passwordBox) && passwordBox != null)
+        {
+            textInput = passwordBox;
+            return true;
+        }
+
+        textInput = null;
+        return false;
+    }
+
     private static bool TryFindAncestor<TElement>(UIElement start, out TElement? result)
         where TElement : UIElement
     {
@@ -943,3 +1012,4 @@ public sealed partial class UiRoot
     }
 
 }
+
