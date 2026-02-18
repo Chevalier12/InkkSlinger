@@ -211,6 +211,15 @@ dotnet build InkkSlinger.sln -v minimal
 dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal
 ```
 
+## Test Environment
+
+Primary validation machine for current development/testing:
+
+- OS: Windows 10 Pro (10.0.19045, 64-bit)
+- CPU: Intel Core i7-5600U @ 2.60GHz (2 cores / 4 logical processors)
+- RAM: 12 GB
+- GPU: Intel HD Graphics 5500
+
 ## Running the Host Application
 
 | Mode | Command |
