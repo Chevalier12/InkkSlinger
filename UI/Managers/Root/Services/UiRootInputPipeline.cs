@@ -805,7 +805,7 @@ public sealed partial class UiRoot
             return;
         }
 
-        _ = InputGestureService.Execute(key, modifiers);
+        _ = InputGestureService.Execute(key, modifiers, _inputState.FocusedElement, _visualRoot);
     }
 
     private void DispatchKeyUp(Keys key, ModifierKeys modifiers)

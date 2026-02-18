@@ -17,6 +17,7 @@ public class UIElement : DependencyObject
 
     private readonly Dictionary<RoutedEvent, List<RoutedHandlerEntry>> _routedHandlers = new();
     private readonly List<CommandBinding> _commandBindings = new();
+    private readonly List<InputBinding> _inputBindings = new();
     private LayoutRect _layoutSlot;
     private int _measureInvalidationCount;
     private int _arrangeInvalidationCount;
@@ -93,6 +94,8 @@ public class UIElement : DependencyObject
     public UIElement? LogicalParent { get; private set; }
 
     public IList<CommandBinding> CommandBindings => _commandBindings;
+
+    public IList<InputBinding> InputBindings => _inputBindings;
 
     public bool IsVisible
     {

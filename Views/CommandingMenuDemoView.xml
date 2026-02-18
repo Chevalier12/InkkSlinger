@@ -11,6 +11,10 @@
              BorderThickness="1"
              Padding="14">
   <UserControl.Resources>
+    <RoutedCommand x:Key="NewCommand" />
+    <RoutedCommand x:Key="OpenCommand" />
+    <RoutedCommand x:Key="ExitCommand" />
+
     <Style TargetType="Label">
       <Style.Setters>
         <Setter Property="Foreground" Value="#DCEEFF" />
@@ -53,6 +57,12 @@
       </Style.Setters>
     </Style>
   </UserControl.Resources>
+
+  <UIElement.InputBindings>
+    <KeyBinding Key="N" Modifiers="Control" Command="{StaticResource NewCommand}" />
+    <KeyBinding Key="O" Modifiers="Control" Command="{StaticResource OpenCommand}" />
+    <KeyBinding Key="F4" Modifiers="Alt" Command="{StaticResource ExitCommand}" />
+  </UIElement.InputBindings>
 
   <Grid>
     <Grid.RowDefinitions>

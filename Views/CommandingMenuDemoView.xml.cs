@@ -6,9 +6,9 @@ namespace InkkSlinger;
 
 public partial class CommandingMenuDemoView : UserControl
 {
-    private readonly RoutedCommand _newCommand = new("New", typeof(CommandingMenuDemoView));
-    private readonly RoutedCommand _openCommand = new("Open", typeof(CommandingMenuDemoView));
-    private readonly RoutedCommand _exitCommand = new("Exit", typeof(CommandingMenuDemoView));
+    private RoutedCommand _newCommand = new("New", typeof(CommandingMenuDemoView));
+    private RoutedCommand _openCommand = new("Open", typeof(CommandingMenuDemoView));
+    private RoutedCommand _exitCommand = new("Exit", typeof(CommandingMenuDemoView));
     private RelayCommand? _directCommand;
     private SpriteFont? _currentFont;
 
@@ -16,10 +16,10 @@ public partial class CommandingMenuDemoView : UserControl
     {
         var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "CommandingMenuDemoView.xml");
         XamlLoader.LoadInto(this, markupPath, this);
+        ResolveCommandsFromResources();
 
         BuildMenu();
         WireCommanding();
-        WireInputBindings();
 
         AppendLog("Ready. Try Alt+F, Ctrl+N, and switching focus between Editor/Side.");
         UpdateStatus("Demo initialized.");
@@ -127,12 +127,22 @@ public partial class CommandingMenuDemoView : UserControl
         }
     }
 
-    private void WireInputBindings()
+    private void ResolveCommandsFromResources()
     {
-        var target = (UIElement?)EditorTextBox ?? this;
-        InputGestureService.Register(Microsoft.Xna.Framework.Input.Keys.N, ModifierKeys.Control, _newCommand, target);
-        InputGestureService.Register(Microsoft.Xna.Framework.Input.Keys.O, ModifierKeys.Control, _openCommand, target);
-        InputGestureService.Register(Microsoft.Xna.Framework.Input.Keys.F4, ModifierKeys.Alt, _exitCommand, target);
+        if (TryFindResource("NewCommand", out var newCommandResource) && newCommandResource is RoutedCommand newCommand)
+        {
+            _newCommand = newCommand;
+        }
+
+        if (TryFindResource("OpenCommand", out var openCommandResource) && openCommandResource is RoutedCommand openCommand)
+        {
+            _openCommand = openCommand;
+        }
+
+        if (TryFindResource("ExitCommand", out var exitCommandResource) && exitCommandResource is RoutedCommand exitCommand)
+        {
+            _exitCommand = exitCommand;
+        }
     }
 
     private void OnAlwaysCanExecute(object? sender, CanExecuteRoutedEventArgs args)

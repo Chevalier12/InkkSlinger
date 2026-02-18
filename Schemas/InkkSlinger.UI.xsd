@@ -25,6 +25,7 @@
     <xs:sequence minOccurs="0" maxOccurs="unbounded">
       <xs:choice>
         <xs:element ref="DataTemplate" />
+        <xs:element ref="UIElement.InputBindings" />
         <xs:element ref="UserControl.Resources" />
         <xs:element ref="Panel.Resources" />
         <xs:element ref="Grid.Resources" />
@@ -725,6 +726,24 @@
     <xs:attribute name="ValidatesOnDataErrors" type="xs:boolean" />
     <xs:attribute name="ValidatesOnNotifyDataErrors" type="xs:boolean" />
     <xs:attribute name="ValidatesOnExceptions" type="xs:boolean" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="inputBindingsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="KeyBinding" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="keyBindingType">
+    <xs:attribute name="Key" type="xs:string" use="required" />
+    <xs:attribute name="Modifiers" type="xs:string" />
+    <xs:attribute name="Command" type="xs:string" />
+    <xs:attribute name="CommandTarget" type="xs:string" />
+    <xs:attribute name="CommandParameter" type="xs:string" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -1562,6 +1581,8 @@
   <xs:element name="ExponentialEase" type="exponentialEaseType" />
   <xs:element name="Binding" type="bindingType" />
   <xs:element name="MultiBinding" type="multiBindingType" />
+  <xs:element name="UIElement.InputBindings" type="inputBindingsType" />
+  <xs:element name="KeyBinding" type="keyBindingType" />
   <xs:element name="StackPanel" type="stackPanelType" />
   <xs:element name="VirtualizingStackPanel" type="virtualizingStackPanelType" />
   <xs:element name="Canvas" type="canvasType" />

@@ -400,8 +400,7 @@ public static class XamlLoader
         }
 
         var type = ResolveElementType(element.Name.LocalName);
-        var instance = Activator.CreateInstance(type)
-                       ?? throw CreateXamlException($"Could not create instance of '{type.Name}'.", element);
+        var instance = CreateObjectInstance(type, element);
 
         if (instance is UIElement uiElement)
         {
@@ -2375,6 +2374,49 @@ public static class XamlLoader
         }
 
         return new GridLength(float.Parse(trimmed, CultureInfo.InvariantCulture), GridUnitType.Pixel);
+    }
+
+    private static object CreateObjectInstance(Type type, XObject? location)
+    {
+        try
+        {
+            var instance = Activator.CreateInstance(type);
+            if (instance != null)
+            {
+                return instance;
+            }
+        }
+        catch (MissingMethodException)
+        {
+            // Fall back to optional-parameter constructors below.
+        }
+
+        var constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+        foreach (var constructor in constructors)
+        {
+            var parameters = constructor.GetParameters();
+            var allOptional = true;
+            var arguments = new object?[parameters.Length];
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                if (!parameters[i].IsOptional)
+                {
+                    allOptional = false;
+                    break;
+                }
+
+                arguments[i] = Type.Missing;
+            }
+
+            if (!allOptional)
+            {
+                continue;
+            }
+
+            return constructor.Invoke(arguments);
+        }
+
+        throw CreateXamlException($"Could not create instance of '{type.Name}'.", location);
     }
 
     private static Type ResolveElementType(string elementName)

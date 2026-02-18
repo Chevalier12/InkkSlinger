@@ -1,13 +1,11 @@
 using System;
-using System.Collections.Generic;
 using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
 public static class InputGestureService
 {
-    private static readonly Dictionary<KeyChord, List<Binding>> Bindings = new();
-
+    [Obsolete("Imperative gesture registration is no longer supported. Use UIElement.InputBindings with KeyBinding.")]
     public static void Register(
         Keys key,
         ModifierKeys modifiers,
@@ -15,46 +13,96 @@ public static class InputGestureService
         UIElement target,
         object? parameter = null)
     {
-        var chord = new KeyChord(key, modifiers);
-        if (!Bindings.TryGetValue(chord, out var list))
-        {
-            list = new List<Binding>(1);
-            Bindings[chord] = list;
-        }
-
-        list.Add(new Binding(command, target, parameter));
+        throw new NotSupportedException(
+            "Imperative gesture registration is disabled. Use declarative InputBindings/KeyBinding on UI elements.");
     }
 
+    [Obsolete("Imperative gesture registration is no longer supported. Use UIElement.InputBindings with KeyBinding.")]
     public static void Clear()
     {
-        Bindings.Clear();
+        throw new NotSupportedException(
+            "Imperative gesture registration is disabled. Use declarative InputBindings/KeyBinding on UI elements.");
     }
 
-    public static bool Execute(Keys key, ModifierKeys modifiers)
+    public static bool Execute(Keys key, ModifierKeys modifiers, UIElement? focusedElement, UIElement visualRoot)
     {
-        var chord = new KeyChord(key, modifiers);
-        if (!Bindings.TryGetValue(chord, out var list))
-        {
-            return false;
-        }
-
+        var start = focusedElement ?? visualRoot;
         var executed = false;
-        for (var i = 0; i < list.Count; i++)
-        {
-            var binding = list[i];
-            if (!CommandManager.CanExecute(binding.Command, binding.Parameter, binding.Target))
-            {
-                continue;
-            }
 
-            CommandManager.Execute(binding.Command, binding.Parameter, binding.Target);
-            executed = true;
+        for (var current = start; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            for (var i = 0; i < current.InputBindings.Count; i++)
+            {
+                if (current.InputBindings[i] is not KeyBinding binding || !binding.Matches(key, modifiers))
+                {
+                    continue;
+                }
+
+                if (TryExecuteBinding(binding, focusedElement, current))
+                {
+                    executed = true;
+                }
+            }
         }
 
         return executed;
     }
 
-    private readonly record struct Binding(RoutedCommand Command, UIElement Target, object? Parameter);
+    public static bool TryGetFirstGestureTextForCommand(
+        System.Windows.Input.ICommand command,
+        UIElement start,
+        out string gestureText)
+    {
+        for (var current = start; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            for (var i = 0; i < current.InputBindings.Count; i++)
+            {
+                if (current.InputBindings[i] is not KeyBinding keyBinding)
+                {
+                    continue;
+                }
 
-    private readonly record struct KeyChord(Keys Key, ModifierKeys Modifiers);
+                if (!ReferenceEquals(keyBinding.Command, command))
+                {
+                    continue;
+                }
+
+                gestureText = keyBinding.GetDisplayString();
+                return true;
+            }
+        }
+
+        gestureText = string.Empty;
+        return false;
+    }
+
+    private static bool TryExecuteBinding(KeyBinding binding, UIElement? focusedElement, UIElement owner)
+    {
+        var command = binding.Command;
+        if (command == null)
+        {
+            return false;
+        }
+
+        var target = binding.CommandTarget ?? focusedElement ?? owner;
+
+        if (command is RoutedCommand routedCommand)
+        {
+            if (!CommandManager.CanExecute(routedCommand, binding.CommandParameter, target))
+            {
+                return false;
+            }
+
+            CommandManager.Execute(routedCommand, binding.CommandParameter, target);
+            return true;
+        }
+
+        if (!command.CanExecute(binding.CommandParameter))
+        {
+            return false;
+        }
+
+        command.Execute(binding.CommandParameter);
+        return true;
+    }
 }

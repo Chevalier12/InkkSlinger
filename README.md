@@ -65,7 +65,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Binding core | `Path`, `Source`, `ElementName`, `RelativeSource`, modes and update triggers | `UI/Binding/Core/Binding.cs`, `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/BindingOperations.cs`, `UI/Binding/Types/BindingEnums.cs` | Implemented |
 | Binding lifecycle robustness | Rebind behavior on source/data-context/tree changes | `TODO.md` (`Completed Milestones`: binding lifecycle robustness) | Implemented |
 | Routed commanding core | `RoutedCommand`, command bindings, can-execute/execute pipeline | `UI/Commanding/RoutedCommand.cs`, `UI/Commanding/CommandManager.cs`, `UI/Commanding/CommandBinding.cs`, `InkkSlinger.Tests/CommandingTests.cs` | Implemented (tested) |
-| Gesture-to-command bridge | Runtime keyboard chord routing into routed commands | `UI/Input/Core/InputGestureService.cs`, `Views/CommandingMenuDemoView.xml.cs` | Implemented |
+| Gesture-to-command bridge | Declarative `InputBindings`/`KeyBinding` keyboard chord routing into commands | `UI/Input/Core/InputGestureService.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Controls/Base/UIElement.cs`, `Views/CommandingMenuDemoView.xml.cs` | Implemented |
 | XAML/XML loader | Runtime object graph construction, attached properties, handlers, bindings, templates, triggers | `UI/Xaml/Core/XamlLoader.cs` | Implemented |
 | XAML diagnostics | Element/attribute error reporting with contextual diagnostics | `UI/Xaml/Core/XamlLoader.cs`, `TODO.md` (`Completed Milestones`: better diagnostics) | Implemented |
 | XML schema/tooling | Authoring schemas for framework + `x:` namespace support | `Schemas/InkkSlinger.UI.xsd`, `Schemas/Xaml2006.xsd`, `TODO.md` (`Completed Milestones`) | Implemented |
@@ -146,7 +146,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Styling/XAML | Trigger actions are limited to `SetValueAction`, `BeginStoryboard`, `StopStoryboard`, `PauseStoryboard`, `ResumeStoryboard`, `SeekStoryboard`, `RemoveStoryboard` | `UI/Xaml/Core/XamlLoader.cs` (`BuildTriggerAction`) | Partial |
 | Styling API | `MultiTrigger` | No matching type in `UI/Styling/Triggers` | Not implemented |
 | Styling API | `EventSetter` | No matching type in `UI/Styling` | Not implemented |
-| Commanding/Input API | Declarative `InputBinding` / `KeyGesture` / `MouseGesture` model | No matching types in `UI/`; imperative registration via `UI/Input/Core/InputGestureService.cs` | Partial |
+| Commanding/Input API | Declarative `InputBinding` / `KeyGesture` keyboard model (`MouseGesture` pending) | `UI/Input/Types/InputBinding.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Input/Types/KeyGesture.cs`, `UI/Controls/Base/UIElement.cs` | Partial |
 | Commanding API | `RoutedUICommand` surface | No matching `RoutedUICommand` type in `UI/Commanding` | Not implemented |
 | Commanding API | `ICommandSource` ecosystem parity across controls | No matching `ICommandSource` type in `UI/`; command hookup is control-specific | Partial |
 | Container behavior | `UserControl` custom `ControlTemplate` is blocked (`NotSupportedException`) | `UI/Controls/Containers/UserControl.cs` | Not supported |

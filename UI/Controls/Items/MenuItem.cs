@@ -252,7 +252,8 @@ public class MenuItem : ItemsControl
     {
         var padding = Padding;
         var headerTextWidth = MeasureTextWidth(Header);
-        var gestureTextWidth = string.IsNullOrWhiteSpace(InputGestureText) ? 0f : MeasureTextWidth(InputGestureText) + 14f;
+        var gestureText = GetEffectiveInputGestureText();
+        var gestureTextWidth = string.IsNullOrWhiteSpace(gestureText) ? 0f : MeasureTextWidth(gestureText) + 14f;
         var glyphWidth = HasChildItems ? 12f : 0f;
 
         var rowWidth = MathF.Max(20f, headerTextWidth + gestureTextWidth + glyphWidth + padding.Horizontal);
@@ -330,11 +331,12 @@ public class MenuItem : ItemsControl
         var textY = LayoutSlot.Y + ((LayoutSlot.Height - GetLineHeight()) / 2f);
         FontStashTextRenderer.DrawString(spriteBatch, Font, Header, new Vector2(textX, textY), Foreground * Opacity);
 
-        if (!string.IsNullOrWhiteSpace(InputGestureText) && !IsTopLevelItem())
+        var gestureText = GetEffectiveInputGestureText();
+        if (!string.IsNullOrWhiteSpace(gestureText) && !IsTopLevelItem())
         {
-            var gestureWidth = MeasureTextWidth(InputGestureText);
+            var gestureWidth = MeasureTextWidth(gestureText);
             var gestureX = LayoutSlot.X + LayoutSlot.Width - padding.Right - gestureWidth - (HasChildItems ? 12f : 0f);
-            FontStashTextRenderer.DrawString(spriteBatch, Font, InputGestureText, new Vector2(gestureX, textY), Foreground * Opacity);
+            FontStashTextRenderer.DrawString(spriteBatch, Font, gestureText, new Vector2(gestureX, textY), Foreground * Opacity);
         }
 
         if (HasChildItems && !IsTopLevelItem())
@@ -558,5 +560,23 @@ public class MenuItem : ItemsControl
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X - 1f, center.Y - 2f, 1f, 5f), color, 1f);
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X, center.Y - 1f, 1f, 3f), color, 1f);
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X + 1f, center.Y, 1f, 1f), color, 1f);
+    }
+
+    private string GetEffectiveInputGestureText()
+    {
+        if (!string.IsNullOrWhiteSpace(InputGestureText))
+        {
+            return InputGestureText;
+        }
+
+        if (Command == null)
+        {
+            return string.Empty;
+        }
+
+        var routeStart = CommandTarget ?? this;
+        return InputGestureService.TryGetFirstGestureTextForCommand(Command, routeStart, out var gestureText)
+            ? gestureText
+            : string.Empty;
     }
 }

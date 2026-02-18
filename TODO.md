@@ -25,6 +25,7 @@
 - [x] Text wrapping wired into text-bearing controls (`TextBlock`/`Label`, `Button`, popup title rendering path).
 - [x] XML markup migration completed for views (`.xaml` -> `.xml`) with runtime/project path updates.
 - [x] Schema/tooling hardening for XML authoring: expanded `InkkSlinger.UI.xsd` for resources/styles/triggers/bindings and added local `Xaml2006.xsd` mapping support for `x:` namespace.
+- [x] Declarative commanding input model: `UIElement.InputBindings` + `KeyBinding`/`KeyGesture` routing, XAML authoring support, and menu shortcut auto-text derivation when unset.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
@@ -64,7 +65,7 @@
 - [x] Items system parity:
 `HeaderedContentControl`, `HeaderedItemsControl`, `ContentPresenter`, `ItemsPresenter`.
 - [ ] Menu and commanding ecosystem:
-`Menu`, `MenuItem`, richer routed-command behaviors and keyboard/menu interaction parity.
+`Menu`, `MenuItem`, declarative key-binding routing parity shipped; additional keyboard/menu edge behaviors still ongoing.
 - [x] Virtualization:
 `VirtualizingStackPanel` and container virtualization behavior for large lists/trees.
 - [x] Transform-based `ScrollViewer` content scrolling parity:
