@@ -336,6 +336,30 @@ public static class XamlLoader
                 propertyElement);
         }
 
+        if (target is DependencyObject dependencyObject)
+        {
+            var childElement = contentElements[0];
+            var childName = childElement.Name.LocalName;
+            if (string.Equals(childName, nameof(Binding), StringComparison.Ordinal) ||
+                string.Equals(childName, nameof(MultiBinding), StringComparison.Ordinal))
+            {
+                var dependencyProperty = ResolveDependencyProperty(targetType, propertyName);
+                if (dependencyProperty == null)
+                {
+                    throw CreateXamlException(
+                        $"Property element '{propertyElementName}' requires a dependency property named '{propertyName}Property'.",
+                        propertyElement);
+                }
+
+                var bindingScope = target as FrameworkElement ?? resourceScope;
+                BindingBase bindingBase = string.Equals(childName, nameof(Binding), StringComparison.Ordinal)
+                    ? BuildBindingElement(childElement, dependencyProperty.PropertyType, bindingScope)
+                    : BuildMultiBindingElement(childElement, dependencyProperty.PropertyType, bindingScope);
+                BindingOperations.SetBinding(dependencyObject, dependencyProperty, bindingBase);
+                return true;
+            }
+        }
+
         if (!property.CanWrite)
         {
             throw CreateXamlException(
@@ -367,7 +391,12 @@ public static class XamlLoader
 
         if (string.Equals(element.Name.LocalName, nameof(Binding), StringComparison.Ordinal))
         {
-            return BuildBindingElement(element, resourceScope);
+            return BuildBindingElement(element, typeof(object), resourceScope);
+        }
+
+        if (string.Equals(element.Name.LocalName, nameof(MultiBinding), StringComparison.Ordinal))
+        {
+            return BuildMultiBindingElement(element, typeof(object), resourceScope);
         }
 
         var type = ResolveElementType(element.Name.LocalName);
@@ -540,7 +569,7 @@ public static class XamlLoader
         return baseStyle;
     }
 
-    private static Binding BuildBindingElement(XElement element, FrameworkElement? resourceScope)
+    private static Binding BuildBindingElement(XElement element, Type targetPropertyType, FrameworkElement? resourceScope)
     {
         var binding = new Binding();
         foreach (var attribute in element.Attributes())
@@ -564,7 +593,7 @@ public static class XamlLoader
                 continue;
             }
 
-            if (TryApplyBindingOption(binding, localName, rawValue, typeof(object), resourceScope))
+            if (TryApplyBindingOption(binding, localName, rawValue, targetPropertyType, resourceScope))
             {
                 continue;
             }
@@ -573,6 +602,50 @@ public static class XamlLoader
         }
 
         return binding;
+    }
+
+    private static MultiBinding BuildMultiBindingElement(XElement element, Type targetPropertyType, FrameworkElement? resourceScope)
+    {
+        var multiBinding = new MultiBinding();
+
+        foreach (var attribute in element.Attributes())
+        {
+            if (attribute.IsNamespaceDeclaration)
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(attribute.Name.NamespaceName))
+            {
+                continue;
+            }
+
+            var localName = attribute.Name.LocalName;
+            var rawValue = attribute.Value;
+            if (TryApplyMultiBindingOption(multiBinding, localName, rawValue, targetPropertyType, resourceScope))
+            {
+                continue;
+            }
+
+            throw CreateXamlException($"MultiBinding attribute '{localName}' is not supported.", attribute);
+        }
+
+        foreach (var child in element.Elements())
+        {
+            if (!string.Equals(child.Name.LocalName, nameof(Binding), StringComparison.Ordinal))
+            {
+                throw CreateXamlException("MultiBinding can only contain Binding child elements.", child);
+            }
+
+            multiBinding.Bindings.Add(BuildBindingElement(child, typeof(object), resourceScope));
+        }
+
+        if (multiBinding.Bindings.Count == 0)
+        {
+            throw CreateXamlException("MultiBinding requires at least one child Binding.", element);
+        }
+
+        return multiBinding;
     }
 
     private static DataTemplate BuildDataTemplate(XElement element, object? codeBehind, FrameworkElement? resourceScope)
@@ -753,7 +826,7 @@ public static class XamlLoader
                 throw CreateXamlException("DataTrigger.Binding must contain a single Binding element.", child);
             }
 
-            binding = BuildBindingElement(bindingChildren[0], resourceScope);
+            binding = BuildBindingElement(bindingChildren[0], typeof(object), resourceScope);
         }
 
         if (binding == null)
@@ -882,7 +955,7 @@ public static class XamlLoader
                 throw CreateXamlException("Condition.Binding must contain a single Binding element.", child);
             }
 
-            binding = BuildBindingElement(bindingChildren[0], resourceScope);
+            binding = BuildBindingElement(bindingChildren[0], typeof(object), resourceScope);
         }
 
         if (binding == null)
@@ -1621,6 +1694,116 @@ public static class XamlLoader
             return true;
         }
 
+        if (string.Equals(key, nameof(Binding.Converter), StringComparison.OrdinalIgnoreCase))
+        {
+            binding.Converter = ResolveBindingResource<IValueConverter>(rawValue, resourceScope, nameof(Binding.Converter));
+            return true;
+        }
+
+        if (string.Equals(key, nameof(Binding.ConverterParameter), StringComparison.OrdinalIgnoreCase))
+        {
+            binding.ConverterParameter = ResolveBindingSourceValue(rawValue, resourceScope);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(Binding.ConverterCulture), StringComparison.OrdinalIgnoreCase))
+        {
+            binding.ConverterCulture = CultureInfo.GetCultureInfo(rawValue);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(Binding.ValidatesOnDataErrors), StringComparison.OrdinalIgnoreCase))
+        {
+            binding.ValidatesOnDataErrors = bool.Parse(rawValue);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(Binding.ValidatesOnNotifyDataErrors), StringComparison.OrdinalIgnoreCase))
+        {
+            binding.ValidatesOnNotifyDataErrors = bool.Parse(rawValue);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(Binding.ValidatesOnExceptions), StringComparison.OrdinalIgnoreCase))
+        {
+            binding.ValidatesOnExceptions = bool.Parse(rawValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryApplyMultiBindingOption(
+        MultiBinding multiBinding,
+        string key,
+        string rawValue,
+        Type targetPropertyType,
+        FrameworkElement? resourceScope)
+    {
+        if (string.Equals(key, nameof(MultiBinding.Mode), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.Mode = (BindingMode)Enum.Parse(typeof(BindingMode), rawValue, ignoreCase: true);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.UpdateSourceTrigger), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.UpdateSourceTrigger = (UpdateSourceTrigger)Enum.Parse(typeof(UpdateSourceTrigger), rawValue, ignoreCase: true);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.FallbackValue), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.FallbackValue = targetPropertyType == typeof(object)
+                ? ParseLooseValue(rawValue)
+                : ConvertValue(rawValue, targetPropertyType);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.TargetNullValue), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.TargetNullValue = targetPropertyType == typeof(object)
+                ? ParseLooseValue(rawValue)
+                : ConvertValue(rawValue, targetPropertyType);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.Converter), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.Converter = ResolveBindingResource<IMultiValueConverter>(rawValue, resourceScope, nameof(MultiBinding.Converter));
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.ConverterParameter), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.ConverterParameter = ResolveBindingSourceValue(rawValue, resourceScope);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.ConverterCulture), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.ConverterCulture = CultureInfo.GetCultureInfo(rawValue);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.ValidatesOnDataErrors), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.ValidatesOnDataErrors = bool.Parse(rawValue);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.ValidatesOnNotifyDataErrors), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.ValidatesOnNotifyDataErrors = bool.Parse(rawValue);
+            return true;
+        }
+
+        if (string.Equals(key, nameof(MultiBinding.ValidatesOnExceptions), StringComparison.OrdinalIgnoreCase))
+        {
+            multiBinding.ValidatesOnExceptions = bool.Parse(rawValue);
+            return true;
+        }
+
         return false;
     }
 
@@ -1796,6 +1979,28 @@ public static class XamlLoader
         }
 
         return ParseLooseValue(rawValue);
+    }
+
+    private static T ResolveBindingResource<T>(string rawValue, FrameworkElement? resourceScope, string optionName)
+        where T : class
+    {
+        object resolved;
+        if (TryParseStaticResourceKey(rawValue, out var staticResourceKey))
+        {
+            resolved = ResolveStaticResourceValue(staticResourceKey, resourceScope);
+        }
+        else
+        {
+            resolved = ResolveStaticResourceValue(rawValue.Trim(), resourceScope);
+        }
+
+        if (resolved is T typed)
+        {
+            return typed;
+        }
+
+        throw CreateXamlException(
+            $"{optionName} requires a resource assignable to '{typeof(T).Name}', but resolved '{resolved.GetType().Name}'.");
     }
 
     private static DependencyProperty? ResolveDependencyProperty(Type targetType, string propertyName)

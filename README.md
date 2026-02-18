@@ -124,16 +124,16 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Parity track | Rich text + document layer depth (flow-document model) | `TODO.md` (`## WPF Parity Gaps`) | Not implemented |
 | Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
 | Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
-| Binding API | `IValueConverter` / `IMultiValueConverter` interfaces | No matching types in `UI/Binding` | Not implemented |
-| Binding API | `MultiBinding` | No matching types in `UI/Binding` | Not implemented |
+| Binding API | `IValueConverter` / `IMultiValueConverter` interfaces | `UI/Binding/Converters/IValueConverter.cs`, `UI/Binding/Converters/IMultiValueConverter.cs` | Implemented |
+| Binding API | `MultiBinding` | `UI/Binding/Core/MultiBinding.cs`, `UI/Binding/Core/MultiBindingExpression.cs`, `UI/Xaml/Core/XamlLoader.cs` | Implemented |
 | Binding API | `PriorityBinding` | No matching types in `UI/Binding` | Not implemented |
 | Binding API | `BindingGroup` | No matching types in `UI/Binding` | Not implemented |
-| Binding API | Validation stack (`Validation`, `ValidationRule`, data-error pipelines) | No matching validation types in `UI/Binding` | Not implemented |
-| Binding API | `IDataErrorInfo` / `INotifyDataErrorInfo` binding error pipelines | No matching data-error integration in `UI/Binding` | Not implemented |
+| Binding API | Validation stack (`Validation`, `ValidationRule`, data-error pipelines) | `UI/Binding/Validation/Validation.cs`, `UI/Binding/Validation/ValidationRule.cs`, `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/MultiBindingExpression.cs` | Implemented |
+| Binding API | `IDataErrorInfo` / `INotifyDataErrorInfo` binding error pipelines | `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/MultiBindingExpression.cs` | Implemented |
 | Binding API | `UpdateSourceExceptionFilter` behavior hooks | No matching support in `UI/Binding` | Not implemented |
 | Data/view layer | WPF `CollectionView` stack (current item/filter/sort/group) | No matching collection-view types in `UI/Binding`/`UI/Controls` | Not implemented |
-| Binding API | `BindingMode` lacks WPF `OneWayToSource` and `Default` | `UI/Binding/Types/BindingEnums.cs` | Partial |
-| Binding API | `UpdateSourceTrigger` lacks WPF `LostFocus` and `Default` | `UI/Binding/Types/BindingEnums.cs` | Partial |
+| Binding API | `BindingMode` includes WPF `OneWayToSource` and `Default` | `UI/Binding/Types/BindingEnums.cs`, `UI/Binding/Core/BindingExpressionUtilities.cs` | Implemented |
+| Binding API | `UpdateSourceTrigger` includes WPF `LostFocus` and `Default` | `UI/Binding/Types/BindingEnums.cs`, `UI/Binding/Core/BindingExpressionUtilities.cs` | Implemented |
 | XAML binding parser | Unrecognized binding attributes are rejected | `UI/Xaml/Core/XamlLoader.cs` (`BuildBindingElement`) | Partial |
 | XAML binding parser | Unrecognized binding keys are rejected | `UI/Xaml/Core/XamlLoader.cs` (`ParseBinding`) | Partial |
 | XAML `RelativeSource` parser | Only `Mode`, `AncestorType`, `AncestorLevel` keys are accepted | `UI/Xaml/Core/XamlLoader.cs` (`ParseRelativeSource`) | Partial |

@@ -7,5 +7,6 @@ public enum FrameworkPropertyMetadataOptions
     AffectsMeasure = 1,
     AffectsArrange = 2,
     AffectsRender = 4,
-    Inherits = 8
+    Inherits = 8,
+    BindsTwoWayByDefault = 16
 }

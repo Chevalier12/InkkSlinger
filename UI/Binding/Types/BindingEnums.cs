@@ -2,14 +2,18 @@ namespace InkkSlinger;
 
 public enum BindingMode
 {
+    Default,
     OneWay,
     TwoWay,
-    OneTime
+    OneTime,
+    OneWayToSource
 }
 
 public enum UpdateSourceTrigger
 {
+    Default,
     PropertyChanged,
+    LostFocus,
     Explicit
 }
 

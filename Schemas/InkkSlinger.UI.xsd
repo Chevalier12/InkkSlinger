@@ -700,8 +700,31 @@
     <xs:attribute name="RelativeSource" type="xs:string" />
     <xs:attribute name="Mode" type="xs:string" />
     <xs:attribute name="UpdateSourceTrigger" type="xs:string" />
+    <xs:attribute name="Converter" type="xs:string" />
+    <xs:attribute name="ConverterParameter" type="xs:string" />
+    <xs:attribute name="ConverterCulture" type="xs:string" />
     <xs:attribute name="FallbackValue" type="xs:string" />
     <xs:attribute name="TargetNullValue" type="xs:string" />
+    <xs:attribute name="ValidatesOnDataErrors" type="xs:boolean" />
+    <xs:attribute name="ValidatesOnNotifyDataErrors" type="xs:boolean" />
+    <xs:attribute name="ValidatesOnExceptions" type="xs:boolean" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="multiBindingType">
+    <xs:sequence minOccurs="1" maxOccurs="unbounded">
+      <xs:element ref="Binding" />
+    </xs:sequence>
+    <xs:attribute name="Mode" type="xs:string" />
+    <xs:attribute name="UpdateSourceTrigger" type="xs:string" />
+    <xs:attribute name="Converter" type="xs:string" />
+    <xs:attribute name="ConverterParameter" type="xs:string" />
+    <xs:attribute name="ConverterCulture" type="xs:string" />
+    <xs:attribute name="FallbackValue" type="xs:string" />
+    <xs:attribute name="TargetNullValue" type="xs:string" />
+    <xs:attribute name="ValidatesOnDataErrors" type="xs:boolean" />
+    <xs:attribute name="ValidatesOnNotifyDataErrors" type="xs:boolean" />
+    <xs:attribute name="ValidatesOnExceptions" type="xs:boolean" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -1538,6 +1561,7 @@
   <xs:element name="CircleEase" type="easingFunctionType" />
   <xs:element name="ExponentialEase" type="exponentialEaseType" />
   <xs:element name="Binding" type="bindingType" />
+  <xs:element name="MultiBinding" type="multiBindingType" />
   <xs:element name="StackPanel" type="stackPanelType" />
   <xs:element name="VirtualizingStackPanel" type="virtualizingStackPanelType" />
   <xs:element name="Canvas" type="canvasType" />

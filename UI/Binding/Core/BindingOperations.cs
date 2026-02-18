@@ -4,16 +4,30 @@ namespace InkkSlinger;
 
 public static class BindingOperations
 {
-    private static readonly Dictionary<(DependencyObject Target, DependencyProperty Property), BindingExpression> ActiveBindings = new();
+    private static readonly Dictionary<(DependencyObject Target, DependencyProperty Property), IBindingExpression> ActiveBindings = new();
 
     public static BindingExpression SetBinding(
         DependencyObject target,
         DependencyProperty dependencyProperty,
         Binding binding)
     {
+        return (BindingExpression)SetBinding(target, dependencyProperty, (BindingBase)binding);
+    }
+
+    public static IBindingExpression SetBinding(
+        DependencyObject target,
+        DependencyProperty dependencyProperty,
+        BindingBase binding)
+    {
         ClearBinding(target, dependencyProperty);
 
-        var expression = new BindingExpression(target, dependencyProperty, binding);
+        IBindingExpression expression = binding switch
+        {
+            Binding singleBinding => new BindingExpression(target, dependencyProperty, singleBinding),
+            MultiBinding multiBinding => new MultiBindingExpression(target, dependencyProperty, multiBinding),
+            _ => throw new System.NotSupportedException($"Binding type '{binding.GetType().Name}' is not supported.")
+        };
+
         ActiveBindings[(target, dependencyProperty)] = expression;
         return expression;
     }
@@ -44,7 +58,7 @@ public static class BindingOperations
 
     internal static void NotifyTargetTreeChanged(DependencyObject target)
     {
-        var matchingExpressions = new List<BindingExpression>();
+        var matchingExpressions = new List<IBindingExpression>();
 
         foreach (var pair in ActiveBindings)
         {

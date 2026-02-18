@@ -4,21 +4,11 @@ using System.Globalization;
 
 namespace InkkSlinger;
 
-public sealed class Binding : BindingBase
+public sealed class MultiBinding : BindingBase
 {
-    public string Path { get; set; } = string.Empty;
+    public IList<Binding> Bindings { get; } = new List<Binding>();
 
-    public object? Source { get; set; }
-
-    public string? ElementName { get; set; }
-
-    public RelativeSourceMode RelativeSourceMode { get; set; } = RelativeSourceMode.None;
-
-    public Type? RelativeSourceAncestorType { get; set; }
-
-    public int RelativeSourceAncestorLevel { get; set; } = 1;
-
-    public IValueConverter? Converter { get; set; }
+    public IMultiValueConverter? Converter { get; set; }
 
     public object? ConverterParameter { get; set; }
 

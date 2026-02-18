@@ -1,34 +1,57 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Reflection;
+using System.Globalization;
 
 namespace InkkSlinger;
 
-public sealed class BindingExpression : IDisposable
+public sealed class BindingExpression : IBindingExpression
 {
     private readonly DependencyObject _target;
     private readonly DependencyProperty _targetProperty;
     private readonly Binding _binding;
+    private readonly BindingMode _effectiveMode;
+    private readonly UpdateSourceTrigger _effectiveUpdateSourceTrigger;
 
     private readonly List<SourceSubscription> _sourceSubscriptions = new();
+    private readonly List<NotifyDataErrorSubscription> _notifyDataErrorSubscriptions = new();
+    private readonly List<ValidationError> _persistentValidationErrors = new();
+
     private bool _isUpdatingTarget;
     private bool _isUpdatingSource;
+    private EventHandler<FocusChangedRoutedEventArgs>? _lostFocusHandler;
 
     public BindingExpression(DependencyObject target, DependencyProperty targetProperty, Binding binding)
     {
         _target = target;
         _targetProperty = targetProperty;
         _binding = binding;
+        _effectiveMode = BindingExpressionUtilities.ResolveEffectiveMode(binding, target, targetProperty);
+        _effectiveUpdateSourceTrigger = BindingExpressionUtilities.ResolveEffectiveUpdateSourceTrigger(binding, target, targetProperty);
 
         _target.DependencyPropertyChanged += OnTargetDependencyPropertyChanged;
+        AttachLostFocusHandlerIfNeeded();
 
         RebindSourceSubscriptions();
-        UpdateTarget();
+
+        if (_effectiveMode == BindingMode.OneWayToSource)
+        {
+            UpdateSource();
+        }
+        else
+        {
+            UpdateTarget();
+        }
     }
 
     public void UpdateTarget()
     {
+        if (!BindingExpressionUtilities.SupportsSourceToTarget(_effectiveMode))
+        {
+            return;
+        }
+
         _isUpdatingTarget = true;
         try
         {
@@ -36,16 +59,42 @@ public sealed class BindingExpression : IDisposable
             if (source == null)
             {
                 ApplyTargetValue(_binding.FallbackValue);
+                PublishValidationErrors(source);
                 return;
             }
 
-            var value = ResolvePathValue(source, _binding.Path);
+            var value = BindingExpressionUtilities.ResolvePathValue(source, _binding.Path);
+            if (_binding.Converter != null)
+            {
+                try
+                {
+                    value = _binding.Converter.Convert(
+                        value,
+                        _targetProperty.PropertyType,
+                        _binding.ConverterParameter,
+                        _binding.ConverterCulture ?? CultureInfo.CurrentCulture);
+                }
+                catch (Exception ex)
+                {
+                    if (!_binding.ValidatesOnExceptions)
+                    {
+                        throw;
+                    }
+
+                    SetPersistentValidationError(new ValidationError(null, _binding, ex));
+                    ApplyTargetValue(_binding.FallbackValue);
+                    PublishValidationErrors(source);
+                    return;
+                }
+            }
+
             if (value == null)
             {
                 value = _binding.TargetNullValue ?? _binding.FallbackValue;
             }
 
             ApplyTargetValue(value);
+            PublishValidationErrors(source);
         }
         finally
         {
@@ -55,7 +104,7 @@ public sealed class BindingExpression : IDisposable
 
     public void UpdateSource()
     {
-        if (_binding.Mode != BindingMode.TwoWay)
+        if (!BindingExpressionUtilities.SupportsTargetToSource(_effectiveMode))
         {
             return;
         }
@@ -71,7 +120,55 @@ public sealed class BindingExpression : IDisposable
         _isUpdatingSource = true;
         try
         {
-            TrySetPathValue(source, _binding.Path, targetValue);
+            var candidateValue = targetValue;
+
+            if (_binding.Converter != null)
+            {
+                try
+                {
+                    candidateValue = _binding.Converter.ConvertBack(
+                        targetValue,
+                        ResolveLeafTargetType(source),
+                        _binding.ConverterParameter,
+                        _binding.ConverterCulture ?? CultureInfo.CurrentCulture);
+                }
+                catch (Exception ex)
+                {
+                    if (!_binding.ValidatesOnExceptions)
+                    {
+                        throw;
+                    }
+
+                    SetPersistentValidationError(new ValidationError(null, _binding, ex));
+                    PublishValidationErrors(source);
+                    return;
+                }
+            }
+
+            if (!ValidateCandidateValue(candidateValue))
+            {
+                PublishValidationErrors(source);
+                return;
+            }
+
+            try
+            {
+                _ = BindingExpressionUtilities.TrySetPathValue(source, _binding.Path, candidateValue);
+            }
+            catch (Exception ex)
+            {
+                if (!_binding.ValidatesOnExceptions)
+                {
+                    throw;
+                }
+
+                SetPersistentValidationError(new ValidationError(null, _binding, ex));
+                PublishValidationErrors(source);
+                return;
+            }
+
+            _persistentValidationErrors.Clear();
+            PublishValidationErrors(source);
         }
         finally
         {
@@ -82,65 +179,65 @@ public sealed class BindingExpression : IDisposable
     public void Dispose()
     {
         _target.DependencyPropertyChanged -= OnTargetDependencyPropertyChanged;
+        DetachLostFocusHandler();
         DetachSourceSubscriptions();
+        DetachNotifyDataErrorSubscriptions();
+        Validation.ClearErrors(_target, this);
     }
 
     public void OnTargetTreeChanged()
     {
         RebindSourceSubscriptions();
-        UpdateTarget();
+
+        if (BindingExpressionUtilities.SupportsSourceToTarget(_effectiveMode))
+        {
+            UpdateTarget();
+            return;
+        }
+
+        if (_effectiveMode == BindingMode.OneWayToSource)
+        {
+            UpdateSource();
+        }
     }
 
     private object? ResolveSource()
     {
-        if (_binding.Source != null)
-        {
-            return _binding.Source;
-        }
-
-        if (!string.IsNullOrWhiteSpace(_binding.ElementName))
-        {
-            return ResolveElementNameSource(_binding.ElementName);
-        }
-
-        if (_binding.RelativeSourceMode != RelativeSourceMode.None)
-        {
-            return ResolveRelativeSource();
-        }
-
-        if (_target is FrameworkElement element)
-        {
-            return element.DataContext;
-        }
-
-        return null;
+        return BindingExpressionUtilities.ResolveSource(_target, _binding);
     }
 
     private void RebindSourceSubscriptions()
     {
         DetachSourceSubscriptions();
+        DetachNotifyDataErrorSubscriptions();
 
         var source = ResolveSource();
         if (source == null)
         {
+            PublishValidationErrors(source);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(_binding.Path))
         {
             AddSourceSubscription(source, observedPropertyName: null);
+            AddNotifyDataErrorSubscription(source, observedPropertyName: null);
+            PublishValidationErrors(source);
             return;
         }
 
-        var segments = GetPathSegments(_binding.Path);
+        var segments = BindingExpressionUtilities.GetPathSegments(_binding.Path);
         object? current = source;
 
         for (var i = 0; i < segments.Length && current != null; i++)
         {
             var observedProperty = segments[i];
             AddSourceSubscription(current, observedProperty);
-            current = TryGetPropertyValue(current, observedProperty, out var next) ? next : null;
+            AddNotifyDataErrorSubscription(current, observedProperty);
+            current = BindingExpressionUtilities.TryGetPropertyValue(current, observedProperty, out var next) ? next : null;
         }
+
+        PublishValidationErrors(source);
     }
 
     private void DetachSourceSubscriptions()
@@ -185,179 +282,84 @@ public sealed class BindingExpression : IDisposable
         }
     }
 
-    private object? ResolveElementNameSource(string name)
+    private void AddNotifyDataErrorSubscription(object source, string? observedPropertyName)
     {
-        if (_target is not FrameworkElement targetElement)
-        {
-            return null;
-        }
-
-        var root = GetElementTreeRoot(targetElement);
-        return root?.FindName(name);
-    }
-
-    private object? ResolveRelativeSource()
-    {
-        if (_target is not UIElement targetElement)
-        {
-            return null;
-        }
-
-        if (_binding.RelativeSourceMode == RelativeSourceMode.Self)
-        {
-            return _target;
-        }
-
-        if (_binding.RelativeSourceMode == RelativeSourceMode.TemplatedParent)
-        {
-            for (var current = targetElement.VisualParent; current != null; current = current.VisualParent)
-            {
-                if (current is Control control)
-                {
-                    return control;
-                }
-            }
-
-            return null;
-        }
-
-        if (_binding.RelativeSourceMode == RelativeSourceMode.FindAncestor)
-        {
-            var ancestorType = _binding.RelativeSourceAncestorType ?? typeof(UIElement);
-            var remainingMatches = Math.Max(1, _binding.RelativeSourceAncestorLevel);
-
-            for (var current = targetElement.VisualParent; current != null; current = current.VisualParent)
-            {
-                if (!ancestorType.IsInstanceOfType(current))
-                {
-                    continue;
-                }
-
-                remainingMatches--;
-                if (remainingMatches == 0)
-                {
-                    return current;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static FrameworkElement? GetElementTreeRoot(FrameworkElement element)
-    {
-        UIElement current = element;
-        UIElement? next = current.VisualParent ?? current.LogicalParent;
-        while (next != null)
-        {
-            current = next;
-            next = current.VisualParent ?? current.LogicalParent;
-        }
-
-        return current as FrameworkElement;
-    }
-
-    private static object? ResolvePathValue(object source, string path)
-    {
-        var segments = GetPathSegments(path);
-        if (segments.Length == 0)
-        {
-            return source;
-        }
-
-        object? current = source;
-
-        foreach (var segment in segments)
-        {
-            if (current == null)
-            {
-                return null;
-            }
-
-            var property = current.GetType().GetProperty(segment, BindingFlags.Instance | BindingFlags.Public);
-            if (property == null)
-            {
-                return null;
-            }
-
-            current = property.GetValue(current);
-        }
-
-        return current;
-    }
-
-    private static bool TrySetPathValue(object source, string path, object? value)
-    {
-        var segments = GetPathSegments(path);
-        if (segments.Length == 0)
-        {
-            return false;
-        }
-
-        object? current = source;
-
-        for (var i = 0; i < segments.Length - 1; i++)
-        {
-            if (current == null)
-            {
-                return false;
-            }
-
-            var navigation = current.GetType().GetProperty(segments[i], BindingFlags.Instance | BindingFlags.Public);
-            if (navigation == null)
-            {
-                return false;
-            }
-
-            current = navigation.GetValue(current);
-        }
-
-        if (current == null)
-        {
-            return false;
-        }
-
-        var leaf = current.GetType().GetProperty(segments[^1], BindingFlags.Instance | BindingFlags.Public);
-        if (leaf == null || !leaf.CanWrite)
-        {
-            return false;
-        }
-
-        var assignable = value == null || leaf.PropertyType.IsInstanceOfType(value);
-        if (!assignable)
-        {
-            return false;
-        }
-
-        leaf.SetValue(current, value);
-        return true;
-    }
-
-    private void OnObservedSourcePropertyChanged(string? observedPropertyName, string? changedPropertyName)
-    {
-        if (_binding.Mode == BindingMode.OneTime || _isUpdatingSource)
+        if (!_binding.ValidatesOnNotifyDataErrors || source is not INotifyDataErrorInfo notifier)
         {
             return;
         }
 
-        if (ShouldReactToObservedPropertyChange(observedPropertyName, changedPropertyName))
+        foreach (var existing in _notifyDataErrorSubscriptions)
+        {
+            if (ReferenceEquals(existing.Notifier, notifier))
+            {
+                return;
+            }
+        }
+
+        EventHandler<DataErrorsChangedEventArgs> handler = (_, args) =>
+        {
+            if (!BindingExpressionUtilities.ShouldReactToObservedPropertyChange(observedPropertyName, args.PropertyName))
+            {
+                return;
+            }
+
+            PublishValidationErrors(ResolveSource());
+        };
+
+        notifier.ErrorsChanged += handler;
+        _notifyDataErrorSubscriptions.Add(new NotifyDataErrorSubscription(notifier, handler));
+    }
+
+    private void DetachNotifyDataErrorSubscriptions()
+    {
+        foreach (var subscription in _notifyDataErrorSubscriptions)
+        {
+            subscription.Notifier.ErrorsChanged -= subscription.Handler;
+        }
+
+        _notifyDataErrorSubscriptions.Clear();
+    }
+
+    private void OnObservedSourcePropertyChanged(string? observedPropertyName, string? changedPropertyName)
+    {
+        if (_effectiveMode == BindingMode.OneTime || _isUpdatingSource)
+        {
+            return;
+        }
+
+        if (BindingExpressionUtilities.SupportsSourceToTarget(_effectiveMode) &&
+            BindingExpressionUtilities.ShouldReactToObservedPropertyChange(observedPropertyName, changedPropertyName))
         {
             RebindSourceSubscriptions();
             UpdateTarget();
+            return;
+        }
+
+        if (_binding.ValidatesOnNotifyDataErrors)
+        {
+            PublishValidationErrors(ResolveSource());
         }
     }
 
     private void OnObservedSourceDependencyPropertyChanged(string? observedPropertyName, string changedPropertyName)
     {
-        if (_binding.Mode == BindingMode.OneTime || _isUpdatingSource)
+        if (_effectiveMode == BindingMode.OneTime || _isUpdatingSource)
         {
             return;
         }
 
-        if (ShouldReactToObservedPropertyChange(observedPropertyName, changedPropertyName))
+        if (BindingExpressionUtilities.SupportsSourceToTarget(_effectiveMode) &&
+            BindingExpressionUtilities.ShouldReactToObservedPropertyChange(observedPropertyName, changedPropertyName))
         {
             RebindSourceSubscriptions();
             UpdateTarget();
+            return;
+        }
+
+        if (_binding.ValidatesOnNotifyDataErrors)
+        {
+            PublishValidationErrors(ResolveSource());
         }
     }
 
@@ -370,59 +372,59 @@ public sealed class BindingExpression : IDisposable
                 ReferenceEquals(e.Property, FrameworkElement.DataContextProperty))
             {
                 RebindSourceSubscriptions();
-                UpdateTarget();
+                if (BindingExpressionUtilities.SupportsSourceToTarget(_effectiveMode))
+                {
+                    UpdateTarget();
+                }
+                else if (_effectiveMode == BindingMode.OneWayToSource)
+                {
+                    UpdateSource();
+                }
             }
 
             return;
         }
 
-        if (_isUpdatingTarget || _binding.Mode != BindingMode.TwoWay)
+        if (_isUpdatingTarget || !BindingExpressionUtilities.SupportsTargetToSource(_effectiveMode))
         {
             return;
         }
 
-        if (_binding.UpdateSourceTrigger == UpdateSourceTrigger.PropertyChanged)
+        if (_effectiveUpdateSourceTrigger == UpdateSourceTrigger.PropertyChanged)
         {
             UpdateSource();
         }
     }
 
-    private static bool ShouldReactToObservedPropertyChange(string? observedPropertyName, string? changedPropertyName)
+    private void AttachLostFocusHandlerIfNeeded()
     {
-        if (string.IsNullOrWhiteSpace(observedPropertyName))
+        if (_effectiveUpdateSourceTrigger != UpdateSourceTrigger.LostFocus ||
+            !BindingExpressionUtilities.SupportsTargetToSource(_effectiveMode) ||
+            _target is not UIElement targetElement)
         {
-            return true;
+            return;
         }
 
-        if (string.IsNullOrWhiteSpace(changedPropertyName))
+        _lostFocusHandler = (_, _) =>
         {
-            return true;
-        }
+            if (!_isUpdatingTarget)
+            {
+                UpdateSource();
+            }
+        };
 
-        return string.Equals(observedPropertyName, changedPropertyName, StringComparison.Ordinal);
+        targetElement.AddHandler(UIElement.LostFocusEvent, _lostFocusHandler);
     }
 
-    private static string[] GetPathSegments(string? path)
+    private void DetachLostFocusHandler()
     {
-        if (string.IsNullOrWhiteSpace(path))
+        if (_lostFocusHandler == null || _target is not UIElement targetElement)
         {
-            return [];
+            return;
         }
 
-        return path.Split('.', StringSplitOptions.RemoveEmptyEntries);
-    }
-
-    private static bool TryGetPropertyValue(object source, string propertyName, out object? value)
-    {
-        var property = source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
-        if (property == null)
-        {
-            value = null;
-            return false;
-        }
-
-        value = property.GetValue(source);
-        return true;
+        targetElement.RemoveHandler(UIElement.LostFocusEvent, _lostFocusHandler);
+        _lostFocusHandler = null;
     }
 
     private bool UsesDataContextSource()
@@ -450,6 +452,137 @@ public sealed class BindingExpression : IDisposable
         _target.SetValue(_targetProperty, value);
     }
 
+    private Type ResolveLeafTargetType(object source)
+    {
+        if (BindingExpressionUtilities.TryGetPathSourceAndLeafProperty(source, _binding.Path, out var leafSource, out var leafProperty) &&
+            leafSource != null &&
+            !string.IsNullOrWhiteSpace(leafProperty))
+        {
+            var property = leafSource.GetType().GetProperty(leafProperty);
+            if (property != null)
+            {
+                return property.PropertyType;
+            }
+        }
+
+        return typeof(object);
+    }
+
+    private bool ValidateCandidateValue(object? candidateValue)
+    {
+        _persistentValidationErrors.Clear();
+
+        foreach (var validationRule in _binding.ValidationRules)
+        {
+            var validationResult = validationRule.Validate(candidateValue, _binding.ConverterCulture ?? CultureInfo.CurrentCulture);
+            if (validationResult.IsValid)
+            {
+                continue;
+            }
+
+            _persistentValidationErrors.Add(new ValidationError(validationRule, _binding, validationResult.ErrorContent));
+        }
+
+        return _persistentValidationErrors.Count == 0;
+    }
+
+    private void SetPersistentValidationError(ValidationError validationError)
+    {
+        _persistentValidationErrors.Clear();
+        _persistentValidationErrors.Add(validationError);
+    }
+
+    private void PublishValidationErrors(object? source)
+    {
+        var errors = new List<ValidationError>(_persistentValidationErrors);
+
+        if (source != null)
+        {
+            if (_binding.ValidatesOnDataErrors)
+            {
+                errors.AddRange(GetDataErrors(source));
+            }
+
+            if (_binding.ValidatesOnNotifyDataErrors)
+            {
+                errors.AddRange(GetNotifyDataErrors(source));
+            }
+        }
+
+        if (errors.Count == 0)
+        {
+            Validation.ClearErrors(_target, this);
+            return;
+        }
+
+        Validation.SetErrors(_target, this, errors);
+    }
+
+    private IEnumerable<ValidationError> GetDataErrors(object source)
+    {
+        if (source is not IDataErrorInfo dataErrorInfo)
+        {
+            yield break;
+        }
+
+        if (BindingExpressionUtilities.TryGetPathSourceAndLeafProperty(source, _binding.Path, out _, out var leafProperty) &&
+            !string.IsNullOrWhiteSpace(leafProperty))
+        {
+            var propertyError = dataErrorInfo[leafProperty];
+            if (!string.IsNullOrWhiteSpace(propertyError))
+            {
+                yield return new ValidationError(null, _binding, propertyError);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(dataErrorInfo.Error))
+        {
+            yield return new ValidationError(null, _binding, dataErrorInfo.Error);
+        }
+    }
+
+    private IEnumerable<ValidationError> GetNotifyDataErrors(object source)
+    {
+        _ = BindingExpressionUtilities.TryGetPathSourceAndLeafProperty(source, _binding.Path, out _, out var leafProperty);
+
+        foreach (var subscription in _notifyDataErrorSubscriptions)
+        {
+            foreach (var error in EnumerateErrors(subscription.Notifier, leafProperty))
+            {
+                yield return new ValidationError(null, _binding, error);
+            }
+        }
+    }
+
+    private static IEnumerable<object?> EnumerateErrors(INotifyDataErrorInfo notifier, string? leafProperty)
+    {
+        if (!string.IsNullOrWhiteSpace(leafProperty))
+        {
+            foreach (var error in EnumerateErrors(notifier.GetErrors(leafProperty)))
+            {
+                yield return error;
+            }
+        }
+
+        foreach (var error in EnumerateErrors(notifier.GetErrors(string.Empty)))
+        {
+            yield return error;
+        }
+    }
+
+    private static IEnumerable<object?> EnumerateErrors(IEnumerable? errors)
+    {
+        if (errors == null)
+        {
+            yield break;
+        }
+
+        foreach (var error in errors)
+        {
+            yield return error;
+        }
+    }
+
     private sealed class SourceSubscription
     {
         public INotifyPropertyChanged? Notifier { get; set; }
@@ -461,5 +594,18 @@ public sealed class BindingExpression : IDisposable
         public EventHandler<DependencyPropertyChangedEventArgs>? DependencyPropertyChangedHandler { get; set; }
 
         public bool HasHandlers => PropertyChangedHandler != null || DependencyPropertyChangedHandler != null;
+    }
+
+    private sealed class NotifyDataErrorSubscription
+    {
+        public NotifyDataErrorSubscription(INotifyDataErrorInfo notifier, EventHandler<DataErrorsChangedEventArgs> handler)
+        {
+            Notifier = notifier;
+            Handler = handler;
+        }
+
+        public INotifyDataErrorInfo Notifier { get; }
+
+        public EventHandler<DataErrorsChangedEventArgs> Handler { get; }
     }
 }

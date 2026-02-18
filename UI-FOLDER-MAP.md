@@ -26,12 +26,27 @@ UI/
   Binding/
     Commands/
       RelayCommand.cs
+    Converters/
+      DelimitedMultiValueConverter.cs
+      IdentityValueConverter.cs
+      IMultiValueConverter.cs
+      IValueConverter.cs
     Core/
+      BindingBase.cs
       Binding.cs
       BindingExpression.cs
+      BindingExpressionUtilities.cs
+      IBindingExpression.cs
+      MultiBinding.cs
+      MultiBindingExpression.cs
       BindingOperations.cs
     Types/
       BindingEnums.cs
+    Validation/
+      Validation.cs
+      ValidationError.cs
+      ValidationResult.cs
+      ValidationRule.cs
   Commanding/
     CanExecuteRoutedEventArgs.cs
     CommandBinding.cs

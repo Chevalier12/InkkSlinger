@@ -22,7 +22,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
             typeof(TextBox),
             new FrameworkPropertyMetadata(
                 string.Empty,
-                FrameworkPropertyMetadataOptions.AffectsRender,
+                FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
                 propertyChangedCallback: static (dependencyObject, args) =>
                 {
                     if (dependencyObject is TextBox textBox)
