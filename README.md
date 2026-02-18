@@ -99,6 +99,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 - Templates (`ControlTemplate`, `DataTemplate`, selectors/resolvers)
 - Storyboards, timelines, keyframes, easing, and animation manager
 - Virtualization primitives (`VirtualizingStackPanel` and scrolling infrastructure)
+- Transform-based `ScrollViewer` content scrolling for plain panel hosts by default, with attached-property opt-out (`ScrollViewer.UseTransformContentScrolling="False"`)
 - Dirty-region-aware rendering and cache policy in `UiRoot`/`UI/Rendering`
 - Tooling support via schemas and `x:Name` source generation
 

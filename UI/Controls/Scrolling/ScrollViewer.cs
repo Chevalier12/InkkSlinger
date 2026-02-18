@@ -7,6 +7,35 @@ namespace InkkSlinger;
 
 public class ScrollViewer : ContentControl
 {
+    public static readonly DependencyProperty UseTransformContentScrollingProperty =
+        DependencyProperty.RegisterAttached(
+            "UseTransformContentScrolling",
+            typeof(bool),
+            typeof(ScrollViewer),
+            new FrameworkPropertyMetadata(
+                true,
+                FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is not UIElement element)
+                    {
+                        return;
+                    }
+
+                    element.InvalidateArrange();
+                    element.InvalidateVisual();
+                    if (element.VisualParent is ScrollViewer visualViewer)
+                    {
+                        visualViewer.InvalidateArrange();
+                        visualViewer.InvalidateVisual();
+                    }
+                    else if (element.LogicalParent is ScrollViewer logicalViewer)
+                    {
+                        logicalViewer.InvalidateArrange();
+                        logicalViewer.InvalidateVisual();
+                    }
+                }));
+
     public static readonly DependencyProperty HorizontalScrollBarVisibilityProperty =
         DependencyProperty.Register(
             nameof(HorizontalScrollBarVisibility),
@@ -202,6 +231,16 @@ public class ScrollViewer : ContentControl
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
+    }
+
+    public static bool GetUseTransformContentScrolling(UIElement element)
+    {
+        return element.GetValue<bool>(UseTransformContentScrollingProperty);
+    }
+
+    public static void SetUseTransformContentScrolling(UIElement element, bool value)
+    {
+        element.SetValue(UseTransformContentScrollingProperty, value);
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()
@@ -652,7 +691,14 @@ public class ScrollViewer : ContentControl
 
     private bool UsesTransformBasedContentScrolling()
     {
-        return ContentElement is IScrollTransformContent;
+        if (ContentElement is IScrollTransformContent)
+        {
+            return true;
+        }
+
+        return ContentElement is Panel panel &&
+               panel is not VirtualizingStackPanel &&
+               GetUseTransformContentScrolling(panel);
     }
 
     private void UpdateScrollBars()

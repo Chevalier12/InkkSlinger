@@ -67,8 +67,8 @@
 `Menu`, `MenuItem`, richer routed-command behaviors and keyboard/menu interaction parity.
 - [x] Virtualization:
 `VirtualizingStackPanel` and container virtualization behavior for large lists/trees.
-- [ ] Transform-based `ScrollViewer` content scrolling parity:
-allow plain panel hosts (for example `StackPanel`) to opt into `IScrollTransformContent` so scrolling can avoid full content rearrange/redraw behavior, not only `ListBox` internal hosts.
+- [x] Transform-based `ScrollViewer` content scrolling parity:
+plain panel hosts (for example `StackPanel`) use transform-based scrolling by default; `ScrollViewer.UseTransformContentScrolling="False"` provides explicit opt-out when translated arrange behavior is needed.
 - [x] Data templating depth:
 `DataTemplate` parity expansion and template selection support.
 - [x] Animation system:

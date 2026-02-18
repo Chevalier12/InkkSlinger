@@ -196,6 +196,43 @@ public class InputDispatchOptimizationTests
     }
 
     [Fact]
+    public void MouseWheel_ReTargetsScrollViewer_WithTransformDefault_AfterHoverReuse()
+    {
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(48f) });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
+
+        var header = new Border();
+        Grid.SetRow(header, 0);
+        root.AddChild(header);
+
+        var content = CreateTallStackPanel(140);
+        var scrollViewer = new ScrollViewer
+        {
+            Content = content,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            LineScrollAmount = 30f
+        };
+        Grid.SetRow(scrollViewer, 1);
+        root.AddChild(scrollViewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 220, 16);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 20f)));
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 120f)));
+        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+        Assert.Equal(0f, scrollViewer.VerticalOffset);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, wheelDelta: -120, position: new Vector2(30f, 120f)));
+        Assert.True(scrollViewer.VerticalOffset > 0f);
+        Assert.True(content.HasLocalRenderTransform());
+    }
+
+    [Fact]
     public void PointerClick_UsesPreciseHitTest_AfterHoverReuse()
     {
         var root = new Panel();

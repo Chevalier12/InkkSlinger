@@ -242,6 +242,37 @@ public class Panel : FrameworkElement
         UiDrawing.DrawFilledRect(spriteBatch, LayoutSlot, Background, Opacity);
     }
 
+    protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
+    {
+        if (!ScrollViewer.GetUseTransformContentScrolling(this))
+        {
+            transform = Matrix.Identity;
+            inverseTransform = Matrix.Identity;
+            return false;
+        }
+
+        var viewer = FindDirectOwningScrollViewer();
+        if (viewer == null)
+        {
+            transform = Matrix.Identity;
+            inverseTransform = Matrix.Identity;
+            return false;
+        }
+
+        var offsetX = -viewer.HorizontalOffset;
+        var offsetY = -viewer.VerticalOffset;
+        if (MathF.Abs(offsetX) <= 0.01f && MathF.Abs(offsetY) <= 0.01f)
+        {
+            transform = Matrix.Identity;
+            inverseTransform = Matrix.Identity;
+            return false;
+        }
+
+        transform = Matrix.CreateTranslation(offsetX, offsetY, 0f);
+        inverseTransform = Matrix.CreateTranslation(-offsetX, -offsetY, 0f);
+        return true;
+    }
+
     private void OnChildDependencyPropertyChanged(object? sender, DependencyPropertyChangedEventArgs args)
     {
         if (ReferenceEquals(args.Property, ZIndexProperty))
@@ -282,5 +313,20 @@ public class Panel : FrameworkElement
         var firstOrder = _childOrderLookup.TryGetValue(first, out var firstIndex) ? firstIndex : int.MaxValue;
         var secondOrder = _childOrderLookup.TryGetValue(second, out var secondIndex) ? secondIndex : int.MaxValue;
         return firstOrder.CompareTo(secondOrder);
+    }
+
+    private ScrollViewer? FindDirectOwningScrollViewer()
+    {
+        if (VisualParent is ScrollViewer visualOwner && ReferenceEquals(visualOwner.Content, this))
+        {
+            return visualOwner;
+        }
+
+        if (LogicalParent is ScrollViewer logicalOwner && ReferenceEquals(logicalOwner.Content, this))
+        {
+            return logicalOwner;
+        }
+
+        return null;
     }
 }
