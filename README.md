@@ -81,7 +81,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Render caching | Element cache policy/store + visual-layer cache behavior | `UI/Rendering/Cache/RenderCachePolicy.cs`, `UI/Rendering/Cache/RenderCacheStore.cs`, `InkkSlinger.Tests/RenderCachePolicyTests.cs`, `InkkSlinger.Tests/VisualLayerCachingTests.cs` | Implemented (tested) |
 | Render queue and invalidation correctness | Queue ordering and invalidation semantics in root draw/update pipeline | `UI/Managers/Root/UiRoot.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/InvalidationFlagsTests.cs` | Implemented (tested) |
 | Adorner infrastructure | Adorner base/layer/decorator + clipping/selection adorners | `UI/Controls/Adorners/*`, `UI/Controls/Selection/SelectionRectangleAdorner.cs`, `InkkSlinger.Tests/AdornerClippingTests.cs` | Implemented (tested) |
-| Control breadth snapshot | 65 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `65/77`) | Broad |
+| Control breadth snapshot | 66 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `66/77`) | Broad |
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
@@ -119,7 +119,6 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `Page` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
-| Control coverage | `PasswordBox` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `RichTextBox` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Parity track | Menu + commanding ecosystem depth (keyboard/menu edge behavior) | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
 | Parity track | Rich text + document layer depth (flow-document model) | `TODO.md` (`## WPF Parity Gaps`) | Not implemented |
