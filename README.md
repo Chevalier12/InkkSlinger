@@ -286,6 +286,7 @@ Remove-Item Env:INKKSLINGER_RENDER_CACHE_OVERLAY
 | `INKKSLINGER_LISTBOX_SELECT_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits ListBox selection/click diagnostics to `Debug` + `Console`. |
 | `INKKSLINGER_FILE_LOAD_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework file-load diagnostics to `Debug` + `Console`. |
 | `INKKSLINGER_POPULATION_PHASE_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework population-phase diagnostics to `Debug` + `Console`. |
+| `INKKSLINGER_TEXTBOX_FRAMEWORK_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits TextBox framework timing summaries (commit, render, viewport, caret, text-sync) to `Debug` + `Console`. |
 
 ## Notes
 

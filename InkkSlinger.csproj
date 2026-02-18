@@ -16,11 +16,14 @@
         <None Remove="Icon.bmp"/>
         <Compile Remove="InkkSlinger.Tests\\**\\*.cs" />
         <Compile Remove="InkkSlinger.XamlNameGenerator\\**\\*.cs" />
+        <Compile Remove="artifacts\\**\\*.cs" />
     </ItemGroup>
     <ItemGroup>
-        <None Include="Views\\**\\*.xml" CopyToOutputDirectory="PreserveNewest" />
-        <AdditionalFiles Include="**\\*.xml"
-                         Exclude="bin\\**;obj\\**;InkkSlinger.Tests\\bin\\**;InkkSlinger.Tests\\obj\\**;InkkSlinger.Tests\\artifacts\\**" />
+        <_CodeBehindXmlCs Include="**\\*.xml.cs"
+                          Exclude="bin\\**\\*;obj\\**\\*;artifacts\\**\\*" />
+        <_CodeBehindXml Include="@(_CodeBehindXmlCs->'%(RelativeDir)%(Filename)')" />
+        <None Update="@(_CodeBehindXml)" CopyToOutputDirectory="PreserveNewest" />
+        <AdditionalFiles Include="@(_CodeBehindXml)" />
         <None Include="Schemas\\**\\*.xsd" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
     <ItemGroup>

@@ -547,6 +547,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         _perfLastInputEditTicks = Math.Max(0, editTicks);
         _perfLastInputCommitTicks = Math.Max(0, commitTicks);
         _perfLastInputEnsureCaretTicks = Math.Max(0, ensureCaretTicks);
+        TextBoxFrameworkDiagnostics.ObserveInputMutation(totalTicks, editTicks, commitTicks, ensureCaretTicks);
     }
 
     private void RecordRenderTiming(long totalTicks, long viewportTicks, long selectionTicks, long textTicks, long caretTicks)
@@ -564,6 +565,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         _perfLastRenderSelectionTicks = Math.Max(0, selectionTicks);
         _perfLastRenderTextTicks = Math.Max(0, textTicks);
         _perfLastRenderCaretTicks = Math.Max(0, caretTicks);
+        TextBoxFrameworkDiagnostics.ObserveRender(totalTicks, viewportTicks, selectionTicks, textTicks, caretTicks);
     }
 
     private void RecordViewportStateTiming(long ticks, bool cacheHit)
@@ -586,6 +588,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         _perfViewportStateTotalTicks += ticks;
         _perfViewportStateMaxTicks = Math.Max(_perfViewportStateMaxTicks, ticks);
         _perfLastViewportStateTicks = ticks;
+        TextBoxFrameworkDiagnostics.ObserveViewportState(ticks, cacheHit);
     }
 
     private void RecordEnsureCaretTiming(
@@ -618,6 +621,13 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         _perfLastEnsureCaretLineLookupTicks = Math.Max(0, lineLookupTicks);
         _perfLastEnsureCaretWidthTicks = Math.Max(0, widthTicks);
         _perfLastEnsureCaretOffsetAdjustTicks = Math.Max(0, offsetAdjustTicks);
+        TextBoxFrameworkDiagnostics.ObserveEnsureCaret(
+            totalTicks,
+            viewportTicks,
+            lineLookupTicks,
+            widthTicks,
+            offsetAdjustTicks,
+            usedFastPath);
     }
 
     private void ResetCaretLineHint()
@@ -648,6 +658,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
+        TextBoxFrameworkDiagnostics.Flush();
         _secondsSinceLastTextMutation += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
         if (_hasPendingEnsureCaretVisible)
@@ -920,10 +931,14 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         _textVersion++;
 
         var appliedNoWrapEdit = false;
+        var attemptedNoWrapEdit = false;
+        var appliedVirtualWrapEdit = false;
+        var usedVirtualWrapFallback = false;
         if (hadPreviousLayout &&
             previousLayoutWrapping == TextWrapping.NoWrap &&
             ReferenceEquals(previousLayoutFont, Font))
         {
+            attemptedNoWrapEdit = true;
             _perfIncrementalNoWrapEditAttemptCount++;
             appliedNoWrapEdit = TryApplyIncrementalNoWrapLayoutEdit(editDelta, previousLayout, previousLayoutWidth);
             if (appliedNoWrapEdit)
@@ -942,12 +957,14 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
             InvalidateNonVirtualLayoutCache();
             if (!TryApplyIncrementalVirtualWrapEdit(editDelta, out var firstInvalidLine))
             {
+                usedVirtualWrapFallback = true;
                 _perfIncrementalVirtualEditFallbackCount++;
                 InvalidateLayoutCachesAfterInternalEdit();
                 InvalidateVirtualWrapCache();
             }
             else
             {
+                appliedVirtualWrapEdit = true;
                 _perfIncrementalVirtualEditSuccessCount++;
                 ResetCaretLineHint();
                 InvalidateViewportLayoutCache();
@@ -955,7 +972,8 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
             }
         }
 
-        if (ShouldDeferTextSync(editDelta))
+        var deferredSync = ShouldDeferTextSync(editDelta);
+        if (deferredSync)
         {
             SchedulePendingTextSync();
         }
@@ -964,6 +982,13 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
             CommitTextSyncNow();
             ClearPendingTextSync();
         }
+
+        TextBoxFrameworkDiagnostics.ObserveCommit(
+            deferredSync,
+            attemptedNoWrapEdit,
+            appliedNoWrapEdit,
+            appliedVirtualWrapEdit,
+            usedVirtualWrapFallback);
 
         RaiseTextChangedEvent();
         InvalidateVisual();
@@ -1781,18 +1806,26 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         }
 
         _perfDeferredSyncFlushCount++;
-        CommitTextSyncNow();
+        CommitTextSyncNow(wasDeferredFlush: true);
         ClearPendingTextSync();
     }
 
-    private void CommitTextSyncNow()
+    private void CommitTextSyncNow(bool wasDeferredFlush = false)
     {
         var start = Stopwatch.GetTimestamp();
         var text = _pendingTextSnapshot ?? _editor.Text;
         _isUpdatingTextFromEditor = true;
         try
         {
-            SetValue(TextProperty, text);
+            try
+            {
+                SetValue(TextProperty, text);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TextBoxFrameworkDiagnostics.ObserveInvalidOperation(ex, "CommitTextSyncNow.SetValue");
+                throw;
+            }
         }
         finally
         {
@@ -1800,7 +1833,9 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         }
 
         _perfImmediateSyncCount++;
-        _perfTextSyncTicks += Stopwatch.GetTimestamp() - start;
+        var syncTicks = Stopwatch.GetTimestamp() - start;
+        _perfTextSyncTicks += syncTicks;
+        TextBoxFrameworkDiagnostics.ObserveTextSync(syncTicks, wasDeferredFlush);
     }
 
     private void MarkTextMutationActivity()
@@ -3637,6 +3672,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
         _isSelectingWithPointer = false;
         if (!isFocused)
         {
+            CommitPendingTextSync();
             EndScrollBarDrag();
         }
 
@@ -3655,17 +3691,33 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider
             return false;
         }
 
+        var mutationStart = Stopwatch.GetTimestamp();
+        long editTicks;
+        long commitTicks;
+        long ensureTicks;
+
+        var editStart = Stopwatch.GetTimestamp();
         if (!InsertTextIntoEditor(text))
         {
             return false;
         }
+        editTicks = Stopwatch.GetTimestamp() - editStart;
 
+        var commitStart = Stopwatch.GetTimestamp();
         CommitEditorText(_editor.ConsumeLastEditDelta());
+        commitTicks = Stopwatch.GetTimestamp() - commitStart;
         MarkTextMutationActivity();
         _preferredCaretX = -1f;
+        var ensureStart = Stopwatch.GetTimestamp();
         ScheduleEnsureCaretVisible();
+        ensureTicks = Stopwatch.GetTimestamp() - ensureStart;
         _caretBlinkSeconds = 0f;
         _isCaretVisible = true;
+        RecordInputMutationTiming(
+            Stopwatch.GetTimestamp() - mutationStart,
+            editTicks,
+            commitTicks,
+            ensureTicks);
         return true;
     }
 
