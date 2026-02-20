@@ -164,7 +164,7 @@ public class Button : ContentControl
         var border = BorderThickness * 2f;
         var innerAvailableWidth = MathF.Max(0f, availableSize.X - padding.Horizontal - border);
 
-        if (Font != null && !string.IsNullOrEmpty(Text))
+        if (!string.IsNullOrEmpty(Text))
         {
             var textAvailableWidth = TextWrapping == TextWrapping.NoWrap
                 ? float.PositiveInfinity
@@ -211,7 +211,7 @@ public class Button : ContentControl
                 Opacity);
         }
 
-        if (Font == null || string.IsNullOrEmpty(Text))
+        if (string.IsNullOrEmpty(Text))
         {
             return;
         }

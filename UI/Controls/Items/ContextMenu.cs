@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -32,6 +33,12 @@ public class ContextMenu : ListBox
         DependencyProperty.RegisterAttached("ContextMenu", typeof(ContextMenu), typeof(ContextMenu), new FrameworkPropertyMetadata(null));
 
     private Panel? _host;
+
+    public ContextMenu()
+    {
+        HorizontalAlignment = HorizontalAlignment.Left;
+        VerticalAlignment = VerticalAlignment.Top;
+    }
 
     public bool IsOpen
     {
@@ -89,6 +96,36 @@ public class ContextMenu : ListBox
             host.AddChild(this);
         }
 
+        var autoWidth = !float.IsFinite(Width) || Width <= 0f;
+        var autoHeight = !float.IsFinite(Height) || Height <= 0f;
+        if (autoWidth || autoHeight)
+        {
+            if (autoWidth)
+            {
+                Width = float.NaN;
+            }
+
+            if (autoHeight)
+            {
+                Height = float.NaN;
+            }
+
+            var contentSize = MeasureContentSizeFromItems();
+            if (autoWidth)
+            {
+                var maxWidth = MathF.Max(1f, host.LayoutSlot.Width);
+                Width = MathF.Min(maxWidth, MathF.Max(120f, contentSize.X));
+            }
+
+            if (autoHeight)
+            {
+                var maxHeight = MathF.Max(1f, host.LayoutSlot.Height);
+                Height = MathF.Min(maxHeight, MathF.Max(24f, contentSize.Y));
+            }
+        }
+
+        ApplyPlacement();
+
         IsOpen = true;
     }
 
@@ -108,6 +145,8 @@ public class ContextMenu : ListBox
         {
             _host.RemoveChild(this);
         }
+
+        _host = null;
     }
 
     public static void SetContextMenu(UIElement element, ContextMenu? value)
@@ -118,5 +157,45 @@ public class ContextMenu : ListBox
     public static ContextMenu? GetContextMenu(UIElement element)
     {
         return element.GetValue<ContextMenu>(ContextMenuProperty);
+    }
+
+    private void ApplyPlacement()
+    {
+        if (_host == null)
+        {
+            return;
+        }
+
+        if (_host is Canvas)
+        {
+            Canvas.SetLeft(this, Left);
+            Canvas.SetTop(this, Top);
+            return;
+        }
+
+        Margin = new Thickness(Left, Top, 0f, 0f);
+    }
+
+    private Vector2 MeasureContentSizeFromItems()
+    {
+        var maxWidth = 0f;
+        var totalHeight = 0f;
+
+        foreach (var container in ItemContainers)
+        {
+            if (container is not FrameworkElement element)
+            {
+                continue;
+            }
+
+            element.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
+            maxWidth = MathF.Max(maxWidth, element.DesiredSize.X);
+            totalHeight += element.DesiredSize.Y;
+        }
+
+        var border = BorderThickness * 2f;
+        return new Vector2(
+            maxWidth + border,
+            totalHeight + border);
     }
 }

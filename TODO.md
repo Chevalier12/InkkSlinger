@@ -89,8 +89,10 @@ Storyboards, timelines, keyframes, easing, trigger-driven animations.
 `RichTextBox` and flow-document style content stack.
 - [ ] Advanced layout/adornment layer depth:
 Adorner composition behaviors and layout nuances beyond the current primitives.
-- [ ] Windowing/popup edge parity:
+- [x] Windowing/popup edge parity:
 Popup/menu/window interaction parity and additional edge behavior validation.
+- [ ] Context menu structural parity depth:
+Rebase `ContextMenu` toward WPF-like menu semantics (`MenuItem`/`Separator`, keyboard submenu behavior) instead of current `ListBox`-derived model.
 
 ## WPF Control Coverage
 - [ ] AccessText

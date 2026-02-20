@@ -85,6 +85,11 @@ public sealed partial class UiRoot
             {
                 DrawCachedSubtreeBoundsOverlay(spriteBatch, _lastFrameCachedSubtreeBounds);
             }
+
+            if (UseSoftwareCursor)
+            {
+                DrawSoftwareCursor(spriteBatch, _inputState.LastPointerPosition);
+            }
         }
         finally
         {
@@ -112,5 +117,17 @@ public sealed partial class UiRoot
         ObserveNoOpInvalidationAfterDraw();
         ObserveControlHotspotAfterDraw();
         TraceRenderCacheCountersIfEnabled();
+    }
+
+    private void DrawSoftwareCursor(SpriteBatch spriteBatch, Vector2 pointer)
+    {
+        var size = MathF.Max(6f, SoftwareCursorSize);
+        var half = size / 2f;
+        var color = SoftwareCursorColor;
+        const float thickness = 2f;
+
+        UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(pointer.X - half, pointer.Y - 1f, size, thickness), color, 1f);
+        UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(pointer.X - 1f, pointer.Y - half, thickness, size), color, 1f);
+        UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(pointer.X - 1f, pointer.Y - 1f, thickness, thickness), Color.Black, 1f);
     }
 }

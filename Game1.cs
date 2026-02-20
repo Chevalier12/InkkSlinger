@@ -29,6 +29,7 @@ public class Game1 : Game
     private readonly bool _isBindingParityGap5Demo;
     private readonly bool _isRichTextBoxDemo;
     private readonly bool _isRichTextDiagnosticsLabDemo;
+    private readonly bool _isWindowPopupParityLabDemo;
     private SpriteBatch _spriteBatch = null!;
     private RenderTarget2D? _uiCompositeTarget;
     private Panel _root = null!;
@@ -52,6 +53,7 @@ public class Game1 : Game
     private BindingParityGap5DemoView? _bindingParityGap5DemoView;
     private RichTextBoxDemoView? _richTextBoxDemoView;
     private RichTextDiagnosticsLabView? _richTextDiagnosticsLabView;
+    private WindowPopupParityLabView? _windowPopupParityLabView;
     private string _baseWindowTitle = "InkkSlinger";
     private int _lastViewportWidth;
     private int _lastViewportHeight;
@@ -75,7 +77,8 @@ public class Game1 : Game
         bool isMenuParityDemo = false,
         bool isBindingParityGap5Demo = false,
         bool isRichTextBoxDemo = false,
-        bool isRichTextDiagnosticsLabDemo = false)
+        bool isRichTextDiagnosticsLabDemo = false,
+        bool isWindowPopupParityLabDemo = false)
     {
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
@@ -97,8 +100,9 @@ public class Game1 : Game
         _isBindingParityGap5Demo = isBindingParityGap5Demo;
         _isRichTextBoxDemo = isRichTextBoxDemo;
         _isRichTextDiagnosticsLabDemo = isRichTextDiagnosticsLabDemo;
+        _isWindowPopupParityLabDemo = isWindowPopupParityLabDemo;
         Content.RootDirectory = "Content";
-        _window.IsMouseVisible = true;
+        _window.IsMouseVisible = !_isWindowPopupParityLabDemo;
         _window.AllowUserResizing = true;
         _window.SetClientSize(GetInitialWindowWidth(), GetInitialWindowHeight());
         _window.Title = "InkkSlinger";
@@ -202,6 +206,23 @@ public class Game1 : Game
             _richTextDiagnosticsLabView = new RichTextDiagnosticsLabView();
             _root.AddChild(_richTextDiagnosticsLabView);
         }
+        else if (_isWindowPopupParityLabDemo)
+        {
+            _windowPopupParityLabView = new WindowPopupParityLabView
+            {
+                ToggleFullscreenRequested = () => _window.ToggleFullScreen(),
+                ResizeTo1024Requested = () => _window.SetClientSize(1024, 720, applyChanges: true),
+                ResizeTo1280Requested = () => _window.SetClientSize(1280, 900, applyChanges: true),
+                WindowSnapshotProvider = () =>
+                {
+                    var client = _window.ClientSize;
+                    var backBuffer = _window.BackBufferSize;
+                    return $"Window: C:{client.X}x{client.Y} BB:{backBuffer.X}x{backBuffer.Y} FullScreen={_window.IsFullScreen}";
+                }
+            };
+            _windowPopupParityLabView.RefreshWindowStatus();
+            _root.AddChild(_windowPopupParityLabView);
+        }
         else
         {
             _mainMenuView = new MainMenuView();
@@ -218,6 +239,7 @@ public class Game1 : Game
         _uiRoot.UseDirtyRegionRendering = EnableExperimentalPartialRedraw;
         _uiRoot.UseConditionalDrawScheduling = true;
         _uiRoot.UseElementRenderCaches = EnableExperimentalPartialRedraw;
+        _uiRoot.UseSoftwareCursor = _isWindowPopupParityLabDemo;
         RefreshWindowTitle();
 
         base.Initialize();
@@ -249,6 +271,7 @@ public class Game1 : Game
             _bindingParityGap5DemoView?.SetFont(font);
             _richTextBoxDemoView?.SetFont(font);
             _richTextDiagnosticsLabView?.SetFont(font);
+            _windowPopupParityLabView?.SetFont(font);
         }
         catch
         {
@@ -325,6 +348,7 @@ public class Game1 : Game
         if (_uiRoot != null)
         {
             EnsureBackBufferMatchesClientSize();
+            _windowPopupParityLabView?.RefreshWindowStatus();
         }
 
         RefreshWindowTitle();
@@ -465,6 +489,13 @@ public class Game1 : Game
             return;
         }
 
+        if (_isWindowPopupParityLabDemo)
+        {
+            _baseWindowTitle = $"InkkSlinger Window/Popup Parity Lab | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
         _baseWindowTitle = $"InkkSlinger | {size.X}x{size.Y}";
         ApplyWindowTitle();
     }
@@ -583,7 +614,8 @@ public class Game1 : Game
             _isMenuParityDemo ||
             _isBindingParityGap5Demo ||
             _isRichTextBoxDemo ||
-            _isRichTextDiagnosticsLabDemo)
+            _isRichTextDiagnosticsLabDemo ||
+            _isWindowPopupParityLabDemo)
         {
             return 1024;
         }
@@ -634,7 +666,8 @@ public class Game1 : Game
             _isMenuParityDemo ||
             _isBindingParityGap5Demo ||
             _isRichTextBoxDemo ||
-            _isRichTextDiagnosticsLabDemo)
+            _isRichTextDiagnosticsLabDemo ||
+            _isWindowPopupParityLabDemo)
         {
             return 720;
         }

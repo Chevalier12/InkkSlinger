@@ -7,9 +7,9 @@
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (0 errors, 2 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
-| Test suite | **Failing** (`307/308` passing) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` currently fails `RichTextWpfParityGapTests.BoldFirstLineThenTypeAtItsEnd_ShouldNotMergeWithSecondLine` |
+| Test suite | Pass (`339/339`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
 | WPF control coverage | Broad but incomplete (`67/77`) | `TODO.md` -> `## WPF Control Coverage` |
-| Open tracked work | `18` unchecked TODO items | `TODO.md` (diagnostics backlog, parity edge work, missing controls) |
+| Open tracked work | `12` unchecked TODO items | `TODO.md` (advanced layout depth, context-menu parity depth, missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
 
 ### Honest Verdict
@@ -106,7 +106,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 36 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (36 files) | Implemented |
+| Regression safety net | 42 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (42 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -244,8 +244,9 @@ Primary validation machine for current development/testing:
 | Binding parity gap #5 demo | `dotnet run --project InkkSlinger.csproj -- --binding-parity-gap5-demo` |
 | RichTextBox demo | `dotnet run --project InkkSlinger.csproj -- --richtextbox-demo` |
 | RichText diagnostics lab | `dotnet run --project InkkSlinger.csproj -- --richtext-diagnostics-lab` |
+| Window/Popup parity lab | `dotnet run --project InkkSlinger.csproj -- --window-popup-parity-lab` |
 
-Current default launch surface is the rich text diagnostics lab when no explicit mode flag is provided.
+Current default launch surface is the window/popup parity lab when no explicit mode flag is provided.
 
 ## Environment Variables
 

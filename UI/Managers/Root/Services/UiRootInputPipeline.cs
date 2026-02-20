@@ -69,6 +69,7 @@ public sealed partial class UiRoot
 
     private void ProcessInputDelta(InputDelta delta)
     {
+        _inputState.LastPointerPosition = delta.Current.PointerPosition;
         var pointerStart = Stopwatch.GetTimestamp();
         _inputState.CurrentModifiers = GetModifiers(delta.Current.Keyboard);
         var clickResolveHitTests = 0;
@@ -101,6 +102,11 @@ public sealed partial class UiRoot
 
             ObserveFrameLatencyMoveEvent();
             ObserveMoveCpuPointerDispatch(_lastInputHitTestCount - moveHitTestsBefore);
+
+            if (UseSoftwareCursor)
+            {
+                _mustDrawNextFrame = true;
+            }
         }
 
         if (delta.LeftPressed)
@@ -200,6 +206,7 @@ public sealed partial class UiRoot
         if (delta.LeftPressed &&
             !delta.PointerMoved &&
             _lastClickUpTarget != null &&
+            IsElementConnectedToVisualRoot(_lastClickUpTarget) &&
             _hasLastClickUpPointerPosition &&
             Vector2.DistanceSquared(_lastClickUpPointerPosition, delta.Current.PointerPosition) <= ClickPointerReuseThresholdSquared)
         {
@@ -211,6 +218,7 @@ public sealed partial class UiRoot
         if (delta.LeftReleased &&
             !delta.PointerMoved &&
             _lastClickDownTarget != null &&
+            IsElementConnectedToVisualRoot(_lastClickDownTarget) &&
             _hasLastClickDownPointerPosition &&
             Vector2.DistanceSquared(_lastClickDownPointerPosition, delta.Current.PointerPosition) <= ClickPointerReuseThresholdSquared)
         {
@@ -221,6 +229,7 @@ public sealed partial class UiRoot
 
         var requiresPreciseTarget = delta.LeftPressed || delta.LeftReleased;
         var pointerPosition = delta.Current.PointerPosition;
+        var bypassClickTargetShortcuts = requiresPreciseTarget && ShouldBypassClickTargetShortcuts(pointerPosition);
         if (!requiresPreciseTarget)
         {
             // CPU-first path: keep current hover target during high-frequency move/wheel
@@ -250,7 +259,7 @@ public sealed partial class UiRoot
             return _inputState.HoveredElement;
         }
 
-        if (requiresPreciseTarget)
+        if (requiresPreciseTarget && !bypassClickTargetShortcuts)
         {
             if (TryResolvePreciseClickTargetWithinAnchorSubtree(_cachedClickTarget, pointerPosition, out var cachedAnchorTarget) &&
                 cachedAnchorTarget != null)
@@ -291,10 +300,18 @@ public sealed partial class UiRoot
         {
             _clickCpuResolveHitTestCount++;
         }
-        _lastPointerResolvePath = "HitTest";
+        _lastPointerResolvePath = bypassClickTargetShortcuts ? "OverlayBypassHitTest" : "HitTest";
         var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
         _lastPointerResolveHitTestMetrics = metrics;
         return hit;
+    }
+
+    private bool ShouldBypassClickTargetShortcuts(Vector2 pointerPosition)
+    {
+        // Cached click-target shortcuts are unsafe when an overlay popup/context menu
+        // is under the pointer because they can ignore occlusion by sibling overlays.
+        return TryGetTopOverlayCandidate(out var overlayCandidate) &&
+               overlayCandidate.Element.HitTest(pointerPosition);
     }
 
     private void UpdateHover(UIElement? hovered)
@@ -353,6 +370,14 @@ public sealed partial class UiRoot
         {
             dragScrollViewer.HandlePointerMoveFromInput(pointerPosition);
         }
+        else if (_inputState.CapturedPointerElement is Slider dragSlider)
+        {
+            dragSlider.HandlePointerMoveFromInput(pointerPosition);
+        }
+        else if (_inputState.CapturedPointerElement is Popup dragPopup)
+        {
+            dragPopup.HandlePointerMoveFromInput(pointerPosition);
+        }
         else if (_inputState.CapturedPointerElement == null && target is MenuItem menuItem)
         {
             menuItem.HandlePointerMoveFromInput();
@@ -373,6 +398,16 @@ public sealed partial class UiRoot
             activeMenu.CloseAllSubmenus(restoreFocus: true);
             TrySynchronizeMenuFocusRestore(activeMenu);
         }
+
+        if (target is ComboBox preDismissComboBox &&
+            preDismissComboBox.IsDropDownOpen &&
+            preDismissComboBox.HandlePointerDownFromInput(pointerPosition))
+        {
+            SetFocus(preDismissComboBox);
+            return;
+        }
+
+        _ = TryDismissOverlayOnOutsidePointerDown(pointerPosition, target);
 
         if (target == null)
         {
@@ -409,6 +444,20 @@ public sealed partial class UiRoot
         if (target is Button pressedButton)
         {
             pressedButton.SetPressedFromInput(true);
+            CapturePointer(target);
+        }
+        else if (target is ComboBox comboBox &&
+                 comboBox.HandlePointerDownFromInput(pointerPosition))
+        {
+        }
+        else if (target is Popup popup &&
+                 popup.HandlePointerDownFromInput(pointerPosition))
+        {
+            CapturePointer(target);
+        }
+        else if (target is Slider slider &&
+                 slider.HandlePointerDownFromInput(pointerPosition))
+        {
             CapturePointer(target);
         }
         else if (target is ITextInputControl textInput)
@@ -467,6 +516,14 @@ public sealed partial class UiRoot
         else if (_inputState.CapturedPointerElement is ScrollViewer scrollViewer)
         {
             scrollViewer.HandlePointerUpFromInput();
+        }
+        else if (_inputState.CapturedPointerElement is Slider slider)
+        {
+            slider.HandlePointerUpFromInput();
+        }
+        else if (_inputState.CapturedPointerElement is Popup popup)
+        {
+            popup.HandlePointerUpFromInput(pointerPosition);
         }
         else if (_inputState.CapturedPointerElement == null && target is MenuItem menuItemTarget)
         {
@@ -757,7 +814,9 @@ public sealed partial class UiRoot
     private bool TryResolvePreciseClickTargetWithinAnchorSubtree(UIElement? anchor, Vector2 pointerPosition, out UIElement? target)
     {
         target = null;
-        if (anchor == null || !PointerLikelyInsideElement(anchor, pointerPosition))
+        if (anchor == null ||
+            !IsElementConnectedToVisualRoot(anchor) ||
+            !PointerLikelyInsideElement(anchor, pointerPosition))
         {
             return false;
         }
@@ -775,10 +834,12 @@ public sealed partial class UiRoot
         return true;
     }
 
-    private static bool TryResolveClickTargetFromCandidate(UIElement? candidate, Vector2 pointerPosition, out UIElement? target)
+    private bool TryResolveClickTargetFromCandidate(UIElement? candidate, Vector2 pointerPosition, out UIElement? target)
     {
         target = null;
-        if (candidate == null || !PointerLikelyInsideElement(candidate, pointerPosition))
+        if (candidate == null ||
+            !IsElementConnectedToVisualRoot(candidate) ||
+            !PointerLikelyInsideElement(candidate, pointerPosition))
         {
             return false;
         }
@@ -801,6 +862,11 @@ public sealed partial class UiRoot
         }
 
         return false;
+    }
+
+    private bool IsElementConnectedToVisualRoot(UIElement element)
+    {
+        return ReferenceEquals(element.GetVisualRoot(), _visualRoot);
     }
 
     private static bool IsClickCapableElement(UIElement element)
@@ -878,6 +944,13 @@ public sealed partial class UiRoot
                 return;
             }
 
+            if (key == Keys.Escape &&
+                modifiers == ModifierKeys.None &&
+                TryDismissTopOverlayOnEscape())
+            {
+                return;
+            }
+
             if (_inputState.FocusedElement is ITextInputControl focusedTextInput &&
                 focusedTextInput.HandleKeyDownFromInput(key, modifiers))
             {
@@ -942,6 +1015,167 @@ public sealed partial class UiRoot
 
         ObserveControlHotspotDispatch(focused, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
     }
+
+    private bool TryDismissOverlayOnOutsidePointerDown(Vector2 pointerPosition, UIElement? pointerTarget)
+    {
+        if (!TryGetTopOverlayCandidate(out var candidate) ||
+            !candidate.CloseOnOutsidePointerDown)
+        {
+            return false;
+        }
+
+        if ((pointerTarget != null && IsElementDescendantOf(pointerTarget, candidate.Element)) ||
+            candidate.Element.HitTest(pointerPosition))
+        {
+            return false;
+        }
+
+        CloseOverlay(candidate.Element);
+        return true;
+    }
+
+    private bool TryDismissTopOverlayOnEscape()
+    {
+        if (!TryGetTopOverlayCandidate(out var candidate) ||
+            !candidate.CloseOnEscape)
+        {
+            return false;
+        }
+
+        CloseOverlay(candidate.Element);
+        return true;
+    }
+
+    private bool TryGetTopOverlayCandidate(out OverlayCandidate candidate)
+    {
+        var hasCandidate = false;
+        var bestDepth = int.MinValue;
+        var bestZIndex = int.MinValue;
+        var bestOrder = int.MinValue;
+        var traversalOrder = 0;
+        var currentCandidate = default(OverlayCandidate);
+        CollectOverlayCandidate(
+            _visualRoot,
+            depth: 0,
+            ref traversalOrder,
+            ref hasCandidate,
+            ref bestDepth,
+            ref bestZIndex,
+            ref bestOrder,
+            ref currentCandidate);
+        candidate = currentCandidate;
+        return hasCandidate;
+    }
+
+    private static bool IsElementDescendantOf(UIElement element, UIElement ancestor)
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void CloseOverlay(UIElement overlay)
+    {
+        switch (overlay)
+        {
+            case Popup popup:
+                popup.Close();
+                break;
+            case ContextMenu contextMenu:
+                contextMenu.Close();
+                break;
+        }
+    }
+
+    private static void CollectOverlayCandidate(
+        UIElement element,
+        int depth,
+        ref int traversalOrder,
+        ref bool hasCandidate,
+        ref int bestDepth,
+        ref int bestZIndex,
+        ref int bestOrder,
+        ref OverlayCandidate bestCandidate)
+    {
+        var currentOrder = traversalOrder++;
+        var zIndex = Panel.GetZIndex(element);
+        var isOverlay = false;
+        var closeOnOutsidePointerDown = false;
+        var closeOnEscape = false;
+        switch (element)
+        {
+            case Popup popup when popup.IsOpen:
+                isOverlay = true;
+                closeOnOutsidePointerDown = popup.DismissOnOutsideClick;
+                closeOnEscape = popup.CanClose;
+                break;
+            case ContextMenu contextMenu when contextMenu.IsOpen:
+                isOverlay = true;
+                closeOnOutsidePointerDown = !contextMenu.StaysOpen;
+                closeOnEscape = true;
+                break;
+        }
+
+        if (isOverlay && IsBetterOverlayCandidate(depth, zIndex, currentOrder, hasCandidate, bestDepth, bestZIndex, bestOrder))
+        {
+            hasCandidate = true;
+            bestDepth = depth;
+            bestZIndex = zIndex;
+            bestOrder = currentOrder;
+            bestCandidate = new OverlayCandidate(element, closeOnOutsidePointerDown, closeOnEscape);
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            CollectOverlayCandidate(
+                child,
+                depth + 1,
+                ref traversalOrder,
+                ref hasCandidate,
+                ref bestDepth,
+                ref bestZIndex,
+                ref bestOrder,
+                ref bestCandidate);
+        }
+    }
+
+    private static bool IsBetterOverlayCandidate(
+        int depth,
+        int zIndex,
+        int order,
+        bool hasCandidate,
+        int bestDepth,
+        int bestZIndex,
+        int bestOrder)
+    {
+        if (!hasCandidate)
+        {
+            return true;
+        }
+
+        if (zIndex != bestZIndex)
+        {
+            return zIndex > bestZIndex;
+        }
+
+        if (depth != bestDepth)
+        {
+            return depth > bestDepth;
+        }
+
+        return order > bestOrder;
+    }
+
+    private readonly record struct OverlayCandidate(
+        UIElement Element,
+        bool CloseOnOutsidePointerDown,
+        bool CloseOnEscape);
 
     private void SetFocus(UIElement? element)
     {

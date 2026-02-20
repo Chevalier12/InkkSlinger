@@ -216,6 +216,12 @@ public sealed partial class UiRoot
     public bool AlwaysDrawCompatibilityMode { get; set; } =
         string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_ALWAYS_DRAW"), "1", StringComparison.Ordinal);
 
+    public bool UseSoftwareCursor { get; set; }
+
+    public Color SoftwareCursorColor { get; set; } = new(238, 244, 255);
+
+    public float SoftwareCursorSize { get; set; } = 13f;
+
     public Color ClearColor
     {
         get => _clearColor;

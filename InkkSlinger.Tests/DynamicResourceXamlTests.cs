@@ -70,6 +70,27 @@ public class DynamicResourceXamlTests
     }
 
     [Fact]
+    public void StaticResource_OnAttachedProperty_ResolvesAtLoad()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <ContextMenu x:Key="SharedMenu" />
+  </UserControl.Resources>
+  <Grid>
+    <TextBlock x:Name="Target" ContextMenu.ContextMenu="{StaticResource SharedMenu}" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var target = Assert.IsType<TextBlock>(root.FindName("Target"));
+        var menu = ContextMenu.GetContextMenu(target);
+        Assert.NotNull(menu);
+        Assert.Same(root.Resources["SharedMenu"], menu);
+    }
+
+    [Fact]
     public void DynamicResource_OnAttachedProperty_ResolvesAndUpdates()
     {
         const string xaml = """

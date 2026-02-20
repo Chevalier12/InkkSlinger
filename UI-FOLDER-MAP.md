@@ -333,3 +333,11 @@ UI/
       XamlLoader.cs
 ```
 
+Related view surfaces added in this parity cycle:
+
+```text
+Views/
+  WindowPopupParityLabView.xml
+  WindowPopupParityLabView.xml.cs
+```
+

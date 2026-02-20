@@ -154,6 +154,9 @@ public class Popup : ContentControl
     private Panel? _host;
     private bool _isOpen;
     private bool _isCloseHovered;
+    private bool _isClosePressed;
+    private bool _isDragging;
+    private Vector2 _dragPointerOffset;
     private bool _updatingPlacement;
     private bool _coercingPlacement;
 
@@ -322,6 +325,8 @@ public class Popup : ContentControl
         }
 
         _isCloseHovered = false;
+        _isClosePressed = false;
+        _isDragging = false;
 
         _host.RemoveChild(this);
         _host.LayoutUpdated -= OnHostLayoutUpdated;
@@ -457,7 +462,9 @@ public class Popup : ContentControl
         if (CanClose && TitleBarHeight > 0f)
         {
             var closeRect = GetCloseButtonRect();
-            var closeColor = _isCloseHovered
+            var closeColor = _isClosePressed
+                ? Blend(CloseButtonBackground, Color.Black, 0.18f)
+                : _isCloseHovered
                 ? Blend(CloseButtonBackground, Color.White, 0.2f)
                 : CloseButtonBackground;
             UiDrawing.DrawFilledRect(spriteBatch, closeRect, closeColor, Opacity);
@@ -599,6 +606,99 @@ public class Popup : ContentControl
     private void OnHostLayoutUpdated(object? sender, EventArgs e)
     {
         UpdatePlacement();
+    }
+
+    internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
+    {
+        if (!_isOpen || !HitTest(pointerPosition))
+        {
+            return false;
+        }
+
+        if (CanClose && TitleBarHeight > 0f)
+        {
+            var onClose = Contains(GetCloseButtonRect(), pointerPosition.X, pointerPosition.Y);
+            _isCloseHovered = onClose;
+            _isClosePressed = onClose;
+            if (onClose)
+            {
+                InvalidateVisual();
+                return true;
+            }
+        }
+
+        if (CanDragMove && IsInTitleBar(pointerPosition))
+        {
+            if (PlacementMode != PopupPlacementMode.Absolute)
+            {
+                // Dragging should behave like moving a window surface, so detach from
+                // anchored placement and continue in absolute coordinates.
+                var hostX = _host?.LayoutSlot.X ?? 0f;
+                var hostY = _host?.LayoutSlot.Y ?? 0f;
+                Left = LayoutSlot.X - hostX;
+                Top = LayoutSlot.Y - hostY;
+                PlacementMode = PopupPlacementMode.Absolute;
+                PlacementTarget = null;
+                HorizontalOffset = 0f;
+                VerticalOffset = 0f;
+            }
+
+            _isDragging = true;
+            var hostXNow = _host?.LayoutSlot.X ?? 0f;
+            var hostYNow = _host?.LayoutSlot.Y ?? 0f;
+            _dragPointerOffset = new Vector2(
+                pointerPosition.X - (hostXNow + Left),
+                pointerPosition.Y - (hostYNow + Top));
+            return true;
+        }
+
+        return false;
+    }
+
+    internal void HandlePointerMoveFromInput(Vector2 pointerPosition)
+    {
+        if (!_isOpen)
+        {
+            return;
+        }
+
+        if (_isDragging && _host != null)
+        {
+            Left = pointerPosition.X - _host.LayoutSlot.X - _dragPointerOffset.X;
+            Top = pointerPosition.Y - _host.LayoutSlot.Y - _dragPointerOffset.Y;
+        }
+
+        if (CanClose && TitleBarHeight > 0f)
+        {
+            var isHovered = Contains(GetCloseButtonRect(), pointerPosition.X, pointerPosition.Y);
+            if (_isCloseHovered != isHovered)
+            {
+                _isCloseHovered = isHovered;
+                InvalidateVisual();
+            }
+        }
+    }
+
+    internal void HandlePointerUpFromInput(Vector2 pointerPosition)
+    {
+        if (!_isOpen)
+        {
+            return;
+        }
+
+        var shouldClose = _isClosePressed &&
+                          CanClose &&
+                          TitleBarHeight > 0f &&
+                          Contains(GetCloseButtonRect(), pointerPosition.X, pointerPosition.Y);
+        _isClosePressed = false;
+        _isDragging = false;
+        _isCloseHovered = CanClose && TitleBarHeight > 0f && Contains(GetCloseButtonRect(), pointerPosition.X, pointerPosition.Y);
+        InvalidateVisual();
+
+        if (shouldClose)
+        {
+            Close();
+        }
     }
 
 

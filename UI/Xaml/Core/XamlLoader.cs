@@ -486,7 +486,7 @@ public static class XamlLoader
             {
                 if (localName.Contains('.', StringComparison.Ordinal))
                 {
-                    ApplyAttachedProperty(target, localName, value);
+                    ApplyAttachedProperty(target, localName, value, resourceScope);
                     continue;
                 }
 
@@ -2521,7 +2521,11 @@ public static class XamlLoader
         return null;
     }
 
-    private static void ApplyAttachedProperty(object target, string attachedPropertyName, string valueText)
+    private static void ApplyAttachedProperty(
+        object target,
+        string attachedPropertyName,
+        string valueText,
+        FrameworkElement? resourceScope)
     {
         var separatorIndex = attachedPropertyName.IndexOf('.');
         var ownerTypeName = attachedPropertyName[..separatorIndex];
@@ -2576,7 +2580,23 @@ public static class XamlLoader
         }
 
         var valueType = setter.GetParameters()[1].ParameterType;
-        var converted = ConvertValue(valueText, valueType);
+        object converted;
+        if (TryParseStaticResourceKey(valueText, out var staticResourceKey))
+        {
+            var resolved = ResolveStaticResourceValue(staticResourceKey, target as FrameworkElement, resourceScope);
+            if (!valueType.IsInstanceOfType(resolved))
+            {
+                throw CreateXamlException(
+                    $"Attached property '{ownerType.Name}.{propertyName}' requires a value assignable to '{valueType.Name}', but resource resolved to '{resolved.GetType().Name}'.");
+            }
+
+            converted = resolved;
+        }
+        else
+        {
+            converted = ConvertValue(valueText, valueType);
+        }
+
         setter.Invoke(null, new[] { target, converted });
     }
 

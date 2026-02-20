@@ -7,6 +7,7 @@ namespace InkkSlinger;
 public class Slider : Control
 {
     private static readonly Lazy<Style> DefaultSliderStyle = new(BuildDefaultSliderStyle);
+    private float _dragThumbOffset;
 
     public static readonly RoutedEvent ValueChangedEvent =
         new(nameof(ValueChanged), RoutingStrategy.Bubble);
@@ -485,6 +486,60 @@ public class Slider : Control
     private void EndDrag(bool releaseCapture)
     {
         IsDraggingThumb = false;
+        _dragThumbOffset = 0f;
         _ = releaseCapture;
+    }
+
+    internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
+    {
+        if (!HitTest(pointerPosition))
+        {
+            return false;
+        }
+
+        var trackRect = GetTrackRect();
+        var thumbRect = GetThumbRect(trackRect);
+        var pointer = GetPointerAlongOrientation(pointerPosition);
+        var thumbStart = GetThumbStartAlongOrientation(thumbRect);
+        var thumbEnd = GetThumbEndAlongOrientation(thumbRect);
+
+        if (pointer >= thumbStart && pointer <= thumbEnd)
+        {
+            IsDraggingThumb = true;
+            _dragThumbOffset = pointer - thumbStart;
+            return true;
+        }
+
+        if (IsMoveToPointEnabled)
+        {
+            Value = ValueFromPointer(pointer, trackRect, useThumbCenterOffset: true);
+            return true;
+        }
+
+        var next = pointer < thumbStart ? Value - LargeChange : Value + LargeChange;
+        Value = next;
+        return true;
+    }
+
+    internal void HandlePointerMoveFromInput(Vector2 pointerPosition)
+    {
+        if (!IsDraggingThumb)
+        {
+            return;
+        }
+
+        var trackRect = GetTrackRect();
+        var pointer = GetPointerAlongOrientation(pointerPosition) - _dragThumbOffset;
+        Value = ValueFromPointer(pointer, trackRect, useThumbCenterOffset: false);
+    }
+
+    internal void HandlePointerUpFromInput()
+    {
+        if (!IsDraggingThumb)
+        {
+            return;
+        }
+
+        EndDrag(releaseCapture: true);
     }
 }

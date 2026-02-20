@@ -139,6 +139,17 @@ public class ComboBox : Selector
     protected internal ListBox? DropDownListForTesting => _dropDownList;
     protected internal bool IsDropDownPopupOpenForTesting => _dropDownPopup?.IsOpen ?? false;
 
+    internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
+    {
+        if (!HitTest(pointerPosition))
+        {
+            return false;
+        }
+
+        IsDropDownOpen = !IsDropDownOpen;
+        return true;
+    }
+
     protected override void OnItemsChanged()
     {
         base.OnItemsChanged();
@@ -378,15 +389,18 @@ public class ComboBox : Selector
 
     private Panel? FindHostPanel()
     {
+        Panel? host = null;
         for (var current = VisualParent; current != null; current = current.VisualParent ?? current.LogicalParent)
         {
             if (current is Panel panel)
             {
-                return panel;
+                // Popups should attach to the topmost panel so they render as an overlay
+                // and do not participate in local container layout (for example Grid auto rows).
+                host = panel;
             }
         }
 
-        return null;
+        return host;
     }
 
     private static string GetDisplayText(object? item)

@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             Width="1024"
+             Height="720"
+             Background="#111820"
+             Padding="14">
+  <UserControl.Resources>
+    <ContextMenu x:Key="ParityContextMenu">
+      <Label Text="Context item A" />
+      <Label Text="Context item B" />
+      <Label Text="Context item C" />
+    </ContextMenu>
+  </UserControl.Resources>
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Label x:Name="TitleLabel"
+           Grid.Row="0"
+           Margin="2,0,2,8"
+           Foreground="#D7EEFF"
+           Text="Window/Popup Parity Lab" />
+
+    <Grid Grid.Row="1" Margin="0,0,0,8">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <Button x:Name="OpenPopupButton"
+              Grid.Column="0"
+              Margin="0,0,4,0"
+              Height="34"
+              Text="Open Popup"
+              Click="OnOpenPopupClick" />
+      <Button x:Name="ClosePopupButton"
+              Grid.Column="1"
+              Margin="4,0,0,0"
+              Height="34"
+              Text="Close Popup"
+              Click="OnClosePopupClick" />
+    </Grid>
+
+    <Grid Grid.Row="2" Margin="0,0,0,8">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <Button x:Name="PopupDismissToggleButton"
+              Grid.Column="0"
+              Margin="0,0,4,0"
+              Height="32"
+              Text="DismissOutside: On"
+              Click="OnTogglePopupDismissClick" />
+      <Button x:Name="PopupCanCloseToggleButton"
+              Grid.Column="1"
+              Margin="4,0,4,0"
+              Height="32"
+              Text="CanClose: On"
+              Click="OnTogglePopupCanCloseClick" />
+      <Button x:Name="OpenContextMenuButton"
+              Grid.Column="2"
+              Margin="4,0,0,0"
+              Height="32"
+              Text="Open Context Menu"
+              ContextMenu.ContextMenu="{StaticResource ParityContextMenu}"
+              Click="OnOpenContextMenuClick" />
+    </Grid>
+
+    <Grid Grid.Row="3" Margin="0,0,0,8">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <Button x:Name="PlacementAbsoluteButton"
+              Grid.Column="0"
+              Margin="0,0,3,0"
+              Height="30"
+              Text="Placement: Absolute"
+              Click="OnPlacementAbsoluteClick" />
+      <Button x:Name="PlacementBottomButton"
+              Grid.Column="1"
+              Margin="3,0,3,0"
+              Height="30"
+              Text="Placement: Bottom"
+              Click="OnPlacementBottomClick" />
+      <Button x:Name="PlacementRightButton"
+              Grid.Column="2"
+              Margin="3,0,3,0"
+              Height="30"
+              Text="Placement: Right"
+              Click="OnPlacementRightClick" />
+      <Button x:Name="PlacementCenterButton"
+              Grid.Column="3"
+              Margin="3,0,0,0"
+              Height="30"
+              Text="Placement: Center"
+              Click="OnPlacementCenterClick" />
+    </Grid>
+
+    <Grid Grid.Row="4" Margin="0,0,0,8">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <Label x:Name="HorizontalOffsetLabel"
+             Grid.Row="0"
+             Grid.Column="0"
+             Margin="0,0,8,4"
+             Foreground="#C7E2F6"
+             Text="Horizontal Offset" />
+      <Slider x:Name="HorizontalOffsetSlider"
+              Grid.Row="0"
+              Grid.Column="1"
+              Margin="0,0,8,4"
+              Minimum="-200"
+              Maximum="200"
+              Value="0"
+              ValueChanged="OnHorizontalOffsetChanged" />
+      <Label x:Name="HorizontalOffsetValueLabel"
+             Grid.Row="0"
+             Grid.Column="2"
+             Margin="0,0,0,4"
+             Foreground="#D7EEFF"
+             Text="0" />
+      <Label x:Name="VerticalOffsetLabel"
+             Grid.Row="1"
+             Grid.Column="0"
+             Margin="0,0,8,0"
+             Foreground="#C7E2F6"
+             Text="Vertical Offset" />
+      <Slider x:Name="VerticalOffsetSlider"
+              Grid.Row="1"
+              Grid.Column="1"
+              Margin="0,0,8,0"
+              Minimum="-200"
+              Maximum="200"
+              Value="0"
+              ValueChanged="OnVerticalOffsetChanged" />
+      <Label x:Name="VerticalOffsetValueLabel"
+             Grid.Row="1"
+             Grid.Column="2"
+             Foreground="#D7EEFF"
+             Text="0" />
+    </Grid>
+
+    <Grid Grid.Row="5">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <Border Grid.Column="0"
+              Margin="0,0,6,0"
+              Background="#1D2735"
+              BorderBrush="#5C86AB"
+              BorderThickness="1"
+              Padding="8">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Label x:Name="PopupStatusLabel"
+                 Grid.Row="0"
+                 Foreground="#D6ECFF"
+                 Text="Popup: Closed" />
+          <Label x:Name="FocusStatusLabel"
+                 Grid.Row="1"
+                 Margin="0,4,0,0"
+                 Foreground="#B7D7EF"
+                 Text="Focus: n/a" />
+          <Label x:Name="PointerStatusLabel"
+                 Grid.Row="2"
+                 Margin="0,4,0,0"
+                 Foreground="#B7D7EF"
+                 Text="Pointer: n/a" />
+          <Label x:Name="KeyboardHintLabel"
+                 Grid.Row="3"
+                 Margin="0,8,0,0"
+                 Foreground="#B7D7EF"
+                 Text="Keyboard hint: press Esc to close top popup/context menu." />
+          <Button x:Name="ContextMenuStaysOpenToggleButton"
+                  Grid.Row="4"
+                  Margin="0,10,0,0"
+                  Height="30"
+                  Text="ContextMenu StaysOpen: Off"
+                  Click="OnToggleContextMenuStaysOpenClick" />
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="1"
+              Margin="6,0,0,0"
+              Background="#1D2735"
+              BorderBrush="#5C86AB"
+              BorderThickness="1"
+              Padding="8">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Label x:Name="WindowSectionLabel"
+                 Grid.Row="0"
+                 Foreground="#D6ECFF"
+                 Text="Native Window Edge Controls" />
+          <Grid Grid.Row="1" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="ToggleFullscreenButton"
+                    Grid.Column="0"
+                    Margin="0,0,3,0"
+                    Height="30"
+                    Text="Toggle Fullscreen"
+                    Click="OnToggleFullscreenClick" />
+            <Button x:Name="Resize1024Button"
+                    Grid.Column="1"
+                    Margin="3,0,3,0"
+                    Height="30"
+                    Text="Resize 1024x720"
+                    Click="OnResize1024Click" />
+            <Button x:Name="Resize1280Button"
+                    Grid.Column="2"
+                    Margin="3,0,0,0"
+                    Height="30"
+                    Text="Resize 1280x900"
+                    Click="OnResize1280Click" />
+          </Grid>
+          <Label x:Name="WindowStatusLabel"
+                 Grid.Row="2"
+                 Margin="0,8,0,0"
+                 Foreground="#B7D7EF"
+                 Text="Window: n/a" />
+          <ComboBox x:Name="ParityComboBox"
+                    Grid.Row="3"
+                    Margin="0,8,0,0"
+                    Height="32"
+                    Width="260" />
+          <Button x:Name="OpenComboDropDownButton"
+                  Grid.Row="4"
+                  Margin="0,10,0,0"
+                  Height="30"
+                  Text="Open Combo Dropdown"
+                  Click="OnOpenComboDropDownClick" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>
