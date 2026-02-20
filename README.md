@@ -1,5 +1,26 @@
 # InkkSlinger UI Framework
 
+## Is It Usable Yet? (tm sign here)
+
+### Evidence Pass (2026-02-20)
+
+| Check | Result | Evidence |
+|---|---|---|
+| Solution build | Pass (0 errors, 2 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
+| Test suite | **Failing** (`307/308` passing) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` currently fails `RichTextWpfParityGapTests.BoldFirstLineThenTypeAtItsEnd_ShouldNotMergeWithSecondLine` |
+| WPF control coverage | Broad but incomplete (`67/77`) | `TODO.md` -> `## WPF Control Coverage` |
+| Open tracked work | `18` unchecked TODO items | `TODO.md` (diagnostics backlog, parity edge work, missing controls) |
+| Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
+
+### Honest Verdict
+
+**Not yet production-ready as a general-purpose framework claim.**
+
+**Conditionally usable** for production only when your app stays inside the currently implemented/tested surface area and you accept the known gaps above.
+
+If the bar is “ship a targeted app on this stack,” that can be reasonable.  
+If the bar is “framework-level broad production readiness,” the current failing regression + open parity/coverage gaps means **not yet**.
+
 [![.NET](https://img.shields.io/badge/.NET-9%20%2F%2010-512BD4?logo=dotnet&logoColor=white)](#build-and-test)
 [![MonoGame](https://img.shields.io/badge/MonoGame-DesktopGL-FF7F50)](#vision)
 [![WPF Parity](https://img.shields.io/badge/WPF%20parity-ongoing-blue)](#wpf-parity-position)
