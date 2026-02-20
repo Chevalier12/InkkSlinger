@@ -190,9 +190,15 @@ UI/
     TextBoxFrameworkDiagnostics.cs
     UiFrameworkFileLoadDiagnostics.cs
     UiFrameworkPopulationPhaseDiagnostics.cs
+    UiRootAllocationGcDiagnostics.cs
     UiRootClickCpuDiagnostics.cs
+    UiRootControlHotspotDiagnostics.cs
+    UiRootDirtyRegionEffectivenessDiagnostics.cs
     UiRootFrameLatencyDiagnostics.cs
+    UiRootInputRouteComplexityDiagnostics.cs
     UiRootMoveCpuDiagnostics.cs
+    UiRootNoOpInvalidationDiagnostics.cs
+    UiRootRenderCacheChurnDiagnostics.cs
     UiRootScrollCpuDiagnostics.cs
     UiRootWheelRoutingDiagnostics.cs
   Events/
