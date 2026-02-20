@@ -336,9 +336,13 @@ public sealed partial class UiRoot
             return;
         }
 
+        var dispatchStart = Stopwatch.GetTimestamp();
+        ObserveAllocationGcInteraction("PointerMove");
         _lastInputPointerEventCount++;
         _lastInputRoutedEventCount += 2;
+        ObserveInputRouteComplexity("Pointer", routedTarget, UIElement.PreviewMouseMoveEvent);
         routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseMoveEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseMoveEvent, pointerPosition, MouseButton.Left));
+        ObserveInputRouteComplexity("Pointer", routedTarget, UIElement.MouseMoveEvent);
         routedTarget.RaiseRoutedEventInternal(UIElement.MouseMoveEvent, new MouseRoutedEventArgs(UIElement.MouseMoveEvent, pointerPosition, MouseButton.Left));
 
         if (_inputState.CapturedPointerElement is ITextInputControl dragTextInput)
@@ -357,6 +361,8 @@ public sealed partial class UiRoot
                 TrySynchronizeMenuFocusRestore(ownerMenu);
             }
         }
+
+        ObserveControlHotspotDispatch(routedTarget, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
     }
 
     private void DispatchMouseDown(UIElement? target, Vector2 pointerPosition, MouseButton button)
@@ -373,11 +379,15 @@ public sealed partial class UiRoot
             return;
         }
 
+        var dispatchStart = Stopwatch.GetTimestamp();
+        ObserveAllocationGcInteraction("MouseDown");
         RefreshCachedClickTarget(target);
 
         _lastInputPointerEventCount++;
         _lastInputRoutedEventCount += 2;
+        ObserveInputRouteComplexity("Pointer", target, UIElement.PreviewMouseDownEvent);
         target.RaiseRoutedEventInternal(UIElement.PreviewMouseDownEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseDownEvent, pointerPosition, button));
+        ObserveInputRouteComplexity("Pointer", target, UIElement.MouseDownEvent);
         target.RaiseRoutedEventInternal(UIElement.MouseDownEvent, new MouseRoutedEventArgs(UIElement.MouseDownEvent, pointerPosition, button));
         if (target is not Menu && target is not MenuItem)
         {
@@ -392,6 +402,7 @@ public sealed partial class UiRoot
                 TrySynchronizeMenuFocusRestore(ownerMenu);
             }
 
+            ObserveControlHotspotDispatch(target, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
             return;
         }
 
@@ -417,6 +428,8 @@ public sealed partial class UiRoot
         {
             CapturePointer(scrollViewer);
         }
+
+        ObserveControlHotspotDispatch(target, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
     }
 
     private void DispatchMouseUp(UIElement? target, Vector2 pointerPosition, MouseButton button)
@@ -427,11 +440,15 @@ public sealed partial class UiRoot
             return;
         }
 
+        var dispatchStart = Stopwatch.GetTimestamp();
+        ObserveAllocationGcInteraction("MouseUp");
         RefreshCachedClickTarget(routedTarget);
 
         _lastInputPointerEventCount++;
         _lastInputRoutedEventCount += 2;
+        ObserveInputRouteComplexity("Pointer", routedTarget, UIElement.PreviewMouseUpEvent);
         routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseUpEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseUpEvent, pointerPosition, button));
+        ObserveInputRouteComplexity("Pointer", routedTarget, UIElement.MouseUpEvent);
         routedTarget.RaiseRoutedEventInternal(UIElement.MouseUpEvent, new MouseRoutedEventArgs(UIElement.MouseUpEvent, pointerPosition, button));
 
         if (_inputState.CapturedPointerElement is Button pressedButton)
@@ -461,6 +478,7 @@ public sealed partial class UiRoot
         }
 
         ReleasePointer(_inputState.CapturedPointerElement);
+        ObserveControlHotspotDispatch(routedTarget, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
     }
 
     private void DispatchMouseWheel(UIElement? target, Vector2 pointerPosition, int delta)
@@ -475,6 +493,8 @@ public sealed partial class UiRoot
             return;
         }
 
+        var dispatchStart = Stopwatch.GetTimestamp();
+        ObserveAllocationGcInteraction("MouseWheel");
         TraceWheelRouting($"DispatchMouseWheel start: delta={delta}, pointer={FormatWheelPointer(pointerPosition)}, incomingTarget={DescribeWheelElement(target)}, hovered={DescribeWheelElement(_inputState.HoveredElement)}, cachedTextBox={DescribeWheelElement(_cachedWheelTextInputTarget)}, cachedScrollViewer={DescribeWheelElement(_cachedWheelScrollViewerTarget)}");
 
         EnsureCachedWheelTargetsAreCurrent(pointerPosition);
@@ -539,7 +559,9 @@ public sealed partial class UiRoot
         if (HasWheelRoutedEventHandlers(resolvedTarget))
         {
             _lastInputRoutedEventCount += 2;
+            ObserveInputRouteComplexity("Wheel", resolvedTarget, UIElement.PreviewMouseWheelEvent);
             resolvedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
+            ObserveInputRouteComplexity("Wheel", resolvedTarget, UIElement.MouseWheelEvent);
             resolvedTarget.RaiseRoutedEventInternal(UIElement.MouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.MouseWheelEvent, pointerPosition, delta));
             TraceWheelRouting($"DispatchMouseWheel routed events raised on {DescribeWheelElement(resolvedTarget)}");
         }
@@ -549,6 +571,7 @@ public sealed partial class UiRoot
             TraceWheelRouting($"DispatchMouseWheel handled by cached text input {DescribeWheelElement(_cachedWheelTextInputTarget)}");
             TrackWheelPointerPosition(pointerPosition);
             ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
+            ObserveControlHotspotDispatch(_cachedWheelTextInputTarget, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
             return;
         }
 
@@ -563,6 +586,7 @@ public sealed partial class UiRoot
             TraceWheelRouting($"DispatchMouseWheel cached ScrollViewer attempt: target={DescribeWheelElement(cachedViewer)}, handled={handled}, offsets(before=({beforeHorizontal:0.###},{beforeVertical:0.###}), after=({cachedViewer.HorizontalOffset:0.###},{cachedViewer.VerticalOffset:0.###})), handleMs={wheelHandleMs:0.###}");
             TrackWheelPointerPosition(pointerPosition);
             ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
+            ObserveControlHotspotDispatch(cachedViewer, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
             return;
         }
 
@@ -575,6 +599,7 @@ public sealed partial class UiRoot
             TraceWheelRouting($"DispatchMouseWheel handled by ancestor text input {DescribeWheelElement(textInput)}");
             TrackWheelPointerPosition(pointerPosition);
             ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
+            ObserveControlHotspotDispatch(textInput, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
             return;
         }
 
@@ -596,6 +621,7 @@ public sealed partial class UiRoot
 
         TrackWheelPointerPosition(pointerPosition);
         ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
+        ObserveControlHotspotDispatch(resolvedTarget, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
     }
 
     private void EnsureCachedWheelTargetsAreCurrent(Vector2 pointerPosition)
@@ -815,65 +841,81 @@ public sealed partial class UiRoot
     private void DispatchKeyDown(Keys key, ModifierKeys modifiers)
     {
         var target = _inputState.FocusedElement ?? _visualRoot;
-        _lastInputKeyEventCount++;
-        _lastInputRoutedEventCount += 2;
-        target.RaiseRoutedEventInternal(UIElement.PreviewKeyDownEvent, new KeyRoutedEventArgs(UIElement.PreviewKeyDownEvent, key, modifiers));
-        target.RaiseRoutedEventInternal(UIElement.KeyDownEvent, new KeyRoutedEventArgs(UIElement.KeyDownEvent, key, modifiers));
-
-        if (key == Keys.F10 && modifiers == ModifierKeys.None)
+        var dispatchStart = Stopwatch.GetTimestamp();
+        ObserveAllocationGcInteraction("KeyDown");
+        try
         {
-            var menu = FindFirstVisualOfType<Menu>(_visualRoot);
-            if (menu != null && menu.TryActivateMenuBarFromKeyboard(_inputState.FocusedElement))
+            _lastInputKeyEventCount++;
+            _lastInputRoutedEventCount += 2;
+            ObserveInputRouteComplexity("Key", target, UIElement.PreviewKeyDownEvent);
+            target.RaiseRoutedEventInternal(UIElement.PreviewKeyDownEvent, new KeyRoutedEventArgs(UIElement.PreviewKeyDownEvent, key, modifiers));
+            ObserveInputRouteComplexity("Key", target, UIElement.KeyDownEvent);
+            target.RaiseRoutedEventInternal(UIElement.KeyDownEvent, new KeyRoutedEventArgs(UIElement.KeyDownEvent, key, modifiers));
+
+            if (key == Keys.F10 && modifiers == ModifierKeys.None)
             {
-                TrySynchronizeMenuFocusRestore(menu);
+                var menu = FindFirstVisualOfType<Menu>(_visualRoot);
+                if (menu != null && menu.TryActivateMenuBarFromKeyboard(_inputState.FocusedElement))
+                {
+                    TrySynchronizeMenuFocusRestore(menu);
+                    return;
+                }
+            }
+
+            if ((modifiers & ModifierKeys.Alt) != 0 && key is >= Keys.A and <= Keys.Z)
+            {
+                var accessKey = (char)('A' + (int)(key - Keys.A));
+                if (TryHandleMenuAccessKey(accessKey))
+                {
+                    return;
+                }
+            }
+
+            if (TryFindMenuInMenuMode(out var activeMenu) &&
+                activeMenu.TryHandleKeyDownFromInput(key, modifiers))
+            {
+                TrySynchronizeMenuFocusRestore(activeMenu);
                 return;
             }
-        }
 
-        if ((modifiers & ModifierKeys.Alt) != 0 && key is >= Keys.A and <= Keys.Z)
-        {
-            var accessKey = (char)('A' + (int)(key - Keys.A));
-            if (TryHandleMenuAccessKey(accessKey))
+            if (_inputState.FocusedElement is ITextInputControl focusedTextInput &&
+                focusedTextInput.HandleKeyDownFromInput(key, modifiers))
             {
                 return;
             }
-        }
 
-        if (TryFindMenuInMenuMode(out var activeMenu) &&
-            activeMenu.TryHandleKeyDownFromInput(key, modifiers))
+            if (_inputState.FocusedElement is Button button && (key == Keys.Enter || key == Keys.Space))
+            {
+                button.InvokeFromInput();
+                return;
+            }
+
+            if (_inputState.FocusedElement is Menu focusedMenu && focusedMenu.TryHandleKeyDownFromInput(key, modifiers))
+            {
+                TrySynchronizeMenuFocusRestore(focusedMenu);
+                return;
+            }
+
+            _ = InputGestureService.Execute(key, modifiers, _inputState.FocusedElement, _visualRoot);
+        }
+        finally
         {
-            TrySynchronizeMenuFocusRestore(activeMenu);
-            return;
+            ObserveControlHotspotDispatch(target, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
         }
-
-        if (_inputState.FocusedElement is ITextInputControl focusedTextInput &&
-            focusedTextInput.HandleKeyDownFromInput(key, modifiers))
-        {
-            return;
-        }
-
-        if (_inputState.FocusedElement is Button button && (key == Keys.Enter || key == Keys.Space))
-        {
-            button.InvokeFromInput();
-            return;
-        }
-
-        if (_inputState.FocusedElement is Menu focusedMenu && focusedMenu.TryHandleKeyDownFromInput(key, modifiers))
-        {
-            TrySynchronizeMenuFocusRestore(focusedMenu);
-            return;
-        }
-
-        _ = InputGestureService.Execute(key, modifiers, _inputState.FocusedElement, _visualRoot);
     }
 
     private void DispatchKeyUp(Keys key, ModifierKeys modifiers)
     {
         var target = _inputState.FocusedElement ?? _visualRoot;
+        var dispatchStart = Stopwatch.GetTimestamp();
+        ObserveAllocationGcInteraction("KeyUp");
         _lastInputKeyEventCount++;
         _lastInputRoutedEventCount += 2;
+        ObserveInputRouteComplexity("Key", target, UIElement.PreviewKeyUpEvent);
         target.RaiseRoutedEventInternal(UIElement.PreviewKeyUpEvent, new KeyRoutedEventArgs(UIElement.PreviewKeyUpEvent, key, modifiers));
+        ObserveInputRouteComplexity("Key", target, UIElement.KeyUpEvent);
         target.RaiseRoutedEventInternal(UIElement.KeyUpEvent, new KeyRoutedEventArgs(UIElement.KeyUpEvent, key, modifiers));
+        ObserveControlHotspotDispatch(target, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
     }
 
     private void DispatchTextInput(char character)
@@ -884,15 +926,21 @@ public sealed partial class UiRoot
             return;
         }
 
+        var dispatchStart = Stopwatch.GetTimestamp();
+        ObserveAllocationGcInteraction("TextInput");
         _lastInputTextEventCount++;
         _lastInputRoutedEventCount += 2;
+        ObserveInputRouteComplexity("Key", focused, UIElement.PreviewTextInputEvent);
         focused.RaiseRoutedEventInternal(UIElement.PreviewTextInputEvent, new TextInputRoutedEventArgs(UIElement.PreviewTextInputEvent, character));
+        ObserveInputRouteComplexity("Key", focused, UIElement.TextInputEvent);
         focused.RaiseRoutedEventInternal(UIElement.TextInputEvent, new TextInputRoutedEventArgs(UIElement.TextInputEvent, character));
 
         if (focused is ITextInputControl textInput)
         {
             _ = textInput.HandleTextInputFromInput(character);
         }
+
+        ObserveControlHotspotDispatch(focused, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
     }
 
     private void SetFocus(UIElement? element)

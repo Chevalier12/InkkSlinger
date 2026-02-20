@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -88,7 +89,7 @@ public sealed partial class UiRoot
         }
     }
 
-    private static void DrawRetainedNode(SpriteBatch spriteBatch, RenderNode node)
+    private void DrawRetainedNode(SpriteBatch spriteBatch, RenderNode node)
     {
         var pushedClipCount = 0;
         var pushedTransformCount = 0;
@@ -107,12 +108,14 @@ public sealed partial class UiRoot
             pushedTransformCount++;
         }
 
+        var drawStart = Stopwatch.GetTimestamp();
         try
         {
             node.Visual.DrawSelf(spriteBatch);
         }
         finally
         {
+            ObserveControlHotspotDraw(node.Visual, Stopwatch.GetElapsedTime(drawStart).TotalMilliseconds);
             for (var i = 0; i < pushedTransformCount; i++)
             {
                 UiDrawing.PopTransform(spriteBatch);
@@ -129,6 +132,7 @@ public sealed partial class UiRoot
     {
         if (visual == null || !IsPartOfVisualTree(visual))
         {
+            ObserveDirtyRegionFallbackDetachedSource();
             _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
             return;
         }
@@ -136,6 +140,7 @@ public sealed partial class UiRoot
         if (visual is IRenderDirtyBoundsHintProvider dirtyHintProvider &&
             dirtyHintProvider.TryConsumeRenderDirtyBoundsHint(out var hintedBounds))
         {
+            ObserveDirtyRegionCandidateAdded();
             _dirtyRegions.AddDirtyRegion(hintedBounds);
             return;
         }
@@ -173,21 +178,26 @@ public sealed partial class UiRoot
     {
         if (hasOldBounds && hasNewBounds)
         {
+            ObserveDirtyRegionCandidateAdded();
             _dirtyRegions.AddDirtyRegion(Union(oldBounds, newBounds));
             return;
         }
 
         if (hasOldBounds)
         {
+            ObserveDirtyRegionCandidateAdded();
             _dirtyRegions.AddDirtyRegion(oldBounds);
             return;
         }
 
         if (hasNewBounds)
         {
+            ObserveDirtyRegionCandidateAdded();
             _dirtyRegions.AddDirtyRegion(newBounds);
             return;
         }
+
+        ObserveNoOpRenderInvalidationNoBounds();
     }
 
 

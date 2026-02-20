@@ -17,6 +17,7 @@ public sealed partial class UiRoot
         if (viewportChanged)
         {
             _mustDrawNextFrame = true;
+            ObserveDirtyRegionFallbackViewportChange();
             _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
             _renderCacheStore.Clear();
         }
@@ -79,6 +80,7 @@ public sealed partial class UiRoot
         _renderNodeIndices.Clear();
         _ = BuildRenderSubtree(_visualRoot, traversalOrder: 0, depth: 0);
         _renderListNeedsFullRebuild = false;
+        ObserveDirtyRegionFallbackRetainedRebuild();
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
         _renderCacheStore.Clear();
         ClearDirtyRenderQueue();

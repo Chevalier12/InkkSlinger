@@ -617,6 +617,11 @@ public class UIElement : DependencyObject
         return _routedHandlers.TryGetValue(routedEvent, out var handlers) && handlers.Count > 0;
     }
 
+    internal int GetRoutedHandlerCountForEvent(RoutedEvent routedEvent)
+    {
+        return _routedHandlers.TryGetValue(routedEvent, out var handlers) ? handlers.Count : 0;
+    }
+
     private static void NotifyBindingTreeChanged(UIElement root)
     {
         var start = Stopwatch.GetTimestamp();

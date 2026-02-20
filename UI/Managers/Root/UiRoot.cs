@@ -368,6 +368,12 @@ public sealed partial class UiRoot
         ObserveClickCpuAfterUpdate();
         ObserveMoveCpuAfterUpdate();
         ObserveFrameLatencyAfterUpdate();
+        ObserveDirtyRegionAfterUpdate();
+        ObserveRenderCacheChurnAfterUpdate();
+        ObserveAllocationGcAfterUpdate();
+        ObserveInputRouteComplexityAfterUpdate();
+        ObserveNoOpInvalidationAfterUpdate();
+        ObserveControlHotspotAfterUpdate();
     }
 
     public void EnqueueDeferredOperation(Action operation)

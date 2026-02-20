@@ -306,6 +306,12 @@ Remove-Item Env:INKKSLINGER_RENDER_CACHE_OVERLAY
 | `INKKSLINGER_FILE_LOAD_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework file-load diagnostics to `Debug` + `Console`. |
 | `INKKSLINGER_POPULATION_PHASE_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework population-phase diagnostics to `Debug` + `Console`. |
 | `INKKSLINGER_TEXTBOX_FRAMEWORK_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits TextBox framework timing summaries (commit, render, viewport, caret, text-sync) to `Debug` + `Console`. |
+| `INKKSLINGER_DIRTY_REGION_EFFECTIVENESS_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits partial-redraw effectiveness summaries (partial success, merge ratio, fallback-cause breakdown) to `Debug` + `Console`. |
+| `INKKSLINGER_RENDER_CACHE_CHURN_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits render-cache churn summaries (frame hit/miss/rebuild ratios and top invalidation source types) to `Debug` + `Console`. |
+| `INKKSLINGER_ALLOC_GC_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits interaction-window allocation and GC deltas (allocated bytes + Gen0/1/2 collection deltas) to `Debug` + `Console`. |
+| `INKKSLINGER_INPUT_ROUTE_COMPLEXITY_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits input route complexity summaries (route depth and potential handler counts for pointer/wheel/key routes) to `Debug` + `Console`. |
+| `INKKSLINGER_NOOP_INVALIDATION_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits no-op invalidation candidate summaries (render invalidations with no bounds contribution or detached sources) to `Debug` + `Console`. |
+| `INKKSLINGER_CONTROL_HOTSPOT_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits sampled top control-type hotspots by cumulative layout/draw/dispatch time to `Debug` + `Console`. |
 | `INKKSLINGER_RICHTEXT_LAYOUT_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits per-layout rich-text cache/build timing summaries to `Debug` + `Console`. |
 | `INKKSLINGER_RICHTEXT_EDIT_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits rich-text edit command timing summaries to `Debug` + `Console`. |
 | `INKKSLINGER_RICHTEXT_CLIPBOARD_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits rich-text clipboard serialize/deserialize timing and fallback diagnostics to `Debug` + `Console`. |

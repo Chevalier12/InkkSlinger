@@ -219,7 +219,9 @@ public sealed partial class UiRoot
             return false;
         }
 
+        var drawStart = Stopwatch.GetTimestamp();
         DrawCachedNode(spriteBatch, node, entry);
+        ObserveControlHotspotDraw(node.Visual, Stopwatch.GetElapsedTime(drawStart).TotalMilliseconds);
         _lastFrameCachedSubtreeBounds.Add(entry.Bounds);
         CacheHitCount++;
         LastFrameCacheHitCount++;

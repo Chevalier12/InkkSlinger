@@ -126,14 +126,18 @@ public sealed class RichTextWpfParityGapTests
         SetSelection(editor, start: 0, length: 5);
         CommandManager.Execute(EditingCommands.ToggleBold, null, editor);
 
+        var layout = BuildLayout(editor, 402f);
+        Assert.True(layout.TryGetCaretPosition(5, out var caretAtEndOfFirstLine));
         var textLeft = 1f + 8f;
         var textTop = 1f + 5f;
         var pointAtEndOfFirstLine = new Microsoft.Xna.Framework.Vector2(
-            textLeft + FontStashTextRenderer.MeasureWidth(null, "first"),
-            textTop + 2f);
+            textLeft + caretAtEndOfFirstLine.X,
+            textTop + caretAtEndOfFirstLine.Y + 2f);
 
         Assert.True(editor.HandlePointerDownFromInput(pointAtEndOfFirstLine, extendSelection: false));
         Assert.True(editor.HandlePointerUpFromInput());
+        Assert.Equal(5, editor.CaretIndex);
+        Assert.Equal(0, editor.SelectionLength);
         Assert.True(editor.HandleTextInputFromInput('X'));
 
         Assert.Equal("firstX\nsecond", DocumentEditing.GetText(editor.Document));

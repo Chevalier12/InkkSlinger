@@ -49,12 +49,12 @@
 ## Diagnostics Backlog
 - [x] Tail-latency diagnostics (`p95`/`p99`) for click/move/scroll interaction windows, based on `event->next-draw` latency.
 - [x] Frame-budget miss diagnostics for 60 FPS (`16.6ms`) with dominant phase attribution (`input`, `layout`, `draw`, `other update`).
-- [ ] Dirty-region effectiveness diagnostics: partial redraw success rate, dirty-rect merge ratio, and full-redraw fallback trigger breakdown.
-- [ ] Render-cache churn diagnostics: per-frame hit/miss/rebuild ratios and top invalidation sources.
-- [ ] Allocation and GC diagnostics during interaction windows (allocated bytes delta, Gen0/1/2 collection deltas).
-- [ ] Input-routing complexity diagnostics: route depth and handler invocation counts for pointer/wheel/key routes.
-- [ ] No-op invalidation diagnostics (invalidations that produce no layout/visual delta).
-- [ ] Per-control hot-spot diagnostics (sampled top N controls by cumulative layout/draw/dispatch time).
+- [x] Dirty-region effectiveness diagnostics: partial redraw success rate, dirty-rect merge ratio, and full-redraw fallback trigger breakdown.
+- [x] Render-cache churn diagnostics: per-frame hit/miss/rebuild ratios and top invalidation sources.
+- [x] Allocation and GC diagnostics during interaction windows (allocated bytes delta, Gen0/1/2 collection deltas).
+- [x] Input-routing complexity diagnostics: route depth and handler invocation counts for pointer/wheel/key routes.
+- [x] No-op invalidation diagnostics (invalidations that produce no layout/visual delta).
+- [x] Per-control hot-spot diagnostics (sampled top N controls by cumulative layout/draw/dispatch time).
 
 ## WPF Drawing & Geometry Coverage
 - [x] `Path`

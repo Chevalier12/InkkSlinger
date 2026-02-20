@@ -92,6 +92,7 @@ public sealed partial class UiRoot
 
     internal void NotifyInvalidation(UiInvalidationType invalidationType, UIElement? source = null)
     {
+        ObserveInvalidationDiagnostics(invalidationType, source);
         switch (invalidationType)
         {
             case UiInvalidationType.Measure:
@@ -108,6 +109,7 @@ public sealed partial class UiRoot
                 _hasRenderInvalidation = true;
                 _mustDrawNextFrame = true;
                 RenderInvalidationCount++;
+                ObserveRenderCacheInvalidationSource(source);
                 if (source is TextBox textBox && textBox.IsFocused)
                 {
                     _hasCaretBlinkInvalidation = true;
@@ -140,6 +142,7 @@ public sealed partial class UiRoot
 
         _renderListNeedsFullRebuild = true;
         _mustDrawNextFrame = true;
+        ObserveDirtyRegionFallbackVisualStructureChange();
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
         _renderCacheStore.Clear();
         EnqueueDirtyRenderNode(element);

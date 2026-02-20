@@ -25,6 +25,7 @@ public sealed partial class UiRoot
         _lastFrameCachedSubtreeBounds.Clear();
         LastDrawReasons = _scheduledDrawReasons;
         _scheduledDrawReasons = UiRedrawReason.None;
+        ObserveDirtyRegionBeforeDraw();
 
         var graphicsDevice = spriteBatch.GraphicsDevice;
         if (!_hasLastLayoutViewport || !AreViewportsEqual(_lastLayoutViewport, graphicsDevice.Viewport))
@@ -104,6 +105,12 @@ public sealed partial class UiRoot
         ObserveClickCpuAfterDraw();
         ObserveMoveCpuAfterDraw();
         ObserveFrameLatencyAfterDraw();
+        ObserveDirtyRegionAfterDraw();
+        ObserveRenderCacheChurnAfterDraw();
+        ObserveAllocationGcAfterDraw();
+        ObserveInputRouteComplexityAfterDraw();
+        ObserveNoOpInvalidationAfterDraw();
+        ObserveControlHotspotAfterDraw();
         TraceRenderCacheCountersIfEnabled();
     }
 }
