@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-02-18
+Generated: 2026-02-20
 
 ```text
 UI/
@@ -297,10 +297,19 @@ UI/
   Text/
     Core/
       TextLayout.cs
+    Documents/
+      DocumentEditing.cs
+      DocumentModel.cs
+      DocumentPointers.cs
+      FlowDocumentSerialization.cs
+      Operations/
+        DocumentOperations.cs
     Editing/
       TextClipboard.cs
       TextEditingBuffer.cs
       TextSelection.cs
+    Layout/
+      DocumentLayoutEngine.cs
     Types/
       TextWrapping.cs
   Xaml/

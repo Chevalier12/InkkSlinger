@@ -58,7 +58,7 @@ public sealed class RichTextAdvancedStructureTests
     }
 
     [Fact]
-    public void HyperlinkActivation_RoutesForKeyboardAndPointer()
+    public void HyperlinkActivation_RoutesForKeyboardAndReadOnlyPointer()
     {
         var editor = CreateEditor(string.Empty);
         editor.Document = BuildHyperlinkDocument("https://example.com", "site");
@@ -73,6 +73,7 @@ public sealed class RichTextAdvancedStructureTests
 
         Assert.True(editor.HandleKeyDownFromInput(Keys.Enter, ModifierKeys.Control));
 
+        editor.IsReadOnly = true;
         Assert.True(editor.HandlePointerDownFromInput(new Vector2(10f, 10f), extendSelection: false));
         Assert.True(editor.HandlePointerUpFromInput());
 

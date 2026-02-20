@@ -230,7 +230,7 @@ public partial class RichTextDiagnosticsLabView : UserControl
         var document = new FlowDocument();
 
         var intro = new Paragraph();
-        intro.Inlines.Add(new Run("Use "));
+        intro.Inlines.Add(new Run("RichText stress lab: use "));
         var bold = new Bold();
         bold.Inlines.Add(new Run("Ctrl+Enter"));
         intro.Inlines.Add(bold);
@@ -238,22 +238,86 @@ public partial class RichTextDiagnosticsLabView : UserControl
         var hyperlink = new Hyperlink { NavigateUri = "https://example.com/inkkslinger-richtext-lab" };
         hyperlink.Inlines.Add(new Run("this hyperlink"));
         intro.Inlines.Add(hyperlink);
-        intro.Inlines.Add(new Run("."));
+        intro.Inlines.Add(new Run(". Then try mixed selections across list/table boundaries."));
+        var introItalic = new Italic();
+        introItalic.Inlines.Add(new Run(" This paragraph has nested inline styles."));
+        intro.Inlines.Add(introItalic);
         document.Blocks.Add(intro);
 
-        var list = new InkkSlinger.List { IsOrdered = true };
-        list.Items.Add(CreateListItem("List item 1"));
-        list.Items.Add(CreateListItem("List item 2"));
-        document.Blocks.Add(list);
+        var inlineMix = new Paragraph();
+        inlineMix.Inlines.Add(new Run("Inline mix: "));
+        var mixedBold = new Bold();
+        mixedBold.Inlines.Add(new Run("bold"));
+        inlineMix.Inlines.Add(mixedBold);
+        inlineMix.Inlines.Add(new Run(" + "));
+        var mixedItalic = new Italic();
+        mixedItalic.Inlines.Add(new Run("italic"));
+        inlineMix.Inlines.Add(mixedItalic);
+        inlineMix.Inlines.Add(new Run(" + "));
+        var mixedUnderline = new Underline();
+        mixedUnderline.Inlines.Add(new Run("underline"));
+        inlineMix.Inlines.Add(mixedUnderline);
+        inlineMix.Inlines.Add(new Run(" + "));
+        var nested = new Bold();
+        var nestedItalic = new Italic();
+        nestedItalic.Inlines.Add(new Run("nested bold/italic"));
+        nested.Inlines.Add(nestedItalic);
+        inlineMix.Inlines.Add(nested);
+        inlineMix.Inlines.Add(new LineBreak());
+        inlineMix.Inlines.Add(new Run("Edge text: punctuation !!! ??? --- and numbers 12345."));
+        document.Blocks.Add(inlineMix);
+
+        var orderedList = new InkkSlinger.List { IsOrdered = true };
+        orderedList.Items.Add(CreateListItem("List item 1"));
+        var listItem2 = new ListItem();
+        var listItem2Paragraph = new Paragraph();
+        listItem2Paragraph.Inlines.Add(new Run("List item 2 with "));
+        var listItem2Bold = new Bold();
+        listItem2Bold.Inlines.Add(new Run("bold"));
+        listItem2Paragraph.Inlines.Add(listItem2Bold);
+        listItem2Paragraph.Inlines.Add(new Run(" and "));
+        var listItem2Link = new Hyperlink { NavigateUri = "https://example.com/inkkslinger-richtext-list" };
+        listItem2Link.Inlines.Add(new Run("link"));
+        listItem2Paragraph.Inlines.Add(listItem2Link);
+        listItem2.Blocks.Add(listItem2Paragraph);
+        var nestedBullet = new InkkSlinger.List { IsOrdered = false };
+        nestedBullet.Items.Add(CreateListItem("Nested bullet A"));
+        nestedBullet.Items.Add(CreateListItem("Nested bullet B"));
+        listItem2.Blocks.Add(nestedBullet);
+        orderedList.Items.Add(listItem2);
+        orderedList.Items.Add(CreateListItem("List item 3"));
+        document.Blocks.Add(orderedList);
+
+        var quote = new Paragraph();
+        quote.Inlines.Add(new Run("Quote-like line: \"formatting integrity over many edits\""));
+        document.Blocks.Add(quote);
 
         var table = new Table();
         var rowGroup = new TableRowGroup();
-        var row = new TableRow();
-        row.Cells.Add(CreateTableCell("R1C1"));
-        row.Cells.Add(CreateTableCell("R1C2"));
-        rowGroup.Rows.Add(row);
+        var row1 = new TableRow();
+        row1.Cells.Add(CreateTableCell("R1C1"));
+        row1.Cells.Add(CreateTableCell("R1C2"));
+        var row2 = new TableRow();
+        row2.Cells.Add(CreateTableCell("R2C1"));
+        row2.Cells.Add(CreateTableCell("R2C2"));
+        rowGroup.Rows.Add(row1);
+        rowGroup.Rows.Add(row2);
         table.RowGroups.Add(rowGroup);
         document.Blocks.Add(table);
+
+        var secondTable = new Table();
+        var secondRowGroup = new TableRowGroup();
+        var secondRow = new TableRow();
+        secondRow.Cells.Add(CreateTableCell("A1"));
+        secondRow.Cells.Add(CreateTableCell("A2"));
+        secondRow.Cells.Add(CreateTableCell("A3"));
+        secondRowGroup.Rows.Add(secondRow);
+        secondTable.RowGroups.Add(secondRowGroup);
+        document.Blocks.Add(secondTable);
+
+        var ending = new Paragraph();
+        ending.Inlines.Add(new Run("Checklist: [ ] copy/paste  [ ] enter/backspace  [ ] bold toggle  [ ] selection drag."));
+        document.Blocks.Add(ending);
 
         Editor.Document = document;
         Editor.SetFocusedFromInput(true);

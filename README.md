@@ -85,7 +85,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 24 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (24 files) | Implemented |
+| Regression safety net | 36 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (36 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -121,16 +121,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Control coverage | `Page` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
 | Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
-| Binding API | `IValueConverter` / `IMultiValueConverter` interfaces | `UI/Binding/Converters/IValueConverter.cs`, `UI/Binding/Converters/IMultiValueConverter.cs` | Implemented |
-| Binding API | `MultiBinding` | `UI/Binding/Core/MultiBinding.cs`, `UI/Binding/Core/MultiBindingExpression.cs`, `UI/Xaml/Core/XamlLoader.cs` | Implemented |
-| Binding API | `PriorityBinding` | `UI/Binding/Core/PriorityBinding.cs`, `UI/Binding/Core/PriorityBindingExpression.cs`, `UI/Xaml/Core/XamlLoader.cs` | Implemented |
-| Binding API | `BindingGroup` | `UI/Binding/Core/BindingGroup.cs`, `UI/Controls/Base/FrameworkElement.cs`, `UI/Binding/Core/BindingExpressionUtilities.cs` | Implemented |
-| Binding API | Validation stack (`Validation`, `ValidationRule`, data-error pipelines) | `UI/Binding/Validation/Validation.cs`, `UI/Binding/Validation/ValidationRule.cs`, `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/MultiBindingExpression.cs` | Implemented |
-| Binding API | `IDataErrorInfo` / `INotifyDataErrorInfo` binding error pipelines | `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/MultiBindingExpression.cs` | Implemented |
-| Binding API | `UpdateSourceExceptionFilter` behavior hooks | `UI/Binding/Validation/UpdateSourceExceptionFilterCallback.cs`, `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/MultiBindingExpression.cs`, `UI/Xaml/Core/XamlLoader.cs` | Implemented |
 | Data/view layer | WPF `CollectionView` stack (current item/filter/sort/group) | No matching collection-view types in `UI/Binding`/`UI/Controls` | Not implemented |
-| Binding API | `BindingMode` includes WPF `OneWayToSource` and `Default` | `UI/Binding/Types/BindingEnums.cs`, `UI/Binding/Core/BindingExpressionUtilities.cs` | Implemented |
-| Binding API | `UpdateSourceTrigger` includes WPF `LostFocus` and `Default` | `UI/Binding/Types/BindingEnums.cs`, `UI/Binding/Core/BindingExpressionUtilities.cs` | Implemented |
 | XAML binding parser | Unrecognized binding attributes are rejected | `UI/Xaml/Core/XamlLoader.cs` (`BuildBindingElement`) | Partial |
 | XAML binding parser | Unrecognized binding keys are rejected | `UI/Xaml/Core/XamlLoader.cs` (`ParseBinding`) | Partial |
 | XAML `RelativeSource` parser | Only `Mode`, `AncestorType`, `AncestorLevel` keys are accepted | `UI/Xaml/Core/XamlLoader.cs` (`ParseRelativeSource`) | Partial |
@@ -156,7 +147,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 ## UI Architecture Map
 
-The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-18):
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-20):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers
@@ -172,7 +163,7 @@ The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-18):
 - `UI/Resources`: dictionaries and resolution/application resources
 - `UI/Styling`: styles, setters, visual states, triggers, trigger actions
 - `UI/Templating`: control/data templates and trigger engine
-- `UI/Text`: text layout and editing pipeline
+- `UI/Text`: text layout, flow-document model/editing/serialization, and rich document layout engine
 - `UI/Xaml`: runtime XML loading
 
 ## Runtime Model
@@ -291,6 +282,13 @@ Remove-Item Env:INKKSLINGER_RENDER_CACHE_OVERLAY
 | `INKKSLINGER_RICHTEXT_LAYOUT_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits per-layout rich-text cache/build timing summaries to `Debug` + `Console`. |
 | `INKKSLINGER_RICHTEXT_EDIT_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits rich-text edit command timing summaries to `Debug` + `Console`. |
 | `INKKSLINGER_RICHTEXT_CLIPBOARD_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits rich-text clipboard serialize/deserialize timing and fallback diagnostics to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_INVARIANT_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits post-edit document/caret/selection invariant checks and parent-link validation summaries to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_INVALIDATION_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits layout invalidation reasons (explicit invalidate reason + cache miss invalidations) to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_COMMAND_TRACE_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits input/command execution traces with mutation deltas and undo/redo depth transitions to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_SELECTION_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits caret/selection geometry trace (line, hit offset, caret rect, selection rect count) to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_UNDO_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits undo/redo operation-depth transitions and operation counts to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_CLIPBOARD_PAYLOAD_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits clipboard payload branch details (rich/text, payload bytes, fallback path) to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_FLATTEN_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits structural-loss diagnostics (full flatten and partial list/table/inline-richness drops) with before/after snapshot + last 10 RichTextBox operations (caller/branch/caret/selection) to `Debug` + `Console`. |
 
 ## Notes
 

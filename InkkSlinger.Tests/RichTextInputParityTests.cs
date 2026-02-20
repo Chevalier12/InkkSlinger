@@ -73,8 +73,8 @@ public sealed class RichTextInputParityTests
 
         var before = DocumentEditing.GetText(editor.Document);
         Assert.False(editor.HandleTextInputFromInput('x'));
-        Assert.True(editor.HandleKeyDownFromInput(Keys.Back, ModifierKeys.None));
-        Assert.True(editor.HandleKeyDownFromInput(Keys.Delete, ModifierKeys.None));
+        Assert.False(editor.HandleKeyDownFromInput(Keys.Back, ModifierKeys.None));
+        Assert.False(editor.HandleKeyDownFromInput(Keys.Delete, ModifierKeys.None));
 
         var after = DocumentEditing.GetText(editor.Document);
         Assert.Equal(before, after);

@@ -2,7 +2,7 @@
 
 ## Status
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
-- Current framework is usable for menu-oriented MonoGame UI.
+- Current framework is usable for menu/data/rich-text oriented MonoGame UI.
 - This file tracks completed milestones, known parity gaps, and control coverage.
 
 ## Completed Milestones
@@ -33,6 +33,7 @@
 - [x] Rich clipboard fidelity pass: range-based fragment serialization/deserialization, rich-fragment-first paste with plain-text fallback on invalid payload, and regression coverage for copy/cut/paste semantics.
 - [x] Rich advanced-structure pass: list indent/outdent transforms, table insert/split/merge and cell navigation behavior (`Tab`/`Shift+Tab`, boundary delete handling), hyperlink activation routing, and inline/block UI-container boundary support in rich layout/serialization.
 - [x] Rich diagnostics/perf hardening pass: `RichTextBoxPerformanceSnapshot` metrics (layout cache + p95/p99 build timing, render/selection timing, undo depth/op counts, clipboard serde timing), env-var-driven rich diagnostics logs, and regression tests for bounded local-edit invalidation/allocation behavior.
+- [x] Rich parity hardening: keyboard/reporting consistency for read-only editing keys and `Shift+Tab` no-op handling, plus list/table boundary keyboard space insertion safety (`Enter` + `Space`) without caret jump into adjacent table content.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.

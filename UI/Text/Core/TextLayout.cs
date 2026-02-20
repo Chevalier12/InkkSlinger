@@ -77,11 +77,6 @@ public static class TextLayout
                 continue;
             }
 
-            if (string.IsNullOrEmpty(line) && IsWhitespaceToken(token))
-            {
-                continue;
-            }
-
             var candidate = line + token;
             var candidateWidth = FontStashTextRenderer.MeasureWidth(font, candidate);
             if (candidateWidth <= availableWidth)
@@ -92,7 +87,7 @@ public static class TextLayout
 
             if (!string.IsNullOrEmpty(line))
             {
-                lines.Add(line.TrimEnd());
+                lines.Add(line);
                 line = string.Empty;
                 index -= token.Length;
                 continue;
@@ -101,7 +96,7 @@ public static class TextLayout
             BreakLongToken(token, font, availableWidth, lines);
         }
 
-        lines.Add(line.TrimEnd());
+        lines.Add(line);
     }
 
     private static void BreakLongToken(string token, SpriteFont? font, float availableWidth, IList<string> lines)

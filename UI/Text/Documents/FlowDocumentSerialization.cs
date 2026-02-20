@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml.Linq;
+using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
@@ -196,7 +197,13 @@ public static class FlowDocumentSerializer
         switch (inline)
         {
             case Run run:
-                return new XElement(nameof(Run), new XAttribute(nameof(Run.Text), run.Text));
+                var runElement = new XElement(nameof(Run), new XAttribute(nameof(Run.Text), run.Text));
+                if (run.Foreground.HasValue)
+                {
+                    runElement.SetAttributeValue(nameof(Run.Foreground), SerializeColor(run.Foreground.Value));
+                }
+
+                return runElement;
             case LineBreak:
                 return new XElement(nameof(LineBreak));
             case Hyperlink hyperlink:
@@ -355,7 +362,13 @@ public static class FlowDocumentSerializer
         switch (element.Name.LocalName)
         {
             case nameof(Run):
-                return new Run((string?)element.Attribute(nameof(Run.Text)) ?? string.Empty);
+                var run = new Run((string?)element.Attribute(nameof(Run.Text)) ?? string.Empty);
+                if (TryParseColor((string?)element.Attribute(nameof(Run.Foreground)), out var runForeground))
+                {
+                    run.Foreground = runForeground;
+                }
+
+                return run;
             case nameof(LineBreak):
                 return new LineBreak();
             case nameof(Bold):
@@ -559,5 +572,46 @@ public static class FlowDocumentSerializer
         var paragraph = new Paragraph();
         paragraph.Inlines.Add(new Run(string.Empty));
         document.Blocks.Add(paragraph);
+    }
+
+    private static string SerializeColor(Color color)
+    {
+        return $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
+    }
+
+    private static bool TryParseColor(string? value, out Color color)
+    {
+        color = default;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith('#'))
+        {
+            trimmed = trimmed[1..];
+        }
+
+        if (trimmed.Length == 6 &&
+            byte.TryParse(trimmed[..2], System.Globalization.NumberStyles.HexNumber, null, out var r6) &&
+            byte.TryParse(trimmed.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out var g6) &&
+            byte.TryParse(trimmed.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out var b6))
+        {
+            color = new Color(r6, g6, b6, (byte)255);
+            return true;
+        }
+
+        if (trimmed.Length == 8 &&
+            byte.TryParse(trimmed[..2], System.Globalization.NumberStyles.HexNumber, null, out var a8) &&
+            byte.TryParse(trimmed.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out var r8) &&
+            byte.TryParse(trimmed.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out var g8) &&
+            byte.TryParse(trimmed.Substring(6, 2), System.Globalization.NumberStyles.HexNumber, null, out var b8))
+        {
+            color = new Color(r8, g8, b8, a8);
+            return true;
+        }
+
+        return false;
     }
 }

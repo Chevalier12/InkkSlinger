@@ -5,9 +5,9 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
-public readonly record struct DocumentLayoutStyle(bool IsBold, bool IsItalic, bool IsUnderline, bool IsHyperlink)
+public readonly record struct DocumentLayoutStyle(bool IsBold, bool IsItalic, bool IsUnderline, bool IsHyperlink, Color? ForegroundOverride)
 {
-    public static readonly DocumentLayoutStyle Default = new(false, false, false, false);
+    public static readonly DocumentLayoutStyle Default = new(false, false, false, false, null);
 }
 
 public sealed class DocumentLayoutRun
@@ -144,7 +144,7 @@ public sealed class DocumentLayoutResult
             return 0;
         }
 
-        var line = ResolveLine(point.Y);
+        var line = ResolveLine(point);
         var localX = Math.Max(0f, point.X - line.TextStartX);
         var column = ResolveColumn(line, localX);
         return Math.Clamp(line.StartOffset + column, 0, TextLength);
@@ -185,8 +185,9 @@ public sealed class DocumentLayoutResult
         return rects;
     }
 
-    private DocumentLayoutLine ResolveLine(float y)
+    private DocumentLayoutLine ResolveLine(Vector2 point)
     {
+        var y = point.Y;
         if (y <= Lines[0].Bounds.Y)
         {
             return Lines[0];
@@ -198,14 +199,36 @@ public sealed class DocumentLayoutResult
             return last;
         }
 
+        var bestIndex = -1;
+        var bestDistance = float.PositiveInfinity;
         for (var i = 0; i < Lines.Count; i++)
         {
             var line = Lines[i];
             var bottom = line.Bounds.Y + line.Bounds.Height;
             if (y >= line.Bounds.Y && y < bottom)
             {
-                return line;
+                var left = line.Bounds.X;
+                var right = line.Bounds.X + line.Bounds.Width;
+                var distance = point.X < left
+                    ? left - point.X
+                    : point.X > right
+                        ? point.X - right
+                        : 0f;
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    bestIndex = i;
+                    if (distance <= 0f)
+                    {
+                        break;
+                    }
+                }
             }
+        }
+
+        if (bestIndex >= 0)
+        {
+            return Lines[bestIndex];
         }
 
         return last;
@@ -473,11 +496,6 @@ public sealed class DocumentLayoutEngine
                 AppendInlineStyledText(inline, DocumentLayoutStyle.Default, segments);
             }
 
-            if (segments.Count == 0)
-            {
-                segments.Add(new StyledChar('\0', DocumentLayoutStyle.Default));
-            }
-
             var plainText = BuildPlainText(segments);
             var width = maxWidthOverride ?? ResolveMaxWidth(baseX, listDepth, markerWidth + _settings.ListMarkerGap);
             if (_settings.Wrapping == TextWrapping.NoWrap)
@@ -485,19 +503,21 @@ public sealed class DocumentLayoutEngine
                 width = float.PositiveInfinity;
             }
 
-            var layout = TextLayout.Layout(plainText, _settings.Font, width, _settings.Wrapping);
+            var layoutLines = plainText.Length == 0
+                ? new[] { string.Empty }
+                : TextLayout.Layout(plainText, _settings.Font, width, _settings.Wrapping).Lines;
             var y = fixedY ?? _cursorY;
             var blockTop = y;
             var blockBottom = y;
             var scanIndex = 0;
-            for (var lineIndex = 0; lineIndex < layout.Lines.Count; lineIndex++)
+            for (var lineIndex = 0; lineIndex < layoutLines.Count; lineIndex++)
             {
                 while (scanIndex < plainText.Length && plainText[scanIndex] == '\n')
                 {
                     scanIndex++;
                 }
 
-                var lineText = layout.Lines[lineIndex];
+                var lineText = layoutLines[lineIndex];
                 if (scanIndex + lineText.Length > plainText.Length)
                 {
                     lineText = scanIndex < plainText.Length ? plainText[scanIndex..] : string.Empty;
@@ -568,7 +588,6 @@ public sealed class DocumentLayoutEngine
             _paragraphIndex++;
             if (_paragraphIndex < _paragraphCount)
             {
-                _caretPositions[_offset] = new Vector2(textStartX, blockTop + blockHeight);
                 _offset++;
             }
 
@@ -707,9 +726,12 @@ public sealed class DocumentLayoutEngine
                         return;
                     }
 
+                    var runStyle = run.Foreground.HasValue
+                        ? style with { ForegroundOverride = run.Foreground.Value }
+                        : style;
                     foreach (var character in run.Text)
                     {
-                        buffer.Add(new StyledChar(character, style));
+                        buffer.Add(new StyledChar(character, runStyle));
                     }
 
                     break;

@@ -81,6 +81,27 @@ public sealed class RichTextClipboardTests
         Assert.Equal("there", Assert.IsType<Run>(Assert.Single(fragmentBold.Inlines)).Text);
     }
 
+    [Fact]
+    public void Paste_ReadsStandardXamlClipboardFormat()
+    {
+        TextClipboard.ResetForTests();
+
+        var source = CreateEditorWithFormattedDocument();
+        source.HandleKeyDownFromInput(Keys.A, ModifierKeys.Control);
+        CommandManager.Execute(EditingCommands.Copy, null, source);
+        Assert.True(TextClipboard.TryGetData<string>("Xaml", out var xamlPayload));
+
+        TextClipboard.ResetForTests();
+        TextClipboard.SetData("Xaml", xamlPayload);
+
+        var target = CreateEditor(string.Empty);
+        CommandManager.Execute(EditingCommands.Paste, null, target);
+
+        Assert.Equal("Hello World", DocumentEditing.GetText(target.Document));
+        var paragraph = Assert.IsType<Paragraph>(Assert.Single(target.Document.Blocks));
+        Assert.IsType<Bold>(paragraph.Inlines[1]);
+    }
+
     private static RichTextBox CreateEditor(string text)
     {
         var editor = new RichTextBox();

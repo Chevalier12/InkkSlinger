@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
@@ -65,6 +66,7 @@ public sealed class Paragraph : Block
 public sealed class Run : Inline
 {
     private string _text = string.Empty;
+    private Color? _foreground;
 
     public Run()
     {
@@ -87,6 +89,21 @@ public sealed class Run : Inline
             }
 
             _text = next;
+            RaiseChanged();
+        }
+    }
+
+    public Color? Foreground
+    {
+        get => _foreground;
+        set
+        {
+            if (_foreground.Equals(value))
+            {
+                return;
+            }
+
+            _foreground = value;
             RaiseChanged();
         }
     }
@@ -419,7 +436,9 @@ public static class FlowDocumentPlainText
     public static void SetText(FlowDocument document, string? text)
     {
         ArgumentNullException.ThrowIfNull(document);
-        var normalized = (text ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal);
+        var normalized = (text ?? string.Empty)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
         document.Blocks.Clear();
         var paragraphs = normalized.Split('\n');
         if (paragraphs.Length == 0)

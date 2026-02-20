@@ -601,7 +601,10 @@ public static class DocumentEditing
         switch (inline)
         {
             case Run run:
-                return new Run(run.Text);
+                return new Run(run.Text)
+                {
+                    Foreground = run.Foreground
+                };
             case LineBreak:
                 return new LineBreak();
             case Bold bold:
