@@ -102,6 +102,61 @@ public sealed class RichTextClipboardTests
         Assert.IsType<Bold>(paragraph.Inlines[1]);
     }
 
+    [Fact]
+    public void Paste_WhenExternalClipboardChanges_IgnoresStaleInternalRichPayload()
+    {
+        TextClipboard.ResetForTests();
+
+        var source = CreateEditorWithFormattedDocument();
+        source.HandleKeyDownFromInput(Keys.A, ModifierKeys.Control);
+        CommandManager.Execute(EditingCommands.Copy, null, source);
+
+        TextClipboard.GetTextOverride = () => "external plain text";
+
+        var target = CreateEditor(string.Empty);
+        CommandManager.Execute(EditingCommands.Paste, null, target);
+
+        Assert.Equal("external plain text", DocumentEditing.GetText(target.Document));
+    }
+
+    [Fact]
+    public void PastePlainText_IntoRichStructuredDocument_ShouldNotFlattenStructure()
+    {
+        TextClipboard.ResetForTests();
+
+        var editor = CreateEditor(string.Empty);
+        editor.Document = BuildListAndTableDocument();
+        TextClipboard.SetText("external text");
+
+        SetSelection(editor, start: 3, length: 0);
+        CommandManager.Execute(EditingCommands.Paste, null, editor);
+
+        Assert.Contains(editor.Document.Blocks, static b => b is InkkSlinger.List);
+        Assert.Contains(editor.Document.Blocks, static b => b is Table);
+    }
+
+    [Fact]
+    public void CopyPasteWithinRichStructuredDocument_ShouldNotFlattenStructure()
+    {
+        TextClipboard.ResetForTests();
+
+        var editor = CreateEditor(string.Empty);
+        editor.Document = BuildListAndTableDocument();
+        var text = DocumentEditing.GetText(editor.Document);
+        var copyStart = text.IndexOf("List item 1", StringComparison.Ordinal);
+        Assert.True(copyStart >= 0);
+        SetSelection(editor, copyStart, "List item 1".Length);
+        CommandManager.Execute(EditingCommands.Copy, null, editor);
+
+        var insertAt = text.IndexOf("R1C1", StringComparison.Ordinal);
+        Assert.True(insertAt >= 0);
+        SetSelection(editor, insertAt, length: 0);
+        CommandManager.Execute(EditingCommands.Paste, null, editor);
+
+        Assert.Contains(editor.Document.Blocks, static b => b is InkkSlinger.List);
+        Assert.Contains(editor.Document.Blocks, static b => b is Table);
+    }
+
     private static RichTextBox CreateEditor(string text)
     {
         var editor = new RichTextBox();
@@ -124,5 +179,56 @@ public sealed class RichTextClipboardTests
         formatted.Blocks.Add(paragraph);
         editor.Document = formatted;
         return editor;
+    }
+
+    private static FlowDocument BuildListAndTableDocument()
+    {
+        var document = new FlowDocument();
+        var intro = new Paragraph();
+        intro.Inlines.Add(new Run("Intro"));
+        document.Blocks.Add(intro);
+
+        var list = new InkkSlinger.List { IsOrdered = true };
+        list.Items.Add(CreateItem("List item 1"));
+        list.Items.Add(CreateItem("List item 2"));
+        document.Blocks.Add(list);
+
+        var table = new Table();
+        var group = new TableRowGroup();
+        var row = new TableRow();
+        row.Cells.Add(CreateCell("R1C1"));
+        row.Cells.Add(CreateCell("R1C2"));
+        group.Rows.Add(row);
+        table.RowGroups.Add(group);
+        document.Blocks.Add(table);
+        return document;
+    }
+
+    private static ListItem CreateItem(string text)
+    {
+        var item = new ListItem();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run(text));
+        item.Blocks.Add(paragraph);
+        return item;
+    }
+
+    private static TableCell CreateCell(string text)
+    {
+        var cell = new TableCell();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run(text));
+        cell.Blocks.Add(paragraph);
+        return cell;
+    }
+
+    private static void SetSelection(RichTextBox editor, int start, int length)
+    {
+        var anchorField = typeof(RichTextBox).GetField("_selectionAnchor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var caretField = typeof(RichTextBox).GetField("_caretIndex", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(anchorField);
+        Assert.NotNull(caretField);
+        anchorField!.SetValue(editor, start);
+        caretField!.SetValue(editor, start + length);
     }
 }

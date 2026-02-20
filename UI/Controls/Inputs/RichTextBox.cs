@@ -144,6 +144,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private bool _typingItalicActive;
     private bool _typingUnderlineActive;
     private ModifierKeys _activeKeyModifiers;
+    private long _suppressSpaceTextInputUntilTicks;
 
     private readonly Queue<RecentOperationEntry> _recentOperations = new();
     private int _recentOperationSequence;
@@ -277,6 +278,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     public bool HandleTextInputFromInput(char character)
     {
+        if (character == ' ' && ShouldSuppressDuplicateSpaceTextInput())
+        {
+            RecordOperation("TextInputSuppressed", "space-duplicate");
+            return true;
+        }
+
         return HandleTextCompositionFromInput(character.ToString());
     }
 
@@ -665,13 +672,9 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
 
         var localLength = Math.Clamp(length, 0, paragraphText.Length - localStart);
-        var nextParagraphText = paragraphText.Remove(localStart, localLength).Insert(localStart, "\n");
-        var split = nextParagraphText.Split('\n');
-        if (split.Length != 2)
-        {
-            RecordOperation("StructuredEnter", "SplitFailed");
-            return false;
-        }
+        var postSelectionText = paragraphText.Remove(localStart, localLength);
+        var leftText = postSelectionText[..localStart];
+        var rightText = postSelectionText[localStart..];
 
         var editStart = Stopwatch.GetTimestamp();
         var undoDepthBefore = _undoManager.UndoDepth;
@@ -689,7 +692,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var paragraph = paragraphs[paragraphIndex];
         if (paragraph.Parent is ListItem listItem && listItem.Parent is InkkSlinger.List list)
         {
-            if (TryApplyListEnterBehavior(paragraph, listItem, list, split, out afterDocument, out var caretAfter))
+            if (TryApplyListEnterBehavior(paragraph, listItem, list, leftText, rightText, out afterDocument, out var caretAfter))
             {
                 RecordOperation("StructuredEnter", "ListBehaviorApplied");
                 return CommitStructuredDocumentReplacement(
@@ -1410,6 +1413,10 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             if (key == Keys.Space && modifiers == ModifierKeys.None)
             {
                 var handled = TryInsertSpaceAtListTableBoundary() || HandleTextCompositionFromInput(" ");
+                if (handled)
+                {
+                    ArmDuplicateSpaceTextInputSuppression();
+                }
                 RichTextBoxDiagnostics.ObserveCommandTrace(
                     inputDescriptor,
                     "SpaceTextInput",
@@ -1533,6 +1540,30 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         {
             _activeKeyModifiers = ModifierKeys.None;
         }
+    }
+
+    private void ArmDuplicateSpaceTextInputSuppression()
+    {
+        _suppressSpaceTextInputUntilTicks = Stopwatch.GetTimestamp() + (Stopwatch.Frequency / 4);
+    }
+
+    private bool ShouldSuppressDuplicateSpaceTextInput()
+    {
+        var until = _suppressSpaceTextInputUntilTicks;
+        if (until <= 0)
+        {
+            return false;
+        }
+
+        var now = Stopwatch.GetTimestamp();
+        if (now <= until)
+        {
+            _suppressSpaceTextInputUntilTicks = 0;
+            return true;
+        }
+
+        _suppressSpaceTextInputUntilTicks = 0;
+        return false;
     }
 
     public bool HandlePointerDownFromInput(Vector2 pointerPosition, bool extendSelection)
@@ -2502,23 +2533,97 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
 
         var pasteStart = Stopwatch.GetTimestamp();
+        var selectionStartBefore = SelectionStart;
+        var selectionLengthBefore = SelectionLength;
+        var caretBefore = _caretIndex;
+        var textLengthBefore = GetText().Length;
+        var structureBefore = CaptureDocumentRichness(Document).ToSummary();
+        var clipboardBefore = TextClipboard.GetDiagnosticsSnapshot();
+        var clipboardSnapshot = TextClipboard.CaptureSnapshot();
         var usedRichPayload = false;
         var fallbackToText = false;
-        if (TryGetRichClipboardPayload(out var richPayload, out var richFormat))
+        var route = "Noop";
+        var richFormatName = "None";
+        var payloadBytes = 0;
+        var pastedChars = 0;
+        var normalizeMs = 0d;
+        var structuredTextCompositionCount = 0;
+        var structuredEnterCount = 0;
+        var structuredDeleteSelectionApplied = false;
+        var lookupRichMs = 0d;
+        var deserializeMs = 0d;
+        var readTextMs = 0d;
+        var structuredInsertMs = 0d;
+        var replaceSelectionMs = 0d;
+        var richStructuredTarget = IsRichStructuredDocument() && !IsFullDocumentSelection();
+        void EmitPasteCpu()
         {
+            var clipboardAfter = TextClipboard.GetDiagnosticsSnapshot();
+            var selectionStartAfter = SelectionStart;
+            var selectionLengthAfter = SelectionLength;
+            var caretAfter = _caretIndex;
+            var textLengthAfter = GetText().Length;
+            var structureAfter = CaptureDocumentRichness(Document).ToSummary();
+            RichTextBoxDiagnostics.ObservePasteCpu(
+                route,
+                richFormatName,
+                usedRichPayload,
+                fallbackToText,
+                payloadBytes,
+                pastedChars,
+                richStructuredTarget,
+                selectionStartBefore,
+                selectionLengthBefore,
+                selectionStartAfter,
+                selectionLengthAfter,
+                caretBefore,
+                caretAfter,
+                textLengthBefore,
+                textLengthAfter,
+                structureBefore,
+                structureAfter,
+                structuredTextCompositionCount,
+                structuredEnterCount,
+                structuredDeleteSelectionApplied,
+                lookupRichMs,
+                deserializeMs,
+                readTextMs,
+                normalizeMs,
+                structuredInsertMs,
+                replaceSelectionMs,
+                Math.Max(0, clipboardAfter.SyncCallCount - clipboardBefore.SyncCallCount),
+                Math.Max(0, clipboardAfter.SyncThrottleSkipCount - clipboardBefore.SyncThrottleSkipCount),
+                Math.Max(0, clipboardAfter.SyncExternalReadCount - clipboardBefore.SyncExternalReadCount),
+                Math.Max(0d, clipboardAfter.SyncExternalReadMsTotal - clipboardBefore.SyncExternalReadMsTotal),
+                clipboardAfter.LastSyncSource,
+                clipboardAfter.LastSyncMs,
+                clipboardAfter.LastSyncChanged,
+                clipboardAfter.LastSyncThrottled,
+                Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
+        }
+
+        var lookupRichStart = Stopwatch.GetTimestamp();
+        if (TryGetRichClipboardPayload(clipboardSnapshot, out var richPayload, out var richFormat))
+        {
+            lookupRichMs = Stopwatch.GetElapsedTime(lookupRichStart).TotalMilliseconds;
             usedRichPayload = true;
+            richFormatName = richFormat;
+            payloadBytes = Encoding.UTF8.GetByteCount(richPayload);
             RichTextBoxDiagnostics.ObserveClipboardPayload(
                 "Paste",
                 $"Rich:{richFormat}",
-                Encoding.UTF8.GetByteCount(richPayload),
+                payloadBytes,
                 "ReadRichPayload");
             var deserializeStart = Stopwatch.GetTimestamp();
             try
             {
                 var fragment = FlowDocumentSerializer.DeserializeFragment(richPayload);
-                _perfTracker.RecordClipboardDeserialize(Stopwatch.GetElapsedTime(deserializeStart).TotalMilliseconds);
-                if (TryPasteRichFragment(fragment))
+                deserializeMs = Stopwatch.GetElapsedTime(deserializeStart).TotalMilliseconds;
+                _perfTracker.RecordClipboardDeserialize(deserializeMs);
+                if (!richStructuredTarget && TryPasteRichFragment(fragment))
                 {
+                    route = "RichFragment";
+                    pastedChars = DocumentEditing.GetText(fragment).Length;
                     RichTextBoxDiagnostics.ObserveClipboard(
                         "Paste",
                         usedRichPayload: true,
@@ -2529,10 +2634,37 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                         $"Rich:{richFormat}",
                         Encoding.UTF8.GetByteCount(richPayload),
                         "AppliedRichFragment");
+                    EmitPasteCpu();
                     return;
                 }
 
                 fallbackToText = true;
+                var normalizeStart = Stopwatch.GetTimestamp();
+                var fragmentText = NormalizeNewlines(DocumentEditing.GetText(fragment));
+                normalizeMs += Stopwatch.GetElapsedTime(normalizeStart).TotalMilliseconds;
+                pastedChars = fragmentText.Length;
+                var structuredStart = Stopwatch.GetTimestamp();
+                if (richStructuredTarget && TryPastePlainTextPreservingStructure(fragmentText, out var structuredStats))
+                {
+                    route = "RichFallbackTextStructured";
+                    structuredInsertMs += Stopwatch.GetElapsedTime(structuredStart).TotalMilliseconds;
+                    structuredTextCompositionCount += structuredStats.TextCompositionCount;
+                    structuredEnterCount += structuredStats.EnterCount;
+                    structuredDeleteSelectionApplied |= structuredStats.DeleteSelectionApplied;
+                    RichTextBoxDiagnostics.ObserveClipboard(
+                        "Paste",
+                        usedRichPayload: true,
+                        fallbackToText: true,
+                        Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
+                    RichTextBoxDiagnostics.ObserveClipboardPayload(
+                        "Paste",
+                        $"Rich:{richFormat}",
+                        Encoding.UTF8.GetByteCount(richPayload),
+                        "RichFallbackTextStructuredApplied");
+                    EmitPasteCpu();
+                    return;
+                }
+
                 RichTextBoxDiagnostics.ObserveClipboardPayload(
                     "Paste",
                     $"Rich:{richFormat}",
@@ -2541,7 +2673,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             }
             catch (Exception)
             {
-                _perfTracker.RecordClipboardDeserialize(Stopwatch.GetElapsedTime(deserializeStart).TotalMilliseconds);
+                deserializeMs = Stopwatch.GetElapsedTime(deserializeStart).TotalMilliseconds;
+                _perfTracker.RecordClipboardDeserialize(deserializeMs);
                 fallbackToText = true;
                 RichTextBoxDiagnostics.ObserveClipboardPayload(
                     "Paste",
@@ -2551,29 +2684,120 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 // Fall through to text fallback when rich payload is invalid.
             }
         }
-
-        if (!TextClipboard.TryGetText(out var pasted))
+        else
         {
+            lookupRichMs = Stopwatch.GetElapsedTime(lookupRichStart).TotalMilliseconds;
+        }
+
+        var readTextStart = Stopwatch.GetTimestamp();
+        if (!clipboardSnapshot.TryGetText(out var pasted))
+        {
+            readTextMs = Stopwatch.GetElapsedTime(readTextStart).TotalMilliseconds;
+            route = "ClipboardEmpty";
             RichTextBoxDiagnostics.ObserveClipboard(
                 "Paste",
                 usedRichPayload,
                 fallbackToText,
                 Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
+            EmitPasteCpu();
             return;
         }
+        readTextMs = Stopwatch.GetElapsedTime(readTextStart).TotalMilliseconds;
+        pastedChars = pasted.Length;
+        payloadBytes = Math.Max(payloadBytes, Encoding.UTF8.GetByteCount(pasted));
 
         RichTextBoxDiagnostics.ObserveClipboardPayload(
             "Paste",
             "Text",
             Encoding.UTF8.GetByteCount(pasted),
             fallbackToText ? "FallbackTextApplied" : "TextApplied");
-        ReplaceSelection(NormalizeNewlines(pasted), "Paste", GroupingPolicy.StructuralAtomic);
+        var normalizeTextStart = Stopwatch.GetTimestamp();
+        var normalizedPasted = NormalizeNewlines(pasted);
+        normalizeMs += Stopwatch.GetElapsedTime(normalizeTextStart).TotalMilliseconds;
+        pastedChars = normalizedPasted.Length;
+        var structuredTextStart = Stopwatch.GetTimestamp();
+        if (richStructuredTarget && TryPastePlainTextPreservingStructure(normalizedPasted, out var textStructuredStats))
+        {
+            route = fallbackToText ? "FallbackTextStructured" : "TextStructured";
+            structuredInsertMs += Stopwatch.GetElapsedTime(structuredTextStart).TotalMilliseconds;
+            structuredTextCompositionCount += textStructuredStats.TextCompositionCount;
+            structuredEnterCount += textStructuredStats.EnterCount;
+            structuredDeleteSelectionApplied |= textStructuredStats.DeleteSelectionApplied;
+            RichTextBoxDiagnostics.ObserveClipboard(
+                "Paste",
+                usedRichPayload,
+                fallbackToText,
+                Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
+            EmitPasteCpu();
+            return;
+        }
+
+        var replaceStart = Stopwatch.GetTimestamp();
+        ReplaceSelection(normalizedPasted, "Paste", GroupingPolicy.StructuralAtomic);
+        replaceSelectionMs = Stopwatch.GetElapsedTime(replaceStart).TotalMilliseconds;
+        route = fallbackToText ? "FallbackTextReplaceSelection" : "TextReplaceSelection";
         RichTextBoxDiagnostics.ObserveClipboard(
             "Paste",
             usedRichPayload,
             fallbackToText,
             Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
+        EmitPasteCpu();
     }
+
+    private bool TryPastePlainTextPreservingStructure(string text, out PasteStructuredStats stats)
+    {
+        stats = default;
+        var hadSelection = SelectionLength > 0;
+        if (SelectionLength > 0 &&
+            !TryDeleteSelectionPreservingStructure("PasteDeleteSelection", GroupingPolicy.StructuralAtomic))
+        {
+            return false;
+        }
+        stats = stats with { DeleteSelectionApplied = hadSelection };
+
+        var i = 0;
+        while (i < text.Length)
+        {
+            var ch = text[i];
+            if (ch == '\r')
+            {
+                i++;
+                continue;
+            }
+
+            if (ch == '\n')
+            {
+                ExecuteEnterParagraphBreak();
+                stats = stats with { EnterCount = stats.EnterCount + 1 };
+                i++;
+                continue;
+            }
+
+            var segmentStart = i;
+            while (i < text.Length && text[i] != '\n' && text[i] != '\r')
+            {
+                i++;
+            }
+
+            var segmentLength = i - segmentStart;
+            if (segmentLength <= 0)
+            {
+                continue;
+            }
+
+            var segment = text.Substring(segmentStart, segmentLength);
+            if (!HandleTextCompositionFromInput(segment))
+            {
+                return false;
+            }
+
+            stats = stats with { TextCompositionCount = stats.TextCompositionCount + 1 };
+        }
+
+        return true;
+    }
+
+    private readonly record struct PasteStructuredStats(int TextCompositionCount, int EnterCount, bool DeleteSelectionApplied);
 
 
     private void ReplaceSelection(string replacement, string commandType, GroupingPolicy policy)
@@ -3311,21 +3535,21 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         TextClipboard.SetData(ClipboardRtfFormat, BuildRtfFromPlainText(selectedText));
     }
 
-    private static bool TryGetRichClipboardPayload(out string payload, out string format)
+    private static bool TryGetRichClipboardPayload(TextClipboardReadSnapshot snapshot, out string payload, out string format)
     {
-        if (TryGetNonEmptyClipboardData(ClipboardXamlPackageFormat, out payload))
+        if (TryGetNonEmptyClipboardData(snapshot, ClipboardXamlPackageFormat, out payload))
         {
             format = ClipboardXamlPackageFormat;
             return true;
         }
 
-        if (TryGetNonEmptyClipboardData(ClipboardXamlFormat, out payload))
+        if (TryGetNonEmptyClipboardData(snapshot, ClipboardXamlFormat, out payload))
         {
             format = ClipboardXamlFormat;
             return true;
         }
 
-        if (TryGetNonEmptyClipboardData(FlowDocumentSerializer.ClipboardFormat, out payload))
+        if (TryGetNonEmptyClipboardData(snapshot, FlowDocumentSerializer.ClipboardFormat, out payload))
         {
             format = FlowDocumentSerializer.ClipboardFormat;
             return true;
@@ -3336,9 +3560,9 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         return false;
     }
 
-    private static bool TryGetNonEmptyClipboardData(string format, out string value)
+    private static bool TryGetNonEmptyClipboardData(TextClipboardReadSnapshot snapshot, string format, out string value)
     {
-        if (TextClipboard.TryGetData<string>(format, out var payload) &&
+        if (snapshot.TryGetData<string>(format, out var payload) &&
             !string.IsNullOrWhiteSpace(payload))
         {
             value = payload;
@@ -3393,12 +3617,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private bool CanPasteFromClipboard()
     {
-        if (TryGetRichClipboardPayload(out _, out _))
+        var snapshot = TextClipboard.CaptureSnapshot();
+        if (TryGetRichClipboardPayload(snapshot, out _, out _))
         {
             return true;
         }
 
-        return TextClipboard.TryGetText(out _);
+        return snapshot.TryGetText(out _);
     }
 
     private bool TryPasteRichFragment(FlowDocument fragment)

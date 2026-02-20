@@ -34,6 +34,7 @@
 - [x] Rich advanced-structure pass: list indent/outdent transforms, table insert/split/merge and cell navigation behavior (`Tab`/`Shift+Tab`, boundary delete handling), hyperlink activation routing, and inline/block UI-container boundary support in rich layout/serialization.
 - [x] Rich diagnostics/perf hardening pass: `RichTextBoxPerformanceSnapshot` metrics (layout cache + p95/p99 build timing, render/selection timing, undo depth/op counts, clipboard serde timing), env-var-driven rich diagnostics logs, and regression tests for bounded local-edit invalidation/allocation behavior.
 - [x] Rich parity hardening: keyboard/reporting consistency for read-only editing keys and `Shift+Tab` no-op handling, plus list/table boundary keyboard space insertion safety (`Enter` + `Space`) without caret jump into adjacent table content.
+- [x] Rich paste perf/interoperability hardening: external clipboard plain-text interop (Windows native clipboard read + fallback), per-paste clipboard snapshotting (single sync/read per paste), batched structured text paste insertion, and dedicated `INKKSLINGER_RICHTEXT_PASTE_CPU_LOGS` diagnostics with stage breakdown + clipboard sync counters.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.

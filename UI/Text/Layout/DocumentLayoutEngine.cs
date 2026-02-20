@@ -526,7 +526,7 @@ public sealed class DocumentLayoutEngine
                 var globalLineStart = _offset + scanIndex;
                 var lineY = y + (lineIndex * _settings.LineHeight);
                 var lineRuns = BuildLineRuns(segments, scanIndex, lineText.Length, textStartX, lineY, globalLineStart, isTableCell, _settings.LineHeight, _settings.Font);
-                var prefixWidths = BuildPrefixWidths(_settings.Font, lineText);
+                var prefixWidths = BuildPrefixWidths(segments, scanIndex, lineText.Length, _settings.Font);
                 var lineWidth = prefixWidths[prefixWidths.Length - 1];
                 var lineBounds = new LayoutRect(textStartX, lineY, Math.Max(lineWidth, markerWidth), _settings.LineHeight);
                 for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
@@ -639,7 +639,7 @@ public sealed class DocumentLayoutEngine
                 }
 
                 var text = BuildText(chars, chunkStart, index - chunkStart);
-                var width = FontStashTextRenderer.MeasureWidth(font, text);
+                var width = FontStashTextRenderer.MeasureWidth(font, text, style.IsBold);
                 var run = new DocumentLayoutRun
                 {
                     Text = text,
@@ -657,14 +657,16 @@ public sealed class DocumentLayoutEngine
             return runs;
         }
 
-        private static float[] BuildPrefixWidths(SpriteFont? font, string text)
+        private static float[] BuildPrefixWidths(IReadOnlyList<StyledChar> chars, int start, int length, SpriteFont? font)
         {
-            var widths = new float[text.Length + 1];
+            var widths = new float[length + 1];
             widths[0] = 0f;
             var current = 0f;
-            for (var i = 0; i < text.Length; i++)
+            for (var i = 0; i < length; i++)
             {
-                current += FontStashTextRenderer.MeasureWidth(font, text[i].ToString());
+                var ch = chars[start + i];
+                var value = ch.Character == '\0' ? " " : ch.Character.ToString();
+                current += FontStashTextRenderer.MeasureWidth(font, value, ch.Style.IsBold);
                 widths[i + 1] = current;
             }
 

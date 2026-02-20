@@ -122,7 +122,7 @@ internal static class FontStashTextRenderer
             DrawString(spriteBatch, text, position, color, fontSize);
             if (bold)
             {
-                DrawString(spriteBatch, text, new Vector2(position.X + 1f, position.Y), color * 0.8f, fontSize);
+                DrawString(spriteBatch, text, position, color * 0.45f, fontSize);
             }
 
             return;
@@ -159,8 +159,8 @@ internal static class FontStashTextRenderer
                 spriteBatch.DrawString(
                     spriteFont,
                     text,
-                    new Vector2(transformedPosition.X + 1f, transformedPosition.Y),
-                    color * 0.8f,
+                    transformedPosition,
+                    color * 0.45f,
                     0f,
                     Vector2.Zero,
                     new Vector2(scaleX, scaleY),
@@ -193,6 +193,26 @@ internal static class FontStashTextRenderer
         }
 
         return spriteFont?.MeasureString(text).X ?? 0f;
+    }
+
+    public static float MeasureWidth(SpriteFont? spriteFont, string text, bool bold)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 0f;
+        }
+
+        if (!bold)
+        {
+            return MeasureWidth(spriteFont, text);
+        }
+
+        if (IsEnabled && TryGetBoldFont(GetRenderFontSize(spriteFont), out var boldFont))
+        {
+            return boldFont.MeasureString(text).X;
+        }
+
+        return MeasureWidth(spriteFont, text);
     }
 
     public static float MeasureHeight(SpriteFont? spriteFont, string text)

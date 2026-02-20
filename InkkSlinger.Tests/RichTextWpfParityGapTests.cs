@@ -1212,6 +1212,25 @@ public sealed class RichTextWpfParityGapTests
     }
 
     [Fact]
+    public void EnterInParagraphContainingLineBreak_InRichStructuredDoc_ShouldSplitWithoutFallbackBlock()
+    {
+        var editor = CreateEditor(string.Empty);
+        editor.Document = BuildRichStructuredDocumentWithInlineLineBreak();
+
+        var text = DocumentEditing.GetText(editor.Document);
+        var splitOffset = text.IndexOf("beta", StringComparison.Ordinal);
+        Assert.True(splitOffset > 0);
+        SetSelection(editor, splitOffset, 0);
+        var caretBefore = editor.CaretIndex;
+
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Enter, ModifierKeys.None));
+
+        Assert.True(editor.CaretIndex > caretBefore);
+        Assert.Contains(editor.Document.Blocks, static b => b is InkkSlinger.List);
+        Assert.Contains(editor.Document.Blocks, static b => b is Table);
+    }
+
+    [Fact]
     public void ToggleBold_WithCollapsedCaret_ShouldAffectSubsequentTyping()
     {
         var editor = CreateEditor("abc");
@@ -1591,6 +1610,34 @@ public sealed class RichTextWpfParityGapTests
         p2.Inlines.Add(new Run("List item 2"));
         item2.Blocks.Add(p2);
         list.Items.Add(item2);
+        document.Blocks.Add(list);
+
+        var tableDoc = BuildR1C1TableDocument();
+        var tableClone = FlowDocumentSerializer.Deserialize(FlowDocumentSerializer.Serialize(tableDoc));
+        var tableBlock = tableClone.Blocks[0];
+        tableClone.Blocks.RemoveAt(0);
+        document.Blocks.Add(tableBlock);
+        return document;
+    }
+
+    private static FlowDocument BuildRichStructuredDocumentWithInlineLineBreak()
+    {
+        var document = new FlowDocument();
+
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run("alpha"));
+        paragraph.Inlines.Add(new LineBreak());
+        var bold = new Bold();
+        bold.Inlines.Add(new Run("beta"));
+        paragraph.Inlines.Add(bold);
+        document.Blocks.Add(paragraph);
+
+        var list = new InkkSlinger.List { IsOrdered = true };
+        var item = new ListItem();
+        var itemParagraph = new Paragraph();
+        itemParagraph.Inlines.Add(new Run("item 1"));
+        item.Blocks.Add(itemParagraph);
+        list.Items.Add(item);
         document.Blocks.Add(list);
 
         var tableDoc = BuildR1C1TableDocument();

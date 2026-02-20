@@ -80,6 +80,18 @@ public sealed class RichTextInputParityTests
         Assert.Equal(before, after);
     }
 
+    [Fact]
+    public void SpaceKeyDownFollowedByTextInput_ShouldInsertSingleSpace()
+    {
+        var editor = CreateEditor(260f, 80f, "abc");
+        Assert.True(editor.HandleKeyDownFromInput(Keys.End, ModifierKeys.Control));
+
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Space, ModifierKeys.None));
+        Assert.True(editor.HandleTextInputFromInput(' '));
+
+        Assert.Equal("abc ", DocumentEditing.GetText(editor.Document));
+    }
+
     private static RichTextBox CreateEditor(float width, float height, string text)
     {
         var editor = new RichTextBox();

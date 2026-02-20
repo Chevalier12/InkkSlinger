@@ -37,6 +37,9 @@ internal static class RichTextBoxDiagnostics
     private static readonly bool IsFlatteningEnabled =
         string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_RICHTEXT_FLATTEN_LOGS"), "1", StringComparison.Ordinal);
 
+    private static readonly bool IsPasteCpuEnabled =
+        string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_RICHTEXT_PASTE_CPU_LOGS"), "1", StringComparison.Ordinal);
+
     public static void ObserveLayout(bool cacheHit, double elapsedMs, int textLength)
     {
         if (!IsLayoutEnabled)
@@ -236,5 +239,53 @@ internal static class RichTextBoxDiagnostics
             Debug.WriteLine(line);
             Console.WriteLine(line);
         }
+    }
+
+    public static void ObservePasteCpu(
+        string route,
+        string richFormat,
+        bool usedRichPayload,
+        bool fallbackToText,
+        int payloadBytes,
+        int pastedChars,
+        bool richStructuredTarget,
+        int selectionStartBefore,
+        int selectionLengthBefore,
+        int selectionStartAfter,
+        int selectionLengthAfter,
+        int caretBefore,
+        int caretAfter,
+        int textLengthBefore,
+        int textLengthAfter,
+        string structureBefore,
+        string structureAfter,
+        int structuredTextCompositionCount,
+        int structuredEnterCount,
+        bool structuredDeleteSelectionApplied,
+        double lookupRichMs,
+        double deserializeMs,
+        double readTextMs,
+        double normalizeMs,
+        double structuredInsertMs,
+        double replaceSelectionMs,
+        long clipboardSyncCalls,
+        long clipboardSyncThrottleSkips,
+        long clipboardExternalReads,
+        double clipboardExternalReadMs,
+        string clipboardLastSyncSource,
+        double clipboardLastSyncMs,
+        bool clipboardLastSyncChanged,
+        bool clipboardLastSyncThrottled,
+        double totalMs)
+    {
+        if (!IsPasteCpuEnabled)
+        {
+            return;
+        }
+
+        var line =
+            $"[RichTextPasteCpu] route={route} richFmt={richFormat} rich={usedRichPayload} fallback={fallbackToText} payloadBytes={payloadBytes} chars={pastedChars} richTarget={richStructuredTarget} selBefore=({selectionStartBefore},{selectionLengthBefore}) selAfter=({selectionStartAfter},{selectionLengthAfter}) caret={caretBefore}->{caretAfter} textLen={textLengthBefore}->{textLengthAfter} structBefore={structureBefore} structAfter={structureAfter} structuredOps=(text:{structuredTextCompositionCount},enter:{structuredEnterCount},delSel:{structuredDeleteSelectionApplied}) lookupRichMs={lookupRichMs:0.000} deserializeMs={deserializeMs:0.000} readTextMs={readTextMs:0.000} normalizeMs={normalizeMs:0.000} structuredMs={structuredInsertMs:0.000} replaceMs={replaceSelectionMs:0.000} clipSync=(calls:{clipboardSyncCalls},throttle:{clipboardSyncThrottleSkips},reads:{clipboardExternalReads},readMs:{clipboardExternalReadMs:0.000},last:{clipboardLastSyncSource},lastMs:{clipboardLastSyncMs:0.000},changed:{clipboardLastSyncChanged},throttled:{clipboardLastSyncThrottled}) totalMs={totalMs:0.000}";
+        Debug.WriteLine(line);
+        Console.WriteLine(line);
     }
 }

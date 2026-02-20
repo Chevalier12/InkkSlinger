@@ -77,18 +77,14 @@ public partial class RichTextBox
         Paragraph paragraph,
         ListItem listItem,
         InkkSlinger.List list,
-        string[] split,
+        string leftText,
+        string rightText,
         out FlowDocument afterDocument,
         out int caretAfter)
     {
         afterDocument = null!;
         caretAfter = 0;
-        if (split.Length != 2)
-        {
-            return false;
-        }
-
-        var isCurrentEmpty = string.IsNullOrEmpty(split[0]) && string.IsNullOrEmpty(split[1]);
+        var isCurrentEmpty = string.IsNullOrEmpty(leftText) && string.IsNullOrEmpty(rightText);
         if (isCurrentEmpty)
         {
             var listBlock = (Block)list;
@@ -123,9 +119,9 @@ public partial class RichTextBox
             return caretAfter >= 0;
         }
 
-        ReplaceParagraphTextPreservingSimpleWrappers(paragraph, split[0]);
+        ReplaceParagraphTextPreservingSimpleWrappers(paragraph, leftText);
         var newItem = new ListItem();
-        var insertedParagraph = CreateParagraph(split[1]);
+        var insertedParagraph = CreateParagraph(rightText);
         newItem.Blocks.Add(insertedParagraph);
         var itemIndex = list.Items.IndexOf(listItem);
         if (itemIndex < 0)

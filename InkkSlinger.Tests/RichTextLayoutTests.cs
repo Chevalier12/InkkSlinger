@@ -131,6 +131,54 @@ public sealed class RichTextLayoutTests
         Assert.All(rects, rect => Assert.True(rect.Width > 0f));
     }
 
+    [Fact]
+    public void BoldRunBoundary_UsesBoldMetricsToAvoidNextRunOverlap()
+    {
+        var document = new FlowDocument();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run("RichText stress lab: use "));
+        var bold = new Bold();
+        bold.Inlines.Add(new Run("Ctrl+Enter"));
+        paragraph.Inlines.Add(bold);
+        paragraph.Inlines.Add(new Run(" click to activate"));
+        document.Blocks.Add(paragraph);
+
+        var layout = Layout(document, 800f);
+        var line = Assert.Single(layout.Lines);
+        var boldRun = Assert.Single(line.Runs, static r => r.Style.IsBold && r.Text == "Ctrl+Enter");
+        var nextRun = line.Runs.First(static r => !r.Style.IsBold && r.Text.Contains(" click", StringComparison.Ordinal));
+        var boldMeasuredWidth = FontStashTextRenderer.MeasureWidth(null, boldRun.Text, bold: true);
+        var boldMeasuredEndX = boldRun.Bounds.X + boldMeasuredWidth;
+
+        Assert.True(
+            nextRun.Bounds.X + 0.01f >= boldMeasuredEndX,
+            $"Expected next run to start at/after bold measured end. nextX={nextRun.Bounds.X:0.###}, boldEnd={boldMeasuredEndX:0.###}, boldRunWidth={boldRun.Bounds.Width:0.###}, boldMeasuredWidth={boldMeasuredWidth:0.###}");
+    }
+
+    [Fact]
+    public void CaretAtBoldBoundary_ShouldAlignWithNextRunStart()
+    {
+        var document = new FlowDocument();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run("RichText stress lab: use "));
+        var bold = new Bold();
+        bold.Inlines.Add(new Run("Ctrl+Enter"));
+        paragraph.Inlines.Add(bold);
+        paragraph.Inlines.Add(new Run(" click to activate"));
+        document.Blocks.Add(paragraph);
+
+        var layout = Layout(document, 800f);
+        var line = Assert.Single(layout.Lines);
+        var boldRun = Assert.Single(line.Runs, static r => r.Style.IsBold && r.Text == "Ctrl+Enter");
+        var nextRun = line.Runs.First(static r => !r.Style.IsBold && r.Text.Contains(" click", StringComparison.Ordinal));
+        var boundaryOffset = boldRun.StartOffset + boldRun.Length;
+        Assert.True(layout.TryGetCaretPosition(boundaryOffset, out var caretPos));
+
+        Assert.True(
+            MathF.Abs(caretPos.X - nextRun.Bounds.X) <= 0.01f,
+            $"Expected caret at bold boundary to align with next run start. caretX={caretPos.X:0.###}, nextX={nextRun.Bounds.X:0.###}");
+    }
+
     private static ListItem BuildItem(string text)
     {
         var item = new ListItem();

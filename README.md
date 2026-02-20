@@ -74,7 +74,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Keyframe/easing support | Double/color/point/thickness/int/object keyframes + easing/key-spline support | `UI/Animation/KeyFrames/*`, `UI/Animation/Easing/Easing.cs`, `UI/Animation/Types/*` | Implemented |
 | Geometry and shapes | Shape primitives + geometry/transform model + path markup parsing | `UI/Controls/Primitives/Shape.cs`, `UI/Geometry/Core/Geometry.cs`, `UI/Geometry/Core/Transform.cs`, `UI/Geometry/Parsing/PathMarkupParser.cs` | Implemented |
 | Text layout primitives | Shared text layout, wrapping, text rendering integration | `UI/Text/Core/TextLayout.cs`, `UI/Text/Types/TextWrapping.cs`, `UI/Rendering/Text/FontStashTextRenderer.cs` | Implemented |
-| Text editing pipeline | Selection/edit/clipboard buffer + textbox parity checks, plus rich document editing/undo/layout integration | `UI/Text/Editing/TextEditingBuffer.cs`, `UI/Text/Editing/TextSelection.cs`, `UI/Text/Editing/TextClipboard.cs`, `UI/Controls/Inputs/RichTextBox.cs`, `UI/Controls/Inputs/RichTextBox.FormattingEngine.cs`, `UI/Controls/Inputs/RichTextBox.Navigation.cs`, `InkkSlinger.Tests/TextEditingBufferTests.cs`, `InkkSlinger.Tests/TextPipelineParityTests.cs`, `InkkSlinger.Tests/RichTextDocumentTests.cs` | Implemented (tested) |
+| Text editing pipeline | Selection/edit/clipboard buffer + textbox parity checks, plus rich document editing/undo/layout integration | `UI/Text/Editing/TextEditingBuffer.cs`, `UI/Text/Editing/TextSelection.cs`, `UI/Text/Editing/TextClipboard.cs`, `UI/Controls/Inputs/RichTextBox.cs`, `UI/Controls/Inputs/RichTextBox.FormattingEngine.cs`, `UI/Controls/Inputs/RichTextBox.Navigation.cs`, `UI/Controls/Inputs/RichTextBox.ListOperations.cs`, `UI/Controls/Inputs/RichTextBox.TableOperations.cs`, `InkkSlinger.Tests/TextEditingBufferTests.cs`, `InkkSlinger.Tests/TextPipelineParityTests.cs`, `InkkSlinger.Tests/RichTextDocumentTests.cs` | Implemented (tested) |
 | Scrolling primitives | `ScrollViewer`, `ScrollBar`, visibility and owner-scrolling behavior | `UI/Controls/Scrolling/ScrollViewer.cs`, `UI/Controls/Scrolling/ScrollBar.cs`, `InkkSlinger.Tests/ScrollViewerViewerOwnedScrollingTests.cs` | Implemented (tested) |
 | Virtualization | Virtualizing panel infrastructure for large item collections | `UI/Controls/Panels/VirtualizingStackPanel.cs`, `UI/Controls/Scrolling/VirtualizationEnums.cs`, `TODO.md` (`WPF Parity Gaps`: virtualization checked) | Implemented |
 | Rendering invalidation | Dirty region tracking + conditional draw scheduling | `UI/Rendering/DirtyRegions/DirtyRegionTracker.cs`, `UI/Managers/Root/Services/UiRootFrameState.cs`, `InkkSlinger.Tests/DirtyRegionTrackingTests.cs`, `InkkSlinger.Tests/ConditionalDrawTests.cs` | Implemented (tested) |
@@ -266,6 +266,12 @@ Remove-Item Env:INKKSLINGER_RENDER_CACHE_OVERLAY
 | `INKKSLINGER_ALWAYS_ROUTE_MOUSEMOVE` | enable-with-1 | disabled | each pointer move | Forces routing `PreviewMouseMove`/`MouseMove` even when hover target is unchanged. |
 | `INKKSLINGER_BYPASS_MOVE_HITTEST` | enable-with-1 | disabled | pointer target resolution | Skips non-precise move/wheel hit-test fallback path and reuses hovered target path. |
 
+### Clipboard Interop Notes
+
+- `TextClipboard` maintains app-local plain/rich payloads and now performs external clipboard sync for plain text.
+- On Windows runtime builds, external plain-text reads use a native Win32 clipboard path first, with PowerShell fallback only if native read fails.
+- Rich payloads (`XamlPackage`/`Xaml`/custom flow-doc format) remain app-local and are intentionally cleared when external plain text changes, preventing stale rich payload reuse.
+
 ### CPU Diagnostics Logging
 
 | Variable | Mode | Default | Read Timing | Effect |
@@ -288,6 +294,7 @@ Remove-Item Env:INKKSLINGER_RENDER_CACHE_OVERLAY
 | `INKKSLINGER_RICHTEXT_SELECTION_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits caret/selection geometry trace (line, hit offset, caret rect, selection rect count) to `Debug` + `Console`. |
 | `INKKSLINGER_RICHTEXT_UNDO_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits undo/redo operation-depth transitions and operation counts to `Debug` + `Console`. |
 | `INKKSLINGER_RICHTEXT_CLIPBOARD_PAYLOAD_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits clipboard payload branch details (rich/text, payload bytes, fallback path) to `Debug` + `Console`. |
+| `INKKSLINGER_RICHTEXT_PASTE_CPU_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits detailed paste CPU diagnostics: route/format, payload/chars, selection+caret+text length before/after, structure summaries before/after, structured-op counts, clipboard sync/read counters+source, and timing breakdown (`lookupRichMs`, `deserializeMs`, `readTextMs`, `normalizeMs`, `structuredMs`, `replaceMs`, `totalMs`) to `Debug` + `Console`. |
 | `INKKSLINGER_RICHTEXT_FLATTEN_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits structural-loss diagnostics (full flatten and partial list/table/inline-richness drops) with before/after snapshot + last 10 RichTextBox operations (caller/branch/caret/selection) to `Debug` + `Console`. |
 
 ## Notes
