@@ -64,7 +64,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Data templating | `DataTemplate`, selector, resolver pipeline | `UI/Templating/Data/DataTemplate.cs`, `UI/Templating/Data/DataTemplateSelector.cs`, `UI/Templating/Data/DataTemplateResolver.cs` | Implemented |
 | Binding core | `Path`, `Source`, `ElementName`, `RelativeSource`, modes and update triggers | `UI/Binding/Core/Binding.cs`, `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/BindingOperations.cs`, `UI/Binding/Types/BindingEnums.cs` | Implemented |
 | Binding lifecycle robustness | Rebind behavior on source/data-context/tree changes | `TODO.md` (`Completed Milestones`: binding lifecycle robustness) | Implemented |
-| Routed commanding core | `RoutedCommand`, command bindings, can-execute/execute pipeline | `UI/Commanding/RoutedCommand.cs`, `UI/Commanding/CommandManager.cs`, `UI/Commanding/CommandBinding.cs`, `InkkSlinger.Tests/CommandingTests.cs` | Implemented (tested) |
+| Routed commanding core | `RoutedCommand`, command bindings, editing command catalog, can-execute/execute pipeline | `UI/Commanding/RoutedCommand.cs`, `UI/Commanding/CommandManager.cs`, `UI/Commanding/CommandBinding.cs`, `UI/Commanding/EditingCommands.cs`, `InkkSlinger.Tests/CommandingTests.cs` | Implemented (tested) |
 | Gesture-to-command bridge | Declarative `InputBindings`/`KeyBinding` keyboard chord routing into commands, including menu-mode key routing integration | `UI/Input/Core/InputGestureService.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Controls/Base/UIElement.cs`, `UI/Managers/Root/Services/UiRootInputPipeline.cs`, `InkkSlinger.Tests/MenuParityInputTests.cs` | Implemented |
 | XAML/XML loader | Runtime object graph construction, attached properties, handlers, bindings, templates, triggers | `UI/Xaml/Core/XamlLoader.cs` | Implemented |
 | XAML diagnostics | Element/attribute error reporting with contextual diagnostics | `UI/Xaml/Core/XamlLoader.cs`, `TODO.md` (`Completed Milestones`: better diagnostics) | Implemented |
@@ -74,7 +74,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Keyframe/easing support | Double/color/point/thickness/int/object keyframes + easing/key-spline support | `UI/Animation/KeyFrames/*`, `UI/Animation/Easing/Easing.cs`, `UI/Animation/Types/*` | Implemented |
 | Geometry and shapes | Shape primitives + geometry/transform model + path markup parsing | `UI/Controls/Primitives/Shape.cs`, `UI/Geometry/Core/Geometry.cs`, `UI/Geometry/Core/Transform.cs`, `UI/Geometry/Parsing/PathMarkupParser.cs` | Implemented |
 | Text layout primitives | Shared text layout, wrapping, text rendering integration | `UI/Text/Core/TextLayout.cs`, `UI/Text/Types/TextWrapping.cs`, `UI/Rendering/Text/FontStashTextRenderer.cs` | Implemented |
-| Text editing pipeline | Selection/edit/clipboard buffer + textbox parity checks | `UI/Text/Editing/TextEditingBuffer.cs`, `UI/Text/Editing/TextSelection.cs`, `UI/Text/Editing/TextClipboard.cs`, `InkkSlinger.Tests/TextEditingBufferTests.cs`, `InkkSlinger.Tests/TextPipelineParityTests.cs` | Implemented (tested) |
+| Text editing pipeline | Selection/edit/clipboard buffer + textbox parity checks, plus rich document editing/undo/layout integration | `UI/Text/Editing/TextEditingBuffer.cs`, `UI/Text/Editing/TextSelection.cs`, `UI/Text/Editing/TextClipboard.cs`, `UI/Controls/Inputs/RichTextBox.cs`, `UI/Controls/Inputs/RichTextBox.FormattingEngine.cs`, `UI/Controls/Inputs/RichTextBox.Navigation.cs`, `InkkSlinger.Tests/TextEditingBufferTests.cs`, `InkkSlinger.Tests/TextPipelineParityTests.cs`, `InkkSlinger.Tests/RichTextDocumentTests.cs` | Implemented (tested) |
 | Scrolling primitives | `ScrollViewer`, `ScrollBar`, visibility and owner-scrolling behavior | `UI/Controls/Scrolling/ScrollViewer.cs`, `UI/Controls/Scrolling/ScrollBar.cs`, `InkkSlinger.Tests/ScrollViewerViewerOwnedScrollingTests.cs` | Implemented (tested) |
 | Virtualization | Virtualizing panel infrastructure for large item collections | `UI/Controls/Panels/VirtualizingStackPanel.cs`, `UI/Controls/Scrolling/VirtualizationEnums.cs`, `TODO.md` (`WPF Parity Gaps`: virtualization checked) | Implemented |
 | Rendering invalidation | Dirty region tracking + conditional draw scheduling | `UI/Rendering/DirtyRegions/DirtyRegionTracker.cs`, `UI/Managers/Root/Services/UiRootFrameState.cs`, `InkkSlinger.Tests/DirtyRegionTrackingTests.cs`, `InkkSlinger.Tests/ConditionalDrawTests.cs` | Implemented (tested) |
@@ -151,8 +151,8 @@ The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-20):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers
-- `UI/Commanding`: routed command infrastructure
-- `UI/Controls`: base layer + buttons, containers, data grid, inputs, items, panels, primitives, scrolling, selection, adorners
+- `UI/Commanding`: routed command infrastructure and shared editing command definitions
+- `UI/Controls`: base layer + buttons, containers, data grid, inputs (including split rich-text editing modules), items, panels, primitives, scrolling, selection, adorners
 - `UI/Core`: dependency properties, naming, dispatcher
 - `UI/Events`: routed event core, args, routing strategy
 - `UI/Geometry`: geometry and transform primitives + path parsing

@@ -34,9 +34,9 @@ UI/
     Core/
       Binding.cs
       BindingBase.cs
-      BindingGroup.cs
       BindingExpression.cs
       BindingExpressionUtilities.cs
+      BindingGroup.cs
       BindingOperations.cs
       IBindingExpression.cs
       MultiBinding.cs
@@ -55,6 +55,7 @@ UI/
     CanExecuteRoutedEventArgs.cs
     CommandBinding.cs
     CommandManager.cs
+    EditingCommands.cs
     ExecutedRoutedEventArgs.cs
     RoutedCommand.cs
   Controls/
@@ -107,9 +108,17 @@ UI/
       DataGridRow.cs
       DataGridRowHeader.cs
     Inputs/
+      Core/
+      Diagnostics/
+      Rendering/
       ITextInputControl.cs
       PasswordBox.cs
       RichTextBox.cs
+      RichTextBox.FormattingEngine.cs
+      RichTextBox.ListOperations.cs
+      RichTextBox.Navigation.cs
+      RichTextBox.TableOperations.cs
+      RichTextBoxPerformanceTracker.cs
       Slider.cs
       TextBox.cs
     Items/
@@ -173,6 +182,7 @@ UI/
       NameScopeService.cs
     Threading/
       Dispatcher.cs
+    Types/
   Diagnostics/
     ListBoxSelectCPUDiagnostics.cs
     RichTextBoxDiagnostics.cs
@@ -298,12 +308,12 @@ UI/
     Core/
       TextLayout.cs
     Documents/
+      Operations/
+        DocumentOperations.cs
       DocumentEditing.cs
       DocumentModel.cs
       DocumentPointers.cs
       FlowDocumentSerialization.cs
-      Operations/
-        DocumentOperations.cs
     Editing/
       TextClipboard.cs
       TextEditingBuffer.cs
@@ -316,3 +326,4 @@ UI/
     Core/
       XamlLoader.cs
 ```
+

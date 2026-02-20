@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
@@ -10,7 +10,7 @@ using System.Collections.Immutable;
 
 namespace InkkSlinger;
 
-public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintProvider
+public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintProvider
 {
     public static readonly RoutedEvent DocumentChangedEvent =
         new(nameof(DocumentChanged), RoutingStrategy.Bubble);
@@ -121,8 +121,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
     private readonly DocumentUndoManager _undoManager = new();
     private readonly DocumentLayoutEngine _layoutEngine = new();
     private readonly DocumentViewportLayoutCache _layoutCache = new();
-    private const int PerfSampleCap = 256;
-    private readonly List<double> _perfLayoutBuildSamplesMs = [];
+    private readonly RichTextBoxPerformanceTracker _perfTracker = new();
     private DocumentLayoutResult? _lastMeasuredLayout;
     private DocumentLayoutResult? _lastRenderedLayout;
     private int _caretIndex;
@@ -145,31 +144,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
     private bool _typingItalicActive;
     private bool _typingUnderlineActive;
     private ModifierKeys _activeKeyModifiers;
-    private int _perfLayoutCacheHitCount;
-    private int _perfLayoutCacheMissCount;
-    private int _perfLayoutBuildSampleCount;
-    private double _perfLayoutBuildTotalMs;
-    private double _perfLayoutBuildMaxMs;
-    private int _perfRenderSampleCount;
-    private double _perfRenderTotalMs;
-    private double _perfRenderLastMs;
-    private double _perfRenderMaxMs;
-    private int _perfSelectionGeometrySampleCount;
-    private double _perfSelectionGeometryTotalMs;
-    private double _perfSelectionGeometryLastMs;
-    private double _perfSelectionGeometryMaxMs;
-    private int _perfClipboardSerializeSampleCount;
-    private double _perfClipboardSerializeTotalMs;
-    private double _perfClipboardSerializeLastMs;
-    private double _perfClipboardSerializeMaxMs;
-    private int _perfClipboardDeserializeSampleCount;
-    private double _perfClipboardDeserializeTotalMs;
-    private double _perfClipboardDeserializeLastMs;
-    private double _perfClipboardDeserializeMaxMs;
-    private int _perfEditSampleCount;
-    private double _perfEditTotalMs;
-    private double _perfEditLastMs;
-    private double _perfEditMaxMs;
+
     private readonly Queue<RecentOperationEntry> _recentOperations = new();
     private int _recentOperationSequence;
     private DocumentRichnessSnapshot _lastDocumentRichness = DocumentRichnessSnapshot.Empty;
@@ -292,68 +267,12 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
 
     public RichTextBoxPerformanceSnapshot GetPerformanceSnapshot()
     {
-        return new RichTextBoxPerformanceSnapshot(
-            _perfLayoutCacheHitCount,
-            _perfLayoutCacheMissCount,
-            _perfLayoutBuildSampleCount,
-            Average(_perfLayoutBuildTotalMs, _perfLayoutBuildSampleCount),
-            Percentile(_perfLayoutBuildSamplesMs, 0.95),
-            Percentile(_perfLayoutBuildSamplesMs, 0.99),
-            _perfLayoutBuildMaxMs,
-            _perfRenderSampleCount,
-            _perfRenderLastMs,
-            Average(_perfRenderTotalMs, _perfRenderSampleCount),
-            _perfRenderMaxMs,
-            _perfSelectionGeometrySampleCount,
-            _perfSelectionGeometryLastMs,
-            Average(_perfSelectionGeometryTotalMs, _perfSelectionGeometrySampleCount),
-            _perfSelectionGeometryMaxMs,
-            _perfClipboardSerializeSampleCount,
-            _perfClipboardSerializeLastMs,
-            Average(_perfClipboardSerializeTotalMs, _perfClipboardSerializeSampleCount),
-            _perfClipboardSerializeMaxMs,
-            _perfClipboardDeserializeSampleCount,
-            _perfClipboardDeserializeLastMs,
-            Average(_perfClipboardDeserializeTotalMs, _perfClipboardDeserializeSampleCount),
-            _perfClipboardDeserializeMaxMs,
-            _perfEditSampleCount,
-            _perfEditLastMs,
-            Average(_perfEditTotalMs, _perfEditSampleCount),
-            _perfEditMaxMs,
-            _undoManager.UndoDepth,
-            _undoManager.RedoDepth,
-            _undoManager.UndoOperationCount,
-            _undoManager.RedoOperationCount);
+        return _perfTracker.GetSnapshot(_undoManager);
     }
 
     public void ResetPerformanceSnapshot()
     {
-        _perfLayoutCacheHitCount = 0;
-        _perfLayoutCacheMissCount = 0;
-        _perfLayoutBuildSampleCount = 0;
-        _perfLayoutBuildTotalMs = 0d;
-        _perfLayoutBuildMaxMs = 0d;
-        _perfLayoutBuildSamplesMs.Clear();
-        _perfRenderSampleCount = 0;
-        _perfRenderTotalMs = 0d;
-        _perfRenderLastMs = 0d;
-        _perfRenderMaxMs = 0d;
-        _perfSelectionGeometrySampleCount = 0;
-        _perfSelectionGeometryTotalMs = 0d;
-        _perfSelectionGeometryLastMs = 0d;
-        _perfSelectionGeometryMaxMs = 0d;
-        _perfClipboardSerializeSampleCount = 0;
-        _perfClipboardSerializeTotalMs = 0d;
-        _perfClipboardSerializeLastMs = 0d;
-        _perfClipboardSerializeMaxMs = 0d;
-        _perfClipboardDeserializeSampleCount = 0;
-        _perfClipboardDeserializeTotalMs = 0d;
-        _perfClipboardDeserializeLastMs = 0d;
-        _perfClipboardDeserializeMaxMs = 0d;
-        _perfEditSampleCount = 0;
-        _perfEditTotalMs = 0d;
-        _perfEditLastMs = 0d;
-        _perfEditMaxMs = 0d;
+        _perfTracker.Reset();
     }
 
     public bool HandleTextInputFromInput(char character)
@@ -466,7 +385,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         var undoDepthBefore = _undoManager.UndoDepth;
         var redoDepthBefore = _undoManager.RedoDepth;
         var textLengthBefore = GetText().Length;
-        var beforeDocument = DocumentEditing.CloneDocument(Document);
         var beforeText = GetText();
         var afterDocument = DocumentEditing.CloneDocument(Document);
         var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
@@ -491,12 +409,12 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
                 caretAfter,
                 0,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
+        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
         session.CommitTransaction();
         _caretIndex = caretAfter;
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        RecordEditSample(elapsedMs);
+        _perfTracker.RecordEdit(elapsedMs);
         RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
         RichTextBoxDiagnostics.ObserveCommandTrace(
             "EditMethod",
@@ -557,7 +475,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         var undoDepthBefore = _undoManager.UndoDepth;
         var redoDepthBefore = _undoManager.RedoDepth;
         var textLengthBefore = GetText().Length;
-        var beforeDocument = DocumentEditing.CloneDocument(Document);
         var beforeText = GetText();
         var afterDocument = DocumentEditing.CloneDocument(Document);
         var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
@@ -594,12 +511,12 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
                 caretAfter,
                 0,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
+        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
         session.CommitTransaction();
         _caretIndex = caretAfter;
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        RecordEditSample(elapsedMs);
+        _perfTracker.RecordEdit(elapsedMs);
         RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
         RichTextBoxDiagnostics.ObserveCommandTrace(
             "EditMethod",
@@ -760,7 +677,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         var undoDepthBefore = _undoManager.UndoDepth;
         var redoDepthBefore = _undoManager.RedoDepth;
         var textLengthBefore = GetText().Length;
-        var beforeDocument = DocumentEditing.CloneDocument(Document);
         var beforeText = GetText();
         var afterDocument = DocumentEditing.CloneDocument(Document);
         var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
@@ -782,7 +698,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
                     start,
                     length,
                     caretAfter,
-                    beforeDocument,
+                    Document,
                     beforeText,
                     afterDocument,
                     textLengthBefore,
@@ -810,7 +726,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             start,
             length,
             start + 1,
-            beforeDocument,
+            Document,
             beforeText,
             afterDocument,
             textLengthBefore,
@@ -846,12 +762,12 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
                 caretAfter,
                 0,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
+        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
         session.CommitTransaction();
         _caretIndex = caretAfter;
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        RecordEditSample(elapsedMs);
+        _perfTracker.RecordEdit(elapsedMs);
         RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
         RichTextBoxDiagnostics.ObserveCommandTrace(
             "EditMethod",
@@ -902,77 +818,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         }
     }
 
-    private static bool TryApplyListEnterBehavior(
-        Paragraph paragraph,
-        ListItem listItem,
-        InkkSlinger.List list,
-        string[] split,
-        out FlowDocument afterDocument,
-        out int caretAfter)
-    {
-        afterDocument = null!;
-        caretAfter = 0;
-        if (split.Length != 2)
-        {
-            return false;
-        }
-
-        var isCurrentEmpty = string.IsNullOrEmpty(split[0]) && string.IsNullOrEmpty(split[1]);
-        if (isCurrentEmpty)
-        {
-            var listBlock = (Block)list;
-            if (!RemoveListItem(listItem))
-            {
-                return false;
-            }
-
-            if (!InsertParagraphAfterBlock(listBlock, CreateParagraph(string.Empty)))
-            {
-                return false;
-            }
-
-            if (list.Items.Count == 0)
-            {
-                RemoveBlockFromParent(listBlock);
-            }
-
-            afterDocument = GetDocumentFromElement(listBlock);
-            if (afterDocument is null)
-            {
-                return false;
-            }
-
-            var inserted = TryFindParagraphAfterBlock(listBlock);
-            if (inserted is null)
-            {
-                return false;
-            }
-
-            caretAfter = FindParagraphStartOffset(afterDocument, inserted);
-            return caretAfter >= 0;
-        }
-
-        ReplaceParagraphTextPreservingSimpleWrappers(paragraph, split[0]);
-        var newItem = new ListItem();
-        var insertedParagraph = CreateParagraph(split[1]);
-        newItem.Blocks.Add(insertedParagraph);
-        var itemIndex = list.Items.IndexOf(listItem);
-        if (itemIndex < 0)
-        {
-            return false;
-        }
-
-        list.Items.Insert(itemIndex + 1, newItem);
-        afterDocument = GetDocumentFromElement(list);
-        if (afterDocument is null)
-        {
-            return false;
-        }
-
-        caretAfter = FindParagraphStartOffset(afterDocument, insertedParagraph);
-        return caretAfter >= 0;
-    }
-
     private static FlowDocument? GetDocumentFromElement(TextElement element)
     {
         TextElement? current = element;
@@ -987,11 +832,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         }
 
         return null;
-    }
-
-    private static bool RemoveListItem(ListItem item)
-    {
-        return item.Parent is InkkSlinger.List list && list.Items.Remove(item);
     }
 
     private static bool InsertParagraphAfterBlock(Block block, Paragraph paragraph)
@@ -1270,7 +1110,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             _caretIndex = caretAfterTopLevel;
             _selectionAnchor = _caretIndex;
             var elapsedTopLevelMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-            RecordEditSample(elapsedTopLevelMs);
+            _perfTracker.RecordEdit(elapsedTopLevelMs);
             RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedTopLevelMs, Math.Max(0, caret - 1), 1, _caretIndex);
             RichTextBoxDiagnostics.ObserveCommandTrace(
                 "EditMethod",
@@ -1319,7 +1159,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             _caretIndex = caretAfterBoundary;
             _selectionAnchor = _caretIndex;
             var elapsedBoundaryMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-            RecordEditSample(elapsedBoundaryMs);
+            _perfTracker.RecordEdit(elapsedBoundaryMs);
             RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedBoundaryMs, caret - 1, 1, _caretIndex);
             RichTextBoxDiagnostics.ObserveCommandTrace(
                 "EditMethod",
@@ -1367,7 +1207,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         _caretIndex = caretAfter;
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        RecordEditSample(elapsedMs);
+        _perfTracker.RecordEdit(elapsedMs);
         RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, caret - 1, 1, _caretIndex);
         RichTextBoxDiagnostics.ObserveCommandTrace(
             "EditMethod",
@@ -1695,99 +1535,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         }
     }
 
-    private bool TryInsertSpaceAtListTableBoundary()
-    {
-        if (SelectionLength != 0 || _lastSelectionHitTestOffset >= 0)
-        {
-            return false;
-        }
-
-        var handled = false;
-        var caretAfter = -1;
-        ApplyStructuralEdit(
-            "InsertSpaceListBoundary",
-            GroupingPolicy.StructuralAtomic,
-            (doc, start, length, _) =>
-            {
-                if (length != 0)
-                {
-                    return false;
-                }
-
-                var entries = CollectParagraphEntries(doc);
-                if (entries.Count == 0)
-                {
-                    return false;
-                }
-
-                var paragraphIndex = -1;
-                for (var i = 0; i < entries.Count; i++)
-                {
-                    if (start >= entries[i].StartOffset && start <= entries[i].EndOffset)
-                    {
-                        paragraphIndex = i;
-                        break;
-                    }
-                }
-
-                if (paragraphIndex < 0)
-                {
-                    return false;
-                }
-
-                var paragraph = entries[paragraphIndex].Paragraph;
-                if (!string.IsNullOrEmpty(FlowDocumentPlainText.GetInlineText(paragraph.Inlines)))
-                {
-                    return false;
-                }
-
-                if (paragraph.Parent is not ListItem currentItem || currentItem.Parent is not InkkSlinger.List list)
-                {
-                    return false;
-                }
-
-                var itemIndex = list.Items.IndexOf(currentItem);
-                if (itemIndex <= 0 || itemIndex != list.Items.Count - 1)
-                {
-                    return false;
-                }
-
-                if (!HasFollowingSiblingBlockOfType<Table>(list))
-                {
-                    return false;
-                }
-
-                if (currentItem.Blocks.Count != 1 || !ReferenceEquals(currentItem.Blocks[0], paragraph))
-                {
-                    return false;
-                }
-
-                var previousItem = list.Items[itemIndex - 1];
-                currentItem.Blocks.Remove(paragraph);
-                previousItem.Blocks.Add(paragraph);
-                if (currentItem.Blocks.Count == 0)
-                {
-                    list.Items.RemoveAt(itemIndex);
-                }
-
-                ReplaceParagraphTextPreservingSimpleWrappers(paragraph, " ");
-                var startOffset = FindParagraphStartOffset(doc, paragraph);
-                if (startOffset < 0)
-                {
-                    return false;
-                }
-
-                caretAfter = startOffset + 1;
-                handled = true;
-                return true;
-            },
-            postApply: (_, _, _, _) =>
-            {
-                _caretIndex = Math.Max(0, caretAfter);
-            });
-        return handled;
-    }
-
     public bool HandlePointerDownFromInput(Vector2 pointerPosition, bool extendSelection)
     {
         if (!IsEnabled)
@@ -2001,11 +1748,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
                 continue;
             }
 
-            FontStashTextRenderer.DrawString(spriteBatch, Font, run.Text, position, color * Opacity);
-            if (run.Style.IsBold)
-            {
-                FontStashTextRenderer.DrawString(spriteBatch, Font, run.Text, new Vector2(position.X + 1f, position.Y), color * Opacity * 0.8f);
-            }
+            FontStashTextRenderer.DrawString(spriteBatch, Font, run.Text, position, color * Opacity, run.Style.IsBold);
 
             if (run.Style.IsUnderline)
             {
@@ -2025,7 +1768,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
 
         CaptureDirtyHint(layout, textRect);
         _lastRenderedLayout = layout;
-        RecordRenderSample(Stopwatch.GetElapsedTime(renderStartTicks).TotalMilliseconds);
+        _perfTracker.RecordRender(Stopwatch.GetElapsedTime(renderStartTicks).TotalMilliseconds);
     }
 
     private void OnDocumentPropertyChanged(FlowDocument? oldDocument, FlowDocument? newDocument)
@@ -2228,70 +1971,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         return !IsReadOnly && (SelectionLength > 0 || _caretIndex < GetText().Length);
     }
 
-    private bool CanTabBackward()
-    {
-        if (IsReadOnly)
-        {
-            return false;
-        }
-
-        if (TryGetActiveTableCell(Document, _caretIndex, out TableCellSelectionInfo _))
-        {
-            return true;
-        }
-
-        if (CanExecuteListLevelChange(increase: false))
-        {
-            return true;
-        }
-
-        // Keep Shift+Tab handled as a no-op outside list/table contexts to avoid focus traversal.
-        return true;
-    }
-
-    private bool CanExecuteListLevelChange(bool increase)
-    {
-        if (IsReadOnly)
-        {
-            return false;
-        }
-
-        var selection = ResolveSelectedParagraphs(Document, SelectionStart, SelectionLength, _caretIndex);
-        if (selection.Count == 0)
-        {
-            return false;
-        }
-
-        if (increase)
-        {
-            return true;
-        }
-
-        for (var i = 0; i < selection.Count; i++)
-        {
-            if (selection[i].Paragraph.Parent is ListItem)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private bool CanMergeActiveCell()
-    {
-        if (!TryGetActiveTableCell(Document, _caretIndex, out var active))
-        {
-            return false;
-        }
-
-        return active.CellIndex + 1 < active.Row.Cells.Count;
-    }
-
-    private bool CanApplyInlineFormat()
-    {
-        return !IsReadOnly && SelectionLength > 0;
-    }
 
     private bool ExtendSelectionModifierActive()
     {
@@ -2529,7 +2208,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         _caretIndex = caretAfter;
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        RecordEditSample(elapsedMs);
+        _perfTracker.RecordEdit(elapsedMs);
         RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
         RichTextBoxDiagnostics.ObserveCommandTrace(
             "EditMethod",
@@ -2697,24 +2376,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         }
     }
 
-    private static bool ListItemHasVisibleContent(ListItem item)
-    {
-        for (var i = 0; i < item.Blocks.Count; i++)
-        {
-            if (item.Blocks[i] is not Paragraph paragraph)
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrWhiteSpace(FlowDocumentPlainText.GetInlineText(paragraph.Inlines)))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private void ExecuteEnterParagraphBreak()
     {
         RecordOperation("Command", "EnterParagraphBreak");
@@ -2806,7 +2467,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             Encoding.UTF8.GetByteCount(richSlice) + Encoding.UTF8.GetByteCount(selected),
             "WriteClipboard");
         var elapsedMs = Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds;
-        RecordClipboardSerializeSample(elapsedMs);
+        _perfTracker.RecordClipboardSerialize(elapsedMs);
         RichTextBoxDiagnostics.ObserveClipboard("Copy", usedRichPayload: true, fallbackToText: false, elapsedMs);
     }
 
@@ -2828,7 +2489,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             Encoding.UTF8.GetByteCount(richSlice) + Encoding.UTF8.GetByteCount(selected),
             "WriteClipboard");
         var elapsedMs = Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds;
-        RecordClipboardSerializeSample(elapsedMs);
+        _perfTracker.RecordClipboardSerialize(elapsedMs);
         RichTextBoxDiagnostics.ObserveClipboard("Cut", usedRichPayload: true, fallbackToText: false, elapsedMs);
         ReplaceSelection(string.Empty, "CutSelection", GroupingPolicy.StructuralAtomic);
     }
@@ -2855,7 +2516,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             try
             {
                 var fragment = FlowDocumentSerializer.DeserializeFragment(richPayload);
-                RecordClipboardDeserializeSample(Stopwatch.GetElapsedTime(deserializeStart).TotalMilliseconds);
+                _perfTracker.RecordClipboardDeserialize(Stopwatch.GetElapsedTime(deserializeStart).TotalMilliseconds);
                 if (TryPasteRichFragment(fragment))
                 {
                     RichTextBoxDiagnostics.ObserveClipboard(
@@ -2880,7 +2541,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             }
             catch (Exception)
             {
-                RecordClipboardDeserializeSample(Stopwatch.GetElapsedTime(deserializeStart).TotalMilliseconds);
+                _perfTracker.RecordClipboardDeserialize(Stopwatch.GetElapsedTime(deserializeStart).TotalMilliseconds);
                 fallbackToText = true;
                 RichTextBoxDiagnostics.ObserveClipboardPayload(
                     "Paste",
@@ -2914,1013 +2575,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
     }
 
-    private void ExecuteSelectAll()
-    {
-        _selectionAnchor = 0;
-        _caretIndex = GetText().Length;
-        EnsureCaretVisible();
-        InvalidateVisual();
-    }
-
-    private void ExecuteMoveLeftByCharacter()
-    {
-        MoveCaret(-1, ExtendSelectionModifierActive());
-    }
-
-    private void ExecuteMoveRightByCharacter()
-    {
-        MoveCaret(1, ExtendSelectionModifierActive());
-    }
-
-    private void ExecuteMoveLeftByWord()
-    {
-        MoveCaretByWord(moveLeft: true, extendSelection: ExtendSelectionModifierActive());
-    }
-
-    private void ExecuteMoveRightByWord()
-    {
-        MoveCaretByWord(moveLeft: false, extendSelection: ExtendSelectionModifierActive());
-    }
-
-    private void ExecuteToggleBold()
-    {
-        RecordOperation("Command", "ToggleBold");
-        if (SelectionLength <= 0)
-        {
-            _typingBoldActive = !_typingBoldActive;
-            RecordOperation("Branch", $"ToggleBold->TypingMode:{_typingBoldActive}");
-            return;
-        }
-
-        RecordOperation("Branch", "ToggleBold->ApplyInlineFormatToSelection");
-        ApplyInlineFormatToSelection<Bold>(static () => new Bold(), "ToggleBold");
-    }
-
-    private void ExecuteToggleItalic()
-    {
-        RecordOperation("Command", "ToggleItalic");
-        if (SelectionLength <= 0)
-        {
-            _typingItalicActive = !_typingItalicActive;
-            RecordOperation("Branch", $"ToggleItalic->TypingMode:{_typingItalicActive}");
-            return;
-        }
-
-        RecordOperation("Branch", "ToggleItalic->ApplyInlineFormatToSelection");
-        ApplyInlineFormatToSelection<Italic>(static () => new Italic(), "ToggleItalic");
-    }
-
-    private void ExecuteToggleUnderline()
-    {
-        RecordOperation("Command", "ToggleUnderline");
-        if (SelectionLength <= 0)
-        {
-            _typingUnderlineActive = !_typingUnderlineActive;
-            RecordOperation("Branch", $"ToggleUnderline->TypingMode:{_typingUnderlineActive}");
-            return;
-        }
-
-        RecordOperation("Branch", "ToggleUnderline->ApplyInlineFormatToSelection");
-        ApplyInlineFormatToSelection<Underline>(static () => new Underline(), "ToggleUnderline");
-    }
-
-    private void ExecuteIncreaseListLevel()
-    {
-        if (IsReadOnly)
-        {
-            return;
-        }
-
-        ApplyStructuralEdit(
-            "IncreaseListLevel",
-            GroupingPolicy.StructuralAtomic,
-            static (doc, start, length, caret) =>
-            {
-                var selected = ResolveSelectedParagraphs(doc, start, length, caret);
-                if (selected.Count == 0)
-                {
-                    return false;
-                }
-
-                var changed = false;
-                var paragraphsToListify = new List<Paragraph>();
-                for (var i = 0; i < selected.Count; i++)
-                {
-                    var paragraph = selected[i].Paragraph;
-                    if (paragraph.Parent is ListItem item &&
-                        item.Parent is InkkSlinger.List parentList)
-                    {
-                        var index = parentList.Items.IndexOf(item);
-                        if (index <= 0)
-                        {
-                            continue;
-                        }
-
-                        var previous = parentList.Items[index - 1];
-                        var nested = GetOrCreateNestedList(previous, parentList.IsOrdered);
-                        parentList.Items.Remove(item);
-                        nested.Items.Add(item);
-                        changed = true;
-                        continue;
-                    }
-
-                    paragraphsToListify.Add(paragraph);
-                }
-
-                if (paragraphsToListify.Count > 0 &&
-                    ConvertParagraphsToLists(paragraphsToListify))
-                {
-                    changed = true;
-                }
-
-                return changed;
-            });
-    }
-
-    private void ExecuteDecreaseListLevel()
-    {
-        if (IsReadOnly)
-        {
-            return;
-        }
-
-        ApplyStructuralEdit(
-            "DecreaseListLevel",
-            GroupingPolicy.StructuralAtomic,
-            static (doc, start, length, caret) =>
-            {
-                var selected = ResolveSelectedParagraphs(doc, start, length, caret);
-                if (selected.Count == 0)
-                {
-                    return false;
-                }
-
-                var changed = false;
-                for (var i = 0; i < selected.Count; i++)
-                {
-                    if (TryOutdentParagraph(selected[i].Paragraph))
-                    {
-                        changed = true;
-                    }
-                }
-
-                return changed;
-            });
-    }
-
-    private void ExecuteInsertTable()
-    {
-        if (IsReadOnly)
-        {
-            return;
-        }
-
-        ApplyStructuralEdit(
-            "InsertTable",
-            GroupingPolicy.StructuralAtomic,
-            static (doc, start, length, _) =>
-            {
-                var table = CreateDefaultTable();
-                var merged = BuildDocumentWithFragment(doc, table, start, length);
-                DocumentEditing.ReplaceDocumentContent(doc, merged);
-                return true;
-            },
-            postApply: (_, start, _, _) =>
-            {
-                if (TryGetTableCellStartOffsetAtOrAfter(Document, start, out var offset))
-                {
-                    SetCaret(offset, extendSelection: false);
-                }
-            });
-    }
-
-    private void ExecuteSplitCell()
-    {
-        if (IsReadOnly)
-        {
-            return;
-        }
-
-        ApplyStructuralEdit(
-            "SplitCell",
-            GroupingPolicy.StructuralAtomic,
-            static (doc, _, _, caret) =>
-            {
-                if (!TryGetActiveTableCell(doc, caret, out var active))
-                {
-                    return false;
-                }
-
-                var next = new TableCell();
-                next.Blocks.Add(CreateParagraph(string.Empty));
-                if (active.Cell.ColumnSpan > 1)
-                {
-                    active.Cell.ColumnSpan -= 1;
-                }
-
-                active.Row.Cells.Insert(active.CellIndex + 1, next);
-                return true;
-            });
-    }
-
-    private void ExecuteMergeCells()
-    {
-        if (IsReadOnly)
-        {
-            return;
-        }
-
-        ApplyStructuralEdit(
-            "MergeCells",
-            GroupingPolicy.StructuralAtomic,
-            static (doc, _, _, caret) =>
-            {
-                if (!TryGetActiveTableCell(doc, caret, out var active))
-                {
-                    return false;
-                }
-
-                var nextIndex = active.CellIndex + 1;
-                if (nextIndex >= active.Row.Cells.Count)
-                {
-                    return false;
-                }
-
-                var next = active.Row.Cells[nextIndex];
-                active.Cell.ColumnSpan += Math.Max(1, next.ColumnSpan);
-                while (next.Blocks.Count > 0)
-                {
-                    var block = next.Blocks[0];
-                    next.Blocks.RemoveAt(0);
-                    active.Cell.Blocks.Add(block);
-                }
-
-                active.Row.Cells.RemoveAt(nextIndex);
-                return true;
-            });
-    }
-
-    private void ApplyInlineFormatToSelection<TSpan>(Func<Span> spanFactory, string commandType)
-        where TSpan : Span
-    {
-        if (!CanApplyInlineFormat())
-        {
-            RecordOperation("FormatSelection", $"{commandType}->CannotApply");
-            return;
-        }
-
-        var editStart = Stopwatch.GetTimestamp();
-        var undoDepthBefore = _undoManager.UndoDepth;
-        var redoDepthBefore = _undoManager.RedoDepth;
-        var textLengthBefore = GetText().Length;
-        var start = SelectionStart;
-        var length = SelectionLength;
-        var originalAnchor = _selectionAnchor;
-        var originalCaret = _caretIndex;
-        var beforeDoc = DocumentEditing.CloneDocument(Document);
-        var beforeText = GetText();
-        var fragmentXml = FlowDocumentSerializer.SerializeRange(Document, start, start + length);
-        var formattedFragment = FlowDocumentSerializer.DeserializeFragment(fragmentXml);
-        var removeExistingFormat = SelectionIsFullyStyledBy<TSpan>(formattedFragment);
-        RecordOperation("FormatSelection", $"{commandType}->Begin removeExisting={removeExistingFormat} sel=({start},{length})");
-        FlowDocument afterDocument;
-        if (start == 0 &&
-            length == GetText().Length &&
-            TryBuildDocumentWithWholeDocumentInlineFormat<TSpan>(
-                Document,
-                removeExistingFormat,
-                spanFactory,
-                out afterDocument))
-        {
-            RecordOperation("FormatSelection", $"{commandType}->WholeDocumentStructuredPath");
-        }
-        else if (TryBuildDocumentWithWholeParagraphInlineFormat<TSpan>(
-                Document,
-                start,
-                length,
-                removeExistingFormat,
-                spanFactory,
-                out afterDocument))
-        {
-            RecordOperation("FormatSelection", $"{commandType}->WholeParagraphPath");
-            // afterDocument produced by whole-paragraph in-place transform on clone.
-        }
-        else if (TryBuildDocumentWithInlineFormatWithinParagraph<TSpan>(
-                     Document,
-                     start,
-                     length,
-                     removeExistingFormat,
-                     spanFactory,
-                     out afterDocument))
-        {
-            RecordOperation("FormatSelection", $"{commandType}->SingleParagraphStructuredPath");
-        }
-        else if (TryBuildDocumentWithInlineFormatAcrossParagraphs<TSpan>(
-                     Document,
-                     start,
-                     length,
-                     removeExistingFormat,
-                     spanFactory,
-                     out afterDocument))
-        {
-            RecordOperation("FormatSelection", $"{commandType}->MultiParagraphStructuredPath");
-        }
-        else if (DocumentContainsRichInlineFormatting(Document) &&
-                 TryBuildDocumentWithSelectedParagraphStructuredFallback<TSpan>(
-                     Document,
-                     start,
-                     length,
-                     removeExistingFormat,
-                     spanFactory,
-                     out afterDocument))
-        {
-            RecordOperation("FormatSelection", $"{commandType}->RichDocumentParagraphFallbackPath");
-        }
-        else if (removeExistingFormat)
-        {
-            RecordOperation("FormatSelection", $"{commandType}->FragmentRemovePath");
-            RemoveInlineSpanFromParagraphs<TSpan>(formattedFragment);
-            afterDocument = BuildDocumentWithFragment(Document, formattedFragment, start, length);
-        }
-        else
-        {
-            RecordOperation("FormatSelection", $"{commandType}->FragmentApplyPath");
-            ApplyInlineSpanToParagraphs(formattedFragment, spanFactory);
-            afterDocument = BuildDocumentWithFragment(Document, formattedFragment, start, length);
-        }
-        var afterText = DocumentEditing.GetText(afterDocument);
-        var session = new DocumentEditSession(Document, _undoManager);
-        session.BeginTransaction(
-            commandType,
-            GroupingPolicy.FormatBurst,
-            new DocumentEditContext(
-                _caretIndex,
-                _caretIndex,
-                start,
-                length,
-                start,
-                length,
-                commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDoc, afterDocument));
-        session.CommitTransaction();
-        var maxCaret = GetText().Length;
-        _selectionAnchor = Math.Clamp(originalAnchor, 0, maxCaret);
-        _caretIndex = Math.Clamp(originalCaret, 0, maxCaret);
-        var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        RecordEditSample(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            commandType,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
-        TraceInvariants(commandType);
-        EnsureCaretVisible();
-        InvalidateMeasure();
-        InvalidateVisualWithReason($"Edit:{commandType}");
-    }
-
-    private static bool TryBuildDocumentWithWholeDocumentInlineFormat<TSpan>(
-        FlowDocument source,
-        bool removeExistingFormat,
-        Func<Span> spanFactory,
-        out FlowDocument afterDocument)
-        where TSpan : Span
-    {
-        afterDocument = DocumentEditing.CloneDocument(source);
-        if (afterDocument.Blocks.Count == 0)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < afterDocument.Blocks.Count; i++)
-        {
-            if (removeExistingFormat)
-            {
-                RemoveInlineSpanFromBlock<TSpan>(afterDocument.Blocks[i]);
-            }
-            else
-            {
-                ApplyInlineSpanToBlock(afterDocument.Blocks[i], spanFactory);
-            }
-        }
-
-        return true;
-    }
-
-    private static bool TryBuildDocumentWithSelectedParagraphStructuredFallback<TSpan>(
-        FlowDocument source,
-        int selectionStart,
-        int selectionLength,
-        bool removeExistingFormat,
-        Func<Span> spanFactory,
-        out FlowDocument afterDocument)
-        where TSpan : Span
-    {
-        afterDocument = null!;
-        if (selectionLength <= 0)
-        {
-            return false;
-        }
-
-        var selected = ResolveSelectedParagraphs(source, selectionStart, selectionLength, selectionStart + selectionLength);
-        if (selected.Count == 0)
-        {
-            return false;
-        }
-
-        var entries = CollectParagraphEntries(source);
-        if (entries.Count == 0)
-        {
-            return false;
-        }
-
-        var selectedStarts = new HashSet<int>();
-        for (var i = 0; i < selected.Count; i++)
-        {
-            selectedStarts.Add(selected[i].StartOffset);
-        }
-
-        afterDocument = DocumentEditing.CloneDocument(source);
-        var cloneEntries = CollectParagraphEntries(afterDocument);
-        if (cloneEntries.Count == 0)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < cloneEntries.Count; i++)
-        {
-            if (!selectedStarts.Contains(cloneEntries[i].StartOffset))
-            {
-                continue;
-            }
-
-            var paragraph = cloneEntries[i].Paragraph;
-            if (removeExistingFormat)
-            {
-                RemoveInlineSpanFromCollection<TSpan>(paragraph.Inlines);
-            }
-            else
-            {
-                WrapParagraphInlines(paragraph, spanFactory);
-            }
-
-            if (paragraph.Inlines.Count == 0)
-            {
-                paragraph.Inlines.Add(new Run(string.Empty));
-            }
-        }
-
-        return true;
-    }
-
-    private static bool TryBuildDocumentWithInlineFormatAcrossParagraphs<TSpan>(
-        FlowDocument source,
-        int selectionStart,
-        int selectionLength,
-        bool removeExistingFormat,
-        Func<Span> spanFactory,
-        out FlowDocument afterDocument)
-        where TSpan : Span
-    {
-        afterDocument = null!;
-        if (selectionLength <= 0)
-        {
-            return false;
-        }
-
-        var entries = CollectParagraphEntries(source);
-        if (entries.Count == 0)
-        {
-            return false;
-        }
-
-        var selectionEnd = selectionStart + selectionLength;
-        var first = -1;
-        var last = -1;
-        for (var i = 0; i < entries.Count; i++)
-        {
-            if (entries[i].EndOffset <= selectionStart || entries[i].StartOffset >= selectionEnd)
-            {
-                continue;
-            }
-
-            first = first < 0 ? i : first;
-            last = i;
-        }
-
-        if (first < 0 || last < 0 || first == last)
-        {
-            return false;
-        }
-
-        afterDocument = DocumentEditing.CloneDocument(source);
-        var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
-        if (last >= paragraphs.Count)
-        {
-            return false;
-        }
-
-        for (var index = first; index <= last; index++)
-        {
-            var paragraph = paragraphs[index];
-            var paragraphText = FlowDocumentPlainText.GetInlineText(paragraph.Inlines);
-            var localStart = Math.Clamp(selectionStart - entries[index].StartOffset, 0, paragraphText.Length);
-            var localEnd = Math.Clamp(selectionEnd - entries[index].StartOffset, 0, paragraphText.Length);
-            if (localEnd < localStart)
-            {
-                continue;
-            }
-
-            var formatLength = localEnd - localStart;
-            if (formatLength <= 0)
-            {
-                continue;
-            }
-
-            var before = paragraphText[..localStart];
-            var middle = paragraphText.Substring(localStart, formatLength);
-            var after = paragraphText[localEnd..];
-            paragraph.Inlines.Clear();
-
-            if (before.Length > 0)
-            {
-                paragraph.Inlines.Add(new Run(before));
-            }
-
-            if (middle.Length > 0)
-            {
-                if (removeExistingFormat)
-                {
-                    paragraph.Inlines.Add(new Run(middle));
-                }
-                else
-                {
-                    var span = spanFactory();
-                    span.Inlines.Add(new Run(middle));
-                    paragraph.Inlines.Add(span);
-                }
-            }
-
-            if (after.Length > 0)
-            {
-                paragraph.Inlines.Add(new Run(after));
-            }
-
-            if (paragraph.Inlines.Count == 0)
-            {
-                paragraph.Inlines.Add(new Run(string.Empty));
-            }
-        }
-
-        return true;
-    }
-
-    private static bool TryBuildDocumentWithInlineFormatWithinParagraph<TSpan>(
-        FlowDocument source,
-        int selectionStart,
-        int selectionLength,
-        bool removeExistingFormat,
-        Func<Span> spanFactory,
-        out FlowDocument afterDocument)
-        where TSpan : Span
-    {
-        afterDocument = null!;
-        if (selectionLength <= 0)
-        {
-            return false;
-        }
-
-        var entries = CollectParagraphEntries(source);
-        if (entries.Count == 0)
-        {
-            return false;
-        }
-
-        var selectionEnd = selectionStart + selectionLength;
-        var paragraphIndex = -1;
-        for (var i = 0; i < entries.Count; i++)
-        {
-            if (selectionStart >= entries[i].StartOffset &&
-                selectionEnd <= entries[i].EndOffset)
-            {
-                paragraphIndex = i;
-                break;
-            }
-        }
-
-        if (paragraphIndex < 0)
-        {
-            return false;
-        }
-
-        var localStart = selectionStart - entries[paragraphIndex].StartOffset;
-        var paragraphText = FlowDocumentPlainText.GetInlineText(entries[paragraphIndex].Paragraph.Inlines);
-        if (localStart < 0 || localStart > paragraphText.Length)
-        {
-            return false;
-        }
-
-        var localLength = Math.Clamp(selectionLength, 0, paragraphText.Length - localStart);
-        if (localLength <= 0)
-        {
-            return false;
-        }
-
-        afterDocument = DocumentEditing.CloneDocument(source);
-        var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
-        if (paragraphIndex >= paragraphs.Count)
-        {
-            return false;
-        }
-
-        var paragraph = paragraphs[paragraphIndex];
-        var sourceParagraph = entries[paragraphIndex].Paragraph;
-        var localEnd = localStart + localLength;
-        var selectedText = paragraphText.Substring(localStart, localLength);
-
-        paragraph.Inlines.Clear();
-        AppendStyledInlineRangeFromParagraph(sourceParagraph, 0, localStart, paragraph);
-
-        if (selectedText.Length > 0)
-        {
-            if (removeExistingFormat)
-            {
-                paragraph.Inlines.Add(new Run(selectedText));
-            }
-            else
-            {
-                var span = spanFactory();
-                span.Inlines.Add(new Run(selectedText));
-                paragraph.Inlines.Add(span);
-            }
-        }
-
-        AppendStyledInlineRangeFromParagraph(sourceParagraph, localEnd, paragraphText.Length, paragraph);
-
-        if (paragraph.Inlines.Count == 0)
-        {
-            paragraph.Inlines.Add(new Run(string.Empty));
-        }
-
-        return true;
-    }
-
-    private static bool TryBuildDocumentWithWholeParagraphInlineFormat<TSpan>(
-        FlowDocument source,
-        int selectionStart,
-        int selectionLength,
-        bool removeExistingFormat,
-        Func<Span> spanFactory,
-        out FlowDocument afterDocument)
-        where TSpan : Span
-    {
-        afterDocument = null!;
-        if (selectionLength <= 0)
-        {
-            return false;
-        }
-
-        var entries = CollectParagraphEntries(source);
-        if (entries.Count == 0)
-        {
-            return false;
-        }
-
-        var selectionEnd = selectionStart + selectionLength;
-        var targetParagraphIndex = -1;
-        for (var i = 0; i < entries.Count; i++)
-        {
-            if (selectionStart == entries[i].StartOffset &&
-                selectionEnd == entries[i].EndOffset)
-            {
-                targetParagraphIndex = i;
-                break;
-            }
-        }
-
-        if (targetParagraphIndex < 0)
-        {
-            return false;
-        }
-
-        afterDocument = DocumentEditing.CloneDocument(source);
-        var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
-        if (targetParagraphIndex >= paragraphs.Count)
-        {
-            return false;
-        }
-
-        var paragraph = paragraphs[targetParagraphIndex];
-        if (removeExistingFormat)
-        {
-            RemoveInlineSpanFromCollection<TSpan>(paragraph.Inlines);
-        }
-        else
-        {
-            WrapParagraphInlines(paragraph, spanFactory);
-        }
-
-        if (paragraph.Inlines.Count == 0)
-        {
-            paragraph.Inlines.Add(new Run(string.Empty));
-        }
-
-        return true;
-    }
-
-    private static bool SelectionIsFullyStyledBy<TSpan>(FlowDocument document)
-        where TSpan : Span
-    {
-        var hasContent = false;
-        var allStyled = true;
-        for (var i = 0; i < document.Blocks.Count; i++)
-        {
-            EvaluateBlockStyleState<TSpan>(document.Blocks[i], inheritedStyled: false, ref hasContent, ref allStyled);
-            if (!allStyled)
-            {
-                return false;
-            }
-        }
-
-        return hasContent && allStyled;
-    }
-
-    private static void EvaluateBlockStyleState<TSpan>(Block block, bool inheritedStyled, ref bool hasContent, ref bool allStyled)
-        where TSpan : Span
-    {
-        switch (block)
-        {
-            case Paragraph paragraph:
-                for (var i = 0; i < paragraph.Inlines.Count; i++)
-                {
-                    EvaluateInlineStyleState<TSpan>(paragraph.Inlines[i], inheritedStyled, ref hasContent, ref allStyled);
-                    if (!allStyled)
-                    {
-                        return;
-                    }
-                }
-
-                break;
-            case Section section:
-                for (var i = 0; i < section.Blocks.Count; i++)
-                {
-                    EvaluateBlockStyleState<TSpan>(section.Blocks[i], inheritedStyled, ref hasContent, ref allStyled);
-                    if (!allStyled)
-                    {
-                        return;
-                    }
-                }
-
-                break;
-            case InkkSlinger.List list:
-                for (var i = 0; i < list.Items.Count; i++)
-                {
-                    var item = list.Items[i];
-                    for (var j = 0; j < item.Blocks.Count; j++)
-                    {
-                        EvaluateBlockStyleState<TSpan>(item.Blocks[j], inheritedStyled, ref hasContent, ref allStyled);
-                        if (!allStyled)
-                        {
-                            return;
-                        }
-                    }
-                }
-
-                break;
-            case Table table:
-                for (var i = 0; i < table.RowGroups.Count; i++)
-                {
-                    var group = table.RowGroups[i];
-                    for (var j = 0; j < group.Rows.Count; j++)
-                    {
-                        var row = group.Rows[j];
-                        for (var k = 0; k < row.Cells.Count; k++)
-                        {
-                            var cell = row.Cells[k];
-                            for (var m = 0; m < cell.Blocks.Count; m++)
-                            {
-                                EvaluateBlockStyleState<TSpan>(cell.Blocks[m], inheritedStyled, ref hasContent, ref allStyled);
-                                if (!allStyled)
-                                {
-                                    return;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                break;
-        }
-    }
-
-    private static void EvaluateInlineStyleState<TSpan>(Inline inline, bool inheritedStyled, ref bool hasContent, ref bool allStyled)
-        where TSpan : Span
-    {
-        var styled = inheritedStyled || inline is TSpan;
-        switch (inline)
-        {
-            case Run run when run.Text.Length > 0:
-                hasContent = true;
-                if (!styled)
-                {
-                    allStyled = false;
-                }
-
-                break;
-            case LineBreak:
-            case InlineUIContainer:
-                hasContent = true;
-                if (!styled)
-                {
-                    allStyled = false;
-                }
-
-                break;
-            case Span span:
-                for (var i = 0; i < span.Inlines.Count; i++)
-                {
-                    EvaluateInlineStyleState<TSpan>(span.Inlines[i], styled, ref hasContent, ref allStyled);
-                    if (!allStyled)
-                    {
-                        return;
-                    }
-                }
-
-                break;
-        }
-    }
-
-    private static void RemoveInlineSpanFromParagraphs<TSpan>(FlowDocument document)
-        where TSpan : Span
-    {
-        for (var i = 0; i < document.Blocks.Count; i++)
-        {
-            RemoveInlineSpanFromBlock<TSpan>(document.Blocks[i]);
-        }
-    }
-
-    private static void RemoveInlineSpanFromBlock<TSpan>(Block block)
-        where TSpan : Span
-    {
-        switch (block)
-        {
-            case Paragraph paragraph:
-                RemoveInlineSpanFromCollection<TSpan>(paragraph.Inlines);
-                break;
-            case Section section:
-                for (var i = 0; i < section.Blocks.Count; i++)
-                {
-                    RemoveInlineSpanFromBlock<TSpan>(section.Blocks[i]);
-                }
-
-                break;
-            case InkkSlinger.List list:
-                for (var i = 0; i < list.Items.Count; i++)
-                {
-                    var item = list.Items[i];
-                    for (var j = 0; j < item.Blocks.Count; j++)
-                    {
-                        RemoveInlineSpanFromBlock<TSpan>(item.Blocks[j]);
-                    }
-                }
-
-                break;
-            case Table table:
-                for (var i = 0; i < table.RowGroups.Count; i++)
-                {
-                    var group = table.RowGroups[i];
-                    for (var j = 0; j < group.Rows.Count; j++)
-                    {
-                        var row = group.Rows[j];
-                        for (var k = 0; k < row.Cells.Count; k++)
-                        {
-                            var cell = row.Cells[k];
-                            for (var m = 0; m < cell.Blocks.Count; m++)
-                            {
-                                RemoveInlineSpanFromBlock<TSpan>(cell.Blocks[m]);
-                            }
-                        }
-                    }
-                }
-
-                break;
-        }
-    }
-
-    private static void RemoveInlineSpanFromCollection<TSpan>(IList<Inline> inlines)
-        where TSpan : Span
-    {
-        for (var i = 0; i < inlines.Count;)
-        {
-            var inline = inlines[i];
-            if (inline is TSpan target)
-            {
-                inlines.RemoveAt(i);
-                var movedChildren = new List<Inline>();
-                while (target.Inlines.Count > 0)
-                {
-                    var child = target.Inlines[0];
-                    target.Inlines.RemoveAt(0);
-                    movedChildren.Add(child);
-                }
-
-                RemoveInlineSpanFromCollection<TSpan>(movedChildren);
-                for (var j = 0; j < movedChildren.Count; j++)
-                {
-                    inlines.Insert(i + j, movedChildren[j]);
-                }
-
-                i += movedChildren.Count;
-                continue;
-            }
-
-            if (inline is Span span)
-            {
-                RemoveInlineSpanFromCollection<TSpan>(span.Inlines);
-            }
-
-            i++;
-        }
-    }
-
-    private static void ApplyInlineSpanToParagraphs(FlowDocument document, Func<Span> spanFactory)
-    {
-        for (var i = 0; i < document.Blocks.Count; i++)
-        {
-            ApplyInlineSpanToBlock(document.Blocks[i], spanFactory);
-        }
-    }
-
-    private static void ApplyInlineSpanToBlock(Block block, Func<Span> spanFactory)
-    {
-        switch (block)
-        {
-            case Paragraph paragraph:
-                WrapParagraphInlines(paragraph, spanFactory);
-                break;
-            case Section section:
-                for (var i = 0; i < section.Blocks.Count; i++)
-                {
-                    ApplyInlineSpanToBlock(section.Blocks[i], spanFactory);
-                }
-
-                break;
-            case InkkSlinger.List list:
-                for (var i = 0; i < list.Items.Count; i++)
-                {
-                    var item = list.Items[i];
-                    for (var j = 0; j < item.Blocks.Count; j++)
-                    {
-                        ApplyInlineSpanToBlock(item.Blocks[j], spanFactory);
-                    }
-                }
-
-                break;
-            case Table table:
-                for (var i = 0; i < table.RowGroups.Count; i++)
-                {
-                    var group = table.RowGroups[i];
-                    for (var j = 0; j < group.Rows.Count; j++)
-                    {
-                        var row = group.Rows[j];
-                        for (var k = 0; k < row.Cells.Count; k++)
-                        {
-                            var cell = row.Cells[k];
-                            for (var m = 0; m < cell.Blocks.Count; m++)
-                            {
-                                ApplyInlineSpanToBlock(cell.Blocks[m], spanFactory);
-                            }
-                        }
-                    }
-                }
-
-                break;
-        }
-    }
-
-    private static void WrapParagraphInlines(Paragraph paragraph, Func<Span> spanFactory)
-    {
-        if (paragraph.Inlines.Count == 0)
-        {
-            return;
-        }
-
-        var span = spanFactory();
-        while (paragraph.Inlines.Count > 0)
-        {
-            var inline = paragraph.Inlines[0];
-            paragraph.Inlines.RemoveAt(0);
-            span.Inlines.Add(inline);
-        }
-
-        paragraph.Inlines.Add(span);
-    }
 
     private void ReplaceSelection(string replacement, string commandType, GroupingPolicy policy)
     {
@@ -3985,7 +2639,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         _caretIndex = start + normalizedReplacement.Length;
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        RecordEditSample(elapsedMs);
+        _perfTracker.RecordEdit(elapsedMs);
         RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
         RichTextBoxDiagnostics.ObserveCommandTrace(
             "EditMethod",
@@ -4134,7 +2788,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         _caretIndex = caretAfter;
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        RecordEditSample(elapsedMs);
+        _perfTracker.RecordEdit(elapsedMs);
         RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
         RichTextBoxDiagnostics.ObserveCommandTrace(
             "EditMethod",
@@ -4234,32 +2888,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         };
     }
 
-    private void SetCaret(int index, bool extendSelection)
-    {
-        _caretIndex = Math.Clamp(index, 0, GetText().Length);
-        if (!extendSelection)
-        {
-            _selectionAnchor = _caretIndex;
-        }
-
-        EnsureCaretVisible();
-    }
-
-    private void MoveCaret(int delta, bool extendSelection)
-    {
-        SetCaret(Math.Clamp(_caretIndex + delta, 0, GetText().Length), extendSelection);
-        _caretBlinkSeconds = 0f;
-        _isCaretVisible = true;
-        InvalidateVisual();
-    }
-
-    private void ClampSelectionToTextLength()
-    {
-        var length = GetText().Length;
-        _caretIndex = Math.Clamp(_caretIndex, 0, length);
-        _selectionAnchor = Math.Clamp(_selectionAnchor, 0, length);
-        EnsureCaretVisible();
-    }
 
     private void TraceInvariants(string stage)
     {
@@ -4651,7 +3279,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             _lastSelectionHitTestOffset,
             caretRect,
             rects.Count);
-        RecordSelectionGeometrySample(Stopwatch.GetElapsedTime(selectionStartTicks).TotalMilliseconds);
+        _perfTracker.RecordSelectionGeometry(Stopwatch.GetElapsedTime(selectionStartTicks).TotalMilliseconds);
     }
 
     private static string NormalizeNewlines(string? text)
@@ -4835,7 +3463,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         _caretIndex = caretAfter;
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        RecordEditSample(elapsedMs);
+        _perfTracker.RecordEdit(elapsedMs);
         RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, selectionStart, selectionLength, _caretIndex);
         RichTextBoxDiagnostics.ObserveCommandTrace(
             "EditMethod",
@@ -4992,100 +3620,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         return paragraph;
     }
 
-    private void RecordLayoutBuildSample(double elapsedMs)
-    {
-        var bounded = Math.Max(0d, elapsedMs);
-        _perfLayoutBuildSampleCount++;
-        _perfLayoutBuildTotalMs += bounded;
-        _perfLayoutBuildMaxMs = Math.Max(_perfLayoutBuildMaxMs, bounded);
-        AppendSample(_perfLayoutBuildSamplesMs, bounded);
-    }
-
-    private void RecordRenderSample(double elapsedMs)
-    {
-        var bounded = Math.Max(0d, elapsedMs);
-        _perfRenderSampleCount++;
-        _perfRenderTotalMs += bounded;
-        _perfRenderLastMs = bounded;
-        _perfRenderMaxMs = Math.Max(_perfRenderMaxMs, bounded);
-    }
-
-    private void RecordSelectionGeometrySample(double elapsedMs)
-    {
-        var bounded = Math.Max(0d, elapsedMs);
-        _perfSelectionGeometrySampleCount++;
-        _perfSelectionGeometryTotalMs += bounded;
-        _perfSelectionGeometryLastMs = bounded;
-        _perfSelectionGeometryMaxMs = Math.Max(_perfSelectionGeometryMaxMs, bounded);
-    }
-
-    private void RecordClipboardSerializeSample(double elapsedMs)
-    {
-        var bounded = Math.Max(0d, elapsedMs);
-        _perfClipboardSerializeSampleCount++;
-        _perfClipboardSerializeTotalMs += bounded;
-        _perfClipboardSerializeLastMs = bounded;
-        _perfClipboardSerializeMaxMs = Math.Max(_perfClipboardSerializeMaxMs, bounded);
-    }
-
-    private void RecordClipboardDeserializeSample(double elapsedMs)
-    {
-        var bounded = Math.Max(0d, elapsedMs);
-        _perfClipboardDeserializeSampleCount++;
-        _perfClipboardDeserializeTotalMs += bounded;
-        _perfClipboardDeserializeLastMs = bounded;
-        _perfClipboardDeserializeMaxMs = Math.Max(_perfClipboardDeserializeMaxMs, bounded);
-    }
-
-    private void RecordEditSample(double elapsedMs)
-    {
-        var bounded = Math.Max(0d, elapsedMs);
-        _perfEditSampleCount++;
-        _perfEditTotalMs += bounded;
-        _perfEditLastMs = bounded;
-        _perfEditMaxMs = Math.Max(_perfEditMaxMs, bounded);
-    }
-
-    private static void AppendSample(List<double> samples, double value)
-    {
-        if (samples.Count >= PerfSampleCap)
-        {
-            samples.RemoveAt(0);
-        }
-
-        samples.Add(value);
-    }
-
-    private static double Average(double total, int count)
-    {
-        if (count <= 0)
-        {
-            return 0d;
-        }
-
-        return total / count;
-    }
-
-    private static double Percentile(List<double> samples, double percentile)
-    {
-        if (samples.Count == 0)
-        {
-            return 0d;
-        }
-
-        var ordered = samples.ToArray();
-        Array.Sort(ordered);
-        var rawIndex = (ordered.Length - 1) * percentile;
-        var lower = (int)Math.Floor(rawIndex);
-        var upper = (int)Math.Ceiling(rawIndex);
-        if (lower == upper)
-        {
-            return ordered[lower];
-        }
-
-        var fraction = rawIndex - lower;
-        return ordered[lower] + ((ordered[upper] - ordered[lower]) * fraction);
-    }
 
     private void ApplyStructuralEdit(
         string reason,
@@ -5126,7 +3660,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         postApply?.Invoke(Document, selectionStart, selectionLength, _caretIndex);
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        RecordEditSample(elapsedMs);
+        _perfTracker.RecordEdit(elapsedMs);
         RichTextBoxDiagnostics.ObserveEdit(reason, elapsedMs, selectionStart, selectionLength, _caretIndex);
         RichTextBoxDiagnostics.ObserveCommandTrace(
             "EditMethod",
@@ -5244,408 +3778,12 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         }
     }
 
-    private static bool ConvertParagraphsToLists(IReadOnlyList<Paragraph> paragraphs)
-    {
-        if (paragraphs.Count == 0)
-        {
-            return false;
-        }
-
-        var changed = false;
-        var groups = new Dictionary<TextElement, List<Paragraph>>();
-        for (var i = 0; i < paragraphs.Count; i++)
-        {
-            if (paragraphs[i].Parent is not TextElement owner)
-            {
-                continue;
-            }
-
-            if (!groups.TryGetValue(owner, out var group))
-            {
-                group = [];
-                groups[owner] = group;
-            }
-
-            group.Add(paragraphs[i]);
-        }
-
-        foreach (var pair in groups)
-        {
-            if (!TryGetParagraphBlockCollection(pair.Key, out var blocks))
-            {
-                continue;
-            }
-
-            var indexed = new List<(int Index, Paragraph Paragraph)>();
-            for (var i = 0; i < pair.Value.Count; i++)
-            {
-                var index = blocks.IndexOf(pair.Value[i]);
-                if (index >= 0)
-                {
-                    indexed.Add((index, pair.Value[i]));
-                }
-            }
-
-            if (indexed.Count == 0)
-            {
-                continue;
-            }
-
-            indexed.Sort(static (left, right) => left.Index.CompareTo(right.Index));
-            var cursor = 0;
-            while (cursor < indexed.Count)
-            {
-                var startIndex = indexed[cursor].Index;
-                var endCursor = cursor + 1;
-                while (endCursor < indexed.Count && indexed[endCursor].Index == indexed[endCursor - 1].Index + 1)
-                {
-                    endCursor++;
-                }
-
-                var list = new InkkSlinger.List();
-                for (var i = endCursor - 1; i >= cursor; i--)
-                {
-                    blocks.RemoveAt(indexed[i].Index);
-                }
-
-                for (var i = cursor; i < endCursor; i++)
-                {
-                    var item = new ListItem();
-                    item.Blocks.Add(indexed[i].Paragraph);
-                    list.Items.Add(item);
-                }
-
-                blocks.Insert(startIndex, list);
-                changed = true;
-                cursor = endCursor;
-            }
-        }
-
-        return changed;
-    }
-
-    private static bool TryGetParagraphBlockCollection(TextElement owner, out IList<Block> blocks)
-    {
-        switch (owner)
-        {
-            case FlowDocument document:
-                blocks = document.Blocks;
-                return true;
-            case Section section:
-                blocks = section.Blocks;
-                return true;
-            case ListItem item:
-                blocks = item.Blocks;
-                return true;
-            case TableCell cell:
-                blocks = cell.Blocks;
-                return true;
-            default:
-                blocks = Array.Empty<Block>();
-                return false;
-        }
-    }
-
-    private static bool TryOutdentParagraph(Paragraph paragraph)
-    {
-        if (paragraph.Parent is not ListItem item || item.Parent is not InkkSlinger.List list)
-        {
-            return false;
-        }
-
-        if (list.Parent is ListItem parentItem && parentItem.Parent is InkkSlinger.List parentList)
-        {
-            var itemIndex = list.Items.IndexOf(item);
-            if (itemIndex < 0)
-            {
-                return false;
-            }
-
-            list.Items.RemoveAt(itemIndex);
-            var parentIndex = parentList.Items.IndexOf(parentItem);
-            parentList.Items.Insert(parentIndex + 1, item);
-            if (list.Items.Count == 0)
-            {
-                parentItem.Blocks.Remove(list);
-            }
-
-            return true;
-        }
-
-        if (list.Parent is FlowDocument document)
-        {
-            var listIndex = document.Blocks.IndexOf(list);
-            var itemIndex = list.Items.IndexOf(item);
-            if (listIndex < 0 || itemIndex < 0)
-            {
-                return false;
-            }
-
-            list.Items.RemoveAt(itemIndex);
-            item.Blocks.Remove(paragraph);
-            document.Blocks.Insert(listIndex + 1 + itemIndex, paragraph);
-            if (item.Blocks.Count > 0)
-            {
-                var extra = new ListItem();
-                while (item.Blocks.Count > 0)
-                {
-                    var block = item.Blocks[0];
-                    item.Blocks.RemoveAt(0);
-                    extra.Blocks.Add(block);
-                }
-
-                list.Items.Insert(itemIndex, extra);
-            }
-
-            if (list.Items.Count == 0)
-            {
-                document.Blocks.Remove(list);
-            }
-
-            return true;
-        }
-
-        if (list.Parent is Section section)
-        {
-            var listIndex = section.Blocks.IndexOf(list);
-            var itemIndex = list.Items.IndexOf(item);
-            if (listIndex < 0 || itemIndex < 0)
-            {
-                return false;
-            }
-
-            list.Items.RemoveAt(itemIndex);
-            item.Blocks.Remove(paragraph);
-            section.Blocks.Insert(listIndex + 1 + itemIndex, paragraph);
-            if (list.Items.Count == 0)
-            {
-                section.Blocks.Remove(list);
-            }
-
-            return true;
-        }
-
-        return false;
-    }
-
-    private static InkkSlinger.List GetOrCreateNestedList(ListItem item, bool ordered)
-    {
-        for (var i = 0; i < item.Blocks.Count; i++)
-        {
-            if (item.Blocks[i] is InkkSlinger.List existing)
-            {
-                return existing;
-            }
-        }
-
-        var created = new InkkSlinger.List
-        {
-            IsOrdered = ordered
-        };
-        item.Blocks.Add(created);
-        return created;
-    }
 
     private static FlowDocument BuildDocumentWithFragment(FlowDocument current, Table table, int selectionStart, int selectionLength)
     {
         var fragment = new FlowDocument();
         fragment.Blocks.Add(table);
         return BuildDocumentWithFragment(current, fragment, selectionStart, selectionLength);
-    }
-
-    private static Table CreateDefaultTable()
-    {
-        var table = new Table();
-        var group = new TableRowGroup();
-        for (var rowIndex = 0; rowIndex < 2; rowIndex++)
-        {
-            var row = new TableRow();
-            for (var cellIndex = 0; cellIndex < 2; cellIndex++)
-            {
-                var cell = new TableCell();
-                cell.Blocks.Add(CreateParagraph(string.Empty));
-                row.Cells.Add(cell);
-            }
-
-            group.Rows.Add(row);
-        }
-
-        table.RowGroups.Add(group);
-        return table;
-    }
-
-    private bool TryMoveCaretToAdjacentTableCell(bool forward)
-    {
-        if (SelectionLength > 0)
-        {
-            return false;
-        }
-
-        if (!TryGetActiveTableCell(Document, _caretIndex, out var active))
-        {
-            return false;
-        }
-
-        var cells = CollectTableCells(Document);
-        var currentIndex = -1;
-        for (var i = 0; i < cells.Count; i++)
-        {
-            if (ReferenceEquals(cells[i].Cell, active.Cell) && ReferenceEquals(cells[i].Row, active.Row))
-            {
-                currentIndex = i;
-                break;
-            }
-        }
-
-        if (currentIndex < 0)
-        {
-            return false;
-        }
-
-        var targetIndex = forward ? currentIndex + 1 : currentIndex - 1;
-        if (targetIndex < 0 || targetIndex >= cells.Count)
-        {
-            return false;
-        }
-
-        SetCaret(cells[targetIndex].StartOffset, extendSelection: false);
-        InvalidateVisual();
-        return true;
-    }
-
-    private bool TryHandleTableBoundaryDeletion(bool backspace)
-    {
-        if (IsReadOnly || SelectionLength > 0)
-        {
-            return false;
-        }
-
-        var cells = CollectTableCells(Document);
-        var currentIndex = -1;
-        for (var i = 0; i < cells.Count; i++)
-        {
-            if (_caretIndex >= cells[i].StartOffset && _caretIndex <= cells[i].EndOffset)
-            {
-                currentIndex = i;
-                break;
-            }
-        }
-
-        if (currentIndex < 0)
-        {
-            return false;
-        }
-
-        if (backspace && _caretIndex <= cells[currentIndex].StartOffset)
-        {
-            if (currentIndex == 0)
-            {
-                return true;
-            }
-
-            SetCaret(cells[currentIndex - 1].EndOffset, extendSelection: false);
-            InvalidateVisual();
-            return true;
-        }
-
-        if (!backspace && _caretIndex >= cells[currentIndex].EndOffset)
-        {
-            if (currentIndex >= cells.Count - 1)
-            {
-                return true;
-            }
-
-            SetCaret(cells[currentIndex + 1].StartOffset, extendSelection: false);
-            InvalidateVisual();
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryGetTableCellStartOffsetAtOrAfter(FlowDocument document, int minOffset, out int offset)
-    {
-        var cells = CollectTableCells(document);
-        if (cells.Count == 0)
-        {
-            offset = 0;
-            return false;
-        }
-
-        var best = cells[0].StartOffset;
-        for (var i = 0; i < cells.Count; i++)
-        {
-            if (cells[i].StartOffset >= minOffset)
-            {
-                best = cells[i].StartOffset;
-                break;
-            }
-        }
-
-        offset = best;
-        return true;
-    }
-
-    private static bool TryGetActiveTableCell(FlowDocument document, int caretOffset, out TableCellSelectionInfo info)
-    {
-        var cells = CollectTableCells(document);
-        for (var i = 0; i < cells.Count; i++)
-        {
-            if (caretOffset >= cells[i].StartOffset && caretOffset <= cells[i].EndOffset)
-            {
-                info = cells[i];
-                return true;
-            }
-        }
-
-        info = default;
-        return false;
-    }
-
-    private static List<TableCellSelectionInfo> CollectTableCells(FlowDocument document)
-    {
-        var paragraphs = CollectParagraphEntries(document);
-        var result = new List<TableCellSelectionInfo>();
-        for (var i = 0; i < paragraphs.Count; i++)
-        {
-            if (TryGetAncestor<TableCell>(paragraphs[i].Paragraph, out var cell) &&
-                TryGetAncestor<TableRow>(paragraphs[i].Paragraph, out var row))
-            {
-                var found = false;
-                for (var j = 0; j < result.Count; j++)
-                {
-                    if (ReferenceEquals(result[j].Cell, cell))
-                    {
-                        var current = result[j];
-                        var updated = current with
-                        {
-                            StartOffset = Math.Min(current.StartOffset, paragraphs[i].StartOffset),
-                            EndOffset = Math.Max(current.EndOffset, paragraphs[i].EndOffset)
-                        };
-                        result[j] = updated;
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (found)
-                {
-                    continue;
-                }
-
-                var cellIndex = row.Cells.IndexOf(cell);
-                result.Add(
-                    new TableCellSelectionInfo(
-                        row,
-                        cell,
-                        cellIndex,
-                        paragraphs[i].StartOffset,
-                        paragraphs[i].EndOffset));
-            }
-        }
-
-        result.Sort(static (left, right) => left.StartOffset.CompareTo(right.StartOffset));
-        return result;
     }
 
     private static bool TryGetAncestor<T>(TextElement element, out T ancestor)
@@ -5764,13 +3902,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         }
     }
 
-    private readonly record struct TableCellSelectionInfo(
-        TableRow Row,
-        TableCell Cell,
-        int CellIndex,
-        int StartOffset,
-        int EndOffset);
-
     private DocumentLayoutResult BuildOrGetLayout(float availableWidth)
     {
         var layoutLookupStart = Stopwatch.GetTimestamp();
@@ -5794,7 +3925,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             Foreground);
         if (_layoutCache.TryGet(key, out var cached))
         {
-            _perfLayoutCacheHitCount++;
+            _perfTracker.RecordLayoutCacheHit();
             RichTextBoxDiagnostics.ObserveLayout(
                 cacheHit: true,
                 elapsedMs: Stopwatch.GetElapsedTime(layoutLookupStart).TotalMilliseconds,
@@ -5802,7 +3933,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             return cached;
         }
 
-        _perfLayoutCacheMissCount++;
+        _perfTracker.RecordLayoutCacheMiss();
         RichTextBoxDiagnostics.ObserveLayoutInvalidation(
             "LayoutCacheMiss",
             text.Length,
@@ -5823,7 +3954,7 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         var built = _layoutEngine.Layout(Document, settings);
         _layoutCache.Store(key, built);
         var buildMs = Stopwatch.GetElapsedTime(buildStart).TotalMilliseconds;
-        RecordLayoutBuildSample(buildMs);
+        _perfTracker.RecordLayoutBuild(buildMs);
         RichTextBoxDiagnostics.ObserveLayout(
             cacheHit: false,
             elapsedMs: Stopwatch.GetElapsedTime(layoutLookupStart).TotalMilliseconds,
@@ -5846,25 +3977,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
         return Foreground;
     }
 
-    private void DrawTableBorders(SpriteBatch spriteBatch, LayoutRect textRect, DocumentLayoutResult layout)
-    {
-        if (layout.TableCellBounds.Count == 0)
-        {
-            return;
-        }
-
-        var stroke = 1f;
-        var color = new Color(95, 95, 95) * Opacity;
-        for (var i = 0; i < layout.TableCellBounds.Count; i++)
-        {
-            var cell = layout.TableCellBounds[i];
-            UiDrawing.DrawRectStroke(
-                spriteBatch,
-                new LayoutRect(textRect.X + cell.X - _horizontalOffset, textRect.Y + cell.Y - _verticalOffset, cell.Width, cell.Height),
-                stroke,
-                color);
-        }
-    }
 
     private void CaptureDirtyHint(DocumentLayoutResult current, LayoutRect textRect)
     {
@@ -5942,381 +4054,6 @@ public class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintPro
             Math.Max(0f, LayoutSlot.Height - (BorderThickness * 2f) - Padding.Vertical));
     }
 
-    private void MoveCaretByWord(bool moveLeft, bool extendSelection)
-    {
-        var text = GetText();
-        var target = GetWordBoundary(text, _caretIndex, moveLeft);
-        SetCaret(target, extendSelection);
-        _caretBlinkSeconds = 0f;
-        _isCaretVisible = true;
-        InvalidateVisual();
-    }
-
-    private void MoveCaretToLineBoundary(bool moveToLineStart, bool extendSelection)
-    {
-        var textRect = GetTextRect();
-        var layout = BuildOrGetLayout(textRect.Width);
-        var line = ResolveLineForOffset(layout, _caretIndex);
-        var target = moveToLineStart ? line.StartOffset : line.StartOffset + line.Length;
-        SetCaret(target, extendSelection);
-        _caretBlinkSeconds = 0f;
-        _isCaretVisible = true;
-        InvalidateVisual();
-    }
-
-    private void MoveCaretByLine(bool moveUp, bool extendSelection)
-    {
-        var textRect = GetTextRect();
-        var layout = BuildOrGetLayout(textRect.Width);
-        if (layout.Lines.Count == 0)
-        {
-            return;
-        }
-
-        var currentLine = ResolveLineForOffset(layout, _caretIndex);
-        var targetLineIndex = moveUp
-            ? Math.Max(0, currentLine.Index - 1)
-            : Math.Min(layout.Lines.Count - 1, currentLine.Index + 1);
-        if (targetLineIndex == currentLine.Index)
-        {
-            return;
-        }
-
-        var currentColumn = Math.Clamp(_caretIndex - currentLine.StartOffset, 0, currentLine.PrefixWidths.Length - 1);
-        var desiredX = currentLine.TextStartX + currentLine.PrefixWidths[currentColumn];
-        var targetLine = layout.Lines[targetLineIndex];
-        var targetColumn = ResolveClosestColumnForX(targetLine, desiredX);
-        var targetOffset = Math.Clamp(targetLine.StartOffset + targetColumn, 0, GetText().Length);
-        SetCaret(targetOffset, extendSelection);
-        _caretBlinkSeconds = 0f;
-        _isCaretVisible = true;
-        EnsureCaretVisible();
-        InvalidateVisual();
-    }
-
-    private static int ResolveClosestColumnForX(DocumentLayoutLine line, float desiredX)
-    {
-        if (line.PrefixWidths.Length == 0)
-        {
-            return 0;
-        }
-
-        var bestColumn = 0;
-        var bestDistance = float.MaxValue;
-        for (var i = 0; i < line.PrefixWidths.Length; i++)
-        {
-            var x = line.TextStartX + line.PrefixWidths[i];
-            var distance = MathF.Abs(desiredX - x);
-            if (distance < bestDistance)
-            {
-                bestDistance = distance;
-                bestColumn = i;
-            }
-        }
-
-        return bestColumn;
-    }
-
-    private static int GetWordBoundary(string text, int index, bool moveLeft)
-    {
-        var length = text.Length;
-        var clamped = Math.Clamp(index, 0, length);
-        if (moveLeft)
-        {
-            if (clamped <= 0)
-            {
-                return 0;
-            }
-
-            var i = clamped;
-            if (char.IsWhiteSpace(text[i - 1]))
-            {
-                while (i > 0 && char.IsWhiteSpace(text[i - 1]))
-                {
-                    i--;
-                }
-            }
-            else if (IsWordChar(text[i - 1]))
-            {
-                while (i > 0 && IsWordChar(text[i - 1]))
-                {
-                    i--;
-                }
-            }
-            else
-            {
-                while (i > 0 && IsPunctuationChar(text[i - 1]))
-                {
-                    i--;
-                }
-
-                while (i > 0 && IsWordChar(text[i - 1]))
-                {
-                    i--;
-                }
-            }
-
-            return i;
-        }
-
-        if (clamped >= length)
-        {
-            return length;
-        }
-
-        var j = clamped;
-        if (char.IsWhiteSpace(text[j]))
-        {
-            while (j < length && char.IsWhiteSpace(text[j]))
-            {
-                j++;
-            }
-        }
-        else if (IsWordChar(text[j]))
-        {
-            while (j < length && IsWordChar(text[j]))
-            {
-                j++;
-            }
-
-            while (j < length && IsPunctuationChar(text[j]))
-            {
-                j++;
-            }
-        }
-        else
-        {
-            while (j < length && IsPunctuationChar(text[j]))
-            {
-                j++;
-            }
-        }
-
-        return j;
-    }
-
-    private static bool IsWordChar(char c)
-    {
-        return char.IsLetterOrDigit(c) || c == '_';
-    }
-
-    private static bool IsPunctuationChar(char c)
-    {
-        return !char.IsWhiteSpace(c) && !IsWordChar(c);
-    }
-
-    private DocumentLayoutLine ResolveLineForOffset(DocumentLayoutResult layout, int offset)
-    {
-        if (layout.Lines.Count == 0)
-        {
-            return new DocumentLayoutLine
-            {
-                Index = 0,
-                StartOffset = 0,
-                Length = 0,
-                Text = string.Empty,
-                TextStartX = 0f,
-                Bounds = new LayoutRect(0f, 0f, 0f, FontStashTextRenderer.GetLineHeight(Font)),
-                Runs = Array.Empty<DocumentLayoutRun>(),
-                PrefixWidths = [0f]
-            };
-        }
-
-        var clamped = Math.Clamp(offset, 0, layout.TextLength);
-        for (var i = 0; i < layout.Lines.Count; i++)
-        {
-            var line = layout.Lines[i];
-            var end = line.StartOffset + line.Length;
-            if (clamped <= end)
-            {
-                return line;
-            }
-        }
-
-        return layout.Lines[layout.Lines.Count - 1];
-    }
-
-    private void EnsureCaretVisible()
-    {
-        var textRect = GetTextRect();
-        if (textRect.Width <= 0f || textRect.Height <= 0f)
-        {
-            return;
-        }
-
-        var layout = BuildOrGetLayout(textRect.Width);
-        if (!layout.TryGetCaretPosition(_caretIndex, out var caret))
-        {
-            return;
-        }
-
-        var lineHeight = Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font));
-        var changed = false;
-        var visibleX = caret.X - _horizontalOffset;
-        if (visibleX < 0f)
-        {
-            _horizontalOffset = caret.X;
-            changed = true;
-        }
-        else if (visibleX > Math.Max(0f, textRect.Width - 2f))
-        {
-            _horizontalOffset = Math.Max(0f, caret.X - textRect.Width + 2f);
-            changed = true;
-        }
-
-        var visibleY = caret.Y - _verticalOffset;
-        if (visibleY < 0f)
-        {
-            _verticalOffset = caret.Y;
-            changed = true;
-        }
-        else if (visibleY + lineHeight > textRect.Height)
-        {
-            _verticalOffset = Math.Max(0f, caret.Y + lineHeight - textRect.Height);
-            changed = true;
-        }
-
-        ClampScrollOffsets(layout, textRect);
-        if (changed)
-        {
-            InvalidateVisualWithReason("CaretBlink");
-        }
-    }
-
-    private void ClampScrollOffsets(DocumentLayoutResult layout, LayoutRect textRect)
-    {
-        var maxX = Math.Max(0f, layout.ContentWidth - textRect.Width);
-        var maxY = Math.Max(0f, layout.ContentHeight - textRect.Height);
-        _horizontalOffset = Math.Clamp(_horizontalOffset, 0f, maxX);
-        _verticalOffset = Math.Clamp(_verticalOffset, 0f, maxY);
-    }
-
-    private void SelectWordAt(int index)
-    {
-        var text = GetText();
-        if (text.Length == 0)
-        {
-            _selectionAnchor = 0;
-            _caretIndex = 0;
-            return;
-        }
-
-        var clamped = Math.Clamp(index, 0, Math.Max(0, text.Length - 1));
-        if (char.IsWhiteSpace(text[clamped]))
-        {
-            if (text[clamped] == '\n')
-            {
-                _selectionAnchor = clamped;
-                _caretIndex = clamped;
-                return;
-            }
-            
-            _selectionAnchor = clamped;
-            _caretIndex = Math.Min(text.Length, clamped + 1);
-            return;
-        }
-
-        var start = clamped;
-        while (start > 0 && !char.IsWhiteSpace(text[start - 1]))
-        {
-            start--;
-        }
-
-        var end = clamped;
-        while (end < text.Length && !char.IsWhiteSpace(text[end]))
-        {
-            end++;
-        }
-
-        _selectionAnchor = start;
-        _caretIndex = end;
-        EnsureCaretVisible();
-    }
-
-    private void SelectParagraphAt(int index)
-    {
-        var entries = CollectParagraphEntries(Document);
-        if (entries.Count == 0)
-        {
-            _selectionAnchor = 0;
-            _caretIndex = 0;
-            return;
-        }
-
-        var maxOffset = Math.Max(0, entries[entries.Count - 1].EndOffset);
-        var clamped = Math.Clamp(index, 0, maxOffset);
-        for (var i = 0; i < entries.Count; i++)
-        {
-            if (clamped < entries[i].StartOffset || clamped > entries[i].EndOffset)
-            {
-                continue;
-            }
-
-            _selectionAnchor = entries[i].StartOffset;
-            _caretIndex = entries[i].EndOffset;
-            EnsureCaretVisible();
-            return;
-        }
-
-        _selectionAnchor = entries[entries.Count - 1].StartOffset;
-        _caretIndex = entries[entries.Count - 1].EndOffset;
-        EnsureCaretVisible();
-    }
-
-    private void UpdatePointerClickCount(Vector2 pointerPosition)
-    {
-        var now = DateTime.UtcNow;
-        var index = GetTextIndexFromPoint(pointerPosition);
-        var withinWindow = (now - _lastPointerDownUtc).TotalMilliseconds <= MultiClickWindowMs;
-        if (withinWindow && Math.Abs(index - _lastPointerDownIndex) <= 1)
-        {
-            _pointerClickCount = Math.Min(3, _pointerClickCount + 1);
-        }
-        else
-        {
-            _pointerClickCount = 1;
-        }
-
-        _lastPointerDownUtc = now;
-        _lastPointerDownIndex = index;
-    }
-
-    private void AutoScrollForPointer(ref Vector2 pointer)
-    {
-        var textRect = GetTextRect();
-        var layout = BuildOrGetLayout(textRect.Width);
-        var changed = false;
-        if (pointer.Y < textRect.Y)
-        {
-            _verticalOffset = Math.Max(0f, _verticalOffset - PointerAutoScrollStep);
-            changed = true;
-        }
-        else if (pointer.Y > textRect.Y + textRect.Height)
-        {
-            _verticalOffset += PointerAutoScrollStep;
-            changed = true;
-        }
-
-        if (pointer.X < textRect.X)
-        {
-            _horizontalOffset = Math.Max(0f, _horizontalOffset - PointerAutoScrollStep);
-            changed = true;
-        }
-        else if (pointer.X > textRect.X + textRect.Width)
-        {
-            _horizontalOffset += PointerAutoScrollStep;
-            changed = true;
-        }
-
-        ClampScrollOffsets(layout, textRect);
-        pointer = new Vector2(
-            Math.Clamp(pointer.X, textRect.X, textRect.X + textRect.Width),
-            Math.Clamp(pointer.Y, textRect.Y, textRect.Y + textRect.Height));
-        if (changed)
-        {
-            InvalidateVisual();
-        }
-    }
 
     protected override bool TryGetClipRect(out LayoutRect clipRect)
     {
