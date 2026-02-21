@@ -63,7 +63,6 @@ UI/
       Adorner.cs
       AdornerDecorator.cs
       AdornerLayer.cs
-      ResizeHandlesAdorner.cs
     Base/
       ContentControl.cs
       Control.cs
@@ -167,7 +166,6 @@ UI/
       SelectionMode.cs
       SelectionModel.cs
       SelectionModelChangedEventArgs.cs
-      SelectionRectangleAdorner.cs
   Core/
     DependencyProperties/
       DependencyObject.cs

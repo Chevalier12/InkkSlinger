@@ -89,7 +89,7 @@ Storyboards, timelines, keyframes, easing, trigger-driven animations.
 `PriorityBinding`, `BindingGroup`, `UpdateSourceExceptionFilter`, plus dedicated demo surface (`--binding-parity-gap5-demo`).
 - [x] Rich text and document layer:
 `RichTextBox` and flow-document style content stack.
-- [ ] Advanced layout/adornment layer depth:
+- [x] Advanced layout/adornment layer depth:
 Adorner composition behaviors and layout nuances beyond the current primitives.
 - [x] Windowing/popup edge parity:
 Popup/menu/window interaction parity and additional edge behavior validation.

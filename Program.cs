@@ -42,9 +42,11 @@ var isWindowPopupParityLabDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--window-popup-parity-lab", global::System.StringComparison.OrdinalIgnoreCase));
 var isContextMenuParityLabDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--contextmenu-parity-lab", global::System.StringComparison.OrdinalIgnoreCase));
-if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo && !isPasswordBoxDemo && !isMenuParityDemo && !isBindingParityGap5Demo && !isRichTextBoxDemo && !isRichTextDiagnosticsLabDemo && !isWindowPopupParityLabDemo && !isContextMenuParityLabDemo)
+var isAdornersLabDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--adorners-lab", global::System.StringComparison.OrdinalIgnoreCase));
+if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo && !isPasswordBoxDemo && !isMenuParityDemo && !isBindingParityGap5Demo && !isRichTextBoxDemo && !isRichTextDiagnosticsLabDemo && !isWindowPopupParityLabDemo && !isContextMenuParityLabDemo && !isAdornersLabDemo)
 {
-    isContextMenuParityLabDemo = true;
+    isPaintShellDemo = true;
 }
 using var game = new InkkSlinger.Game1(
     isWindowDemo,
@@ -66,5 +68,6 @@ using var game = new InkkSlinger.Game1(
     isRichTextBoxDemo,
     isRichTextDiagnosticsLabDemo,
     isWindowPopupParityLabDemo,
-    isContextMenuParityLabDemo);
+    isContextMenuParityLabDemo,
+    isAdornersLabDemo);
 game.Run();

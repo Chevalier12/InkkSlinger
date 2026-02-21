@@ -25,6 +25,11 @@ public abstract class Adorner : FrameworkElement
 
     protected virtual LayoutRect GetAdornedBounds()
     {
+        if (AdornedElement.TryGetRenderBoundsInRootSpace(out var renderBounds))
+        {
+            return renderBounds;
+        }
+
         return AdornedElement.LayoutSlot;
     }
 

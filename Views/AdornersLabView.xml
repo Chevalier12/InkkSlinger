@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0B111B"
+             BorderBrush="#29445F"
+             BorderThickness="1"
+             Padding="10">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Background="#122237"
+            BorderBrush="#3A607F"
+            BorderThickness="1"
+            Padding="10"
+            Margin="0,0,0,8">
+      <Label Text="Adorners Lab: Attach, Track, Resize, Style"
+             Foreground="#DDF0FF" />
+    </Border>
+
+    <Border Grid.Row="1"
+            Background="#0E1B2C"
+            BorderBrush="#2E4F6D"
+            BorderThickness="1"
+            Padding="8"
+            Margin="0,0,0,8">
+      <StackPanel Orientation="Horizontal">
+        <Button Text="Select Alpha" Width="110" Height="30" Margin="0,0,6,0" Click="OnSelectAlphaClick" />
+        <Button Text="Select Beta" Width="110" Height="30" Margin="0,0,6,0" Click="OnSelectBetaClick" />
+        <Button Text="Select Gamma" Width="110" Height="30" Margin="0,0,16,0" Click="OnSelectGammaClick" />
+        <Button Text="Handles: Toggle" Width="126" Height="30" Margin="0,0,6,0" Click="OnToggleHandlesModeClick" />
+        <Button Text="Tracking: Toggle" Width="126" Height="30" Margin="0,0,6,0" Click="OnToggleTrackingModeClick" />
+        <Button Text="Cycle Style" Width="110" Height="30" Margin="0,0,6,0" Click="OnCycleStyleClick" />
+        <Button Text="Chaos Nudge" Width="110" Height="30" Margin="0,0,6,0" Click="OnChaosNudgeClick" />
+        <Button Text="Reattach" Width="96" Height="30" Margin="0,0,6,0" Click="OnReattachClick" />
+        <Button Text="Clear" Width="80" Height="30" Click="OnClearClick" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="320" />
+      </Grid.ColumnDefinitions>
+
+      <GroupBox Grid.Column="0" Header="Canvas Arena" BorderBrush="#365977" Background="#0E1A2B">
+        <AdornerDecorator x:Name="LabAdornerRoot">
+          <ScrollViewer x:Name="LabScrollViewer"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto"
+                        Background="#0A1523"
+                        BorderBrush="#294764"
+                        BorderThickness="1">
+            <Canvas x:Name="LabCanvas" Width="2200" Height="1400" Background="#0F2842">
+              <Border x:Name="ShapeAlpha"
+                      Width="240"
+                      Height="150"
+                      Background="#2C7EB0"
+                      BorderBrush="#A8DDFF"
+                      BorderThickness="2"
+                      Canvas.Left="180"
+                      Canvas.Top="140" />
+              <Border x:Name="ShapeBeta"
+                      Width="210"
+                      Height="130"
+                      Background="#7F3D6D"
+                      BorderBrush="#E8B3D9"
+                      BorderThickness="2"
+                      Canvas.Left="640"
+                      Canvas.Top="300" />
+              <Border x:Name="ShapeGamma"
+                      Width="260"
+                      Height="160"
+                      Background="#3F8756"
+                      BorderBrush="#BFEBCB"
+                      BorderThickness="2"
+                      Canvas.Left="1120"
+                      Canvas.Top="520" />
+              <Border x:Name="ShapeDelta"
+                      Width="180"
+                      Height="120"
+                      Background="#8A6031"
+                      BorderBrush="#FFD8AE"
+                      BorderThickness="2"
+                      Canvas.Left="1580"
+                      Canvas.Top="220" />
+            </Canvas>
+          </ScrollViewer>
+        </AdornerDecorator>
+      </GroupBox>
+
+      <GroupBox Grid.Column="1" Header="Inspector" BorderBrush="#365977" Background="#0E1A2B" Margin="8,0,0,0">
+        <StackPanel Margin="8">
+          <Label Text="Scroll Jumps"
+                 Foreground="#CFE8FD"
+                 Margin="0,0,0,6" />
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Text="Left -220" Width="100" Height="30" Margin="0,0,6,0" Click="OnScrollLeftClick" />
+            <Button Text="Right +220" Width="100" Height="30" Click="OnScrollRightClick" />
+          </StackPanel>
+
+          <Label Text="Nudge Target"
+                 Foreground="#CFE8FD"
+                 Margin="0,0,0,6" />
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Text="Up" Width="46" Height="30" Margin="0,0,6,0" Click="OnNudgeUpClick" />
+            <Button Text="Down" Width="56" Height="30" Margin="0,0,6,0" Click="OnNudgeDownClick" />
+            <Button Text="Left" Width="50" Height="30" Margin="0,0,6,0" Click="OnNudgeLeftClick" />
+            <Button Text="Right" Width="56" Height="30" Click="OnNudgeRightClick" />
+          </StackPanel>
+
+          <Label Text="Adorner Notes"
+                 Foreground="#CFE8FD"
+                 Margin="0,0,0,6" />
+          <Border Background="#101E31"
+                  BorderBrush="#33597A"
+                  BorderThickness="1"
+                  Padding="8">
+            <StackPanel>
+              <Label Text="Selection + Handles + Badge are attached in code-behind."
+                     Foreground="#B9D6F1"
+                     Margin="0,0,0,4" />
+              <Label Text="Try scrolling while resizing to stress tracking behavior."
+                     Foreground="#B9D6F1"
+                     Margin="0,0,0,4" />
+              <Label Text="Toggle LayoutSlot/RenderBounds to compare tracking models."
+                     Foreground="#B9D6F1" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </GroupBox>
+    </Grid>
+
+    <Border Grid.Row="3"
+            Background="#122237"
+            BorderBrush="#3A607F"
+            BorderThickness="1"
+            Padding="8"
+            Margin="0,8,0,0">
+      <Label x:Name="LabStatusLabel"
+             Text="Ready."
+             Foreground="#DDF0FF" />
+    </Border>
+  </Grid>
+</UserControl>

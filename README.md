@@ -6,10 +6,10 @@
 
 | Check | Result | Evidence |
 |---|---|---|
-| Solution build | Pass (0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
-| Test suite | Pass (`353/353`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
+| Solution build | Pass (0 errors, 2 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
+| Test suite | Pass (`374/374`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
 | WPF control coverage | Broad but incomplete (`67/77`) | `TODO.md` -> `## WPF Control Coverage` |
-| Open tracked work | `11` unchecked TODO items | `TODO.md` (advanced layout depth, missing controls) |
+| Open tracked work | `10` unchecked TODO items | `TODO.md` (missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
 
 ### Honest Verdict
@@ -18,8 +18,8 @@
 
 **Conditionally usable** for production only when your app stays inside the currently implemented/tested surface area and you accept the known gaps above.
 
-If the bar is “ship a targeted app on this stack,” that can be reasonable.  
-If the bar is “framework-level broad production readiness,” the current failing regression + open parity/coverage gaps means **not yet**.
+If the bar is "ship a targeted app on this stack," that can be reasonable.  
+If the bar is "framework-level broad production readiness," the current open parity/coverage gaps mean **not yet**.
 
 [![.NET](https://img.shields.io/badge/.NET-9%20%2F%2010-512BD4?logo=dotnet&logoColor=white)](#build-and-test)
 [![MonoGame](https://img.shields.io/badge/MonoGame-DesktopGL-FF7F50)](#vision)
@@ -101,7 +101,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Rendering invalidation | Dirty region tracking + conditional draw scheduling | `UI/Rendering/DirtyRegions/DirtyRegionTracker.cs`, `UI/Managers/Root/Services/UiRootFrameState.cs`, `InkkSlinger.Tests/DirtyRegionTrackingTests.cs`, `InkkSlinger.Tests/ConditionalDrawTests.cs` | Implemented (tested) |
 | Render caching | Element cache policy/store + visual-layer cache behavior | `UI/Rendering/Cache/RenderCachePolicy.cs`, `UI/Rendering/Cache/RenderCacheStore.cs`, `InkkSlinger.Tests/RenderCachePolicyTests.cs`, `InkkSlinger.Tests/VisualLayerCachingTests.cs` | Implemented (tested) |
 | Render queue and invalidation correctness | Queue ordering and invalidation semantics in root draw/update pipeline | `UI/Managers/Root/UiRoot.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/InvalidationFlagsTests.cs` | Implemented (tested) |
-| Adorner infrastructure | Adorner base/layer/decorator + clipping/selection adorners | `UI/Controls/Adorners/*`, `UI/Controls/Selection/SelectionRectangleAdorner.cs`, `InkkSlinger.Tests/AdornerClippingTests.cs` | Implemented (tested) |
+| Adorner infrastructure | Adorner base/layer/decorator + clipping behavior coverage | `UI/Controls/Adorners/*`, `InkkSlinger.Tests/AdornerClippingTests.cs` | Implemented (tested) |
 | Control breadth snapshot | 67 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `67/77`) | Broad |
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
@@ -140,7 +140,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `Page` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
-| Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
+| Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Implemented |
 | Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
 | Data/view layer | WPF `CollectionView` stack (current item/filter/sort/group) | No matching collection-view types in `UI/Binding`/`UI/Controls` | Not implemented |
 | XAML binding parser | Unrecognized binding attributes are rejected | `UI/Xaml/Core/XamlLoader.cs` (`BuildBindingElement`) | Partial |
@@ -350,3 +350,4 @@ This repository is source-available under a permission-based model:
 ## Commercial License FAQ
 
 - See `COMMERCIAL-LICENSE-FAQ.md` for scenario-based examples
+
