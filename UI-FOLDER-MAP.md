@@ -61,7 +61,11 @@ UI/
   Controls/
     Adorners/
       Adorner.cs
+      AdornerTrackingMode.cs
+      AnchoredAdorner.cs
       AdornerDecorator.cs
+      HandleKinds.cs
+      HandlesAdornerBase.cs
       AdornerLayer.cs
     Base/
       ContentControl.cs
@@ -337,6 +341,8 @@ Related view surfaces added in this parity cycle:
 
 ```text
 Views/
+  AdornersLabView.xml
+  AdornersLabView.xml.cs
   ContextMenuParityLabView.xml
   ContextMenuParityLabView.xml.cs
   WindowPopupParityLabView.xml

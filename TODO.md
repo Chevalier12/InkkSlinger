@@ -37,6 +37,7 @@
 - [x] Rich paste perf/interoperability hardening: external clipboard plain-text interop (Windows native clipboard read + fallback), per-paste clipboard snapshotting (single sync/read per paste), batched structured text paste insertion, and dedicated `INKKSLINGER_RICHTEXT_PASTE_CPU_LOGS` diagnostics with stage breakdown + clipboard sync counters.
 - [x] ContextMenu parity hardening: right-click open and keyboard open (`Shift+F10`/Apps), no-layout-impact overlay behavior, hover-to-highlight/expand semantics (including submenu depth), deterministic first-hover submenu open after right-click, and dedicated hover diagnostics (`INKKSLINGER_CONTEXTMENU_HOVER_LOGS`).
 - [x] ContextMenu performance diagnostics hardening: dedicated CPU diagnostics (`INKKSLINGER_CONTEXTMENU_CPU_LOGS`) with hover/open/invoke timing splits, resolver-path attribution, deep-branch traversal counters, and first-open vs warm-open invalidation breakdowns.
+- [x] Adorner authoring ergonomics pass: introduced reusable `AnchoredAdorner`/`HandlesAdornerBase` APIs and added dedicated `AdornersLabView` demo surface (`--adorners-lab`).
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
