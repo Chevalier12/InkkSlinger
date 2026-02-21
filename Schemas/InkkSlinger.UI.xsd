@@ -26,6 +26,7 @@
       <xs:choice>
         <xs:element ref="DataTemplate" />
         <xs:element ref="UIElement.InputBindings" />
+        <xs:element ref="Button.ContextMenu" />
         <xs:element ref="UserControl.Resources" />
         <xs:element ref="Panel.Resources" />
         <xs:element ref="Grid.Resources" />
@@ -1258,6 +1259,13 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="buttonContextMenuType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="ContextMenu" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
   <xs:complexType name="richTextBoxType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
@@ -1745,14 +1753,21 @@
 
   <xs:complexType name="contextMenuType">
     <xs:complexContent>
-      <xs:extension base="listBoxType">
+      <xs:extension base="uiElementBaseType">
         <xs:attribute name="IsOpen" type="xs:boolean" />
         <xs:attribute name="StaysOpen" type="xs:boolean" />
+        <xs:attribute name="Placement" type="xs:string" />
         <xs:attribute name="PlacementMode" type="xs:string" />
         <xs:attribute name="HorizontalOffset" type="xs:float" />
         <xs:attribute name="VerticalOffset" type="xs:float" />
         <xs:attribute name="Left" type="xs:float" />
         <xs:attribute name="Top" type="xs:float" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+        <xs:attribute name="Padding" type="thicknessType" />
+        <xs:attribute name="Opened" type="xs:string" />
+        <xs:attribute name="Closed" type="xs:string" />
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
@@ -1939,6 +1954,7 @@
   <xs:element name="Label" type="labelType" />
   <xs:element name="TextBlock" type="textBlockType" />
   <xs:element name="Button" type="buttonType" />
+  <xs:element name="Button.ContextMenu" type="buttonContextMenuType" />
   <xs:element name="ToggleButton" type="toggleButtonType" />
   <xs:element name="CheckBox" type="checkBoxType" />
   <xs:element name="RadioButton" type="radioButtonType" />

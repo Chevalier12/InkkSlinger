@@ -10,9 +10,47 @@
              Padding="14">
   <UserControl.Resources>
     <ContextMenu x:Key="ParityContextMenu">
-      <Label Text="Context item A" />
-      <Label Text="Context item B" />
-      <Label Text="Context item C" />
+      <MenuItem Header="File" />
+      <MenuItem Header="Save" />
+      <MenuItem Header="SaveAs" />
+      <MenuItem Header="Recent Files">
+        <MenuItem Header="ReadMe.txt" />
+        <MenuItem Header="Schedule.xls" />
+        <MenuItem Header="Projects">
+          <MenuItem Header="InkkSlinger">
+            <MenuItem Header="Roadmap.md" />
+            <MenuItem Header="Bugs.csv" />
+            <MenuItem Header="Archive">
+              <MenuItem Header="2026">
+                <MenuItem Header="Q1">
+                  <MenuItem Header="Sprint 01">
+                    <MenuItem Header="Notes">
+                      <MenuItem Header="Day 01">
+                        <MenuItem Header="Focus">
+                          <MenuItem Header="Input Pipeline">
+                            <MenuItem Header="Pointer Routing">
+                              <MenuItem Header="Overlay Hit Testing">
+                                <MenuItem Header="ContextMenu Submenu Hover">
+                                  <MenuItem Header="Leaf Depth Test A.txt" />
+                                  <MenuItem Header="Leaf Depth Test B.txt" />
+                                </MenuItem>
+                              </MenuItem>
+                            </MenuItem>
+                          </MenuItem>
+                        </MenuItem>
+                      </MenuItem>
+                    </MenuItem>
+                  </MenuItem>
+                </MenuItem>
+              </MenuItem>
+            </MenuItem>
+          </MenuItem>
+          <MenuItem Header="Design">
+            <MenuItem Header="Palette.json" />
+            <MenuItem Header="Typography.txt" />
+          </MenuItem>
+        </MenuItem>
+      </MenuItem>
     </ContextMenu>
   </UserControl.Resources>
   <Grid>
@@ -73,7 +111,7 @@
               Margin="4,0,0,0"
               Height="32"
               Text="Open Context Menu"
-              ContextMenu.ContextMenu="{StaticResource ParityContextMenu}"
+              ContextMenu="{StaticResource ParityContextMenu}"
               Click="OnOpenContextMenuClick" />
     </Grid>
 

@@ -211,6 +211,8 @@ public class MenuItem : ItemsControl
 
     internal Menu? OwnerMenu { get; private set; }
 
+    internal ContextMenu? OwnerContextMenu { get; private set; }
+
     internal bool HasChildItems => Items.Count > 0;
 
     protected override bool IncludeGeneratedChildrenInVisualTree => IsSubmenuOpen;
@@ -262,8 +264,13 @@ public class MenuItem : ItemsControl
         _submenuWidth = 0f;
         _submenuHeight = 0f;
 
-        foreach (var child in GetChildMenuItems())
+        for (var i = 0; i < ItemContainers.Count; i++)
         {
+            if (ItemContainers[i] is not MenuItem child)
+            {
+                continue;
+            }
+
             child.Measure(availableSize);
             _submenuWidth = MathF.Max(_submenuWidth, child.DesiredSize.X);
             _submenuHeight += child.DesiredSize.Y;
@@ -289,8 +296,13 @@ public class MenuItem : ItemsControl
             : LayoutSlot.Y;
 
         var currentY = submenuY;
-        foreach (var child in GetChildMenuItems())
+        for (var i = 0; i < ItemContainers.Count; i++)
         {
+            if (ItemContainers[i] is not MenuItem child)
+            {
+                continue;
+            }
+
             var childHeight = child.DesiredSize.Y;
             child.Arrange(new LayoutRect(submenuX, currentY, _submenuWidth, childHeight));
             currentY += childHeight;
@@ -353,10 +365,28 @@ public class MenuItem : ItemsControl
     internal void SetOwnerMenu(Menu? ownerMenu)
     {
         OwnerMenu = ownerMenu;
+        OwnerContextMenu = null;
 
-        foreach (var child in GetChildMenuItems())
+        for (var i = 0; i < ItemContainers.Count; i++)
         {
-            child.SetOwnerMenu(ownerMenu);
+            if (ItemContainers[i] is MenuItem child)
+            {
+                child.SetOwnerMenu(ownerMenu);
+            }
+        }
+    }
+
+    internal void SetOwnerContextMenu(ContextMenu? ownerContextMenu)
+    {
+        OwnerContextMenu = ownerContextMenu;
+        OwnerMenu = null;
+
+        for (var i = 0; i < ItemContainers.Count; i++)
+        {
+            if (ItemContainers[i] is MenuItem child)
+            {
+                child.SetOwnerContextMenu(ownerContextMenu);
+            }
         }
     }
 
@@ -377,23 +407,35 @@ public class MenuItem : ItemsControl
 
         if (focusFirstItem)
         {
-            var childItems = GetChildMenuItems();
-            if (childItems.Count > 0)
+            var firstChildFound = false;
+            for (var i = 0; i < ItemContainers.Count; i++)
             {
-                for (var i = 1; i < childItems.Count; i++)
+                if (ItemContainers[i] is not MenuItem child)
                 {
-                    childItems[i].IsHighlighted = false;
+                    continue;
                 }
 
-                childItems[0].IsHighlighted = true;
+                if (!firstChildFound)
+                {
+                    child.IsHighlighted = true;
+                    firstChildFound = true;
+                    continue;
+                }
+
+                child.IsHighlighted = false;
             }
         }
     }
 
     internal void CloseSubmenuRecursive(bool clearHighlight)
     {
-        foreach (var child in GetChildMenuItems())
+        for (var i = 0; i < ItemContainers.Count; i++)
         {
+            if (ItemContainers[i] is not MenuItem child)
+            {
+                continue;
+            }
+
             child.CloseSubmenuRecursive(clearHighlight);
             if (clearHighlight)
             {
@@ -421,16 +463,20 @@ public class MenuItem : ItemsControl
 
     private bool IsTopLevelItem()
     {
-        return VisualParent is Menu || LogicalParent is Menu;
+        return (VisualParent is Menu || LogicalParent is Menu) &&
+               OwnerContextMenu == null;
     }
 
     private void OnIsSubmenuOpenChanged(bool isOpen)
     {
         if (!isOpen)
         {
-            foreach (var child in GetChildMenuItems())
+            for (var i = 0; i < ItemContainers.Count; i++)
             {
-                child.CloseSubmenuRecursive(clearHighlight: true);
+                if (ItemContainers[i] is MenuItem child)
+                {
+                    child.CloseSubmenuRecursive(clearHighlight: true);
+                }
             }
         }
     }
@@ -504,9 +550,19 @@ public class MenuItem : ItemsControl
 
     internal void OpenChildFromHover(MenuItem hoveredChild)
     {
-        var children = GetChildMenuItems();
-        foreach (var child in children)
+        if (ReferenceEquals(GetHighlightedChild(), hoveredChild) &&
+            (!hoveredChild.HasChildItems || hoveredChild.IsSubmenuOpen))
         {
+            return;
+        }
+
+        for (var i = 0; i < ItemContainers.Count; i++)
+        {
+            if (ItemContainers[i] is not MenuItem child)
+            {
+                continue;
+            }
+
             if (ReferenceEquals(child, hoveredChild))
             {
                 child.IsHighlighted = true;
@@ -518,7 +574,10 @@ public class MenuItem : ItemsControl
                 continue;
             }
 
-            child.CloseSubmenuRecursive(clearHighlight: true);
+            if (child.IsSubmenuOpen || child.IsHighlighted)
+            {
+                child.CloseSubmenuRecursive(clearHighlight: true);
+            }
         }
     }
 
@@ -587,21 +646,9 @@ public class MenuItem : ItemsControl
 
     internal MenuItem? GetFirstChildMenuItem()
     {
-        var children = GetChildMenuItems();
-        return children.Count > 0 ? children[0] : null;
-    }
-
-    internal MenuItem? GetLastChildMenuItem()
-    {
-        var children = GetChildMenuItems();
-        return children.Count > 0 ? children[^1] : null;
-    }
-
-    internal MenuItem? GetHighlightedChild()
-    {
-        foreach (var child in GetChildMenuItems())
+        for (var i = 0; i < ItemContainers.Count; i++)
         {
-            if (child.IsHighlighted)
+            if (ItemContainers[i] is MenuItem child)
             {
                 return child;
             }
@@ -610,8 +657,98 @@ public class MenuItem : ItemsControl
         return null;
     }
 
+    internal MenuItem? GetLastChildMenuItem()
+    {
+        for (var i = ItemContainers.Count - 1; i >= 0; i--)
+        {
+            if (ItemContainers[i] is MenuItem child)
+            {
+                return child;
+            }
+        }
+
+        return null;
+    }
+
+    internal MenuItem? GetHighlightedChild()
+    {
+        for (var i = 0; i < ItemContainers.Count; i++)
+        {
+            if (ItemContainers[i] is MenuItem child &&
+                child.IsHighlighted)
+            {
+                return child;
+            }
+        }
+
+        return null;
+    }
+
+    internal IReadOnlyList<UIElement> GetChildItemContainersForTraversal()
+    {
+        return ItemContainers;
+    }
+
+    internal bool HitTestRowFast(Vector2 point)
+    {
+        var slot = LayoutSlot;
+        if (slot.Width <= 0f || slot.Height <= 0f)
+        {
+            return false;
+        }
+
+        return point.X >= slot.X &&
+               point.X <= slot.X + slot.Width &&
+               point.Y >= slot.Y &&
+               point.Y <= slot.Y + slot.Height;
+    }
+
+    internal bool HitTestOpenSubmenuBoundsFast(Vector2 point)
+    {
+        if (!IsSubmenuOpen || !HasChildItems)
+        {
+            return false;
+        }
+
+        // If bounds are not initialized yet in this frame, do not block recursive probing.
+        if (_submenuBounds.Width <= 0f || _submenuBounds.Height <= 0f)
+        {
+            return true;
+        }
+
+        return point.X >= _submenuBounds.X &&
+               point.X <= _submenuBounds.X + _submenuBounds.Width &&
+               point.Y >= _submenuBounds.Y &&
+               point.Y <= _submenuBounds.Y + _submenuBounds.Height;
+    }
+
+    internal bool HitTestOpenSubmenuBoundsFast(Vector2 point, out bool usedUninitializedBoundsFallback)
+    {
+        usedUninitializedBoundsFallback = false;
+        if (!IsSubmenuOpen || !HasChildItems)
+        {
+            return false;
+        }
+
+        if (_submenuBounds.Width <= 0f || _submenuBounds.Height <= 0f)
+        {
+            usedUninitializedBoundsFallback = true;
+            return true;
+        }
+
+        return point.X >= _submenuBounds.X &&
+               point.X <= _submenuBounds.X + _submenuBounds.Width &&
+               point.Y >= _submenuBounds.Y &&
+               point.Y <= _submenuBounds.Y + _submenuBounds.Height;
+    }
+
     internal bool HandlePointerDownFromInput()
     {
+        if (OwnerContextMenu != null)
+        {
+            return OwnerContextMenu.HandlePointerDownFromInput(this);
+        }
+
         if (OwnerMenu == null)
         {
             return false;
@@ -659,6 +796,11 @@ public class MenuItem : ItemsControl
 
     internal bool HandlePointerUpFromInput()
     {
+        if (OwnerContextMenu != null)
+        {
+            return OwnerContextMenu.HandlePointerUpFromInput(this);
+        }
+
         if (OwnerMenu == null || !OwnerMenu.IsMenuMode)
         {
             return false;
@@ -681,6 +823,12 @@ public class MenuItem : ItemsControl
 
     internal void HandlePointerMoveFromInput()
     {
+        if (OwnerContextMenu != null)
+        {
+            OwnerContextMenu.HandlePointerMoveFromInput(this);
+            return;
+        }
+
         if (OwnerMenu == null || !OwnerMenu.IsMenuMode)
         {
             return;

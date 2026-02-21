@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             Width="1024"
+             Height="720"
+             Background="#142331"
+             Padding="14">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Label Grid.Row="0"
+           Foreground="#E8F4FF"
+           Text="ContextMenu Parity Lab" />
+
+    <Border Grid.Row="1"
+            Margin="0,8,0,8"
+            Background="#1E3042"
+            BorderBrush="#5B7894"
+            BorderThickness="1"
+            Padding="8">
+      <Label Text="Right-click the button to open the attached ContextMenu. Use Up/Down/Left/Right/Enter/Escape and Shift+F10." TextWrapping="Wrap" Foreground="#CFE5F7" />
+    </Border>
+
+    <Grid Grid.Row="2" Margin="0,0,0,8">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Button Name="cmButton" Height="30" Width="220" Margin="0,0,8,0" Text="Button with Context Menu">
+        <Button.ContextMenu>
+          <ContextMenu Name="cm" Opened="Menu_OnOpened" Closed="Menu_OnClosed" StaysOpen="true">
+            <MenuItem Header="File" />
+            <MenuItem Header="Save" />
+            <MenuItem Header="SaveAs" />
+            <MenuItem Header="Recent Files">
+              <MenuItem Header="ReadMe.txt" />
+              <MenuItem Header="Schedule.xls" />
+              <MenuItem Header="Projects">
+                <MenuItem Header="InkkSlinger">
+                  <MenuItem Header="Roadmap.md" />
+                  <MenuItem Header="Bugs.csv" />
+                  <MenuItem Header="Archive">
+                    <MenuItem Header="2026">
+                      <MenuItem Header="Q1">
+                        <MenuItem Header="Sprint 01">
+                          <MenuItem Header="Notes">
+                            <MenuItem Header="Day 01">
+                              <MenuItem Header="Focus">
+                                <MenuItem Header="Input Pipeline">
+                                  <MenuItem Header="Pointer Routing">
+                                    <MenuItem Header="Overlay Hit Testing">
+                                      <MenuItem Header="ContextMenu Submenu Hover">
+                                        <MenuItem Header="Leaf Depth Test A.txt" />
+                                        <MenuItem Header="Leaf Depth Test B.txt" />
+                                      </MenuItem>
+                                    </MenuItem>
+                                  </MenuItem>
+                                </MenuItem>
+                              </MenuItem>
+                            </MenuItem>
+                          </MenuItem>
+                        </MenuItem>
+                      </MenuItem>
+                    </MenuItem>
+                  </MenuItem>
+                </MenuItem>
+                <MenuItem Header="Design">
+                  <MenuItem Header="Palette.json" />
+                  <MenuItem Header="Typography.txt" />
+                </MenuItem>
+              </MenuItem>
+            </MenuItem>
+          </ContextMenu>
+        </Button.ContextMenu>
+      </Button>
+
+      <Button x:Name="ToggleStaysOpenButton"
+              Grid.Column="1"
+              Height="30"
+              Width="200"
+              Text="StaysOpen: On"
+              Click="OnToggleStaysOpenClick" />
+
+      <Label x:Name="StatusLabel"
+             Grid.Column="2"
+             Margin="10,6,0,0"
+             Foreground="#CFE5F7"
+             Text="Ready." />
+    </Grid>
+
+    <Border Grid.Row="3"
+            Background="#1E3042"
+            BorderBrush="#5B7894"
+            BorderThickness="1"
+            Padding="8">
+      <StackPanel>
+        <Label Foreground="#E8F4FF" Text="Event Log" Margin="0,0,0,6" />
+        <ListBox x:Name="LogList"
+                 Height="420"
+                 Background="#0E1C2A"
+                 BorderBrush="#476580"
+                 BorderThickness="1" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

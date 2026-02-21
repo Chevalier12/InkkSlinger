@@ -2,14 +2,14 @@
 
 ## Is It Usable Yet? (tm sign here)
 
-### Evidence Pass (2026-02-20)
+### Evidence Pass (2026-02-21)
 
 | Check | Result | Evidence |
 |---|---|---|
-| Solution build | Pass (0 errors, 2 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
-| Test suite | Pass (`339/339`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
+| Solution build | Pass (0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
+| Test suite | Pass (`353/353`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
 | WPF control coverage | Broad but incomplete (`67/77`) | `TODO.md` -> `## WPF Control Coverage` |
-| Open tracked work | `12` unchecked TODO items | `TODO.md` (advanced layout depth, context-menu parity depth, missing controls) |
+| Open tracked work | `11` unchecked TODO items | `TODO.md` (advanced layout depth, missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
 
 ### Honest Verdict
@@ -103,7 +103,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Render queue and invalidation correctness | Queue ordering and invalidation semantics in root draw/update pipeline | `UI/Managers/Root/UiRoot.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/InvalidationFlagsTests.cs` | Implemented (tested) |
 | Adorner infrastructure | Adorner base/layer/decorator + clipping/selection adorners | `UI/Controls/Adorners/*`, `UI/Controls/Selection/SelectionRectangleAdorner.cs`, `InkkSlinger.Tests/AdornerClippingTests.cs` | Implemented (tested) |
 | Control breadth snapshot | 67 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `67/77`) | Broad |
-| Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs` | Implemented (ongoing depth) |
+| Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
 | Regression safety net | 42 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (42 files) | Implemented |
@@ -241,12 +241,13 @@ Primary validation machine for current development/testing:
 | Commanding demo | `dotnet run --project InkkSlinger.csproj -- --commanding-demo` |
 | PasswordBox demo | `dotnet run --project InkkSlinger.csproj -- --passwordbox-demo` |
 | Menu parity lab | `dotnet run --project InkkSlinger.csproj -- --menu-parity-demo` |
+| ContextMenu parity lab | `dotnet run --project InkkSlinger.csproj -- --contextmenu-parity-lab` |
 | Binding parity gap #5 demo | `dotnet run --project InkkSlinger.csproj -- --binding-parity-gap5-demo` |
 | RichTextBox demo | `dotnet run --project InkkSlinger.csproj -- --richtextbox-demo` |
 | RichText diagnostics lab | `dotnet run --project InkkSlinger.csproj -- --richtext-diagnostics-lab` |
 | Window/Popup parity lab | `dotnet run --project InkkSlinger.csproj -- --window-popup-parity-lab` |
 
-Current default launch surface is the window/popup parity lab when no explicit mode flag is provided.
+Current default launch surface is the context menu parity lab when no explicit mode flag is provided.
 
 ## Environment Variables
 
@@ -304,6 +305,8 @@ Remove-Item Env:INKKSLINGER_RENDER_CACHE_OVERLAY
 | `INKKSLINGER_FRAME_LATENCY_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits alert-only click/move/scroll frame latency diagnostics for 60 FPS targets (`event->next-draw` p95/p99, 16.6ms miss rate, dominant miss phase); move/scroll sampling is coalescing-aware (latest event per draw). |
 | `INKKSLINGER_WHEEL_ROUTE_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits detailed wheel-target routing traces (`[WheelRoute]`) to `Debug` + `Console`. |
 | `INKKSLINGER_LISTBOX_SELECT_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits ListBox selection/click diagnostics to `Debug` + `Console`. |
+| `INKKSLINGER_CONTEXTMENU_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits context-menu CPU diagnostics for open/hover/invoke paths, including first-vs-warm open summaries and open invalidation deltas (`measure/arrange/render`) for menu/root. |
+| `INKKSLINGER_CONTEXTMENU_HOVER_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits context-menu hover resolution diagnostics with `BeforeMove`/`AfterMove` state traces to `Debug` + `Console`. |
 | `INKKSLINGER_FILE_LOAD_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework file-load diagnostics to `Debug` + `Console`. |
 | `INKKSLINGER_POPULATION_PHASE_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework population-phase diagnostics to `Debug` + `Console`. |
 | `INKKSLINGER_TEXTBOX_FRAMEWORK_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits TextBox framework timing summaries (commit, render, viewport, caret, text-sync) to `Debug` + `Console`. |

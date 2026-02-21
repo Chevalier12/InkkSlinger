@@ -299,6 +299,11 @@ public static class XamlLoader
 
         if (property == null)
         {
+            if (TryApplyAttachedPropertyElement(target, ownerType, propertyName, propertyElement, codeBehind, resourceScope))
+            {
+                return true;
+            }
+
             throw CreateXamlException(
                 $"Property element '{propertyElementName}' could not be resolved on '{targetType.Name}'.",
                 propertyElement);
@@ -487,6 +492,13 @@ public static class XamlLoader
                 if (localName.Contains('.', StringComparison.Ordinal))
                 {
                     ApplyAttachedProperty(target, localName, value, resourceScope);
+                    continue;
+                }
+
+                if (string.Equals(localName, nameof(FrameworkElement.Name), StringComparison.Ordinal) &&
+                    target is FrameworkElement)
+                {
+                    AssignName(target, value, codeBehind);
                     continue;
                 }
 
@@ -2598,6 +2610,77 @@ public static class XamlLoader
         }
 
         setter.Invoke(null, new[] { target, converted });
+    }
+
+    private static bool TryApplyAttachedPropertyElement(
+        object target,
+        Type ownerType,
+        string propertyName,
+        XElement propertyElement,
+        object? codeBehind,
+        FrameworkElement? resourceScope)
+    {
+        var contentElements = propertyElement.Elements().ToList();
+        if (contentElements.Count != 1)
+        {
+            throw CreateXamlException(
+                $"Property element '{propertyElement.Name.LocalName}' must contain exactly one child element.",
+                propertyElement);
+        }
+
+        var value = BuildObject(contentElements[0], codeBehind, target as FrameworkElement ?? resourceScope);
+        var setter = ResolveAttachedSetter(ownerType, target.GetType(), propertyName, value.GetType());
+        if (setter == null)
+        {
+            return false;
+        }
+
+        setter.Invoke(null, new[] { target, value });
+        return true;
+    }
+
+    private static MethodInfo? ResolveAttachedSetter(
+        Type ownerType,
+        Type targetType,
+        string propertyName,
+        Type valueType)
+    {
+        var setterName = $"Set{propertyName}";
+        var ownerSetter = ownerType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(m => IsCompatibleAttachedSetter(m, setterName, targetType, valueType));
+        if (ownerSetter != null)
+        {
+            return ownerSetter;
+        }
+
+        foreach (var candidateType in TypeByName.Values)
+        {
+            var method = candidateType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .FirstOrDefault(m => IsCompatibleAttachedSetter(m, setterName, targetType, valueType));
+            if (method != null)
+            {
+                return method;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsCompatibleAttachedSetter(MethodInfo method, string setterName, Type targetType, Type valueType)
+    {
+        if (method.Name != setterName)
+        {
+            return false;
+        }
+
+        var parameters = method.GetParameters();
+        if (parameters.Length != 2)
+        {
+            return false;
+        }
+
+        return parameters[0].ParameterType.IsAssignableFrom(targetType) &&
+               parameters[1].ParameterType.IsAssignableFrom(valueType);
     }
 
     private static object ConvertValue(string rawValue, Type targetType)

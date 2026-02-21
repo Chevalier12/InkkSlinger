@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-02-20
+Generated: 2026-02-21
 
 ```text
 UI/
@@ -184,6 +184,8 @@ UI/
       Dispatcher.cs
     Types/
   Diagnostics/
+    ContextMenuCpuDiagnostics.cs
+    ContextMenuHoverDiagnostics.cs
     ListBoxSelectCPUDiagnostics.cs
     RichTextBoxDiagnostics.cs
     ScrollWheelRoutingDiagnostics.cs
@@ -337,6 +339,8 @@ Related view surfaces added in this parity cycle:
 
 ```text
 Views/
+  ContextMenuParityLabView.xml
+  ContextMenuParityLabView.xml.cs
   WindowPopupParityLabView.xml
   WindowPopupParityLabView.xml.cs
 ```

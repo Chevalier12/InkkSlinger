@@ -200,6 +200,12 @@ public class FrameworkElement : UIElement
         set => SetValue(BindingGroupProperty, value);
     }
 
+    public InkkSlinger.ContextMenu? ContextMenu
+    {
+        get => InkkSlinger.ContextMenu.GetContextMenu(this);
+        set => InkkSlinger.ContextMenu.SetContextMenu(this, value);
+    }
+
     public ResourceDictionary Resources { get; } = new();
 
     public Vector2 DesiredSize { get; private set; }

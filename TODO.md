@@ -35,12 +35,14 @@
 - [x] Rich diagnostics/perf hardening pass: `RichTextBoxPerformanceSnapshot` metrics (layout cache + p95/p99 build timing, render/selection timing, undo depth/op counts, clipboard serde timing), env-var-driven rich diagnostics logs, and regression tests for bounded local-edit invalidation/allocation behavior.
 - [x] Rich parity hardening: keyboard/reporting consistency for read-only editing keys and `Shift+Tab` no-op handling, plus list/table boundary keyboard space insertion safety (`Enter` + `Space`) without caret jump into adjacent table content.
 - [x] Rich paste perf/interoperability hardening: external clipboard plain-text interop (Windows native clipboard read + fallback), per-paste clipboard snapshotting (single sync/read per paste), batched structured text paste insertion, and dedicated `INKKSLINGER_RICHTEXT_PASTE_CPU_LOGS` diagnostics with stage breakdown + clipboard sync counters.
+- [x] ContextMenu parity hardening: right-click open and keyboard open (`Shift+F10`/Apps), no-layout-impact overlay behavior, hover-to-highlight/expand semantics (including submenu depth), deterministic first-hover submenu open after right-click, and dedicated hover diagnostics (`INKKSLINGER_CONTEXTMENU_HOVER_LOGS`).
+- [x] ContextMenu performance diagnostics hardening: dedicated CPU diagnostics (`INKKSLINGER_CONTEXTMENU_CPU_LOGS`) with hover/open/invoke timing splits, resolver-path attribution, deep-branch traversal counters, and first-open vs warm-open invalidation breakdowns.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
 - [x] Trigger `EnterActions` / `ExitActions` support.
 - [x] `ListView` / `ListViewItem` control support with keyboard navigation fixes.
-- [x] `ContextMenu` control support and click-to-close behavior fix.
+- [x] `ContextMenu` parity rebase: WPF-style menu semantics (`ItemsControl` + `MenuItem` containers), attached-property element XAML shape (`<Button.ContextMenu>`), right-click open pipeline, and keyboard/pointer submenu traversal behavior.
 - [x] `ProgressBar` control support (determinate + indeterminate rendering).
 - [x] `TreeView` / `TreeViewItem` text rendering and keyboard navigation stability fixes.
 - [x] `ResizeGrip` control support with drag and keyboard resizing.
@@ -91,8 +93,10 @@ Storyboards, timelines, keyframes, easing, trigger-driven animations.
 Adorner composition behaviors and layout nuances beyond the current primitives.
 - [x] Windowing/popup edge parity:
 Popup/menu/window interaction parity and additional edge behavior validation.
-- [ ] Context menu structural parity depth:
-Rebase `ContextMenu` toward WPF-like menu semantics (`MenuItem`/`Separator`, keyboard submenu behavior) instead of current `ListBox`-derived model.
+- [x] Context menu structural parity depth:
+Rebased `ContextMenu` toward WPF-like menu semantics (`MenuItem`/`Separator`, keyboard submenu behavior) with right-click and keyboard open flows.
+- [x] Context menu hover/input robustness:
+Pointer-move dispatch is forced while any context menu is open (so hover transitions are not dropped when raw hit targets jitter), and hover diagnostics now emit `BeforeMove`/`AfterMove` state.
 
 ## WPF Control Coverage
 - [ ] AccessText
