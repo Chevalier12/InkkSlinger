@@ -751,6 +751,15 @@ public sealed partial class UiRoot
             TraceWheelRouting($"DispatchMouseWheel routed events raised on {DescribeWheelElement(resolvedTarget)}");
         }
 
+        if (TryFindOpenContextMenu(out var openContextMenu) &&
+            openContextMenu.HandleMouseWheelFromInput(pointerPosition, delta))
+        {
+            TrackWheelPointerPosition(pointerPosition);
+            ObserveScrollCpuWheelDispatch(delta, didPreciseRetarget, _lastInputHitTestCount - wheelHitTestsBefore, wheelHandleMs);
+            ObserveControlHotspotDispatch(openContextMenu, Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds);
+            return;
+        }
+
         if (TryHandleTextInputWheel(_cachedWheelTextInputTarget, delta))
         {
             TraceWheelRouting($"DispatchMouseWheel handled by cached text input {DescribeWheelElement(_cachedWheelTextInputTarget)}");

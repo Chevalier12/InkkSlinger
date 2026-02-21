@@ -569,11 +569,11 @@ public class ContextMenu : ItemsControl
 
         var (x, y) = ResolvePlacement(width, height);
 
-        var hostRect = _host.LayoutSlot;
-        var maxX = hostRect.X + MathF.Max(0f, hostRect.Width - width);
-        var maxY = hostRect.Y + MathF.Max(0f, hostRect.Height - height);
-        x = Math.Clamp(x, hostRect.X, maxX);
-        y = Math.Clamp(y, hostRect.Y, maxY);
+        var workArea = GetWorkAreaBounds();
+        var maxX = workArea.X + MathF.Max(0f, workArea.Width - width);
+        var maxY = workArea.Y + MathF.Max(0f, workArea.Height - height);
+        x = Math.Clamp(x, workArea.X, maxX);
+        y = Math.Clamp(y, workArea.Y, maxY);
 
         Left = x;
         Top = y;
@@ -586,6 +586,40 @@ public class ContextMenu : ItemsControl
         }
 
         Margin = new Thickness(x, y, 0f, 0f);
+    }
+
+    internal LayoutRect GetWorkAreaBounds()
+    {
+        if (_host == null)
+        {
+            return new LayoutRect(0f, 0f, MathF.Max(1f, LayoutSlot.Width), MathF.Max(1f, LayoutSlot.Height));
+        }
+
+        var slot = _host.LayoutSlot;
+        if (slot.Width <= 0f || slot.Height <= 0f)
+        {
+            return new LayoutRect(slot.X, slot.Y, MathF.Max(1f, slot.Width), MathF.Max(1f, slot.Height));
+        }
+
+        return slot;
+    }
+
+    internal bool HandleMouseWheelFromInput(Vector2 pointerPosition, int delta)
+    {
+        if (!IsOpen)
+        {
+            return false;
+        }
+
+        foreach (var root in GetRootItems())
+        {
+            if (root.TryHandleWheelForOpenSubmenus(pointerPosition, delta))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private (float X, float Y) ResolvePlacement(float width, float height)

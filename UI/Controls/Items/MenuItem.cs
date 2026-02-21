@@ -118,8 +118,12 @@ public class MenuItem : ItemsControl
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
     private float _submenuWidth;
-    private float _submenuHeight;
+    private float _submenuContentHeight;
+    private float _submenuVisibleHeight;
     private LayoutRect _submenuBounds;
+    private float _submenuScrollOffset;
+    private bool _submenuOpensLeft;
+    private bool? _submenuDirectionBiasLeft;
 
     public MenuItem()
     {
@@ -262,7 +266,8 @@ public class MenuItem : ItemsControl
         var rowHeight = MathF.Max(20f, GetLineHeight() + padding.Vertical);
 
         _submenuWidth = 0f;
-        _submenuHeight = 0f;
+        _submenuContentHeight = 0f;
+        _submenuVisibleHeight = 0f;
 
         for (var i = 0; i < ItemContainers.Count; i++)
         {
@@ -273,7 +278,7 @@ public class MenuItem : ItemsControl
 
             child.Measure(availableSize);
             _submenuWidth = MathF.Max(_submenuWidth, child.DesiredSize.X);
-            _submenuHeight += child.DesiredSize.Y;
+            _submenuContentHeight += child.DesiredSize.Y;
         }
 
         _submenuWidth = MathF.Max(_submenuWidth, rowWidth);
@@ -285,17 +290,151 @@ public class MenuItem : ItemsControl
         if (!IsSubmenuOpen || !HasChildItems)
         {
             _submenuBounds = default;
+            _submenuVisibleHeight = 0f;
             return finalSize;
         }
 
-        var submenuX = IsTopLevelItem()
+        var workArea = ResolveWorkAreaBounds();
+        var isTopLevelItem = IsTopLevelItem();
+        var preferredRightX = isTopLevelItem
             ? LayoutSlot.X
             : LayoutSlot.X + LayoutSlot.Width;
-        var submenuY = IsTopLevelItem()
+        var preferredLeftX = LayoutSlot.X - _submenuWidth;
+        var preferredY = isTopLevelItem
             ? LayoutSlot.Y + LayoutSlot.Height
             : LayoutSlot.Y;
 
-        var currentY = submenuY;
+        var parentItem = GetParentMenuItem();
+        var inheritedDirectionLeft = !isTopLevelItem &&
+                                     ((parentItem?._submenuDirectionBiasLeft).GetValueOrDefault(parentItem?._submenuOpensLeft == true));
+        var preferLeftFromParentDirection = inheritedDirectionLeft;
+        _submenuOpensLeft = preferLeftFromParentDirection;
+        var primaryX = preferLeftFromParentDirection ? preferredLeftX : preferredRightX;
+        var secondaryX = preferLeftFromParentDirection ? preferredRightX : preferredLeftX;
+        var submenuX = primaryX;
+
+        if (!isTopLevelItem)
+        {
+            var primaryOverflow = ComputeHorizontalOverflow(primaryX, _submenuWidth, workArea);
+            var secondaryOverflow = ComputeHorizontalOverflow(secondaryX, _submenuWidth, workArea);
+            if (primaryOverflow > 0f && secondaryOverflow <= primaryOverflow)
+            {
+                submenuX = secondaryX;
+                _submenuOpensLeft = !preferLeftFromParentDirection;
+            }
+
+            var rightSpace = MathF.Max(0f, (workArea.X + workArea.Width) - (LayoutSlot.X + LayoutSlot.Width));
+            var leftSpace = MathF.Max(0f, LayoutSlot.X - workArea.X);
+            if (!_submenuOpensLeft &&
+                rightSpace + 0.5f < _submenuWidth &&
+                leftSpace > rightSpace)
+            {
+                submenuX = preferredLeftX;
+                _submenuOpensLeft = true;
+            }
+            else if (_submenuOpensLeft &&
+                     leftSpace + 0.5f < _submenuWidth &&
+                     rightSpace > leftSpace)
+            {
+                submenuX = preferredRightX;
+                _submenuOpensLeft = false;
+            }
+        }
+
+        var overflowAdjustedX = false;
+        if (submenuX + _submenuWidth > workArea.X + workArea.Width)
+        {
+            submenuX = MathF.Max(workArea.X, (workArea.X + workArea.Width) - _submenuWidth);
+            overflowAdjustedX = true;
+        }
+        else if (submenuX < workArea.X)
+        {
+            submenuX = workArea.X;
+            overflowAdjustedX = true;
+        }
+
+        _submenuVisibleHeight = MathF.Min(_submenuContentHeight, workArea.Height);
+        var maxSubmenuY = workArea.Y + MathF.Max(0f, workArea.Height - _submenuVisibleHeight);
+        var submenuY = Math.Clamp(preferredY, workArea.Y, maxSubmenuY);
+        var overflowAdjustedY = MathF.Abs(submenuY - preferredY) > 0.01f;
+
+        var maxX = workArea.X + MathF.Max(0f, workArea.Width - _submenuWidth);
+        var overflowAdjusted = overflowAdjustedX || overflowAdjustedY;
+        var obstaclesForInitialPlacement = GatherOpenAncestorSubmenuBounds();
+        var overlapsExistingOpenPanels = HasPanelOverlap(
+            new LayoutRect(submenuX, submenuY, _submenuWidth, _submenuVisibleHeight),
+            obstaclesForInitialPlacement);
+        if (!isTopLevelItem &&
+            (overflowAdjusted || overlapsExistingOpenPanels) &&
+            parentItem is { } parentMenuItem)
+        {
+            // Overflow/collision rule:
+            // 1) Keep a sticky branch direction, with hard edge-based flips.
+            // 2) Start from one row below the expanding item.
+            // 3) If still overlapping ancestor open panels, step down by row height.
+            var branchPrefersLeft = _submenuDirectionBiasLeft ?? inheritedDirectionLeft;
+            var rightSpace = MathF.Max(0f, (workArea.X + workArea.Width) - (LayoutSlot.X + LayoutSlot.Width));
+            var leftSpace = MathF.Max(0f, LayoutSlot.X - workArea.X);
+            if (!branchPrefersLeft &&
+                rightSpace + 0.5f < _submenuWidth &&
+                leftSpace > rightSpace)
+            {
+                branchPrefersLeft = true;
+            }
+            else if (branchPrefersLeft &&
+                     leftSpace + 0.5f < _submenuWidth &&
+                     rightSpace > leftSpace)
+            {
+                branchPrefersLeft = false;
+            }
+
+            // If current direction still collides while opposite doesn't, flip branch.
+            var sameDirRawX = branchPrefersLeft ? preferredLeftX : preferredRightX;
+            var oppositeDirRawX = branchPrefersLeft ? preferredRightX : preferredLeftX;
+            var sameDirX = Math.Clamp(sameDirRawX, workArea.X, maxX);
+            var oppositeDirX = Math.Clamp(oppositeDirRawX, workArea.X, maxX);
+            var underRowYProbe = Math.Clamp(LayoutSlot.Y + LayoutSlot.Height, workArea.Y, maxSubmenuY);
+            var obstacles = GatherOpenAncestorSubmenuBounds();
+            var sameCollides = HasPanelOverlap(new LayoutRect(sameDirX, underRowYProbe, _submenuWidth, _submenuVisibleHeight), obstacles);
+            var oppositeCollides = HasPanelOverlap(new LayoutRect(oppositeDirX, underRowYProbe, _submenuWidth, _submenuVisibleHeight), obstacles);
+            if (sameCollides && !oppositeCollides)
+            {
+                branchPrefersLeft = !branchPrefersLeft;
+            }
+
+            var branchRawX = branchPrefersLeft ? preferredLeftX : preferredRightX;
+            submenuX = Math.Clamp(branchRawX, workArea.X, maxX);
+            _submenuOpensLeft = branchPrefersLeft;
+            _submenuDirectionBiasLeft = branchPrefersLeft;
+
+            var stepY = MathF.Max(1f, LayoutSlot.Height);
+            submenuY = Math.Clamp(LayoutSlot.Y + LayoutSlot.Height, workArea.Y, maxSubmenuY);
+            const int maxSteps = 6;
+            var stepCount = 0;
+            while (stepCount < maxSteps &&
+                   HasPanelOverlap(new LayoutRect(submenuX, submenuY, _submenuWidth, _submenuVisibleHeight), obstacles))
+            {
+                var nextY = MathF.Min(maxSubmenuY, submenuY + stepY);
+                if (nextY <= submenuY + 0.01f)
+                {
+                    break;
+                }
+
+                submenuY = nextY;
+                stepCount++;
+            }
+        }
+        else
+        {
+            _submenuDirectionBiasLeft = null;
+        }
+
+        submenuX = Math.Clamp(submenuX, workArea.X, maxX);
+        submenuY = Math.Clamp(submenuY, workArea.Y, maxSubmenuY);
+        var maxScroll = MathF.Max(0f, _submenuContentHeight - _submenuVisibleHeight);
+        _submenuScrollOffset = Math.Clamp(_submenuScrollOffset, 0f, maxScroll);
+
+        var currentY = submenuY - _submenuScrollOffset;
         for (var i = 0; i < ItemContainers.Count; i++)
         {
             if (ItemContainers[i] is not MenuItem child)
@@ -308,7 +447,7 @@ public class MenuItem : ItemsControl
             currentY += childHeight;
         }
 
-        _submenuBounds = new LayoutRect(submenuX, submenuY, _submenuWidth, _submenuHeight);
+        _submenuBounds = new LayoutRect(submenuX, submenuY, _submenuWidth, _submenuVisibleHeight);
         return finalSize;
     }
 
@@ -335,6 +474,11 @@ public class MenuItem : ItemsControl
             if (SubmenuBorderThickness > 0f)
             {
                 UiDrawing.DrawRectStroke(spriteBatch, _submenuBounds, SubmenuBorderThickness, SubmenuBorderBrush, Opacity);
+            }
+
+            if (HasScrollableSubmenu)
+            {
+                DrawSubmenuScrollHints(spriteBatch);
             }
         }
 
@@ -478,6 +622,9 @@ public class MenuItem : ItemsControl
                     child.CloseSubmenuRecursive(clearHighlight: true);
                 }
             }
+
+            _submenuScrollOffset = 0f;
+            _submenuDirectionBiasLeft = null;
         }
     }
 
@@ -620,10 +767,159 @@ public class MenuItem : ItemsControl
     private void DrawSubmenuArrow(SpriteBatch spriteBatch, Vector2 center)
     {
         var color = Foreground * Opacity;
+        if (_submenuOpensLeft)
+        {
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X + 2f, center.Y - 3f, 1f, 7f), color, 1f);
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X + 1f, center.Y - 2f, 1f, 5f), color, 1f);
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X, center.Y - 1f, 1f, 3f), color, 1f);
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X - 1f, center.Y, 1f, 1f), color, 1f);
+            return;
+        }
+
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X - 2f, center.Y - 3f, 1f, 7f), color, 1f);
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X - 1f, center.Y - 2f, 1f, 5f), color, 1f);
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X, center.Y - 1f, 1f, 3f), color, 1f);
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(center.X + 1f, center.Y, 1f, 1f), color, 1f);
+    }
+
+    protected override bool TryGetClipRect(out LayoutRect clipRect)
+    {
+        if (IsSubmenuOpen && HasScrollableSubmenu)
+        {
+            clipRect = UnionRects(LayoutSlot, _submenuBounds);
+            return true;
+        }
+
+        return base.TryGetClipRect(out clipRect);
+    }
+
+    private LayoutRect ResolveWorkAreaBounds()
+    {
+        if (OwnerContextMenu != null)
+        {
+            return OwnerContextMenu.GetWorkAreaBounds();
+        }
+
+        if (OwnerMenu?.VisualParent is FrameworkElement host)
+        {
+            return host.LayoutSlot;
+        }
+
+        return new LayoutRect(0f, 0f, MathF.Max(1f, LayoutSlot.Width), MathF.Max(1f, LayoutSlot.Height));
+    }
+
+    private bool HasScrollableSubmenu => IsSubmenuOpen && HasChildItems && _submenuContentHeight - _submenuVisibleHeight > 0.5f;
+
+    private bool IsPointInsideOpenSubmenu(Vector2 point)
+    {
+        return point.X >= _submenuBounds.X &&
+               point.X <= _submenuBounds.X + _submenuBounds.Width &&
+               point.Y >= _submenuBounds.Y &&
+               point.Y <= _submenuBounds.Y + _submenuBounds.Height;
+    }
+
+    private bool TryAdjustSubmenuScrollOffset(float delta)
+    {
+        var maxScroll = MathF.Max(0f, _submenuContentHeight - _submenuVisibleHeight);
+        if (maxScroll <= 0f)
+        {
+            return false;
+        }
+
+        var next = Math.Clamp(_submenuScrollOffset + delta, 0f, maxScroll);
+        if (MathF.Abs(next - _submenuScrollOffset) < 0.01f)
+        {
+            return false;
+        }
+
+        _submenuScrollOffset = next;
+        InvalidateArrange();
+        return true;
+    }
+
+    private float GetScrollLineHeight()
+    {
+        for (var i = 0; i < ItemContainers.Count; i++)
+        {
+            if (ItemContainers[i] is MenuItem child && child.DesiredSize.Y > 0f)
+            {
+                return child.DesiredSize.Y;
+            }
+        }
+
+        return MathF.Max(20f, GetLineHeight() + Padding.Vertical);
+    }
+
+    private void DrawSubmenuScrollHints(SpriteBatch spriteBatch)
+    {
+        var hintColor = Foreground * Opacity;
+        if (_submenuScrollOffset > 0.01f)
+        {
+            var topHint = new LayoutRect(_submenuBounds.X + 2f, _submenuBounds.Y + 1f, _submenuBounds.Width - 4f, 2f);
+            UiDrawing.DrawFilledRect(spriteBatch, topHint, hintColor, 0.6f);
+        }
+
+        var maxScroll = MathF.Max(0f, _submenuContentHeight - _submenuVisibleHeight);
+        if (_submenuScrollOffset < maxScroll - 0.01f)
+        {
+            var bottomHint = new LayoutRect(_submenuBounds.X + 2f, _submenuBounds.Y + _submenuBounds.Height - 3f, _submenuBounds.Width - 4f, 2f);
+            UiDrawing.DrawFilledRect(spriteBatch, bottomHint, hintColor, 0.6f);
+        }
+    }
+
+    private static LayoutRect UnionRects(LayoutRect a, LayoutRect b)
+    {
+        var minX = MathF.Min(a.X, b.X);
+        var minY = MathF.Min(a.Y, b.Y);
+        var maxX = MathF.Max(a.X + a.Width, b.X + b.Width);
+        var maxY = MathF.Max(a.Y + a.Height, b.Y + b.Height);
+        return new LayoutRect(minX, minY, MathF.Max(0f, maxX - minX), MathF.Max(0f, maxY - minY));
+    }
+
+    private List<LayoutRect> GatherOpenAncestorSubmenuBounds()
+    {
+        var bounds = new List<LayoutRect>();
+        for (var current = GetParentMenuItem(); current != null; current = current.GetParentMenuItem())
+        {
+            if (current.TryGetOpenSubmenuBounds(out var currentBounds))
+            {
+                bounds.Add(currentBounds);
+            }
+        }
+
+        if (OwnerContextMenu != null)
+        {
+            bounds.Add(OwnerContextMenu.LayoutSlot);
+        }
+
+        return bounds;
+    }
+
+    private static bool HasPanelOverlap(LayoutRect candidate, List<LayoutRect> obstacles)
+    {
+        for (var i = 0; i < obstacles.Count; i++)
+        {
+            if (ComputeOverlapArea(candidate, obstacles[i]) > 0.5f)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static float ComputeHorizontalOverflow(float candidateX, float width, LayoutRect workArea)
+    {
+        var leftOverflow = MathF.Max(0f, workArea.X - candidateX);
+        var rightOverflow = MathF.Max(0f, (candidateX + width) - (workArea.X + workArea.Width));
+        return leftOverflow + rightOverflow;
+    }
+
+    private static float ComputeOverlapArea(LayoutRect a, LayoutRect b)
+    {
+        var overlapX = MathF.Max(0f, MathF.Min(a.X + a.Width, b.X + b.Width) - MathF.Max(a.X, b.X));
+        var overlapY = MathF.Max(0f, MathF.Min(a.Y + a.Height, b.Y + b.Height) - MathF.Max(a.Y, b.Y));
+        return overlapX * overlapY;
     }
 
     private string GetEffectiveInputGestureText()
@@ -740,6 +1036,46 @@ public class MenuItem : ItemsControl
                point.X <= _submenuBounds.X + _submenuBounds.Width &&
                point.Y >= _submenuBounds.Y &&
                point.Y <= _submenuBounds.Y + _submenuBounds.Height;
+    }
+
+    internal bool TryGetOpenSubmenuBounds(out LayoutRect bounds)
+    {
+        if (!IsSubmenuOpen || !HasChildItems || _submenuBounds.Width <= 0f || _submenuBounds.Height <= 0f)
+        {
+            bounds = default;
+            return false;
+        }
+
+        bounds = _submenuBounds;
+        return true;
+    }
+
+    internal bool TryHandleWheelForOpenSubmenus(Vector2 pointerPosition, int wheelDelta)
+    {
+        if (!IsSubmenuOpen)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < ItemContainers.Count; i++)
+        {
+            if (ItemContainers[i] is MenuItem child &&
+                child.TryHandleWheelForOpenSubmenus(pointerPosition, wheelDelta))
+            {
+                return true;
+            }
+        }
+
+        if (!IsPointInsideOpenSubmenu(pointerPosition) || !HasScrollableSubmenu)
+        {
+            return false;
+        }
+
+        var notchCount = Math.Max(1, Math.Abs(wheelDelta) / 120);
+        var scrollDelta = wheelDelta < 0
+            ? GetScrollLineHeight() * notchCount
+            : -GetScrollLineHeight() * notchCount;
+        return TryAdjustSubmenuScrollOffset(scrollDelta);
     }
 
     internal bool HandlePointerDownFromInput()
