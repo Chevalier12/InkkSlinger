@@ -8,13 +8,13 @@ namespace InkkSlinger.Tests;
 public class ListViewLabFontReloadRegressionTests
 {
     [Fact]
-    public void ListView_ReloadLikeMutation_RecreatedLabelsLosePreviouslyAppliedFont()
+    public void ListView_ReloadLikeMutation_RecreatedLabelsPreserveListFont()
     {
         var listView = new ListView();
+        var appliedFont = (SpriteFont)RuntimeHelpers.GetUninitializedObject(typeof(SpriteFont));
+        listView.Font = appliedFont;
         AddSeedItems(listView, count: 6);
 
-        var appliedFont = (SpriteFont)RuntimeHelpers.GetUninitializedObject(typeof(SpriteFont));
-        ApplyFontRecursive(listView, appliedFont);
         var beforeReloadLabels = CollectDescendantLabels(listView);
 
         Assert.NotEmpty(beforeReloadLabels);
@@ -27,8 +27,8 @@ public class ListViewLabFontReloadRegressionTests
         var afterReloadLabels = CollectDescendantLabels(listView);
 
         Assert.NotEmpty(afterReloadLabels);
-        Assert.Contains(afterReloadLabels, label => label.Font is null);
-        Assert.DoesNotContain(afterReloadLabels, label => ReferenceEquals(label.Font, appliedFont));
+        Assert.DoesNotContain(afterReloadLabels, label => label.Font is null);
+        Assert.All(afterReloadLabels, label => Assert.Same(appliedFont, label.Font));
     }
 
     private static void AddSeedItems(ListView listView, int count)
@@ -37,34 +37,6 @@ public class ListViewLabFontReloadRegressionTests
         {
             var tag = i % 5 == 0 ? "Group B" : "Group A";
             listView.Items.Add($"Item {i:000}  |  {tag}");
-        }
-    }
-
-    private static void ApplyFontRecursive(UIElement? element, SpriteFont font)
-    {
-        if (element == null)
-        {
-            return;
-        }
-
-        if (element is Label label)
-        {
-            label.Font = font;
-        }
-
-        if (element is TextBlock textBlock)
-        {
-            textBlock.Font = font;
-        }
-
-        if (element is Button button)
-        {
-            button.Font = font;
-        }
-
-        foreach (var child in element.GetVisualChildren())
-        {
-            ApplyFontRecursive(child, font);
         }
     }
 

@@ -71,6 +71,24 @@ public class ListBox : Selector
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float f && f >= 0f ? f : 0f));
 
+    public static readonly DependencyProperty FontProperty =
+        DependencyProperty.Register(
+            nameof(Font),
+            typeof(SpriteFont),
+            typeof(ListBox),
+            new FrameworkPropertyMetadata(
+                null,
+                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is ListBox listBox)
+                    {
+                        listBox.PropagateFontToRealizedContainers(
+                            args.OldValue as SpriteFont,
+                            args.NewValue as SpriteFont);
+                    }
+                }));
+
     private readonly ScrollViewer _scrollViewer;
     private Panel _itemsHost;
 
@@ -136,6 +154,12 @@ public class ListBox : Selector
         set => SetValue(BorderThicknessProperty, value);
     }
 
+    public SpriteFont? Font
+    {
+        get => GetValue<SpriteFont>(FontProperty);
+        set => SetValue(FontProperty, value);
+    }
+
     public override IEnumerable<UIElement> GetVisualChildren()
     {
         foreach (var element in base.GetVisualChildren())
@@ -187,6 +211,8 @@ public class ListBox : Selector
         {
             listBoxItem.IsSelected = IsSelectedIndex(SelectedIndices, index);
         }
+
+        ApplyFontToElementTree(element, oldFont: null, newFont: Font);
     }
 
     protected override void OnSelectionChanged(SelectionChangedEventArgs args)
@@ -201,6 +227,8 @@ public class ListBox : Selector
                 listBoxItem.IsSelected = selectedIndices.Contains(i);
             }
         }
+
+        EnsureSelectedItemIsFullyVisible();
     }
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
@@ -272,6 +300,102 @@ public class ListBox : Selector
         }
 
         return false;
+    }
+
+    private void EnsureSelectedItemIsFullyVisible()
+    {
+        var selectedIndex = SelectedIndex;
+        if (selectedIndex < 0 || selectedIndex >= ItemContainers.Count)
+        {
+            return;
+        }
+
+        if (ItemContainers[selectedIndex] is not FrameworkElement selectedContainer)
+        {
+            return;
+        }
+
+        var viewportHeight = _scrollViewer.ViewportHeight;
+        if (viewportHeight <= 0f)
+        {
+            return;
+        }
+
+        var itemTop = selectedContainer.LayoutSlot.Y - _itemsHost.LayoutSlot.Y;
+        var itemBottom = itemTop + selectedContainer.LayoutSlot.Height;
+        var viewportTop = _scrollViewer.VerticalOffset;
+        var viewportBottom = viewportTop + viewportHeight;
+
+        if (itemTop < viewportTop)
+        {
+            _scrollViewer.ScrollToVerticalOffset(itemTop);
+            return;
+        }
+
+        if (itemBottom > viewportBottom)
+        {
+            _scrollViewer.ScrollToVerticalOffset(itemBottom - viewportHeight);
+        }
+    }
+
+    private void PropagateFontToRealizedContainers(SpriteFont? oldFont, SpriteFont? newFont)
+    {
+        for (var i = 0; i < ItemContainers.Count; i++)
+        {
+            ApplyFontToElementTree(ItemContainers[i], oldFont, newFont);
+        }
+    }
+
+    private static void ApplyFontToElementTree(UIElement? element, SpriteFont? oldFont, SpriteFont? newFont)
+    {
+        if (element == null || (oldFont == null && newFont == null))
+        {
+            return;
+        }
+
+        if (element is TextBlock textBlock)
+        {
+            TryApplyTextBlockFont(textBlock, oldFont, newFont);
+        }
+        else if (element is Button button)
+        {
+            TryApplyButtonFont(button, oldFont, newFont);
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            ApplyFontToElementTree(child, oldFont, newFont);
+        }
+    }
+
+    private static void TryApplyTextBlockFont(TextBlock textBlock, SpriteFont? oldFont, SpriteFont? newFont)
+    {
+        if (!textBlock.HasLocalValue(TextBlock.FontProperty) || Equals(textBlock.Font, oldFont))
+        {
+            if (newFont != null)
+            {
+                textBlock.Font = newFont;
+            }
+            else
+            {
+                textBlock.ClearValue(TextBlock.FontProperty);
+            }
+        }
+    }
+
+    private static void TryApplyButtonFont(Button button, SpriteFont? oldFont, SpriteFont? newFont)
+    {
+        if (!button.HasLocalValue(Button.FontProperty) || Equals(button.Font, oldFont))
+        {
+            if (newFont != null)
+            {
+                button.Font = newFont;
+            }
+            else
+            {
+                button.ClearValue(Button.FontProperty);
+            }
+        }
     }
 
     private void UpdateItemsHost(bool isVirtualizing)

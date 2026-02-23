@@ -25,6 +25,10 @@ public partial class ListViewLab : UserControl
         }
 
         ApplyFontRecursive(this, font);
+        if (LabListView != null)
+        {
+            LabListView.Font = font;
+        }
     }
 
     private void OnSelectFirstClick(object? sender, RoutedSimpleEventArgs args)
