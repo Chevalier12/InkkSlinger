@@ -24,7 +24,7 @@ public class MenuItem : ItemsControl
             typeof(MenuItem),
             new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty FontProperty =
+    public new static readonly DependencyProperty FontProperty =
         DependencyProperty.Register(
             nameof(Font),
             typeof(SpriteFont),
@@ -147,7 +147,7 @@ public class MenuItem : ItemsControl
         set => SetValue(InputGestureTextProperty, value);
     }
 
-    public SpriteFont? Font
+    public new SpriteFont? Font
     {
         get => GetValue<SpriteFont>(FontProperty);
         set => SetValue(FontProperty, value);
@@ -1187,3 +1187,4 @@ public class MenuItem : ItemsControl
         return MenuAccessText.StripAccessMarkers(Header);
     }
 }
+

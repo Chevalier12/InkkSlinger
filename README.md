@@ -6,7 +6,7 @@
 
 | Check | Result | Evidence |
 |---|---|---|
-| Solution build | Pass (0 errors, 2 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
+| Solution build | Pass (0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
 | Test suite | Pass (`387/387`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
 | WPF control coverage | Broad but incomplete (`67/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `10` unchecked TODO items | `TODO.md` (missing controls) |

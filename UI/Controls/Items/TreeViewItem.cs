@@ -28,7 +28,7 @@ public class TreeViewItem : ItemsControl
             typeof(TreeViewItem),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty FontProperty =
+    public new static readonly DependencyProperty FontProperty =
         DependencyProperty.Register(
             nameof(Font),
             typeof(SpriteFont),
@@ -104,7 +104,7 @@ public class TreeViewItem : ItemsControl
         set => SetValue(IsSelectedProperty, value);
     }
 
-    public SpriteFont? Font
+    public new SpriteFont? Font
     {
         get => GetValue<SpriteFont>(FontProperty);
         set => SetValue(FontProperty, value);
@@ -336,3 +336,4 @@ public class TreeViewItem : ItemsControl
         }
     }
 }
+

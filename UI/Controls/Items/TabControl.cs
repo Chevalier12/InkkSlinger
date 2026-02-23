@@ -7,7 +7,7 @@ namespace InkkSlinger;
 
 public class TabControl : Selector
 {
-    public static readonly DependencyProperty FontProperty =
+    public new static readonly DependencyProperty FontProperty =
         DependencyProperty.Register(
             nameof(Font),
             typeof(SpriteFont),
@@ -74,7 +74,7 @@ public class TabControl : Selector
     {
     }
 
-    public SpriteFont? Font
+    public new SpriteFont? Font
     {
         get => GetValue<SpriteFont>(FontProperty);
         set => SetValue(FontProperty, value);
@@ -328,3 +328,4 @@ public class TabControl : Selector
         public TabItem Item { get; }
     }
 }
+

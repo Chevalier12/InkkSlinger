@@ -13,7 +13,7 @@ public class StatusBarItem : ContentControl
             typeof(StatusBarItem),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty FontProperty =
+    public new static readonly DependencyProperty FontProperty =
         DependencyProperty.Register(
             nameof(Font),
             typeof(SpriteFont),
@@ -68,7 +68,7 @@ public class StatusBarItem : ContentControl
         set => SetValue(ForegroundProperty, value);
     }
 
-    public SpriteFont? Font
+    public new SpriteFont? Font
     {
         get => GetValue<SpriteFont>(FontProperty);
         set => SetValue(FontProperty, value);
@@ -161,3 +161,4 @@ public class StatusBarItem : ContentControl
         }
     }
 }
+

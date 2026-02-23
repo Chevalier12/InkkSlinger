@@ -103,11 +103,13 @@ public partial class RichTextBox
                 RemoveBlockFromParent(listBlock);
             }
 
-            afterDocument = GetDocumentFromElement(listBlock);
-            if (afterDocument is null)
+            var documentAfterListExit = GetDocumentFromElement(listBlock);
+            if (documentAfterListExit is null)
             {
                 return false;
             }
+
+            afterDocument = documentAfterListExit;
 
             var inserted = TryFindParagraphAfterBlock(listBlock);
             if (inserted is null)
@@ -130,11 +132,13 @@ public partial class RichTextBox
         }
 
         list.Items.Insert(itemIndex + 1, newItem);
-        afterDocument = GetDocumentFromElement(list);
-        if (afterDocument is null)
+        var documentAfterInsert = GetDocumentFromElement(list);
+        if (documentAfterInsert is null)
         {
             return false;
         }
+
+        afterDocument = documentAfterInsert;
 
         caretAfter = FindParagraphStartOffset(afterDocument, insertedParagraph);
         return caretAfter >= 0;

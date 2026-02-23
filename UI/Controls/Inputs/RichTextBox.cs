@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
@@ -34,7 +34,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 },
                 coerceValueCallback: static (_, value) => value as FlowDocument ?? CreateDefaultDocument()));
 
-    public static readonly DependencyProperty FontProperty =
+    public new static readonly DependencyProperty FontProperty =
         DependencyProperty.Register(
             nameof(Font),
             typeof(SpriteFont),
@@ -186,7 +186,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         set => SetValue(DocumentProperty, value);
     }
 
-    public SpriteFont? Font
+    public new SpriteFont? Font
     {
         get => GetValue<SpriteFont>(FontProperty);
         set => SetValue(FontProperty, value);
@@ -4319,3 +4319,4 @@ public readonly record struct RichTextBoxPerformanceSnapshot(
     int RedoDepth,
     int UndoOperationCount,
     int RedoOperationCount);
+

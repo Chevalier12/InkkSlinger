@@ -56,7 +56,7 @@ public class Expander : ContentControl
                 ExpandDirection.Down,
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty FontProperty =
+    public new static readonly DependencyProperty FontProperty =
         DependencyProperty.Register(
             nameof(Font),
             typeof(SpriteFont),
@@ -157,7 +157,7 @@ public class Expander : ContentControl
         set => SetValue(ExpandDirectionProperty, value);
     }
 
-    public SpriteFont? Font
+    public new SpriteFont? Font
     {
         get => GetValue<SpriteFont>(FontProperty);
         set => SetValue(FontProperty, value);
@@ -493,3 +493,4 @@ public class Expander : ContentControl
                point.Y <= rect.Y + rect.Height;
     }
 }
+

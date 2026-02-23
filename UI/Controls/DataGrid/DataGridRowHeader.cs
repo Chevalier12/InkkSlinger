@@ -33,7 +33,7 @@ public class DataGridRowHeader : Control
             typeof(DataGridRowHeader),
             new FrameworkPropertyMetadata(new Color(57, 80, 111), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty FontProperty =
+    public new static readonly DependencyProperty FontProperty =
         DependencyProperty.Register(
             nameof(Font),
             typeof(SpriteFont),
@@ -64,7 +64,7 @@ public class DataGridRowHeader : Control
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public SpriteFont? Font
+    public new SpriteFont? Font
     {
         get => GetValue<SpriteFont>(FontProperty);
         set => SetValue(FontProperty, value);
@@ -92,3 +92,4 @@ public class DataGridRowHeader : Control
         FontStashTextRenderer.DrawString(spriteBatch, Font, Text, new Vector2(x, y), Foreground * Opacity);
     }
 }
+

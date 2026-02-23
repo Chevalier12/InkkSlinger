@@ -71,24 +71,6 @@ public class ListBox : Selector
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float f && f >= 0f ? f : 0f));
 
-    public static readonly DependencyProperty FontProperty =
-        DependencyProperty.Register(
-            nameof(Font),
-            typeof(SpriteFont),
-            typeof(ListBox),
-            new FrameworkPropertyMetadata(
-                null,
-                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender,
-                propertyChangedCallback: static (dependencyObject, args) =>
-                {
-                    if (dependencyObject is ListBox listBox)
-                    {
-                        listBox.PropagateFontToRealizedContainers(
-                            args.OldValue as SpriteFont,
-                            args.NewValue as SpriteFont);
-                    }
-                }));
-
     private readonly ScrollViewer _scrollViewer;
     private Panel _itemsHost;
 
@@ -152,12 +134,6 @@ public class ListBox : Selector
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
-    }
-
-    public SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()
@@ -246,6 +222,12 @@ public class ListBox : Selector
         else if (args.Property == LineScrollAmountProperty && args.NewValue is float amount)
         {
             _scrollViewer.LineScrollAmount = amount;
+        }
+        else if (args.Property == Control.FontProperty)
+        {
+            PropagateFontToRealizedContainers(
+                args.OldValue as SpriteFont,
+                args.NewValue as SpriteFont);
         }
     }
 

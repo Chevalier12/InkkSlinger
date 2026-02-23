@@ -33,7 +33,7 @@ public class ComboBox : Selector
                 FrameworkPropertyMetadataOptions.None,
                 coerceValueCallback: static (_, value) => value is float f && f >= 40f ? f : 40f));
 
-    public static readonly DependencyProperty FontProperty =
+    public new static readonly DependencyProperty FontProperty =
         DependencyProperty.Register(
             nameof(Font),
             typeof(SpriteFont),
@@ -100,7 +100,7 @@ public class ComboBox : Selector
         set => SetValue(MaxDropDownHeightProperty, value);
     }
 
-    public SpriteFont? Font
+    public new SpriteFont? Font
     {
         get => GetValue<SpriteFont>(FontProperty);
         set => SetValue(FontProperty, value);
@@ -429,3 +429,4 @@ public class ComboBox : Selector
         return item?.ToString() ?? string.Empty;
     }
 }
+
