@@ -48,9 +48,11 @@ var isAdornersLabDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--adorners-lab", global::System.StringComparison.OrdinalIgnoreCase));
 var isCollectionViewParityDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--collectionview-parity-demo", global::System.StringComparison.OrdinalIgnoreCase));
-if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isListViewLab && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo && !isPasswordBoxDemo && !isMenuParityDemo && !isBindingParityGap5Demo && !isRichTextBoxDemo && !isRichTextDiagnosticsLabDemo && !isWindowPopupParityLabDemo && !isContextMenuParityLabDemo && !isAdornersLabDemo && !isCollectionViewParityDemo)
+var isCollectionAddIsolationDemo = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--collection-add-isolation-demo", global::System.StringComparison.OrdinalIgnoreCase));
+if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isListViewLab && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo && !isPasswordBoxDemo && !isMenuParityDemo && !isBindingParityGap5Demo && !isRichTextBoxDemo && !isRichTextDiagnosticsLabDemo && !isWindowPopupParityLabDemo && !isContextMenuParityLabDemo && !isAdornersLabDemo && !isCollectionViewParityDemo && !isCollectionAddIsolationDemo)
 {
-    isListViewLab = true;
+    isCollectionAddIsolationDemo = true;
 }
 using var game = new InkkSlinger.Game1(
     isWindowDemo,
@@ -75,5 +77,6 @@ using var game = new InkkSlinger.Game1(
     isWindowPopupParityLabDemo,
     isContextMenuParityLabDemo,
     isAdornersLabDemo,
-    isCollectionViewParityDemo);
+    isCollectionViewParityDemo,
+    isCollectionAddIsolationDemo);
 game.Run();

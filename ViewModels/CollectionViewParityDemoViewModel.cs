@@ -11,7 +11,7 @@ public sealed class CollectionViewParityDemoViewModel : INotifyPropertyChanged
 
     public CollectionViewParityDemoViewModel()
     {
-        SourceItems = [];
+        SourceItems = new DiagnosticObservableCollection<CollectionDemoItem>("CollectionViewParityDemo.SourceItems");
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

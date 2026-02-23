@@ -116,6 +116,7 @@ public sealed partial class UiRoot
         ObserveInputRouteComplexityAfterDraw();
         ObserveNoOpInvalidationAfterDraw();
         ObserveControlHotspotAfterDraw();
+        ObserveCpuAttributionAfterDraw();
         TraceRenderCacheCountersIfEnabled();
     }
 

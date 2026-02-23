@@ -407,8 +407,15 @@ public class ScrollViewer : ContentControl
 
         UpdateScrollBars();
 
-        var desiredWidth = decision.ViewportRect.Width + (border * 2f) + (_showVerticalBar ? ScrollBarThickness : 0f);
-        var desiredHeight = decision.ViewportRect.Height + (border * 2f) + (_showHorizontalBar ? ScrollBarThickness : 0f);
+        var desiredViewportWidth = float.IsFinite(contentBounds.Width)
+            ? decision.ViewportRect.Width
+            : decision.ExtentWidth;
+        var desiredViewportHeight = float.IsFinite(contentBounds.Height)
+            ? decision.ViewportRect.Height
+            : decision.ExtentHeight;
+
+        var desiredWidth = desiredViewportWidth + (border * 2f) + (_showVerticalBar ? ScrollBarThickness : 0f);
+        var desiredHeight = desiredViewportHeight + (border * 2f) + (_showHorizontalBar ? ScrollBarThickness : 0f);
         return new Vector2(MathF.Max(0f, desiredWidth), MathF.Max(0f, desiredHeight));
     }
 

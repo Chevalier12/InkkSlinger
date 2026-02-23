@@ -7,9 +7,9 @@
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
-| Test suite | Pass (`387/387`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
-| WPF control coverage | Broad but incomplete (`67/77`) | `TODO.md` -> `## WPF Control Coverage` |
-| Open tracked work | `10` unchecked TODO items | `TODO.md` (missing controls) |
+| Test suite | Fail (`388/389`, 1 failing) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
+| WPF control coverage | Broad but incomplete (`68/77`) | `TODO.md` -> `## WPF Control Coverage` |
+| Open tracked work | `9` unchecked TODO items | `TODO.md` (missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
 
 ### Honest Verdict
@@ -102,11 +102,11 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Render caching | Element cache policy/store + visual-layer cache behavior | `UI/Rendering/Cache/RenderCachePolicy.cs`, `UI/Rendering/Cache/RenderCacheStore.cs`, `InkkSlinger.Tests/RenderCachePolicyTests.cs`, `InkkSlinger.Tests/VisualLayerCachingTests.cs` | Implemented (tested) |
 | Render queue and invalidation correctness | Queue ordering and invalidation semantics in root draw/update pipeline | `UI/Managers/Root/UiRoot.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/InvalidationFlagsTests.cs` | Implemented (tested) |
 | Adorner infrastructure | Adorner base/layer/decorator + anchored/handles authoring helpers (`AnchoredAdorner`, `HandlesAdornerBase`) with clipping/tracking coverage | `UI/Controls/Adorners/*`, `InkkSlinger.Tests/AdornerClippingTests.cs`, `InkkSlinger.Tests/AdornerParityDepthTests.cs` | Implemented (tested) |
-| Control breadth snapshot | 67 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `67/77`) | Broad |
+| Control breadth snapshot | 68 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `68/77`) | Broad |
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 52 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (52 files) | Implemented |
+| Regression safety net | 53 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (53 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -135,7 +135,6 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Control coverage | `DatePicker` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `DocumentViewer` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `Frame` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
-| Control coverage | `GroupItem` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `InkCanvas` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
@@ -254,12 +253,13 @@ Primary validation machine for current development/testing:
 | Adorners lab | `dotnet run --project InkkSlinger.csproj -- --adorners-lab` |
 | Binding parity gap #5 demo | `dotnet run --project InkkSlinger.csproj -- --binding-parity-gap5-demo` |
 | CollectionView parity demo | `dotnet run --project InkkSlinger.csproj -- --collectionview-parity-demo` |
+| Collection add-isolation demo | `dotnet run --project InkkSlinger.csproj -- --collection-add-isolation-demo` |
 | ListView lab | `dotnet run --project InkkSlinger.csproj -- --listview-lab` |
 | RichTextBox demo | `dotnet run --project InkkSlinger.csproj -- --richtextbox-demo` |
 | RichText diagnostics lab | `dotnet run --project InkkSlinger.csproj -- --richtext-diagnostics-lab` |
 | Window/Popup parity lab | `dotnet run --project InkkSlinger.csproj -- --window-popup-parity-lab` |
 
-Current default launch surface is `ListViewLab` (`--listview-lab`) when no explicit mode flag is provided.
+Current default launch surface is `CollectionAddIsolationView` (`--collection-add-isolation-demo`) when no explicit mode flag is provided.
 
 ## Environment Variables
 

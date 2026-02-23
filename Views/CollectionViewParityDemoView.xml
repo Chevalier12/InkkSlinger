@@ -122,17 +122,25 @@
             <ColumnDefinition Width="*" />
           </Grid.ColumnDefinitions>
           <Border Grid.Column="0" Background="#111D2D" BorderBrush="#2E4A66" BorderThickness="1" Padding="8">
-            <StackPanel>
-              <Label Text="ListBox" Foreground="#DAEDFF" />
-              <ListBox x:Name="DemoListBox" Margin="0,6,0,0" />
-            </StackPanel>
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+              <Label Grid.Row="0" Text="ListBox" Foreground="#DAEDFF" />
+              <ListBox Grid.Row="1" x:Name="DemoListBox" Margin="0,6,0,0" />
+            </Grid>
           </Border>
           <Separator Grid.Column="1" Orientation="Vertical" Foreground="#2A445D" />
           <Border Grid.Column="2" Background="#111D2D" BorderBrush="#2E4A66" BorderThickness="1" Padding="8">
-            <StackPanel>
-              <Label Text="ListView" Foreground="#DAEDFF" />
-              <ListView x:Name="DemoListView" Margin="0,6,0,0" />
-            </StackPanel>
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+              <Label Grid.Row="0" Text="ListView" Foreground="#DAEDFF" />
+              <ListView Grid.Row="1" x:Name="DemoListView" Margin="0,6,0,0" />
+            </Grid>
           </Border>
         </Grid>
 
@@ -145,22 +153,30 @@
             <ColumnDefinition Width="*" />
           </Grid.ColumnDefinitions>
           <Border Grid.Column="0" Background="#111D2D" BorderBrush="#2E4A66" BorderThickness="1" Padding="8">
-            <StackPanel>
-              <Label Text="DataGrid (header sort mutates CollectionView sort descriptors)" Foreground="#DAEDFF" />
-              <DataGrid x:Name="DemoDataGrid" Margin="0,6,0,0" />
-            </StackPanel>
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+              <Label Grid.Row="0" Text="DataGrid (header sort mutates CollectionView sort descriptors)" Foreground="#DAEDFF" />
+              <DataGrid Grid.Row="1" x:Name="DemoDataGrid" Margin="0,6,0,0" />
+            </Grid>
           </Border>
           <Separator Grid.Column="1" Orientation="Vertical" Foreground="#2A445D" />
           <Border Grid.Column="2" Background="#111D2D" BorderBrush="#2E4A66" BorderThickness="1" Padding="8">
-            <StackPanel>
-              <Label Text="GroupStyle HeaderTemplate Preview" Foreground="#DAEDFF" />
-              <ItemsControl x:Name="GroupPreview" Margin="0,6,0,0">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+              <Label Grid.Row="0" Text="GroupStyle HeaderTemplate Preview" Foreground="#DAEDFF" />
+              <ItemsControl Grid.Row="1" x:Name="GroupPreview" Margin="0,6,0,0">
                 <ItemsControl.GroupStyle>
                   <GroupStyle HeaderTemplate="{StaticResource GroupHeaderTemplate}"
                               HeaderStringFormat="Group {0} - {1} item(s)" />
                 </ItemsControl.GroupStyle>
               </ItemsControl>
-            </StackPanel>
+            </Grid>
           </Border>
         </Grid>
       </Grid>

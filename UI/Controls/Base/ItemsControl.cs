@@ -45,6 +45,7 @@ public class ItemsControl : Control
     private readonly List<UIElement> _itemContainers = [];
     private readonly List<UIElement> _groupContainers = [];
     private readonly ObservableCollection<GroupStyle> _groupStyle = [];
+    private readonly Dictionary<Type, DataTemplate?> _implicitTemplateCache = new();
     private UIElement? _activeItemsHost;
     private ICollectionView? _itemsSourceView;
     private CollectionViewSource? _itemsSourceReference;
@@ -258,6 +259,7 @@ public class ItemsControl : Control
         base.OnDependencyPropertyChanged(args);
         if (args.Property == ItemTemplateProperty || args.Property == ItemTemplateSelectorProperty)
         {
+            _implicitTemplateCache.Clear();
             RegenerateChildren();
         }
     }
@@ -436,12 +438,25 @@ public class ItemsControl : Control
 
     private UIElement? BuildContainerForItem(object? item)
     {
-        var selectedTemplate = DataTemplateResolver.ResolveTemplateForContent(
-            this,
-            item,
-            ItemTemplate,
-            ItemTemplateSelector,
-            this);
+        DataTemplate? selectedTemplate;
+        if (ItemTemplate != null || ItemTemplateSelector != null || item == null)
+        {
+            selectedTemplate = DataTemplateResolver.ResolveTemplateForContent(
+                this,
+                item,
+                ItemTemplate,
+                ItemTemplateSelector,
+                this);
+        }
+        else
+        {
+            var itemType = item.GetType();
+            if (!_implicitTemplateCache.TryGetValue(itemType, out selectedTemplate))
+            {
+                selectedTemplate = DataTemplateResolver.ResolveImplicitTemplate(this, item);
+                _implicitTemplateCache[itemType] = selectedTemplate;
+            }
+        }
 
         if (selectedTemplate != null)
         {
@@ -470,31 +485,13 @@ public class ItemsControl : Control
             return;
         }
 
-        switch (e.Action)
+        if (!TryApplyIncrementalItemsChange(e))
         {
-            case NotifyCollectionChangedAction.Add:
-                InsertNewContainers(e);
-                break;
-            case NotifyCollectionChangedAction.Remove:
-                RemoveOldContainers(e);
-                break;
-            case NotifyCollectionChangedAction.Replace:
-                ReplaceContainers(e);
-                break;
-            case NotifyCollectionChangedAction.Move:
-                MoveContainers(e);
-                break;
-            case NotifyCollectionChangedAction.Reset:
-                RegenerateChildren();
-                return;
-            default:
-                RegenerateChildren();
-                return;
+            RegenerateChildren();
+            return;
         }
 
-        OnItemsChanged();
-        (_activeItemsHost as FrameworkElement)?.InvalidateMeasure();
-        InvalidateMeasure();
+        FinalizeItemsIncrementalChange(e);
     }
 
     private void InsertNewContainers(NotifyCollectionChangedEventArgs e)
@@ -650,6 +647,7 @@ public class ItemsControl : Control
     private void OnItemsSourceChanged(object? oldValue, object? newValue)
     {
         _ = oldValue;
+        _implicitTemplateCache.Clear();
         DetachItemsSourceReference();
         DetachItemsSourceView();
         _skipNextGroupsRegeneration = false;
@@ -677,6 +675,7 @@ public class ItemsControl : Control
             return;
         }
 
+        _implicitTemplateCache.Clear();
         DetachItemsSourceView();
         _itemsSourceView = _itemsSourceReference?.View;
         AttachItemsSourceView();
@@ -711,16 +710,132 @@ public class ItemsControl : Control
     private void OnItemsSourceViewChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         _ = sender;
-        if (e.Action == NotifyCollectionChangedAction.Reset &&
-            !ShouldBuildGroupedProjection() &&
-            TryReconcileProjectedContainers())
+        var diagnosticsEnabled = SourceCollectionDispatchDiagnostics.Enabled;
+        var totalStart = diagnosticsEnabled ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
+        var applyMs = 0d;
+        var finalizeMs = 0d;
+        var reconcileMs = 0d;
+        var regenerateMs = 0d;
+        var grouped = ShouldBuildGroupedProjection();
+
+        if (!grouped &&
+            e.Action != NotifyCollectionChangedAction.Reset)
         {
-            _skipNextGroupsRegeneration = true;
-            return;
+            var applyStart = diagnosticsEnabled ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
+            var applied = TryApplyIncrementalItemsChange(e);
+            if (diagnosticsEnabled)
+            {
+                applyMs = System.Diagnostics.Stopwatch.GetElapsedTime(applyStart).TotalMilliseconds;
+            }
+
+            if (applied)
+            {
+                _skipNextGroupsRegeneration = true;
+                var finalizeStart = diagnosticsEnabled ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
+                FinalizeItemsIncrementalChange(e);
+                if (diagnosticsEnabled)
+                {
+                    finalizeMs = System.Diagnostics.Stopwatch.GetElapsedTime(finalizeStart).TotalMilliseconds;
+                    SourceCollectionDispatchDiagnostics.ObserveItemsSourceViewChangedBreakdown(
+                        GetType().Name,
+                        e.Action,
+                        "Incremental",
+                        System.Diagnostics.Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds,
+                        applyMs,
+                        finalizeMs,
+                        reconcileMs,
+                        regenerateMs,
+                        ItemContainers.Count,
+                        grouped);
+                }
+
+                return;
+            }
+        }
+
+        if (e.Action == NotifyCollectionChangedAction.Reset &&
+            !grouped)
+        {
+            var reconcileStart = diagnosticsEnabled ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
+            var reconciled = TryReconcileProjectedContainers();
+            if (diagnosticsEnabled)
+            {
+                reconcileMs = System.Diagnostics.Stopwatch.GetElapsedTime(reconcileStart).TotalMilliseconds;
+            }
+
+            if (reconciled)
+            {
+                _skipNextGroupsRegeneration = true;
+                if (diagnosticsEnabled)
+                {
+                    SourceCollectionDispatchDiagnostics.ObserveItemsSourceViewChangedBreakdown(
+                        GetType().Name,
+                        e.Action,
+                        "ResetReconcile",
+                        System.Diagnostics.Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds,
+                        applyMs,
+                        finalizeMs,
+                        reconcileMs,
+                        regenerateMs,
+                        ItemContainers.Count,
+                        grouped);
+                }
+
+                return;
+            }
         }
 
         _skipNextGroupsRegeneration = true;
+        var regenerateStart = diagnosticsEnabled ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
         RegenerateChildren();
+        if (diagnosticsEnabled)
+        {
+            regenerateMs = System.Diagnostics.Stopwatch.GetElapsedTime(regenerateStart).TotalMilliseconds;
+            SourceCollectionDispatchDiagnostics.ObserveItemsSourceViewChangedBreakdown(
+                GetType().Name,
+                e.Action,
+                "Regenerate",
+                System.Diagnostics.Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds,
+                applyMs,
+                finalizeMs,
+                reconcileMs,
+                regenerateMs,
+                ItemContainers.Count,
+                grouped);
+        }
+    }
+
+    private bool TryApplyIncrementalItemsChange(NotifyCollectionChangedEventArgs e)
+    {
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add:
+                InsertNewContainers(e);
+                return true;
+            case NotifyCollectionChangedAction.Remove:
+                RemoveOldContainers(e);
+                return true;
+            case NotifyCollectionChangedAction.Replace:
+                ReplaceContainers(e);
+                return true;
+            case NotifyCollectionChangedAction.Move:
+                MoveContainers(e);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void FinalizeItemsIncrementalChange(NotifyCollectionChangedEventArgs e)
+    {
+        OnItemsIncrementalChanged(e);
+        InvalidateMeasure();
+    }
+
+    protected virtual void OnItemsIncrementalChanged(NotifyCollectionChangedEventArgs e)
+    {
+        _ = e;
+        OnItemsChanged();
     }
 
     private void OnItemsSourceViewPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

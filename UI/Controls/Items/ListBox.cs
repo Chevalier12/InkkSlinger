@@ -186,6 +186,21 @@ public class ListBox : Selector
         if (element is ListBoxItem listBoxItem)
         {
             listBoxItem.IsSelected = IsSelectedIndex(SelectedIndices, index);
+
+            if (listBoxItem.Content is Label label)
+            {
+                // Fast-path for the common text item template to avoid a full visual-tree walk.
+                if (Font != null)
+                {
+                    label.Font = Font;
+                }
+                else
+                {
+                    label.ClearValue(Label.FontProperty);
+                }
+
+                return;
+            }
         }
 
         ApplyFontToElementTree(element, oldFont: null, newFont: Font);

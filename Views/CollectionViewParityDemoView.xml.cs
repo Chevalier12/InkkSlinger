@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -9,6 +10,8 @@ public partial class CollectionViewParityDemoView : UserControl
 {
     private static readonly bool CpuDiagnosticsEnabled =
         string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_COLLECTIONVIEW_CPU_LOGS"), "1", StringComparison.Ordinal);
+    private static readonly bool AddItemCpuDiagnosticsEnabled =
+        string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_COLLECTIONVIEW_ADDITEM_CPU_LOGS"), "1", StringComparison.Ordinal);
     private static readonly TimeSpan ResetLogThrottle = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan CurrentChangedLogThrottle = TimeSpan.FromMilliseconds(120);
     private static readonly TimeSpan StatusRecountThrottle = TimeSpan.FromMilliseconds(80);
@@ -63,14 +66,56 @@ public partial class CollectionViewParityDemoView : UserControl
     {
         _ = sender;
         _ = args;
+        var totalStart = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
+        var stepStart = totalStart;
+
         var name = string.IsNullOrWhiteSpace(NameInput?.Text) ? $"Item {_nextId}" : NameInput!.Text;
+        var parseNameMs = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetElapsedTime(stepStart).TotalMilliseconds : 0d;
+        stepStart = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         var category = string.IsNullOrWhiteSpace(CategoryInput?.Text) ? "General" : CategoryInput!.Text;
+        var parseCategoryMs = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetElapsedTime(stepStart).TotalMilliseconds : 0d;
+        stepStart = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         var priority = int.TryParse(PriorityInput?.Text, out var parsedPriority) ? Math.Clamp(parsedPriority, 1, 5) : 1;
+        var parsePriorityMs = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetElapsedTime(stepStart).TotalMilliseconds : 0d;
+        stepStart = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         var item = new CollectionDemoItem(_nextId++, name, category, priority);
+        var createItemMs = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetElapsedTime(stepStart).TotalMilliseconds : 0d;
+        stepStart = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
+
+        var sourceCountBefore = AddItemCpuDiagnosticsEnabled ? _viewModel.SourceItems.Count : 0;
+        var viewCountBefore = AddItemCpuDiagnosticsEnabled ? _lastComputedViewCount : 0;
         _viewModel.SourceItems.Add(item);
+        var sourceAddMs = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetElapsedTime(stepStart).TotalMilliseconds : 0d;
+        stepStart = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         _viewSource.Refresh();
+        var refreshMs = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetElapsedTime(stepStart).TotalMilliseconds : 0d;
+        stepStart = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         AppendLog($"Add: {item}");
+        var appendLogMs = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetElapsedTime(stepStart).TotalMilliseconds : 0d;
+        stepStart = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
+
         UpdateStatusAndCurrent();
+        var updateStatusMs = AddItemCpuDiagnosticsEnabled ? Stopwatch.GetElapsedTime(stepStart).TotalMilliseconds : 0d;
+
+        if (!AddItemCpuDiagnosticsEnabled)
+        {
+            return;
+        }
+
+        var totalMs = Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds;
+        var sourceCountAfter = _viewModel.SourceItems.Count;
+        var viewCountAfter = _lastComputedViewCount;
+        var line =
+            $"[CollectionViewAddItemCpu] total={totalMs:0.###}ms " +
+            $"steps(parseName={parseNameMs:0.###}ms parseCategory={parseCategoryMs:0.###}ms parsePriority={parsePriorityMs:0.###}ms createItem={createItemMs:0.###}ms sourceAdd={sourceAddMs:0.###}ms refresh={refreshMs:0.###}ms appendLog={appendLogMs:0.###}ms updateStatus={updateStatusMs:0.###}ms) " +
+            $"counts(source={sourceCountBefore}->{sourceCountAfter} view={viewCountBefore}->{viewCountAfter})";
+        Debug.WriteLine(line);
+        Console.WriteLine(line);
     }
 
     private void OnRemoveCurrentClick(object? sender, RoutedSimpleEventArgs args)
@@ -366,6 +411,16 @@ public partial class CollectionViewParityDemoView : UserControl
         if (element is DataGrid dataGrid)
         {
             dataGrid.Font = font;
+        }
+
+        if (element is ListBox listBox)
+        {
+            listBox.Font = font;
+        }
+
+        if (element is ListView listView)
+        {
+            listView.Font = font;
         }
 
         foreach (var child in element.GetVisualChildren())

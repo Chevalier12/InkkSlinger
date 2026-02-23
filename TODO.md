@@ -40,7 +40,8 @@
 - [x] ContextMenu performance diagnostics hardening: dedicated CPU diagnostics (`INKKSLINGER_CONTEXTMENU_CPU_LOGS`) with hover/open/invoke timing splits, resolver-path attribution, deep-branch traversal counters, and first-open vs warm-open invalidation breakdowns.
 - [x] Adorner authoring ergonomics pass: introduced reusable `AnchoredAdorner`/`HandlesAdornerBase` APIs and added dedicated `AdornersLabView` demo surface (`--adorners-lab`).
 - [x] CollectionView parity pass: `ICollectionView` stack (`CollectionView`, `ListCollectionView`, `CollectionViewSource`) with filter/sort/group/current-item semantics, strict `ItemsSource` vs `Items` mutation behavior, grouped projection via `GroupStyle`/`GroupItem`, DataGrid header sort integration with view sort descriptors, XAML parser/schema support, dedicated parity demo (`--collectionview-parity-demo`), and follow-up diagnostics (`CollectionViewCpuDiagnostics`, pointer resolve instrumentation).
-- [x] ListView lab added as dedicated validation surface (`--listview-lab`), and now serves as the default launch mode when no explicit CLI flag is supplied.
+- [x] ListView lab added as dedicated validation surface (`--listview-lab`).
+- [x] Collection add-isolation lab added as dedicated validation surface (`--collection-add-isolation-demo`) and now serves as the default launch mode when no explicit CLI flag is supplied.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
@@ -132,7 +133,7 @@ Pointer-move dispatch is forced while any context menu is open (so hover transit
 - [x] Grid
 - [x] GridSplitter
 - [x] GroupBox
-- [ ] GroupItem
+- [x] GroupItem
 - [x] HeaderedContentControl
 - [x] HeaderedItemsControl
 - [x] Image

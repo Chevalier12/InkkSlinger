@@ -735,8 +735,38 @@ public class UIElement : DependencyObject
 
     private void DispatchRoutedEvent(RoutedEvent routedEvent, RoutedEventArgs args)
     {
-        EventManager.InvokeClassHandlers(this, routedEvent, args);
-        InvokeInstanceHandlers(routedEvent, args);
+        if (!RoutedEventDispatchDiagnostics.Enabled)
+        {
+            EventManager.InvokeClassHandlers(this, routedEvent, args);
+            InvokeInstanceHandlers(routedEvent, args);
+            return;
+        }
+
+        var routeStart = Stopwatch.GetTimestamp();
+        try
+        {
+            var classStart = Stopwatch.GetTimestamp();
+            try
+            {
+                EventManager.InvokeClassHandlers(this, routedEvent, args);
+            }
+            finally
+            {
+                RoutedEventDispatchDiagnostics.ObserveClassHandlers(
+                    this,
+                    routedEvent,
+                    Stopwatch.GetElapsedTime(classStart).TotalMilliseconds);
+            }
+
+            InvokeInstanceHandlers(routedEvent, args);
+        }
+        finally
+        {
+            RoutedEventDispatchDiagnostics.ObserveRouteTotal(
+                this,
+                routedEvent,
+                Stopwatch.GetElapsedTime(routeStart).TotalMilliseconds);
+        }
     }
 
     private void InvokeInstanceHandlers(RoutedEvent routedEvent, RoutedEventArgs args)
@@ -749,6 +779,7 @@ public class UIElement : DependencyObject
         // Handlers are allowed to add/remove routed handlers while events dispatch.
         // Iterate over a snapshot to avoid collection-modified exceptions.
         var snapshot = handlers.ToArray();
+        var diagnosticsEnabled = RoutedEventDispatchDiagnostics.Enabled;
         foreach (var handlerEntry in snapshot)
         {
             if (args.Handled && !handlerEntry.HandledEventsToo)
@@ -756,7 +787,25 @@ public class UIElement : DependencyObject
                 continue;
             }
 
-            handlerEntry.Invoker(this, args);
+            if (!diagnosticsEnabled)
+            {
+                handlerEntry.Invoker(this, args);
+                continue;
+            }
+
+            var handlerStart = Stopwatch.GetTimestamp();
+            try
+            {
+                handlerEntry.Invoker(this, args);
+            }
+            finally
+            {
+                RoutedEventDispatchDiagnostics.ObserveInstanceHandler(
+                    this,
+                    routedEvent,
+                    handlerEntry.OriginalHandler,
+                    Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds);
+            }
         }
     }
 

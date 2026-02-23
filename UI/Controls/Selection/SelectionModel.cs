@@ -16,6 +16,7 @@ public sealed class SelectionModel
 
     public int SelectedIndex => _selectedIndices.Count == 0 ? -1 : _selectedIndices.Min;
     public int AnchorIndex => _anchorIndex;
+    public int Count => _items.Count;
 
     public object? SelectedItem
     {
@@ -53,6 +54,43 @@ public sealed class SelectionModel
         if (_anchorIndex >= _items.Count)
         {
             _anchorIndex = -1;
+        }
+    }
+
+    public void InsertItems(int index, System.Collections.IList newItems)
+    {
+        if (newItems.Count == 0)
+        {
+            return;
+        }
+
+        var insertIndex = Math.Clamp(index, 0, _items.Count);
+        for (var i = 0; i < newItems.Count; i++)
+        {
+            _items.Insert(insertIndex + i, newItems[i]!);
+        }
+
+        var shift = newItems.Count;
+        if (shift <= 0)
+        {
+            return;
+        }
+
+        var shifted = new SortedSet<int>();
+        foreach (var selectedIndex in _selectedIndices)
+        {
+            shifted.Add(selectedIndex >= insertIndex ? selectedIndex + shift : selectedIndex);
+        }
+
+        _selectedIndices.Clear();
+        foreach (var selectedIndex in shifted)
+        {
+            _selectedIndices.Add(selectedIndex);
+        }
+
+        if (_anchorIndex >= insertIndex)
+        {
+            _anchorIndex += shift;
         }
     }
 

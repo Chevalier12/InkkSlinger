@@ -29,6 +29,7 @@ UI/
       CollectionViewFactory.cs
       CollectionViewGroup.cs
       CollectionViewSource.cs
+      DiagnosticObservableCollection.cs
       GroupDescription.cs
       ICollectionView.cs
       ListCollectionView.cs
@@ -202,13 +203,16 @@ UI/
     ContextMenuHoverDiagnostics.cs
     ListBoxSelectCPUDiagnostics.cs
     RichTextBoxDiagnostics.cs
+    RoutedEventDispatchDiagnostics.cs
     ScrollWheelRoutingDiagnostics.cs
+    SourceCollectionDispatchDiagnostics.cs
     TextBoxFrameworkDiagnostics.cs
     UiFrameworkFileLoadDiagnostics.cs
     UiFrameworkPopulationPhaseDiagnostics.cs
     UiRootAllocationGcDiagnostics.cs
     UiRootClickCpuDiagnostics.cs
     UiRootControlHotspotDiagnostics.cs
+    UiRootCpuAttributionDiagnostics.cs
     UiRootDirtyRegionEffectivenessDiagnostics.cs
     UiRootFrameLatencyDiagnostics.cs
     UiRootInputRouteComplexityDiagnostics.cs

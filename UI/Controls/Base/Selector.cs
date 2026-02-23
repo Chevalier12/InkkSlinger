@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace InkkSlinger;
@@ -108,6 +109,23 @@ public class Selector : ItemsControl
         }
 
         SyncSelectionPropertiesFromModel();
+    }
+
+    protected override void OnItemsIncrementalChanged(System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (ItemsSourceView != null &&
+            e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add &&
+            e.NewItems != null &&
+            e.NewItems.Count > 0)
+        {
+            var insertIndex = e.NewStartingIndex < 0 ? _selectionModel.Count : e.NewStartingIndex;
+            insertIndex = Math.Clamp(insertIndex, 0, _selectionModel.Count);
+            _selectionModel.InsertItems(insertIndex, e.NewItems);
+            SyncSelectionPropertiesFromModel();
+            return;
+        }
+
+        OnItemsChanged();
     }
 
     protected virtual void OnSelectionChanged(SelectionChangedEventArgs args)

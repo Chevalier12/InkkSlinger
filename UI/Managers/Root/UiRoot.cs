@@ -384,6 +384,7 @@ public sealed partial class UiRoot
         ObserveInputRouteComplexityAfterUpdate();
         ObserveNoOpInvalidationAfterUpdate();
         ObserveControlHotspotAfterUpdate();
+        ObserveCpuAttributionAfterUpdate();
     }
 
     public void EnqueueDeferredOperation(Action operation)

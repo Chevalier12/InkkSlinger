@@ -20,6 +20,9 @@ public class StackPanel : Panel
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var desired = Vector2.Zero;
+        var childAvailable = Orientation == Orientation.Vertical
+            ? new Vector2(availableSize.X, float.PositiveInfinity)
+            : new Vector2(float.PositiveInfinity, availableSize.Y);
 
         foreach (var child in Children)
         {
@@ -28,7 +31,7 @@ public class StackPanel : Panel
                 continue;
             }
 
-            frameworkChild.Measure(availableSize);
+            frameworkChild.Measure(childAvailable);
             var childDesired = frameworkChild.DesiredSize;
             if (Orientation == Orientation.Vertical)
             {

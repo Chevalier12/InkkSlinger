@@ -6,6 +6,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 
 namespace InkkSlinger;
@@ -77,10 +78,19 @@ public class CollectionView : ICollectionView
 
     public virtual void Refresh()
     {
+        RefreshCore("CollectionView.Refresh", null);
+    }
+
+    private void RefreshCore(string source, NotifyCollectionChangedAction? sourceAction)
+    {
         var previousCurrentItem = _currentItem;
         var previousCurrentPosition = _currentPosition;
         var previousGroups = _groups;
-        var diagnosticsEnabled = CollectionViewCpuDiagnostics.Enabled;
+        var sourceBreakdownEnabled =
+            SourceCollectionDispatchDiagnostics.Enabled &&
+            sourceAction.HasValue &&
+            string.Equals(source, "CollectionView.OnSourceCollectionChanged", StringComparison.Ordinal);
+        var diagnosticsEnabled = CollectionViewCpuDiagnostics.Enabled || sourceBreakdownEnabled;
         var totalStart = diagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
         var phaseStart = diagnosticsEnabled ? totalStart : 0L;
 
@@ -113,17 +123,49 @@ public class CollectionView : ICollectionView
         }
 
         var totalMs = Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds;
-        CollectionViewCpuDiagnostics.ObserveRefresh(
-            totalMs,
-            materializeMs,
-            filterMs,
-            sortMs,
-            groupMs,
-            currentRepairMs,
-            notifyDiagnostics,
-            _viewItems.Count,
-            _groups.Count,
-            "CollectionView.Refresh");
+        if (CollectionViewCpuDiagnostics.Enabled)
+        {
+            CollectionViewCpuDiagnostics.ObserveRefresh(
+                totalMs,
+                materializeMs,
+                filterMs,
+                sortMs,
+                groupMs,
+                currentRepairMs,
+                notifyDiagnostics,
+                _viewItems.Count,
+                _groups.Count,
+                source);
+        }
+
+        if (sourceBreakdownEnabled)
+        {
+            var action = sourceAction.GetValueOrDefault(NotifyCollectionChangedAction.Reset);
+            SourceCollectionDispatchDiagnostics.ObserveCollectionViewRefreshBreakdown(
+                source,
+                action,
+                totalMs,
+                materializeMs,
+                filterMs,
+                sortMs,
+                groupMs,
+                currentRepairMs,
+                notifyDiagnostics.TotalMs,
+                notifyDiagnostics.CollectionChangedMs,
+                notifyDiagnostics.PropertyGroupsMs,
+                notifyDiagnostics.PropertyCurrentPositionMs,
+                notifyDiagnostics.PropertyCurrentItemMs,
+                notifyDiagnostics.PropertyBeforeFirstMs,
+                notifyDiagnostics.PropertyAfterLastMs,
+                notifyDiagnostics.CurrentChangedMs,
+                FormatTopHandlers(notifyDiagnostics.CollectionChangedHandlerTimings),
+                FormatTopHandlers(notifyDiagnostics.PropertyGroupsHandlerTimings),
+                FormatTopHandlers(notifyDiagnostics.PropertyCurrentPositionHandlerTimings),
+                FormatTopHandlers(notifyDiagnostics.PropertyCurrentItemHandlerTimings),
+                FormatTopHandlers(notifyDiagnostics.CurrentChangedHandlerTimings),
+                _viewItems.Count,
+                _groups.Count);
+        }
     }
 
     public bool MoveCurrentTo(object? item)
@@ -191,8 +233,144 @@ public class CollectionView : ICollectionView
     protected virtual void OnSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         _ = sender;
-        _ = e;
-        Refresh();
+        if (TryHandleSourceCollectionChangedIncrementally(e))
+        {
+            return;
+        }
+
+        RefreshCore("CollectionView.OnSourceCollectionChanged", e.Action);
+    }
+
+    private bool TryHandleSourceCollectionChangedIncrementally(NotifyCollectionChangedEventArgs e)
+    {
+        if (_filter != null || SortDescriptions.Count > 0 || GroupDescriptions.Count > 0)
+        {
+            return false;
+        }
+
+        if (e.Action != NotifyCollectionChangedAction.Add || e.NewItems == null || e.NewItems.Count == 0)
+        {
+            return false;
+        }
+
+        var insertIndex = e.NewStartingIndex;
+        if (insertIndex < 0 || insertIndex > _viewItems.Count)
+        {
+            return false;
+        }
+
+        var sourceDiagnosticsEnabled = SourceCollectionDispatchDiagnostics.Enabled;
+        var totalStart = sourceDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
+        var phaseStart = sourceDiagnosticsEnabled ? totalStart : 0L;
+        var previousCurrentItem = _currentItem;
+        var previousCurrentPosition = _currentPosition;
+        var previousBeforeFirst = IsCurrentBeforeFirst;
+        var previousAfterLast = IsCurrentAfterLast;
+
+        for (var i = 0; i < e.NewItems.Count; i++)
+        {
+            _viewItems.Insert(insertIndex + i, e.NewItems[i]);
+        }
+        var insertMs = sourceDiagnosticsEnabled ? Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds : 0d;
+        phaseStart = sourceDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
+
+        RepairCurrent(previousCurrentItem);
+        var currentRepairMs = sourceDiagnosticsEnabled ? Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds : 0d;
+
+        if (!sourceDiagnosticsEnabled)
+        {
+            CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, e.NewItems, insertIndex));
+            RaiseCurrencyNotificationsIfNeeded(previousCurrentItem, previousCurrentPosition, previousBeforeFirst, previousAfterLast);
+            return true;
+        }
+
+        phaseStart = Stopwatch.GetTimestamp();
+        var collectionChanged = CollectionChanged;
+        var propertyChanged = PropertyChanged;
+        var currentChanged = CurrentChanged;
+        var collectionChangedTimings = new List<CollectionViewHandlerTiming>(collectionChanged?.GetInvocationList().Length ?? 0);
+        var propertyCurrentPositionTimings = new List<CollectionViewHandlerTiming>(propertyChanged?.GetInvocationList().Length ?? 0);
+        var propertyCurrentItemTimings = new List<CollectionViewHandlerTiming>(propertyChanged?.GetInvocationList().Length ?? 0);
+        var propertyBeforeFirstTimings = new List<CollectionViewHandlerTiming>(propertyChanged?.GetInvocationList().Length ?? 0);
+        var propertyAfterLastTimings = new List<CollectionViewHandlerTiming>(propertyChanged?.GetInvocationList().Length ?? 0);
+        var currentChangedTimings = new List<CollectionViewHandlerTiming>(currentChanged?.GetInvocationList().Length ?? 0);
+
+        var addArgs = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, e.NewItems, insertIndex);
+        var collectionChangedMs = InvokeCollectionChangedHandlers(collectionChanged, this, addArgs, collectionChangedTimings);
+
+        var propertyCurrentPositionMs = 0d;
+        if (previousCurrentPosition != _currentPosition)
+        {
+            propertyCurrentPositionMs = InvokePropertyChangedHandlers(
+                propertyChanged,
+                this,
+                new PropertyChangedEventArgs(nameof(CurrentPosition)),
+                propertyCurrentPositionTimings);
+        }
+
+        var propertyCurrentItemMs = 0d;
+        if (!Equals(previousCurrentItem, _currentItem))
+        {
+            propertyCurrentItemMs = InvokePropertyChangedHandlers(
+                propertyChanged,
+                this,
+                new PropertyChangedEventArgs(nameof(CurrentItem)),
+                propertyCurrentItemTimings);
+        }
+
+        var propertyBeforeFirstMs = 0d;
+        if (previousBeforeFirst != IsCurrentBeforeFirst)
+        {
+            propertyBeforeFirstMs = InvokePropertyChangedHandlers(
+                propertyChanged,
+                this,
+                new PropertyChangedEventArgs(nameof(IsCurrentBeforeFirst)),
+                propertyBeforeFirstTimings);
+        }
+
+        var propertyAfterLastMs = 0d;
+        if (previousAfterLast != IsCurrentAfterLast)
+        {
+            propertyAfterLastMs = InvokePropertyChangedHandlers(
+                propertyChanged,
+                this,
+                new PropertyChangedEventArgs(nameof(IsCurrentAfterLast)),
+                propertyAfterLastTimings);
+        }
+
+        var currentChangedMs = 0d;
+        if (!Equals(previousCurrentItem, _currentItem) || previousCurrentPosition != _currentPosition)
+        {
+            currentChangedMs = InvokeEventHandlers(currentChanged, this, EventArgs.Empty, currentChangedTimings);
+        }
+
+        var notifyMs = Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds;
+        var totalMs = Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds;
+        SourceCollectionDispatchDiagnostics.ObserveCollectionViewRefreshBreakdown(
+            "CollectionView.OnSourceCollectionChanged.IncrementalAdd",
+            NotifyCollectionChangedAction.Add,
+            totalMs,
+            insertMs,
+            0d,
+            0d,
+            0d,
+            currentRepairMs,
+            notifyMs,
+            collectionChangedMs,
+            0d,
+            propertyCurrentPositionMs,
+            propertyCurrentItemMs,
+            propertyBeforeFirstMs,
+            propertyAfterLastMs,
+            currentChangedMs,
+            FormatTopHandlers(collectionChangedTimings),
+            "none",
+            FormatTopHandlers(propertyCurrentPositionTimings),
+            FormatTopHandlers(propertyCurrentItemTimings),
+            FormatTopHandlers(currentChangedTimings),
+            _viewItems.Count,
+            _groups.Count);
+        return true;
     }
 
     private List<object?> BuildSourceSnapshot()
@@ -602,6 +780,21 @@ public class CollectionView : ICollectionView
         return $"{targetType}.{handler.Method.Name}";
     }
 
+    private static string FormatTopHandlers(IReadOnlyList<CollectionViewHandlerTiming> timings)
+    {
+        if (timings.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join(
+            " | ",
+            timings
+                .OrderByDescending(static t => t.ElapsedMs)
+                .Take(3)
+                .Select(static t => $"{t.HandlerKey}:{t.ElapsedMs:0.###}ms"));
+    }
+
     private void RaiseCurrentChangedIfNeeded(object? previousCurrentItem, int previousCurrentPosition)
     {
         if (Equals(previousCurrentItem, _currentItem) && previousCurrentPosition == _currentPosition)
@@ -610,6 +803,35 @@ public class CollectionView : ICollectionView
         }
 
         CurrentChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaiseCurrencyNotificationsIfNeeded(
+        object? previousCurrentItem,
+        int previousCurrentPosition,
+        bool previousBeforeFirst,
+        bool previousAfterLast)
+    {
+        if (previousCurrentPosition != _currentPosition)
+        {
+            OnPropertyChanged(nameof(CurrentPosition));
+        }
+
+        if (!Equals(previousCurrentItem, _currentItem))
+        {
+            OnPropertyChanged(nameof(CurrentItem));
+        }
+
+        if (previousBeforeFirst != IsCurrentBeforeFirst)
+        {
+            OnPropertyChanged(nameof(IsCurrentBeforeFirst));
+        }
+
+        if (previousAfterLast != IsCurrentAfterLast)
+        {
+            OnPropertyChanged(nameof(IsCurrentAfterLast));
+        }
+
+        RaiseCurrentChangedIfNeeded(previousCurrentItem, previousCurrentPosition);
     }
 
     private void OnSortDescriptionsChanged(object? sender, NotifyCollectionChangedEventArgs e)

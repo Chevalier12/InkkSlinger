@@ -34,6 +34,7 @@ public class Game1 : Game
     private readonly bool _isContextMenuParityLabDemo;
     private readonly bool _isAdornersLabDemo;
     private readonly bool _isCollectionViewParityDemo;
+    private readonly bool _isCollectionAddIsolationDemo;
     private SpriteBatch _spriteBatch = null!;
     private RenderTarget2D? _uiCompositeTarget;
     private Panel _root = null!;
@@ -62,6 +63,7 @@ public class Game1 : Game
     private ContextMenuParityLabView? _contextMenuParityLabView;
     private AdornersLabView? _adornersLabView;
     private CollectionViewParityDemoView? _collectionViewParityDemoView;
+    private CollectionAddIsolationView? _collectionAddIsolationView;
     private string _baseWindowTitle = "InkkSlinger";
     private int _lastViewportWidth;
     private int _lastViewportHeight;
@@ -90,7 +92,8 @@ public class Game1 : Game
         bool isWindowPopupParityLabDemo = false,
         bool isContextMenuParityLabDemo = false,
         bool isAdornersLabDemo = false,
-        bool isCollectionViewParityDemo = false)
+        bool isCollectionViewParityDemo = false,
+        bool isCollectionAddIsolationDemo = false)
     {
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
@@ -117,6 +120,7 @@ public class Game1 : Game
         _isContextMenuParityLabDemo = isContextMenuParityLabDemo;
         _isAdornersLabDemo = isAdornersLabDemo;
         _isCollectionViewParityDemo = isCollectionViewParityDemo;
+        _isCollectionAddIsolationDemo = isCollectionAddIsolationDemo;
         Content.RootDirectory = "Content";
         _window.IsMouseVisible = !_isWindowPopupParityLabDemo;
         _window.AllowUserResizing = true;
@@ -259,6 +263,11 @@ public class Game1 : Game
             _collectionViewParityDemoView = new CollectionViewParityDemoView();
             _root.AddChild(_collectionViewParityDemoView);
         }
+        else if (_isCollectionAddIsolationDemo)
+        {
+            _collectionAddIsolationView = new CollectionAddIsolationView();
+            _root.AddChild(_collectionAddIsolationView);
+        }
         else
         {
             _mainMenuView = new MainMenuView();
@@ -312,6 +321,7 @@ public class Game1 : Game
             _contextMenuParityLabView?.SetFont(font);
             _adornersLabView?.SetFont(font);
             _collectionViewParityDemoView?.SetFont(font);
+            _collectionAddIsolationView?.SetFont(font);
         }
         catch
         {
