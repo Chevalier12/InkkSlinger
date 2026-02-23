@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-02-22
+Generated: 2026-02-23
 
 ```text
 UI/
@@ -197,6 +197,7 @@ UI/
       Dispatcher.cs
     Types/
   Diagnostics/
+    CollectionViewCpuDiagnostics.cs
     ContextMenuCpuDiagnostics.cs
     ContextMenuHoverDiagnostics.cs
     ListBoxSelectCPUDiagnostics.cs
@@ -213,6 +214,7 @@ UI/
     UiRootInputRouteComplexityDiagnostics.cs
     UiRootMoveCpuDiagnostics.cs
     UiRootNoOpInvalidationDiagnostics.cs
+    UiRootPointerResolveDiagnostics.cs
     UiRootRenderCacheChurnDiagnostics.cs
     UiRootScrollCpuDiagnostics.cs
     UiRootWheelRoutingDiagnostics.cs

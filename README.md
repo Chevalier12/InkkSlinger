@@ -2,12 +2,12 @@
 
 ## Is It Usable Yet? (tm sign here)
 
-### Evidence Pass (2026-02-21)
+### Evidence Pass (2026-02-23)
 
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (0 errors, 2 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
-| Test suite | Pass (`375/375`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
+| Test suite | Working tree: `384/385` passing (`1` known failure) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` (`ProgramDefaultModeTests` still expects CollectionView default) |
 | WPF control coverage | Broad but incomplete (`67/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `10` unchecked TODO items | `TODO.md` (missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
@@ -106,7 +106,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 44 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (44 files) | Implemented |
+| Regression safety net | 50 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (50 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -168,7 +168,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 ## UI Architecture Map
 
-The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-20):
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-23):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers
@@ -234,6 +234,15 @@ Primary validation machine for current development/testing:
 | Mode | Command |
 |---|---|
 | Default host mode | `dotnet run --project InkkSlinger.csproj` |
+| Three ScrollViewers demo | `dotnet run --project InkkSlinger.csproj -- --three-scroll-viewers` |
+| Two ScrollViewers demo | `dotnet run --project InkkSlinger.csproj -- --two-scroll-viewers` |
+| Simple ScrollViewer demo | `dotnet run --project InkkSlinger.csproj -- --simple-scroll-viewer` |
+| Simple StackPanel demo | `dotnet run --project InkkSlinger.csproj -- --simple-stack-panel` |
+| ScrollViewer + TextBox demo | `dotnet run --project InkkSlinger.csproj -- --scrollviewer-textbox-demo` |
+| ListBox demo | `dotnet run --project InkkSlinger.csproj -- --listbox-demo` |
+| ItemsPresenter demo | `dotnet run --project InkkSlinger.csproj -- --items-presenter-demo` |
+| VirtualizedStackPanel demo | `dotnet run --project InkkSlinger.csproj -- --virtualized-stack-panel-demo` |
+| ScrollViewer edge cases demo | `dotnet run --project InkkSlinger.csproj -- --scrollviewer-edge-cases` |
 | Dark dashboard demo | `dotnet run --project InkkSlinger.csproj -- --dark-dashboard` |
 | Main menu demo | `dotnet run --project InkkSlinger.csproj -- --main-menu` |
 | Window demo | `dotnet run --project InkkSlinger.csproj -- --window-demo` |
@@ -245,11 +254,12 @@ Primary validation machine for current development/testing:
 | Adorners lab | `dotnet run --project InkkSlinger.csproj -- --adorners-lab` |
 | Binding parity gap #5 demo | `dotnet run --project InkkSlinger.csproj -- --binding-parity-gap5-demo` |
 | CollectionView parity demo | `dotnet run --project InkkSlinger.csproj -- --collectionview-parity-demo` |
+| ListView lab | `dotnet run --project InkkSlinger.csproj -- --listview-lab` |
 | RichTextBox demo | `dotnet run --project InkkSlinger.csproj -- --richtextbox-demo` |
 | RichText diagnostics lab | `dotnet run --project InkkSlinger.csproj -- --richtext-diagnostics-lab` |
 | Window/Popup parity lab | `dotnet run --project InkkSlinger.csproj -- --window-popup-parity-lab` |
 
-Current default launch surface is the CollectionView parity demo when no explicit mode flag is provided.
+Current default launch surface is `ListViewLab` (`--listview-lab`) when no explicit mode flag is provided.
 
 ## Environment Variables
 

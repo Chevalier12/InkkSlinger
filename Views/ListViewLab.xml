@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0E1622"
+             BorderBrush="#2B4A68"
+             BorderThickness="1"
+             Padding="12">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Background="#172639"
+            BorderBrush="#36577A"
+            BorderThickness="1"
+            Padding="8"
+            Margin="0,0,0,8">
+      <Label Text="ListView Lab"
+             Foreground="#E2F1FF" />
+    </Border>
+
+    <Border Grid.Row="1"
+            Background="#0A131F"
+            BorderBrush="#294665"
+            BorderThickness="1"
+            Padding="8">
+      <ListView x:Name="LabListView"
+                Background="#0A131F"
+                BorderBrush="#294665"
+                BorderThickness="1" />
+    </Border>
+
+    <Grid Grid.Row="2" Margin="0,8,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Button Grid.Column="0" Text="Select First" Click="OnSelectFirstClick" />
+      <Button Grid.Column="2" Text="Select Next" Click="OnSelectNextClick" />
+      <Button Grid.Column="4" Text="Clear Selection" Click="OnClearSelectionClick" />
+      <Button Grid.Column="6" Text="Reload Items" Click="OnReloadItemsClick" />
+      <Label Grid.Column="7"
+             x:Name="SelectionStateLabel"
+             Margin="10,0,0,0"
+             Foreground="#BFD9F0"
+             HorizontalAlignment="Right"
+             VerticalAlignment="Center"
+             Text="SelectedIndex=-1 | SelectedItem=(none)" />
+    </Grid>
+  </Grid>
+</UserControl>

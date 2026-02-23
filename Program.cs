@@ -22,6 +22,8 @@ var isItemsPresenterDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--items-presenter-demo", global::System.StringComparison.OrdinalIgnoreCase));
 var isListBoxDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--listbox-demo", global::System.StringComparison.OrdinalIgnoreCase));
+var isListViewLab = global::System.Array.Exists(args,
+    arg => string.Equals(arg, "--listview-lab", global::System.StringComparison.OrdinalIgnoreCase));
 var isTwoScrollViewersDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--two-scroll-viewers", global::System.StringComparison.OrdinalIgnoreCase));
 var isVirtualizedStackPanelDemo = global::System.Array.Exists(args,
@@ -46,9 +48,9 @@ var isAdornersLabDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--adorners-lab", global::System.StringComparison.OrdinalIgnoreCase));
 var isCollectionViewParityDemo = global::System.Array.Exists(args,
     arg => string.Equals(arg, "--collectionview-parity-demo", global::System.StringComparison.OrdinalIgnoreCase));
-if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo && !isPasswordBoxDemo && !isMenuParityDemo && !isBindingParityGap5Demo && !isRichTextBoxDemo && !isRichTextDiagnosticsLabDemo && !isWindowPopupParityLabDemo && !isContextMenuParityLabDemo && !isAdornersLabDemo && !isCollectionViewParityDemo)
+if (!isWindowDemo && !isMainMenuDemo && !isPaintShellDemo && !isDarkDashboardDemo && !isCommandingDemo && !isThreeScrollViewersDemo && !isTwoScrollViewersDemo && !isSimpleScrollViewerDemo && !isSimpleStackPanelDemo && !isScrollViewerTextBoxDemo && !isListBoxDemo && !isListViewLab && !isItemsPresenterDemo && !isVirtualizedStackPanelDemo && !isScrollViewerEdgeCasesDemo && !isPasswordBoxDemo && !isMenuParityDemo && !isBindingParityGap5Demo && !isRichTextBoxDemo && !isRichTextDiagnosticsLabDemo && !isWindowPopupParityLabDemo && !isContextMenuParityLabDemo && !isAdornersLabDemo && !isCollectionViewParityDemo)
 {
-    isCollectionViewParityDemo = true;
+    isListViewLab = true;
 }
 using var game = new InkkSlinger.Game1(
     isWindowDemo,
@@ -61,6 +63,7 @@ using var game = new InkkSlinger.Game1(
     isSimpleStackPanelDemo,
     isScrollViewerTextBoxDemo,
     isListBoxDemo,
+    isListViewLab,
     isItemsPresenterDemo,
     isVirtualizedStackPanelDemo,
     isScrollViewerEdgeCasesDemo,

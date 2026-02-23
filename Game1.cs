@@ -21,6 +21,7 @@ public class Game1 : Game
     private readonly bool _isSimpleStackPanelDemo;
     private readonly bool _isScrollViewerTextBoxDemo;
     private readonly bool _isListBoxDemo;
+    private readonly bool _isListViewLab;
     private readonly bool _isItemsPresenterDemo;
     private readonly bool _isVirtualizedStackPanelDemo;
     private readonly bool _isScrollViewerEdgeCasesDemo;
@@ -48,6 +49,7 @@ public class Game1 : Game
     private SimpleStackPanelView? _simpleStackPanelView;
     private ScrollViewerTextBoxView? _scrollViewerTextBoxView;
     private SimpleListBoxView? _simpleListBoxView;
+    private ListViewLab? _listViewLab;
     private SimpleItemsPresenterView? _simpleItemsPresenterView;
     private VirtualizedStackPanelView? _virtualizedStackPanelView;
     private ScrollViewerEdgeCasesView? _scrollViewerEdgeCasesView;
@@ -76,6 +78,7 @@ public class Game1 : Game
         bool isSimpleStackPanelDemo = false,
         bool isScrollViewerTextBoxDemo = false,
         bool isListBoxDemo = false,
+        bool isListViewLab = false,
         bool isItemsPresenterDemo = false,
         bool isVirtualizedStackPanelDemo = false,
         bool isScrollViewerEdgeCasesDemo = false,
@@ -101,6 +104,7 @@ public class Game1 : Game
         _isSimpleStackPanelDemo = isSimpleStackPanelDemo;
         _isScrollViewerTextBoxDemo = isScrollViewerTextBoxDemo;
         _isListBoxDemo = isListBoxDemo;
+        _isListViewLab = isListViewLab;
         _isItemsPresenterDemo = isItemsPresenterDemo;
         _isVirtualizedStackPanelDemo = isVirtualizedStackPanelDemo;
         _isScrollViewerEdgeCasesDemo = isScrollViewerEdgeCasesDemo;
@@ -177,6 +181,11 @@ public class Game1 : Game
         {
             _simpleListBoxView = new SimpleListBoxView();
             _root.AddChild(_simpleListBoxView);
+        }
+        else if (_isListViewLab)
+        {
+            _listViewLab = new ListViewLab();
+            _root.AddChild(_listViewLab);
         }
         else if (_isItemsPresenterDemo)
         {
@@ -290,6 +299,7 @@ public class Game1 : Game
             _simpleStackPanelView?.SetFont(font);
             _scrollViewerTextBoxView?.SetFont(font);
             _simpleListBoxView?.SetFont(font);
+            _listViewLab?.SetFont(font);
             _simpleItemsPresenterView?.SetFont(font);
             _virtualizedStackPanelView?.SetFont(font);
             _scrollViewerEdgeCasesView?.SetFont(font);
@@ -459,6 +469,13 @@ public class Game1 : Game
         if (_isListBoxDemo)
         {
             _baseWindowTitle = $"InkkSlinger ListBox Demo | {size.X}x{size.Y}";
+            ApplyWindowTitle();
+            return;
+        }
+
+        if (_isListViewLab)
+        {
+            _baseWindowTitle = $"InkkSlinger ListView Lab | {size.X}x{size.Y}";
             ApplyWindowTitle();
             return;
         }
@@ -658,6 +675,7 @@ public class Game1 : Game
             _isSimpleStackPanelDemo ||
             _isScrollViewerTextBoxDemo ||
             _isListBoxDemo ||
+            _isListViewLab ||
             _isItemsPresenterDemo ||
             _isVirtualizedStackPanelDemo ||
             _isScrollViewerEdgeCasesDemo ||
@@ -713,6 +731,7 @@ public class Game1 : Game
             _isSimpleStackPanelDemo ||
             _isScrollViewerTextBoxDemo ||
             _isListBoxDemo ||
+            _isListViewLab ||
             _isItemsPresenterDemo ||
             _isVirtualizedStackPanelDemo ||
             _isScrollViewerEdgeCasesDemo ||
