@@ -7,7 +7,7 @@
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (0 errors, 2 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
-| Test suite | Working tree: `387/388` passing (`1` known failure) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` (`ProgramDefaultModeTests` still expects CollectionView default) |
+| Test suite | Pass (`387/387`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
 | WPF control coverage | Broad but incomplete (`67/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `10` unchecked TODO items | `TODO.md` (missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
@@ -106,7 +106,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 53 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (53 files) | Implemented |
+| Regression safety net | 52 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (52 files) | Implemented |
 
 ### Implemented Foundations
 
