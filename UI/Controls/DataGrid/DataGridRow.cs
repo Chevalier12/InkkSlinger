@@ -91,6 +91,8 @@ public class DataGridRow : Control
 
     internal void Configure(DataGrid owner, int rowIndex, object? item, IReadOnlyList<DataGridColumn> columns, IReadOnlyList<float> columnWidths)
     {
+        var previousColumnCount = _cells.Count;
+        var previousWidthCount = _columnWidths.Count;
         Owner = owner;
         RowIndex = rowIndex;
         Item = item;
@@ -126,7 +128,14 @@ public class DataGridRow : Control
             cell.Foreground = owner.Foreground;
         }
 
-        InvalidateMeasure();
+        if (previousColumnCount != _cells.Count || previousWidthCount != _columnWidths.Count)
+        {
+            InvalidateMeasure();
+        }
+        else
+        {
+            InvalidateVisual();
+        }
     }
 
     internal void UpdateSelectionState(DataGridSelectionUnit selectionUnit, int selectedRowIndex, int selectedColumnIndex)

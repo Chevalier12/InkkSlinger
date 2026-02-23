@@ -338,7 +338,7 @@ public class Menu : ItemsControl
             {
                 item.IsHighlighted = true;
                 _activeTopLevelItem = item;
-                if (item.Items.Count > 0)
+                if (item.GetChildItemContainersForTraversal().Count > 0)
                 {
                     item.IsSubmenuOpen = true;
                 }

@@ -369,8 +369,9 @@ public class ComboBox : Selector
         try
         {
             _dropDownList.Items.Clear();
-            foreach (var item in Items)
+            foreach (var container in ItemContainers)
             {
+                var item = ItemFromContainer(container);
                 _dropDownList.Items.Add(new Label
                 {
                     Text = GetDisplayText(item),

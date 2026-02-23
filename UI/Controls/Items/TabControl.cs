@@ -165,7 +165,7 @@ public class TabControl : Selector
     {
         base.OnItemsChanged();
 
-        if (Items.Count > 0 && SelectedIndex < 0)
+        if (ItemContainers.Count > 0 && SelectedIndex < 0)
         {
             SetSelectedIndexInternal(0);
         }

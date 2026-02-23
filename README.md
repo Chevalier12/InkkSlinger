@@ -142,7 +142,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Control coverage | `Page` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Implemented |
 | Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
-| Data/view layer | WPF `CollectionView` stack (current item/filter/sort/group) | No matching collection-view types in `UI/Binding`/`UI/Controls` | Not implemented |
+| Data/view layer | WPF `CollectionView` stack (current item/filter/sort/group) with `CollectionViewSource` | `UI/Binding/Collections/*`, `UI/Controls/Base/ItemsControl.cs`, `UI/Xaml/Core/XamlLoader.cs`, `InkkSlinger.Tests/CollectionViewCoreTests.cs`, `InkkSlinger.Tests/XamlCollectionViewParserTests.cs` | Implemented (tested) |
 | XAML binding parser | Unrecognized binding attributes are rejected | `UI/Xaml/Core/XamlLoader.cs` (`BuildBindingElement`) | Partial |
 | XAML binding parser | Unrecognized binding keys are rejected | `UI/Xaml/Core/XamlLoader.cs` (`ParseBinding`) | Partial |
 | XAML `RelativeSource` parser | Only `Mode`, `AncestorType`, `AncestorLevel` keys are accepted | `UI/Xaml/Core/XamlLoader.cs` (`ParseRelativeSource`) | Partial |
@@ -244,11 +244,12 @@ Primary validation machine for current development/testing:
 | ContextMenu parity lab | `dotnet run --project InkkSlinger.csproj -- --contextmenu-parity-lab` |
 | Adorners lab | `dotnet run --project InkkSlinger.csproj -- --adorners-lab` |
 | Binding parity gap #5 demo | `dotnet run --project InkkSlinger.csproj -- --binding-parity-gap5-demo` |
+| CollectionView parity demo | `dotnet run --project InkkSlinger.csproj -- --collectionview-parity-demo` |
 | RichTextBox demo | `dotnet run --project InkkSlinger.csproj -- --richtextbox-demo` |
 | RichText diagnostics lab | `dotnet run --project InkkSlinger.csproj -- --richtext-diagnostics-lab` |
 | Window/Popup parity lab | `dotnet run --project InkkSlinger.csproj -- --window-popup-parity-lab` |
 
-Current default launch surface is the paint shell demo when no explicit mode flag is provided.
+Current default launch surface is the CollectionView parity demo when no explicit mode flag is provided.
 
 ## Environment Variables
 

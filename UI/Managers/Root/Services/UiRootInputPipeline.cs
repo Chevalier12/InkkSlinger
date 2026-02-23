@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -165,6 +166,7 @@ public sealed partial class UiRoot
             clickResolveHitTests = 0;
             ObserveFrameLatencyClickEvent();
             ObserveClickCpuPointerDispatch(isDown: true, clickHitTests, clickHandleMs);
+            EmitPointerResolveDiagnosticsForClick("LeftDown", pointerTarget, clickHitTests);
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
 
@@ -179,6 +181,7 @@ public sealed partial class UiRoot
             clickResolveHitTests = 0;
             ObserveFrameLatencyClickEvent();
             ObserveClickCpuPointerDispatch(isDown: false, clickHitTests, clickHandleMs);
+            EmitPointerResolveDiagnosticsForClick("LeftUp", pointerTarget, clickHitTests);
             _lastClickUpTarget = pointerTarget;
             _lastClickUpPointerPosition = delta.Current.PointerPosition;
             _hasLastClickUpPointerPosition = true;
@@ -198,6 +201,7 @@ public sealed partial class UiRoot
             clickResolveHitTests = 0;
             ObserveFrameLatencyClickEvent();
             ObserveClickCpuPointerDispatch(isDown: true, clickHitTests, clickHandleMs);
+            EmitPointerResolveDiagnosticsForClick("RightDown", pointerTarget, clickHitTests);
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
 
@@ -212,6 +216,7 @@ public sealed partial class UiRoot
             clickResolveHitTests = 0;
             ObserveFrameLatencyClickEvent();
             ObserveClickCpuPointerDispatch(isDown: false, clickHitTests, clickHandleMs);
+            EmitPointerResolveDiagnosticsForClick("RightUp", pointerTarget, clickHitTests);
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
 
@@ -256,16 +261,25 @@ public sealed partial class UiRoot
     {
         _lastPointerResolvePath = "None";
         _lastPointerResolveHitTestMetrics = null;
+        var pointerPosition = delta.Current.PointerPosition;
+        var requiresPreciseTarget =
+            delta.LeftPressed || delta.LeftReleased ||
+            delta.RightPressed || delta.RightReleased;
+        BeginPointerResolveTrace(pointerPosition, requiresPreciseTarget);
+
+        var capturedCheckStart = Stopwatch.GetTimestamp();
         if (_inputState.CapturedPointerElement != null)
         {
-            _lastPointerResolvePath = "Captured";
+            TracePointerResolveStep("CapturedPointer", capturedCheckStart, success: true, _inputState.CapturedPointerElement.GetType().Name);
             if (delta.LeftPressed || delta.LeftReleased)
             {
                 _clickCpuResolveCapturedCount++;
             }
-            return _inputState.CapturedPointerElement;
+            return CompletePointerResolve("Captured", _inputState.CapturedPointerElement);
         }
+        TracePointerResolveStep("CapturedPointer", capturedCheckStart, success: false);
 
+        var reuseUpStart = Stopwatch.GetTimestamp();
         if (delta.LeftPressed &&
             !delta.PointerMoved &&
             _lastClickUpTarget != null &&
@@ -273,11 +287,13 @@ public sealed partial class UiRoot
             _hasLastClickUpPointerPosition &&
             Vector2.DistanceSquared(_lastClickUpPointerPosition, delta.Current.PointerPosition) <= ClickPointerReuseThresholdSquared)
         {
-            _lastPointerResolvePath = "ReuseLastClickUp";
+            TracePointerResolveStep("ReuseLastClickUp", reuseUpStart, success: true, _lastClickUpTarget.GetType().Name);
             _clickCpuResolveCachedCount++;
-            return _lastClickUpTarget;
+            return CompletePointerResolve("ReuseLastClickUp", _lastClickUpTarget);
         }
+        TracePointerResolveStep("ReuseLastClickUp", reuseUpStart, success: false);
 
+        var reuseDownStart = Stopwatch.GetTimestamp();
         if (delta.LeftReleased &&
             !delta.PointerMoved &&
             _lastClickDownTarget != null &&
@@ -285,99 +301,195 @@ public sealed partial class UiRoot
             _hasLastClickDownPointerPosition &&
             Vector2.DistanceSquared(_lastClickDownPointerPosition, delta.Current.PointerPosition) <= ClickPointerReuseThresholdSquared)
         {
-            _lastPointerResolvePath = "ReuseLastClickDown";
+            TracePointerResolveStep("ReuseLastClickDown", reuseDownStart, success: true, _lastClickDownTarget.GetType().Name);
             _clickCpuResolveCachedCount++;
-            return _lastClickDownTarget;
+            return CompletePointerResolve("ReuseLastClickDown", _lastClickDownTarget);
+        }
+        TracePointerResolveStep("ReuseLastClickDown", reuseDownStart, success: false);
+
+        var bypassCheckStart = Stopwatch.GetTimestamp();
+        var bypassClickTargetShortcuts = requiresPreciseTarget && ShouldBypassClickTargetShortcuts(pointerPosition);
+        TracePointerResolveStep("BypassClickShortcutsCheck", bypassCheckStart, bypassClickTargetShortcuts);
+        SetPointerResolveBypassFlag(bypassClickTargetShortcuts);
+        if (requiresPreciseTarget &&
+            !bypassClickTargetShortcuts &&
+            !delta.PointerMoved &&
+            TryReuseCachedPointerResolveTarget(pointerPosition, out var cachedPointerTarget) &&
+            cachedPointerTarget != null)
+        {
+            TracePointerResolveStep("PointerResolveCacheReuse", Stopwatch.GetTimestamp(), success: true, cachedPointerTarget.GetType().Name);
+            _clickCpuResolveCachedCount++;
+            return CompletePointerResolve("PointerResolveCacheReuse", cachedPointerTarget);
         }
 
-        var requiresPreciseTarget =
-            delta.LeftPressed || delta.LeftReleased ||
-            delta.RightPressed || delta.RightReleased;
-        var pointerPosition = delta.Current.PointerPosition;
-        var bypassClickTargetShortcuts = requiresPreciseTarget && ShouldBypassClickTargetShortcuts(pointerPosition);
         if (!requiresPreciseTarget)
         {
+            var contextMenuOpenHitTestStart = Stopwatch.GetTimestamp();
             if (TryFindOpenContextMenu(out _))
             {
                 _lastInputHitTestCount++;
-                _lastPointerResolvePath = "ContextMenuOpenHitTest";
-                var overlayHit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var overlayMetrics);
-                _lastPointerResolveHitTestMetrics = overlayMetrics;
-                return overlayHit;
+                if (ListBoxSelectCPUDiagnostics.RequiresDetailedHitTestMetrics)
+                {
+                    var overlayHit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var overlayMetrics);
+                    _lastPointerResolveHitTestMetrics = overlayMetrics;
+                    TracePointerResolveStep("ContextMenuOpenHitTest", contextMenuOpenHitTestStart, success: overlayHit != null, overlayHit?.GetType().Name);
+                    return CompletePointerResolve("ContextMenuOpenHitTest", overlayHit);
+                }
+                var contextMenuHit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+                TracePointerResolveStep("ContextMenuOpenHitTest", contextMenuOpenHitTestStart, success: contextMenuHit != null, contextMenuHit?.GetType().Name);
+                return CompletePointerResolve("ContextMenuOpenHitTest", contextMenuHit);
             }
+            TracePointerResolveStep("ContextMenuOpenHitTest", contextMenuOpenHitTestStart, success: false);
 
             // CPU-first path: keep current hover target during high-frequency move/wheel
             // and only re-resolve precisely on button transitions.
+            var hoverReuseStart = Stopwatch.GetTimestamp();
             if (_inputState.HoveredElement != null)
             {
-                _lastPointerResolvePath = "HoverReuse";
-                return _inputState.HoveredElement;
+                TracePointerResolveStep("HoverReuse", hoverReuseStart, success: true, _inputState.HoveredElement.GetType().Name);
+                return CompletePointerResolve("HoverReuse", _inputState.HoveredElement);
             }
+            TracePointerResolveStep("HoverReuse", hoverReuseStart, success: false);
 
+            var hoverBypassStart = Stopwatch.GetTimestamp();
             if ((ForceBypassMoveHitTest || string.Equals(
                     Environment.GetEnvironmentVariable("INKKSLINGER_BYPASS_MOVE_HITTEST"),
                     "1",
                     StringComparison.Ordinal)) &&
                 _inputState.HoveredElement != null)
             {
-                _lastPointerResolvePath = "HoverBypass";
-                return _inputState.HoveredElement;
+                TracePointerResolveStep("HoverBypass", hoverBypassStart, success: true, _inputState.HoveredElement.GetType().Name);
+                return CompletePointerResolve("HoverBypass", _inputState.HoveredElement);
             }
+            TracePointerResolveStep("HoverBypass", hoverBypassStart, success: false);
         }
 
+        var hoverNoInputStart = Stopwatch.GetTimestamp();
         if (!requiresPreciseTarget &&
             !delta.PointerMoved &&
             delta.WheelDelta == 0)
         {
-            _lastPointerResolvePath = "HoverNoInput";
-            return _inputState.HoveredElement;
+            TracePointerResolveStep("HoverNoInput", hoverNoInputStart, success: _inputState.HoveredElement != null, _inputState.HoveredElement?.GetType().Name);
+            return CompletePointerResolve("HoverNoInput", _inputState.HoveredElement);
         }
+        TracePointerResolveStep("HoverNoInput", hoverNoInputStart, success: false);
 
         if (requiresPreciseTarget && !bypassClickTargetShortcuts)
         {
-            if (TryResolvePreciseClickTargetWithinAnchorSubtree(_cachedClickTarget, pointerPosition, out var cachedAnchorTarget) &&
-                cachedAnchorTarget != null)
+            var itemsHostStart = Stopwatch.GetTimestamp();
+            if (TryResolveItemsHostContainerTarget(pointerPosition, out var fastContainerTarget, out var itemsHostDetail, out var skipCachedAnchorPaths) &&
+                fastContainerTarget != null)
             {
-                _lastPointerResolvePath = "CachedAnchorSubtreeHitTest";
+                TracePointerResolveStep("ItemsHostContainerFastPath", itemsHostStart, success: true, $"{fastContainerTarget.GetType().Name}; {itemsHostDetail}");
                 _clickCpuResolveCachedCount++;
-                return cachedAnchorTarget;
+                return CompletePointerResolve("ItemsHostContainerFastPath", fastContainerTarget);
             }
+            TracePointerResolveStep("ItemsHostContainerFastPath", itemsHostStart, success: false, itemsHostDetail);
 
-            if (_cachedClickTarget != null &&
-                TryResolveClickTargetFromCandidate(_cachedClickTarget, pointerPosition, out var cachedClickTarget) &&
-                cachedClickTarget != null)
-            {
-                _lastPointerResolvePath = "CachedClickCandidate";
-                _clickCpuResolveCachedCount++;
-                return cachedClickTarget;
-            }
-
-            if (TryResolveClickTargetFromHovered(pointerPosition, out var hoveredClickTarget) &&
-                hoveredClickTarget != null)
-            {
-                _lastPointerResolvePath = "HoveredClickCandidate";
-                _clickCpuResolveHoveredCount++;
-                return hoveredClickTarget;
-            }
-
+            var hoveredSubtreeStart = Stopwatch.GetTimestamp();
             if (TryResolvePreciseClickTargetWithinHoveredSubtree(pointerPosition, out var hoveredSubtreeTarget) &&
                 hoveredSubtreeTarget != null)
             {
-                _lastPointerResolvePath = "HoveredSubtreeHitTest";
+                TracePointerResolveStep("HoveredSubtreeHitTest", hoveredSubtreeStart, success: true, hoveredSubtreeTarget.GetType().Name);
                 _clickCpuResolveHoveredCount++;
-                return hoveredSubtreeTarget;
+                return CompletePointerResolve("HoveredSubtreeHitTest", hoveredSubtreeTarget);
+            }
+            TracePointerResolveStep("HoveredSubtreeHitTest", hoveredSubtreeStart, success: false);
+
+            var cachedAnchorSubtreeStart = Stopwatch.GetTimestamp();
+            if (!skipCachedAnchorPaths &&
+                TryResolvePreciseClickTargetWithinAnchorSubtree(_cachedClickTarget, pointerPosition, out var cachedAnchorTarget) &&
+                cachedAnchorTarget != null)
+            {
+                TracePointerResolveStep("CachedAnchorSubtreeHitTest", cachedAnchorSubtreeStart, success: true, cachedAnchorTarget.GetType().Name);
+                _clickCpuResolveCachedCount++;
+                return CompletePointerResolve("CachedAnchorSubtreeHitTest", cachedAnchorTarget);
+            }
+            TracePointerResolveStep(
+                "CachedAnchorSubtreeHitTest",
+                cachedAnchorSubtreeStart,
+                success: false,
+                skipCachedAnchorPaths ? "skipped(items-host-hard-miss)" : null);
+
+            var cachedClickCandidateStart = Stopwatch.GetTimestamp();
+            if (!skipCachedAnchorPaths &&
+                _cachedClickTarget != null &&
+                TryResolveClickTargetFromCandidate(_cachedClickTarget, pointerPosition, out var cachedClickTarget) &&
+                cachedClickTarget != null)
+            {
+                TracePointerResolveStep("CachedClickCandidate", cachedClickCandidateStart, success: true, cachedClickTarget.GetType().Name);
+                _clickCpuResolveCachedCount++;
+                return CompletePointerResolve("CachedClickCandidate", cachedClickTarget);
+            }
+            TracePointerResolveStep(
+                "CachedClickCandidate",
+                cachedClickCandidateStart,
+                success: false,
+                skipCachedAnchorPaths ? "skipped(items-host-hard-miss)" : null);
+
+            var hoveredClickCandidateStart = Stopwatch.GetTimestamp();
+            if (TryResolveClickTargetFromHovered(pointerPosition, out var hoveredClickTarget) &&
+                hoveredClickTarget != null)
+            {
+                TracePointerResolveStep("HoveredClickCandidate", hoveredClickCandidateStart, success: true, hoveredClickTarget.GetType().Name);
+                _clickCpuResolveHoveredCount++;
+                return CompletePointerResolve("HoveredClickCandidate", hoveredClickTarget);
+            }
+            TracePointerResolveStep("HoveredClickCandidate", hoveredClickCandidateStart, success: false);
+
+            var cachedHostSubtreeStart = Stopwatch.GetTimestamp();
+            if (!skipCachedAnchorPaths &&
+                TryGetClickHostAnchor(_cachedClickTarget, out var cachedHostAnchor) &&
+                TryResolvePreciseClickTargetWithinAnchorSubtree(cachedHostAnchor, pointerPosition, out var cachedHostTarget) &&
+                cachedHostTarget != null)
+            {
+                TracePointerResolveStep("CachedHostSubtreeHitTest", cachedHostSubtreeStart, success: true, cachedHostTarget.GetType().Name);
+                _clickCpuResolveCachedCount++;
+                return CompletePointerResolve("CachedHostSubtreeHitTest", cachedHostTarget);
+            }
+            TracePointerResolveStep(
+                "CachedHostSubtreeHitTest",
+                cachedHostSubtreeStart,
+                success: false,
+                skipCachedAnchorPaths ? "skipped(items-host-hard-miss)" : null);
+
+            var topLevelSubtreeStart = Stopwatch.GetTimestamp();
+            var hasMultipleTopLevelChildren = HasMultipleTopLevelVisualChildren();
+            if (hasMultipleTopLevelChildren)
+            {
+                var topLevelResolved = TryResolveTopLevelSubtreeHitTest(pointerPosition, out var topLevelSubtreeTarget, out var topLevelDetail);
+                if (topLevelResolved && topLevelSubtreeTarget != null)
+                {
+                    TracePointerResolveStep("TopLevelSubtreeHitTest", topLevelSubtreeStart, success: true, $"{topLevelSubtreeTarget.GetType().Name}; {topLevelDetail}");
+                    return CompletePointerResolve("TopLevelSubtreeHitTest", topLevelSubtreeTarget);
+                }
+
+                TracePointerResolveStep("TopLevelSubtreeHitTest", topLevelSubtreeStart, success: false, topLevelDetail);
+            }
+            else
+            {
+                TracePointerResolveStep("TopLevelSubtreeHitTest", topLevelSubtreeStart, success: false, "skipped(root-child-count<=1)");
             }
         }
 
+        var fullHitTestStart = Stopwatch.GetTimestamp();
         _lastInputHitTestCount++;
         if (requiresPreciseTarget)
         {
             _clickCpuResolveHitTestCount++;
         }
-        _lastPointerResolvePath = bypassClickTargetShortcuts ? "OverlayBypassHitTest" : "HitTest";
-        var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
-        _lastPointerResolveHitTestMetrics = metrics;
-        return hit;
+        var finalPath = bypassClickTargetShortcuts ? "OverlayBypassHitTest" : "HitTest";
+        if (ListBoxSelectCPUDiagnostics.RequiresDetailedHitTestMetrics)
+        {
+            var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
+            _lastPointerResolveHitTestMetrics = metrics;
+            TracePointerResolveStep(finalPath, fullHitTestStart, success: hit != null, hit?.GetType().Name);
+            return CompletePointerResolve(finalPath, hit);
+        }
+
+        var fallbackHit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        TracePointerResolveStep(finalPath, fullHitTestStart, success: fallbackHit != null, fallbackHit?.GetType().Name);
+        return CompletePointerResolve(finalPath, fallbackHit);
     }
 
     private bool ShouldBypassClickTargetShortcuts(Vector2 pointerPosition)
@@ -386,6 +498,63 @@ public sealed partial class UiRoot
         // submenus can render outside root overlay bounds.
         _ = pointerPosition;
         return TryGetTopOverlayCandidate(out _);
+    }
+
+    private bool TryReuseCachedPointerResolveTarget(Vector2 pointerPosition, out UIElement? target)
+    {
+        target = null;
+        if (!_hasCachedPointerResolveTarget || _cachedPointerResolveTarget == null)
+        {
+            return false;
+        }
+
+        if (!IsElementConnectedToVisualRoot(_cachedPointerResolveTarget))
+        {
+            _hasCachedPointerResolveTarget = false;
+            _cachedPointerResolveTarget = null;
+            return false;
+        }
+
+        if (Vector2.DistanceSquared(_cachedPointerResolvePointerPosition, pointerPosition) > ClickPointerReuseThresholdSquared)
+        {
+            return false;
+        }
+
+        var stateStamp = GetPointerResolveStateStamp();
+        if (stateStamp != _cachedPointerResolveStateStamp)
+        {
+            return false;
+        }
+
+        target = _cachedPointerResolveTarget;
+        return true;
+    }
+
+    private void UpdateCachedPointerResolveTarget(Vector2 pointerPosition, UIElement? target)
+    {
+        if (target == null || !IsElementConnectedToVisualRoot(target))
+        {
+            _hasCachedPointerResolveTarget = false;
+            _cachedPointerResolveTarget = null;
+            return;
+        }
+
+        _cachedPointerResolveTarget = target;
+        _cachedPointerResolvePointerPosition = pointerPosition;
+        _cachedPointerResolveStateStamp = GetPointerResolveStateStamp();
+        _hasCachedPointerResolveTarget = true;
+    }
+
+    private int GetPointerResolveStateStamp()
+    {
+        return HashCode.Combine(
+            LayoutPasses,
+            MeasureInvalidationCount,
+            ArrangeInvalidationCount,
+            RenderInvalidationCount,
+            _visualRoot.MeasureInvalidationCount,
+            _visualRoot.ArrangeInvalidationCount,
+            _visualRoot.RenderInvalidationCount);
     }
 
     private void UpdateHover(UIElement? hovered)
@@ -837,7 +1006,13 @@ public sealed partial class UiRoot
 
     private static bool PointerLikelyInsideElement(UIElement element, Vector2 pointerPosition)
     {
-        return element.HitTest(pointerPosition);
+        if (IsPointInsideElementSlot(element, pointerPosition.X, pointerPosition.Y))
+        {
+            return true;
+        }
+
+        // Fallback for non-framework visuals with custom hit geometry.
+        return element is not FrameworkElement && element.HitTest(pointerPosition);
     }
 
     private static bool CanScrollViewerInWheelDirection(ScrollViewer viewer, int delta)
@@ -943,16 +1118,74 @@ public sealed partial class UiRoot
         return TryResolveClickTargetFromCandidate(_inputState.HoveredElement, pointerPosition, out target);
     }
 
-    private bool TryResolvePreciseClickTargetWithinHoveredSubtree(Vector2 pointerPosition, out UIElement? target)
+    private bool TryResolveTopLevelSubtreeHitTest(Vector2 pointerPosition, out UIElement? target, out string detail)
     {
-        return TryResolvePreciseClickTargetWithinAnchorSubtree(_inputState.HoveredElement, pointerPosition, out target);
+        target = null;
+        detail = "no-candidate";
+        var rootChildren = new List<UIElement>(8);
+        foreach (var child in _visualRoot.GetVisualChildren())
+        {
+            rootChildren.Add(child);
+        }
+
+        if (rootChildren.Count == 0)
+        {
+            detail = "root-children=0";
+            return false;
+        }
+
+        for (var i = rootChildren.Count - 1; i >= 0; i--)
+        {
+            var candidate = rootChildren[i];
+            if (!IsPointInsideElementSlot(candidate, pointerPosition.X, pointerPosition.Y))
+            {
+                continue;
+            }
+
+            _lastInputHitTestCount++;
+            _clickCpuResolveHitTestCount++;
+            UIElement? hit;
+            if (ListBoxSelectCPUDiagnostics.RequiresDetailedHitTestMetrics)
+            {
+                hit = VisualTreeHelper.HitTest(candidate, pointerPosition, out var metrics);
+                _lastPointerResolveHitTestMetrics = metrics;
+            }
+            else
+            {
+                hit = VisualTreeHelper.HitTest(candidate, pointerPosition);
+            }
+
+            if (hit == null)
+            {
+                detail = $"childIndex={i}; child={candidate.GetType().Name}; result=null";
+                continue;
+            }
+
+            target = hit;
+            detail = $"childIndex={i}; child={candidate.GetType().Name}; result={hit.GetType().Name}";
+            return true;
+        }
+
+        detail = $"root-children={rootChildren.Count}; matchedSlots=0";
+        return false;
     }
 
-    private bool TryResolvePreciseClickTargetWithinAnchorSubtree(UIElement? anchor, Vector2 pointerPosition, out UIElement? target)
+    private bool TryResolvePreciseClickTargetWithinHoveredSubtree(Vector2 pointerPosition, out UIElement? target)
+    {
+        return TryResolvePreciseClickTargetWithinAnchorSubtree(_inputState.HoveredElement, pointerPosition, out target, hoveredStrictMode: true);
+    }
+
+    private bool TryResolvePreciseClickTargetWithinAnchorSubtree(
+        UIElement? anchor,
+        Vector2 pointerPosition,
+        out UIElement? target,
+        bool hoveredStrictMode = false)
     {
         target = null;
         if (anchor == null ||
             !IsElementConnectedToVisualRoot(anchor) ||
+            IsBroadClickAnchor(anchor) ||
+            (hoveredStrictMode && !IsNarrowHoveredAnchor(anchor)) ||
             !PointerLikelyInsideElement(anchor, pointerPosition))
         {
             return false;
@@ -960,8 +1193,17 @@ public sealed partial class UiRoot
 
         _lastInputHitTestCount++;
         _clickCpuResolveHitTestCount++;
-        var hit = VisualTreeHelper.HitTest(anchor, pointerPosition, out var metrics);
-        _lastPointerResolveHitTestMetrics = metrics;
+        UIElement? hit;
+        if (ListBoxSelectCPUDiagnostics.RequiresDetailedHitTestMetrics)
+        {
+            hit = VisualTreeHelper.HitTest(anchor, pointerPosition, out var metrics);
+            _lastPointerResolveHitTestMetrics = metrics;
+        }
+        else
+        {
+            hit = VisualTreeHelper.HitTest(anchor, pointerPosition);
+        }
+
         if (hit == null)
         {
             return false;
@@ -991,7 +1233,7 @@ public sealed partial class UiRoot
 
         for (var current = candidate; current != null; current = current.VisualParent ?? current.LogicalParent)
         {
-            if (IsClickCapableElement(current))
+            if (IsKnownClickCapableElement(current))
             {
                 target = current;
                 return true;
@@ -1001,14 +1243,433 @@ public sealed partial class UiRoot
         return false;
     }
 
+    private bool HasMultipleTopLevelVisualChildren()
+    {
+        var count = 0;
+        foreach (var _ in _visualRoot.GetVisualChildren())
+        {
+            count++;
+            if (count > 1)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsBroadClickAnchor(UIElement anchor)
+    {
+        if (ReferenceEquals(anchor, _visualRoot))
+        {
+            return true;
+        }
+
+        if (ReferenceEquals(anchor.VisualParent, _visualRoot) &&
+            anchor is not Popup &&
+            anchor is not ContextMenu)
+        {
+            return true;
+        }
+
+        if (anchor is not FrameworkElement frameworkElement)
+        {
+            return false;
+        }
+
+        var slot = frameworkElement.LayoutSlot;
+        var anchorArea = MathF.Max(0f, slot.Width) * MathF.Max(0f, slot.Height);
+        if (anchorArea <= 0f)
+        {
+            return false;
+        }
+
+        var rootArea = 0f;
+        if (_hasLastLayoutViewport)
+        {
+            rootArea = MathF.Max(0f, _lastLayoutViewport.Width) * MathF.Max(0f, _lastLayoutViewport.Height);
+        }
+        else if (_visualRoot is FrameworkElement rootFramework)
+        {
+            var rootSlot = rootFramework.LayoutSlot;
+            rootArea = MathF.Max(0f, rootSlot.Width) * MathF.Max(0f, rootSlot.Height);
+        }
+
+        if (rootArea <= 0f)
+        {
+            return false;
+        }
+
+        var areaRatio = anchorArea / rootArea;
+        return areaRatio >= 0.20f;
+    }
+
+    private bool IsNarrowHoveredAnchor(UIElement anchor)
+    {
+        if (anchor is ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem)
+        {
+            return true;
+        }
+
+        if (anchor is ScrollViewer or Panel or ItemsPresenter)
+        {
+            return false;
+        }
+
+        if (anchor is not FrameworkElement frameworkElement)
+        {
+            return false;
+        }
+
+        var slot = frameworkElement.LayoutSlot;
+        var anchorArea = MathF.Max(0f, slot.Width) * MathF.Max(0f, slot.Height);
+        if (anchorArea <= 0f)
+        {
+            return false;
+        }
+
+        var rootArea = 0f;
+        if (_hasLastLayoutViewport)
+        {
+            rootArea = MathF.Max(0f, _lastLayoutViewport.Width) * MathF.Max(0f, _lastLayoutViewport.Height);
+        }
+        else if (_visualRoot is FrameworkElement rootFramework)
+        {
+            var rootSlot = rootFramework.LayoutSlot;
+            rootArea = MathF.Max(0f, rootSlot.Width) * MathF.Max(0f, rootSlot.Height);
+        }
+
+        if (rootArea <= 0f)
+        {
+            return false;
+        }
+
+        var areaRatio = anchorArea / rootArea;
+        return areaRatio <= 0.08f;
+    }
+
+    private static bool IsKnownClickCapableElement(UIElement element)
+    {
+        return element is Button or ITextInputControl or ScrollViewer or ScrollBar or
+            ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem;
+    }
+
     private bool IsElementConnectedToVisualRoot(UIElement element)
     {
         return ReferenceEquals(element.GetVisualRoot(), _visualRoot);
     }
 
+    private bool TryResolveItemsHostContainerTarget(
+        Vector2 pointerPosition,
+        out UIElement? target,
+        out string detail,
+        out bool skipCachedAnchorPaths)
+    {
+        target = null;
+        detail = "none";
+        skipCachedAnchorPaths = false;
+        var cachedAnchor = _cachedClickTarget;
+        var hoveredAnchor = _inputState.HoveredElement;
+        var attemptedCached = false;
+        var attemptedHovered = false;
+        var cachedDetail = "skipped(anchor=null)";
+        var hoveredDetail = "skipped(anchor=null)";
+
+        if (cachedAnchor != null &&
+            IsElementConnectedToVisualRoot(cachedAnchor) &&
+            TryResolveItemsHostContainerTargetFromAnchor(cachedAnchor, pointerPosition, _visualRoot, out target, out cachedDetail))
+        {
+            detail = $"anchor=cached; {cachedDetail}";
+            return true;
+        }
+        attemptedCached = cachedAnchor != null;
+        cachedDetail = attemptedCached ? cachedDetail : "skipped(anchor=null)";
+
+        if (hoveredAnchor != null &&
+            IsElementConnectedToVisualRoot(hoveredAnchor) &&
+            !ReferenceEquals(cachedAnchor, hoveredAnchor) &&
+            TryResolveItemsHostContainerTargetFromAnchor(hoveredAnchor, pointerPosition, _visualRoot, out target, out hoveredDetail))
+        {
+            detail = $"anchor=hovered; {hoveredDetail}";
+            return true;
+        }
+        attemptedHovered = hoveredAnchor != null && !ReferenceEquals(cachedAnchor, hoveredAnchor);
+        hoveredDetail = attemptedHovered
+            ? hoveredDetail
+            : (hoveredAnchor == null ? "skipped(anchor=null)" : "skipped(anchor=same-as-cached)");
+
+        skipCachedAnchorPaths = attemptedCached &&
+                                (cachedDetail.Contains("hostBoundsHit=false", StringComparison.Ordinal) ||
+                                 cachedDetail.Contains("host=null", StringComparison.Ordinal) ||
+                                 cachedDetail.Contains("container=null", StringComparison.Ordinal));
+        detail = $"cachedMiss={cachedDetail}; hoveredMiss={hoveredDetail}";
+        return false;
+    }
+
+    private static bool TryResolveItemsHostContainerTargetFromAnchor(
+        UIElement? anchor,
+        Vector2 pointerPosition,
+        UIElement visualRoot,
+        out UIElement? target,
+        out string detail)
+    {
+        var phaseStart = Stopwatch.GetTimestamp();
+        target = null;
+        detail = "unknown";
+        if (anchor == null)
+        {
+            detail = "anchor=null";
+            return false;
+        }
+
+        if (!ReferenceEquals(anchor.GetVisualRoot(), visualRoot))
+        {
+            detail = "anchor=detached";
+            return false;
+        }
+
+        var container = FindNearestItemsContainer(anchor);
+        var nearestMs = Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds;
+        if (container == null)
+        {
+            detail = $"container=null nearest={nearestMs:0.###}ms";
+            return false;
+        }
+
+        if (!ReferenceEquals(container.GetVisualRoot(), visualRoot))
+        {
+            detail = $"container={container.GetType().Name} detached nearest={nearestMs:0.###}ms";
+            return false;
+        }
+
+        if (!IsPointerTargetChainInteractive(container))
+        {
+            detail = $"container={container.GetType().Name} chainInactive nearest={nearestMs:0.###}ms";
+            return false;
+        }
+
+        var hostStart = Stopwatch.GetTimestamp();
+        var host = container.VisualParent as Panel;
+        if (host == null)
+        {
+            detail = $"container={container.GetType().Name} host=null nearest={nearestMs:0.###}ms";
+            return false;
+        }
+        var hostMs = Stopwatch.GetElapsedTime(hostStart).TotalMilliseconds;
+
+        var probeStart = Stopwatch.GetTimestamp();
+        var probeX = pointerPosition.X;
+        var probeY = pointerPosition.Y;
+        if (TryFindAncestor<ScrollViewer>(host, out var ownerScrollViewer) && ownerScrollViewer != null)
+        {
+            probeX += ownerScrollViewer.HorizontalOffset;
+            probeY += ownerScrollViewer.VerticalOffset;
+        }
+        var probeMs = Stopwatch.GetElapsedTime(probeStart).TotalMilliseconds;
+
+        var hostBoundsStart = Stopwatch.GetTimestamp();
+        if (!IsPointInsideElementSlot(host, probeX, probeY))
+        {
+            var hostBoundsMs = Stopwatch.GetElapsedTime(hostBoundsStart).TotalMilliseconds;
+            detail = $"containerHit=false hostBoundsHit=false nearest={nearestMs:0.###}ms host={hostMs:0.###}ms probe={probeMs:0.###}ms hostBounds={hostBoundsMs:0.###}ms";
+            return false;
+        }
+        var hostBoundsHitMs = Stopwatch.GetElapsedTime(hostBoundsStart).TotalMilliseconds;
+
+        var directContainerStart = Stopwatch.GetTimestamp();
+        if (container != null && IsPointInsideElementSlot(container, probeX, probeY))
+        {
+            target = container;
+            var directMs = Stopwatch.GetElapsedTime(directContainerStart).TotalMilliseconds;
+            detail = $"containerHit=true hostBoundsHit=true nearest={nearestMs:0.###}ms host={hostMs:0.###}ms probe={probeMs:0.###}ms hostBounds={hostBoundsHitMs:0.###}ms direct={directMs:0.###}ms";
+            return true;
+        }
+        var directMissMs = Stopwatch.GetElapsedTime(directContainerStart).TotalMilliseconds;
+        detail = $"containerHit=false hostBoundsHit=true nearest={nearestMs:0.###}ms host={hostMs:0.###}ms probe={probeMs:0.###}ms hostBounds={hostBoundsHitMs:0.###}ms direct={directMissMs:0.###}ms";
+        return false;
+    }
+
+    private static bool IsPointerTargetChainInteractive(UIElement element)
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (!current.IsVisible || !current.IsEnabled || !current.IsHitTestVisible)
+            {
+                return false;
+            }
+
+            if (current is Popup popup && !popup.IsOpen)
+            {
+                return false;
+            }
+
+            if (current is ContextMenu contextMenu && !contextMenu.IsOpen)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static UIElement? FindNearestItemsContainer(UIElement? element)
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (IsItemsContainerElement(current))
+            {
+                return current;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsItemsContainerElement(UIElement element)
+    {
+        return element is ListBoxItem or ListViewItem or DataGridRow;
+    }
+
+    private static bool TryResolveContainerByEstimatedIndex(IReadOnlyList<UIElement> children, float probeX, float probeY, out UIElement? target)
+    {
+        target = null;
+        if (children.Count == 0)
+        {
+            return false;
+        }
+
+        if (!TryFindContainerRange(children, out var firstContainerIndex, out var lastContainerIndex))
+        {
+            return false;
+        }
+
+        if (children[firstContainerIndex] is not FrameworkElement firstContainer ||
+            children[lastContainerIndex] is not FrameworkElement lastContainer)
+        {
+            return false;
+        }
+
+        var containerCount = (lastContainerIndex - firstContainerIndex) + 1;
+        if (containerCount <= 0)
+        {
+            return false;
+        }
+
+        var top = firstContainer.LayoutSlot.Y;
+        var bottom = lastContainer.LayoutSlot.Y + lastContainer.LayoutSlot.Height;
+        var span = MathF.Max(1f, bottom - top);
+        var averageHeight = span / containerCount;
+        var estimated = firstContainerIndex + (int)((probeY - top) / averageHeight);
+        estimated = Math.Clamp(estimated, firstContainerIndex, lastContainerIndex);
+
+        if (IsItemsContainerElement(children[estimated]) && IsPointInsideElementSlot(children[estimated], probeX, probeY))
+        {
+            target = children[estimated];
+            return true;
+        }
+
+        const int neighborRadius = 6;
+        for (var offset = 1; offset <= neighborRadius; offset++)
+        {
+            var lower = estimated - offset;
+            if (lower >= firstContainerIndex &&
+                IsItemsContainerElement(children[lower]) &&
+                IsPointInsideElementSlot(children[lower], probeX, probeY))
+            {
+                target = children[lower];
+                return true;
+            }
+
+            var upper = estimated + offset;
+            if (upper <= lastContainerIndex &&
+                IsItemsContainerElement(children[upper]) &&
+                IsPointInsideElementSlot(children[upper], probeX, probeY))
+            {
+                target = children[upper];
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryFindContainerRange(IReadOnlyList<UIElement> children, out int firstIndex, out int lastIndex)
+    {
+        firstIndex = -1;
+        for (var i = 0; i < children.Count; i++)
+        {
+            if (!IsItemsContainerElement(children[i]))
+            {
+                continue;
+            }
+
+            firstIndex = i;
+            break;
+        }
+
+        if (firstIndex < 0)
+        {
+            lastIndex = -1;
+            return false;
+        }
+
+        lastIndex = -1;
+        for (var i = children.Count - 1; i >= 0; i--)
+        {
+            if (!IsItemsContainerElement(children[i]))
+            {
+                continue;
+            }
+
+            lastIndex = i;
+            break;
+        }
+
+        return lastIndex >= firstIndex;
+    }
+
+    private static bool IsPointInsideElementSlot(UIElement element, float x, float y)
+    {
+        if (!element.IsVisible || !element.IsEnabled || !element.IsHitTestVisible || element is not FrameworkElement frameworkElement)
+        {
+            return false;
+        }
+
+        var slot = frameworkElement.LayoutSlot;
+        return x >= slot.X &&
+               x <= slot.X + slot.Width &&
+               y >= slot.Y &&
+               y <= slot.Y + slot.Height;
+    }
+
+    private static bool TryGetClickHostAnchor(UIElement? anchor, out UIElement? hostAnchor)
+    {
+        hostAnchor = null;
+        if (anchor == null)
+        {
+            return false;
+        }
+
+        for (var current = anchor.VisualParent ?? anchor.LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is ScrollViewer)
+            {
+                continue;
+            }
+
+            if (current is Panel)
+            {
+                hostAnchor = current;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool IsClickCapableElement(UIElement element)
     {
-        if (element is Button or ITextInputControl or ScrollViewer or ScrollBar)
+        if (element is Button or ITextInputControl or ScrollViewer or ScrollBar or ListBoxItem or ListViewItem or DataGridRow)
         {
             return true;
         }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -167,6 +168,7 @@ public class DataGrid : ItemsControl
             CacheLength = 1f,
             CacheLengthUnit = VirtualizationCacheLengthUnit.Page
         };
+        AttachItemsHost(_rowsHost);
 
         _scrollViewer = new ScrollViewer
         {
@@ -328,7 +330,6 @@ public class DataGrid : ItemsControl
         }
 
         row.Height = RowHeight;
-        row.Configure(this, index, item, _resolvedColumns, _columnWidths);
     }
 
     protected override void OnItemsChanged()
@@ -528,9 +529,10 @@ public class DataGrid : ItemsControl
                 _resolvedColumns.Add(column);
             }
         }
-        else if (Items.Count > 0)
+        else if (ItemContainers.Count > 0)
         {
-            var sample = Items[0];
+            var sampleContainer = ItemContainers[0];
+            var sample = ItemFromContainer(sampleContainer);
             if (sample != null)
             {
                 foreach (var property in sample.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
@@ -564,6 +566,21 @@ public class DataGrid : ItemsControl
 
     private void RebuildHeaders()
     {
+        if (_columnHeaders.Count == _resolvedColumns.Count)
+        {
+            for (var i = 0; i < _resolvedColumns.Count; i++)
+            {
+                var column = _resolvedColumns[i];
+                var header = _columnHeaders[i];
+                header.ColumnIndex = i;
+                header.Text = string.IsNullOrWhiteSpace(column.Header) ? column.BindingPath : column.Header;
+                header.Font = Font;
+                header.SortDirection = column.SortDirection;
+            }
+
+            return;
+        }
+
         foreach (var header in _columnHeaders)
         {
             header.Click -= OnColumnHeaderClick;
@@ -592,22 +609,13 @@ public class DataGrid : ItemsControl
 
     private void SyncRowsHost()
     {
-        while (_rowsHost.Children.Count > 0)
-        {
-            _rowsHost.RemoveChild(_rowsHost.Children[^1]);
-        }
-
         var rows = GetRows();
+
         for (var i = 0; i < rows.Count; i++)
         {
-            rows[i].Configure(this, i, Items[i], _resolvedColumns, _columnWidths);
+            var item = ItemFromContainer(rows[i]);
+            rows[i].Configure(this, i, item, _resolvedColumns, _columnWidths);
             rows[i].UpdateSelectionState(SelectionUnit, SelectedRowIndex, SelectedColumnIndex);
-            if (!ReferenceEquals(rows[i].VisualParent, _rowsHost))
-            {
-                rows[i].SetVisualParent(null);
-                rows[i].SetLogicalParent(null);
-                _rowsHost.AddChild(rows[i]);
-            }
         }
 
         _rowsHost.IsVirtualizing = EnableRowVirtualization;
@@ -665,7 +673,37 @@ public class DataGrid : ItemsControl
         };
 
         header.SortDirection = column.SortDirection;
+        ApplySortToItemsSourceView(column);
         Sorting?.Invoke(this, new DataGridSortingEventArgs(column, index));
+    }
+
+    private void ApplySortToItemsSourceView(DataGridColumn column)
+    {
+        var view = ItemsSourceView;
+        if (view == null)
+        {
+            return;
+        }
+
+        var bindingPath = column.BindingPath ?? string.Empty;
+        for (var i = view.SortDescriptions.Count - 1; i >= 0; i--)
+        {
+            if (string.Equals(view.SortDescriptions[i].PropertyName, bindingPath, StringComparison.OrdinalIgnoreCase))
+            {
+                view.SortDescriptions.RemoveAt(i);
+            }
+        }
+
+        if (column.SortDirection == DataGridSortDirection.Ascending)
+        {
+            view.SortDescriptions.Add(new SortDescription(bindingPath, ListSortDirection.Ascending));
+        }
+        else if (column.SortDirection == DataGridSortDirection.Descending)
+        {
+            view.SortDescriptions.Add(new SortDescription(bindingPath, ListSortDirection.Descending));
+        }
+
+        view.Refresh();
     }
 
     private void OnScrollViewerDependencyPropertyChanged(object? sender, DependencyPropertyChangedEventArgs args)

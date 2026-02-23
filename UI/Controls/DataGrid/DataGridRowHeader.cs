@@ -10,7 +10,7 @@ public class DataGridRowHeader : Control
             nameof(Text),
             typeof(string),
             typeof(DataGridRowHeader),
-            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(

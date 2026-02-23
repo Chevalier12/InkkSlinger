@@ -92,7 +92,21 @@ public class Selector : ItemsControl
     protected override void OnItemsChanged()
     {
         base.OnItemsChanged();
-        _selectionModel.ReplaceItems(Items);
+        if (ItemsSourceView != null)
+        {
+            var projectedItems = new List<object>();
+            foreach (var item in ItemsSourceView)
+            {
+                projectedItems.Add(item!);
+            }
+
+            _selectionModel.ReplaceItems(projectedItems);
+        }
+        else
+        {
+            _selectionModel.ReplaceItems(Items);
+        }
+
         SyncSelectionPropertiesFromModel();
     }
 

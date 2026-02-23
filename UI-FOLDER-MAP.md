@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-02-21
+Generated: 2026-02-22
 
 ```text
 UI/
@@ -24,6 +24,16 @@ UI/
       Int32Animations.cs
       PointThicknessAnimations.cs
   Binding/
+    Collections/
+      CollectionView.cs
+      CollectionViewFactory.cs
+      CollectionViewGroup.cs
+      CollectionViewSource.cs
+      GroupDescription.cs
+      ICollectionView.cs
+      ListCollectionView.cs
+      PropertyGroupDescription.cs
+      SortDescription.cs
     Commands/
       RelayCommand.cs
     Converters/
@@ -150,6 +160,7 @@ UI/
       VirtualizingStackPanel.cs
       WrapPanel.cs
     Presenters/
+      GroupItem.cs
       Presenters.cs
     Primitives/
       Border.cs
@@ -288,6 +299,7 @@ UI/
     Types/
       ResourceDictionaryChangedEventArgs.cs
   Styling/
+    GroupStyle.cs
     Actions/
       SetValueAction.cs
       StoryboardActions.cs
@@ -335,17 +347,5 @@ UI/
   Xaml/
     Core/
       XamlLoader.cs
-```
-
-Related view surfaces added in this parity cycle:
-
-```text
-Views/
-  AdornersLabView.xml
-  AdornersLabView.xml.cs
-  ContextMenuParityLabView.xml
-  ContextMenuParityLabView.xml.cs
-  WindowPopupParityLabView.xml
-  WindowPopupParityLabView.xml.cs
 ```
 

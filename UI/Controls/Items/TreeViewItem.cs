@@ -249,7 +249,7 @@ public class TreeViewItem : ItemsControl
 
     public bool HasChildItems()
     {
-        return Items.Count > 0;
+        return ItemContainers.Count > 0;
     }
 
     public IReadOnlyList<TreeViewItem> GetChildTreeItems()

@@ -1817,6 +1817,55 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="sortDescriptionType">
+    <xs:attribute name="PropertyName" type="xs:string" />
+    <xs:attribute name="Direction" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="propertyGroupDescriptionType">
+    <xs:attribute name="PropertyName" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="collectionViewSortDescriptionsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="SortDescription" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="collectionViewGroupDescriptionsType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="PropertyGroupDescription" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="collectionViewSourceType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="CollectionViewSource.SortDescriptions" />
+        <xs:element ref="CollectionViewSource.GroupDescriptions" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="Source" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="groupStyleType">
+    <xs:attribute name="HeaderTemplate" type="xs:string" />
+    <xs:attribute name="HeaderStringFormat" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="groupStyleCollectionType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="GroupStyle" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
   <xs:element name="UserControl" type="userControlType" />
   <xs:element name="Panel" type="panelType" />
   <xs:element name="Grid" type="gridType" />
@@ -2016,4 +2065,11 @@
   <xs:element name="ResizeGrip" type="resizeGripType" />
   <xs:element name="Thumb" type="thumbType" />
   <xs:element name="ToolTip" type="toolTipType" />
+  <xs:element name="CollectionViewSource" type="collectionViewSourceType" />
+  <xs:element name="CollectionViewSource.SortDescriptions" type="collectionViewSortDescriptionsType" />
+  <xs:element name="CollectionViewSource.GroupDescriptions" type="collectionViewGroupDescriptionsType" />
+  <xs:element name="SortDescription" type="sortDescriptionType" />
+  <xs:element name="PropertyGroupDescription" type="propertyGroupDescriptionType" />
+  <xs:element name="GroupStyle" type="groupStyleType" />
+  <xs:element name="ItemsControl.GroupStyle" type="groupStyleCollectionType" />
 </xs:schema>

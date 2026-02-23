@@ -46,6 +46,10 @@ public sealed partial class UiRoot
     private readonly InputManager _inputManager = new();
     private readonly InputDispatchState _inputState = new();
     private UIElement? _cachedClickTarget;
+    private UIElement? _cachedPointerResolveTarget;
+    private Vector2 _cachedPointerResolvePointerPosition;
+    private int _cachedPointerResolveStateStamp;
+    private bool _hasCachedPointerResolveTarget;
     private UIElement? _lastClickDownTarget;
     private Vector2 _lastClickDownPointerPosition;
     private bool _hasLastClickDownPointerPosition;

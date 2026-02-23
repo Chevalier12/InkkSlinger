@@ -10,7 +10,7 @@ public class DataGridCell : Control
             nameof(Value),
             typeof(object),
             typeof(DataGridCell),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty IsSelectedProperty =
         DependencyProperty.Register(

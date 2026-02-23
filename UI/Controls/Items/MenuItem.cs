@@ -217,7 +217,7 @@ public class MenuItem : ItemsControl
 
     internal ContextMenu? OwnerContextMenu { get; private set; }
 
-    internal bool HasChildItems => Items.Count > 0;
+    internal bool HasChildItems => ItemContainers.Count > 0;
 
     protected override bool IncludeGeneratedChildrenInVisualTree => IsSubmenuOpen;
 

@@ -3,6 +3,7 @@
 ## Status
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
+- CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - This file tracks completed milestones, known parity gaps, and control coverage.
 
 ## Completed Milestones
@@ -38,6 +39,7 @@
 - [x] ContextMenu parity hardening: right-click open and keyboard open (`Shift+F10`/Apps), no-layout-impact overlay behavior, hover-to-highlight/expand semantics (including submenu depth), deterministic first-hover submenu open after right-click, and dedicated hover diagnostics (`INKKSLINGER_CONTEXTMENU_HOVER_LOGS`).
 - [x] ContextMenu performance diagnostics hardening: dedicated CPU diagnostics (`INKKSLINGER_CONTEXTMENU_CPU_LOGS`) with hover/open/invoke timing splits, resolver-path attribution, deep-branch traversal counters, and first-open vs warm-open invalidation breakdowns.
 - [x] Adorner authoring ergonomics pass: introduced reusable `AnchoredAdorner`/`HandlesAdornerBase` APIs and added dedicated `AdornersLabView` demo surface (`--adorners-lab`).
+- [x] CollectionView parity pass: `ICollectionView` stack (`CollectionView`, `ListCollectionView`, `CollectionViewSource`) with filter/sort/group/current-item semantics, strict `ItemsSource` vs `Items` mutation behavior, grouped projection via `GroupStyle`/`GroupItem`, DataGrid header sort integration with view sort descriptors, XAML parser/schema support, and dedicated parity demo (`--collectionview-parity-demo`, now default launch surface).
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
@@ -98,6 +100,8 @@ Popup/menu/window interaction parity and additional edge behavior validation.
 Rebased `ContextMenu` toward WPF-like menu semantics (`MenuItem`/`Separator`, keyboard submenu behavior) with right-click and keyboard open flows.
 - [x] Context menu hover/input robustness:
 Pointer-move dispatch is forced while any context menu is open (so hover transitions are not dropped when raw hit targets jitter), and hover diagnostics now emit `BeforeMove`/`AfterMove` state.
+- [x] Data/view layer parity:
+`CollectionView` stack with `CollectionViewSource` authoring, plus `ItemsControl.ItemsSource` support across controls with WPF-style `Items` mutation guards while source-bound.
 
 ## WPF Control Coverage
 - [ ] AccessText

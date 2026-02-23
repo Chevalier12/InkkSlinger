@@ -9,6 +9,8 @@ internal static class ListBoxSelectCPUDiagnostics
 {
     private static readonly bool IsEnabled =
         string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_LISTBOX_SELECT_CPU_LOGS"), "1", StringComparison.Ordinal);
+    private static readonly bool IncludeHitTestBreakdown =
+        string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_LISTBOX_SELECT_HITTEST_BREAKDOWN"), "1", StringComparison.Ordinal);
     private const int FlushEverySelections = 10;
     private const int MaxLatencySamples = 128;
 
@@ -19,6 +21,9 @@ internal static class ListBoxSelectCPUDiagnostics
     private static int _unmatchedPointerDownCount;
     private static double _totalClickToSelectionMs;
     private static double _maxClickToSelectionMs;
+    internal static bool Enabled => IsEnabled;
+
+    internal static bool RequiresDetailedHitTestMetrics => IsEnabled && IncludeHitTestBreakdown;
 
     internal static void ObservePointerDownCandidate(
         UIElement? target,

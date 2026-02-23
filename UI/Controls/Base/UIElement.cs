@@ -746,7 +746,10 @@ public class UIElement : DependencyObject
             return;
         }
 
-        foreach (var handlerEntry in handlers)
+        // Handlers are allowed to add/remove routed handlers while events dispatch.
+        // Iterate over a snapshot to avoid collection-modified exceptions.
+        var snapshot = handlers.ToArray();
+        foreach (var handlerEntry in snapshot)
         {
             if (args.Handled && !handlerEntry.HandledEventsToo)
             {

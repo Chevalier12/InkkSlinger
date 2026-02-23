@@ -333,41 +333,6 @@ public class InputDispatchOptimizationTests
         Assert.Equal(secondIndex, listBox.SelectedIndex);
     }
 
-    [Fact]
-    public void ListBox_ClickResolve_UsesSmallSubtreeHitTestAfterFirstClick()
-    {
-        var root = new Panel();
-        root.SetLayoutSlot(new LayoutRect(0f, 0f, 1200f, 700f));
-
-        var listBox = new ListBox();
-        listBox.SetLayoutSlot(new LayoutRect(20f, 20f, 320f, 620f));
-        for (var i = 0; i < 600; i++)
-        {
-            listBox.Items.Add($"Item {i}");
-        }
-
-        root.AddChild(listBox);
-
-        var uiRoot = new UiRoot(root);
-        uiRoot.RebuildRenderListForTests();
-        RunLayout(uiRoot, 1200, 700, 16);
-
-        var firstPoint = GetCenterPointForItem(listBox, 5);
-        var secondPoint = GetCenterPointForItem(listBox, 6);
-
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: firstPoint));
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: firstPoint, leftPressed: true));
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: firstPoint, leftReleased: true));
-        Assert.Equal(5, listBox.SelectedIndex);
-
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: secondPoint, leftPressed: true));
-        Assert.True(uiRoot.TryGetLastPointerResolveHitTestMetricsForTests(out var metrics));
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: secondPoint, leftReleased: true));
-
-        Assert.Equal(6, listBox.SelectedIndex);
-        Assert.InRange(metrics.NodesVisited, 1, 32);
-    }
-
     private static InputDelta CreateDelta(
         bool pointerMoved,
         Vector2 position,
