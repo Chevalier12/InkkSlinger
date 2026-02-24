@@ -74,7 +74,6 @@ public sealed partial class UiRoot
         {
             DrawSkippedFrameCount++;
         }
-
         return shouldDraw;
     }
 

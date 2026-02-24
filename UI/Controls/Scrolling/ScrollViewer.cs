@@ -7,6 +7,7 @@ namespace InkkSlinger;
 
 public class ScrollViewer : ContentControl
 {
+    private const float ContentScrollBarGap = 1f;
     public static readonly DependencyProperty UseTransformContentScrollingProperty =
         DependencyProperty.RegisterAttached(
             "UseTransformContentScrolling",
@@ -389,6 +390,7 @@ public class ScrollViewer : ContentControl
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var border = MathF.Max(0f, BorderThickness);
+        var barSize = MathF.Max(0f, ScrollBarThickness);
         var contentBounds = new LayoutRect(
             LayoutSlot.X + border,
             LayoutSlot.Y + border,
@@ -410,14 +412,15 @@ public class ScrollViewer : ContentControl
             ? decision.ViewportRect.Height
             : decision.ExtentHeight;
 
-        var desiredWidth = desiredViewportWidth + (border * 2f) + (_showVerticalBar ? ScrollBarThickness : 0f);
-        var desiredHeight = desiredViewportHeight + (border * 2f) + (_showHorizontalBar ? ScrollBarThickness : 0f);
+        var desiredWidth = desiredViewportWidth + (border * 2f) + GetVerticalBarReservation(_showVerticalBar, barSize);
+        var desiredHeight = desiredViewportHeight + (border * 2f) + GetHorizontalBarReservation(_showHorizontalBar, barSize);
         return new Vector2(MathF.Max(0f, desiredWidth), MathF.Max(0f, desiredHeight));
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var border = MathF.Max(0f, BorderThickness);
+        var barThickness = MathF.Max(0f, ScrollBarThickness);
         var fullRect = new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, MathF.Max(0f, finalSize.X - (border * 2f)), MathF.Max(0f, finalSize.Y - (border * 2f)));
         var decision = ResolveBarsForArrange(fullRect);
         ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight);
@@ -426,14 +429,13 @@ public class ScrollViewer : ContentControl
         _contentViewportRect = decision.ViewportRect;
         ArrangeContentForCurrentOffsets();
 
-        var barThickness = MathF.Max(0f, ScrollBarThickness);
         if (_showHorizontalBar)
         {
             SetIfChanged(_horizontalBar, true);
             _horizontalBar.Arrange(new LayoutRect(
                 fullRect.X,
                 fullRect.Y + fullRect.Height - barThickness,
-                MathF.Max(0f, fullRect.Width - (_showVerticalBar ? barThickness : 0f)),
+                MathF.Max(0f, fullRect.Width - GetVerticalBarReservation(_showVerticalBar, barThickness)),
                 barThickness));
         }
         else
@@ -448,7 +450,7 @@ public class ScrollViewer : ContentControl
                 fullRect.X + fullRect.Width - barThickness,
                 fullRect.Y,
                 barThickness,
-                MathF.Max(0f, fullRect.Height - (_showHorizontalBar ? barThickness : 0f))));
+                MathF.Max(0f, fullRect.Height - GetHorizontalBarReservation(_showHorizontalBar, barThickness))));
         }
         else
         {
@@ -475,8 +477,8 @@ public class ScrollViewer : ContentControl
         clipRect = new LayoutRect(
             _contentViewportRect.X,
             _contentViewportRect.Y,
-            _contentViewportRect.Width + (_showVerticalBar ? barThickness : 0f),
-            _contentViewportRect.Height + (_showHorizontalBar ? barThickness : 0f));
+            _contentViewportRect.Width + GetVerticalBarReservation(_showVerticalBar, barThickness),
+            _contentViewportRect.Height + GetHorizontalBarReservation(_showHorizontalBar, barThickness));
         return true;
     }
 
@@ -489,8 +491,8 @@ public class ScrollViewer : ContentControl
 
         for (var i = 0; i < 2; i++)
         {
-            var viewportWidth = MathF.Max(0f, bounds.Width - (showVertical ? barSize : 0f));
-            var viewportHeight = MathF.Max(0f, bounds.Height - (showHorizontal ? barSize : 0f));
+            var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, barSize));
+            var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, barSize));
 
             MeasureContent(viewportWidth, viewportHeight, out var extentWidth, out var extentHeight);
 
@@ -505,8 +507,8 @@ public class ScrollViewer : ContentControl
             }
         }
 
-        var finalViewportWidth = MathF.Max(0f, bounds.Width - (showVertical ? barSize : 0f));
-        var finalViewportHeight = MathF.Max(0f, bounds.Height - (showHorizontal ? barSize : 0f));
+        var finalViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, barSize));
+        var finalViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, barSize));
         MeasureContent(finalViewportWidth, finalViewportHeight, out var finalExtentWidth, out var finalExtentHeight);
 
         return (
@@ -530,8 +532,8 @@ public class ScrollViewer : ContentControl
 
         for (var i = 0; i < 2; i++)
         {
-            var viewportWidth = MathF.Max(0f, bounds.Width - (showVertical ? barSize : 0f));
-            var viewportHeight = MathF.Max(0f, bounds.Height - (showHorizontal ? barSize : 0f));
+            var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, barSize));
+            var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, barSize));
 
             if (HorizontalScrollBarVisibility == ScrollBarVisibility.Auto)
             {
@@ -544,8 +546,8 @@ public class ScrollViewer : ContentControl
             }
         }
 
-        var finalViewportWidth = MathF.Max(0f, bounds.Width - (showVertical ? barSize : 0f));
-        var finalViewportHeight = MathF.Max(0f, bounds.Height - (showHorizontal ? barSize : 0f));
+        var finalViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, barSize));
+        var finalViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, barSize));
 
         return (
             showHorizontal,
@@ -792,6 +794,26 @@ public class ScrollViewer : ContentControl
         }
 
         return 0f;
+    }
+
+    private static float GetVerticalBarReservation(bool showVerticalBar, float barSize)
+    {
+        if (!showVerticalBar)
+        {
+            return 0f;
+        }
+
+        return barSize + ContentScrollBarGap;
+    }
+
+    private static float GetHorizontalBarReservation(bool showHorizontalBar, float barSize)
+    {
+        if (!showHorizontalBar)
+        {
+            return 0f;
+        }
+
+        return barSize + ContentScrollBarGap;
     }
 
 }
