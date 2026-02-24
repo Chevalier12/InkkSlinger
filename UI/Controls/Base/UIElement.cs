@@ -285,6 +285,11 @@ public class UIElement : DependencyObject
         return TryGetLocalRenderTransform(out transform, out _);
     }
 
+    internal bool TryGetLocalRenderTransformSnapshot(out Matrix transform, out Matrix inverseTransform)
+    {
+        return TryGetLocalRenderTransform(out transform, out inverseTransform);
+    }
+
     public virtual void InvalidateMeasure()
     {
         var totalStart = Stopwatch.GetTimestamp();

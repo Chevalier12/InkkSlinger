@@ -181,10 +181,6 @@ public class Selector : ItemsControl
     {
         SyncSelectionPropertiesFromModel();
 
-        if (this is ListBox listBox)
-        {
-        }
-
         var routedArgs = new SelectionChangedEventArgs(
             SelectionChangedEvent,
             args.RemovedItems,

@@ -21,7 +21,10 @@ public static class VisualTreeHelper
             0f,
             collector: null,
             depth: 0,
-            hasTransformInAncestry: false,
+            ancestorTransformToRoot: Matrix.Identity,
+            hasAncestorTransformToRoot: false,
+            rootToAncestorInverse: Matrix.Identity,
+            hasRootToAncestorInverse: false,
             hasClipInAncestry: false);
     }
 
@@ -36,7 +39,10 @@ public static class VisualTreeHelper
             0f,
             collector,
             depth: 0,
-            hasTransformInAncestry: false,
+            ancestorTransformToRoot: Matrix.Identity,
+            hasAncestorTransformToRoot: false,
+            rootToAncestorInverse: Matrix.Identity,
+            hasRootToAncestorInverse: false,
             hasClipInAncestry: false);
         var totalMs = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
         metrics = collector.ToMetrics(totalMs);
@@ -50,41 +56,100 @@ public static class VisualTreeHelper
         float accumulatedVerticalOffset,
         HitTestMetricsCollector? collector,
         int depth,
-        bool hasTransformInAncestry,
+        Matrix ancestorTransformToRoot,
+        bool hasAncestorTransformToRoot,
+        Matrix rootToAncestorInverse,
+        bool hasRootToAncestorInverse,
         bool hasClipInAncestry)
     {
         var nodeStart = collector?.StartNode(root, depth) ?? 0L;
         try
         {
-        var hasLocalTransform = root.HasLocalRenderTransform();
-        var hasLocalClip = root.TryGetLocalClipSnapshot(out _);
-        var hasTransformInChain = hasTransformInAncestry || hasLocalTransform;
-        var hasClipInChain = hasClipInAncestry || hasLocalClip;
-        var canUseSimpleSlotHit =
-            !hasTransformInChain &&
-            !hasClipInChain &&
-            root is FrameworkElement;
+            var hasLocalTransform = root.TryGetLocalRenderTransformSnapshot(out var localTransform, out var localInverseTransform);
+            var hasLocalClip = root.TryGetLocalClipSnapshot(out var localClipRect);
+            var hasTransformInChain = hasRootToAncestorInverse || hasLocalTransform;
+            var hasClipInChain = hasClipInAncestry || hasLocalClip;
+            var hitTestStart = EnableHitTestTrace ? Stopwatch.GetTimestamp() : 0L;
 
-        var hitTestStart = EnableHitTestTrace ? Stopwatch.GetTimestamp() : 0L;
-        if (canUseSimpleSlotHit)
-        {
-            if (!FastBoundsHit((FrameworkElement)root, position, accumulatedHorizontalOffset, accumulatedVerticalOffset))
+            var currentRootToThisInverse = rootToAncestorInverse;
+            var hasCurrentRootToThisInverse = hasRootToAncestorInverse;
+            if (hasLocalTransform)
+            {
+                currentRootToThisInverse = hasRootToAncestorInverse
+                    ? rootToAncestorInverse * localInverseTransform
+                    : localInverseTransform;
+                hasCurrentRootToThisInverse = true;
+            }
+
+            var nextAncestorTransformToRoot = ancestorTransformToRoot;
+            var hasNextAncestorTransformToRoot = hasAncestorTransformToRoot;
+            if (hasLocalTransform)
+            {
+                nextAncestorTransformToRoot = hasAncestorTransformToRoot
+                    ? localTransform * ancestorTransformToRoot
+                    : localTransform;
+                hasNextAncestorTransformToRoot = true;
+            }
+
+            if (!root.IsVisible || !root.IsEnabled || !root.IsHitTestVisible)
             {
                 return null;
             }
-        }
-        else if (!root.HitTest(position))
-        {
-            return null;
-        }
 
-        var nextHorizontalOffset = accumulatedHorizontalOffset;
-        var nextVerticalOffset = accumulatedVerticalOffset;
-        if (root is ScrollViewer scrollViewerForOffset)
-        {
-            nextHorizontalOffset += scrollViewerForOffset.HorizontalOffset;
-            nextVerticalOffset += scrollViewerForOffset.VerticalOffset;
-        }
+            if (hasLocalClip)
+            {
+                var clipRect = hasAncestorTransformToRoot
+                    ? TransformRect(localClipRect, ancestorTransformToRoot)
+                    : localClipRect;
+                if (!ContainsPoint(clipRect, position))
+                {
+                    return null;
+                }
+            }
+
+            if (root is FrameworkElement frameworkElement)
+            {
+                var canUseSimpleSlotHit = !hasTransformInChain && !hasClipInChain;
+                if (canUseSimpleSlotHit)
+                {
+                    if (!FastBoundsHit(frameworkElement, position, accumulatedHorizontalOffset, accumulatedVerticalOffset))
+                    {
+                        return null;
+                    }
+                }
+                else
+                {
+                    var probePoint = position;
+                    if (hasCurrentRootToThisInverse)
+                    {
+                        probePoint = Vector2.Transform(position, currentRootToThisInverse);
+                    }
+                    else if (MathF.Abs(accumulatedHorizontalOffset) > 0.01f ||
+                             MathF.Abs(accumulatedVerticalOffset) > 0.01f)
+                    {
+                        probePoint = new Vector2(
+                            position.X + accumulatedHorizontalOffset,
+                            position.Y + accumulatedVerticalOffset);
+                    }
+
+                    if (!ContainsPoint(frameworkElement.LayoutSlot, probePoint))
+                    {
+                        return null;
+                    }
+                }
+            }
+            else if (!root.HitTest(position))
+            {
+                return null;
+            }
+
+            var nextHorizontalOffset = accumulatedHorizontalOffset;
+            var nextVerticalOffset = accumulatedVerticalOffset;
+            if (root is ScrollViewer scrollViewerForOffset)
+            {
+                nextHorizontalOffset += scrollViewerForOffset.HorizontalOffset;
+                nextVerticalOffset += scrollViewerForOffset.VerticalOffset;
+            }
 
         // Hot path: avoid per-node allocations and sorting (ItemsPresenter can have thousands of children).
         if (root is Panel panel)
@@ -98,7 +163,10 @@ public static class VisualTreeHelper
                     nextVerticalOffset,
                     collector,
                     depth,
-                    hasTransformInChain,
+                    nextAncestorTransformToRoot,
+                    hasNextAncestorTransformToRoot,
+                    currentRootToThisInverse,
+                    hasCurrentRootToThisInverse,
                     hasClipInChain,
                     out var indexedHit))
             {
@@ -107,7 +175,18 @@ public static class VisualTreeHelper
 
             for (var i = ordered.Count - 1; i >= 0; i--)
             {
-                var hit = HitTestCore(ordered[i], position, nextHorizontalOffset, nextVerticalOffset, collector, depth + 1, hasTransformInChain, hasClipInChain);
+                var hit = HitTestCore(
+                    ordered[i],
+                    position,
+                    nextHorizontalOffset,
+                    nextVerticalOffset,
+                    collector,
+                    depth + 1,
+                    nextAncestorTransformToRoot,
+                    hasNextAncestorTransformToRoot,
+                    currentRootToThisInverse,
+                    hasCurrentRootToThisInverse,
+                    hasClipInChain);
                 if (hit != null)
                 {
                     return hit;
@@ -146,7 +225,18 @@ public static class VisualTreeHelper
             candidate = FindCandidateIndexByY(itemContainers, probeY, candidate);
             candidate = RefineIndexByLayoutSlot(itemContainers, probeY, candidate);
 
-            var hit = HitTestCore(itemContainers[candidate], position, nextHorizontalOffset, nextVerticalOffset, collector, depth + 1, hasTransformInChain, hasClipInChain);
+            var hit = HitTestCore(
+                itemContainers[candidate],
+                position,
+                nextHorizontalOffset,
+                nextVerticalOffset,
+                collector,
+                depth + 1,
+                nextAncestorTransformToRoot,
+                hasNextAncestorTransformToRoot,
+                currentRootToThisInverse,
+                hasCurrentRootToThisInverse,
+                hasClipInChain);
             if (hit != null)
             {
                 if (EnableHitTestTrace)
@@ -180,7 +270,18 @@ public static class VisualTreeHelper
                     {
                         scanned++;
                         _itemsPresenterNeighborProbeCount++;
-                        hit = HitTestCore(itemContainers[left], position, nextHorizontalOffset, nextVerticalOffset, collector, depth + 1, hasTransformInChain, hasClipInChain);
+                        hit = HitTestCore(
+                            itemContainers[left],
+                            position,
+                            nextHorizontalOffset,
+                            nextVerticalOffset,
+                            collector,
+                            depth + 1,
+                            nextAncestorTransformToRoot,
+                            hasNextAncestorTransformToRoot,
+                            currentRootToThisInverse,
+                            hasCurrentRootToThisInverse,
+                            hasClipInChain);
                         if (hit != null)
                         {
                             if (EnableHitTestTrace)
@@ -214,7 +315,18 @@ public static class VisualTreeHelper
                     {
                         scanned++;
                         _itemsPresenterNeighborProbeCount++;
-                        hit = HitTestCore(itemContainers[right], position, nextHorizontalOffset, nextVerticalOffset, collector, depth + 1, hasTransformInChain, hasClipInChain);
+                        hit = HitTestCore(
+                            itemContainers[right],
+                            position,
+                            nextHorizontalOffset,
+                            nextVerticalOffset,
+                            collector,
+                            depth + 1,
+                            nextAncestorTransformToRoot,
+                            hasNextAncestorTransformToRoot,
+                            currentRootToThisInverse,
+                            hasCurrentRootToThisInverse,
+                            hasClipInChain);
                         if (hit != null)
                         {
                             if (EnableHitTestTrace)
@@ -251,7 +363,18 @@ public static class VisualTreeHelper
 
                 _itemsPresenterFullFallbackCount++;
                 scanned++;
-                hit = HitTestCore(itemContainers[i], position, nextHorizontalOffset, nextVerticalOffset, collector, depth + 1, hasTransformInChain, hasClipInChain);
+                hit = HitTestCore(
+                    itemContainers[i],
+                    position,
+                    nextHorizontalOffset,
+                    nextVerticalOffset,
+                    collector,
+                    depth + 1,
+                    nextAncestorTransformToRoot,
+                    hasNextAncestorTransformToRoot,
+                    currentRootToThisInverse,
+                    hasCurrentRootToThisInverse,
+                    hasClipInChain);
                 if (hit != null)
                 {
                     if (EnableHitTestTrace)
@@ -301,7 +424,18 @@ public static class VisualTreeHelper
             childBuffer.Sort(static (a, b) => Panel.GetZIndex(b).CompareTo(Panel.GetZIndex(a)));
             for (var i = 0; i < childBuffer.Count; i++)
             {
-                var hit = HitTestCore(childBuffer[i], position, nextHorizontalOffset, nextVerticalOffset, collector, depth + 1, hasTransformInChain, hasClipInChain);
+                var hit = HitTestCore(
+                    childBuffer[i],
+                    position,
+                    nextHorizontalOffset,
+                    nextVerticalOffset,
+                    collector,
+                    depth + 1,
+                    nextAncestorTransformToRoot,
+                    hasNextAncestorTransformToRoot,
+                    currentRootToThisInverse,
+                    hasCurrentRootToThisInverse,
+                    hasClipInChain);
                 if (hit != null)
                 {
                     return hit;
@@ -314,7 +448,18 @@ public static class VisualTreeHelper
             // Common case: no ZIndex variance. Iterate in reverse draw order so later children win.
             for (var i = childBuffer.Count - 1; i >= 0; i--)
             {
-                var hit = HitTestCore(childBuffer[i], position, nextHorizontalOffset, nextVerticalOffset, collector, depth + 1, hasTransformInChain, hasClipInChain);
+                var hit = HitTestCore(
+                    childBuffer[i],
+                    position,
+                    nextHorizontalOffset,
+                    nextVerticalOffset,
+                    collector,
+                    depth + 1,
+                    nextAncestorTransformToRoot,
+                    hasNextAncestorTransformToRoot,
+                    currentRootToThisInverse,
+                    hasCurrentRootToThisInverse,
+                    hasClipInChain);
                 if (hit != null)
                 {
                     return hit;
@@ -341,7 +486,10 @@ public static class VisualTreeHelper
         float accumulatedVerticalOffset,
         HitTestMetricsCollector? collector,
         int depth,
-        bool hasTransformInAncestry,
+        Matrix ancestorTransformToRoot,
+        bool hasAncestorTransformToRoot,
+        Matrix rootToAncestorInverse,
+        bool hasRootToAncestorInverse,
         bool hasClipInAncestry,
         out UIElement? hit)
     {
@@ -363,7 +511,18 @@ public static class VisualTreeHelper
         candidate = FindCandidateIndexByY(children, probeY, candidate);
         candidate = RefineIndexByLayoutSlot(children, probeY, candidate);
 
-        hit = HitTestCore(children[candidate], position, accumulatedHorizontalOffset, accumulatedVerticalOffset, collector, depth + 1, hasTransformInAncestry, hasClipInAncestry);
+        hit = HitTestCore(
+            children[candidate],
+            position,
+            accumulatedHorizontalOffset,
+            accumulatedVerticalOffset,
+            collector,
+            depth + 1,
+            ancestorTransformToRoot,
+            hasAncestorTransformToRoot,
+            rootToAncestorInverse,
+            hasRootToAncestorInverse,
+            hasClipInAncestry);
         if (hit != null)
         {
             return true;
@@ -375,7 +534,18 @@ public static class VisualTreeHelper
             var lower = candidate - delta;
             if (lower >= 0)
             {
-                hit = HitTestCore(children[lower], position, accumulatedHorizontalOffset, accumulatedVerticalOffset, collector, depth + 1, hasTransformInAncestry, hasClipInAncestry);
+                hit = HitTestCore(
+                    children[lower],
+                    position,
+                    accumulatedHorizontalOffset,
+                    accumulatedVerticalOffset,
+                    collector,
+                    depth + 1,
+                    ancestorTransformToRoot,
+                    hasAncestorTransformToRoot,
+                    rootToAncestorInverse,
+                    hasRootToAncestorInverse,
+                    hasClipInAncestry);
                 if (hit != null)
                 {
                     return true;
@@ -385,7 +555,18 @@ public static class VisualTreeHelper
             var upper = candidate + delta;
             if (upper < children.Count)
             {
-                hit = HitTestCore(children[upper], position, accumulatedHorizontalOffset, accumulatedVerticalOffset, collector, depth + 1, hasTransformInAncestry, hasClipInAncestry);
+                hit = HitTestCore(
+                    children[upper],
+                    position,
+                    accumulatedHorizontalOffset,
+                    accumulatedVerticalOffset,
+                    collector,
+                    depth + 1,
+                    ancestorTransformToRoot,
+                    hasAncestorTransformToRoot,
+                    rootToAncestorInverse,
+                    hasRootToAncestorInverse,
+                    hasClipInAncestry);
                 if (hit != null)
                 {
                     return true;
@@ -558,6 +739,39 @@ public static class VisualTreeHelper
         top = 0f;
         bottom = 0f;
         return false;
+    }
+
+    private static LayoutRect TransformRect(LayoutRect rect, Matrix transform)
+    {
+        if (transform == Matrix.Identity)
+        {
+            return rect;
+        }
+
+        var topLeft = Vector2.Transform(new Vector2(rect.X, rect.Y), transform);
+        var topRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y), transform);
+        var bottomLeft = Vector2.Transform(new Vector2(rect.X, rect.Y + rect.Height), transform);
+        var bottomRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y + rect.Height), transform);
+
+        var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+        var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+        var maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+        var maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+
+        return new LayoutRect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    private static bool ContainsPoint(LayoutRect rect, Vector2 point)
+    {
+        if (rect.Width < 0f || rect.Height < 0f)
+        {
+            return false;
+        }
+
+        return point.X >= rect.X &&
+               point.X <= rect.X + rect.Width &&
+               point.Y >= rect.Y &&
+               point.Y <= rect.Y + rect.Height;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

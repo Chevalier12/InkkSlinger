@@ -266,7 +266,8 @@ public sealed partial class UiRoot
                 return FinalizePointerResolve("ContextMenuOpenHitTest", VisualTreeHelper.HitTest(_visualRoot, pointerPosition));
             }
 
-            if (_inputState.HoveredElement != null)
+            if (_inputState.HoveredElement != null &&
+                PointerLikelyInsideElement(_inputState.HoveredElement, pointerPosition))
             {
                 // Do not refresh click-target reuse cache from hover-reuse paths.
                 // Hover can be stale while pointer moves without precise retargeting.

@@ -288,14 +288,20 @@ public abstract class DependencyObject
             value is bool isEnabled &&
             isEnabled)
         {
-            for (var parent = enabledElement.VisualParent; parent != null; parent = parent.VisualParent)
+            // If this value already came from inheritance, parent effective IsEnabled already
+            // encodes the full ancestor chain constraint, so no extra walk is needed.
+            if (source == DependencyPropertyValueSource.Inherited)
             {
-                if (!parent.IsEnabled)
-                {
-                    value = false;
-                    source = DependencyPropertyValueSource.Inherited;
-                    break;
-                }
+                return (value, source);
+            }
+
+            // For non-inherited true values (local/style/template), immediate parent is sufficient:
+            // parent effective IsEnabled itself already reflects all of its ancestors.
+            var parent = enabledElement.VisualParent;
+            if (parent != null && !parent.IsEnabled)
+            {
+                value = false;
+                source = DependencyPropertyValueSource.Inherited;
             }
         }
 
