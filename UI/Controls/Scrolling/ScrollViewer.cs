@@ -678,7 +678,9 @@ public class ScrollViewer : ContentControl
             return;
         }
 
-        var arrangedWidth = MathF.Max(ViewportWidth, ExtentWidth);
+        var arrangedWidth = HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled
+            ? ViewportWidth
+            : MathF.Max(ViewportWidth, ExtentWidth);
         var arrangedHeight = MathF.Max(ViewportHeight, ExtentHeight);
         var useTransformScrolling = UsesTransformBasedContentScrolling();
         var contentX = useTransformScrolling ? _contentViewportRect.X : _contentViewportRect.X - HorizontalOffset;

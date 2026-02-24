@@ -34,6 +34,53 @@ public sealed class ControlsCatalogLayoutTests
             $"Catalog buttons still touch scrollbar band. maxRight={maxRight:0.###}, barLeft={verticalBar.LayoutSlot.X:0.###}");
     }
 
+    [Fact]
+    public void ControlsCatalog_LeftButtons_RightBorderPixels_ShouldNotEnterVerticalScrollbarPixels()
+    {
+        var viewportSizes = new (int Width, int Height)[]
+        {
+            (720, 620),
+            (800, 620),
+            (960, 720),
+            (1024, 768),
+            (1111, 777),
+            (1280, 820),
+            (1365, 768),
+            (1600, 900),
+            (1919, 1079),
+            (1920, 1080)
+        };
+
+        foreach (var (width, height) in viewportSizes)
+        {
+            var view = new ControlsCatalogView();
+            var uiRoot = new UiRoot(view);
+            RunLayout(uiRoot, width, height, 16);
+
+            var buttonsHost = Assert.IsType<StackPanel>(view.FindName("ControlButtonsHost"));
+            var viewer = FindFirstVisualChild<ScrollViewer>(view);
+            Assert.NotNull(viewer);
+
+            var verticalBar = viewer!.GetVisualChildren()
+                .OfType<ScrollBar>()
+                .FirstOrDefault(static bar => bar.Orientation == Orientation.Vertical && bar.IsVisible);
+            Assert.NotNull(verticalBar);
+
+            var barPixelLeft = PixelRound(verticalBar!.LayoutSlot.X);
+            foreach (var button in buttonsHost.Children.OfType<Button>().Where(static b => b.LayoutSlot.Height > 0f))
+            {
+                var rightBorderRectX = button.LayoutSlot.X + button.LayoutSlot.Width - button.BorderThickness;
+                var rightBorderPixelX = PixelRound(rightBorderRectX);
+                var rightBorderPixelWidth = PixelRound(button.BorderThickness);
+                var rightBorderPixelRight = rightBorderPixelX + rightBorderPixelWidth;
+
+                Assert.True(
+                    rightBorderPixelRight <= barPixelLeft,
+                    $"Button right border overlaps scrollbar pixels. viewport={width}x{height}, button={button.Text}, borderRight={rightBorderPixelRight}, barLeft={barPixelLeft}, slotX={button.LayoutSlot.X:0.###}, slotW={button.LayoutSlot.Width:0.###}");
+            }
+        }
+    }
+
     private static TElement? FindFirstVisualChild<TElement>(UIElement root)
         where TElement : UIElement
     {
@@ -59,5 +106,10 @@ public sealed class ControlsCatalogLayoutTests
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
             new Viewport(0, 0, width, height));
+    }
+
+    private static int PixelRound(float value)
+    {
+        return (int)MathF.Round(value);
     }
 }
