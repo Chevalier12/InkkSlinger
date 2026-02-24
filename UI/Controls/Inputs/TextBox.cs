@@ -920,14 +920,10 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         _textVersion++;
 
         var appliedNoWrapEdit = false;
-        var attemptedNoWrapEdit = false;
-        var appliedVirtualWrapEdit = false;
-        var usedVirtualWrapFallback = false;
         if (hadPreviousLayout &&
             previousLayoutWrapping == TextWrapping.NoWrap &&
             ReferenceEquals(previousLayoutFont, Font))
         {
-            attemptedNoWrapEdit = true;
             _perfIncrementalNoWrapEditAttemptCount++;
             appliedNoWrapEdit = TryApplyIncrementalNoWrapLayoutEdit(editDelta, previousLayout, previousLayoutWidth);
             if (appliedNoWrapEdit)
@@ -946,14 +942,12 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             InvalidateNonVirtualLayoutCache();
             if (!TryApplyIncrementalVirtualWrapEdit(editDelta, out var firstInvalidLine))
             {
-                usedVirtualWrapFallback = true;
                 _perfIncrementalVirtualEditFallbackCount++;
                 InvalidateLayoutCachesAfterInternalEdit();
                 InvalidateVirtualWrapCache();
             }
             else
             {
-                appliedVirtualWrapEdit = true;
                 _perfIncrementalVirtualEditSuccessCount++;
                 ResetCaretLineHint();
                 InvalidateViewportLayoutCache();
@@ -1804,7 +1798,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             {
                 SetValue(TextProperty, text);
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
                 throw;
             }

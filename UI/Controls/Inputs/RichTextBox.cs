@@ -2357,7 +2357,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var structureBefore = CaptureDocumentRichness(Document).ToSummary();
         var clipboardBefore = TextClipboard.GetSnapshot();
         var clipboardSnapshot = TextClipboard.CaptureSnapshot();
-        var usedRichPayload = false;
         var fallbackToText = false;
         var route = "Noop";
         var richFormatName = "None";
@@ -2387,7 +2386,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         if (TryGetRichClipboardPayload(clipboardSnapshot, out var richPayload, out var richFormat))
         {
             lookupRichMs = Stopwatch.GetElapsedTime(lookupRichStart).TotalMilliseconds;
-            usedRichPayload = true;
             richFormatName = richFormat;
             payloadBytes = Encoding.UTF8.GetByteCount(richPayload);
             var deserializeStart = Stopwatch.GetTimestamp();

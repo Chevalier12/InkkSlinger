@@ -15,7 +15,6 @@ public sealed partial class UiRoot
     private const bool EnableElementRenderCacheByDefault = true;
     private const bool EnableRenderCacheBoundaryOverlayByDefault = false;
     private const bool EnableRenderCacheCounterTraceByDefault = false;
-    private static readonly bool ForceBypassMoveHitTest = false;
     private static readonly RasterizerState UiRasterizerState = new()
     {
         ScissorTestEnable = true
@@ -68,97 +67,10 @@ public sealed partial class UiRoot
     private double _lastInputKeyDispatchMs;
     private double _lastInputTextDispatchMs;
     private double _lastVisualUpdateMs;
-    private int _scrollCpuWheelEventCount;
-    private int _scrollCpuOffsetMutationCount;
-    private int _scrollCpuWheelPreciseRetargetCount;
-    private int _scrollCpuWheelHitTestCount;
-    private int _scrollCpuSampleCount;
-    private int _scrollCpuDrawSampleCount;
-    private int _scrollCpuDrawExecutedCount;
-    private double _scrollCpuUpdateMsTotal;
-    private double _scrollCpuInputMsTotal;
-    private double _scrollCpuLayoutMsTotal;
-    private double _scrollCpuDrawMsTotal;
-    private double _scrollCpuPointerRouteMsTotal;
-    private double _scrollCpuVisualUpdateMsTotal;
-    private double _scrollCpuWheelHandleMsTotal;
-    private double _scrollCpuMaxUpdateMs;
-    private double _scrollCpuMaxInputMs;
-    private double _scrollCpuMaxLayoutMs;
-    private double _scrollCpuMaxDrawMs;
-    private double _scrollCpuMaxPointerRouteMs;
-    private double _scrollCpuMaxVisualUpdateMs;
-    private double _scrollCpuMaxWheelHandleMs;
-    private long _scrollCpuFirstEventTimestamp;
-    private long _scrollCpuLastEventTimestamp;
-    private TimeSpan _scrollCpuFirstProcessCpuTime;
-    private int _clickCpuPointerDownCount;
-    private int _clickCpuPointerUpCount;
-    private int _clickCpuHitTestCount;
     private int _clickCpuResolveCachedCount;
     private int _clickCpuResolveCapturedCount;
     private int _clickCpuResolveHoveredCount;
     private int _clickCpuResolveHitTestCount;
-    private int _clickCpuSampleCount;
-    private int _clickCpuDrawSampleCount;
-    private int _clickCpuDrawExecutedCount;
-    private double _clickCpuUpdateMsTotal;
-    private double _clickCpuInputMsTotal;
-    private double _clickCpuLayoutMsTotal;
-    private double _clickCpuDrawMsTotal;
-    private double _clickCpuPointerRouteMsTotal;
-    private double _clickCpuVisualUpdateMsTotal;
-    private double _clickCpuHandleMsTotal;
-    private double _clickCpuCaptureMsTotal;
-    private double _clickCpuDispatchMsTotal;
-    private double _clickCpuPointerDispatchMsTotal;
-    private double _clickCpuPointerResolveMsTotal;
-    private double _clickCpuHoverMsTotal;
-    private double _clickCpuMaxUpdateMs;
-    private double _clickCpuMaxInputMs;
-    private double _clickCpuMaxLayoutMs;
-    private double _clickCpuMaxDrawMs;
-    private double _clickCpuMaxPointerRouteMs;
-    private double _clickCpuMaxVisualUpdateMs;
-    private double _clickCpuMaxHandleMs;
-    private double _clickCpuMaxCaptureMs;
-    private double _clickCpuMaxDispatchMs;
-    private double _clickCpuMaxPointerDispatchMs;
-    private double _clickCpuMaxPointerResolveMs;
-    private double _clickCpuMaxHoverMs;
-    private long _clickCpuFirstEventTimestamp;
-    private long _clickCpuLastEventTimestamp;
-    private TimeSpan _clickCpuFirstProcessCpuTime;
-    private int _moveCpuEventCount;
-    private int _moveCpuHitTestCount;
-    private int _moveCpuSampleCount;
-    private int _moveCpuDrawSampleCount;
-    private int _moveCpuDrawExecutedCount;
-    private double _moveCpuUpdateMsTotal;
-    private double _moveCpuInputMsTotal;
-    private double _moveCpuCaptureMsTotal;
-    private double _moveCpuDispatchMsTotal;
-    private double _moveCpuPointerDispatchMsTotal;
-    private double _moveCpuPointerResolveMsTotal;
-    private double _moveCpuHoverMsTotal;
-    private double _moveCpuLayoutMsTotal;
-    private double _moveCpuDrawMsTotal;
-    private double _moveCpuPointerRouteMsTotal;
-    private double _moveCpuVisualUpdateMsTotal;
-    private double _moveCpuMaxUpdateMs;
-    private double _moveCpuMaxInputMs;
-    private double _moveCpuMaxCaptureMs;
-    private double _moveCpuMaxDispatchMs;
-    private double _moveCpuMaxPointerDispatchMs;
-    private double _moveCpuMaxPointerResolveMs;
-    private double _moveCpuMaxHoverMs;
-    private double _moveCpuMaxLayoutMs;
-    private double _moveCpuMaxDrawMs;
-    private double _moveCpuMaxPointerRouteMs;
-    private double _moveCpuMaxVisualUpdateMs;
-    private long _moveCpuFirstEventTimestamp;
-    private long _moveCpuLastEventTimestamp;
-    private TimeSpan _moveCpuFirstProcessCpuTime;
     private SpriteBatch? _cacheSpriteBatch;
     private long _lastRenderCacheCounterTraceTimestamp;
     private bool _hasMeasureInvalidation;
@@ -483,4 +395,5 @@ public sealed partial class UiRoot
     }
 
 }
+
 

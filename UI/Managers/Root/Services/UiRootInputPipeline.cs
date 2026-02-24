@@ -650,7 +650,6 @@ public sealed partial class UiRoot
     {
         var wheelHitTestsBefore = _lastInputHitTestCount;
         var wheelHandleMs = 0d;
-        var didPreciseRetarget = false;
         var resolvedTarget = target ?? _inputState.HoveredElement;
         if (resolvedTarget == null)
         {            return;
@@ -693,7 +692,6 @@ public sealed partial class UiRoot
             else
             {
                 _lastInputHitTestCount++;
-                didPreciseRetarget = true;
                 var preciseTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
                 if (preciseTarget != null)
                 {
@@ -907,16 +905,7 @@ public sealed partial class UiRoot
 
             _lastInputHitTestCount++;
             _clickCpuResolveHitTestCount++;
-            UIElement? hit;
-            if (false)
-            {
-                hit = VisualTreeHelper.HitTest(candidate, pointerPosition, out var metrics);
-                _lastPointerResolveHitTestMetrics = metrics;
-            }
-            else
-            {
-                hit = VisualTreeHelper.HitTest(candidate, pointerPosition);
-            }
+            var hit = VisualTreeHelper.HitTest(candidate, pointerPosition);
 
             if (hit == null)
             {
@@ -956,16 +945,7 @@ public sealed partial class UiRoot
 
         _lastInputHitTestCount++;
         _clickCpuResolveHitTestCount++;
-        UIElement? hit;
-        if (false)
-        {
-            hit = VisualTreeHelper.HitTest(anchor, pointerPosition, out var metrics);
-            _lastPointerResolveHitTestMetrics = metrics;
-        }
-        else
-        {
-            hit = VisualTreeHelper.HitTest(anchor, pointerPosition);
-        }
+        var hit = VisualTreeHelper.HitTest(anchor, pointerPosition);
 
         if (hit == null)
         {

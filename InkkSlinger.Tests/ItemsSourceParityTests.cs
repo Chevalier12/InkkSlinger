@@ -29,7 +29,7 @@ public class ItemsSourceParityTests
         listBox.ItemsSource = null;
         listBox.Items.Add("local");
 
-        Assert.Equal(1, listBox.Items.Count);
+        Assert.Single(listBox.Items);
     }
 
     [Fact]
