@@ -103,20 +103,9 @@ public sealed class ContextMenuXamlParserTests
     }
 
     private static void RunLayout(UiRoot uiRoot, int width = 300, int height = 240)
-    {
-        const string inputPipelineVariable = "INKKSLINGER_ENABLE_INPUT_PIPELINE";
-        var previous = Environment.GetEnvironmentVariable(inputPipelineVariable);
-        Environment.SetEnvironmentVariable(inputPipelineVariable, "0");
-        try
-        {
-            uiRoot.Update(
+    {            uiRoot.Update(
                 new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
                 new Viewport(0, 0, width, height));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(inputPipelineVariable, previous);
-        }
     }
 
     private sealed class ContextMenuCodeBehindHost : UserControl
@@ -136,4 +125,5 @@ public sealed class ContextMenuXamlParserTests
         }
     }
 }
+
 

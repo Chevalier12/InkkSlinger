@@ -710,45 +710,17 @@ public class ItemsControl : Control
     private void OnItemsSourceViewChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         _ = sender;
-        var diagnosticsEnabled = SourceCollectionDispatchDiagnostics.Enabled;
-        var totalStart = diagnosticsEnabled ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
-        var applyMs = 0d;
-        var finalizeMs = 0d;
-        var reconcileMs = 0d;
-        var regenerateMs = 0d;
         var grouped = ShouldBuildGroupedProjection();
 
         if (!grouped &&
             e.Action != NotifyCollectionChangedAction.Reset)
         {
-            var applyStart = diagnosticsEnabled ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
             var applied = TryApplyIncrementalItemsChange(e);
-            if (diagnosticsEnabled)
-            {
-                applyMs = System.Diagnostics.Stopwatch.GetElapsedTime(applyStart).TotalMilliseconds;
-            }
 
             if (applied)
             {
                 _skipNextGroupsRegeneration = true;
-                var finalizeStart = diagnosticsEnabled ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
                 FinalizeItemsIncrementalChange(e);
-                if (diagnosticsEnabled)
-                {
-                    finalizeMs = System.Diagnostics.Stopwatch.GetElapsedTime(finalizeStart).TotalMilliseconds;
-                    SourceCollectionDispatchDiagnostics.ObserveItemsSourceViewChangedBreakdown(
-                        GetType().Name,
-                        e.Action,
-                        "Incremental",
-                        System.Diagnostics.Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds,
-                        applyMs,
-                        finalizeMs,
-                        reconcileMs,
-                        regenerateMs,
-                        ItemContainers.Count,
-                        grouped);
-                }
-
                 return;
             }
         }
@@ -756,53 +728,17 @@ public class ItemsControl : Control
         if (e.Action == NotifyCollectionChangedAction.Reset &&
             !grouped)
         {
-            var reconcileStart = diagnosticsEnabled ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
             var reconciled = TryReconcileProjectedContainers();
-            if (diagnosticsEnabled)
-            {
-                reconcileMs = System.Diagnostics.Stopwatch.GetElapsedTime(reconcileStart).TotalMilliseconds;
-            }
 
             if (reconciled)
             {
                 _skipNextGroupsRegeneration = true;
-                if (diagnosticsEnabled)
-                {
-                    SourceCollectionDispatchDiagnostics.ObserveItemsSourceViewChangedBreakdown(
-                        GetType().Name,
-                        e.Action,
-                        "ResetReconcile",
-                        System.Diagnostics.Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds,
-                        applyMs,
-                        finalizeMs,
-                        reconcileMs,
-                        regenerateMs,
-                        ItemContainers.Count,
-                        grouped);
-                }
-
                 return;
             }
         }
 
         _skipNextGroupsRegeneration = true;
-        var regenerateStart = diagnosticsEnabled ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
         RegenerateChildren();
-        if (diagnosticsEnabled)
-        {
-            regenerateMs = System.Diagnostics.Stopwatch.GetElapsedTime(regenerateStart).TotalMilliseconds;
-            SourceCollectionDispatchDiagnostics.ObserveItemsSourceViewChangedBreakdown(
-                GetType().Name,
-                e.Action,
-                "Regenerate",
-                System.Diagnostics.Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds,
-                applyMs,
-                finalizeMs,
-                reconcileMs,
-                regenerateMs,
-                ItemContainers.Count,
-                grouped);
-        }
     }
 
     private bool TryApplyIncrementalItemsChange(NotifyCollectionChangedEventArgs e)

@@ -92,9 +92,9 @@ public static class TextClipboard
         _lastSyncThrottled = false;
     }
 
-    public static TextClipboardDiagnosticsSnapshot GetDiagnosticsSnapshot()
+    public static TextClipboardSnapshot GetSnapshot()
     {
-        return new TextClipboardDiagnosticsSnapshot(
+        return new TextClipboardSnapshot(
             _syncCallCount,
             _syncThrottleSkipCount,
             _syncExternalReadCount,
@@ -335,7 +335,7 @@ public static class TextClipboard
     private static extern bool GlobalUnlock(IntPtr hMem);
 }
 
-public readonly record struct TextClipboardDiagnosticsSnapshot(
+public readonly record struct TextClipboardSnapshot(
     long SyncCallCount,
     long SyncThrottleSkipCount,
     long SyncExternalReadCount,
@@ -372,3 +372,4 @@ public readonly record struct TextClipboardReadSnapshot(
         return false;
     }
 }
+

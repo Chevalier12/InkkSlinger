@@ -4,9 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Globalization;
-using System.Linq;
 using System.Reflection;
 
 namespace InkkSlinger;
@@ -78,94 +76,26 @@ public class CollectionView : ICollectionView
 
     public virtual void Refresh()
     {
-        RefreshCore("CollectionView.Refresh", null);
+        RefreshCore();
     }
 
-    private void RefreshCore(string source, NotifyCollectionChangedAction? sourceAction)
+    private void RefreshCore()
     {
         var previousCurrentItem = _currentItem;
         var previousCurrentPosition = _currentPosition;
         var previousGroups = _groups;
-        var sourceBreakdownEnabled =
-            SourceCollectionDispatchDiagnostics.Enabled &&
-            sourceAction.HasValue &&
-            string.Equals(source, "CollectionView.OnSourceCollectionChanged", StringComparison.Ordinal);
-        var diagnosticsEnabled = CollectionViewCpuDiagnostics.Enabled || sourceBreakdownEnabled;
-        var totalStart = diagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
-        var phaseStart = diagnosticsEnabled ? totalStart : 0L;
 
         var sourceItems = BuildSourceSnapshot();
-        var materializeMs = diagnosticsEnabled ? Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds : 0d;
-        phaseStart = diagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
-
         var filtered = ApplyFilter(sourceItems);
-        var filterMs = diagnosticsEnabled ? Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds : 0d;
-        phaseStart = diagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
-
         ApplySort(filtered);
-        var sortMs = diagnosticsEnabled ? Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds : 0d;
-        phaseStart = diagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
 
         _viewItems.Clear();
         _viewItems.AddRange(filtered);
         _groups = BuildGroupsProjection(_viewItems);
         var groupsChanged = !ReferenceEquals(previousGroups, _groups);
-        var groupMs = diagnosticsEnabled ? Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds : 0d;
-        phaseStart = diagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
 
         RepairCurrent(previousCurrentItem);
-        var currentRepairMs = diagnosticsEnabled ? Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds : 0d;
-        var notifyDiagnostics = RaiseRefreshNotifications(previousCurrentItem, previousCurrentPosition, groupsChanged, diagnosticsEnabled);
-
-        if (!diagnosticsEnabled)
-        {
-            return;
-        }
-
-        var totalMs = Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds;
-        if (CollectionViewCpuDiagnostics.Enabled)
-        {
-            CollectionViewCpuDiagnostics.ObserveRefresh(
-                totalMs,
-                materializeMs,
-                filterMs,
-                sortMs,
-                groupMs,
-                currentRepairMs,
-                notifyDiagnostics,
-                _viewItems.Count,
-                _groups.Count,
-                source);
-        }
-
-        if (sourceBreakdownEnabled)
-        {
-            var action = sourceAction.GetValueOrDefault(NotifyCollectionChangedAction.Reset);
-            SourceCollectionDispatchDiagnostics.ObserveCollectionViewRefreshBreakdown(
-                source,
-                action,
-                totalMs,
-                materializeMs,
-                filterMs,
-                sortMs,
-                groupMs,
-                currentRepairMs,
-                notifyDiagnostics.TotalMs,
-                notifyDiagnostics.CollectionChangedMs,
-                notifyDiagnostics.PropertyGroupsMs,
-                notifyDiagnostics.PropertyCurrentPositionMs,
-                notifyDiagnostics.PropertyCurrentItemMs,
-                notifyDiagnostics.PropertyBeforeFirstMs,
-                notifyDiagnostics.PropertyAfterLastMs,
-                notifyDiagnostics.CurrentChangedMs,
-                FormatTopHandlers(notifyDiagnostics.CollectionChangedHandlerTimings),
-                FormatTopHandlers(notifyDiagnostics.PropertyGroupsHandlerTimings),
-                FormatTopHandlers(notifyDiagnostics.PropertyCurrentPositionHandlerTimings),
-                FormatTopHandlers(notifyDiagnostics.PropertyCurrentItemHandlerTimings),
-                FormatTopHandlers(notifyDiagnostics.CurrentChangedHandlerTimings),
-                _viewItems.Count,
-                _groups.Count);
-        }
+        RaiseRefreshNotifications(previousCurrentItem, previousCurrentPosition, groupsChanged);
     }
 
     public bool MoveCurrentTo(object? item)
@@ -238,7 +168,7 @@ public class CollectionView : ICollectionView
             return;
         }
 
-        RefreshCore("CollectionView.OnSourceCollectionChanged", e.Action);
+        RefreshCore();
     }
 
     private bool TryHandleSourceCollectionChangedIncrementally(NotifyCollectionChangedEventArgs e)
@@ -259,9 +189,6 @@ public class CollectionView : ICollectionView
             return false;
         }
 
-        var sourceDiagnosticsEnabled = SourceCollectionDispatchDiagnostics.Enabled;
-        var totalStart = sourceDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
-        var phaseStart = sourceDiagnosticsEnabled ? totalStart : 0L;
         var previousCurrentItem = _currentItem;
         var previousCurrentPosition = _currentPosition;
         var previousBeforeFirst = IsCurrentBeforeFirst;
@@ -271,105 +198,10 @@ public class CollectionView : ICollectionView
         {
             _viewItems.Insert(insertIndex + i, e.NewItems[i]);
         }
-        var insertMs = sourceDiagnosticsEnabled ? Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds : 0d;
-        phaseStart = sourceDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
 
         RepairCurrent(previousCurrentItem);
-        var currentRepairMs = sourceDiagnosticsEnabled ? Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds : 0d;
-
-        if (!sourceDiagnosticsEnabled)
-        {
-            CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, e.NewItems, insertIndex));
-            RaiseCurrencyNotificationsIfNeeded(previousCurrentItem, previousCurrentPosition, previousBeforeFirst, previousAfterLast);
-            return true;
-        }
-
-        phaseStart = Stopwatch.GetTimestamp();
-        var collectionChanged = CollectionChanged;
-        var propertyChanged = PropertyChanged;
-        var currentChanged = CurrentChanged;
-        var collectionChangedTimings = new List<CollectionViewHandlerTiming>(collectionChanged?.GetInvocationList().Length ?? 0);
-        var propertyCurrentPositionTimings = new List<CollectionViewHandlerTiming>(propertyChanged?.GetInvocationList().Length ?? 0);
-        var propertyCurrentItemTimings = new List<CollectionViewHandlerTiming>(propertyChanged?.GetInvocationList().Length ?? 0);
-        var propertyBeforeFirstTimings = new List<CollectionViewHandlerTiming>(propertyChanged?.GetInvocationList().Length ?? 0);
-        var propertyAfterLastTimings = new List<CollectionViewHandlerTiming>(propertyChanged?.GetInvocationList().Length ?? 0);
-        var currentChangedTimings = new List<CollectionViewHandlerTiming>(currentChanged?.GetInvocationList().Length ?? 0);
-
-        var addArgs = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, e.NewItems, insertIndex);
-        var collectionChangedMs = InvokeCollectionChangedHandlers(collectionChanged, this, addArgs, collectionChangedTimings);
-
-        var propertyCurrentPositionMs = 0d;
-        if (previousCurrentPosition != _currentPosition)
-        {
-            propertyCurrentPositionMs = InvokePropertyChangedHandlers(
-                propertyChanged,
-                this,
-                new PropertyChangedEventArgs(nameof(CurrentPosition)),
-                propertyCurrentPositionTimings);
-        }
-
-        var propertyCurrentItemMs = 0d;
-        if (!Equals(previousCurrentItem, _currentItem))
-        {
-            propertyCurrentItemMs = InvokePropertyChangedHandlers(
-                propertyChanged,
-                this,
-                new PropertyChangedEventArgs(nameof(CurrentItem)),
-                propertyCurrentItemTimings);
-        }
-
-        var propertyBeforeFirstMs = 0d;
-        if (previousBeforeFirst != IsCurrentBeforeFirst)
-        {
-            propertyBeforeFirstMs = InvokePropertyChangedHandlers(
-                propertyChanged,
-                this,
-                new PropertyChangedEventArgs(nameof(IsCurrentBeforeFirst)),
-                propertyBeforeFirstTimings);
-        }
-
-        var propertyAfterLastMs = 0d;
-        if (previousAfterLast != IsCurrentAfterLast)
-        {
-            propertyAfterLastMs = InvokePropertyChangedHandlers(
-                propertyChanged,
-                this,
-                new PropertyChangedEventArgs(nameof(IsCurrentAfterLast)),
-                propertyAfterLastTimings);
-        }
-
-        var currentChangedMs = 0d;
-        if (!Equals(previousCurrentItem, _currentItem) || previousCurrentPosition != _currentPosition)
-        {
-            currentChangedMs = InvokeEventHandlers(currentChanged, this, EventArgs.Empty, currentChangedTimings);
-        }
-
-        var notifyMs = Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds;
-        var totalMs = Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds;
-        SourceCollectionDispatchDiagnostics.ObserveCollectionViewRefreshBreakdown(
-            "CollectionView.OnSourceCollectionChanged.IncrementalAdd",
-            NotifyCollectionChangedAction.Add,
-            totalMs,
-            insertMs,
-            0d,
-            0d,
-            0d,
-            currentRepairMs,
-            notifyMs,
-            collectionChangedMs,
-            0d,
-            propertyCurrentPositionMs,
-            propertyCurrentItemMs,
-            propertyBeforeFirstMs,
-            propertyAfterLastMs,
-            currentChangedMs,
-            FormatTopHandlers(collectionChangedTimings),
-            "none",
-            FormatTopHandlers(propertyCurrentPositionTimings),
-            FormatTopHandlers(propertyCurrentItemTimings),
-            FormatTopHandlers(currentChangedTimings),
-            _viewItems.Count,
-            _groups.Count);
+        CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, e.NewItems, insertIndex));
+        RaiseCurrencyNotificationsIfNeeded(previousCurrentItem, previousCurrentPosition, previousBeforeFirst, previousAfterLast);
         return true;
     }
 
@@ -588,211 +420,22 @@ public class CollectionView : ICollectionView
         _currentItem = _viewItems[_currentPosition];
     }
 
-    private CollectionViewNotificationDiagnostics RaiseRefreshNotifications(
+    private void RaiseRefreshNotifications(
         object? previousCurrentItem,
         int previousCurrentPosition,
-        bool groupsChanged,
-        bool diagnosticsEnabled)
+        bool groupsChanged)
     {
-        if (!diagnosticsEnabled)
+        CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+        if (groupsChanged)
         {
-            CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
-            if (groupsChanged)
-            {
-                OnPropertyChanged(nameof(Groups));
-            }
-
-            OnPropertyChanged(nameof(CurrentPosition));
-            OnPropertyChanged(nameof(CurrentItem));
-            OnPropertyChanged(nameof(IsCurrentBeforeFirst));
-            OnPropertyChanged(nameof(IsCurrentAfterLast));
-            RaiseCurrentChangedIfNeeded(previousCurrentItem, previousCurrentPosition);
-            return new CollectionViewNotificationDiagnostics(
-                0d,
-                0d,
-                0d,
-                0d,
-                0d,
-                0d,
-                0d,
-                0d,
-                0,
-                0,
-                0,
-                Array.Empty<CollectionViewHandlerTiming>(),
-                Array.Empty<CollectionViewHandlerTiming>(),
-                Array.Empty<CollectionViewHandlerTiming>(),
-                Array.Empty<CollectionViewHandlerTiming>(),
-                Array.Empty<CollectionViewHandlerTiming>(),
-                Array.Empty<CollectionViewHandlerTiming>(),
-                Array.Empty<CollectionViewHandlerTiming>());
+            OnPropertyChanged(nameof(Groups));
         }
 
-        var totalStart = diagnosticsEnabled ? Stopwatch.GetTimestamp() : 0L;
-
-        var collectionChanged = CollectionChanged;
-        var propertyChanged = PropertyChanged;
-        var currentChanged = CurrentChanged;
-        var collectionChangedSubscriberCount = collectionChanged?.GetInvocationList().Length ?? 0;
-        var propertyChangedSubscriberCount = propertyChanged?.GetInvocationList().Length ?? 0;
-        var currentChangedSubscriberCount = currentChanged?.GetInvocationList().Length ?? 0;
-        var collectionChangedTimings = new List<CollectionViewHandlerTiming>(collectionChangedSubscriberCount);
-        var propertyGroupsTimings = new List<CollectionViewHandlerTiming>(propertyChangedSubscriberCount);
-        var propertyCurrentPositionTimings = new List<CollectionViewHandlerTiming>(propertyChangedSubscriberCount);
-        var propertyCurrentItemTimings = new List<CollectionViewHandlerTiming>(propertyChangedSubscriberCount);
-        var propertyBeforeFirstTimings = new List<CollectionViewHandlerTiming>(propertyChangedSubscriberCount);
-        var propertyAfterLastTimings = new List<CollectionViewHandlerTiming>(propertyChangedSubscriberCount);
-        var currentChangedTimings = new List<CollectionViewHandlerTiming>(currentChangedSubscriberCount);
-
-        var resetArgs = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset);
-        var groupsArgs = new PropertyChangedEventArgs(nameof(Groups));
-        var currentPositionArgs = new PropertyChangedEventArgs(nameof(CurrentPosition));
-        var currentItemArgs = new PropertyChangedEventArgs(nameof(CurrentItem));
-        var beforeFirstArgs = new PropertyChangedEventArgs(nameof(IsCurrentBeforeFirst));
-        var afterLastArgs = new PropertyChangedEventArgs(nameof(IsCurrentAfterLast));
-
-        var collectionChangedMs = InvokeCollectionChangedHandlers(collectionChanged, this, resetArgs, collectionChangedTimings);
-
-        var propertyGroupsMs = groupsChanged
-            ? InvokePropertyChangedHandlers(propertyChanged, this, groupsArgs, propertyGroupsTimings)
-            : 0d;
-
-        var propertyCurrentPositionMs = InvokePropertyChangedHandlers(propertyChanged, this, currentPositionArgs, propertyCurrentPositionTimings);
-
-        var propertyCurrentItemMs = InvokePropertyChangedHandlers(propertyChanged, this, currentItemArgs, propertyCurrentItemTimings);
-
-        var propertyBeforeFirstMs = InvokePropertyChangedHandlers(propertyChanged, this, beforeFirstArgs, propertyBeforeFirstTimings);
-
-        var propertyAfterLastMs = InvokePropertyChangedHandlers(propertyChanged, this, afterLastArgs, propertyAfterLastTimings);
-
-        var currentChangedMs = 0d;
-        if (!Equals(previousCurrentItem, _currentItem) || previousCurrentPosition != _currentPosition)
-        {
-            currentChangedMs = InvokeEventHandlers(currentChanged, this, EventArgs.Empty, currentChangedTimings);
-        }
-
-        var totalMs = Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds;
-        return new CollectionViewNotificationDiagnostics(
-            totalMs,
-            collectionChangedMs,
-            propertyGroupsMs,
-            propertyCurrentPositionMs,
-            propertyCurrentItemMs,
-            propertyBeforeFirstMs,
-            propertyAfterLastMs,
-            currentChangedMs,
-            collectionChangedSubscriberCount,
-            propertyChangedSubscriberCount,
-            currentChangedSubscriberCount,
-            collectionChangedTimings,
-            propertyGroupsTimings,
-            propertyCurrentPositionTimings,
-            propertyCurrentItemTimings,
-            propertyBeforeFirstTimings,
-            propertyAfterLastTimings,
-            currentChangedTimings);
-    }
-
-    private static double InvokeCollectionChangedHandlers(
-        NotifyCollectionChangedEventHandler? handlers,
-        object sender,
-        NotifyCollectionChangedEventArgs args,
-        List<CollectionViewHandlerTiming>? timings)
-    {
-        if (handlers == null)
-        {
-            return 0d;
-        }
-
-        var start = Stopwatch.GetTimestamp();
-        var invocationList = handlers.GetInvocationList();
-        for (var i = 0; i < invocationList.Length; i++)
-        {
-            var handler = (NotifyCollectionChangedEventHandler)invocationList[i];
-            var handlerStart = timings != null ? Stopwatch.GetTimestamp() : 0L;
-            handler(sender, args);
-            if (timings != null)
-            {
-                timings.Add(new CollectionViewHandlerTiming(GetHandlerKey(invocationList[i]), Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds));
-            }
-        }
-
-        return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
-    }
-
-    private static double InvokePropertyChangedHandlers(
-        PropertyChangedEventHandler? handlers,
-        object sender,
-        PropertyChangedEventArgs args,
-        List<CollectionViewHandlerTiming>? timings)
-    {
-        if (handlers == null)
-        {
-            return 0d;
-        }
-
-        var start = Stopwatch.GetTimestamp();
-        var invocationList = handlers.GetInvocationList();
-        for (var i = 0; i < invocationList.Length; i++)
-        {
-            var handler = (PropertyChangedEventHandler)invocationList[i];
-            var handlerStart = timings != null ? Stopwatch.GetTimestamp() : 0L;
-            handler(sender, args);
-            if (timings != null)
-            {
-                timings.Add(new CollectionViewHandlerTiming(GetHandlerKey(invocationList[i]), Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds));
-            }
-        }
-
-        return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
-    }
-
-    private static double InvokeEventHandlers(
-        EventHandler? handlers,
-        object sender,
-        EventArgs args,
-        List<CollectionViewHandlerTiming>? timings)
-    {
-        if (handlers == null)
-        {
-            return 0d;
-        }
-
-        var start = Stopwatch.GetTimestamp();
-        var invocationList = handlers.GetInvocationList();
-        for (var i = 0; i < invocationList.Length; i++)
-        {
-            var handler = (EventHandler)invocationList[i];
-            var handlerStart = timings != null ? Stopwatch.GetTimestamp() : 0L;
-            handler(sender, args);
-            if (timings != null)
-            {
-                timings.Add(new CollectionViewHandlerTiming(GetHandlerKey(invocationList[i]), Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds));
-            }
-        }
-
-        return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
-    }
-
-    private static string GetHandlerKey(Delegate handler)
-    {
-        var targetType = handler.Target?.GetType().Name ?? "static";
-        return $"{targetType}.{handler.Method.Name}";
-    }
-
-    private static string FormatTopHandlers(IReadOnlyList<CollectionViewHandlerTiming> timings)
-    {
-        if (timings.Count == 0)
-        {
-            return "none";
-        }
-
-        return string.Join(
-            " | ",
-            timings
-                .OrderByDescending(static t => t.ElapsedMs)
-                .Take(3)
-                .Select(static t => $"{t.HandlerKey}:{t.ElapsedMs:0.###}ms"));
+        OnPropertyChanged(nameof(CurrentPosition));
+        OnPropertyChanged(nameof(CurrentItem));
+        OnPropertyChanged(nameof(IsCurrentBeforeFirst));
+        OnPropertyChanged(nameof(IsCurrentAfterLast));
+        RaiseCurrentChangedIfNeeded(previousCurrentItem, previousCurrentPosition);
     }
 
     private void RaiseCurrentChangedIfNeeded(object? previousCurrentItem, int previousCurrentPosition)

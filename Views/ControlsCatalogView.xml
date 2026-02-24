@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0D121B"
+             Padding="8">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="280" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+
+    <Border Grid.Column="0" Background="#14202E" BorderBrush="#2E4A66" BorderThickness="1" Padding="8" Margin="0,0,8,0">
+      <StackPanel>
+        <Label Text="Control Views" Foreground="#E8F5FF" Margin="0,0,0,8" />
+        <ScrollViewer Height="640">
+          <StackPanel x:Name="ControlButtonsHost" />
+        </ScrollViewer>
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Column="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <Border Grid.Row="0" Background="#162334" BorderBrush="#355474" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+        <Label x:Name="SelectedControlLabel" Foreground="#E8F5FF" Text="Selected:" />
+      </Border>
+
+      <Border Grid.Row="1" Background="#0D141E" BorderBrush="#2E4A66" BorderThickness="1" Padding="4">
+        <ContentControl x:Name="PreviewHost" />
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

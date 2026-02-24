@@ -515,7 +515,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             TicksToMilliseconds(_perfLastEnsureCaretOffsetAdjustTicks),
             AverageTicksToMilliseconds(_perfEnsureCaretTotalTicks, _perfEnsureCaretSampleCount),
             TicksToMilliseconds(_perfEnsureCaretMaxTicks),
-            _editor.GetDiagnostics());
+            _editor.GetMetrics());
     }
 
     public void ResetPerformanceSnapshot()
@@ -566,7 +566,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         _perfLastEnsureCaretLineLookupTicks = 0L;
         _perfLastEnsureCaretWidthTicks = 0L;
         _perfLastEnsureCaretOffsetAdjustTicks = 0L;
-        _editor.ResetDiagnostics();
+        _editor.ResetMetrics();
     }
 
     private static double TicksToMilliseconds(long ticks)
@@ -4094,6 +4094,8 @@ public readonly record struct PasswordBoxPerformanceSnapshot(
     double LastEnsureCaretOffsetAdjustMilliseconds,
     double AverageEnsureCaretMilliseconds,
     double MaxEnsureCaretMilliseconds,
-    TextEditingBufferDiagnostics BufferDiagnostics);
+    TextEditingBufferMetrics BufferMetrics);
+
+
 
 

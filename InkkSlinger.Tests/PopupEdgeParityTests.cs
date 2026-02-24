@@ -320,19 +320,9 @@ public sealed class PopupEdgeParityTests
     }
 
     private static void RunLayout(UiRoot uiRoot)
-    {
-        const string inputPipelineVariable = "INKKSLINGER_ENABLE_INPUT_PIPELINE";
-        var previous = Environment.GetEnvironmentVariable(inputPipelineVariable);
-        Environment.SetEnvironmentVariable(inputPipelineVariable, "0");
-        try
-        {
-            uiRoot.Update(
+    {            uiRoot.Update(
                 new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
                 new Viewport(0, 0, 400, 240));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(inputPipelineVariable, previous);
-        }
     }
 }
+

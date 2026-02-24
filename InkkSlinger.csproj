@@ -23,6 +23,7 @@
                           Exclude="bin\\**\\*;obj\\**\\*;artifacts\\**\\*" />
         <_CodeBehindXml Include="@(_CodeBehindXmlCs->'%(RelativeDir)%(Filename)')" />
         <None Update="@(_CodeBehindXml)" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="Views\\**\\*.xml" CopyToOutputDirectory="PreserveNewest" />
         <AdditionalFiles Include="@(_CodeBehindXml)" />
         <None Include="Schemas\\**\\*.xsd" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>

@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-02-23
+Generated: 2026-02-24
 
 ```text
 UI/
@@ -29,7 +29,6 @@ UI/
       CollectionViewFactory.cs
       CollectionViewGroup.cs
       CollectionViewSource.cs
-      DiagnosticObservableCollection.cs
       GroupDescription.cs
       ICollectionView.cs
       ListCollectionView.cs
@@ -72,12 +71,12 @@ UI/
   Controls/
     Adorners/
       Adorner.cs
+      AdornerDecorator.cs
+      AdornerLayer.cs
       AdornerTrackingMode.cs
       AnchoredAdorner.cs
-      AdornerDecorator.cs
       HandleKinds.cs
       HandlesAdornerBase.cs
-      AdornerLayer.cs
     Base/
       ContentControl.cs
       Control.cs
@@ -198,30 +197,6 @@ UI/
       Dispatcher.cs
     Types/
   Diagnostics/
-    CollectionViewCpuDiagnostics.cs
-    ContextMenuCpuDiagnostics.cs
-    ContextMenuHoverDiagnostics.cs
-    ListBoxSelectCPUDiagnostics.cs
-    RichTextBoxDiagnostics.cs
-    RoutedEventDispatchDiagnostics.cs
-    ScrollWheelRoutingDiagnostics.cs
-    SourceCollectionDispatchDiagnostics.cs
-    TextBoxFrameworkDiagnostics.cs
-    UiFrameworkFileLoadDiagnostics.cs
-    UiFrameworkPopulationPhaseDiagnostics.cs
-    UiRootAllocationGcDiagnostics.cs
-    UiRootClickCpuDiagnostics.cs
-    UiRootControlHotspotDiagnostics.cs
-    UiRootCpuAttributionDiagnostics.cs
-    UiRootDirtyRegionEffectivenessDiagnostics.cs
-    UiRootFrameLatencyDiagnostics.cs
-    UiRootInputRouteComplexityDiagnostics.cs
-    UiRootMoveCpuDiagnostics.cs
-    UiRootNoOpInvalidationDiagnostics.cs
-    UiRootPointerResolveDiagnostics.cs
-    UiRootRenderCacheChurnDiagnostics.cs
-    UiRootScrollCpuDiagnostics.cs
-    UiRootWheelRoutingDiagnostics.cs
   Events/
     Args/
       FocusChangedRoutedEventArgs.cs
@@ -305,7 +280,6 @@ UI/
     Types/
       ResourceDictionaryChangedEventArgs.cs
   Styling/
-    GroupStyle.cs
     Actions/
       SetValueAction.cs
       StoryboardActions.cs
@@ -321,6 +295,7 @@ UI/
       MultiDataTrigger.cs
       Trigger.cs
       TriggerBase.cs
+    GroupStyle.cs
   Templating/
     Core/
       ControlTemplate.cs
@@ -354,4 +329,3 @@ UI/
     Core/
       XamlLoader.cs
 ```
-

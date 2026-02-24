@@ -68,19 +68,9 @@ public sealed class SliderInputTests
     }
 
     private static void RunLayout(UiRoot uiRoot)
-    {
-        const string inputPipelineVariable = "INKKSLINGER_ENABLE_INPUT_PIPELINE";
-        var previous = System.Environment.GetEnvironmentVariable(inputPipelineVariable);
-        System.Environment.SetEnvironmentVariable(inputPipelineVariable, "0");
-        try
-        {
-            uiRoot.Update(
+    {            uiRoot.Update(
                 new GameTime(System.TimeSpan.FromMilliseconds(16), System.TimeSpan.FromMilliseconds(16)),
                 new Viewport(0, 0, 460, 220));
-        }
-        finally
-        {
-            System.Environment.SetEnvironmentVariable(inputPipelineVariable, previous);
-        }
     }
 }
+

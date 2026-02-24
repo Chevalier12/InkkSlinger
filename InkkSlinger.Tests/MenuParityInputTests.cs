@@ -278,20 +278,9 @@ public class MenuParityInputTests
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
-    {
-        const string inputPipelineVariable = "INKKSLINGER_ENABLE_INPUT_PIPELINE";
-        var previous = Environment.GetEnvironmentVariable(inputPipelineVariable);
-        Environment.SetEnvironmentVariable(inputPipelineVariable, "0");
-        try
-        {
-            uiRoot.Update(
+    {            uiRoot.Update(
                 new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
                 new Viewport(0, 0, width, height));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(inputPipelineVariable, previous);
-        }
     }
 
     private sealed class Fixture
@@ -335,3 +324,4 @@ public class MenuParityInputTests
         public int ConsoleCommandExecutions => _executionCountProvider();
     }
 }
+

@@ -300,9 +300,9 @@ public class ScrollViewer : ContentControl
         return clipRect.Width > 0f && clipRect.Height > 0f;
     }
 
-    internal static ScrollViewerScrollDiagnosticsSnapshot GetScrollDiagnosticsAndReset()
+    internal static ScrollViewerScrollMetricsSnapshot GetScrollMetricsAndReset()
     {
-        var snapshot = new ScrollViewerScrollDiagnosticsSnapshot(
+        var snapshot = new ScrollViewerScrollMetricsSnapshot(
             _diagWheelEvents,
             _diagWheelHandled,
             _diagSetOffsetCalls,
@@ -322,7 +322,6 @@ public class ScrollViewer : ContentControl
     {
         if (!IsEnabled)
         {
-            ScrollWheelRoutingDiagnostics.Trace(this, $"HandlePointerDown ignored (disabled) pointer={ScrollWheelRoutingDiagnostics.FormatPointer(pointerPosition)}");
             return false;
         }
 
@@ -334,7 +333,6 @@ public class ScrollViewer : ContentControl
             _verticalBarDragOffset = startVerticalDrag ? verticalDragOffset : 0f;
             _isDraggingHorizontalBar = false;
             _horizontalBarDragOffset = 0f;
-            ScrollWheelRoutingDiagnostics.Trace(this, $"HandlePointerDown vertical bar hit pointer={ScrollWheelRoutingDiagnostics.FormatPointer(pointerPosition)}, value={verticalValue:0.###}, startDrag={startVerticalDrag}, dragOffset={verticalDragOffset:0.###}");
             return true;
         }
 
@@ -346,11 +344,9 @@ public class ScrollViewer : ContentControl
             _horizontalBarDragOffset = startHorizontalDrag ? horizontalDragOffset : 0f;
             _isDraggingVerticalBar = false;
             _verticalBarDragOffset = 0f;
-            ScrollWheelRoutingDiagnostics.Trace(this, $"HandlePointerDown horizontal bar hit pointer={ScrollWheelRoutingDiagnostics.FormatPointer(pointerPosition)}, value={horizontalValue:0.###}, startDrag={startHorizontalDrag}, dragOffset={horizontalDragOffset:0.###}");
             return true;
         }
 
-        ScrollWheelRoutingDiagnostics.Trace(this, $"HandlePointerDown no scrollbar hit pointer={ScrollWheelRoutingDiagnostics.FormatPointer(pointerPosition)}, showHorizontal={_showHorizontalBar}, showVertical={_showVerticalBar}");
         return false;
     }
 
@@ -598,7 +594,6 @@ public class ScrollViewer : ContentControl
         _diagWheelEvents++;
         if (!IsEnabled || delta == 0)
         {
-            ScrollWheelRoutingDiagnostics.Trace(this, $"HandleMouseWheel ignored enabled={IsEnabled}, delta={delta}");
             return false;
         }
 
@@ -615,7 +610,6 @@ public class ScrollViewer : ContentControl
             _diagWheelHandled++;
         }
 
-        ScrollWheelRoutingDiagnostics.Trace(this, $"HandleMouseWheel delta={delta}, lineAmount={amount:0.###}, handled={handled}, offsets(before=({beforeHorizontal:0.###},{beforeVertical:0.###}), after=({HorizontalOffset:0.###},{VerticalOffset:0.###})), viewport=({ViewportWidth:0.###},{ViewportHeight:0.###}), extent=({ExtentWidth:0.###},{ExtentHeight:0.###})");
         return handled;
     }
 
@@ -649,13 +643,11 @@ public class ScrollViewer : ContentControl
             ArrangeContentForCurrentOffsets();
         }
 
-        UiRoot.Current?.ObserveScrollCpuOffsetMutation(horizontalDelta, verticalDelta, _inputScrollMutationDepth > 0);
         UpdateScrollBarValues();
         if (_inputScrollMutationDepth > 0 &&
             horizontalDelta <= 0.001f &&
             verticalDelta <= 0.001f)
         {
-            ScrollWheelRoutingDiagnostics.Trace(this, $"SetOffsets no-op requested=({horizontal:0.###},{vertical:0.###}), clamped=({nextHorizontal:0.###},{nextVertical:0.###}), max=({maxHorizontal:0.###},{maxVertical:0.###}), viewport=({ViewportWidth:0.###},{ViewportHeight:0.###}), extent=({ExtentWidth:0.###},{ExtentHeight:0.###})");
         }
     }
 
@@ -804,10 +796,11 @@ public class ScrollViewer : ContentControl
 
 }
 
-public readonly record struct ScrollViewerScrollDiagnosticsSnapshot(
+public readonly record struct ScrollViewerScrollMetricsSnapshot(
     int WheelEvents,
     int WheelHandled,
     int SetOffsetCalls,
     int SetOffsetNoOpCalls,
     float TotalHorizontalDelta,
     float TotalVerticalDelta);
+

@@ -464,7 +464,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             TicksToMilliseconds(_perfLastEnsureCaretOffsetAdjustTicks),
             AverageTicksToMilliseconds(_perfEnsureCaretTotalTicks, _perfEnsureCaretSampleCount),
             TicksToMilliseconds(_perfEnsureCaretMaxTicks),
-            _editor.GetDiagnostics());
+            _editor.GetMetrics());
     }
 
     public void ResetPerformanceSnapshot()
@@ -515,7 +515,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         _perfLastEnsureCaretLineLookupTicks = 0L;
         _perfLastEnsureCaretWidthTicks = 0L;
         _perfLastEnsureCaretOffsetAdjustTicks = 0L;
-        _editor.ResetDiagnostics();
+        _editor.ResetMetrics();
     }
 
     private static double TicksToMilliseconds(long ticks)
@@ -547,7 +547,6 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         _perfLastInputEditTicks = Math.Max(0, editTicks);
         _perfLastInputCommitTicks = Math.Max(0, commitTicks);
         _perfLastInputEnsureCaretTicks = Math.Max(0, ensureCaretTicks);
-        TextBoxFrameworkDiagnostics.ObserveInputMutation(totalTicks, editTicks, commitTicks, ensureCaretTicks);
     }
 
     private void RecordRenderTiming(long totalTicks, long viewportTicks, long selectionTicks, long textTicks, long caretTicks)
@@ -565,7 +564,6 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         _perfLastRenderSelectionTicks = Math.Max(0, selectionTicks);
         _perfLastRenderTextTicks = Math.Max(0, textTicks);
         _perfLastRenderCaretTicks = Math.Max(0, caretTicks);
-        TextBoxFrameworkDiagnostics.ObserveRender(totalTicks, viewportTicks, selectionTicks, textTicks, caretTicks);
     }
 
     private void RecordViewportStateTiming(long ticks, bool cacheHit)
@@ -588,7 +586,6 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         _perfViewportStateTotalTicks += ticks;
         _perfViewportStateMaxTicks = Math.Max(_perfViewportStateMaxTicks, ticks);
         _perfLastViewportStateTicks = ticks;
-        TextBoxFrameworkDiagnostics.ObserveViewportState(ticks, cacheHit);
     }
 
     private void RecordEnsureCaretTiming(
@@ -621,13 +618,6 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         _perfLastEnsureCaretLineLookupTicks = Math.Max(0, lineLookupTicks);
         _perfLastEnsureCaretWidthTicks = Math.Max(0, widthTicks);
         _perfLastEnsureCaretOffsetAdjustTicks = Math.Max(0, offsetAdjustTicks);
-        TextBoxFrameworkDiagnostics.ObserveEnsureCaret(
-            totalTicks,
-            viewportTicks,
-            lineLookupTicks,
-            widthTicks,
-            offsetAdjustTicks,
-            usedFastPath);
     }
 
     private void ResetCaretLineHint()
@@ -658,7 +648,6 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
-        TextBoxFrameworkDiagnostics.Flush();
         _secondsSinceLastTextMutation += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
         if (_hasPendingEnsureCaretVisible)
@@ -983,12 +972,6 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             ClearPendingTextSync();
         }
 
-        TextBoxFrameworkDiagnostics.ObserveCommit(
-            deferredSync,
-            attemptedNoWrapEdit,
-            appliedNoWrapEdit,
-            appliedVirtualWrapEdit,
-            usedVirtualWrapFallback);
 
         RaiseTextChangedEvent();
         InvalidateVisual();
@@ -1823,7 +1806,6 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             }
             catch (InvalidOperationException ex)
             {
-                TextBoxFrameworkDiagnostics.ObserveInvalidOperation(ex, "CommitTextSyncNow.SetValue");
                 throw;
             }
         }
@@ -1835,7 +1817,6 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         _perfImmediateSyncCount++;
         var syncTicks = Stopwatch.GetTimestamp() - start;
         _perfTextSyncTicks += syncTicks;
-        TextBoxFrameworkDiagnostics.ObserveTextSync(syncTicks, wasDeferredFlush);
     }
 
     private void MarkTextMutationActivity()
@@ -3970,5 +3951,7 @@ public readonly record struct TextBoxPerformanceSnapshot(
     double LastEnsureCaretOffsetAdjustMilliseconds,
     double AverageEnsureCaretMilliseconds,
     double MaxEnsureCaretMilliseconds,
-    TextEditingBufferDiagnostics BufferDiagnostics);
+    TextEditingBufferMetrics BufferMetrics);
+
+
 

@@ -219,7 +219,6 @@ public class Control : FrameworkElement
         }
 
         UpdateCommandEnabledState();
-        UiFrameworkPopulationPhaseDiagnostics.Observe("Control.OnVisualParentChanged.Total", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
     }
 
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
@@ -228,7 +227,6 @@ public class Control : FrameworkElement
         base.OnLogicalParentChanged(oldParent, newParent);
         if (VisualParent != null)
         {
-            UiFrameworkPopulationPhaseDiagnostics.Observe("Control.OnLogicalParentChanged.Total", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
             return;
         }
 
@@ -243,7 +241,6 @@ public class Control : FrameworkElement
         }
 
         UpdateCommandEnabledState();
-        UiFrameworkPopulationPhaseDiagnostics.Observe("Control.OnLogicalParentChanged.Total", Stopwatch.GetElapsedTime(start).TotalMilliseconds);
     }
 
     protected virtual Style? GetFallbackStyle()

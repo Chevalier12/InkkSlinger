@@ -4,9 +4,11 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
+- Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - This file tracks completed milestones, known parity gaps, and control coverage.
 
 ## Completed Milestones
+Note: milestone references to `--demo-flags` are legacy launch paths from older host wiring; those surfaces are now accessed through `ControlsCatalogView`.
 - [x] XAML resources: `UserControl.Resources` / `Panel.Resources`, `x:Key`, `{StaticResource ...}`.
 - [x] XAML resources: `{DynamicResource ...}` for attribute-based dependency and attached property assignment (setter/trigger value usage deferred).
 - [x] Style completeness: `BasedOn`, explicit style references, implicit style lookup by `TargetType`.
@@ -41,7 +43,7 @@
 - [x] Adorner authoring ergonomics pass: introduced reusable `AnchoredAdorner`/`HandlesAdornerBase` APIs and added dedicated `AdornersLabView` demo surface (`--adorners-lab`).
 - [x] CollectionView parity pass: `ICollectionView` stack (`CollectionView`, `ListCollectionView`, `CollectionViewSource`) with filter/sort/group/current-item semantics, strict `ItemsSource` vs `Items` mutation behavior, grouped projection via `GroupStyle`/`GroupItem`, DataGrid header sort integration with view sort descriptors, XAML parser/schema support, dedicated parity demo (`--collectionview-parity-demo`), and follow-up diagnostics (`CollectionViewCpuDiagnostics`, pointer resolve instrumentation).
 - [x] ListView lab added as dedicated validation surface (`--listview-lab`).
-- [x] Collection add-isolation lab added as dedicated validation surface (`--collection-add-isolation-demo`) and now serves as the default launch mode when no explicit CLI flag is supplied.
+- [x] Collection add-isolation lab added as dedicated validation surface (legacy flag path: `--collection-add-isolation-demo`; now browsed from `ControlsCatalogView`).
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.

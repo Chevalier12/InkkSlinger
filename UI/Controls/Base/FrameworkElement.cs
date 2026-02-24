@@ -466,7 +466,6 @@ public class FrameworkElement : UIElement
         AttachResourceParent(newParent as FrameworkElement);
         RefreshResourceBindings();
         NotifyDescendantResourcesChanged();
-        UiFrameworkPopulationPhaseDiagnostics.Observe("FrameworkElement.OnVisualParentChanged.Resources", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
 
         phaseStart = Stopwatch.GetTimestamp();
         if (oldParent is FrameworkElement oldFrameworkParent && oldFrameworkParent.IsLoaded && IsLoaded)
@@ -478,8 +477,6 @@ public class FrameworkElement : UIElement
         {
             RaiseLoaded();
         }
-        UiFrameworkPopulationPhaseDiagnostics.Observe("FrameworkElement.OnVisualParentChanged.LoadState", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
-        UiFrameworkPopulationPhaseDiagnostics.Observe("FrameworkElement.OnVisualParentChanged.Total", Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds);
     }
 
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
@@ -497,7 +494,6 @@ public class FrameworkElement : UIElement
         AttachResourceParent(newParent as FrameworkElement);
         RefreshResourceBindings();
         NotifyDescendantResourcesChanged();
-        UiFrameworkPopulationPhaseDiagnostics.Observe("FrameworkElement.OnLogicalParentChanged.Resources", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
 
         phaseStart = Stopwatch.GetTimestamp();
         if (oldParent is FrameworkElement oldFrameworkParent && oldFrameworkParent.IsLoaded && IsLoaded)
@@ -509,8 +505,6 @@ public class FrameworkElement : UIElement
         {
             RaiseLoaded();
         }
-        UiFrameworkPopulationPhaseDiagnostics.Observe("FrameworkElement.OnLogicalParentChanged.LoadState", Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds);
-        UiFrameworkPopulationPhaseDiagnostics.Observe("FrameworkElement.OnLogicalParentChanged.Total", Stopwatch.GetElapsedTime(totalStart).TotalMilliseconds);
     }
 
     private void RefreshResourceBindings()

@@ -328,16 +328,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             ReplaceSelection(normalized, "InsertText", GroupingPolicy.TypingBurst);
         }
 
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            $"TextComposition:{normalized.Length}",
-            "InsertText",
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         return true;
     }
 
@@ -422,17 +412,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            commandType,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         TraceInvariants(commandType);
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
@@ -524,17 +503,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            commandType,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         TraceInvariants(commandType);
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
@@ -771,17 +739,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            commandType,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         TraceInvariants(commandType);
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
@@ -1114,17 +1071,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             _selectionAnchor = _caretIndex;
             var elapsedTopLevelMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
             _perfTracker.RecordEdit(elapsedTopLevelMs);
-            RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedTopLevelMs, Math.Max(0, caret - 1), 1, _caretIndex);
-            RichTextBoxDiagnostics.ObserveCommandTrace(
-                "EditMethod",
-                commandType,
-                canExecute: true,
-                handled: true,
-                GetText().Length - textLengthBefore,
-                undoDepthBefore,
-                _undoManager.UndoDepth,
-                redoDepthBefore,
-                _undoManager.RedoDepth);
             TraceInvariants(commandType);
             EnsureCaretVisible();
             _caretBlinkSeconds = 0f;
@@ -1163,17 +1109,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             _selectionAnchor = _caretIndex;
             var elapsedBoundaryMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
             _perfTracker.RecordEdit(elapsedBoundaryMs);
-            RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedBoundaryMs, caret - 1, 1, _caretIndex);
-            RichTextBoxDiagnostics.ObserveCommandTrace(
-                "EditMethod",
-                commandType,
-                canExecute: true,
-                handled: true,
-                GetText().Length - textLengthBefore,
-                undoDepthBefore,
-                _undoManager.UndoDepth,
-                redoDepthBefore,
-                _undoManager.RedoDepth);
             TraceInvariants(commandType);
             EnsureCaretVisible();
             _caretBlinkSeconds = 0f;
@@ -1211,17 +1146,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, caret - 1, 1, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            commandType,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         TraceInvariants(commandType);
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
@@ -1417,31 +1341,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 {
                     ArmDuplicateSpaceTextInputSuppression();
                 }
-                RichTextBoxDiagnostics.ObserveCommandTrace(
-                    inputDescriptor,
-                    "SpaceTextInput",
-                    canExecute: true,
-                    handled,
-                    GetText().Length - textLengthBefore,
-                    undoDepthBefore,
-                    _undoManager.UndoDepth,
-                    redoDepthBefore,
-                    _undoManager.RedoDepth);
                 return handled;
             }
 
             if (key == Keys.Enter && (ctrl || IsReadOnly) && TryActivateHyperlinkAtSelection())
             {
-                RichTextBoxDiagnostics.ObserveCommandTrace(
-                    inputDescriptor,
-                    "ActivateHyperlink",
-                    canExecute: true,
-                    handled: true,
-                    mutationDelta: 0,
-                    undoDepthBefore,
-                    _undoManager.UndoDepth,
-                    redoDepthBefore,
-                    _undoManager.RedoDepth);
                 return true;
             }
 
@@ -1455,25 +1359,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     InvalidateVisualWithReason("Undo");
                 }
 
-                RichTextBoxDiagnostics.ObserveUndo(
-                    "Undo",
-                    handled,
-                    undoDepthBefore,
-                    _undoManager.UndoDepth,
-                    redoDepthBefore,
-                    _undoManager.RedoDepth,
-                    _undoManager.UndoOperationCount,
-                    _undoManager.RedoOperationCount);
-                RichTextBoxDiagnostics.ObserveCommandTrace(
-                    inputDescriptor,
-                    "Undo",
-                    canExecute: undoDepthBefore > 0,
-                    handled,
-                    GetText().Length - textLengthBefore,
-                    undoDepthBefore,
-                    _undoManager.UndoDepth,
-                    redoDepthBefore,
-                    _undoManager.RedoDepth);
                 return true;
             }
 
@@ -1487,53 +1372,14 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     InvalidateVisualWithReason("Redo");
                 }
 
-                RichTextBoxDiagnostics.ObserveUndo(
-                    "Redo",
-                    handled,
-                    undoDepthBefore,
-                    _undoManager.UndoDepth,
-                    redoDepthBefore,
-                    _undoManager.RedoDepth,
-                    _undoManager.UndoOperationCount,
-                    _undoManager.RedoOperationCount);
-                RichTextBoxDiagnostics.ObserveCommandTrace(
-                    inputDescriptor,
-                    "Redo",
-                    canExecute: redoDepthBefore > 0,
-                    handled,
-                    GetText().Length - textLengthBefore,
-                    undoDepthBefore,
-                    _undoManager.UndoDepth,
-                    redoDepthBefore,
-                    _undoManager.RedoDepth);
                 return true;
             }
 
             if (TryExecuteEditingCommandFromKey(key, modifiers))
             {
-                RichTextBoxDiagnostics.ObserveCommandTrace(
-                    inputDescriptor,
-                    "EditingKeyBinding",
-                    canExecute: true,
-                    handled: true,
-                    GetText().Length - textLengthBefore,
-                    undoDepthBefore,
-                    _undoManager.UndoDepth,
-                    redoDepthBefore,
-                    _undoManager.RedoDepth);
                 return true;
             }
 
-            RichTextBoxDiagnostics.ObserveCommandTrace(
-                inputDescriptor,
-                "NoMatch",
-                canExecute: false,
-                handled: false,
-                0,
-                undoDepthBefore,
-                _undoManager.UndoDepth,
-                redoDepthBefore,
-                _undoManager.RedoDepth);
             return false;
         }
         finally
@@ -1703,12 +1549,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     public override void InvalidateVisual()
     {
-        RichTextBoxDiagnostics.ObserveLayoutInvalidation(
-            _pendingInvalidationReason,
-            GetText().Length,
-            _caretIndex,
-            SelectionStart,
-            SelectionLength);
         _pendingInvalidationReason = "Unspecified";
         _hasPendingRenderDirtyBoundsHint = false;
         base.InvalidateVisual();
@@ -2240,17 +2080,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            commandType,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         TraceInvariants(commandType);
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
@@ -2492,14 +2321,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         TextClipboard.SetText(selected);
         var richSlice = FlowDocumentSerializer.SerializeRange(Document, SelectionStart, SelectionStart + SelectionLength);
         PublishRichClipboardPayloads(richSlice, selected);
-        RichTextBoxDiagnostics.ObserveClipboardPayload(
-            "Copy",
-            "Rich+Text",
-            Encoding.UTF8.GetByteCount(richSlice) + Encoding.UTF8.GetByteCount(selected),
-            "WriteClipboard");
         var elapsedMs = Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds;
         _perfTracker.RecordClipboardSerialize(elapsedMs);
-        RichTextBoxDiagnostics.ObserveClipboard("Copy", usedRichPayload: true, fallbackToText: false, elapsedMs);
     }
 
     private void ExecuteCut()
@@ -2514,14 +2337,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         TextClipboard.SetText(selected);
         var richSlice = FlowDocumentSerializer.SerializeRange(Document, SelectionStart, SelectionStart + SelectionLength);
         PublishRichClipboardPayloads(richSlice, selected);
-        RichTextBoxDiagnostics.ObserveClipboardPayload(
-            "Cut",
-            "Rich+Text",
-            Encoding.UTF8.GetByteCount(richSlice) + Encoding.UTF8.GetByteCount(selected),
-            "WriteClipboard");
         var elapsedMs = Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds;
         _perfTracker.RecordClipboardSerialize(elapsedMs);
-        RichTextBoxDiagnostics.ObserveClipboard("Cut", usedRichPayload: true, fallbackToText: false, elapsedMs);
         ReplaceSelection(string.Empty, "CutSelection", GroupingPolicy.StructuralAtomic);
     }
 
@@ -2538,7 +2355,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var caretBefore = _caretIndex;
         var textLengthBefore = GetText().Length;
         var structureBefore = CaptureDocumentRichness(Document).ToSummary();
-        var clipboardBefore = TextClipboard.GetDiagnosticsSnapshot();
+        var clipboardBefore = TextClipboard.GetSnapshot();
         var clipboardSnapshot = TextClipboard.CaptureSnapshot();
         var usedRichPayload = false;
         var fallbackToText = false;
@@ -2558,48 +2375,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var richStructuredTarget = IsRichStructuredDocument() && !IsFullDocumentSelection();
         void EmitPasteCpu()
         {
-            var clipboardAfter = TextClipboard.GetDiagnosticsSnapshot();
+            var clipboardAfter = TextClipboard.GetSnapshot();
             var selectionStartAfter = SelectionStart;
             var selectionLengthAfter = SelectionLength;
             var caretAfter = _caretIndex;
             var textLengthAfter = GetText().Length;
             var structureAfter = CaptureDocumentRichness(Document).ToSummary();
-            RichTextBoxDiagnostics.ObservePasteCpu(
-                route,
-                richFormatName,
-                usedRichPayload,
-                fallbackToText,
-                payloadBytes,
-                pastedChars,
-                richStructuredTarget,
-                selectionStartBefore,
-                selectionLengthBefore,
-                selectionStartAfter,
-                selectionLengthAfter,
-                caretBefore,
-                caretAfter,
-                textLengthBefore,
-                textLengthAfter,
-                structureBefore,
-                structureAfter,
-                structuredTextCompositionCount,
-                structuredEnterCount,
-                structuredDeleteSelectionApplied,
-                lookupRichMs,
-                deserializeMs,
-                readTextMs,
-                normalizeMs,
-                structuredInsertMs,
-                replaceSelectionMs,
-                Math.Max(0, clipboardAfter.SyncCallCount - clipboardBefore.SyncCallCount),
-                Math.Max(0, clipboardAfter.SyncThrottleSkipCount - clipboardBefore.SyncThrottleSkipCount),
-                Math.Max(0, clipboardAfter.SyncExternalReadCount - clipboardBefore.SyncExternalReadCount),
-                Math.Max(0d, clipboardAfter.SyncExternalReadMsTotal - clipboardBefore.SyncExternalReadMsTotal),
-                clipboardAfter.LastSyncSource,
-                clipboardAfter.LastSyncMs,
-                clipboardAfter.LastSyncChanged,
-                clipboardAfter.LastSyncThrottled,
-                Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
         }
 
         var lookupRichStart = Stopwatch.GetTimestamp();
@@ -2609,11 +2390,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             usedRichPayload = true;
             richFormatName = richFormat;
             payloadBytes = Encoding.UTF8.GetByteCount(richPayload);
-            RichTextBoxDiagnostics.ObserveClipboardPayload(
-                "Paste",
-                $"Rich:{richFormat}",
-                payloadBytes,
-                "ReadRichPayload");
             var deserializeStart = Stopwatch.GetTimestamp();
             try
             {
@@ -2624,16 +2400,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 {
                     route = "RichFragment";
                     pastedChars = DocumentEditing.GetText(fragment).Length;
-                    RichTextBoxDiagnostics.ObserveClipboard(
-                        "Paste",
-                        usedRichPayload: true,
-                        fallbackToText: false,
-                        Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
-                    RichTextBoxDiagnostics.ObserveClipboardPayload(
-                        "Paste",
-                        $"Rich:{richFormat}",
-                        Encoding.UTF8.GetByteCount(richPayload),
-                        "AppliedRichFragment");
                     EmitPasteCpu();
                     return;
                 }
@@ -2651,36 +2417,16 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     structuredTextCompositionCount += structuredStats.TextCompositionCount;
                     structuredEnterCount += structuredStats.EnterCount;
                     structuredDeleteSelectionApplied |= structuredStats.DeleteSelectionApplied;
-                    RichTextBoxDiagnostics.ObserveClipboard(
-                        "Paste",
-                        usedRichPayload: true,
-                        fallbackToText: true,
-                        Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
-                    RichTextBoxDiagnostics.ObserveClipboardPayload(
-                        "Paste",
-                        $"Rich:{richFormat}",
-                        Encoding.UTF8.GetByteCount(richPayload),
-                        "RichFallbackTextStructuredApplied");
                     EmitPasteCpu();
                     return;
                 }
 
-                RichTextBoxDiagnostics.ObserveClipboardPayload(
-                    "Paste",
-                    $"Rich:{richFormat}",
-                    Encoding.UTF8.GetByteCount(richPayload),
-                    "RichFragmentRejectedFallbackToText");
             }
             catch (Exception)
             {
                 deserializeMs = Stopwatch.GetElapsedTime(deserializeStart).TotalMilliseconds;
                 _perfTracker.RecordClipboardDeserialize(deserializeMs);
                 fallbackToText = true;
-                RichTextBoxDiagnostics.ObserveClipboardPayload(
-                    "Paste",
-                    $"Rich:{richFormat}",
-                    Encoding.UTF8.GetByteCount(richPayload),
-                    "RichDeserializeExceptionFallbackToText");
                 // Fall through to text fallback when rich payload is invalid.
             }
         }
@@ -2694,11 +2440,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         {
             readTextMs = Stopwatch.GetElapsedTime(readTextStart).TotalMilliseconds;
             route = "ClipboardEmpty";
-            RichTextBoxDiagnostics.ObserveClipboard(
-                "Paste",
-                usedRichPayload,
-                fallbackToText,
-                Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
             EmitPasteCpu();
             return;
         }
@@ -2706,11 +2447,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         pastedChars = pasted.Length;
         payloadBytes = Math.Max(payloadBytes, Encoding.UTF8.GetByteCount(pasted));
 
-        RichTextBoxDiagnostics.ObserveClipboardPayload(
-            "Paste",
-            "Text",
-            Encoding.UTF8.GetByteCount(pasted),
-            fallbackToText ? "FallbackTextApplied" : "TextApplied");
         var normalizeTextStart = Stopwatch.GetTimestamp();
         var normalizedPasted = NormalizeNewlines(pasted);
         normalizeMs += Stopwatch.GetElapsedTime(normalizeTextStart).TotalMilliseconds;
@@ -2723,11 +2459,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             structuredTextCompositionCount += textStructuredStats.TextCompositionCount;
             structuredEnterCount += textStructuredStats.EnterCount;
             structuredDeleteSelectionApplied |= textStructuredStats.DeleteSelectionApplied;
-            RichTextBoxDiagnostics.ObserveClipboard(
-                "Paste",
-                usedRichPayload,
-                fallbackToText,
-                Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
             EmitPasteCpu();
             return;
         }
@@ -2736,11 +2467,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         ReplaceSelection(normalizedPasted, "Paste", GroupingPolicy.StructuralAtomic);
         replaceSelectionMs = Stopwatch.GetElapsedTime(replaceStart).TotalMilliseconds;
         route = fallbackToText ? "FallbackTextReplaceSelection" : "TextReplaceSelection";
-        RichTextBoxDiagnostics.ObserveClipboard(
-            "Paste",
-            usedRichPayload,
-            fallbackToText,
-            Stopwatch.GetElapsedTime(pasteStart).TotalMilliseconds);
         EmitPasteCpu();
     }
 
@@ -2821,13 +2547,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             if (!IsFullDocumentSelection())
             {
                 RecordOperation("Guard", $"ReplaceSelection->{commandType}:BlockedInRichMode");
-                RichTextBoxDiagnostics.ObserveRichFallbackBlocked(
-                    "ReplaceSelection",
-                    commandType,
-                    SelectionStart,
-                    SelectionLength,
-                    (replacement ?? string.Empty).Length,
-                    BuildRecentOperationLines());
                 return;
             }
         }
@@ -2864,17 +2583,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            commandType,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         TraceInvariants(commandType);
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
@@ -3013,17 +2721,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            commandType,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         TraceInvariants(commandType);
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
@@ -3141,12 +2838,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             issues.Add($"SelectionLength invalid ({selectionStart}+{selectionLength}>{textLength}).");
         }
 
-        RichTextBoxDiagnostics.ObserveInvariant(
-            stage,
-            isValid: issues.Count == 0,
-            issues.Count == 0
-                ? $"ok blocks={Document.Blocks.Count} textLen={textLength}"
-                : string.Join(" | ", issues));
     }
 
     private void DetectUnexpectedFlattening(string stage)
@@ -3159,22 +2850,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             current.RichInlineCount < _lastDocumentRichness.RichInlineCount;
         if (structureDropped)
         {
-            RichTextBoxDiagnostics.ObserveStructureTransition(
-                stage,
-                _lastDocumentRichness.ToSummary(),
-                current.ToSummary(),
-                BuildRecentOperationLines());
         }
 
         if (_lastDocumentRichness.HasRichStructure &&
             !current.HasRichStructure &&
             current.IsPlainTextCompatible)
         {
-            RichTextBoxDiagnostics.ObserveFlattening(
-                stage,
-                _lastDocumentRichness.ToSummary(),
-                current.ToSummary(),
-                BuildRecentOperationLines());
         }
 
         _lastDocumentRichness = current;
@@ -3461,15 +3142,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             caretRect,
             CaretBrush * Opacity);
         var line = ResolveLineForOffset(layout, _caretIndex);
-        RichTextBoxDiagnostics.ObserveSelection(
-            _caretIndex,
-            _selectionAnchor,
-            SelectionStart,
-            SelectionLength,
-            line.Index,
-            _lastSelectionHitTestOffset,
-            caretRect,
-            selectionRectCount: 0);
     }
 
     private void DrawSelection(SpriteBatch spriteBatch, LayoutRect textRect, DocumentLayoutResult layout)
@@ -3494,15 +3166,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var caretRect = layout.TryGetCaretPosition(_caretIndex, out var caret)
             ? new LayoutRect(textRect.X + caret.X - _horizontalOffset, textRect.Y + caret.Y - _verticalOffset, 1f, Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font)))
             : default;
-        RichTextBoxDiagnostics.ObserveSelection(
-            _caretIndex,
-            _selectionAnchor,
-            SelectionStart,
-            SelectionLength,
-            line.Index,
-            _lastSelectionHitTestOffset,
-            caretRect,
-            rects.Count);
         _perfTracker.RecordSelectionGeometry(Stopwatch.GetElapsedTime(selectionStartTicks).TotalMilliseconds);
     }
 
@@ -3644,13 +3307,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             !IsFullDocumentSelection())
         {
             RecordOperation("Guard", $"ReplaceSelectionWithFragment->{commandType}:BlockedInRichMode");
-            RichTextBoxDiagnostics.ObserveRichFallbackBlocked(
-                "ReplaceSelectionWithFragment",
-                commandType,
-                SelectionStart,
-                SelectionLength,
-                DocumentEditing.GetText(fragment).Length,
-                BuildRecentOperationLines());
             return;
         }
 
@@ -3689,17 +3345,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, selectionStart, selectionLength, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            commandType,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         TraceInvariants(commandType);
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
@@ -3886,17 +3531,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(reason, elapsedMs, selectionStart, selectionLength, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            reason,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         TraceInvariants(reason);
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
@@ -4151,20 +3785,10 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         if (_layoutCache.TryGet(key, out var cached))
         {
             _perfTracker.RecordLayoutCacheHit();
-            RichTextBoxDiagnostics.ObserveLayout(
-                cacheHit: true,
-                elapsedMs: Stopwatch.GetElapsedTime(layoutLookupStart).TotalMilliseconds,
-                textLength: text.Length);
             return cached;
         }
 
         _perfTracker.RecordLayoutCacheMiss();
-        RichTextBoxDiagnostics.ObserveLayoutInvalidation(
-            "LayoutCacheMiss",
-            text.Length,
-            _caretIndex,
-            SelectionStart,
-            SelectionLength);
         var buildStart = Stopwatch.GetTimestamp();
         var settings = new DocumentLayoutSettings(
             AvailableWidth: normalizedWidth,
@@ -4180,10 +3804,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _layoutCache.Store(key, built);
         var buildMs = Stopwatch.GetElapsedTime(buildStart).TotalMilliseconds;
         _perfTracker.RecordLayoutBuild(buildMs);
-        RichTextBoxDiagnostics.ObserveLayout(
-            cacheHit: false,
-            elapsedMs: Stopwatch.GetElapsedTime(layoutLookupStart).TotalMilliseconds,
-            textLength: text.Length);
         return built;
     }
 
@@ -4319,4 +3939,5 @@ public readonly record struct RichTextBoxPerformanceSnapshot(
     int RedoDepth,
     int UndoOperationCount,
     int RedoOperationCount);
+
 

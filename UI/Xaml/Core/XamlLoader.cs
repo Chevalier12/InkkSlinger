@@ -26,16 +26,9 @@ public static class XamlLoader
     {
         var fileReadStart = Stopwatch.GetTimestamp();
         var xaml = File.ReadAllText(path);
-        UiFrameworkFileLoadDiagnostics.Observe(
-            "XamlLoader.File.ReadAllText",
-            Stopwatch.GetElapsedTime(fileReadStart).TotalMilliseconds,
-            xaml.Length);
 
         var loadStart = Stopwatch.GetTimestamp();
         var root = LoadFromString(xaml, codeBehind);
-        UiFrameworkFileLoadDiagnostics.Observe(
-            "XamlLoader.LoadFromFile",
-            Stopwatch.GetElapsedTime(loadStart).TotalMilliseconds);
         return root;
     }
 
@@ -56,10 +49,6 @@ public static class XamlLoader
         {
             throw CreateXamlException("XAML document has no root element.", document);
         }
-        UiFrameworkFileLoadDiagnostics.Observe(
-            "XamlLoader.ParseDocument",
-            Stopwatch.GetElapsedTime(parseStart).TotalMilliseconds,
-            xaml.Length);
 
         var loadStart = Stopwatch.GetTimestamp();
         var rootElement = document.Root;
@@ -79,11 +68,6 @@ public static class XamlLoader
                 ApplyAttributes(uiRoot, rootElement, codeBehind, rootScope);
                 ApplyChildren(uiRoot, rootElement, codeBehind, rootScope);
             });
-            UiFrameworkFileLoadDiagnostics.Observe(
-                "XamlLoader.LoadFromString",
-                Stopwatch.GetElapsedTime(loadStart).TotalMilliseconds);
-            UiFrameworkFileLoadDiagnostics.Flush();
-            UiFrameworkPopulationPhaseDiagnostics.Flush();
             return uiRoot;
         }
         finally
@@ -96,10 +80,6 @@ public static class XamlLoader
     {
         var fileReadStart = Stopwatch.GetTimestamp();
         var xaml = File.ReadAllText(path);
-        UiFrameworkFileLoadDiagnostics.Observe(
-            "XamlLoader.File.ReadAllText",
-            Stopwatch.GetElapsedTime(fileReadStart).TotalMilliseconds,
-            xaml.Length);
         LoadIntoFromString(target, xaml, codeBehind);
     }
 
@@ -120,10 +100,6 @@ public static class XamlLoader
         {
             throw CreateXamlException("XAML document has no root element.", document);
         }
-        UiFrameworkFileLoadDiagnostics.Observe(
-            "XamlLoader.ParseDocument",
-            Stopwatch.GetElapsedTime(parseStart).TotalMilliseconds,
-            xaml.Length);
 
         var loadStart = Stopwatch.GetTimestamp();
         var root = document.Root;
@@ -143,11 +119,6 @@ public static class XamlLoader
                 target.Content = null;
                 ApplyChildren(target, root, codeBehind, target);
             });
-            UiFrameworkFileLoadDiagnostics.Observe(
-                "XamlLoader.LoadIntoFromString",
-                Stopwatch.GetElapsedTime(loadStart).TotalMilliseconds);
-            UiFrameworkFileLoadDiagnostics.Flush();
-            UiFrameworkPopulationPhaseDiagnostics.Flush();
         }
         finally
         {

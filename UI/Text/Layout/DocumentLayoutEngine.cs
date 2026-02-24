@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -351,7 +351,7 @@ public sealed class DocumentLayoutEngine
             var itemIndex = 0;
             foreach (var item in list.Items)
             {
-                var marker = list.IsOrdered ? $"{itemIndex + 1}." : "•";
+                var marker = list.IsOrdered ? $"{itemIndex + 1}." : "�";
                 var itemPath = $"{path}/ListItem[{itemIndex}]";
                 var firstParagraph = true;
                 var blockIndex = 0;

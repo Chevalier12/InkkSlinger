@@ -7,7 +7,7 @@ namespace InkkSlinger;
 
 public sealed partial class UiRoot
 {
-    private void ResetUpdatePhaseDiagnostics()
+    private void ResetUpdatePhaseState()
     {
         _lastUpdatePhaseOrder.Clear();
         LastInputPhaseMs = 0d;
@@ -85,3 +85,4 @@ public sealed partial class UiRoot
         SynchronizeRetainedRenderList();
     }
 }
+

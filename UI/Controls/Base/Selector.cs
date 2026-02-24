@@ -183,11 +183,6 @@ public class Selector : ItemsControl
 
         if (this is ListBox listBox)
         {
-            ListBoxSelectCPUDiagnostics.ObserveSelectionChanged(
-                listBox,
-                SelectedIndex,
-                args.AddedItems.Count,
-                args.RemovedItems.Count);
         }
 
         var routedArgs = new SelectionChangedEventArgs(

@@ -2,7 +2,7 @@
 
 ## Is It Usable Yet? (tm sign here)
 
-### Evidence Pass (2026-02-23)
+### Evidence Pass (2026-02-24)
 
 | Check | Result | Evidence |
 |---|---|---|
@@ -106,7 +106,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 53 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (53 files) | Implemented |
+| Regression safety net | 55 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (55 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -167,7 +167,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 ## UI Architecture Map
 
-The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-23):
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-24):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers
@@ -232,113 +232,21 @@ Primary validation machine for current development/testing:
 
 | Mode | Command |
 |---|---|
-| Default host mode | `dotnet run --project InkkSlinger.csproj` |
-| Three ScrollViewers demo | `dotnet run --project InkkSlinger.csproj -- --three-scroll-viewers` |
-| Two ScrollViewers demo | `dotnet run --project InkkSlinger.csproj -- --two-scroll-viewers` |
-| Simple ScrollViewer demo | `dotnet run --project InkkSlinger.csproj -- --simple-scroll-viewer` |
-| Simple StackPanel demo | `dotnet run --project InkkSlinger.csproj -- --simple-stack-panel` |
-| ScrollViewer + TextBox demo | `dotnet run --project InkkSlinger.csproj -- --scrollviewer-textbox-demo` |
-| ListBox demo | `dotnet run --project InkkSlinger.csproj -- --listbox-demo` |
-| ItemsPresenter demo | `dotnet run --project InkkSlinger.csproj -- --items-presenter-demo` |
-| VirtualizedStackPanel demo | `dotnet run --project InkkSlinger.csproj -- --virtualized-stack-panel-demo` |
-| ScrollViewer edge cases demo | `dotnet run --project InkkSlinger.csproj -- --scrollviewer-edge-cases` |
-| Dark dashboard demo | `dotnet run --project InkkSlinger.csproj -- --dark-dashboard` |
-| Main menu demo | `dotnet run --project InkkSlinger.csproj -- --main-menu` |
-| Window demo | `dotnet run --project InkkSlinger.csproj -- --window-demo` |
-| Paint shell demo | `dotnet run --project InkkSlinger.csproj -- --paint-shell` |
-| Commanding demo | `dotnet run --project InkkSlinger.csproj -- --commanding-demo` |
-| PasswordBox demo | `dotnet run --project InkkSlinger.csproj -- --passwordbox-demo` |
-| Menu parity lab | `dotnet run --project InkkSlinger.csproj -- --menu-parity-demo` |
-| ContextMenu parity lab | `dotnet run --project InkkSlinger.csproj -- --contextmenu-parity-lab` |
-| Adorners lab | `dotnet run --project InkkSlinger.csproj -- --adorners-lab` |
-| Binding parity gap #5 demo | `dotnet run --project InkkSlinger.csproj -- --binding-parity-gap5-demo` |
-| CollectionView parity demo | `dotnet run --project InkkSlinger.csproj -- --collectionview-parity-demo` |
-| Collection add-isolation demo | `dotnet run --project InkkSlinger.csproj -- --collection-add-isolation-demo` |
-| ListView lab | `dotnet run --project InkkSlinger.csproj -- --listview-lab` |
-| RichTextBox demo | `dotnet run --project InkkSlinger.csproj -- --richtextbox-demo` |
-| RichText diagnostics lab | `dotnet run --project InkkSlinger.csproj -- --richtext-diagnostics-lab` |
-| Window/Popup parity lab | `dotnet run --project InkkSlinger.csproj -- --window-popup-parity-lab` |
+| Current host mode | `dotnet run --project InkkSlinger.csproj` |
 
-Current default launch surface is `CollectionAddIsolationView` (`--collection-add-isolation-demo`) when no explicit mode flag is provided.
+Current default launch surface is `ControlsCatalogView`.
+Legacy per-demo CLI mode switches were removed from host startup wiring.
 
-## Environment Variables
+## Runtime Configuration
 
-Environment switches are string-based and compared using ordinal checks.
-
-- `enable-with-1` flags: only exact `"1"` enables; any other value (or unset) disables.
-- `disable-with-0` flags: exact `"0"` disables; any other value (or unset) enables.
-- Most flags are read at startup (`UiRoot` construction / `Game1` init). A few input flags are checked during update.
-
-PowerShell example:
-
-```powershell
-$env:INKKSLINGER_EXPERIMENTAL_PARTIAL_REDRAW = "1"
-$env:INKKSLINGER_RENDER_CACHE_OVERLAY = "1"
-dotnet run --project InkkSlinger.csproj -- --commanding-demo
-Remove-Item Env:INKKSLINGER_EXPERIMENTAL_PARTIAL_REDRAW
-Remove-Item Env:INKKSLINGER_RENDER_CACHE_OVERLAY
-```
-
-### Rendering and Frame Scheduling
-
-| Variable | Mode | Default | Read Timing | Effect |
-|---|---|---|---|---|
-| `INKKSLINGER_EXPERIMENTAL_PARTIAL_REDRAW` | enable-with-1 | disabled | `Game1` startup | Sets `UseRetainedRenderList`, `UseDirtyRegionRendering`, and `UseElementRenderCaches` together. |
-| `INKKSLINGER_RECURSIVE_DRAW_FALLBACK` | enable-with-1 | disabled | `UiRoot` construction | Forces fallback away from retained render queue default path. |
-| `INKKSLINGER_RETAINED_RENDER_QUEUE` | disable-with-0 | enabled | `UiRoot` construction | Controls retained render list default (`UseRetainedRenderList`). |
-| `INKKSLINGER_DIRTY_REGION_RENDERING` | disable-with-0 | enabled | `UiRoot` construction | Controls dirty region rendering default (`UseDirtyRegionRendering`). |
-| `INKKSLINGER_CONDITIONAL_DRAW` | disable-with-0 | enabled | `UiRoot` construction | Controls conditional draw scheduling default (`UseConditionalDrawScheduling`). |
-| `INKKSLINGER_ALWAYS_DRAW` | enable-with-1 | disabled | `UiRoot` construction | Enables `AlwaysDrawCompatibilityMode` (forces draw every frame). |
-| `INKKSLINGER_RENDER_CACHE` | disable-with-0 | enabled | `UiRoot` construction | Controls element render cache default (`UseElementRenderCaches`). |
-| `INKKSLINGER_RENDER_CACHE_OVERLAY` | enable-with-1 | disabled | `UiRoot` construction | Enables cached-subtree bounds overlay (`ShowCachedSubtreeBoundsOverlay`). |
-| `INKKSLINGER_RENDER_CACHE_COUNTERS` | enable-with-1 | disabled | `UiRoot` construction | Enables cache counter tracing (`TraceRenderCacheCounters`). |
-
-### Input Pipeline
-
-| Variable | Mode | Default | Read Timing | Effect |
-|---|---|---|---|---|
-| `INKKSLINGER_ENABLE_INPUT_PIPELINE` | disable-with-0 | enabled | each update | Disables `_inputManager.Capture()` + input delta processing when set to `"0"`. |
-| `INKKSLINGER_ALWAYS_ROUTE_MOUSEMOVE` | enable-with-1 | disabled | each pointer move | Forces routing `PreviewMouseMove`/`MouseMove` even when hover target is unchanged. |
-| `INKKSLINGER_BYPASS_MOVE_HITTEST` | enable-with-1 | disabled | pointer target resolution | Skips non-precise move/wheel hit-test fallback path and reuses hovered target path. |
+Environment-variable runtime switches were removed from the codebase.
+Runtime behavior is now controlled directly by in-code defaults and properties (for example `Game1` and `UiRoot` setup).
 
 ### Clipboard Interop Notes
 
-- `TextClipboard` maintains app-local plain/rich payloads and now performs external clipboard sync for plain text.
+- `TextClipboard` maintains app-local plain/rich payloads and performs external clipboard sync for plain text.
 - On Windows runtime builds, external plain-text reads use a native Win32 clipboard path first, with PowerShell fallback only if native read fails.
 - Rich payloads (`XamlPackage`/`Xaml`/custom flow-doc format) remain app-local and are intentionally cleared when external plain text changes, preventing stale rich payload reuse.
-
-### CPU Diagnostics Logging
-
-| Variable | Mode | Default | Read Timing | Effect |
-|---|---|---|---|---|
-| `INKKSLINGER_SCROLL_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits scroll CPU summaries to `Debug` + `Console`. |
-| `INKKSLINGER_MOVE_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits pointer-move CPU summaries to `Debug` + `Console`. |
-| `INKKSLINGER_CLICK_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits click CPU summaries to `Debug` + `Console`. |
-| `INKKSLINGER_FRAME_LATENCY_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits alert-only click/move/scroll frame latency diagnostics for 60 FPS targets (`event->next-draw` p95/p99, 16.6ms miss rate, dominant miss phase); move/scroll sampling is coalescing-aware (latest event per draw). |
-| `INKKSLINGER_WHEEL_ROUTE_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits detailed wheel-target routing traces (`[WheelRoute]`) to `Debug` + `Console`. |
-| `INKKSLINGER_LISTBOX_SELECT_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits ListBox selection/click diagnostics to `Debug` + `Console`. |
-| `INKKSLINGER_CONTEXTMENU_CPU_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits context-menu CPU diagnostics for open/hover/invoke paths, including first-vs-warm open summaries and open invalidation deltas (`measure/arrange/render`) for menu/root. |
-| `INKKSLINGER_CONTEXTMENU_HOVER_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits context-menu hover resolution diagnostics with `BeforeMove`/`AfterMove` state traces to `Debug` + `Console`. |
-| `INKKSLINGER_FILE_LOAD_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework file-load diagnostics to `Debug` + `Console`. |
-| `INKKSLINGER_POPULATION_PHASE_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits framework population-phase diagnostics to `Debug` + `Console`. |
-| `INKKSLINGER_TEXTBOX_FRAMEWORK_LOGS` | enable-with-1 | disabled | diagnostics class init | Emits TextBox framework timing summaries (commit, render, viewport, caret, text-sync) to `Debug` + `Console`. |
-| `INKKSLINGER_DIRTY_REGION_EFFECTIVENESS_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits partial-redraw effectiveness summaries (partial success, merge ratio, fallback-cause breakdown) to `Debug` + `Console`. |
-| `INKKSLINGER_RENDER_CACHE_CHURN_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits render-cache churn summaries (frame hit/miss/rebuild ratios and top invalidation source types) to `Debug` + `Console`. |
-| `INKKSLINGER_ALLOC_GC_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits interaction-window allocation and GC deltas (allocated bytes + Gen0/1/2 collection deltas) to `Debug` + `Console`. |
-| `INKKSLINGER_INPUT_ROUTE_COMPLEXITY_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits input route complexity summaries (route depth and potential handler counts for pointer/wheel/key routes) to `Debug` + `Console`. |
-| `INKKSLINGER_NOOP_INVALIDATION_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits no-op invalidation candidate summaries (render invalidations with no bounds contribution or detached sources) to `Debug` + `Console`. |
-| `INKKSLINGER_CONTROL_HOTSPOT_LOGS` | enable-with-1 | disabled | UiRoot diagnostics call site | Emits sampled top control-type hotspots by cumulative layout/draw/dispatch time to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_LAYOUT_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits per-layout rich-text cache/build timing summaries to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_EDIT_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits rich-text edit command timing summaries to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_CLIPBOARD_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits rich-text clipboard serialize/deserialize timing and fallback diagnostics to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_INVARIANT_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits post-edit document/caret/selection invariant checks and parent-link validation summaries to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_INVALIDATION_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits layout invalidation reasons (explicit invalidate reason + cache miss invalidations) to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_COMMAND_TRACE_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits input/command execution traces with mutation deltas and undo/redo depth transitions to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_SELECTION_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits caret/selection geometry trace (line, hit offset, caret rect, selection rect count) to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_UNDO_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits undo/redo operation-depth transitions and operation counts to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_CLIPBOARD_PAYLOAD_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits clipboard payload branch details (rich/text, payload bytes, fallback path) to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_PASTE_CPU_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits detailed paste CPU diagnostics: route/format, payload/chars, selection+caret+text length before/after, structure summaries before/after, structured-op counts, clipboard sync/read counters+source, and timing breakdown (`lookupRichMs`, `deserializeMs`, `readTextMs`, `normalizeMs`, `structuredMs`, `replaceMs`, `totalMs`) to `Debug` + `Console`. |
-| `INKKSLINGER_RICHTEXT_FLATTEN_LOGS` | enable-with-1 | disabled | RichTextBox diagnostics call site | Emits structural-loss diagnostics (full flatten and partial list/table/inline-richness drops) with before/after snapshot + last 10 RichTextBox operations (caller/branch/caret/selection) to `Debug` + `Console`. |
 
 ## Notes
 

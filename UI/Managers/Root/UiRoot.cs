@@ -9,19 +9,12 @@ namespace InkkSlinger;
 
 public sealed partial class UiRoot
 {
-    private static readonly bool EnableRetainedRenderListByDefault =
-        !string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_RECURSIVE_DRAW_FALLBACK"), "1", StringComparison.Ordinal) &&
-        !string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_RETAINED_RENDER_QUEUE"), "0", StringComparison.Ordinal);
-    private static readonly bool EnableDirtyRegionRenderingByDefault =
-        !string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_DIRTY_REGION_RENDERING"), "0", StringComparison.Ordinal);
-    private static readonly bool EnableConditionalDrawByDefault =
-        !string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_CONDITIONAL_DRAW"), "0", StringComparison.Ordinal);
-    private static readonly bool EnableElementRenderCacheByDefault =
-        !string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_RENDER_CACHE"), "0", StringComparison.Ordinal);
-    private static readonly bool EnableRenderCacheBoundaryOverlayByDefault =
-        string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_RENDER_CACHE_OVERLAY"), "1", StringComparison.Ordinal);
-    private static readonly bool EnableRenderCacheCounterTraceByDefault =
-        string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_RENDER_CACHE_COUNTERS"), "1", StringComparison.Ordinal);
+    private const bool EnableRetainedRenderListByDefault = true;
+    private const bool EnableDirtyRegionRenderingByDefault = true;
+    private const bool EnableConditionalDrawByDefault = true;
+    private const bool EnableElementRenderCacheByDefault = true;
+    private const bool EnableRenderCacheBoundaryOverlayByDefault = false;
+    private const bool EnableRenderCacheCounterTraceByDefault = false;
     private static readonly bool ForceBypassMoveHitTest = false;
     private static readonly RasterizerState UiRasterizerState = new()
     {
@@ -75,9 +68,6 @@ public sealed partial class UiRoot
     private double _lastInputKeyDispatchMs;
     private double _lastInputTextDispatchMs;
     private double _lastVisualUpdateMs;
-    private readonly FrameLatencyWindowDiagnostics _scrollFrameLatencyDiagnostics = new("Scroll", coalesceToLatestEventPerDraw: true);
-    private readonly FrameLatencyWindowDiagnostics _clickFrameLatencyDiagnostics = new("Click", coalesceToLatestEventPerDraw: false);
-    private readonly FrameLatencyWindowDiagnostics _moveFrameLatencyDiagnostics = new("Move", coalesceToLatestEventPerDraw: true);
     private int _scrollCpuWheelEventCount;
     private int _scrollCpuOffsetMutationCount;
     private int _scrollCpuWheelPreciseRetargetCount;
@@ -217,8 +207,7 @@ public sealed partial class UiRoot
 
     public bool TraceRenderCacheCounters { get; set; }
 
-    public bool AlwaysDrawCompatibilityMode { get; set; } =
-        string.Equals(Environment.GetEnvironmentVariable("INKKSLINGER_ALWAYS_DRAW"), "1", StringComparison.Ordinal);
+    public bool AlwaysDrawCompatibilityMode { get; set; }
 
     public bool UseSoftwareCursor { get; set; }
 
@@ -355,7 +344,7 @@ public sealed partial class UiRoot
         Dispatcher.VerifyAccess();
         var updateStart = Stopwatch.GetTimestamp();
 
-        ResetUpdatePhaseDiagnostics();
+        ResetUpdatePhaseState();
 
         LastInputPhaseMs = ExecuteUpdatePhase(
             UiUpdatePhase.InputAndEvents,
@@ -374,17 +363,6 @@ public sealed partial class UiRoot
             () => RunRenderSchedulingPhase(viewport));
 
         LastUpdateMs = Stopwatch.GetElapsedTime(updateStart).TotalMilliseconds;
-        ObserveScrollCpuAfterUpdate();
-        ObserveClickCpuAfterUpdate();
-        ObserveMoveCpuAfterUpdate();
-        ObserveFrameLatencyAfterUpdate();
-        ObserveDirtyRegionAfterUpdate();
-        ObserveRenderCacheChurnAfterUpdate();
-        ObserveAllocationGcAfterUpdate();
-        ObserveInputRouteComplexityAfterUpdate();
-        ObserveNoOpInvalidationAfterUpdate();
-        ObserveControlHotspotAfterUpdate();
-        ObserveCpuAttributionAfterUpdate();
     }
 
     public void EnqueueDeferredOperation(Action operation)
@@ -505,3 +483,4 @@ public sealed partial class UiRoot
     }
 
 }
+

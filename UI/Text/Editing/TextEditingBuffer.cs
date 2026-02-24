@@ -288,16 +288,16 @@ public sealed class TextEditingBuffer
         return delta;
     }
 
-    public TextEditingBufferDiagnostics GetDiagnostics()
+    public TextEditingBufferMetrics GetMetrics()
     {
-        return new TextEditingBufferDiagnostics(
+        return new TextEditingBufferMetrics(
             _textMaterializationCount,
             _pieces.Count,
             _length,
             LogicalLineCount);
     }
 
-    public void ResetDiagnostics()
+    public void ResetMetrics()
     {
         _textMaterializationCount = 0;
     }
@@ -692,8 +692,9 @@ public readonly record struct TextEditDelta(
     public int DeltaLength => NewLength - OldLength;
 }
 
-public readonly record struct TextEditingBufferDiagnostics(
+public readonly record struct TextEditingBufferMetrics(
     int TextMaterializationCount,
     int PieceCount,
     int Length,
     int LogicalLineCount);
+

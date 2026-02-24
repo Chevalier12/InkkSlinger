@@ -161,17 +161,6 @@ public partial class RichTextBox
         _caretIndex = Math.Clamp(originalCaret, 0, maxCaret);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
-        RichTextBoxDiagnostics.ObserveEdit(commandType, elapsedMs, start, length, _caretIndex);
-        RichTextBoxDiagnostics.ObserveCommandTrace(
-            "EditMethod",
-            commandType,
-            canExecute: true,
-            handled: true,
-            GetText().Length - textLengthBefore,
-            undoDepthBefore,
-            _undoManager.UndoDepth,
-            redoDepthBefore,
-            _undoManager.RedoDepth);
         TraceInvariants(commandType);
         EnsureCaretVisible();
         InvalidateMeasure();
