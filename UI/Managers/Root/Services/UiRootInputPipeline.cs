@@ -268,13 +268,15 @@ public sealed partial class UiRoot
 
             if (_inputState.HoveredElement != null)
             {
-                return FinalizePointerResolve("HoverReuse", _inputState.HoveredElement);
+                // Do not refresh click-target reuse cache from hover-reuse paths.
+                // Hover can be stale while pointer moves without precise retargeting.
+                return FinalizePointerResolve("HoverReuse", _inputState.HoveredElement, updatePointerCache: false);
             }
         }
 
         if (!requiresPreciseTarget && !delta.PointerMoved && delta.WheelDelta == 0)
         {
-            return FinalizePointerResolve("HoverNoInput", _inputState.HoveredElement);
+            return FinalizePointerResolve("HoverNoInput", _inputState.HoveredElement, updatePointerCache: false);
         }
 
         if (requiresPreciseTarget && !bypassClickTargetShortcuts)
@@ -399,10 +401,13 @@ public sealed partial class UiRoot
         _hasCachedPointerResolveTarget = true;
     }
 
-    private UIElement? FinalizePointerResolve(string path, UIElement? target)
+    private UIElement? FinalizePointerResolve(string path, UIElement? target, bool updatePointerCache = true)
     {
         _lastPointerResolvePath = path;
-        UpdateCachedPointerResolveTarget(_inputState.LastPointerPosition, target);
+        if (updatePointerCache)
+        {
+            UpdateCachedPointerResolveTarget(_inputState.LastPointerPosition, target);
+        }
         return target;
     }
 
@@ -567,6 +572,26 @@ public sealed partial class UiRoot
         {
             CapturePointer(target);
         }
+        else if (button == MouseButton.Left &&
+                 ((target is Expander directExpander && directExpander.HandlePointerDownFromInput(pointerPosition)) ||
+                  (target != null &&
+                   TryFindAncestor<Expander>(target, out var owningExpander) &&
+                   owningExpander != null &&
+                   owningExpander.HandlePointerDownFromInput(pointerPosition))))
+        {
+            var expanderToCapture = target as Expander;
+            if (expanderToCapture == null &&
+                target != null &&
+                TryFindAncestor<Expander>(target, out var ancestorExpander))
+            {
+                expanderToCapture = ancestorExpander;
+            }
+
+            if (expanderToCapture != null)
+            {
+                CapturePointer(expanderToCapture);
+            }
+        }
         else if (button == MouseButton.Left && target is ITextInputControl textInput)
         {
             textInput.HandlePointerDownFromInput(pointerPosition, extendSelection: (_inputState.CurrentModifiers & ModifierKeys.Shift) != 0);
@@ -618,6 +643,10 @@ public sealed partial class UiRoot
         else if (_inputState.CapturedPointerElement is Slider slider && button == MouseButton.Left)
         {
             slider.HandlePointerUpFromInput();
+        }
+        else if (_inputState.CapturedPointerElement is Expander expander && button == MouseButton.Left)
+        {
+            expander.HandlePointerUpFromInput(pointerPosition);
         }
         else if (_inputState.CapturedPointerElement is Popup popup && button == MouseButton.Left)
         {

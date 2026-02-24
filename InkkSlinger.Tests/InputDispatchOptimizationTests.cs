@@ -82,7 +82,7 @@ public class InputDispatchOptimizationTests
         Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
 
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 120f)));
-        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
         Assert.Equal(0f, scrollViewer.VerticalOffset);
 
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, wheelDelta: -120, position: new Vector2(30f, 120f)));
@@ -183,7 +183,7 @@ public class InputDispatchOptimizationTests
         Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
 
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(120f, 120f)));
-        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
         Assert.Equal(0f, leftViewer.VerticalOffset);
 
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, wheelDelta: -120, position: new Vector2(120f, 120f)));
@@ -224,7 +224,7 @@ public class InputDispatchOptimizationTests
         Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
 
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 120f)));
-        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
         Assert.Equal(0f, scrollViewer.VerticalOffset);
 
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, wheelDelta: -120, position: new Vector2(30f, 120f)));
@@ -255,9 +255,9 @@ public class InputDispatchOptimizationTests
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 30f)));
         Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
 
-        // Move to the right button with max-savings hover reuse: no new hit-test.
+        // Move to the right button: pointer retarget should do one hit-test.
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(230f, 30f)));
-        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
 
         // Click transition must force precise targeting.
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: new Vector2(230f, 30f), leftPressed: true));

@@ -44,6 +44,7 @@ public class Expander : ContentControl
                         expander.RaiseRoutedEvent(
                             expanded ? ExpandedEvent : CollapsedEvent,
                             new RoutedSimpleEventArgs(expanded ? ExpandedEvent : CollapsedEvent));
+                        UiRoot.Current?.NotifyVisualStructureChanged(expander, expander.VisualParent, expander.VisualParent);
                     }
                 }));
 
@@ -122,6 +123,7 @@ public class Expander : ContentControl
     private UIElement? _headerElement;
     private LayoutRect _headerRect;
     private LayoutRect _contentRect;
+    private bool _isHeaderPressed;
 
     public Expander()
     {
@@ -209,6 +211,11 @@ public class Expander : ContentControl
     {
         foreach (var element in base.GetVisualChildren())
         {
+            if (!IsExpanded && ContentElement != null && ReferenceEquals(element, ContentElement))
+            {
+                continue;
+            }
+
             yield return element;
         }
 
@@ -249,7 +256,14 @@ public class Expander : ContentControl
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var headerSize = MeasureHeader(finalSize);
-        var slots = ComputeSlots(finalSize, headerSize);
+        var arrangedSize = IsExpanded
+            ? finalSize
+            : ExpandDirection switch
+            {
+                ExpandDirection.Down or ExpandDirection.Up => new Vector2(finalSize.X, headerSize.Y),
+                _ => new Vector2(headerSize.X, finalSize.Y)
+            };
+        var slots = ComputeSlots(arrangedSize, headerSize);
         _headerRect = slots.HeaderRect;
         _contentRect = slots.ContentRect;
 
@@ -270,7 +284,7 @@ public class Expander : ContentControl
             }
         }
 
-        return finalSize;
+        return arrangedSize;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -491,6 +505,25 @@ public class Expander : ContentControl
                point.X <= rect.X + rect.Width &&
                point.Y >= rect.Y &&
                point.Y <= rect.Y + rect.Height;
+    }
+
+    internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
+    {
+        _isHeaderPressed = Contains(_headerRect, pointerPosition);
+        return _isHeaderPressed;
+    }
+
+    internal bool HandlePointerUpFromInput(Vector2 pointerPosition)
+    {
+        var shouldToggle = _isHeaderPressed && Contains(_headerRect, pointerPosition);
+        _isHeaderPressed = false;
+        if (!shouldToggle)
+        {
+            return false;
+        }
+
+        IsExpanded = !IsExpanded;
+        return true;
     }
 }
 

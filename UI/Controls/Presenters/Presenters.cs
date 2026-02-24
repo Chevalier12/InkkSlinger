@@ -218,7 +218,7 @@ public class ContentPresenter : FrameworkElement
             return Content;
         }
 
-        var property = _sourceOwner.GetType().GetProperty(ContentSource, BindingFlags.Instance | BindingFlags.Public);
+        var property = FindReadableProperty(_sourceOwner.GetType(), ContentSource);
         return property?.GetValue(_sourceOwner);
     }
 
@@ -235,7 +235,7 @@ public class ContentPresenter : FrameworkElement
         }
 
         var templatePropertyName = ContentSource + "Template";
-        var property = _sourceOwner.GetType().GetProperty(templatePropertyName, BindingFlags.Instance | BindingFlags.Public);
+        var property = FindReadableProperty(_sourceOwner.GetType(), templatePropertyName);
         if (property?.PropertyType == typeof(DataTemplate))
         {
             return property.GetValue(_sourceOwner) as DataTemplate;
@@ -257,7 +257,7 @@ public class ContentPresenter : FrameworkElement
         }
 
         var selectorPropertyName = ContentSource + "TemplateSelector";
-        var property = _sourceOwner.GetType().GetProperty(selectorPropertyName, BindingFlags.Instance | BindingFlags.Public);
+        var property = FindReadableProperty(_sourceOwner.GetType(), selectorPropertyName);
         if (property?.PropertyType == typeof(DataTemplateSelector))
         {
             return property.GetValue(_sourceOwner) as DataTemplateSelector;
@@ -270,12 +270,23 @@ public class ContentPresenter : FrameworkElement
     {
         if (content is UIElement uiElement)
         {
+            if (WouldCreatePresentationCycle(uiElement))
+            {
+                return BuildCycleGuardLabel(content);
+            }
+
             return uiElement;
         }
 
         if (template != null)
         {
-            return template.Build(content, this);
+            var built = template.Build(content, this);
+            if (built != null && WouldCreatePresentationCycle(built))
+            {
+                return BuildCycleGuardLabel(content);
+            }
+
+            return built;
         }
 
         if (content != null)
@@ -284,6 +295,38 @@ public class ContentPresenter : FrameworkElement
         }
 
         return null;
+    }
+
+    private bool WouldCreatePresentationCycle(UIElement candidate)
+    {
+        if (ReferenceEquals(candidate, this))
+        {
+            return true;
+        }
+
+        for (UIElement? current = this; current != null; current = current.LogicalParent ?? current.VisualParent)
+        {
+            if (ReferenceEquals(current, candidate))
+            {
+                return true;
+            }
+        }
+
+        for (UIElement? current = candidate; current != null; current = current.LogicalParent ?? current.VisualParent)
+        {
+            if (ReferenceEquals(current, this))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static Label BuildCycleGuardLabel(object? content)
+    {
+        var contentType = content?.GetType().Name ?? "null";
+        return new Label { Text = $"ContentPresenter cycle guard ({contentType})" };
     }
 
     private DependencyObject? FindSourceOwner()
@@ -295,10 +338,54 @@ public class ContentPresenter : FrameworkElement
                 continue;
             }
 
-            var property = current.GetType().GetProperty(ContentSource, BindingFlags.Instance | BindingFlags.Public);
+            var property = FindReadableProperty(current.GetType(), ContentSource);
             if (property != null)
             {
+                try
+                {
+                    var value = property.GetValue(current);
+                    if (ReferenceEquals(value, this))
+                    {
+                        // Avoid self-owner cycles (for example host.Content == this presenter).
+                        continue;
+                    }
+                }
+                catch
+                {
+                    // Ignore reflective getter failures and continue owner probing.
+                }
+
                 return dependencyObject;
+            }
+        }
+
+        return null;
+    }
+
+    private static PropertyInfo? FindReadableProperty(Type type, string propertyName)
+    {
+        for (var current = type; current != null; current = current.BaseType)
+        {
+            var direct = current.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+            for (var i = 0; i < direct.Length; i++)
+            {
+                var property = direct[i];
+                if (!string.Equals(property.Name, propertyName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (property.GetIndexParameters().Length != 0)
+                {
+                    continue;
+                }
+
+                if (property.GetMethod == null)
+                {
+                    continue;
+                }
+
+                return property;
             }
         }
 
