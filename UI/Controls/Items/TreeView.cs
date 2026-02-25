@@ -84,6 +84,7 @@ public class TreeView : ItemsControl
 
     public TreeView()
     {
+        AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnMouseDownSelectItem);
     }
 
     public event System.EventHandler<RoutedSimpleEventArgs> SelectedItemChanged
@@ -185,6 +186,29 @@ public class TreeView : ItemsControl
         }
 
         return null;
+    }
+
+    private void OnMouseDownSelectItem(object? sender, MouseRoutedEventArgs args)
+    {
+        _ = sender;
+        if (!IsEnabled || args.Button != MouseButton.Left)
+        {
+            return;
+        }
+
+        var clickedItem = FindItemFromSource(args.OriginalSource as UIElement);
+        if (clickedItem == null)
+        {
+            return;
+        }
+
+        if (clickedItem.HitExpander(args.Position))
+        {
+            clickedItem.IsExpanded = !clickedItem.IsExpanded;
+        }
+
+        ApplySelectedItem(clickedItem);
+        args.Handled = true;
     }
 
     private void ApplySelectedItem(TreeViewItem item)

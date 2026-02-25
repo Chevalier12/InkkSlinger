@@ -687,16 +687,13 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
         var textWidth = 0f;
         var textHeight = GetLineHeight();
-        if (Font != null)
-        {
-            var contentWidth = TextWrapping == TextWrapping.NoWrap
-                ? float.PositiveInfinity
-                : MathF.Max(0f, availableSize.X - padding.Horizontal - border);
-            var layout = BuildLayoutLines(contentWidth);
-            textWidth = layout.MaxLineWidth;
-            var lineHeight = GetLineHeight();
-            textHeight = MathF.Max(lineHeight, GetLineCount(layout) * lineHeight);
-        }
+        var contentWidth = TextWrapping == TextWrapping.NoWrap
+            ? float.PositiveInfinity
+            : MathF.Max(0f, availableSize.X - padding.Horizontal - border);
+        var layout = BuildLayoutLines(contentWidth);
+        textWidth = layout.MaxLineWidth;
+        var lineHeight = GetLineHeight();
+        textHeight = MathF.Max(lineHeight, GetLineCount(layout) * lineHeight);
 
         var minWidth = padding.Horizontal + border + 32f;
         var minHeight = padding.Vertical + border + MathF.Max(textHeight, 14f);
@@ -720,16 +717,6 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         var renderStart = Stopwatch.GetTimestamp();
         var slot = LayoutSlot;
         UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
-
-        if (Font == null)
-        {
-            if (BorderThickness > 0f)
-            {
-                UiDrawing.DrawRectStroke(spriteBatch, slot, BorderThickness, BorderBrush, Opacity);
-            }
-
-            return;
-        }
 
         long viewportTicks;
         long selectionTicks = 0L;
@@ -1186,7 +1173,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
     private int GetTextIndexFromPoint(Vector2 point)
     {
-        if (Font == null || _editor.Length == 0)
+        if (_editor.Length == 0)
         {
             return 0;
         }
@@ -2806,13 +2793,6 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         var text = _editor.Text;
         _perfLayoutCacheMissCount++;
         _perfFullLayoutBuildCount++;
-
-        if (Font == null)
-        {
-            var noFontLayout = new LayoutResult(BuildRawLinesWithoutWrapping(text), 0f);
-            UpdateLayoutCache(contentWidth, noFontLayout);
-            return noFontLayout;
-        }
 
         var lines = new List<LayoutLine>();
         if (text.Length == 0)

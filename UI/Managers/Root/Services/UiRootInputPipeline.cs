@@ -1099,7 +1099,12 @@ public sealed partial class UiRoot
 
     private bool ShouldReuseHoveredTargetForPointerMove(UIElement hovered)
     {
-        if (hovered is Button or ITextInputControl or ScrollViewer or ScrollBar or
+        if (hovered is ScrollViewer or ScrollBar)
+        {
+            return false;
+        }
+
+        if (hovered is Button or ITextInputControl or
             ListBox or ListView or DataGrid or
             ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem or TreeViewItem)
         {

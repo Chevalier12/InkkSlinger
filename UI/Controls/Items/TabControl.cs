@@ -72,6 +72,7 @@ public class TabControl : Selector
 
     public TabControl()
     {
+        AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnMouseDownSelectTab);
     }
 
     public new SpriteFont? Font
@@ -310,6 +311,36 @@ public class TabControl : Selector
     {
         return point.X >= rect.X && point.X <= rect.X + rect.Width &&
                point.Y >= rect.Y && point.Y <= rect.Y + rect.Height;
+    }
+
+    private void OnMouseDownSelectTab(object? sender, MouseRoutedEventArgs args)
+    {
+        _ = sender;
+        if (!IsEnabled || args.Button != MouseButton.Left)
+        {
+            return;
+        }
+
+        if (TryGetHeaderIndexAtPoint(args.Position, out var clickedIndex) &&
+            clickedIndex != SelectedIndex)
+        {
+            SetSelectedIndexInternal(clickedIndex);
+        }
+    }
+
+    private bool TryGetHeaderIndexAtPoint(Vector2 pointerPosition, out int headerIndex)
+    {
+        for (var i = 0; i < _headerSlots.Count; i++)
+        {
+            if (Contains(_headerSlots[i].Rect, pointerPosition))
+            {
+                headerIndex = _headerSlots[i].Index;
+                return true;
+            }
+        }
+
+        headerIndex = -1;
+        return false;
     }
 
     private readonly struct HeaderSlot

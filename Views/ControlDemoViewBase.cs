@@ -245,7 +245,11 @@ internal static class ControlDemoSupport
             case "TreeView":
             {
                 var tv = new TreeView();
-                tv.Items.Add(new TreeViewItem { Header = "Root" });
+                foreach (var root in BuildSampleTreeViewRoots())
+                {
+                    tv.Items.Add(root);
+                }
+
                 return tv;
             }
             case "ItemsControl":
@@ -499,8 +503,11 @@ internal static class ControlDemoSupport
                 statusBar.Items.Add(new StatusBarItem { Content = BuildItemLabel("Line 1, Col 1") });
                 break;
             case TreeView treeView:
-                treeView.Items.Add(new TreeViewItem { Header = "Root A" });
-                treeView.Items.Add(new TreeViewItem { Header = "Root B" });
+                foreach (var root in BuildSampleTreeViewRoots())
+                {
+                    treeView.Items.Add(root);
+                }
+
                 break;
             case DataGrid dataGrid:
                 dataGrid.Items.Add(new DemoRow { Id = 1, Name = "Row 1" });
@@ -622,6 +629,35 @@ internal static class ControlDemoSupport
             Text = text,
             Margin = new Thickness(2)
         };
+    }
+
+    private static TreeViewItem[] BuildSampleTreeViewRoots()
+    {
+        var root = new TreeViewItem
+        {
+            Header = "Root",
+            IsExpanded = true
+        };
+
+        var childDocuments = new TreeViewItem
+        {
+            Header = "Documents",
+            IsExpanded = true
+        };
+        childDocuments.Items.Add(new TreeViewItem { Header = "Invoices" });
+        childDocuments.Items.Add(new TreeViewItem { Header = "Reports" });
+
+        var childMedia = new TreeViewItem
+        {
+            Header = "Media"
+        };
+        childMedia.Items.Add(new TreeViewItem { Header = "Images" });
+        childMedia.Items.Add(new TreeViewItem { Header = "Videos" });
+
+        root.Items.Add(childDocuments);
+        root.Items.Add(childMedia);
+
+        return [root];
     }
 
     private static bool IsThicknessZero(Thickness thickness)

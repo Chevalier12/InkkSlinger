@@ -424,6 +424,7 @@ public class ScrollViewer : ContentControl
         var fullRect = new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, MathF.Max(0f, finalSize.X - (border * 2f)), MathF.Max(0f, finalSize.Y - (border * 2f)));
         var decision = ResolveBarsForArrange(fullRect);
         ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight);
+        SetOffsets(HorizontalOffset, VerticalOffset);
         _showHorizontalBar = decision.ShowHorizontalBar;
         _showVerticalBar = decision.ShowVerticalBar;
         _contentViewportRect = decision.ViewportRect;
@@ -587,8 +588,6 @@ public class ScrollViewer : ContentControl
         SetIfChanged(ExtentHeightProperty, CoerceNonNegativeFinite(extentHeight, previousExtentHeight));
         SetIfChanged(ViewportWidthProperty, CoerceViewportMetric(viewportWidth, previousViewportWidth, ExtentWidth));
         SetIfChanged(ViewportHeightProperty, CoerceViewportMetric(viewportHeight, previousViewportHeight, ExtentHeight));
-
-        SetOffsets(HorizontalOffset, VerticalOffset);
     }
 
     internal bool HandleMouseWheelFromInput(int delta)

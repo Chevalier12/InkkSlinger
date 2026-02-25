@@ -227,7 +227,7 @@ public class TreeViewItem : ItemsControl
             }
         }
 
-        if (Font != null && !string.IsNullOrEmpty(Header))
+        if (!string.IsNullOrEmpty(Header))
         {
             var textX = LayoutSlot.X + (HasChildItems() ? 16f : 6f);
             var textY = LayoutSlot.Y + ((GetRowHeight() - FontStashTextRenderer.GetLineHeight(Font)) / 2f);
@@ -273,7 +273,7 @@ public class TreeViewItem : ItemsControl
 
     private float MeasureHeaderWidth()
     {
-        var textWidth = Font != null && !string.IsNullOrEmpty(Header)
+        var textWidth = !string.IsNullOrEmpty(Header)
             ? FontStashTextRenderer.MeasureWidth(Font, Header)
             : 0f;
         return (HasChildItems() ? 20f : 10f) + textWidth;
