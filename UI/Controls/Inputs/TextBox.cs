@@ -716,7 +716,15 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
     {
         var renderStart = Stopwatch.GetTimestamp();
         var slot = LayoutSlot;
-        UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
+        var hasTemplateRoot = HasTemplateRoot;
+        if (hasTemplateRoot)
+        {
+            DrawTemplateVisualTree(spriteBatch);
+        }
+        else
+        {
+            UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
+        }
 
         long viewportTicks;
         long selectionTicks = 0L;
@@ -818,13 +826,23 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         }
 
         DrawNativeScrollBars(spriteBatch, view);
-        if (BorderThickness > 0f)
+        if (!hasTemplateRoot && BorderThickness > 0f)
         {
             UiDrawing.DrawRectStroke(spriteBatch, slot, BorderThickness, BorderBrush, Opacity);
         }
 
         var renderTotalTicks = Stopwatch.GetTimestamp() - renderStart;
         RecordRenderTiming(renderTotalTicks, viewportTicks, selectionTicks, textTicks, caretTicks);
+    }
+
+    protected override bool ShouldAutoDrawVisualChildren => !HasTemplateRoot;
+
+    private void DrawTemplateVisualTree(SpriteBatch spriteBatch)
+    {
+        foreach (var child in base.GetVisualChildren())
+        {
+            child.Draw(spriteBatch);
+        }
     }
 
 

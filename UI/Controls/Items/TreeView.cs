@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -82,6 +83,13 @@ public class TreeView : ItemsControl
                     }
                 }));
 
+    public new static readonly DependencyProperty PaddingProperty =
+        DependencyProperty.Register(
+            nameof(Padding),
+            typeof(Thickness),
+            typeof(TreeView),
+            new FrameworkPropertyMetadata(new Thickness(0f), FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+
     public TreeView()
     {
         AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnMouseDownSelectItem);
@@ -129,6 +137,12 @@ public class TreeView : ItemsControl
         set => SetValue(ForegroundProperty, value);
     }
 
+    public new Thickness Padding
+    {
+        get => GetValue<Thickness>(PaddingProperty);
+        set => SetValue(PaddingProperty, value);
+    }
+
     public void SelectItem(TreeViewItem item)
     {
         ApplySelectedItem(item);
@@ -155,6 +169,49 @@ public class TreeView : ItemsControl
         {
             ApplyTypographyToItem(treeViewItem, null, Font, null, Foreground);
         }
+    }
+
+    protected override Vector2 MeasureOverride(Vector2 availableSize)
+    {
+        var padding = Padding;
+        var border = BorderThickness;
+        var innerSize = new Vector2(
+            MathF.Max(0f, availableSize.X - (border * 2f) - padding.Horizontal),
+            MathF.Max(0f, availableSize.Y - (border * 2f) - padding.Vertical));
+
+        var desired = base.MeasureOverride(innerSize);
+        return new Vector2(
+            desired.X + (border * 2f) + padding.Horizontal,
+            desired.Y + (border * 2f) + padding.Vertical);
+    }
+
+    protected override Vector2 ArrangeOverride(Vector2 finalSize)
+    {
+        var border = BorderThickness;
+        var padding = Padding;
+        var innerX = LayoutSlot.X + border + padding.Left;
+        var innerY = LayoutSlot.Y + border + padding.Top;
+        var innerWidth = MathF.Max(0f, finalSize.X - (border * 2f) - padding.Horizontal);
+        var innerHeight = MathF.Max(0f, finalSize.Y - (border * 2f) - padding.Vertical);
+
+        var y = innerY;
+        foreach (var child in ItemContainers)
+        {
+            if (child is not FrameworkElement element)
+            {
+                continue;
+            }
+
+            var height = element.DesiredSize.Y;
+            element.Arrange(new LayoutRect(innerX, y, innerWidth, height));
+            y += height;
+            if (y > innerY + innerHeight)
+            {
+                break;
+            }
+        }
+
+        return finalSize;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)

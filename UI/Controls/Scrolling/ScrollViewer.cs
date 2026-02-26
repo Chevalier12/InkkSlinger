@@ -390,7 +390,8 @@ public class ScrollViewer : ContentControl
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var border = MathF.Max(0f, BorderThickness);
-        var barSize = MathF.Max(0f, ScrollBarThickness);
+        var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
+        var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
         var contentBounds = new LayoutRect(
             LayoutSlot.X + border,
             LayoutSlot.Y + border,
@@ -412,15 +413,16 @@ public class ScrollViewer : ContentControl
             ? decision.ViewportRect.Height
             : decision.ExtentHeight;
 
-        var desiredWidth = desiredViewportWidth + (border * 2f) + GetVerticalBarReservation(_showVerticalBar, barSize);
-        var desiredHeight = desiredViewportHeight + (border * 2f) + GetHorizontalBarReservation(_showHorizontalBar, barSize);
+        var desiredWidth = desiredViewportWidth + (border * 2f) + GetVerticalBarReservation(_showVerticalBar, verticalBarThickness);
+        var desiredHeight = desiredViewportHeight + (border * 2f) + GetHorizontalBarReservation(_showHorizontalBar, horizontalBarThickness);
         return new Vector2(MathF.Max(0f, desiredWidth), MathF.Max(0f, desiredHeight));
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var border = MathF.Max(0f, BorderThickness);
-        var barThickness = MathF.Max(0f, ScrollBarThickness);
+        var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
+        var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
         var fullRect = new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, MathF.Max(0f, finalSize.X - (border * 2f)), MathF.Max(0f, finalSize.Y - (border * 2f)));
         var decision = ResolveBarsForArrange(fullRect);
         ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight);
@@ -435,9 +437,9 @@ public class ScrollViewer : ContentControl
             SetIfChanged(_horizontalBar, true);
             _horizontalBar.Arrange(new LayoutRect(
                 fullRect.X,
-                fullRect.Y + fullRect.Height - barThickness,
-                MathF.Max(0f, fullRect.Width - GetVerticalBarReservation(_showVerticalBar, barThickness)),
-                barThickness));
+                fullRect.Y + fullRect.Height - horizontalBarThickness,
+                MathF.Max(0f, fullRect.Width - GetVerticalBarReservation(_showVerticalBar, verticalBarThickness)),
+                horizontalBarThickness));
         }
         else
         {
@@ -448,10 +450,10 @@ public class ScrollViewer : ContentControl
         {
             SetIfChanged(_verticalBar, true);
             _verticalBar.Arrange(new LayoutRect(
-                fullRect.X + fullRect.Width - barThickness,
+                fullRect.X + fullRect.Width - verticalBarThickness,
                 fullRect.Y,
-                barThickness,
-                MathF.Max(0f, fullRect.Height - GetHorizontalBarReservation(_showHorizontalBar, barThickness))));
+                verticalBarThickness,
+                MathF.Max(0f, fullRect.Height - GetHorizontalBarReservation(_showHorizontalBar, horizontalBarThickness))));
         }
         else
         {
@@ -474,26 +476,28 @@ public class ScrollViewer : ContentControl
 
     protected override bool TryGetClipRect(out LayoutRect clipRect)
     {
-        var barThickness = MathF.Max(0f, ScrollBarThickness);
+        var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
+        var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
         clipRect = new LayoutRect(
             _contentViewportRect.X,
             _contentViewportRect.Y,
-            _contentViewportRect.Width + GetVerticalBarReservation(_showVerticalBar, barThickness),
-            _contentViewportRect.Height + GetHorizontalBarReservation(_showHorizontalBar, barThickness));
+            _contentViewportRect.Width + GetVerticalBarReservation(_showVerticalBar, verticalBarThickness),
+            _contentViewportRect.Height + GetHorizontalBarReservation(_showHorizontalBar, horizontalBarThickness));
         return true;
     }
 
     private (bool ShowHorizontalBar, bool ShowVerticalBar, float ExtentWidth, float ExtentHeight, float ViewportWidth, float ViewportHeight, LayoutRect ViewportRect)
         ResolveBarsAndMeasureContent(LayoutRect bounds)
     {
-        var barSize = MathF.Max(0f, ScrollBarThickness);
+        var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
+        var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
         var showHorizontal = HorizontalScrollBarVisibility == ScrollBarVisibility.Visible;
         var showVertical = VerticalScrollBarVisibility == ScrollBarVisibility.Visible;
 
         for (var i = 0; i < 2; i++)
         {
-            var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, barSize));
-            var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, barSize));
+            var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
+            var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
 
             MeasureContent(viewportWidth, viewportHeight, out var extentWidth, out var extentHeight);
 
@@ -508,8 +512,8 @@ public class ScrollViewer : ContentControl
             }
         }
 
-        var finalViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, barSize));
-        var finalViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, barSize));
+        var finalViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
+        var finalViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
         MeasureContent(finalViewportWidth, finalViewportHeight, out var finalExtentWidth, out var finalExtentHeight);
 
         return (
@@ -525,7 +529,8 @@ public class ScrollViewer : ContentControl
     private (bool ShowHorizontalBar, bool ShowVerticalBar, float ExtentWidth, float ExtentHeight, float ViewportWidth, float ViewportHeight, LayoutRect ViewportRect)
         ResolveBarsForArrange(LayoutRect bounds)
     {
-        var barSize = MathF.Max(0f, ScrollBarThickness);
+        var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
+        var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
         var extentWidth = MathF.Max(0f, ExtentWidth);
         var extentHeight = MathF.Max(0f, ExtentHeight);
         var showHorizontal = HorizontalScrollBarVisibility == ScrollBarVisibility.Visible;
@@ -533,8 +538,8 @@ public class ScrollViewer : ContentControl
 
         for (var i = 0; i < 2; i++)
         {
-            var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, barSize));
-            var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, barSize));
+            var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
+            var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
 
             if (HorizontalScrollBarVisibility == ScrollBarVisibility.Auto)
             {
@@ -547,8 +552,8 @@ public class ScrollViewer : ContentControl
             }
         }
 
-        var finalViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, barSize));
-        var finalViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, barSize));
+        var finalViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
+        var finalViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
 
         return (
             showHorizontal,
@@ -706,9 +711,6 @@ public class ScrollViewer : ContentControl
 
     private void UpdateScrollBars()
     {
-        var thickness = MathF.Max(8f, ScrollBarThickness);
-        SetIfChanged(ScrollBar.ThicknessProperty, _horizontalBar, thickness);
-        SetIfChanged(ScrollBar.ThicknessProperty, _verticalBar, thickness);
         SetIfChanged(ScrollBar.ViewportSizeProperty, _horizontalBar, ViewportWidth);
         SetIfChanged(ScrollBar.ViewportSizeProperty, _verticalBar, ViewportHeight);
         SetIfChanged(ScrollBar.MinimumProperty, _horizontalBar, 0f);
@@ -719,6 +721,40 @@ public class ScrollViewer : ContentControl
         SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
         SetIfChanged(_horizontalBar, _showHorizontalBar);
         SetIfChanged(_verticalBar, _showVerticalBar);
+    }
+
+    private float ResolveHorizontalBarThicknessForLayout()
+    {
+        if (_horizontalBar.GetValueSource(FrameworkElement.HeightProperty) != DependencyPropertyValueSource.Default &&
+            float.IsFinite(_horizontalBar.Height) &&
+            _horizontalBar.Height > 0f)
+        {
+            return MathF.Max(8f, _horizontalBar.Height);
+        }
+
+        if (_horizontalBar.GetValueSource(ScrollBar.ThicknessProperty) != DependencyPropertyValueSource.Default)
+        {
+            return MathF.Max(8f, _horizontalBar.Thickness);
+        }
+
+        return MathF.Max(8f, ScrollBarThickness);
+    }
+
+    private float ResolveVerticalBarThicknessForLayout()
+    {
+        if (_verticalBar.GetValueSource(FrameworkElement.WidthProperty) != DependencyPropertyValueSource.Default &&
+            float.IsFinite(_verticalBar.Width) &&
+            _verticalBar.Width > 0f)
+        {
+            return MathF.Max(8f, _verticalBar.Width);
+        }
+
+        if (_verticalBar.GetValueSource(ScrollBar.ThicknessProperty) != DependencyPropertyValueSource.Default)
+        {
+            return MathF.Max(8f, _verticalBar.Thickness);
+        }
+
+        return MathF.Max(8f, ScrollBarThickness);
     }
 
     private void UpdateScrollBarValues()

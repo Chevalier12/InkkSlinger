@@ -162,12 +162,22 @@ public class ScrollBar : Control
             return;
         }
 
-        UiDrawing.DrawFilledRect(spriteBatch, track, TrackBrush, Opacity);
+        var hasStyleDrivenTrack = GetValueSource(TrackBrushProperty) != DependencyPropertyValueSource.Default;
+        var hasStyleDrivenBackground = GetValueSource(BackgroundProperty) != DependencyPropertyValueSource.Default;
+        var trackFill = hasStyleDrivenTrack
+            ? TrackBrush
+            : (hasStyleDrivenBackground ? Background : TrackBrush);
+        UiDrawing.DrawFilledRect(spriteBatch, track, trackFill, Opacity);
 
         var thumb = GetThumbRect(track);
         if (thumb.Width > 0f && thumb.Height > 0f)
         {
-            UiDrawing.DrawFilledRect(spriteBatch, thumb, ThumbBrush, Opacity);
+            var hasStyleDrivenThumb = GetValueSource(ThumbBrushProperty) != DependencyPropertyValueSource.Default;
+            var hasStyleDrivenForeground = GetValueSource(ForegroundProperty) != DependencyPropertyValueSource.Default;
+            var thumbFill = hasStyleDrivenThumb
+                ? ThumbBrush
+                : (hasStyleDrivenForeground ? Foreground : ThumbBrush);
+            UiDrawing.DrawFilledRect(spriteBatch, thumb, thumbFill, Opacity);
         }
     }
 

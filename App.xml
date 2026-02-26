@@ -1,4 +1,5 @@
-<Application xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<Application xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Application.Resources>
     <ResourceDictionary>
 
@@ -45,12 +46,12 @@
       <!-- BUTTON                                                     -->
       <!-- ═══════════════════════════════════════════════════════════ -->
       <Style TargetType="{x:Type Button}">
-        <Setter Property="Background" Value="{StaticResource OrangePrimaryBrush}" />
-        <Setter Property="Foreground" Value="#1A1A1A" />
-        <Setter Property="BorderBrush" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="#2A2A2A" />
+        <Setter Property="Foreground" Value="#F0F0F0" />
+        <Setter Property="BorderBrush" Value="#3F3F3F" />
+        <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="20,10" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontWeight" Value="Medium" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -69,14 +70,19 @@
               </Border>
               <ControlTemplate.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                  <Setter Property="Background" Value="{StaticResource OrangeLightBrush}" />
+                  <Setter TargetName="border" Property="Background" Value="#333333" />
+                  <Setter TargetName="border" Property="BorderBrush" Value="#FF8C00" />
+                  <Setter Property="Foreground" Value="#FFA940" />
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                  <Setter Property="Background" Value="{StaticResource OrangeDarkBrush}" />
+                  <Setter TargetName="border" Property="Background" Value="#FF8C00" />
+                  <Setter TargetName="border" Property="BorderBrush" Value="#CC7000" />
+                  <Setter Property="Foreground" Value="#1A1A1A" />
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
-                  <Setter Property="Background" Value="{StaticResource DarkElevatedBrush}" />
-                  <Setter Property="Foreground" Value="{StaticResource TextDisabledBrush}" />
+                  <Setter TargetName="border" Property="Background" Value="#242424" />
+                  <Setter TargetName="border" Property="BorderBrush" Value="#333333" />
+                  <Setter Property="Foreground" Value="#5A5A5A" />
                 </Trigger>
               </ControlTemplate.Triggers>
             </ControlTemplate>

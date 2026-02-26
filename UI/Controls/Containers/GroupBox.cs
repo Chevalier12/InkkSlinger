@@ -187,6 +187,12 @@ public class GroupBox : ContentControl
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var desired = base.MeasureOverride(availableSize);
+        if (HasTemplateRoot)
+        {
+            return desired;
+        }
+
         var border = BorderThickness;
         var padding = Padding;
         var headerPadding = HeaderPadding;
@@ -215,6 +221,12 @@ public class GroupBox : ContentControl
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        base.ArrangeOverride(finalSize);
+        if (HasTemplateRoot)
+        {
+            return finalSize;
+        }
+
         var border = BorderThickness;
         var padding = Padding;
 
@@ -248,6 +260,12 @@ public class GroupBox : ContentControl
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        base.OnRender(spriteBatch);
+        if (HasTemplateRoot)
+        {
+            return;
+        }
+
         UiDrawing.DrawFilledRect(spriteBatch, LayoutSlot, Background, Opacity);
 
         if (BorderThickness > 0f)

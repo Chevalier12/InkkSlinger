@@ -227,7 +227,7 @@ public class ComboBox : Selector
         var text = GetDisplayText(SelectedItem);
         var textWidth = 0f;
         var textHeight = FontStashTextRenderer.GetLineHeight(Font);
-        if (Font != null && !string.IsNullOrEmpty(text))
+        if (!string.IsNullOrEmpty(text))
         {
             textWidth = FontStashTextRenderer.MeasureWidth(Font, text);
         }
@@ -255,11 +255,6 @@ public class ComboBox : Selector
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(centerX - 3f, centerY - 1f, 6f, 1f), arrowColor, 1f);
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(centerX - 2f, centerY, 4f, 1f), arrowColor, 1f);
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(centerX - 1f, centerY + 1f, 2f, 1f), arrowColor, 1f);
-
-        if (Font == null)
-        {
-            return;
-        }
 
         var text = GetDisplayText(SelectedItem);
         if (string.IsNullOrEmpty(text))

@@ -583,6 +583,14 @@ public sealed partial class UiRoot
             target = ancestorButton;
         }
 
+        UIElement? textInputTarget = null;
+        if (button == MouseButton.Left &&
+            TryFindWheelTextInputAncestor(target, out var ancestorTextInput) &&
+            ancestorTextInput != null)
+        {
+            textInputTarget = ancestorTextInput;
+        }
+
         RefreshCachedClickTarget(target);
 
         _lastInputPointerEventCount++;
@@ -591,7 +599,7 @@ public sealed partial class UiRoot
         target.RaiseRoutedEventInternal(UIElement.MouseDownEvent, new MouseRoutedEventArgs(UIElement.MouseDownEvent, pointerPosition, button));
         if (target is not Menu && target is not MenuItem)
         {
-            SetFocus(target);
+            SetFocus(textInputTarget ?? target);
         }
 
         if (target is MenuItem menuItemTarget)
@@ -648,10 +656,10 @@ public sealed partial class UiRoot
                 CapturePointer(expanderToCapture);
             }
         }
-        else if (button == MouseButton.Left && target is ITextInputControl textInput)
+        else if (button == MouseButton.Left && textInputTarget is ITextInputControl textInput)
         {
             textInput.HandlePointerDownFromInput(pointerPosition, extendSelection: (_inputState.CurrentModifiers & ModifierKeys.Shift) != 0);
-            CapturePointer(target);
+            CapturePointer(textInputTarget);
         }
         else if (button == MouseButton.Left && target is ScrollBar scrollBar &&
                  TryFindAncestor<ScrollViewer>(scrollBar, out var owningScrollViewer) &&

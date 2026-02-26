@@ -6,7 +6,7 @@
                                  http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
-             Background="#0F1622"
+             Background="{StaticResource DarkBgBrush}"
              Padding="8">
   <Grid>
     <TextBox x:Name="DemoTextBox" Text="MainMenu compatibility view" />

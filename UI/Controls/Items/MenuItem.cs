@@ -453,15 +453,12 @@ public class MenuItem : ItemsControl
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
-        var rowBackground = Background;
-        if (IsSubmenuOpen)
-        {
-            rowBackground = OpenBackground;
-        }
-        else if (IsHighlighted)
-        {
-            rowBackground = HighlightBackground;
-        }
+        var hasStyleDrivenBackground = GetValueSource(BackgroundProperty) != DependencyPropertyValueSource.Default;
+        var rowBackground = hasStyleDrivenBackground
+            ? Background
+            : (IsSubmenuOpen
+                ? OpenBackground
+                : (IsHighlighted ? HighlightBackground : Background));
 
         if (rowBackground.A > 0)
         {

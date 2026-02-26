@@ -155,6 +155,9 @@ internal static class ControlDemoSupport
             case TextBox textBox:
                 textBox.Font = font;
                 break;
+            case ComboBox comboBox:
+                comboBox.Font = font;
+                break;
             case ListView listView:
                 listView.Font = font;
                 break;
@@ -262,8 +265,12 @@ internal static class ControlDemoSupport
             case "DataGrid":
             {
                 var dg = new DataGrid();
-                dg.Items.Add(new DemoRow { Id = 1, Name = "Row 1" });
-                dg.Items.Add(new DemoRow { Id = 2, Name = "Row 2" });
+                dg.Items.Add(new DemoRow { Id = 1, Name = "Alpha" });
+                dg.Items.Add(new DemoRow { Id = 2, Name = "Bravo" });
+                dg.Items.Add(new DemoRow { Id = 3, Name = "Charlie" });
+                dg.Items.Add(new DemoRow { Id = 4, Name = "Delta" });
+                dg.Items.Add(new DemoRow { Id = 5, Name = "Echo" });
+                dg.Items.Add(new DemoRow { Id = 6, Name = "Foxtrot" });
                 return dg;
             }
             case "DataGridCell":

@@ -391,6 +391,12 @@ public class Popup : ContentControl
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var desired = base.MeasureOverride(availableSize);
+        if (HasTemplateRoot)
+        {
+            return desired;
+        }
+
         var border = BorderThickness;
         var padding = Padding;
         var chromeHorizontal = (border * 2f) + padding.Horizontal;
@@ -416,6 +422,12 @@ public class Popup : ContentControl
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        base.ArrangeOverride(finalSize);
+        if (HasTemplateRoot)
+        {
+            return finalSize;
+        }
+
         var border = BorderThickness;
         var padding = Padding;
 
@@ -433,6 +445,12 @@ public class Popup : ContentControl
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        base.OnRender(spriteBatch);
+        if (HasTemplateRoot)
+        {
+            return;
+        }
+
         var slot = LayoutSlot;
         var border = BorderThickness;
 

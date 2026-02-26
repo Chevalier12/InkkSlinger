@@ -6,7 +6,7 @@
                                  http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
-             Background="#0D121B"
+             Background="#1E1E1E"
              Padding="8">
   <Grid>
     <Grid.ColumnDefinitions>
@@ -14,34 +14,72 @@
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
 
-  <Border Grid.Column="0" Background="#14202E" BorderBrush="#2E4A66" BorderThickness="1" Padding="8" Margin="0,0,8,0">
-    <Grid>
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto" />
-        <RowDefinition Height="*" />
-      </Grid.RowDefinitions>
+    <!-- ── Sidebar ── -->
+    <Border Grid.Column="0"
+            Background="#2A2A2A"
+            BorderBrush="#3F3F3F"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="10"
+            Margin="0,0,8,0">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-      <Label Grid.Row="0" Text="Control Views" Foreground="#E8F5FF" Margin="0,0,0,8" />
+        <Label Grid.Row="0"
+               Text="Control Views"
+               Foreground="#FF8C00"
+               FontWeight="SemiBold"
+               FontSize="15"
+               Margin="2,0,0,4" />
 
-      <ScrollViewer Grid.Row="1"
-                    VerticalScrollBarVisibility="Auto"
-                    HorizontalScrollBarVisibility="Disabled">
-        <StackPanel x:Name="ControlButtonsHost" />
-      </ScrollViewer>
-    </Grid>
-  </Border>
+        <!-- Accent divider -->
+        <Border Grid.Row="1"
+                Height="2"
+                Background="#FF8C00"
+                CornerRadius="1"
+                Margin="0,0,0,10"
+                Opacity="0.5" />
 
+        <ScrollViewer Grid.Row="2"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="ControlButtonsHost" />
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <!-- ── Main Content ── -->
     <Grid Grid.Column="1">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
-      <Border Grid.Row="0" Background="#162334" BorderBrush="#355474" BorderThickness="1" Padding="8" Margin="0,0,0,8">
-        <Label x:Name="SelectedControlLabel" Foreground="#E8F5FF" Text="Selected:" />
+      <!-- Header bar -->
+      <Border Grid.Row="0"
+              Background="#333333"
+              BorderBrush="#3F3F3F"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="12,8"
+              Margin="0,0,0,8">
+        <Label x:Name="SelectedControlLabel"
+               Foreground="#F0F0F0"
+               FontSize="14"
+               Text="Selected:" />
       </Border>
 
-      <Border Grid.Row="1" Background="#0D141E" BorderBrush="#2E4A66" BorderThickness="1" Padding="4">
+      <!-- Preview area -->
+      <Border Grid.Row="1"
+              Background="#242424"
+              BorderBrush="#3F3F3F"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="8">
         <ContentControl x:Name="PreviewHost" />
       </Border>
     </Grid>

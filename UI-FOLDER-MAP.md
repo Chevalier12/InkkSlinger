@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-02-24
+Generated: 2026-02-26
 
 ```text
 UI/
@@ -11,8 +11,8 @@ UI/
     Easing/
       Easing.cs
     KeyFrames/
-      KeyFrames.cs
       KeyFrameTiming.cs
+      KeyFrames.cs
       KeySpline.cs
       ObjectKeyFrames.cs
     Timelines/
@@ -38,9 +38,9 @@ UI/
       RelayCommand.cs
     Converters/
       DelimitedMultiValueConverter.cs
-      IdentityValueConverter.cs
       IMultiValueConverter.cs
       IValueConverter.cs
+      IdentityValueConverter.cs
     Core/
       Binding.cs
       BindingBase.cs
@@ -111,6 +111,7 @@ UI/
       UserControl.cs
       Viewbox.cs
       Window.cs
+      WindowThemeBinding.cs
     DataGrid/
       DataGrid.cs
       DataGridCell.cs
@@ -126,11 +127,11 @@ UI/
       Rendering/
       ITextInputControl.cs
       PasswordBox.cs
-      RichTextBox.cs
       RichTextBox.FormattingEngine.cs
       RichTextBox.ListOperations.cs
       RichTextBox.Navigation.cs
       RichTextBox.TableOperations.cs
+      RichTextBox.cs
       RichTextBoxPerformanceTracker.cs
       Slider.cs
       TextBox.cs
@@ -160,6 +161,7 @@ UI/
       VirtualizingStackPanel.cs
       WrapPanel.cs
     Presenters/
+      GridViewRowPresenter.cs
       GroupItem.cs
       Presenters.cs
     Primitives/
@@ -187,6 +189,7 @@ UI/
       DependencyProperty.cs
       DependencyPropertyChangedEventArgs.cs
       DependencyPropertyValueSource.cs
+      DependencyValueCoercion.cs
       FrameworkPropertyMetadata.cs
       FrameworkPropertyMetadataOptions.cs
       PropertyCallbacks.cs
@@ -197,6 +200,8 @@ UI/
       Dispatcher.cs
     Types/
   Diagnostics/
+    XamlDiagnostic.cs
+    XamlDiagnosticCode.cs
   Events/
     Args/
       FocusChangedRoutedEventArgs.cs
@@ -244,6 +249,7 @@ UI/
       Stretch.cs
       StretchDirection.cs
       Thickness.cs
+      Visibility.cs
   Managers/
     Layout/
       FrameworkElementExtensions.cs
@@ -278,13 +284,16 @@ UI/
       ResourceResolver.cs
       UiApplication.cs
     Types/
+      Brush.cs
       ResourceDictionaryChangedEventArgs.cs
+      SolidColorBrush.cs
   Styling/
     Actions/
       SetValueAction.cs
       StoryboardActions.cs
       TriggerAction.cs
     Core/
+      ImplicitStylePolicy.cs
       Setter.cs
       Style.cs
       VisualStates.cs

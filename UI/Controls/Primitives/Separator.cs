@@ -74,15 +74,21 @@ public class Separator : Control
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        var hasStyleDrivenForeground = GetValueSource(ForegroundProperty) != DependencyPropertyValueSource.Default;
+        var hasStyleDrivenBackground = GetValueSource(BackgroundProperty) != DependencyPropertyValueSource.Default;
+        var lineColor = hasStyleDrivenForeground
+            ? Foreground
+            : (hasStyleDrivenBackground ? Background : Foreground);
+
         var slot = LayoutSlot;
         if (Orientation == Orientation.Horizontal)
         {
             var y = slot.Y + ((slot.Height - Thickness) / 2f);
-            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(slot.X, y, slot.Width, Thickness), Foreground, Opacity);
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(slot.X, y, slot.Width, Thickness), lineColor, Opacity);
             return;
         }
 
         var x = slot.X + ((slot.Width - Thickness) / 2f);
-        UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(x, slot.Y, Thickness, slot.Height), Foreground, Opacity);
+        UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(x, slot.Y, Thickness, slot.Height), lineColor, Opacity);
     }
 }

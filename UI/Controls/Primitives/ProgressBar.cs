@@ -180,6 +180,11 @@ public class ProgressBar : Control
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var desired = base.MeasureOverride(availableSize);
+        if (HasTemplateRoot)
+        {
+            return desired;
+        }
+
         if (Orientation == Orientation.Horizontal)
         {
             desired.X = MathF.Max(desired.X, 120f);
@@ -218,6 +223,12 @@ public class ProgressBar : Control
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        base.OnRender(spriteBatch);
+        if (HasTemplateRoot)
+        {
+            return;
+        }
+
         var slot = LayoutSlot;
         var border = BorderThickness;
         var inner = new LayoutRect(

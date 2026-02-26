@@ -11,6 +11,11 @@ public class CheckBox : ToggleButton
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var desired = base.MeasureOverride(availableSize);
+        if (HasTemplateRoot)
+        {
+            return desired;
+        }
+
         var glyphSize = GetGlyphSize();
         var textSize = MeasureText(availableSize.X, glyphSize);
         var padding = Padding;
@@ -25,6 +30,12 @@ public class CheckBox : ToggleButton
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        base.OnRender(spriteBatch);
+        if (HasTemplateRoot)
+        {
+            return;
+        }
+
         var slot = LayoutSlot;
         var opacity = Opacity;
 

@@ -52,12 +52,18 @@ public class TabControl : Selector
     public new static readonly DependencyProperty BorderThicknessProperty =
         DependencyProperty.Register(
             nameof(BorderThickness),
-            typeof(float),
+            typeof(Thickness),
             typeof(TabControl),
             new FrameworkPropertyMetadata(
-                1f,
+                new Thickness(1f),
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
-                coerceValueCallback: static (_, value) => value is float f && f >= 0f ? f : 0f));
+                coerceValueCallback: static (_, value) => value is Thickness thickness
+                    ? new Thickness(
+                        MathF.Max(0f, thickness.Left),
+                        MathF.Max(0f, thickness.Top),
+                        MathF.Max(0f, thickness.Right),
+                        MathF.Max(0f, thickness.Bottom))
+                    : Thickness.Empty));
 
     public static readonly DependencyProperty HeaderPaddingProperty =
         DependencyProperty.Register(
@@ -111,9 +117,9 @@ public class TabControl : Selector
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public new float BorderThickness
+    public new Thickness BorderThickness
     {
-        get => GetValue<float>(BorderThicknessProperty);
+        get => GetValue<Thickness>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
     }
 
@@ -209,9 +215,12 @@ public class TabControl : Selector
 
         if (SelectedItem is TabItem selected && selected is FrameworkElement selectedElement)
         {
-            selectedElement.Measure(new Vector2(availableSize.X, MathF.Max(0f, availableSize.Y - headerHeight - BorderThickness)));
+            var border = BorderThickness;
+            selectedElement.Measure(new Vector2(
+                MathF.Max(0f, availableSize.X - border.Horizontal),
+                MathF.Max(0f, availableSize.Y - headerHeight - border.Vertical)));
             desired.X = MathF.Max(desired.X, selectedElement.DesiredSize.X);
-            desired.Y = MathF.Max(desired.Y, headerHeight + selectedElement.DesiredSize.Y + BorderThickness);
+            desired.Y = MathF.Max(desired.Y, headerHeight + selectedElement.DesiredSize.Y + border.Vertical);
         }
 
         return desired;
@@ -240,11 +249,12 @@ public class TabControl : Selector
 
         if (SelectedItem is TabItem selected && selected is FrameworkElement selectedElement)
         {
+            var border = BorderThickness;
             selectedElement.Arrange(new LayoutRect(
-                LayoutSlot.X,
+                LayoutSlot.X + border.Left,
                 LayoutSlot.Y + headerHeight,
-                finalSize.X,
-                MathF.Max(0f, finalSize.Y - headerHeight)));
+                MathF.Max(0f, finalSize.X - border.Horizontal),
+                MathF.Max(0f, finalSize.Y - headerHeight - border.Bottom)));
         }
 
         return finalSize;
@@ -257,11 +267,17 @@ public class TabControl : Selector
 
         foreach (var header in _headerSlots)
         {
-            var color = header.Index == SelectedIndex
-                ? SelectedHeaderBackground
-                : HeaderBackground;
+            var headerBackgroundSource = header.Item.GetValueSource(Control.BackgroundProperty);
+            var color = headerBackgroundSource == DependencyPropertyValueSource.Default
+                ? (header.Index == SelectedIndex ? SelectedHeaderBackground : HeaderBackground)
+                : header.Item.Background;
             UiDrawing.DrawFilledRect(spriteBatch, header.Rect, color, Opacity);
-            UiDrawing.DrawRectStroke(spriteBatch, header.Rect, 1f, BorderBrush, Opacity);
+
+            var headerBorderSource = header.Item.GetValueSource(Control.BorderBrushProperty);
+            var borderBrush = headerBorderSource == DependencyPropertyValueSource.Default
+                ? BorderBrush
+                : header.Item.BorderBrush;
+            UiDrawing.DrawRectStroke(spriteBatch, header.Rect, 1f, borderBrush, Opacity);
 
             if (Font == null)
             {
@@ -274,15 +290,36 @@ public class TabControl : Selector
                 continue;
             }
 
+            var textColorSource = header.Item.GetValueSource(Control.ForegroundProperty);
+            var textColor = textColorSource == DependencyPropertyValueSource.Default
+                ? Foreground
+                : header.Item.Foreground;
+
             var textWidth = FontStashTextRenderer.MeasureWidth(Font, text);
             var x = header.Rect.X + ((header.Rect.Width - textWidth) / 2f);
             var y = header.Rect.Y + ((header.Rect.Height - FontStashTextRenderer.GetLineHeight(Font)) / 2f);
-            FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(x, y), Foreground * Opacity);
+            FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(x, y), textColor * Opacity);
         }
 
-        if (BorderThickness > 0f)
+        var border = BorderThickness;
+        if (border.Left > 0f)
         {
-            UiDrawing.DrawRectStroke(spriteBatch, slot, BorderThickness, BorderBrush, Opacity);
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(slot.X, slot.Y, border.Left, slot.Height), BorderBrush, Opacity);
+        }
+
+        if (border.Top > 0f)
+        {
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(slot.X, slot.Y, slot.Width, border.Top), BorderBrush, Opacity);
+        }
+
+        if (border.Right > 0f)
+        {
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(slot.X + slot.Width - border.Right, slot.Y, border.Right, slot.Height), BorderBrush, Opacity);
+        }
+
+        if (border.Bottom > 0f)
+        {
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(slot.X, slot.Y + slot.Height - border.Bottom, slot.Width, border.Bottom), BorderBrush, Opacity);
         }
     }
 

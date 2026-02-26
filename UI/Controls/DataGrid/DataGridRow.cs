@@ -138,7 +138,10 @@ public class DataGridRow : Control
             cell.ColumnIndex = i;
             cell.Value = owner.GetValueForCell(item, columns[i]);
             cell.Font = owner.Font;
-            cell.Foreground = owner.Foreground;
+            if (cell.GetValueSource(DataGridCell.ForegroundProperty) == DependencyPropertyValueSource.Default)
+            {
+                cell.Foreground = owner.Foreground;
+            }
             cell.ShowHorizontalGridLine = showHorizontalGridLines;
             cell.ShowVerticalGridLine = showVerticalGridLines;
             cell.HorizontalGridLineBrush = horizontalGridLineBrush;

@@ -296,7 +296,9 @@ public class Expander : ContentControl
             UiDrawing.DrawRectStroke(spriteBatch, slot, BorderThickness, BorderBrush, Opacity);
         }
 
-        UiDrawing.DrawFilledRect(spriteBatch, _headerRect, HeaderBackground, Opacity);
+        var hasStyleDrivenHeaderBackground = GetValueSource(HeaderBackgroundProperty) != DependencyPropertyValueSource.Default;
+        var headerFill = hasStyleDrivenHeaderBackground ? HeaderBackground : Background;
+        UiDrawing.DrawFilledRect(spriteBatch, _headerRect, headerFill, Opacity);
 
         DrawChevron(spriteBatch, _headerRect);
         if (_headerElement == null)

@@ -99,6 +99,11 @@ public class ListBoxItem : ContentControl
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var desired = base.MeasureOverride(availableSize);
+        if (HasTemplateRoot)
+        {
+            return desired;
+        }
+
         var padding = Padding;
         desired.X += padding.Horizontal;
         desired.Y += padding.Vertical;
@@ -107,6 +112,13 @@ public class ListBoxItem : ContentControl
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        base.ArrangeOverride(finalSize);
+
+        if (HasTemplateRoot)
+        {
+            return finalSize;
+        }
+
         var content = ContentElement as FrameworkElement;
         if (content != null)
         {
@@ -124,6 +136,13 @@ public class ListBoxItem : ContentControl
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        base.OnRender(spriteBatch);
+
+        if (HasTemplateRoot)
+        {
+            return;
+        }
+
         var slot = LayoutSlot;
         UiDrawing.DrawFilledRect(spriteBatch, slot, IsSelected ? SelectedBackground : Background, Opacity);
         UiDrawing.DrawRectStroke(spriteBatch, slot, 1f, BorderBrush, Opacity);

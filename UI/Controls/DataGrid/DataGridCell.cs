@@ -116,16 +116,73 @@ public class DataGridCell : Control
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var desired = base.MeasureOverride(availableSize);
+        if (HasTemplateRoot)
+        {
+            return desired;
+        }
+
         var text = Value?.ToString() ?? string.Empty;
-        var width = FontStashTextRenderer.MeasureWidth(Font, text) + 12f;
-        var height = FontStashTextRenderer.GetLineHeight(Font) + 8f;
-        return new Vector2(width, height);
+        var padding = Padding;
+        var border = BorderThickness;
+        var chromeWidth = padding.Left + padding.Right + border.Left + border.Right;
+        var chromeHeight = padding.Top + padding.Bottom + border.Top + border.Bottom;
+        var width = FontStashTextRenderer.MeasureWidth(Font, text) + chromeWidth;
+        var height = FontStashTextRenderer.GetLineHeight(Font) + chromeHeight;
+        desired.X = System.MathF.Max(desired.X, width);
+        desired.Y = System.MathF.Max(desired.Y, height);
+        return desired;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
-        var fill = IsSelected ? SelectedBackground : Background;
-        UiDrawing.DrawFilledRect(spriteBatch, LayoutSlot, fill, Opacity);
+        base.OnRender(spriteBatch);
+
+        if (!HasTemplateRoot)
+        {
+            var hasStyleDrivenBackground = GetValueSource(BackgroundProperty) != DependencyPropertyValueSource.Default;
+            var fill = hasStyleDrivenBackground
+                ? Background
+                : (IsSelected ? SelectedBackground : Background);
+            UiDrawing.DrawFilledRect(spriteBatch, LayoutSlot, fill, Opacity);
+
+            var border = BorderThickness;
+            if (border.Left > 0f)
+            {
+                UiDrawing.DrawFilledRect(
+                    spriteBatch,
+                    new LayoutRect(LayoutSlot.X, LayoutSlot.Y, border.Left, LayoutSlot.Height),
+                    BorderBrush,
+                    Opacity);
+            }
+
+            if (border.Right > 0f)
+            {
+                UiDrawing.DrawFilledRect(
+                    spriteBatch,
+                    new LayoutRect(LayoutSlot.X + LayoutSlot.Width - border.Right, LayoutSlot.Y, border.Right, LayoutSlot.Height),
+                    BorderBrush,
+                    Opacity);
+            }
+
+            if (border.Top > 0f)
+            {
+                UiDrawing.DrawFilledRect(
+                    spriteBatch,
+                    new LayoutRect(LayoutSlot.X, LayoutSlot.Y, LayoutSlot.Width, border.Top),
+                    BorderBrush,
+                    Opacity);
+            }
+
+            if (border.Bottom > 0f)
+            {
+                UiDrawing.DrawFilledRect(
+                    spriteBatch,
+                    new LayoutRect(LayoutSlot.X, LayoutSlot.Y + LayoutSlot.Height - border.Bottom, LayoutSlot.Width, border.Bottom),
+                    BorderBrush,
+                    Opacity);
+            }
+        }
 
         if (ShowHorizontalGridLine && LayoutSlot.Width > 0f && LayoutSlot.Height > 0f)
         {
@@ -151,8 +208,15 @@ public class DataGridCell : Control
             return;
         }
 
-        var x = LayoutSlot.X + 6f;
-        var y = LayoutSlot.Y + ((LayoutSlot.Height - FontStashTextRenderer.GetLineHeight(Font)) / 2f);
+        var padding = Padding;
+        var borderThickness = BorderThickness;
+        var left = LayoutSlot.X + borderThickness.Left + padding.Left;
+        var top = LayoutSlot.Y + borderThickness.Top + padding.Top;
+        var bottom = LayoutSlot.Y + LayoutSlot.Height - borderThickness.Bottom - padding.Bottom;
+        var contentHeight = System.MathF.Max(0f, bottom - top);
+        var lineHeight = FontStashTextRenderer.GetLineHeight(Font);
+        var x = left;
+        var y = top + ((contentHeight - lineHeight) / 2f);
         FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(x, y), Foreground * Opacity);
     }
 }

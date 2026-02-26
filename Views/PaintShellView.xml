@@ -6,7 +6,7 @@
                                  http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
-             Background="#0F1622"
+             Background="{StaticResource DarkBgBrush}"
              Padding="0">
   <AdornerDecorator x:Name="CanvasAdornerRoot">
     <ScrollViewer x:Name="DrawingScrollViewer"

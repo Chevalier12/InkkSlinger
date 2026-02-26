@@ -3526,12 +3526,27 @@ public static class XamlLoader
 
         if (targetType == typeof(float))
         {
-            if (string.Equals(rawValue.Trim(), "Auto", StringComparison.OrdinalIgnoreCase))
+            var trimmed = rawValue.Trim();
+            if (string.Equals(trimmed, "Auto", StringComparison.OrdinalIgnoreCase))
             {
                 return float.NaN;
             }
 
-            return float.Parse(rawValue, CultureInfo.InvariantCulture);
+            if ((trimmed.Contains(',') || trimmed.Contains(' ')) && TryParseFloatList(trimmed, out var components) && components.Length > 1)
+            {
+                var max = 0f;
+                for (var i = 0; i < components.Length; i++)
+                {
+                    if (components[i] > max)
+                    {
+                        max = components[i];
+                    }
+                }
+
+                return max;
+            }
+
+            return float.Parse(trimmed, CultureInfo.InvariantCulture);
         }
 
         if (targetType == typeof(bool))
@@ -4168,6 +4183,28 @@ public static class XamlLoader
         }
 
         return result;
+    }
+
+    private static bool TryParseFloatList(string text, out float[] result)
+    {
+        var parts = text.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            result = Array.Empty<float>();
+            return false;
+        }
+
+        result = new float[parts.Length];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!float.TryParse(parts[i], NumberStyles.Float, CultureInfo.InvariantCulture, out result[i]))
+            {
+                result = Array.Empty<float>();
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private sealed class DiagnosticSinkScope : IDisposable

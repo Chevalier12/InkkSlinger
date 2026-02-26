@@ -251,15 +251,18 @@ public class UIElement : DependencyObject
             OnRender(spriteBatch);
             var currentClip = spriteBatch.GraphicsDevice.ScissorRectangle;
 
-            foreach (var child in GetVisualChildren())
+            if (ShouldAutoDrawVisualChildren)
             {
-                if (child.TryGetRenderBoundsInRootSpace(out var childBounds) &&
-                    !Intersects(childBounds, currentClip))
+                foreach (var child in GetVisualChildren())
                 {
-                    continue;
-                }
+                    if (child.TryGetRenderBoundsInRootSpace(out var childBounds) &&
+                        !Intersects(childBounds, currentClip))
+                    {
+                        continue;
+                    }
 
-                child.Draw(spriteBatch);
+                    child.Draw(spriteBatch);
+                }
             }
         }
         finally
@@ -284,6 +287,8 @@ public class UIElement : DependencyObject
     protected virtual void OnRender(SpriteBatch spriteBatch)
     {
     }
+
+    protected virtual bool ShouldAutoDrawVisualChildren => true;
 
     protected virtual bool TryGetClipRect(out LayoutRect clipRect)
     {

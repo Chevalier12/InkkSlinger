@@ -209,7 +209,9 @@ public class TreeViewItem : ItemsControl
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
-        var rowRect = new LayoutRect(LayoutSlot.X, LayoutSlot.Y, LayoutSlot.Width, GetRowHeight());
+        var rowHeight = GetRowHeight();
+        var padding = Padding;
+        var rowRect = new LayoutRect(LayoutSlot.X, LayoutSlot.Y, LayoutSlot.Width, rowHeight);
         if (IsSelected)
         {
             UiDrawing.DrawFilledRect(spriteBatch, rowRect, SelectedBackground, Opacity);
@@ -217,8 +219,8 @@ public class TreeViewItem : ItemsControl
 
         if (HasChildItems())
         {
-            var glyphX = LayoutSlot.X + 4f;
-            var glyphY = LayoutSlot.Y + ((GetRowHeight() - 8f) / 2f);
+            var glyphX = LayoutSlot.X + padding.Left + 4f;
+            var glyphY = LayoutSlot.Y + ((rowHeight - 8f) / 2f);
             UiDrawing.DrawRectStroke(spriteBatch, new LayoutRect(glyphX, glyphY, 8f, 8f), 1f, Foreground, Opacity);
             UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(glyphX + 2f, glyphY + 3f, 4f, 1f), Foreground, Opacity);
             if (!IsExpanded)
@@ -229,8 +231,8 @@ public class TreeViewItem : ItemsControl
 
         if (!string.IsNullOrEmpty(Header))
         {
-            var textX = LayoutSlot.X + (HasChildItems() ? 16f : 6f);
-            var textY = LayoutSlot.Y + ((GetRowHeight() - FontStashTextRenderer.GetLineHeight(Font)) / 2f);
+            var textX = LayoutSlot.X + padding.Left + (HasChildItems() ? 16f : 6f);
+            var textY = LayoutSlot.Y + ((rowHeight - FontStashTextRenderer.GetLineHeight(Font)) / 2f);
             FontStashTextRenderer.DrawString(spriteBatch, Font, Header, new Vector2(textX, textY), Foreground * Opacity);
         }
     }
@@ -268,15 +270,17 @@ public class TreeViewItem : ItemsControl
 
     private float GetRowHeight()
     {
-        return MathF.Max(18f, FontStashTextRenderer.GetLineHeight(Font) + 4f);
+        var padding = Padding;
+        return MathF.Max(18f, FontStashTextRenderer.GetLineHeight(Font) + 4f + padding.Vertical);
     }
 
     private float MeasureHeaderWidth()
     {
+        var padding = Padding;
         var textWidth = !string.IsNullOrEmpty(Header)
             ? FontStashTextRenderer.MeasureWidth(Font, Header)
             : 0f;
-        return (HasChildItems() ? 20f : 10f) + textWidth;
+        return padding.Horizontal + (HasChildItems() ? 20f : 10f) + textWidth;
     }
 
     private void PropagateTypographyToChildren(

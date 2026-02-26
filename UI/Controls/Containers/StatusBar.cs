@@ -63,6 +63,21 @@ public class StatusBar : ItemsControl
         };
     }
 
+    protected override void PrepareContainerForItemOverride(UIElement element, object item, int index)
+    {
+        base.PrepareContainerForItemOverride(element, item, index);
+
+        if (element is not StatusBarItem statusBarItem)
+        {
+            return;
+        }
+
+        if (statusBarItem.GetValueSource(StatusBarItem.ForegroundProperty) == DependencyPropertyValueSource.Default)
+        {
+            statusBarItem.Foreground = Foreground;
+        }
+    }
+
     public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);

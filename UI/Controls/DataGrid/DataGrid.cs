@@ -420,7 +420,7 @@ public class DataGrid : ItemsControl
             return;
         }
 
-        row.Height = RowHeight;
+        row.Height = GetEffectiveRowHeight();
     }
 
     protected override void OnItemsChanged()
@@ -475,11 +475,36 @@ public class DataGrid : ItemsControl
     {
         base.OnDependencyPropertyChanged(args);
 
+        if (args.Property == FontProperty)
+        {
+            _cornerHeader.Font = Font;
+            for (var i = 0; i < _columnHeaders.Count; i++)
+            {
+                _columnHeaders[i].Font = Font;
+            }
+
+            var effectiveRowHeight = GetEffectiveRowHeight();
+            foreach (var row in GetRows())
+            {
+                row.Height = effectiveRowHeight;
+            }
+
+            SyncRowsHost();
+            InvalidateMeasure();
+            InvalidateVisual();
+        }
+
+        if (args.Property == ForegroundProperty)
+        {
+            SyncRowsHost();
+            InvalidateVisual();
+        }
+
         if (args.Property == RowHeightProperty)
         {
             foreach (var row in GetRows())
             {
-                row.Height = RowHeight;
+                row.Height = GetEffectiveRowHeight();
             }
 
             InvalidateMeasure();
@@ -516,7 +541,7 @@ public class DataGrid : ItemsControl
         var innerHeight = MathF.Max(0f, availableSize.Y - (border * 2f));
 
         var rowHeaderWidth = RowHeadersVisibleForLayout ? RowHeaderWidth : 0f;
-        var headerHeight = ColumnHeadersVisibleForLayout ? ColumnHeaderHeight : 0f;
+        var headerHeight = ColumnHeadersVisibleForLayout ? GetEffectiveColumnHeaderHeight() : 0f;
         var headersWidth = GetColumnsTotalWidth();
 
         _cornerHeader.Font = Font;
@@ -550,7 +575,7 @@ public class DataGrid : ItemsControl
         var innerHeight = MathF.Max(0f, finalSize.Y - (border * 2f));
 
         var rowHeaderWidth = RowHeadersVisibleForLayout ? RowHeaderWidth : 0f;
-        var headerHeight = ColumnHeadersVisibleForLayout ? ColumnHeaderHeight : 0f;
+        var headerHeight = ColumnHeadersVisibleForLayout ? GetEffectiveColumnHeaderHeight() : 0f;
         var scrollY = innerY + headerHeight;
         var scrollHeight = MathF.Max(0f, innerHeight - headerHeight);
 
@@ -631,8 +656,9 @@ public class DataGrid : ItemsControl
 
     private void EnsureRowVisible(int rowIndex)
     {
-        var rowTop = rowIndex * RowHeight;
-        var rowBottom = rowTop + RowHeight;
+        var rowHeight = GetEffectiveRowHeight();
+        var rowTop = rowIndex * rowHeight;
+        var rowBottom = rowTop + rowHeight;
         var viewportTop = _scrollViewer.VerticalOffset;
         var viewportBottom = viewportTop + _scrollViewer.ViewportHeight;
 
@@ -943,5 +969,17 @@ public class DataGrid : ItemsControl
 
     internal bool VerticalGridLinesVisibleForLayout =>
         GridLinesVisibility == DataGridGridLinesVisibility.Vertical || GridLinesVisibility == DataGridGridLinesVisibility.All;
+
+    private float GetEffectiveRowHeight()
+    {
+        var minHeightForText = FontStashTextRenderer.GetLineHeight(Font) + 8f;
+        return MathF.Max(RowHeight, minHeightForText);
+    }
+
+    private float GetEffectiveColumnHeaderHeight()
+    {
+        var minHeightForText = FontStashTextRenderer.GetLineHeight(Font) + 10f;
+        return MathF.Max(ColumnHeaderHeight, minHeightForText);
+    }
 }
 

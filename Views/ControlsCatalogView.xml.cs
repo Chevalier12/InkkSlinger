@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -10,6 +11,7 @@ public partial class ControlsCatalogView : UserControl
     private StackPanel? _controlButtonsHost;
     private Label? _selectedControlLabel;
     private ContentControl? _previewHost;
+    private SpriteFont? _catalogFont;
 
     public ControlsCatalogView()
     {
@@ -34,6 +36,7 @@ public partial class ControlsCatalogView : UserControl
             return;
         }
 
+        _catalogFont = font;
         ControlDemoSupport.ApplyFontRecursive(this, font);
     }
 
@@ -66,7 +69,14 @@ public partial class ControlsCatalogView : UserControl
 
         if (_previewHost != null)
         {
-            _previewHost.Content = CreateView(controlName);
+            var view = CreateView(controlName);
+            HarmonizePreviewChrome(view);
+            if (_catalogFont != null)
+            {
+                ControlDemoSupport.ApplyFontRecursive(view, _catalogFont);
+            }
+
+            _previewHost.Content = view;
         }
     }
 
@@ -81,6 +91,79 @@ public partial class ControlsCatalogView : UserControl
 
         return new MissingControlView(controlName);
     }
+
+    private static void HarmonizePreviewChrome(UserControl view)
+    {
+        var darkBg = ResolveThemeColor("DarkBgBrush", new Color(0x1E, 0x1E, 0x1E));
+        var darkSurface = ResolveThemeColor("DarkSurfaceBrush", new Color(0x2A, 0x2A, 0x2A));
+        var darkBorder = ResolveThemeColor("DarkBorderBrush", new Color(0x3F, 0x3F, 0x3F));
+        var textPrimary = ResolveThemeColor("TextPrimaryBrush", new Color(0xF0, 0xF0, 0xF0));
+
+        var remap = new Dictionary<Color, Color>
+        {
+            [new Color(0x0F, 0x16, 0x22)] = darkBg,
+            [new Color(0x11, 0x1D, 0x2D)] = darkBg,
+            [new Color(0x16, 0x23, 0x34)] = darkSurface,
+            [new Color(0x2E, 0x4A, 0x66)] = darkBorder,
+            [new Color(0x35, 0x54, 0x74)] = darkBorder,
+            [new Color(0xE8, 0xF5, 0xFF)] = textPrimary
+        };
+
+        ApplyChromeRemapRecursive(view, remap);
+    }
+
+    private static void ApplyChromeRemapRecursive(UIElement element, IReadOnlyDictionary<Color, Color> remap)
+    {
+        if (element is Control control)
+        {
+            RemapIfLocal(control, Control.BackgroundProperty, remap);
+            RemapIfLocal(control, Control.BorderBrushProperty, remap);
+            RemapIfLocal(control, Control.ForegroundProperty, remap);
+        }
+
+        if (element is Border border)
+        {
+            RemapIfLocal(border, Border.BackgroundProperty, remap);
+            RemapIfLocal(border, Border.BorderBrushProperty, remap);
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            ApplyChromeRemapRecursive(child, remap);
+        }
+    }
+
+    private static void RemapIfLocal(DependencyObject target, DependencyProperty property, IReadOnlyDictionary<Color, Color> remap)
+    {
+        if (target.GetValueSource(property) != DependencyPropertyValueSource.Local)
+        {
+            return;
+        }
+
+        var current = target.GetValue<Color>(property);
+        if (remap.TryGetValue(current, out var replacement) && replacement != current)
+        {
+            target.SetValue(property, replacement);
+        }
+    }
+
+    private static Color ResolveThemeColor(string key, Color fallback)
+    {
+        if (UiApplication.Current.Resources.TryGetValue(key, out var resource))
+        {
+            if (resource is Color color)
+            {
+                return color;
+            }
+
+            if (resource is Brush brush)
+            {
+                return brush.ToColor();
+            }
+        }
+
+        return fallback;
+    }
 }
 
 public sealed class MissingControlView : UserControl
@@ -94,4 +177,3 @@ public sealed class MissingControlView : UserControl
         };
     }
 }
-
