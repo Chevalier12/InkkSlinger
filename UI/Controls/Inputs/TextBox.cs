@@ -48,28 +48,28 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             typeof(TextBox),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ForegroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
             typeof(Color),
             typeof(TextBox),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
             typeof(TextBox),
             new FrameworkPropertyMetadata(new Color(28, 28, 28), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(TextBox),
             new FrameworkPropertyMetadata(new Color(162, 162, 162), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderThicknessProperty =
+    public new static readonly DependencyProperty BorderThicknessProperty =
         DependencyProperty.Register(
             nameof(BorderThickness),
             typeof(float),
@@ -79,7 +79,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float thickness && thickness >= 0f ? thickness : 0f));
 
-    public static readonly DependencyProperty PaddingProperty =
+    public new static readonly DependencyProperty PaddingProperty =
         DependencyProperty.Register(
             nameof(Padding),
             typeof(Thickness),
@@ -153,14 +153,14 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
                 },
                 coerceValueCallback: static (_, value) => value is int length && length >= 0 ? length : 0));
 
-    public static readonly DependencyProperty IsMouseOverProperty =
+    public new static readonly DependencyProperty IsMouseOverProperty =
         DependencyProperty.Register(
             nameof(IsMouseOver),
             typeof(bool),
             typeof(TextBox),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty IsFocusedProperty =
+    public new static readonly DependencyProperty IsFocusedProperty =
         DependencyProperty.Register(
             nameof(IsFocused),
             typeof(bool),
@@ -322,31 +322,31 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         set => SetValue(FontProperty, value);
     }
 
-    public Color Foreground
+    public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
         set => SetValue(ForegroundProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public float BorderThickness
+    public new float BorderThickness
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
     }
 
-    public Thickness Padding
+    public new Thickness Padding
     {
         get => GetValue<Thickness>(PaddingProperty);
         set => SetValue(PaddingProperty, value);
@@ -394,13 +394,13 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         set => SetValue(MaxLengthProperty, value);
     }
 
-    public bool IsMouseOver
+    public new bool IsMouseOver
     {
         get => GetValue<bool>(IsMouseOverProperty);
         private set => SetValue(IsMouseOverProperty, value);
     }
 
-    public bool IsFocused
+    public new bool IsFocused
     {
         get => GetValue<bool>(IsFocusedProperty);
         private set => SetValue(IsFocusedProperty, value);

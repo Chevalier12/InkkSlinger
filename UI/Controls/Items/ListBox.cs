@@ -47,21 +47,21 @@ public class ListBox : Selector
                 FrameworkPropertyMetadataOptions.None,
                 coerceValueCallback: static (_, value) => value is float amount && amount > 0f ? amount : 1f));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
             typeof(ListBox),
             new FrameworkPropertyMetadata(new Color(18, 18, 18), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(ListBox),
             new FrameworkPropertyMetadata(new Color(88, 88, 88), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderThicknessProperty =
+    public new static readonly DependencyProperty BorderThicknessProperty =
         DependencyProperty.Register(
             nameof(BorderThickness),
             typeof(float),
@@ -118,19 +118,19 @@ public class ListBox : Selector
         set => SetValue(LineScrollAmountProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public float BorderThickness
+    public new float BorderThickness
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);

@@ -12,21 +12,21 @@ public class DataGridCell : Control
             typeof(DataGridCell),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty IsSelectedProperty =
+    public new static readonly DependencyProperty IsSelectedProperty =
         DependencyProperty.Register(
             nameof(IsSelected),
             typeof(bool),
             typeof(DataGridCell),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ForegroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
             typeof(Color),
             typeof(DataGridCell),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
@@ -40,7 +40,7 @@ public class DataGridCell : Control
             typeof(DataGridCell),
             new FrameworkPropertyMetadata(new Color(61, 99, 145), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
@@ -60,19 +60,19 @@ public class DataGridCell : Control
         set => SetValue(ValueProperty, value);
     }
 
-    public bool IsSelected
+    public new bool IsSelected
     {
         get => GetValue<bool>(IsSelectedProperty);
         set => SetValue(IsSelectedProperty, value);
     }
 
-    public Color Foreground
+    public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
         set => SetValue(ForegroundProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
@@ -84,7 +84,7 @@ public class DataGridCell : Control
         set => SetValue(SelectedBackgroundProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
@@ -98,6 +98,22 @@ public class DataGridCell : Control
 
     internal int ColumnIndex { get; set; }
 
+    internal bool ShowHorizontalGridLine { get; set; } = true;
+
+    internal bool ShowVerticalGridLine { get; set; } = true;
+
+    internal Color HorizontalGridLineBrush { get; set; } = new Color(57, 80, 111);
+
+    internal Color VerticalGridLineBrush { get; set; } = new Color(57, 80, 111);
+
+    internal bool ShowHorizontalGridLineForTesting => ShowHorizontalGridLine;
+
+    internal bool ShowVerticalGridLineForTesting => ShowVerticalGridLine;
+
+    internal Color HorizontalGridLineBrushForTesting => HorizontalGridLineBrush;
+
+    internal Color VerticalGridLineBrushForTesting => VerticalGridLineBrush;
+
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var text = Value?.ToString() ?? string.Empty;
@@ -110,7 +126,24 @@ public class DataGridCell : Control
     {
         var fill = IsSelected ? SelectedBackground : Background;
         UiDrawing.DrawFilledRect(spriteBatch, LayoutSlot, fill, Opacity);
-        UiDrawing.DrawRectStroke(spriteBatch, LayoutSlot, 1f, BorderBrush, Opacity);
+
+        if (ShowHorizontalGridLine && LayoutSlot.Width > 0f && LayoutSlot.Height > 0f)
+        {
+            UiDrawing.DrawFilledRect(
+                spriteBatch,
+                new LayoutRect(LayoutSlot.X, LayoutSlot.Y + LayoutSlot.Height - 1f, LayoutSlot.Width, 1f),
+                HorizontalGridLineBrush,
+                Opacity);
+        }
+
+        if (ShowVerticalGridLine && LayoutSlot.Width > 0f && LayoutSlot.Height > 0f)
+        {
+            UiDrawing.DrawFilledRect(
+                spriteBatch,
+                new LayoutRect(LayoutSlot.X + LayoutSlot.Width - 1f, LayoutSlot.Y, 1f, LayoutSlot.Height),
+                VerticalGridLineBrush,
+                Opacity);
+        }
 
         var text = Value?.ToString() ?? string.Empty;
         if (string.IsNullOrEmpty(text))

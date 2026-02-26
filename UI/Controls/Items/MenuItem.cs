@@ -33,14 +33,14 @@ public class MenuItem : ItemsControl
                 null,
                 FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ForegroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
             typeof(Color),
             typeof(MenuItem),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
@@ -61,7 +61,7 @@ public class MenuItem : ItemsControl
             typeof(MenuItem),
             new FrameworkPropertyMetadata(new Color(44, 70, 103), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty PaddingProperty =
+    public new static readonly DependencyProperty PaddingProperty =
         DependencyProperty.Register(
             nameof(Padding),
             typeof(Thickness),
@@ -153,13 +153,13 @@ public class MenuItem : ItemsControl
         set => SetValue(FontProperty, value);
     }
 
-    public Color Foreground
+    public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
         set => SetValue(ForegroundProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
@@ -177,7 +177,7 @@ public class MenuItem : ItemsControl
         set => SetValue(OpenBackgroundProperty, value);
     }
 
-    public Thickness Padding
+    public new Thickness Padding
     {
         get => GetValue<Thickness>(PaddingProperty);
         set => SetValue(PaddingProperty, value);

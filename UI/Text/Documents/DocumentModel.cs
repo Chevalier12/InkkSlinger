@@ -6,11 +6,24 @@ using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
-public abstract class TextElement
+public abstract class TextElement : DependencyObject
 {
     private TextElement? _parent;
 
+    public static readonly DependencyProperty StyleProperty =
+        DependencyProperty.Register(
+            nameof(Style),
+            typeof(Style),
+            typeof(TextElement),
+            new FrameworkPropertyMetadata(null));
+
     public TextElement? Parent => _parent;
+
+    public Style? Style
+    {
+        get => GetValue<Style>(StyleProperty);
+        set => SetValue(StyleProperty, value);
+    }
 
     public event EventHandler? Changed;
 
@@ -25,6 +38,25 @@ public abstract class TextElement
         if (_parent != null)
         {
             _parent.RaiseChanged();
+        }
+    }
+
+    protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
+    {
+        base.OnDependencyPropertyChanged(args);
+        if (args.Property != StyleProperty)
+        {
+            return;
+        }
+
+        if (args.OldValue is Style oldStyle)
+        {
+            oldStyle.Detach(this);
+        }
+
+        if (args.NewValue is Style newStyle)
+        {
+            newStyle.Apply(this);
         }
     }
 }
@@ -127,6 +159,45 @@ public sealed class Underline : Span;
 
 public sealed class Hyperlink : Span
 {
+    public static readonly DependencyProperty ForegroundProperty =
+        DependencyProperty.Register(
+            "Foreground",
+            typeof(Color),
+            typeof(Hyperlink),
+            new FrameworkPropertyMetadata(Color.White));
+
+    public static readonly DependencyProperty TextDecorationsProperty =
+        DependencyProperty.Register(
+            "TextDecorations",
+            typeof(string),
+            typeof(Hyperlink),
+            new FrameworkPropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty IsMouseOverProperty =
+        DependencyProperty.Register(
+            "IsMouseOver",
+            typeof(bool),
+            typeof(Hyperlink),
+            new FrameworkPropertyMetadata(false));
+
+    public Color Foreground
+    {
+        get => GetValue<Color>(ForegroundProperty);
+        set => SetValue(ForegroundProperty, value);
+    }
+
+    public string TextDecorations
+    {
+        get => GetValue<string>(TextDecorationsProperty) ?? string.Empty;
+        set => SetValue(TextDecorationsProperty, value);
+    }
+
+    public bool IsMouseOver
+    {
+        get => GetValue<bool>(IsMouseOverProperty);
+        set => SetValue(IsMouseOverProperty, value);
+    }
+
     public string? NavigateUri { get; set; }
 }
 

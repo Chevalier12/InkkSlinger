@@ -14,14 +14,14 @@ public class TabControl : Selector
             typeof(TabControl),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ForegroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
             typeof(Color),
             typeof(TabControl),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
@@ -42,14 +42,14 @@ public class TabControl : Selector
             typeof(TabControl),
             new FrameworkPropertyMetadata(new Color(71, 102, 145), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(TabControl),
             new FrameworkPropertyMetadata(new Color(95, 95, 95), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderThicknessProperty =
+    public new static readonly DependencyProperty BorderThicknessProperty =
         DependencyProperty.Register(
             nameof(BorderThickness),
             typeof(float),
@@ -81,13 +81,13 @@ public class TabControl : Selector
         set => SetValue(FontProperty, value);
     }
 
-    public Color Foreground
+    public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
         set => SetValue(ForegroundProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
@@ -105,13 +105,13 @@ public class TabControl : Selector
         set => SetValue(SelectedHeaderBackgroundProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public float BorderThickness
+    public new float BorderThickness
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);

@@ -40,28 +40,28 @@ public class ComboBox : Selector
             typeof(ComboBox),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ForegroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
             typeof(Color),
             typeof(ComboBox),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
             typeof(ComboBox),
             new FrameworkPropertyMetadata(new Color(30, 30, 30), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(ComboBox),
             new FrameworkPropertyMetadata(new Color(128, 128, 128), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderThicknessProperty =
+    public new static readonly DependencyProperty BorderThicknessProperty =
         DependencyProperty.Register(
             nameof(BorderThickness),
             typeof(float),
@@ -71,7 +71,7 @@ public class ComboBox : Selector
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float thickness && thickness >= 0f ? thickness : 0f));
 
-    public static readonly DependencyProperty PaddingProperty =
+    public new static readonly DependencyProperty PaddingProperty =
         DependencyProperty.Register(
             nameof(Padding),
             typeof(Thickness),
@@ -106,31 +106,31 @@ public class ComboBox : Selector
         set => SetValue(FontProperty, value);
     }
 
-    public Color Foreground
+    public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
         set => SetValue(ForegroundProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public float BorderThickness
+    public new float BorderThickness
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
     }
 
-    public Thickness Padding
+    public new Thickness Padding
     {
         get => GetValue<Thickness>(PaddingProperty);
         set => SetValue(PaddingProperty, value);
@@ -160,9 +160,61 @@ public class ComboBox : Selector
     {
         base.OnSelectionChanged(args);
 
+        for (var i = 0; i < ItemContainers.Count; i++)
+        {
+            if (ItemContainers[i] is ComboBoxItem comboBoxItem)
+            {
+                comboBoxItem.IsSelected = i == SelectedIndex;
+            }
+        }
+
         if (_dropDownList != null && !_isSynchronizingDropDown)
         {
             _dropDownList.SelectedIndex = SelectedIndex;
+        }
+    }
+
+    protected override bool IsItemItsOwnContainerOverride(object item)
+    {
+        return item is ComboBoxItem;
+    }
+
+    protected override UIElement CreateContainerForItemOverride(object item)
+    {
+        var container = new ComboBoxItem();
+        ConfigureContainerFromItem(container, item);
+        return container;
+    }
+
+    protected override void PrepareContainerForItemOverride(UIElement element, object item, int index)
+    {
+        base.PrepareContainerForItemOverride(element, item, index);
+        if (element is not ComboBoxItem comboBoxItem)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(comboBoxItem, item))
+        {
+            ConfigureContainerFromItem(comboBoxItem, item);
+        }
+        else
+        {
+            SyncContainerTypography(comboBoxItem);
+        }
+
+        comboBoxItem.IsSelected = index == SelectedIndex;
+    }
+
+    protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
+    {
+        base.OnDependencyPropertyChanged(args);
+
+        if (args.Property == ItemContainerStyleProperty ||
+            args.Property == ForegroundProperty ||
+            args.Property == FontProperty)
+        {
+            RefreshDropDownItems();
         }
     }
 
@@ -368,16 +420,13 @@ public class ComboBox : Selector
         _isSynchronizingDropDown = true;
         try
         {
+            _dropDownList.ItemContainerStyle = ItemContainerStyle;
             _dropDownList.Items.Clear();
-            foreach (var container in ItemContainers)
+            for (var i = 0; i < ItemContainers.Count; i++)
             {
+                var container = ItemContainers[i];
                 var item = ItemFromContainer(container);
-                _dropDownList.Items.Add(new Label
-                {
-                    Text = GetDisplayText(item),
-                    Font = Font,
-                    Foreground = Foreground
-                });
+                _dropDownList.Items.Add(BuildDropDownContainer(item, i));
             }
 
             _dropDownList.SelectedIndex = SelectedIndex;
@@ -421,12 +470,51 @@ public class ComboBox : Selector
             return comboBoxItem.Content?.ToString() ?? string.Empty;
         }
 
+        if (item is ListBoxItem listBoxItem &&
+            listBoxItem.Content is Label listBoxLabel)
+        {
+            return listBoxLabel.Text;
+        }
+
         if (item is Label itemLabel)
         {
             return itemLabel.Text;
         }
 
         return item?.ToString() ?? string.Empty;
+    }
+
+    private ComboBoxItem BuildDropDownContainer(object? item, int index)
+    {
+        var container = new ComboBoxItem();
+        ConfigureContainerFromItem(container, item);
+        container.IsSelected = index == SelectedIndex;
+        return container;
+    }
+
+    private void ConfigureContainerFromItem(ComboBoxItem container, object? item)
+    {
+        container.ClearValue(ContentControl.ContentProperty);
+        container.Text = GetDisplayText(item);
+        SyncContainerTypography(container);
+    }
+
+    private void SyncContainerTypography(ComboBoxItem container)
+    {
+        if (ItemContainerStyle != null)
+        {
+            return;
+        }
+
+        if (container.GetValueSource(ComboBoxItem.ForegroundProperty) == DependencyPropertyValueSource.Default)
+        {
+            container.Foreground = Foreground;
+        }
+
+        if (container.GetValueSource(Control.FontProperty) == DependencyPropertyValueSource.Default)
+        {
+            container.Font = Font;
+        }
     }
 }
 

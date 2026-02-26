@@ -28,6 +28,78 @@ public class Control : FrameworkElement
                 null,
                 FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
+    // Parse-first compatibility shims for theme styles targeting controls that do not
+    // define these dependency properties yet.
+    public static readonly DependencyProperty BackgroundProperty =
+        DependencyProperty.Register(
+            nameof(Background),
+            typeof(Color),
+            typeof(Control),
+            new FrameworkPropertyMetadata(Color.Transparent));
+
+    public static readonly DependencyProperty ForegroundProperty =
+        DependencyProperty.Register(
+            nameof(Foreground),
+            typeof(Color),
+            typeof(Control),
+            new FrameworkPropertyMetadata(Color.White));
+
+    public static readonly DependencyProperty BorderBrushProperty =
+        DependencyProperty.Register(
+            nameof(BorderBrush),
+            typeof(Color),
+            typeof(Control),
+            new FrameworkPropertyMetadata(Color.Transparent));
+
+    public static readonly DependencyProperty BorderThicknessProperty =
+        DependencyProperty.Register(
+            nameof(BorderThickness),
+            typeof(Thickness),
+            typeof(Control),
+            new FrameworkPropertyMetadata(Thickness.Empty));
+
+    public static readonly DependencyProperty PaddingProperty =
+        DependencyProperty.Register(
+            nameof(Padding),
+            typeof(Thickness),
+            typeof(Control),
+            new FrameworkPropertyMetadata(Thickness.Empty));
+
+    public static readonly DependencyProperty IsMouseOverProperty =
+        DependencyProperty.Register(
+            nameof(IsMouseOver),
+            typeof(bool),
+            typeof(Control),
+            new FrameworkPropertyMetadata(false));
+
+    public static readonly DependencyProperty IsPressedProperty =
+        DependencyProperty.Register(
+            nameof(IsPressed),
+            typeof(bool),
+            typeof(Control),
+            new FrameworkPropertyMetadata(false));
+
+    public static readonly DependencyProperty IsFocusedProperty =
+        DependencyProperty.Register(
+            nameof(IsFocused),
+            typeof(bool),
+            typeof(Control),
+            new FrameworkPropertyMetadata(false));
+
+    public static readonly DependencyProperty IsSelectedProperty =
+        DependencyProperty.Register(
+            nameof(IsSelected),
+            typeof(bool),
+            typeof(Control),
+            new FrameworkPropertyMetadata(false));
+
+    public static readonly DependencyProperty IsCheckedProperty =
+        DependencyProperty.Register(
+            nameof(IsChecked),
+            typeof(bool),
+            typeof(Control),
+            new FrameworkPropertyMetadata(false));
+
     public static readonly DependencyProperty CommandProperty =
         DependencyProperty.Register(nameof(Command), typeof(System.Windows.Input.ICommand), typeof(Control), new FrameworkPropertyMetadata(null));
 
@@ -47,7 +119,7 @@ public class Control : FrameworkElement
     private bool _isCommandDisablingIsEnabled;
     private bool _isUpdatingIsEnabled;
     private bool _isApplyingImplicitStyle;
-    private bool _isImplicitStyleActive;
+    private Style? _activeImplicitStyle;
 
     public Control()
     {
@@ -73,6 +145,66 @@ public class Control : FrameworkElement
     {
         get => GetValue<SpriteFont>(FontProperty);
         set => SetValue(FontProperty, value);
+    }
+
+    public Color Background
+    {
+        get => GetValue<Color>(BackgroundProperty);
+        set => SetValue(BackgroundProperty, value);
+    }
+
+    public Color Foreground
+    {
+        get => GetValue<Color>(ForegroundProperty);
+        set => SetValue(ForegroundProperty, value);
+    }
+
+    public Color BorderBrush
+    {
+        get => GetValue<Color>(BorderBrushProperty);
+        set => SetValue(BorderBrushProperty, value);
+    }
+
+    public Thickness BorderThickness
+    {
+        get => GetValue<Thickness>(BorderThicknessProperty);
+        set => SetValue(BorderThicknessProperty, value);
+    }
+
+    public Thickness Padding
+    {
+        get => GetValue<Thickness>(PaddingProperty);
+        set => SetValue(PaddingProperty, value);
+    }
+
+    public bool IsMouseOver
+    {
+        get => GetValue<bool>(IsMouseOverProperty);
+        set => SetValue(IsMouseOverProperty, value);
+    }
+
+    public bool IsPressed
+    {
+        get => GetValue<bool>(IsPressedProperty);
+        set => SetValue(IsPressedProperty, value);
+    }
+
+    public bool IsFocused
+    {
+        get => GetValue<bool>(IsFocusedProperty);
+        set => SetValue(IsFocusedProperty, value);
+    }
+
+    public bool IsSelected
+    {
+        get => GetValue<bool>(IsSelectedProperty);
+        set => SetValue(IsSelectedProperty, value);
+    }
+
+    public bool IsChecked
+    {
+        get => GetValue<bool>(IsCheckedProperty);
+        set => SetValue(IsCheckedProperty, value);
     }
 
     public System.Windows.Input.ICommand? Command
@@ -109,6 +241,8 @@ public class Control : FrameworkElement
     {
         return _namedTemplateChildren.TryGetValue(name, out var element) ? element : null;
     }
+
+    protected bool HasTemplateRoot => _templateRoot != null;
 
     public bool ApplyTemplate()
     {
@@ -175,7 +309,7 @@ public class Control : FrameworkElement
 
         if (args.Property == StyleProperty && !_isApplyingImplicitStyle)
         {
-            _isImplicitStyleActive = false;
+            _activeImplicitStyle = null;
         }
 
         if (args.Property == TemplateProperty)
@@ -476,12 +610,34 @@ public class Control : FrameworkElement
         var source = GetValueSource(binding.SourceProperty);
         if (value == null && binding.TargetNullValue != null)
         {
-            return binding.TargetNullValue;
+            value = binding.TargetNullValue;
+            return CoerceTemplateBindingValue(value, binding.TargetProperty.PropertyType);
         }
 
         if (source == DependencyPropertyValueSource.Default && binding.FallbackValue != null)
         {
-            return binding.FallbackValue;
+            value = binding.FallbackValue;
+            return CoerceTemplateBindingValue(value, binding.TargetProperty.PropertyType);
+        }
+
+        return CoerceTemplateBindingValue(value, binding.TargetProperty.PropertyType);
+    }
+
+    private static object? CoerceTemplateBindingValue(object? value, Type targetType)
+    {
+        if (value == null || targetType.IsInstanceOfType(value))
+        {
+            return value;
+        }
+
+        if (targetType == typeof(Thickness) && value is float uniform)
+        {
+            return new Thickness(uniform);
+        }
+
+        if (DependencyValueCoercion.TryCoerce(value, targetType, out var coerced))
+        {
+            return coerced;
         }
 
         return value;
@@ -526,7 +682,7 @@ public class Control : FrameworkElement
         }
     }
 
-    private void OnResourceScopeChanged(object? sender, ResourceDictionaryChangedEventArgs e)
+    protected virtual void OnResourceScopeChanged(object? sender, ResourceDictionaryChangedEventArgs e)
     {
         UpdateImplicitStyle();
     }
@@ -550,7 +706,20 @@ public class Control : FrameworkElement
         var targetStyle = resourceStyle ?? fallbackStyle;
         if (targetStyle == null)
         {
-            _isImplicitStyleActive = false;
+            if (ImplicitStylePolicy.CanClearImplicit(Style, _activeImplicitStyle))
+            {
+                _isApplyingImplicitStyle = true;
+                try
+                {
+                    Style = null;
+                }
+                finally
+                {
+                    _isApplyingImplicitStyle = false;
+                }
+            }
+
+            _activeImplicitStyle = null;
             return;
         }
 
@@ -567,18 +736,12 @@ public class Control : FrameworkElement
             }
         }
 
-        _isImplicitStyleActive = true;
+        _activeImplicitStyle = targetStyle;
     }
 
     private bool ShouldApplyImplicitStyle()
     {
-        if (_isImplicitStyleActive || Style == null)
-        {
-            return true;
-        }
-
-        var fallbackStyle = GetFallbackStyle();
-        return fallbackStyle != null && ReferenceEquals(Style, fallbackStyle);
+        return ImplicitStylePolicy.ShouldApply(Style, _activeImplicitStyle, GetFallbackStyle());
     }
 
     private void RefreshResourceScopeSubscriptions()

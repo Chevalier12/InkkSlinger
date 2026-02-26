@@ -8,6 +8,9 @@ namespace InkkSlinger;
 public class Button : ContentControl
 {
     private static readonly System.Lazy<Style> DefaultButtonStyle = new(BuildDefaultButtonStyle);
+    private bool _isSyncingTemplateContent;
+    private bool _isTextMirroringTemplateContent;
+    private bool _hasExplicitContentOverride;
 
     public static readonly RoutedEvent ClickEvent =
         new(nameof(Click), RoutingStrategy.Bubble);
@@ -26,7 +29,7 @@ public class Button : ContentControl
             typeof(Button),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ForegroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
             typeof(Color),
@@ -42,21 +45,21 @@ public class Button : ContentControl
                 TextWrapping.NoWrap,
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
             typeof(Button),
             new FrameworkPropertyMetadata(new Color(45, 45, 45), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(Button),
             new FrameworkPropertyMetadata(new Color(185, 185, 185), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderThicknessProperty =
+    public new static readonly DependencyProperty BorderThicknessProperty =
         DependencyProperty.Register(
             nameof(BorderThickness),
             typeof(float),
@@ -66,21 +69,21 @@ public class Button : ContentControl
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float f && f >= 0f ? f : 0f));
 
-    public static readonly DependencyProperty PaddingProperty =
+    public new static readonly DependencyProperty PaddingProperty =
         DependencyProperty.Register(
             nameof(Padding),
             typeof(Thickness),
             typeof(Button),
             new FrameworkPropertyMetadata(new Thickness(10f, 6f, 10f, 6f), FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty IsMouseOverProperty =
+    public new static readonly DependencyProperty IsMouseOverProperty =
         DependencyProperty.Register(
             nameof(IsMouseOver),
             typeof(bool),
             typeof(Button),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty IsPressedProperty =
+    public new static readonly DependencyProperty IsPressedProperty =
         DependencyProperty.Register(
             nameof(IsPressed),
             typeof(bool),
@@ -109,7 +112,7 @@ public class Button : ContentControl
         set => SetValue(FontProperty, value);
     }
 
-    public Color Foreground
+    public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
         set => SetValue(ForegroundProperty, value);
@@ -121,37 +124,37 @@ public class Button : ContentControl
         set => SetValue(TextWrappingProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public float BorderThickness
+    public new float BorderThickness
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
     }
 
-    public Thickness Padding
+    public new Thickness Padding
     {
         get => GetValue<Thickness>(PaddingProperty);
         set => SetValue(PaddingProperty, value);
     }
 
-    public bool IsMouseOver
+    public new bool IsMouseOver
     {
         get => GetValue<bool>(IsMouseOverProperty);
         private set => SetValue(IsMouseOverProperty, value);
     }
 
-    public bool IsPressed
+    public new bool IsPressed
     {
         get => GetValue<bool>(IsPressedProperty);
         private set => SetValue(IsPressedProperty, value);
@@ -187,9 +190,41 @@ public class Button : ContentControl
         ExecuteCommand();
     }
 
+    public override void OnApplyTemplate()
+    {
+        base.OnApplyTemplate();
+        SyncTemplateContentFromTextIfNeeded();
+    }
+
+    protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
+    {
+        base.OnDependencyPropertyChanged(args);
+
+        if (args.Property == ContentProperty)
+        {
+            if (!_isSyncingTemplateContent)
+            {
+                _hasExplicitContentOverride = HasLocalValue(ContentProperty);
+                _isTextMirroringTemplateContent = false;
+            }
+
+            return;
+        }
+
+        if (args.Property == TextProperty || args.Property == TemplateProperty)
+        {
+            SyncTemplateContentFromTextIfNeeded();
+        }
+    }
+
     protected override void OnRender(SpriteBatch spriteBatch)
     {
         base.OnRender(spriteBatch);
+
+        if (HasTemplateRoot)
+        {
+            return;
+        }
 
         var slot = LayoutSlot;
         UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
@@ -249,6 +284,50 @@ public class Button : ContentControl
             var lineX = textX + ((layout.Size.X - lineWidth) / 2f);
             var linePosition = new Vector2(lineX, textY + (i * lineSpacing));
             FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, Foreground * Opacity);
+        }
+    }
+
+    private void SyncTemplateContentFromTextIfNeeded()
+    {
+        if (!HasTemplateRoot)
+        {
+            if (_isTextMirroringTemplateContent && !_hasExplicitContentOverride)
+            {
+                _isSyncingTemplateContent = true;
+                try
+                {
+                    Content = null;
+                    _isTextMirroringTemplateContent = false;
+                }
+                finally
+                {
+                    _isSyncingTemplateContent = false;
+                }
+            }
+
+            return;
+        }
+
+        if (_hasExplicitContentOverride)
+        {
+            return;
+        }
+
+        var nextContent = string.IsNullOrEmpty(Text) ? null : Text;
+        if (Equals(Content, nextContent) && _isTextMirroringTemplateContent)
+        {
+            return;
+        }
+
+        _isSyncingTemplateContent = true;
+        try
+        {
+            Content = nextContent;
+            _isTextMirroringTemplateContent = true;
+        }
+        finally
+        {
+            _isSyncingTemplateContent = false;
         }
     }
 

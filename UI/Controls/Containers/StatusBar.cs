@@ -7,21 +7,21 @@ namespace InkkSlinger;
 
 public class StatusBar : ItemsControl
 {
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
             typeof(StatusBar),
             new FrameworkPropertyMetadata(new Color(18, 27, 40), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(StatusBar),
             new FrameworkPropertyMetadata(new Color(61, 89, 121), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderThicknessProperty =
+    public new static readonly DependencyProperty BorderThicknessProperty =
         DependencyProperty.Register(
             nameof(BorderThickness),
             typeof(float),
@@ -31,7 +31,7 @@ public class StatusBar : ItemsControl
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float v && v >= 0f ? v : 0f));
 
-    public static readonly DependencyProperty PaddingProperty =
+    public new static readonly DependencyProperty PaddingProperty =
         DependencyProperty.Register(
             nameof(Padding),
             typeof(Thickness),
@@ -63,25 +63,25 @@ public class StatusBar : ItemsControl
         };
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public float BorderThickness
+    public new float BorderThickness
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
     }
 
-    public Thickness Padding
+    public new Thickness Padding
     {
         get => GetValue<Thickness>(PaddingProperty);
         set => SetValue(PaddingProperty, value);

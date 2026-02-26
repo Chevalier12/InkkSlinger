@@ -34,6 +34,13 @@ public class Border : FrameworkElement
             typeof(Border),
             new FrameworkPropertyMetadata(Thickness.Empty, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
+    public static readonly DependencyProperty CornerRadiusProperty =
+        DependencyProperty.Register(
+            nameof(CornerRadius),
+            typeof(Thickness),
+            typeof(Border),
+            new FrameworkPropertyMetadata(Thickness.Empty, FrameworkPropertyMetadataOptions.AffectsRender));
+
     private UIElement? _child;
 
     public UIElement? Child
@@ -85,6 +92,12 @@ public class Border : FrameworkElement
     {
         get => GetValue<Thickness>(PaddingProperty);
         set => SetValue(PaddingProperty, value);
+    }
+
+    public Thickness CornerRadius
+    {
+        get => GetValue<Thickness>(CornerRadiusProperty);
+        set => SetValue(CornerRadiusProperty, value);
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()

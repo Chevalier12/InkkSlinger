@@ -9,7 +9,7 @@ public class TabItem : ContentControl
             typeof(TabItem),
             new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty IsSelectedProperty =
+    public new static readonly DependencyProperty IsSelectedProperty =
         DependencyProperty.Register(
             nameof(IsSelected),
             typeof(bool),
@@ -22,7 +22,7 @@ public class TabItem : ContentControl
         set => SetValue(HeaderProperty, value);
     }
 
-    public bool IsSelected
+    public new bool IsSelected
     {
         get => GetValue<bool>(IsSelectedProperty);
         set => SetValue(IsSelectedProperty, value);

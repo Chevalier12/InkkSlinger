@@ -83,6 +83,26 @@ public sealed class ComboBoxPopupEdgeParityTests
     }
 
     [Fact]
+    public void DropDown_ShouldUseComboBoxItemContainers_AndApplyItemContainerStyle()
+    {
+        var (uiRoot, comboBox) = CreateFixture();
+        var expectedBackground = new Color(0x22, 0x55, 0x99);
+        var style = new Style(typeof(ComboBoxItem));
+        style.Setters.Add(new Setter(ComboBoxItem.BackgroundProperty, expectedBackground));
+        comboBox.ItemContainerStyle = style;
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var dropDown = comboBox.DropDownListForTesting;
+        Assert.NotNull(dropDown);
+
+        var hostPanel = FindItemsHostPanel(dropDown!);
+        var firstItem = Assert.IsType<ComboBoxItem>(hostPanel.Children[0]);
+        Assert.Equal(expectedBackground, firstItem.Background);
+    }
+
+    [Fact]
     public void OpenDropDown_ShouldNotReflowSiblingRows_InLocalGrid()
     {
         var root = new Panel
@@ -270,6 +290,27 @@ public sealed class ComboBoxPopupEdgeParityTests
         var uiRoot = new UiRoot(host);
         RunLayout(uiRoot);
         return (uiRoot, comboBox);
+    }
+
+    private static Panel FindItemsHostPanel(ListBox listBox)
+    {
+        foreach (var child in listBox.GetVisualChildren())
+        {
+            if (child is not ScrollViewer viewer)
+            {
+                continue;
+            }
+
+            foreach (var viewerChild in viewer.GetVisualChildren())
+            {
+                if (viewerChild is Panel panel)
+                {
+                    return panel;
+                }
+            }
+        }
+
+        throw new InvalidOperationException("Could not resolve ListBox items host panel.");
     }
 
     private static void Click(UiRoot uiRoot, Vector2 pointer)

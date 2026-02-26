@@ -299,6 +299,13 @@ public class ContentPresenter : FrameworkElement
 
     private bool WouldCreatePresentationCycle(UIElement candidate)
     {
+        // Reusing the currently presented element is valid; this happens during
+        // refresh passes where content did not materially change.
+        if (ReferenceEquals(candidate, _presentedElement))
+        {
+            return false;
+        }
+
         if (ReferenceEquals(candidate, this))
         {
             return true;

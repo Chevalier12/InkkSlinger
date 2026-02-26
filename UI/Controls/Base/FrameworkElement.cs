@@ -10,6 +10,8 @@ public class FrameworkElement : UIElement
     private readonly Dictionary<DependencyProperty, object> _dynamicResourceBindings = new();
     private FrameworkElement? _resourceParent;
     private NameScope? _nameScope;
+    private Style? _activeImplicitStyle;
+    private bool _isApplyingImplicitStyle;
 
     public static readonly DependencyProperty NameProperty =
         DependencyProperty.Register(nameof(Name), typeof(string), typeof(FrameworkElement), new FrameworkPropertyMetadata(string.Empty));
@@ -103,6 +105,57 @@ public class FrameworkElement : UIElement
             typeof(BindingGroup),
             typeof(FrameworkElement),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.Inherits));
+
+    public static readonly DependencyProperty FontFamilyProperty =
+        DependencyProperty.Register(
+            nameof(FontFamily),
+            typeof(string),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.Inherits));
+
+    public static readonly DependencyProperty FontSizeProperty =
+        DependencyProperty.Register(
+            nameof(FontSize),
+            typeof(float),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(
+                12f,
+                FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty FontWeightProperty =
+        DependencyProperty.Register(
+            nameof(FontWeight),
+            typeof(string),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata("Normal", FrameworkPropertyMetadataOptions.Inherits));
+
+    public static readonly DependencyProperty CursorProperty =
+        DependencyProperty.Register(
+            nameof(Cursor),
+            typeof(string),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty SnapsToDevicePixelsProperty =
+        DependencyProperty.Register(
+            nameof(SnapsToDevicePixels),
+            typeof(bool),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(false));
+
+    public static readonly DependencyProperty FocusableProperty =
+        DependencyProperty.Register(
+            nameof(Focusable),
+            typeof(bool),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(false));
+
+    public static readonly DependencyProperty RecognizesAccessKeyProperty =
+        DependencyProperty.Register(
+            nameof(RecognizesAccessKey),
+            typeof(bool),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(false));
 
     private bool _isMeasureValid;
     private bool _isArrangeValid;
@@ -198,6 +251,48 @@ public class FrameworkElement : UIElement
     {
         get => GetValue<BindingGroup>(BindingGroupProperty);
         set => SetValue(BindingGroupProperty, value);
+    }
+
+    public string FontFamily
+    {
+        get => GetValue<string>(FontFamilyProperty) ?? string.Empty;
+        set => SetValue(FontFamilyProperty, value);
+    }
+
+    public float FontSize
+    {
+        get => GetValue<float>(FontSizeProperty);
+        set => SetValue(FontSizeProperty, value);
+    }
+
+    public string FontWeight
+    {
+        get => GetValue<string>(FontWeightProperty) ?? "Normal";
+        set => SetValue(FontWeightProperty, value);
+    }
+
+    public string Cursor
+    {
+        get => GetValue<string>(CursorProperty) ?? string.Empty;
+        set => SetValue(CursorProperty, value);
+    }
+
+    public bool SnapsToDevicePixels
+    {
+        get => GetValue<bool>(SnapsToDevicePixelsProperty);
+        set => SetValue(SnapsToDevicePixelsProperty, value);
+    }
+
+    public bool Focusable
+    {
+        get => GetValue<bool>(FocusableProperty);
+        set => SetValue(FocusableProperty, value);
+    }
+
+    public bool RecognizesAccessKey
+    {
+        get => GetValue<bool>(RecognizesAccessKeyProperty);
+        set => SetValue(RecognizesAccessKeyProperty, value);
     }
 
     public InkkSlinger.ContextMenu? ContextMenu
@@ -406,6 +501,7 @@ public class FrameworkElement : UIElement
         AttachResourceParent(VisualParent as FrameworkElement);
         UiApplication.Current.Resources.Changed += OnApplicationResourcesChanged;
         RefreshResourceBindings();
+        UpdateImplicitStyle();
         Loaded?.Invoke(this, EventArgs.Empty);
     }
 
@@ -444,6 +540,11 @@ public class FrameworkElement : UIElement
 
         if (args.Property == StyleProperty)
         {
+            if (!IsControlType() && !_isApplyingImplicitStyle)
+            {
+                _activeImplicitStyle = null;
+            }
+
             if (args.OldValue is Style oldStyle)
             {
                 oldStyle.Detach(this);
@@ -465,6 +566,7 @@ public class FrameworkElement : UIElement
         DetachResourceParent();
         AttachResourceParent(newParent as FrameworkElement);
         RefreshResourceBindings();
+        UpdateImplicitStyle();
         NotifyDescendantResourcesChanged();
 
         phaseStart = Stopwatch.GetTimestamp();
@@ -493,6 +595,7 @@ public class FrameworkElement : UIElement
         DetachResourceParent();
         AttachResourceParent(newParent as FrameworkElement);
         RefreshResourceBindings();
+        UpdateImplicitStyle();
         NotifyDescendantResourcesChanged();
 
         phaseStart = Stopwatch.GetTimestamp();
@@ -526,19 +629,69 @@ public class FrameworkElement : UIElement
     private void OnResourcesChanged(object? sender, ResourceDictionaryChangedEventArgs e)
     {
         RefreshResourceBindings();
+        UpdateImplicitStyle();
         NotifyDescendantResourcesChanged();
     }
 
     private void OnParentResourcesChanged(object? sender, ResourceDictionaryChangedEventArgs e)
     {
         RefreshResourceBindings();
+        UpdateImplicitStyle();
         NotifyDescendantResourcesChanged();
     }
 
     private void OnApplicationResourcesChanged(object? sender, ResourceDictionaryChangedEventArgs e)
     {
         RefreshResourceBindings();
+        UpdateImplicitStyle();
         NotifyDescendantResourcesChanged();
+    }
+
+    private void UpdateImplicitStyle()
+    {
+        if (IsControlType() || !ImplicitStylePolicy.ShouldApply(Style, _activeImplicitStyle))
+        {
+            return;
+        }
+
+        if (TryFindResource(GetType(), out var resource) && resource is Style style)
+        {
+            if (!ReferenceEquals(Style, style))
+            {
+                _isApplyingImplicitStyle = true;
+                try
+                {
+                    Style = style;
+                }
+                finally
+                {
+                    _isApplyingImplicitStyle = false;
+                }
+            }
+
+            _activeImplicitStyle = style;
+            return;
+        }
+
+        if (ImplicitStylePolicy.CanClearImplicit(Style, _activeImplicitStyle))
+        {
+            _isApplyingImplicitStyle = true;
+            try
+            {
+                Style = null;
+            }
+            finally
+            {
+                _isApplyingImplicitStyle = false;
+            }
+        }
+
+        _activeImplicitStyle = null;
+    }
+
+    private bool IsControlType()
+    {
+        return this is Control;
     }
 
     private void AttachResourceParent(FrameworkElement? parent)

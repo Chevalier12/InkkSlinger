@@ -151,4 +151,27 @@ public class DynamicResourceXamlTests
         var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
         Assert.Contains("DynamicResource is not supported", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void DynamicResource_BrushResource_CoercesToColorProperty_OnEachUpdate()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <SolidColorBrush x:Key="AccentBrush" Color="#112233" />
+  </UserControl.Resources>
+  <Grid>
+    <Button x:Name="Probe" Background="{DynamicResource AccentBrush}" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var button = Assert.IsType<Button>(root.FindName("Probe"));
+        Assert.Equal(new Microsoft.Xna.Framework.Color(0x11, 0x22, 0x33), button.Background);
+
+        root.Resources["AccentBrush"] = new SolidColorBrush(new Microsoft.Xna.Framework.Color(0x44, 0x55, 0x66));
+
+        Assert.Equal(new Microsoft.Xna.Framework.Color(0x44, 0x55, 0x66), button.Background);
+    }
 }

@@ -147,7 +147,7 @@ public class Slider : Control
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float size && size >= 6f ? size : 6f));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
@@ -168,14 +168,14 @@ public class Slider : Control
             typeof(Slider),
             new FrameworkPropertyMetadata(new Color(140, 140, 140), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(Slider),
             new FrameworkPropertyMetadata(new Color(100, 100, 100), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty IsMouseOverProperty =
+    public new static readonly DependencyProperty IsMouseOverProperty =
         DependencyProperty.Register(
             nameof(IsMouseOver),
             typeof(bool),
@@ -266,7 +266,7 @@ public class Slider : Control
         set => SetValue(ThumbSizeProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
@@ -284,13 +284,13 @@ public class Slider : Control
         set => SetValue(ThumbBrushProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public bool IsMouseOver
+    public new bool IsMouseOver
     {
         get => GetValue<bool>(IsMouseOverProperty);
         private set => SetValue(IsMouseOverProperty, value);

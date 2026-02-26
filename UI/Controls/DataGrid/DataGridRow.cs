@@ -7,7 +7,7 @@ namespace InkkSlinger;
 
 public class DataGridRow : Control
 {
-    public static readonly DependencyProperty IsSelectedProperty =
+    public new static readonly DependencyProperty IsSelectedProperty =
         DependencyProperty.Register(
             nameof(IsSelected),
             typeof(bool),
@@ -41,7 +41,7 @@ public class DataGridRow : Control
         _detailsPresenter.SetLogicalParent(this);
     }
 
-    public bool IsSelected
+    public new bool IsSelected
     {
         get => GetValue<bool>(IsSelectedProperty);
         set => SetValue(IsSelectedProperty, value);
@@ -64,6 +64,8 @@ public class DataGridRow : Control
     internal object? Item { get; private set; }
 
     internal IReadOnlyList<DataGridCell> Cells => _cells;
+
+    internal DataGridRowHeader RowHeaderForTesting => _rowHeader;
 
     internal DataGrid? Owner { get; private set; }
 
@@ -89,7 +91,17 @@ public class DataGridRow : Control
         yield return _detailsPresenter;
     }
 
-    internal void Configure(DataGrid owner, int rowIndex, object? item, IReadOnlyList<DataGridColumn> columns, IReadOnlyList<float> columnWidths)
+    internal void Configure(
+        DataGrid owner,
+        int rowIndex,
+        object? item,
+        IReadOnlyList<DataGridColumn> columns,
+        IReadOnlyList<float> columnWidths,
+        bool showRowHeader,
+        bool showHorizontalGridLines,
+        bool showVerticalGridLines,
+        Color horizontalGridLineBrush,
+        Color verticalGridLineBrush)
     {
         var previousColumnCount = _cells.Count;
         var previousWidthCount = _columnWidths.Count;
@@ -99,6 +111,7 @@ public class DataGridRow : Control
 
         _rowHeader.Text = (rowIndex + 1).ToString();
         _rowHeader.Font = owner.Font;
+        _rowHeader.IsVisible = showRowHeader;
         _columnWidths.Clear();
         _columnWidths.AddRange(columnWidths);
 
@@ -126,6 +139,10 @@ public class DataGridRow : Control
             cell.Value = owner.GetValueForCell(item, columns[i]);
             cell.Font = owner.Font;
             cell.Foreground = owner.Foreground;
+            cell.ShowHorizontalGridLine = showHorizontalGridLines;
+            cell.ShowVerticalGridLine = showVerticalGridLines;
+            cell.HorizontalGridLineBrush = horizontalGridLineBrush;
+            cell.VerticalGridLineBrush = verticalGridLineBrush;
         }
 
         if (previousColumnCount != _cells.Count || previousWidthCount != _columnWidths.Count)
@@ -153,7 +170,9 @@ public class DataGridRow : Control
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        var rowHeaderWidth = Owner?.RowHeaderWidth ?? 0f;
+        var rowHeaderWidth = Owner?.RowHeadersVisibleForLayout == true
+            ? Owner.RowHeaderWidth
+            : 0f;
         var rowHeight = Owner?.RowHeight ?? 24f;
         _rowHeader.Measure(new Vector2(rowHeaderWidth, rowHeight));
 
@@ -178,11 +197,9 @@ public class DataGridRow : Control
         var y = LayoutSlot.Y;
         var height = finalSize.Y;
 
-        var rowHeaderWidth = Owner?.RowHeaderWidth ?? 0f;
-        if (Owner?.ShowRowHeaders != true)
-        {
-            rowHeaderWidth = 0f;
-        }
+        var rowHeaderWidth = Owner?.RowHeadersVisibleForLayout == true
+            ? Owner.RowHeaderWidth
+            : 0f;
 
         _rowHeader.Arrange(new LayoutRect(x, y, rowHeaderWidth, height));
         x += rowHeaderWidth;
@@ -200,7 +217,10 @@ public class DataGridRow : Control
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
-        var fill = IsSelected ? SelectedRowBackground : RowBackground;
+        var hasStyleDrivenBackground = GetValueSource(BackgroundProperty) != DependencyPropertyValueSource.Default;
+        var fill = hasStyleDrivenBackground
+            ? Background
+            : (IsSelected ? SelectedRowBackground : RowBackground);
         UiDrawing.DrawFilledRect(spriteBatch, LayoutSlot, fill, Opacity);
     }
 

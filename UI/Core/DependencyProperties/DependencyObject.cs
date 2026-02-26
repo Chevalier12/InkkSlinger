@@ -153,8 +153,18 @@ public abstract class DependencyObject
 
         if (!ReferenceEquals(value, UnsetValue))
         {
+            if (DependencyValueCoercion.TryCoerce(value, dependencyProperty.PropertyType, out var coercedValue))
+            {
+                value = coercedValue;
+            }
+
             ValidatePropertyValue(dependencyProperty, value);
             value = CoerceValue(dependencyProperty, value);
+            if (DependencyValueCoercion.TryCoerce(value, dependencyProperty.PropertyType, out coercedValue))
+            {
+                value = coercedValue;
+            }
+
             ValidatePropertyValue(dependencyProperty, value);
         }
 

@@ -750,7 +750,27 @@ public sealed class DocumentLayoutEngine
                     AppendSpanStyledText(underline, style with { IsUnderline = true }, buffer);
                     break;
                 case Hyperlink hyperlink:
-                    AppendSpanStyledText(hyperlink, style with { IsHyperlink = true, IsUnderline = true }, buffer);
+                    var hyperlinkForeground = style.ForegroundOverride;
+                    if (hyperlink.GetValueSource(Hyperlink.ForegroundProperty) != DependencyPropertyValueSource.Default)
+                    {
+                        hyperlinkForeground = hyperlink.Foreground;
+                    }
+
+                    var hyperlinkUnderline = true;
+                    if (hyperlink.GetValueSource(Hyperlink.TextDecorationsProperty) != DependencyPropertyValueSource.Default)
+                    {
+                        hyperlinkUnderline = ContainsUnderlineDecoration(hyperlink.TextDecorations);
+                    }
+
+                    AppendSpanStyledText(
+                        hyperlink,
+                        style with
+                        {
+                            IsHyperlink = true,
+                            IsUnderline = hyperlinkUnderline,
+                            ForegroundOverride = hyperlinkForeground
+                        },
+                        buffer);
                     break;
                 case Span span:
                     AppendSpanStyledText(span, style, buffer);
@@ -767,6 +787,25 @@ public sealed class DocumentLayoutEngine
             {
                 AppendInlineStyledText(inline, style, buffer);
             }
+        }
+
+        private static bool ContainsUnderlineDecoration(string? decorations)
+        {
+            if (string.IsNullOrWhiteSpace(decorations))
+            {
+                return false;
+            }
+
+            var parts = decorations.Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < parts.Length; i++)
+            {
+                if (string.Equals(parts[i].Trim(), "Underline", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static List<TableCellPlacement> BuildTablePlacements(Table table)
@@ -1070,4 +1109,6 @@ internal static class FlowDocumentPlainTextExtensions
         }
     }
 }
+
+
 

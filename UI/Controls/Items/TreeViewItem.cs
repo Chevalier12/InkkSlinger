@@ -21,7 +21,7 @@ public class TreeViewItem : ItemsControl
             typeof(TreeViewItem),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty IsSelectedProperty =
+    public new static readonly DependencyProperty IsSelectedProperty =
         DependencyProperty.Register(
             nameof(IsSelected),
             typeof(bool),
@@ -48,7 +48,7 @@ public class TreeViewItem : ItemsControl
                     }
                 }));
 
-    public static readonly DependencyProperty ForegroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
             typeof(Color),
@@ -98,7 +98,7 @@ public class TreeViewItem : ItemsControl
         set => SetValue(IsExpandedProperty, value);
     }
 
-    public bool IsSelected
+    public new bool IsSelected
     {
         get => GetValue<bool>(IsSelectedProperty);
         set => SetValue(IsSelectedProperty, value);
@@ -110,7 +110,7 @@ public class TreeViewItem : ItemsControl
         set => SetValue(FontProperty, value);
     }
 
-    public Color Foreground
+    public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
         set => SetValue(ForegroundProperty, value);

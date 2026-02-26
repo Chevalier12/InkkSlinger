@@ -21,28 +21,28 @@ public class DataGrid : ItemsControl
                 null,
                 FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ForegroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
             typeof(Color),
             typeof(DataGrid),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
             typeof(DataGrid),
             new FrameworkPropertyMetadata(new Color(20, 30, 45), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(DataGrid),
             new FrameworkPropertyMetadata(new Color(69, 99, 132), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderThicknessProperty =
+    public new static readonly DependencyProperty BorderThicknessProperty =
         DependencyProperty.Register(
             nameof(BorderThickness),
             typeof(float),
@@ -51,6 +51,48 @@ public class DataGrid : ItemsControl
                 1f,
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float v && v >= 0f ? v : 0f));
+
+    public static readonly DependencyProperty RowBackgroundProperty =
+        DependencyProperty.Register(
+            nameof(RowBackground),
+            typeof(Color),
+            typeof(DataGrid),
+            new FrameworkPropertyMetadata(new Color(24, 34, 49), FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty AlternatingRowBackgroundProperty =
+        DependencyProperty.Register(
+            nameof(AlternatingRowBackground),
+            typeof(Color),
+            typeof(DataGrid),
+            new FrameworkPropertyMetadata(new Color(24, 34, 49), FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty HorizontalGridLinesBrushProperty =
+        DependencyProperty.Register(
+            nameof(HorizontalGridLinesBrush),
+            typeof(Color),
+            typeof(DataGrid),
+            new FrameworkPropertyMetadata(new Color(69, 99, 132), FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty VerticalGridLinesBrushProperty =
+        DependencyProperty.Register(
+            nameof(VerticalGridLinesBrush),
+            typeof(Color),
+            typeof(DataGrid),
+            new FrameworkPropertyMetadata(new Color(69, 99, 132), FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty GridLinesVisibilityProperty =
+        DependencyProperty.Register(
+            nameof(GridLinesVisibility),
+            typeof(DataGridGridLinesVisibility),
+            typeof(DataGrid),
+            new FrameworkPropertyMetadata(DataGridGridLinesVisibility.None, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty HeadersVisibilityProperty =
+        DependencyProperty.Register(
+            nameof(HeadersVisibility),
+            typeof(DataGridHeadersVisibility),
+            typeof(DataGrid),
+            new FrameworkPropertyMetadata(DataGridHeadersVisibility.All, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
     public static readonly DependencyProperty RowHeightProperty =
         DependencyProperty.Register(
@@ -207,28 +249,64 @@ public class DataGrid : ItemsControl
         set => SetValue(FontProperty, value);
     }
 
-    public Color Foreground
+    public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
         set => SetValue(ForegroundProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public float BorderThickness
+    public new float BorderThickness
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
+    }
+
+    public Color RowBackground
+    {
+        get => GetValue<Color>(RowBackgroundProperty);
+        set => SetValue(RowBackgroundProperty, value);
+    }
+
+    public Color AlternatingRowBackground
+    {
+        get => GetValue<Color>(AlternatingRowBackgroundProperty);
+        set => SetValue(AlternatingRowBackgroundProperty, value);
+    }
+
+    public Color HorizontalGridLinesBrush
+    {
+        get => GetValue<Color>(HorizontalGridLinesBrushProperty);
+        set => SetValue(HorizontalGridLinesBrushProperty, value);
+    }
+
+    public Color VerticalGridLinesBrush
+    {
+        get => GetValue<Color>(VerticalGridLinesBrushProperty);
+        set => SetValue(VerticalGridLinesBrushProperty, value);
+    }
+
+    public DataGridGridLinesVisibility GridLinesVisibility
+    {
+        get => GetValue<DataGridGridLinesVisibility>(GridLinesVisibilityProperty);
+        set => SetValue(GridLinesVisibilityProperty, value);
+    }
+
+    public DataGridHeadersVisibility HeadersVisibility
+    {
+        get => GetValue<DataGridHeadersVisibility>(HeadersVisibilityProperty);
+        set => SetValue(HeadersVisibilityProperty, value);
     }
 
     public float RowHeight
@@ -288,6 +366,16 @@ public class DataGrid : ItemsControl
     internal int RealizedRowCountForTesting => _rowsHost.RealizedChildrenCount;
 
     internal ScrollViewer ScrollViewerForTesting => _scrollViewer;
+
+    internal IReadOnlyList<DataGridRow> RowsForTesting => GetRows();
+
+    internal bool ColumnHeadersVisibleForTesting => ColumnHeadersVisibleForLayout;
+
+    internal bool RowHeadersVisibleForTesting => RowHeadersVisibleForLayout;
+
+    internal bool HorizontalGridLinesVisibleForTesting => HorizontalGridLinesVisibleForLayout;
+
+    internal bool VerticalGridLinesVisibleForTesting => VerticalGridLinesVisibleForLayout;
 
     protected override bool IncludeGeneratedChildrenInVisualTree => false;
 
@@ -399,9 +487,22 @@ public class DataGrid : ItemsControl
 
         if (args.Property == ShowRowHeadersProperty ||
             args.Property == RowHeaderWidthProperty ||
-            args.Property == ColumnHeaderHeightProperty)
+            args.Property == ColumnHeaderHeightProperty ||
+            args.Property == HeadersVisibilityProperty)
         {
+            SyncRowsHost();
+            InvalidateMeasure();
             InvalidateArrange();
+        }
+
+        if (args.Property == RowBackgroundProperty ||
+            args.Property == AlternatingRowBackgroundProperty ||
+            args.Property == GridLinesVisibilityProperty ||
+            args.Property == HorizontalGridLinesBrushProperty ||
+            args.Property == VerticalGridLinesBrushProperty)
+        {
+            SyncRowsHost();
+            InvalidateVisual();
         }
     }
 
@@ -414,17 +515,20 @@ public class DataGrid : ItemsControl
         var innerWidth = MathF.Max(0f, availableSize.X - (border * 2f));
         var innerHeight = MathF.Max(0f, availableSize.Y - (border * 2f));
 
-        var rowHeaderWidth = ShowRowHeaders ? RowHeaderWidth : 0f;
-        var headerHeight = ColumnHeaderHeight;
+        var rowHeaderWidth = RowHeadersVisibleForLayout ? RowHeaderWidth : 0f;
+        var headerHeight = ColumnHeadersVisibleForLayout ? ColumnHeaderHeight : 0f;
         var headersWidth = GetColumnsTotalWidth();
 
         _cornerHeader.Font = Font;
         _cornerHeader.Measure(new Vector2(rowHeaderWidth, headerHeight));
 
-        foreach (var header in _columnHeaders)
+        if (ColumnHeadersVisibleForLayout)
         {
-            var width = _columnWidths[header.ColumnIndex];
-            header.Measure(new Vector2(width, headerHeight));
+            foreach (var header in _columnHeaders)
+            {
+                var width = _columnWidths[header.ColumnIndex];
+                header.Measure(new Vector2(width, headerHeight));
+            }
         }
 
         var scrollWidth = MathF.Max(0f, innerWidth);
@@ -445,18 +549,19 @@ public class DataGrid : ItemsControl
         var innerWidth = MathF.Max(0f, finalSize.X - (border * 2f));
         var innerHeight = MathF.Max(0f, finalSize.Y - (border * 2f));
 
-        var rowHeaderWidth = ShowRowHeaders ? RowHeaderWidth : 0f;
-        var headerHeight = ColumnHeaderHeight;
+        var rowHeaderWidth = RowHeadersVisibleForLayout ? RowHeaderWidth : 0f;
+        var headerHeight = ColumnHeadersVisibleForLayout ? ColumnHeaderHeight : 0f;
         var scrollY = innerY + headerHeight;
         var scrollHeight = MathF.Max(0f, innerHeight - headerHeight);
 
-        _cornerHeader.IsVisible = ShowRowHeaders;
+        _cornerHeader.IsVisible = RowHeadersVisibleForLayout && ColumnHeadersVisibleForLayout;
         _cornerHeader.Arrange(new LayoutRect(innerX, innerY, rowHeaderWidth, headerHeight));
 
         var headersX = innerX + rowHeaderWidth - _scrollViewer.HorizontalOffset;
         for (var i = 0; i < _columnHeaders.Count; i++)
         {
             var width = _columnWidths[i];
+            _columnHeaders[i].IsVisible = ColumnHeadersVisibleForLayout;
             _columnHeaders[i].Arrange(new LayoutRect(headersX, innerY, width, headerHeight));
             headersX += width;
         }
@@ -715,7 +820,18 @@ public class DataGrid : ItemsControl
             }
 
             var item = ItemFromContainer(row);
-            row.Configure(this, i, item, _resolvedColumns, _columnWidths);
+            row.Configure(
+                this,
+                i,
+                item,
+                _resolvedColumns,
+                _columnWidths,
+                RowHeadersVisibleForLayout,
+                HorizontalGridLinesVisibleForLayout,
+                VerticalGridLinesVisibleForLayout,
+                HorizontalGridLinesBrush,
+                VerticalGridLinesBrush);
+            row.RowBackground = (i % 2 == 1) ? AlternatingRowBackground : RowBackground;
             row.UpdateSelectionState(SelectionUnit, SelectedRowIndex, SelectedColumnIndex);
         }
 
@@ -814,5 +930,18 @@ public class DataGrid : ItemsControl
             InvalidateArrange();
         }
     }
+
+    internal bool RowHeadersVisibleForLayout =>
+        ShowRowHeaders &&
+        (HeadersVisibility == DataGridHeadersVisibility.Row || HeadersVisibility == DataGridHeadersVisibility.All);
+
+    internal bool ColumnHeadersVisibleForLayout =>
+        HeadersVisibility == DataGridHeadersVisibility.Column || HeadersVisibility == DataGridHeadersVisibility.All;
+
+    internal bool HorizontalGridLinesVisibleForLayout =>
+        GridLinesVisibility == DataGridGridLinesVisibility.Horizontal || GridLinesVisibility == DataGridGridLinesVisibility.All;
+
+    internal bool VerticalGridLinesVisibleForLayout =>
+        GridLinesVisibility == DataGridGridLinesVisibility.Vertical || GridLinesVisibility == DataGridGridLinesVisibility.All;
 }
 

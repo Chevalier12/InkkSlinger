@@ -32,21 +32,21 @@ public class ResizeGrip : Control
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float size && size >= 8f ? size : 8f));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
             typeof(ResizeGrip),
             new FrameworkPropertyMetadata(new Color(0, 0, 0, 0), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ForegroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
             typeof(Color),
             typeof(ResizeGrip),
             new FrameworkPropertyMetadata(new Color(196, 196, 196), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty IsMouseOverProperty =
+    public new static readonly DependencyProperty IsMouseOverProperty =
         DependencyProperty.Register(
             nameof(IsMouseOver),
             typeof(bool),
@@ -83,19 +83,19 @@ public class ResizeGrip : Control
         set => SetValue(GripSizeProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
     }
 
-    public Color Foreground
+    public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
         set => SetValue(ForegroundProperty, value);
     }
 
-    public bool IsMouseOver
+    public new bool IsMouseOver
     {
         get => GetValue<bool>(IsMouseOverProperty);
         private set => SetValue(IsMouseOverProperty, value);

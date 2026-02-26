@@ -12,3 +12,19 @@ public enum DataGridSortDirection
     Ascending,
     Descending
 }
+
+public enum DataGridGridLinesVisibility
+{
+    None,
+    Horizontal,
+    Vertical,
+    All
+}
+
+public enum DataGridHeadersVisibility
+{
+    None,
+    Column,
+    Row,
+    All
+}

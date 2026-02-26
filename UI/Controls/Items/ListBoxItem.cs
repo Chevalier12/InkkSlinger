@@ -5,14 +5,28 @@ namespace InkkSlinger;
 
 public class ListBoxItem : ContentControl
 {
-    public static readonly DependencyProperty IsSelectedProperty =
+    public new static readonly DependencyProperty IsMouseOverProperty =
+        DependencyProperty.Register(
+            nameof(IsMouseOver),
+            typeof(bool),
+            typeof(ListBoxItem),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public new static readonly DependencyProperty IsSelectedProperty =
         DependencyProperty.Register(
             nameof(IsSelected),
             typeof(bool),
             typeof(ListBoxItem),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
+        DependencyProperty.Register(
+            nameof(Foreground),
+            typeof(Color),
+            typeof(ListBoxItem),
+            new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
@@ -26,27 +40,39 @@ public class ListBoxItem : ContentControl
             typeof(ListBoxItem),
             new FrameworkPropertyMetadata(new Color(55, 98, 145), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(ListBoxItem),
             new FrameworkPropertyMetadata(new Color(90, 90, 90), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty PaddingProperty =
+    public new static readonly DependencyProperty PaddingProperty =
         DependencyProperty.Register(
             nameof(Padding),
             typeof(Thickness),
             typeof(ListBoxItem),
             new FrameworkPropertyMetadata(new Thickness(8f, 6f, 8f, 6f), FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
-    public bool IsSelected
+    public new bool IsSelected
     {
         get => GetValue<bool>(IsSelectedProperty);
         set => SetValue(IsSelectedProperty, value);
     }
 
-    public Color Background
+    public new bool IsMouseOver
+    {
+        get => GetValue<bool>(IsMouseOverProperty);
+        set => SetValue(IsMouseOverProperty, value);
+    }
+
+    public new Color Foreground
+    {
+        get => GetValue<Color>(ForegroundProperty);
+        set => SetValue(ForegroundProperty, value);
+    }
+
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
@@ -58,13 +84,13 @@ public class ListBoxItem : ContentControl
         set => SetValue(SelectedBackgroundProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public Thickness Padding
+    public new Thickness Padding
     {
         get => GetValue<Thickness>(PaddingProperty);
         set => SetValue(PaddingProperty, value);

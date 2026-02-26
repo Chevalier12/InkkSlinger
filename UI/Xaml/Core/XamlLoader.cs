@@ -21,6 +21,10 @@ public static class XamlLoader
     private static FrameworkElement? CurrentLoadRootScope;
     [ThreadStatic]
     private static Stack<FrameworkElement>? CurrentConstructionScopes;
+    [ThreadStatic]
+    private static Stack<string>? CurrentXamlBaseDirectories;
+    [ThreadStatic]
+    private static Stack<Action<XamlDiagnostic>>? CurrentDiagnosticSinks;
 
     public static UIElement LoadFromFile(string path, object? codeBehind = null)
     {
@@ -28,7 +32,12 @@ public static class XamlLoader
         var xaml = File.ReadAllText(path);
 
         var loadStart = Stopwatch.GetTimestamp();
-        var root = LoadFromString(xaml, codeBehind);
+        var baseDirectory = Path.GetDirectoryName(Path.GetFullPath(path));
+        UIElement root = null!;
+        RunWithinXamlBaseDirectory(baseDirectory, () =>
+        {
+            root = LoadFromString(xaml, codeBehind);
+        });
         return root;
     }
 
@@ -80,7 +89,52 @@ public static class XamlLoader
     {
         var fileReadStart = Stopwatch.GetTimestamp();
         var xaml = File.ReadAllText(path);
-        LoadIntoFromString(target, xaml, codeBehind);
+        var baseDirectory = Path.GetDirectoryName(Path.GetFullPath(path));
+        RunWithinXamlBaseDirectory(baseDirectory, () =>
+        {
+            LoadIntoFromString(target, xaml, codeBehind);
+        });
+    }
+
+    public static void LoadApplicationResourcesFromFile(string path, bool clearExisting = false)
+    {
+        var xaml = File.ReadAllText(path);
+        var baseDirectory = Path.GetDirectoryName(Path.GetFullPath(path));
+        RunWithinXamlBaseDirectory(baseDirectory, () =>
+        {
+            LoadApplicationResourcesFromString(xaml, clearExisting);
+        });
+    }
+
+    public static void LoadApplicationResourcesFromString(string xaml, bool clearExisting = false)
+    {
+        XDocument document;
+        try
+        {
+            document = XDocument.Parse(xaml, LoadOptions.SetLineInfo);
+        }
+        catch (Exception ex)
+        {
+            throw CreateXamlException("Failed to parse application XML document.", null, ex);
+        }
+
+        if (document.Root == null)
+        {
+            throw CreateXamlException("Application XML document has no root element.", document);
+        }
+
+        var loadedResources = ParseApplicationResourcesDocument(document.Root);
+        var appResources = UiApplication.Current.Resources;
+        if (clearExisting)
+        {
+            appResources.Clear();
+            foreach (var merged in appResources.MergedDictionaries.ToList())
+            {
+                appResources.RemoveMergedDictionary(merged);
+            }
+        }
+
+        MergeResourceDictionaryContents(appResources, loadedResources);
     }
 
     public static void LoadIntoFromString(UserControl target, string xaml, object? codeBehind = null)
@@ -277,7 +331,11 @@ public static class XamlLoader
 
             throw CreateXamlException(
                 $"Property element '{propertyElementName}' could not be resolved on '{targetType.Name}'.",
-                propertyElement);
+                propertyElement,
+                code: XamlDiagnosticCode.UnknownProperty,
+                propertyName: propertyName,
+                elementName: targetType.Name,
+                hint: $"Check whether '{propertyName}' exists on '{targetType.Name}'.");
         }
 
         if (TryApplyRichTextPropertyElement(target, propertyName, propertyElementName, propertyElement, codeBehind, resourceScope))
@@ -285,11 +343,48 @@ public static class XamlLoader
             return true;
         }
 
+        if (target is ResourceDictionary dictionary &&
+            string.Equals(propertyName, nameof(ResourceDictionary.MergedDictionaries), StringComparison.Ordinal))
+        {
+            var listItemScope = target as FrameworkElement ?? resourceScope;
+            foreach (var itemElement in propertyElement.Elements())
+            {
+                var item = BuildObject(itemElement, codeBehind, listItemScope);
+                if (item is not ResourceDictionary mergedDictionary)
+                {
+                    throw CreateXamlException(
+                        $"Property element '{propertyElementName}' can only contain ResourceDictionary elements.",
+                        itemElement);
+                }
+
+                dictionary.AddMergedDictionary(mergedDictionary);
+            }
+
+            return true;
+        }
+
         var propertyValue = property.GetValue(target);
         if (propertyValue is ResourceDictionary resourceDictionary)
         {
             var resourceScopeForEntries = target as FrameworkElement ?? resourceScope;
-            foreach (var resourceElement in propertyElement.Elements())
+            var resourceElements = propertyElement.Elements().ToList();
+            if (resourceElements.Count == 1 &&
+                string.Equals(resourceElements[0].Name.LocalName, nameof(ResourceDictionary), StringComparison.Ordinal) &&
+                !HasExplicitXamlKey(resourceElements[0]))
+            {
+                var nestedDictionary = BuildObject(resourceElements[0], codeBehind, resourceScopeForEntries) as ResourceDictionary;
+                if (nestedDictionary == null)
+                {
+                    throw CreateXamlException(
+                        $"Property element '{propertyElementName}' expected a ResourceDictionary value.",
+                        resourceElements[0]);
+                }
+
+                MergeResourceDictionaryContents(resourceDictionary, nestedDictionary);
+                return true;
+            }
+
+            foreach (var resourceElement in resourceElements)
             {
                 AddResourceEntry(resourceDictionary, resourceElement, codeBehind, resourceScopeForEntries);
             }
@@ -402,6 +497,29 @@ public static class XamlLoader
             return BuildBindingGroupElement(element);
         }
 
+        if (string.Equals(element.Name.LocalName, nameof(Color), StringComparison.Ordinal))
+        {
+            return BuildColorObject(element);
+        }
+
+        if (string.Equals(element.Name.LocalName, nameof(ResourceDictionary), StringComparison.Ordinal))
+        {
+            var dictionary = new ResourceDictionary();
+            ApplyAttributes(dictionary, element, codeBehind, resourceScope);
+
+            foreach (var childElement in element.Elements())
+            {
+                if (TryApplyPropertyElement(dictionary, childElement, codeBehind, resourceScope))
+                {
+                    continue;
+                }
+
+                AddResourceEntry(dictionary, childElement, codeBehind, resourceScope);
+            }
+
+            return dictionary;
+        }
+
         var type = ResolveElementType(element.Name.LocalName);
         var instance = CreateObjectInstance(type, element);
 
@@ -420,6 +538,60 @@ public static class XamlLoader
         }
 
         return instance;
+    }
+
+    private static ResourceDictionary ParseApplicationResourcesDocument(XElement rootElement)
+    {
+        if (string.Equals(rootElement.Name.LocalName, nameof(ResourceDictionary), StringComparison.Ordinal))
+        {
+            return BuildObject(rootElement, codeBehind: null, resourceScope: null) as ResourceDictionary
+                ?? throw CreateXamlException("Failed to parse ResourceDictionary root.", rootElement);
+        }
+
+        if (!string.Equals(rootElement.Name.LocalName, "Application", StringComparison.Ordinal))
+        {
+            throw CreateXamlException(
+                $"Application XML root must be 'Application' or '{nameof(ResourceDictionary)}'.",
+                rootElement);
+        }
+
+        var resourcesPropertyElements = rootElement.Elements()
+            .Where(child => string.Equals(child.Name.LocalName, "Application.Resources", StringComparison.Ordinal))
+            .ToList();
+
+        if (resourcesPropertyElements.Count == 0)
+        {
+            return new ResourceDictionary();
+        }
+
+        if (resourcesPropertyElements.Count > 1)
+        {
+            throw CreateXamlException("Application XML can contain only one Application.Resources element.", rootElement);
+        }
+
+        var resources = new ResourceDictionary();
+        var resourcesProperty = resourcesPropertyElements[0];
+        foreach (var resourceElement in resourcesProperty.Elements())
+        {
+            if (string.Equals(resourceElement.Name.LocalName, nameof(ResourceDictionary), StringComparison.Ordinal) &&
+                !HasExplicitXamlKey(resourceElement))
+            {
+                var nestedDictionary = BuildObject(resourceElement, codeBehind: null, resourceScope: null) as ResourceDictionary;
+                if (nestedDictionary == null)
+                {
+                    throw CreateXamlException(
+                        "Application.Resources dictionary element must resolve to ResourceDictionary.",
+                        resourceElement);
+                }
+
+                MergeResourceDictionaryContents(resources, nestedDictionary);
+                continue;
+            }
+
+            AddResourceEntry(resources, resourceElement, codeBehind: null, resourceScope: null);
+        }
+
+        return resources;
     }
 
     private static void ApplyAttributes(object target, XElement element, object? codeBehind, FrameworkElement? resourceScope = null)
@@ -478,6 +650,14 @@ public static class XamlLoader
                     continue;
                 }
 
+                if (target is ResourceDictionary dictionary &&
+                    string.Equals(localName, "Source", StringComparison.Ordinal))
+                {
+                    var loadedDictionary = LoadResourceDictionaryFromSource(value, codeBehind, resourceScope, attribute);
+                    dictionary.AddMergedDictionary(loadedDictionary);
+                    continue;
+                }
+
                 if (TryApplyDynamicResourceExpression(target, localName, value))
                 {
                     continue;
@@ -492,10 +672,36 @@ public static class XamlLoader
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException)
             {
+                var diagnosticCode = ex switch
+                {
+                    FormatException => XamlDiagnosticCode.InvalidValue,
+                    ArgumentException => XamlDiagnosticCode.InvalidValue,
+                    _ when ex.Message.Contains("not supported", StringComparison.OrdinalIgnoreCase) =>
+                        XamlDiagnosticCode.UnsupportedConstruct,
+                    _ when ex.Message.Contains("was not found on type", StringComparison.OrdinalIgnoreCase) =>
+                        XamlDiagnosticCode.UnknownProperty,
+                    _ => XamlDiagnosticCode.GeneralFailure
+                };
+
+                var hint = diagnosticCode switch
+                {
+                    XamlDiagnosticCode.UnknownProperty =>
+                        $"Verify that '{attribute.Name.LocalName}' is a valid property on '{element.Name.LocalName}'.",
+                    XamlDiagnosticCode.InvalidValue =>
+                        $"Check the value assigned to '{attribute.Name.LocalName}' and ensure it can be converted.",
+                    XamlDiagnosticCode.UnsupportedConstruct =>
+                        $"'{attribute.Name.LocalName}' uses a construct that is not supported by this loader.",
+                    _ => null
+                };
+
                 throw CreateXamlException(
                     $"Failed to apply attribute '{attribute.Name.LocalName}' on '{element.Name.LocalName}': {ex.Message}",
                     attribute,
-                    ex);
+                    ex,
+                    diagnosticCode,
+                    propertyName: attribute.Name.LocalName,
+                    hint: hint,
+                    elementName: element.Name.LocalName);
             }
         }
     }
@@ -1060,37 +1266,394 @@ public static class XamlLoader
             throw CreateXamlException("ControlTemplate requires a visual root element.", element);
         }
 
+        var templateVisualRoot = new XElement(visualRoot);
+        var templateBindings = BuildTemplateBindings(templateVisualRoot, targetType, resourceScope);
+        var templateNamedElementTypes = BuildTemplateNamedElementTypeMap(templateVisualRoot);
         var template = new ControlTemplate(owner =>
         {
-            return BuildElement(new XElement(visualRoot), null, owner);
+            return BuildElement(new XElement(templateVisualRoot), null, owner);
         })
         {
             TargetType = targetType
         };
 
+        foreach (var templateBinding in templateBindings)
+        {
+            template.BindTemplate(
+                templateBinding.TargetName,
+                templateBinding.TargetProperty,
+                templateBinding.SourceProperty,
+                templateBinding.FallbackValue,
+                templateBinding.TargetNullValue);
+        }
+
         foreach (var triggerElement in triggerDefinitions)
         {
-            template.Triggers.Add(BuildTriggerBase(triggerElement, targetType, resourceScope));
+            template.Triggers.Add(
+                BuildTriggerBase(
+                    triggerElement,
+                    targetType,
+                    resourceScope,
+                    targetName =>
+                    {
+                        return templateNamedElementTypes.TryGetValue(targetName, out var elementType)
+                            ? elementType
+                            : null;
+                    }));
         }
 
         return template;
     }
 
-    private static TriggerBase BuildTriggerBase(XElement element, Type styleTargetType, FrameworkElement? resourceScope)
+    private static IReadOnlyDictionary<string, Type> BuildTemplateNamedElementTypeMap(XElement templateVisualRoot)
+    {
+        var map = new Dictionary<string, Type>(StringComparer.Ordinal);
+        foreach (var element in templateVisualRoot.DescendantsAndSelf())
+        {
+            if (!TryGetTemplateElementName(element, out var name))
+            {
+                continue;
+            }
+
+            map[name] = ResolveElementType(element.Name.LocalName);
+        }
+
+        return map;
+    }
+
+    private static IReadOnlyList<TemplateBindingRegistration> BuildTemplateBindings(
+        XElement templateVisualRoot,
+        Type templateTargetType,
+        FrameworkElement? resourceScope)
+    {
+        var registrations = new List<TemplateBindingRegistration>();
+        var usedNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var element in templateVisualRoot.DescendantsAndSelf())
+        {
+            if (TryGetTemplateElementName(element, out var existingName))
+            {
+                usedNames.Add(existingName);
+            }
+        }
+
+        var autoNameCounter = 0;
+        var templateElements = templateVisualRoot.DescendantsAndSelf().ToList();
+        for (var i = 0; i < templateElements.Count; i++)
+        {
+            var templateElement = templateElements[i];
+            var isRoot = i == 0;
+            foreach (var attribute in templateElement.Attributes().ToList())
+            {
+                if (attribute.IsNamespaceDeclaration || !string.IsNullOrEmpty(attribute.Name.NamespaceName))
+                {
+                    continue;
+                }
+
+                var targetPropertyName = attribute.Name.LocalName;
+                if (targetPropertyName.Contains('.', StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (!TryParseTemplateBindingMarkup(attribute.Value, attribute, out var markup))
+                {
+                    continue;
+                }
+
+                var elementType = ResolveElementType(templateElement.Name.LocalName);
+                var sourceProperty = ResolveDependencyProperty(templateTargetType, markup.SourcePropertyName);
+                if (sourceProperty == null)
+                {
+                    throw CreateXamlException(
+                        $"TemplateBinding source property '{markup.SourcePropertyName}' was not found on '{templateTargetType.Name}'.",
+                        attribute);
+                }
+
+                var targetProperty = ResolveDependencyProperty(elementType, targetPropertyName);
+                if (targetProperty == null)
+                {
+                    throw CreateXamlException(
+                        $"TemplateBinding target property '{targetPropertyName}' was not found on '{elementType.Name}'.",
+                        attribute);
+                }
+
+                var targetName = ResolveTemplateBindingTargetName(
+                    templateElement,
+                    elementType,
+                    isRoot,
+                    usedNames,
+                    ref autoNameCounter,
+                    attribute);
+
+                object? fallbackValue = null;
+                if (markup.HasFallbackValue)
+                {
+                    fallbackValue = ConvertTemplateBindingOptionValue(
+                        markup.FallbackValueText,
+                        sourceProperty.PropertyType,
+                        resourceScope,
+                        attribute,
+                        nameof(Binding.FallbackValue));
+                }
+
+                object? targetNullValue = null;
+                if (markup.HasTargetNullValue)
+                {
+                    targetNullValue = ConvertTemplateBindingOptionValue(
+                        markup.TargetNullValueText,
+                        sourceProperty.PropertyType,
+                        resourceScope,
+                        attribute,
+                        nameof(Binding.TargetNullValue));
+                }
+
+                registrations.Add(
+                    new TemplateBindingRegistration(
+                        targetName,
+                        targetProperty,
+                        sourceProperty,
+                        fallbackValue,
+                        targetNullValue));
+
+                attribute.Remove();
+            }
+        }
+
+        return registrations;
+    }
+
+    private static bool TryGetTemplateElementName(XElement element, out string name)
+    {
+        name = string.Empty;
+
+        var localName = element.Attribute(nameof(FrameworkElement.Name))?.Value?.Trim();
+        if (!string.IsNullOrWhiteSpace(localName))
+        {
+            name = localName;
+            return true;
+        }
+
+        var xName = element.Attribute(XName.Get("Name", XamlNamespace.NamespaceName))?.Value?.Trim();
+        if (!string.IsNullOrWhiteSpace(xName))
+        {
+            name = xName;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string ResolveTemplateBindingTargetName(
+        XElement element,
+        Type elementType,
+        bool isRoot,
+        ISet<string> usedNames,
+        ref int autoNameCounter,
+        XObject location)
+    {
+        if (isRoot)
+        {
+            return string.Empty;
+        }
+
+        if (TryGetTemplateElementName(element, out var existingName))
+        {
+            usedNames.Add(existingName);
+            return existingName;
+        }
+
+        if (!typeof(FrameworkElement).IsAssignableFrom(elementType))
+        {
+            throw CreateXamlException(
+                $"TemplateBinding target element '{elementType.Name}' must be a FrameworkElement or explicitly named root.",
+                location);
+        }
+
+        string generatedName;
+        do
+        {
+            generatedName = $"__templateBindingTarget{autoNameCounter.ToString(CultureInfo.InvariantCulture)}";
+            autoNameCounter++;
+        }
+        while (usedNames.Contains(generatedName));
+
+        usedNames.Add(generatedName);
+        element.SetAttributeValue(nameof(FrameworkElement.Name), generatedName);
+        return generatedName;
+    }
+
+    private static bool TryParseTemplateBindingMarkup(string rawValue, XObject location, out TemplateBindingMarkup markup)
+    {
+        markup = default;
+
+        var trimmed = rawValue.Trim();
+        if (!trimmed.StartsWith("{", StringComparison.Ordinal) ||
+            !trimmed.EndsWith("}", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var body = trimmed[1..^1].Trim();
+        if (!body.StartsWith("TemplateBinding", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var arguments = body["TemplateBinding".Length..].Trim();
+        if (string.IsNullOrWhiteSpace(arguments))
+        {
+            throw CreateXamlException("TemplateBinding markup requires a source property.", location);
+        }
+
+        var parts = SplitBindingSegments(arguments);
+        if (parts.Count == 0)
+        {
+            throw CreateXamlException("TemplateBinding markup requires a source property.", location);
+        }
+
+        string? sourcePropertyName = null;
+        string? fallbackValueText = null;
+        var hasFallbackValue = false;
+        string? targetNullValueText = null;
+        var hasTargetNullValue = false;
+
+        var index = 0;
+        if (!parts[0].Contains('=', StringComparison.Ordinal))
+        {
+            sourcePropertyName = parts[0].Trim();
+            index = 1;
+        }
+
+        for (var i = index; i < parts.Count; i++)
+        {
+            var part = parts[i];
+            var equalsIndex = part.IndexOf('=');
+            if (equalsIndex <= 0 || equalsIndex == part.Length - 1)
+            {
+                throw CreateXamlException($"TemplateBinding segment '{part}' is invalid.", location);
+            }
+
+            var key = part[..equalsIndex].Trim();
+            var value = part[(equalsIndex + 1)..].Trim();
+            if (string.Equals(key, "Property", StringComparison.OrdinalIgnoreCase))
+            {
+                sourcePropertyName = value;
+                continue;
+            }
+
+            if (string.Equals(key, nameof(Binding.FallbackValue), StringComparison.OrdinalIgnoreCase))
+            {
+                fallbackValueText = value;
+                hasFallbackValue = true;
+                continue;
+            }
+
+            if (string.Equals(key, nameof(Binding.TargetNullValue), StringComparison.OrdinalIgnoreCase))
+            {
+                targetNullValueText = value;
+                hasTargetNullValue = true;
+                continue;
+            }
+
+            throw CreateXamlException($"TemplateBinding option '{key}' is not supported.", location);
+        }
+
+        if (string.IsNullOrWhiteSpace(sourcePropertyName))
+        {
+            throw CreateXamlException("TemplateBinding markup requires a source property.", location);
+        }
+
+        markup = new TemplateBindingMarkup(
+            sourcePropertyName!,
+            fallbackValueText,
+            hasFallbackValue,
+            targetNullValueText,
+            hasTargetNullValue);
+        return true;
+    }
+
+    private static object? ConvertTemplateBindingOptionValue(
+        string? rawValueText,
+        Type valueType,
+        FrameworkElement? resourceScope,
+        XObject location,
+        string optionName)
+    {
+        if (rawValueText == null)
+        {
+            return null;
+        }
+
+        var trimmed = rawValueText.Trim();
+        if (TryParseDynamicResourceKey(trimmed, out _))
+        {
+            throw CreateXamlException($"{optionName} does not support DynamicResource.", location);
+        }
+
+        if (TryParseStaticResourceKey(trimmed, out var staticResourceKey))
+        {
+            var resolved = ResolveStaticResourceValue(staticResourceKey, resourceScope);
+            try
+            {
+                return CoerceResolvedResourceValue(resolved, valueType, $"TemplateBinding {optionName}");
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException)
+            {
+                throw CreateXamlException($"Failed to parse TemplateBinding {optionName}: {ex.Message}", location, ex);
+            }
+        }
+
+        try
+        {
+            return ConvertValue(trimmed, valueType);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException)
+        {
+            throw CreateXamlException($"Failed to parse TemplateBinding {optionName}: {ex.Message}", location, ex);
+        }
+    }
+
+    public static IDisposable PushDiagnosticSink(Action<XamlDiagnostic> sink)
+    {
+        ArgumentNullException.ThrowIfNull(sink);
+        CurrentDiagnosticSinks ??= new Stack<Action<XamlDiagnostic>>();
+        CurrentDiagnosticSinks.Push(sink);
+        return new DiagnosticSinkScope(sink);
+    }
+
+    private readonly record struct TemplateBindingRegistration(
+        string TargetName,
+        DependencyProperty TargetProperty,
+        DependencyProperty SourceProperty,
+        object? FallbackValue,
+        object? TargetNullValue);
+
+    private readonly record struct TemplateBindingMarkup(
+        string SourcePropertyName,
+        string? FallbackValueText,
+        bool HasFallbackValue,
+        string? TargetNullValueText,
+        bool HasTargetNullValue);
+
+    private static TriggerBase BuildTriggerBase(
+        XElement element,
+        Type styleTargetType,
+        FrameworkElement? resourceScope,
+        Func<string, Type?>? setterTargetTypeResolver = null)
     {
         if (string.Equals(element.Name.LocalName, nameof(Trigger), StringComparison.Ordinal))
         {
-            return BuildPropertyTrigger(element, styleTargetType, resourceScope);
+            return BuildPropertyTrigger(element, styleTargetType, resourceScope, setterTargetTypeResolver);
         }
 
         if (string.Equals(element.Name.LocalName, nameof(DataTrigger), StringComparison.Ordinal))
         {
-            return BuildDataTrigger(element, styleTargetType, resourceScope);
+            return BuildDataTrigger(element, styleTargetType, resourceScope, setterTargetTypeResolver);
         }
 
         if (string.Equals(element.Name.LocalName, nameof(MultiDataTrigger), StringComparison.Ordinal))
         {
-            return BuildMultiDataTrigger(element, styleTargetType, resourceScope);
+            return BuildMultiDataTrigger(element, styleTargetType, resourceScope, setterTargetTypeResolver);
         }
 
         if (string.Equals(element.Name.LocalName, nameof(EventTrigger), StringComparison.Ordinal))
@@ -1122,7 +1685,11 @@ public static class XamlLoader
         return trigger;
     }
 
-    private static Trigger BuildPropertyTrigger(XElement element, Type styleTargetType, FrameworkElement? resourceScope)
+    private static Trigger BuildPropertyTrigger(
+        XElement element,
+        Type styleTargetType,
+        FrameworkElement? resourceScope,
+        Func<string, Type?>? setterTargetTypeResolver)
     {
         var propertyText = GetRequiredAttributeValue(element, nameof(Trigger.Property));
         var dependencyProperty = ResolveSetterProperty(styleTargetType, propertyText);
@@ -1132,7 +1699,7 @@ public static class XamlLoader
         var trigger = new Trigger(dependencyProperty, triggerValue);
         foreach (var setterElement in EnumerateSetterElements(element, "Trigger.Setters"))
         {
-            trigger.Setters.Add(BuildSetter(setterElement, styleTargetType, resourceScope));
+            trigger.Setters.Add(BuildSetter(setterElement, styleTargetType, resourceScope, setterTargetTypeResolver));
         }
 
         BuildTriggerActions(element, styleTargetType, resourceScope, trigger, "Trigger.EnterActions", "Trigger.ExitActions");
@@ -1140,7 +1707,11 @@ public static class XamlLoader
         return trigger;
     }
 
-    private static DataTrigger BuildDataTrigger(XElement element, Type styleTargetType, FrameworkElement? resourceScope)
+    private static DataTrigger BuildDataTrigger(
+        XElement element,
+        Type styleTargetType,
+        FrameworkElement? resourceScope,
+        Func<string, Type?>? setterTargetTypeResolver)
     {
         Binding? binding = null;
         var bindingText = GetOptionalAttributeValue(element, nameof(DataTrigger.Binding));
@@ -1175,7 +1746,7 @@ public static class XamlLoader
 
         foreach (var setterElement in EnumerateSetterElements(element, "DataTrigger.Setters"))
         {
-            dataTrigger.Setters.Add(BuildSetter(setterElement, styleTargetType, resourceScope));
+            dataTrigger.Setters.Add(BuildSetter(setterElement, styleTargetType, resourceScope, setterTargetTypeResolver));
         }
 
         BuildTriggerActions(element, styleTargetType, resourceScope, dataTrigger, "DataTrigger.EnterActions", "DataTrigger.ExitActions");
@@ -1183,7 +1754,11 @@ public static class XamlLoader
         return dataTrigger;
     }
 
-    private static MultiDataTrigger BuildMultiDataTrigger(XElement element, Type styleTargetType, FrameworkElement? resourceScope)
+    private static MultiDataTrigger BuildMultiDataTrigger(
+        XElement element,
+        Type styleTargetType,
+        FrameworkElement? resourceScope,
+        Func<string, Type?>? setterTargetTypeResolver)
     {
         var multiDataTrigger = new MultiDataTrigger();
 
@@ -1199,7 +1774,7 @@ public static class XamlLoader
 
         foreach (var setterElement in EnumerateSetterElements(element, "MultiDataTrigger.Setters"))
         {
-            multiDataTrigger.Setters.Add(BuildSetter(setterElement, styleTargetType, resourceScope));
+            multiDataTrigger.Setters.Add(BuildSetter(setterElement, styleTargetType, resourceScope, setterTargetTypeResolver));
         }
 
         BuildTriggerActions(
@@ -1499,40 +2074,133 @@ public static class XamlLoader
             return seek;
         }
 
-        throw CreateXamlException($"Trigger action '{actionElement.Name.LocalName}' is not supported.", actionElement);
+        throw CreateXamlException(
+            $"Trigger action '{actionElement.Name.LocalName}' is not supported.",
+            actionElement,
+            code: XamlDiagnosticCode.UnsupportedConstruct,
+            hint: "Use BeginStoryboard or supported trigger actions only.");
     }
 
-    private static Setter BuildSetter(XElement element, Type styleTargetType, FrameworkElement? resourceScope)
+    private static Setter BuildSetter(
+        XElement element,
+        Type styleTargetType,
+        FrameworkElement? resourceScope,
+        Func<string, Type?>? setterTargetTypeResolver = null)
     {
         var targetName = GetOptionalAttributeValue(element, "TargetName") ?? string.Empty;
         var propertyText = GetRequiredAttributeValue(element, nameof(Setter.Property));
-        var dependencyProperty = ResolveSetterProperty(styleTargetType, propertyText);
-        var valueText = GetRequiredAttributeValue(element, nameof(Setter.Value));
-        object convertedValue;
-        if (TryParseDynamicResourceKey(valueText, out _))
-        {
-            throw CreateXamlException(
-                "DynamicResource is not supported in Setter/Trigger action values yet; use StaticResource or direct property assignment.",
-                element);
-        }
-
-        if (TryParseStaticResourceKey(valueText, out var staticResourceKey))
-        {
-            var resolved = ResolveStaticResourceValue(staticResourceKey, resourceScope);
-            convertedValue = CoerceResolvedResourceValue(
-                resolved,
-                dependencyProperty.PropertyType,
-                $"Setter for {styleTargetType.Name}.{dependencyProperty.Name}");
-        }
-        else
-        {
-            convertedValue = ConvertValue(valueText, dependencyProperty.PropertyType);
-        }
+        var dependencyProperty = ResolveSetterProperty(styleTargetType, propertyText, targetName, setterTargetTypeResolver);
+        var convertedValue = BuildSetterValue(element, styleTargetType, dependencyProperty, resourceScope);
 
         return new Setter(targetName, dependencyProperty, convertedValue);
     }
 
-    private static DependencyProperty ResolveSetterProperty(Type styleTargetType, string propertyText)
+    private static object BuildSetterValue(
+        XElement setterElement,
+        Type styleTargetType,
+        DependencyProperty dependencyProperty,
+        FrameworkElement? resourceScope)
+    {
+        var valueText = GetOptionalAttributeValue(setterElement, nameof(Setter.Value));
+        var valueElements = setterElement.Elements()
+            .Where(child => string.Equals(child.Name.LocalName, "Setter.Value", StringComparison.Ordinal))
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(valueText) && valueElements.Count > 0)
+        {
+            throw CreateXamlException("Setter cannot define both Value attribute and Setter.Value property element.", setterElement);
+        }
+
+        if (valueElements.Count > 1)
+        {
+            throw CreateXamlException("Setter can contain at most one Setter.Value property element.", setterElement);
+        }
+
+        var unexpectedChild = setterElement.Elements()
+            .FirstOrDefault(child => !string.Equals(child.Name.LocalName, "Setter.Value", StringComparison.Ordinal));
+        if (unexpectedChild != null)
+        {
+            throw CreateXamlException("Setter only supports Setter.Value child elements.", unexpectedChild);
+        }
+
+        if (!string.IsNullOrWhiteSpace(valueText))
+        {
+            return ConvertSetterTextValue(
+                valueText,
+                styleTargetType,
+                dependencyProperty,
+                resourceScope,
+                setterElement);
+        }
+
+        if (valueElements.Count == 1)
+        {
+            var valueElement = valueElements[0];
+            var contentElements = valueElement.Elements().ToList();
+            if (contentElements.Count > 1)
+            {
+                throw CreateXamlException("Setter.Value must contain either one object element or text content.", valueElement);
+            }
+
+            if (contentElements.Count == 1)
+            {
+                var built = BuildObject(contentElements[0], codeBehind: null, resourceScope);
+                return CoerceResolvedResourceValue(
+                    built,
+                    dependencyProperty.PropertyType,
+                    $"Setter for {styleTargetType.Name}.{dependencyProperty.Name}");
+            }
+
+            var rawText = (valueElement.Value ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(rawText))
+            {
+                throw CreateXamlException("Setter.Value requires either text content or a single child object element.", valueElement);
+            }
+
+            return ConvertSetterTextValue(
+                rawText,
+                styleTargetType,
+                dependencyProperty,
+                resourceScope,
+                valueElement);
+        }
+
+        throw CreateXamlException(
+            $"Element '{setterElement.Name.LocalName}' requires attribute '{nameof(Setter.Value)}' or a Setter.Value property element.",
+            setterElement);
+    }
+
+    private static object ConvertSetterTextValue(
+        string rawValueText,
+        Type styleTargetType,
+        DependencyProperty dependencyProperty,
+        FrameworkElement? resourceScope,
+        XObject location)
+    {
+        if (TryParseDynamicResourceKey(rawValueText, out _))
+        {
+            throw CreateXamlException(
+                "DynamicResource is not supported in Setter/Trigger action values yet; use StaticResource or direct property assignment.",
+                location);
+        }
+
+        if (TryParseStaticResourceKey(rawValueText, out var staticResourceKey))
+        {
+            var resolved = ResolveStaticResourceValue(staticResourceKey, resourceScope);
+            return CoerceResolvedResourceValue(
+                resolved,
+                dependencyProperty.PropertyType,
+                $"Setter for {styleTargetType.Name}.{dependencyProperty.Name}");
+        }
+
+        return ConvertValue(rawValueText, dependencyProperty.PropertyType);
+    }
+
+    private static DependencyProperty ResolveSetterProperty(
+        Type styleTargetType,
+        string propertyText,
+        string? targetName = null,
+        Func<string, Type?>? setterTargetTypeResolver = null)
     {
         if (propertyText.Contains('.', StringComparison.Ordinal))
         {
@@ -1543,6 +2211,20 @@ public static class XamlLoader
             return ResolveDependencyProperty(ownerType, propertyName)
                    ?? throw new InvalidOperationException(
                        $"Dependency property '{propertyText}' was not found.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetName) && setterTargetTypeResolver != null)
+        {
+            var targetType = setterTargetTypeResolver(targetName);
+            if (targetType == null)
+            {
+                throw new InvalidOperationException(
+                    $"Template target '{targetName}' was not found while resolving dependency property '{propertyText}'.");
+            }
+
+            return ResolveDependencyProperty(targetType, propertyText)
+                   ?? throw new InvalidOperationException(
+                       $"Dependency property '{propertyText}' was not found on template target '{targetType.Name}'.");
         }
 
         return ResolveDependencyProperty(styleTargetType, propertyText)
@@ -1641,9 +2323,59 @@ public static class XamlLoader
         object? codeBehind,
         FrameworkElement? resourceScope)
     {
-        var resourceValue = BuildObject(resourceElement, codeBehind, resourceScope);
+        var lookupScope = CreateResourceLookupScope(dictionary, resourceScope);
+        var resourceValue = BuildObject(resourceElement, codeBehind, lookupScope);
         var resourceKey = GetResourceKey(resourceElement, resourceValue);
         dictionary[resourceKey] = resourceValue;
+    }
+
+    private static FrameworkElement? CreateResourceLookupScope(ResourceDictionary dictionary, FrameworkElement? parentScope)
+    {
+        if (dictionary.Count == 0 && dictionary.MergedDictionaries.Count == 0)
+        {
+            return parentScope;
+        }
+
+        var scope = new FrameworkElement();
+        if (parentScope != null)
+        {
+            scope.SetVisualParent(parentScope);
+            scope.SetLogicalParent(parentScope);
+        }
+
+        foreach (var entry in dictionary)
+        {
+            scope.Resources[entry.Key] = entry.Value;
+        }
+
+        foreach (var mergedDictionary in dictionary.MergedDictionaries)
+        {
+            scope.Resources.AddMergedDictionary(mergedDictionary);
+        }
+
+        return scope;
+    }
+
+    private static bool HasExplicitXamlKey(XElement element)
+    {
+        return element.Attributes().Any(attribute =>
+            !attribute.IsNamespaceDeclaration &&
+            attribute.Name.Namespace == XamlNamespace &&
+            string.Equals(attribute.Name.LocalName, "Key", StringComparison.Ordinal) &&
+            !string.IsNullOrWhiteSpace(attribute.Value));
+    }
+
+    private static void MergeResourceDictionaryContents(ResourceDictionary target, ResourceDictionary source)
+    {
+        foreach (var pair in source)
+        {
+            target[pair.Key] = pair.Value;
+        }
+
+        foreach (var mergedDictionary in source.MergedDictionaries)
+        {
+            target.AddMergedDictionary(mergedDictionary);
+        }
     }
 
     private static object GetResourceKey(XElement resourceElement, object resourceValue)
@@ -1761,6 +2493,96 @@ public static class XamlLoader
         throw CreateXamlException($"StaticResource key '{key}' was not found.");
     }
 
+    private static ResourceDictionary LoadResourceDictionaryFromSource(
+        string source,
+        object? codeBehind,
+        FrameworkElement? resourceScope,
+        XObject? location)
+    {
+        var resolvedPath = ResolveXamlSourcePath(source, location);
+        if (!File.Exists(resolvedPath))
+        {
+            throw CreateXamlException($"ResourceDictionary source '{source}' was not found at '{resolvedPath}'.", location);
+        }
+
+        var xaml = File.ReadAllText(resolvedPath);
+        XDocument document;
+        try
+        {
+            document = XDocument.Parse(xaml, LoadOptions.SetLineInfo);
+        }
+        catch (Exception ex)
+        {
+            throw CreateXamlException($"Failed to parse ResourceDictionary source '{resolvedPath}'.", location, ex);
+        }
+
+        var root = document.Root;
+        if (root == null ||
+            !string.Equals(root.Name.LocalName, nameof(ResourceDictionary), StringComparison.Ordinal))
+        {
+            throw CreateXamlException(
+                $"ResourceDictionary source '{resolvedPath}' must have a ResourceDictionary root element.",
+                location);
+        }
+
+        ResourceDictionary dictionary = null!;
+        var baseDirectory = Path.GetDirectoryName(resolvedPath);
+        RunWithinXamlBaseDirectory(baseDirectory, () =>
+        {
+            dictionary = (ResourceDictionary)BuildObject(root, codeBehind, resourceScope);
+        });
+        return dictionary;
+    }
+
+    private static string ResolveXamlSourcePath(string source, XObject? location)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            throw CreateXamlException("ResourceDictionary Source cannot be empty.", location);
+        }
+
+        var trimmed = source.Trim();
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absoluteUri) && absoluteUri.IsFile)
+        {
+            return Path.GetFullPath(absoluteUri.LocalPath);
+        }
+
+        if (Path.IsPathRooted(trimmed))
+        {
+            return Path.GetFullPath(trimmed);
+        }
+
+        if (CurrentXamlBaseDirectories == null || CurrentXamlBaseDirectories.Count == 0)
+        {
+            throw CreateXamlException(
+                $"Relative ResourceDictionary Source '{trimmed}' requires loading from a file-based XAML context.",
+                location);
+        }
+
+        return Path.GetFullPath(Path.Combine(CurrentXamlBaseDirectories.Peek(), trimmed));
+    }
+
+    private static void RunWithinXamlBaseDirectory(string? directory, Action action)
+    {
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            action();
+            return;
+        }
+
+        CurrentXamlBaseDirectories ??= new Stack<string>();
+        var normalized = Path.GetFullPath(directory);
+        CurrentXamlBaseDirectories.Push(normalized);
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _ = CurrentXamlBaseDirectories.Pop();
+        }
+    }
+
     private static void RunWithinConstructionScope(FrameworkElement? scope, Action action)
     {
         if (scope == null)
@@ -1826,6 +2648,11 @@ public static class XamlLoader
         if (resolved is string text)
         {
             return ConvertValue(text, targetType);
+        }
+
+        if (DependencyValueCoercion.TryCoerce(resolved, targetType, out var coerced))
+        {
+            return coerced!;
         }
 
         throw new InvalidOperationException(
@@ -1915,7 +2742,11 @@ public static class XamlLoader
         if (property == null || !property.CanWrite)
         {
             throw CreateXamlException(
-                $"Property '{propertyName}' was not found on type '{target.GetType().Name}'.");
+                $"Property '{propertyName}' was not found on type '{target.GetType().Name}'.",
+                code: XamlDiagnosticCode.UnknownProperty,
+                propertyName: propertyName,
+                elementName: target.GetType().Name,
+                hint: $"Check whether '{propertyName}' exists as a writable property on '{target.GetType().Name}'.");
         }
 
         object converted;
@@ -2567,13 +3398,19 @@ public static class XamlLoader
         if (TryParseStaticResourceKey(valueText, out var staticResourceKey))
         {
             var resolved = ResolveStaticResourceValue(staticResourceKey, target as FrameworkElement, resourceScope);
-            if (!valueType.IsInstanceOfType(resolved))
+            if (valueType.IsInstanceOfType(resolved))
+            {
+                converted = resolved;
+            }
+            else if (DependencyValueCoercion.TryCoerce(resolved, valueType, out var coerced))
+            {
+                converted = coerced!;
+            }
+            else
             {
                 throw CreateXamlException(
                     $"Attached property '{ownerType.Name}.{propertyName}' requires a value assignable to '{valueType.Name}', but resource resolved to '{resolved.GetType().Name}'.");
             }
-
-            converted = resolved;
         }
         else
         {
@@ -2689,6 +3526,11 @@ public static class XamlLoader
 
         if (targetType == typeof(float))
         {
+            if (string.Equals(rawValue.Trim(), "Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                return float.NaN;
+            }
+
             return float.Parse(rawValue, CultureInfo.InvariantCulture);
         }
 
@@ -2700,6 +3542,11 @@ public static class XamlLoader
         if (targetType == typeof(Color))
         {
             return ParseColor(rawValue);
+        }
+
+        if (targetType == typeof(Brush))
+        {
+            return new SolidColorBrush(ParseColor(rawValue));
         }
 
         if (targetType == typeof(Thickness))
@@ -2806,7 +3653,33 @@ public static class XamlLoader
             return Enum.Parse(targetType, rawValue, ignoreCase: true);
         }
 
-        throw CreateXamlException($"Cannot convert value '{rawValue}' to type '{targetType.Name}'.");
+        throw CreateXamlException(
+            $"Cannot convert value '{rawValue}' to type '{targetType.Name}'.",
+            code: XamlDiagnosticCode.InvalidValue,
+            hint: $"Provide a value compatible with '{targetType.Name}'.");
+    }
+
+    private static Color BuildColorObject(XElement element)
+    {
+        if (element.Elements().Any())
+        {
+            throw CreateXamlException("Color element does not support child elements.", element);
+        }
+
+        var text = (element.Value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw CreateXamlException("Color element requires a color value.", element);
+        }
+
+        try
+        {
+            return ParseColor(text);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException)
+        {
+            throw CreateXamlException(ex.Message, element, ex);
+        }
     }
 
     private static Color ParseColor(string value)
@@ -2850,6 +3723,13 @@ public static class XamlLoader
             return new Thickness(float.Parse(parts[0], CultureInfo.InvariantCulture));
         }
 
+        if (parts.Length == 2)
+        {
+            var horizontal = float.Parse(parts[0], CultureInfo.InvariantCulture);
+            var vertical = float.Parse(parts[1], CultureInfo.InvariantCulture);
+            return new Thickness(horizontal, vertical, horizontal, vertical);
+        }
+
         if (parts.Length == 4)
         {
             return new Thickness(
@@ -2859,7 +3739,7 @@ public static class XamlLoader
                 float.Parse(parts[3], CultureInfo.InvariantCulture));
         }
 
-        throw CreateXamlException("Thickness must be one value or four comma-separated values.");
+        throw CreateXamlException("Thickness must be one, two, or four comma-separated values.");
     }
 
     private static GridLength ParseGridLength(string value)
@@ -2932,7 +3812,11 @@ public static class XamlLoader
             return type;
         }
 
-        throw CreateXamlException($"XAML element '{elementName}' could not be resolved.");
+        throw CreateXamlException(
+            $"XAML element '{elementName}' could not be resolved.",
+            code: XamlDiagnosticCode.UnknownElement,
+            elementName: elementName,
+            hint: "Ensure the element type is public and mapped in the XAML type map.");
     }
 
     private static Dictionary<string, Type> BuildTypeMap()
@@ -2955,6 +3839,9 @@ public static class XamlLoader
         map["Polyline"] = typeof(PolylineShape);
         map["Path"] = typeof(PathShape);
         map["Geometry"] = typeof(Geometry);
+        map["Color"] = typeof(Color);
+        map[nameof(SolidColorBrush)] = typeof(SolidColorBrush);
+        map[nameof(GridViewRowPresenter)] = typeof(GridViewRowPresenter);
 
         return map;
     }
@@ -3283,12 +4170,134 @@ public static class XamlLoader
         return result;
     }
 
-    private static InvalidOperationException CreateXamlException(string message, XObject? location = null, Exception? inner = null)
+    private sealed class DiagnosticSinkScope : IDisposable
     {
-        var fullMessage = message + FormatLineInfo(location);
+        private readonly Action<XamlDiagnostic> _sink;
+        private bool _disposed;
+
+        public DiagnosticSinkScope(Action<XamlDiagnostic> sink)
+        {
+            _sink = sink;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            if (CurrentDiagnosticSinks == null || CurrentDiagnosticSinks.Count == 0)
+            {
+                return;
+            }
+
+            if (ReferenceEquals(CurrentDiagnosticSinks.Peek(), _sink))
+            {
+                CurrentDiagnosticSinks.Pop();
+            }
+            else
+            {
+                var preserved = new Stack<Action<XamlDiagnostic>>();
+                var removed = false;
+                while (CurrentDiagnosticSinks.Count > 0)
+                {
+                    var current = CurrentDiagnosticSinks.Pop();
+                    if (!removed && ReferenceEquals(current, _sink))
+                    {
+                        removed = true;
+                        continue;
+                    }
+
+                    preserved.Push(current);
+                }
+
+                while (preserved.Count > 0)
+                {
+                    CurrentDiagnosticSinks.Push(preserved.Pop());
+                }
+            }
+
+            if (CurrentDiagnosticSinks.Count == 0)
+            {
+                CurrentDiagnosticSinks = null;
+            }
+        }
+    }
+
+    private static InvalidOperationException CreateXamlException(
+        string message,
+        XObject? location = null,
+        Exception? inner = null,
+        XamlDiagnosticCode code = XamlDiagnosticCode.GeneralFailure,
+        string? propertyName = null,
+        string? hint = null,
+        string? elementName = null)
+    {
+        var diagnostic = BuildDiagnostic(message, location, code, propertyName, hint, elementName);
+        EmitDiagnostic(diagnostic);
+
+        var fullMessage = message + FormatLineInfo(location) + FormatDiagnosticContext(diagnostic);
         return inner == null
             ? new InvalidOperationException(fullMessage)
             : new InvalidOperationException(fullMessage, inner);
+    }
+
+    private static XamlDiagnostic BuildDiagnostic(
+        string message,
+        XObject? location,
+        XamlDiagnosticCode code,
+        string? propertyName,
+        string? hint,
+        string? elementName)
+    {
+        var resolvedElementName = elementName;
+        var resolvedPropertyName = propertyName;
+        if (location is XAttribute attribute)
+        {
+            resolvedElementName ??= attribute.Parent?.Name.LocalName;
+            resolvedPropertyName ??= attribute.Name.LocalName;
+        }
+        else if (location is XElement element)
+        {
+            resolvedElementName ??= element.Name.LocalName;
+        }
+        else if (location is XNode node)
+        {
+            resolvedElementName ??= node.Parent?.Name.LocalName;
+        }
+
+        int? line = null;
+        int? position = null;
+        if (location is IXmlLineInfo lineInfo && lineInfo.HasLineInfo())
+        {
+            line = lineInfo.LineNumber;
+            position = lineInfo.LinePosition;
+        }
+
+        return new XamlDiagnostic(
+            code,
+            message,
+            resolvedElementName,
+            resolvedPropertyName,
+            line,
+            position,
+            hint);
+    }
+
+    private static void EmitDiagnostic(XamlDiagnostic diagnostic)
+    {
+        if (CurrentDiagnosticSinks == null || CurrentDiagnosticSinks.Count == 0)
+        {
+            return;
+        }
+
+        var sinks = CurrentDiagnosticSinks.ToArray();
+        foreach (var sink in sinks)
+        {
+            sink(diagnostic);
+        }
     }
 
     private static string FormatLineInfo(XObject? location)
@@ -3299,5 +4308,36 @@ public static class XamlLoader
         }
 
         return $" (Line {lineInfo.LineNumber}, Position {lineInfo.LinePosition})";
+    }
+
+    private static string FormatDiagnosticContext(XamlDiagnostic diagnostic)
+    {
+        var parts = new List<string> { $"Code={diagnostic.Code}" };
+        if (!string.IsNullOrWhiteSpace(diagnostic.ElementName))
+        {
+            parts.Add($"Element={diagnostic.ElementName}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(diagnostic.PropertyName))
+        {
+            parts.Add($"Property={diagnostic.PropertyName}");
+        }
+
+        if (diagnostic.Line.HasValue)
+        {
+            parts.Add($"Line={diagnostic.Line.Value}");
+        }
+
+        if (diagnostic.Position.HasValue)
+        {
+            parts.Add($"Position={diagnostic.Position.Value}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(diagnostic.Hint))
+        {
+            parts.Add($"Hint={diagnostic.Hint}");
+        }
+
+        return $" [Diagnostic: {string.Join(", ", parts)}]";
     }
 }

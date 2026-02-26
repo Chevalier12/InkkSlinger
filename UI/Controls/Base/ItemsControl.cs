@@ -24,6 +24,13 @@ public class ItemsControl : Control
             typeof(ItemsControl),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
+    public static readonly DependencyProperty ItemContainerStyleProperty =
+        DependencyProperty.Register(
+            nameof(ItemContainerStyle),
+            typeof(Style),
+            typeof(ItemsControl),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+
     public static readonly DependencyProperty ItemsSourceProperty =
         DependencyProperty.Register(
             nameof(ItemsSource),
@@ -46,6 +53,7 @@ public class ItemsControl : Control
     private readonly List<UIElement> _groupContainers = [];
     private readonly ObservableCollection<GroupStyle> _groupStyle = [];
     private readonly Dictionary<Type, DataTemplate?> _implicitTemplateCache = new();
+    private readonly Dictionary<UIElement, Style?> _appliedItemContainerStyles = new();
     private UIElement? _activeItemsHost;
     private ICollectionView? _itemsSourceView;
     private CollectionViewSource? _itemsSourceReference;
@@ -78,6 +86,12 @@ public class ItemsControl : Control
     {
         get => GetValue<DataTemplateSelector>(ItemTemplateSelectorProperty);
         set => SetValue(ItemTemplateSelectorProperty, value);
+    }
+
+    public Style? ItemContainerStyle
+    {
+        get => GetValue<Style>(ItemContainerStyleProperty);
+        set => SetValue(ItemContainerStyleProperty, value);
     }
 
     public ObservableCollection<GroupStyle> GroupStyle => _groupStyle;
@@ -244,10 +258,12 @@ public class ItemsControl : Control
 
     protected virtual void PrepareContainerForItemOverride(UIElement element, object item, int index)
     {
+        ApplyItemContainerStyle(element);
     }
 
     protected virtual void ClearContainerForItemOverride(UIElement element, object item)
     {
+        RemoveItemContainerStyleTracking(element);
     }
 
     protected virtual void OnItemsChanged()
@@ -260,6 +276,12 @@ public class ItemsControl : Control
         if (args.Property == ItemTemplateProperty || args.Property == ItemTemplateSelectorProperty)
         {
             _implicitTemplateCache.Clear();
+            RegenerateChildren();
+            return;
+        }
+
+        if (args.Property == ItemContainerStyleProperty)
+        {
             RegenerateChildren();
         }
     }
@@ -324,6 +346,7 @@ public class ItemsControl : Control
         _groupContainers.Clear();
         _generatedChildren.Clear();
         _itemContainers.Clear();
+        _appliedItemContainerStyles.Clear();
 
         var sourceItems = GetProjectedItems();
         for (var i = 0; i < sourceItems.Count; i++)
@@ -929,12 +952,73 @@ public class ItemsControl : Control
         _itemContainers.Clear();
         _itemContainers.AddRange(nextContainers);
         _groupContainers.Clear();
+        _appliedItemContainerStyles.Clear();
 
         RefreshContainerPreparationFrom(0);
         OnItemsChanged();
         (_activeItemsHost as FrameworkElement)?.InvalidateMeasure();
         InvalidateMeasure();
         return true;
+    }
+
+    private void ApplyItemContainerStyle(UIElement element)
+    {
+        if (element is not FrameworkElement frameworkElement)
+        {
+            return;
+        }
+
+        if (ItemContainerStyle == null)
+        {
+            if (_appliedItemContainerStyles.TryGetValue(element, out var trackedStyle))
+            {
+                if (frameworkElement.GetValueSource(FrameworkElement.StyleProperty) == DependencyPropertyValueSource.Local &&
+                    ReferenceEquals(frameworkElement.Style, trackedStyle))
+                {
+                    frameworkElement.ClearValue(FrameworkElement.StyleProperty);
+                }
+
+                _appliedItemContainerStyles.Remove(element);
+            }
+
+            return;
+        }
+
+        if (_appliedItemContainerStyles.TryGetValue(element, out var previouslyAppliedStyle))
+        {
+            if (frameworkElement.GetValueSource(FrameworkElement.StyleProperty) == DependencyPropertyValueSource.Local &&
+                !ReferenceEquals(frameworkElement.Style, previouslyAppliedStyle))
+            {
+                _appliedItemContainerStyles.Remove(element);
+                return;
+            }
+        }
+        else if (frameworkElement.GetValueSource(FrameworkElement.StyleProperty) == DependencyPropertyValueSource.Local)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(frameworkElement.Style, ItemContainerStyle))
+        {
+            frameworkElement.Style = ItemContainerStyle;
+        }
+
+        _appliedItemContainerStyles[element] = ItemContainerStyle;
+    }
+
+    private void RemoveItemContainerStyleTracking(UIElement element)
+    {
+        if (element is FrameworkElement frameworkElement &&
+            _appliedItemContainerStyles.TryGetValue(element, out var trackedStyle))
+        {
+            if (frameworkElement.GetValueSource(FrameworkElement.StyleProperty) == DependencyPropertyValueSource.Local &&
+                ReferenceEquals(frameworkElement.Style, trackedStyle))
+            {
+                frameworkElement.ClearValue(FrameworkElement.StyleProperty);
+            }
+        }
+
+        _appliedItemContainerStyles.Remove(element);
     }
 
     private static int FindUnmatchedEntry(

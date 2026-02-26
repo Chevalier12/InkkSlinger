@@ -15,7 +15,7 @@ public class ToggleButton : Button
     public static readonly RoutedEvent IndeterminateEvent =
         new(nameof(Indeterminate), RoutingStrategy.Bubble);
 
-    public static readonly DependencyProperty IsCheckedProperty =
+    public new static readonly DependencyProperty IsCheckedProperty =
         DependencyProperty.Register(
             nameof(IsChecked),
             typeof(bool?),
@@ -64,7 +64,7 @@ public class ToggleButton : Button
         set => SetValue(IsThreeStateProperty, value);
     }
 
-    public bool? IsChecked
+    public new bool? IsChecked
     {
         get => GetValue<bool?>(IsCheckedProperty);
         set => SetValue(IsCheckedProperty, value);

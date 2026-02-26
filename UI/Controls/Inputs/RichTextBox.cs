@@ -41,35 +41,35 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             typeof(RichTextBox),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ForegroundProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
             typeof(Color),
             typeof(RichTextBox),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BackgroundProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
             typeof(Color),
             typeof(RichTextBox),
             new FrameworkPropertyMetadata(new Color(28, 28, 28), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderBrushProperty =
+    public new static readonly DependencyProperty BorderBrushProperty =
         DependencyProperty.Register(
             nameof(BorderBrush),
             typeof(Color),
             typeof(RichTextBox),
             new FrameworkPropertyMetadata(new Color(162, 162, 162), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BorderThicknessProperty =
+    public new static readonly DependencyProperty BorderThicknessProperty =
         DependencyProperty.Register(
             nameof(BorderThickness),
             typeof(float),
             typeof(RichTextBox),
             new FrameworkPropertyMetadata(1f, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty PaddingProperty =
+    public new static readonly DependencyProperty PaddingProperty =
         DependencyProperty.Register(
             nameof(Padding),
             typeof(Thickness),
@@ -104,14 +104,14 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             typeof(RichTextBox),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.None));
 
-    public static readonly DependencyProperty IsMouseOverProperty =
+    public new static readonly DependencyProperty IsMouseOverProperty =
         DependencyProperty.Register(
             nameof(IsMouseOver),
             typeof(bool),
             typeof(RichTextBox),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty IsFocusedProperty =
+    public new static readonly DependencyProperty IsFocusedProperty =
         DependencyProperty.Register(
             nameof(IsFocused),
             typeof(bool),
@@ -131,6 +131,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private bool _isSelectingWithPointer;
     private bool _pointerSelectionMoved;
     private string? _pendingPointerHyperlinkUri;
+    private Hyperlink? _hoveredHyperlink;
+    private readonly Dictionary<Hyperlink, Style?> _appliedImplicitHyperlinkStyles = new();
     private bool _hasPendingRenderDirtyBoundsHint;
     private LayoutRect _pendingRenderDirtyBoundsHint;
     private float _horizontalOffset;
@@ -192,31 +194,31 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         set => SetValue(FontProperty, value);
     }
 
-    public Color Foreground
+    public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
         set => SetValue(ForegroundProperty, value);
     }
 
-    public Color Background
+    public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
         set => SetValue(BackgroundProperty, value);
     }
 
-    public Color BorderBrush
+    public new Color BorderBrush
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public float BorderThickness
+    public new float BorderThickness
     {
         get => GetValue<float>(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
     }
 
-    public Thickness Padding
+    public new Thickness Padding
     {
         get => GetValue<Thickness>(PaddingProperty);
         set => SetValue(PaddingProperty, value);
@@ -246,13 +248,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         set => SetValue(IsReadOnlyProperty, value);
     }
 
-    public bool IsMouseOver
+    public new bool IsMouseOver
     {
         get => GetValue<bool>(IsMouseOverProperty);
         private set => SetValue(IsMouseOverProperty, value);
     }
 
-    public bool IsFocused
+    public new bool IsFocused
     {
         get => GetValue<bool>(IsFocusedProperty);
         private set => SetValue(IsFocusedProperty, value);
@@ -1513,6 +1515,32 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
 
         IsMouseOver = isMouseOver;
+        if (!isMouseOver)
+        {
+            SetHoveredHyperlink(null);
+        }
+    }
+
+    internal void UpdateHoveredHyperlinkFromPointer(Vector2 pointerPosition)
+    {
+        if (!IsEnabled)
+        {
+            SetHoveredHyperlink(null);
+            return;
+        }
+
+        var textRect = GetTextRect();
+        if (pointerPosition.X < textRect.X ||
+            pointerPosition.Y < textRect.Y ||
+            pointerPosition.X > textRect.X + textRect.Width ||
+            pointerPosition.Y > textRect.Y + textRect.Height)
+        {
+            SetHoveredHyperlink(null);
+            return;
+        }
+
+        var index = GetTextIndexFromPoint(pointerPosition);
+        SetHoveredHyperlink(ResolveHyperlinkAtOffset(index));
     }
 
     public void SetFocusedFromInput(bool isFocused)
@@ -1644,6 +1672,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private void OnDocumentPropertyChanged(FlowDocument? oldDocument, FlowDocument? newDocument)
     {
+        SetHoveredHyperlink(null);
         if (oldDocument != null)
         {
             oldDocument.Changed -= OnDocumentChanged;
@@ -1651,6 +1680,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         var active = newDocument ?? CreateDefaultDocument();
         active.Changed += OnDocumentChanged;
+        ApplyHyperlinkImplicitStyles();
         ClampSelectionToTextLength();
         _layoutCache.Invalidate();
         _lastMeasuredLayout = null;
@@ -1665,6 +1695,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         _ = sender;
         _ = e;
+        ApplyHyperlinkImplicitStyles();
         ClampSelectionToTextLength();
         _layoutCache.Invalidate();
         RaiseRoutedEventInternal(DocumentChangedEvent, new RoutedSimpleEventArgs(DocumentChangedEvent));
@@ -3680,6 +3711,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private string? ResolveHyperlinkUriAtOffset(int offset)
     {
+        return ResolveHyperlinkAtOffset(offset)?.NavigateUri;
+    }
+
+    private Hyperlink? ResolveHyperlinkAtOffset(int offset)
+    {
         var paragraphs = CollectParagraphEntries(Document);
         for (var i = 0; i < paragraphs.Count; i++)
         {
@@ -3689,13 +3725,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             }
 
             var localOffset = Math.Clamp(offset - paragraphs[i].StartOffset, 0, Math.Max(0, paragraphs[i].EndOffset - paragraphs[i].StartOffset));
-            return ResolveHyperlinkUriWithinInlines(paragraphs[i].Paragraph.Inlines, localOffset);
+            return ResolveHyperlinkWithinInlines(paragraphs[i].Paragraph.Inlines, localOffset);
         }
 
         return null;
     }
 
-    private static string? ResolveHyperlinkUriWithinInlines(IEnumerable<Inline> inlines, int localOffset)
+    private static Hyperlink? ResolveHyperlinkWithinInlines(IEnumerable<Inline> inlines, int localOffset)
     {
         var cursor = 0;
         foreach (var inline in inlines)
@@ -3711,13 +3747,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             if (inline is Hyperlink hyperlink &&
                 !string.IsNullOrWhiteSpace(hyperlink.NavigateUri))
             {
-                return hyperlink.NavigateUri;
+                return hyperlink;
             }
 
             if (inline is Span span)
             {
-                var nested = ResolveHyperlinkUriWithinInlines(span.Inlines, Math.Max(0, localOffset - cursor));
-                if (!string.IsNullOrWhiteSpace(nested))
+                var nested = ResolveHyperlinkWithinInlines(span.Inlines, Math.Max(0, localOffset - cursor));
+                if (nested != null)
                 {
                     return nested;
                 }
@@ -3727,6 +3763,210 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
 
         return null;
+    }
+
+    private void SetHoveredHyperlink(Hyperlink? hyperlink)
+    {
+        if (ReferenceEquals(_hoveredHyperlink, hyperlink))
+        {
+            return;
+        }
+
+        if (_hoveredHyperlink != null)
+        {
+            _hoveredHyperlink.IsMouseOver = false;
+        }
+
+        _hoveredHyperlink = hyperlink;
+        if (_hoveredHyperlink != null)
+        {
+            _hoveredHyperlink.IsMouseOver = true;
+        }
+
+        _layoutCache.Invalidate();
+        InvalidateVisualWithReason("HyperlinkHoverStateChanged");
+    }
+
+    protected override void OnResourceScopeChanged(object? sender, ResourceDictionaryChangedEventArgs e)
+    {
+        base.OnResourceScopeChanged(sender, e);
+        ApplyHyperlinkImplicitStyles();
+    }
+
+    private void ApplyHyperlinkImplicitStyles()
+    {
+        var currentHyperlinks = new HashSet<Hyperlink>();
+        Style? implicitStyle = null;
+        if (TryFindResource(typeof(Hyperlink), out var resource) && resource is Style hyperlinkStyle)
+        {
+            implicitStyle = hyperlinkStyle;
+        }
+
+        foreach (var hyperlink in EnumerateHyperlinks(Document))
+        {
+            currentHyperlinks.Add(hyperlink);
+            ApplyHyperlinkImplicitStyle(hyperlink, implicitStyle);
+        }
+
+        var staleHyperlinks = new List<Hyperlink>();
+        foreach (var pair in _appliedImplicitHyperlinkStyles)
+        {
+            if (!currentHyperlinks.Contains(pair.Key))
+            {
+                staleHyperlinks.Add(pair.Key);
+            }
+        }
+
+        for (var i = 0; i < staleHyperlinks.Count; i++)
+        {
+            RemoveTrackedHyperlinkImplicitStyle(staleHyperlinks[i]);
+        }
+
+        if (_hoveredHyperlink != null && !currentHyperlinks.Contains(_hoveredHyperlink))
+        {
+            _hoveredHyperlink = null;
+        }
+
+        _layoutCache.Invalidate();
+        InvalidateVisualWithReason("HyperlinkImplicitStyleChanged");
+    }
+
+    private void ApplyHyperlinkImplicitStyle(Hyperlink hyperlink, Style? implicitStyle)
+    {
+        if (implicitStyle == null)
+        {
+            RemoveTrackedHyperlinkImplicitStyle(hyperlink);
+            return;
+        }
+
+        if (_appliedImplicitHyperlinkStyles.TryGetValue(hyperlink, out var trackedStyle))
+        {
+            if (hyperlink.GetValueSource(TextElement.StyleProperty) == DependencyPropertyValueSource.Local &&
+                !ReferenceEquals(hyperlink.Style, trackedStyle))
+            {
+                _appliedImplicitHyperlinkStyles.Remove(hyperlink);
+                return;
+            }
+        }
+        else if (hyperlink.GetValueSource(TextElement.StyleProperty) == DependencyPropertyValueSource.Local)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(hyperlink.Style, implicitStyle))
+        {
+            hyperlink.Style = implicitStyle;
+        }
+
+        _appliedImplicitHyperlinkStyles[hyperlink] = implicitStyle;
+    }
+
+    private void RemoveTrackedHyperlinkImplicitStyle(Hyperlink hyperlink)
+    {
+        if (_appliedImplicitHyperlinkStyles.TryGetValue(hyperlink, out var trackedStyle))
+        {
+            if (hyperlink.GetValueSource(TextElement.StyleProperty) == DependencyPropertyValueSource.Local &&
+                ReferenceEquals(hyperlink.Style, trackedStyle))
+            {
+                hyperlink.ClearValue(TextElement.StyleProperty);
+            }
+
+            _appliedImplicitHyperlinkStyles.Remove(hyperlink);
+        }
+    }
+
+    private static IEnumerable<Hyperlink> EnumerateHyperlinks(FlowDocument document)
+    {
+        for (var i = 0; i < document.Blocks.Count; i++)
+        {
+            foreach (var hyperlink in EnumerateHyperlinks(document.Blocks[i]))
+            {
+                yield return hyperlink;
+            }
+        }
+    }
+
+    private static IEnumerable<Hyperlink> EnumerateHyperlinks(Block block)
+    {
+        switch (block)
+        {
+            case Paragraph paragraph:
+                for (var i = 0; i < paragraph.Inlines.Count; i++)
+                {
+                    foreach (var hyperlink in EnumerateHyperlinks(paragraph.Inlines[i]))
+                    {
+                        yield return hyperlink;
+                    }
+                }
+
+                yield break;
+            case Section section:
+                for (var i = 0; i < section.Blocks.Count; i++)
+                {
+                    foreach (var hyperlink in EnumerateHyperlinks(section.Blocks[i]))
+                    {
+                        yield return hyperlink;
+                    }
+                }
+
+                yield break;
+            case InkkSlinger.List list:
+                for (var i = 0; i < list.Items.Count; i++)
+                {
+                    for (var j = 0; j < list.Items[i].Blocks.Count; j++)
+                    {
+                        foreach (var hyperlink in EnumerateHyperlinks(list.Items[i].Blocks[j]))
+                        {
+                            yield return hyperlink;
+                        }
+                    }
+                }
+
+                yield break;
+            case Table table:
+                for (var i = 0; i < table.RowGroups.Count; i++)
+                {
+                    var rowGroup = table.RowGroups[i];
+                    for (var j = 0; j < rowGroup.Rows.Count; j++)
+                    {
+                        var row = rowGroup.Rows[j];
+                        for (var k = 0; k < row.Cells.Count; k++)
+                        {
+                            var cell = row.Cells[k];
+                            for (var m = 0; m < cell.Blocks.Count; m++)
+                            {
+                                foreach (var hyperlink in EnumerateHyperlinks(cell.Blocks[m]))
+                                {
+                                    yield return hyperlink;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                yield break;
+        }
+    }
+
+    private static IEnumerable<Hyperlink> EnumerateHyperlinks(Inline inline)
+    {
+        if (inline is Hyperlink hyperlink)
+        {
+            yield return hyperlink;
+        }
+
+        if (inline is not Span span)
+        {
+            yield break;
+        }
+
+        for (var i = 0; i < span.Inlines.Count; i++)
+        {
+            foreach (var nested in EnumerateHyperlinks(span.Inlines[i]))
+            {
+                yield return nested;
+            }
+        }
     }
 
     private readonly record struct ParagraphSelectionEntry(Paragraph Paragraph, int StartOffset, int EndOffset);

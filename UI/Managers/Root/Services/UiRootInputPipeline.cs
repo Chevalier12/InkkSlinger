@@ -421,43 +421,78 @@ public sealed partial class UiRoot
             return;
         }
 
-        if (_inputState.HoveredElement is ITextInputControl oldTextInput)
-        {
-            oldTextInput.SetMouseOverFromInput(false);
-        }
-
-        if (_inputState.HoveredElement is Button oldButton)
-        {
-            oldButton.SetMouseOverFromInput(false);
-        }
+        SetHoverState(_inputState.HoveredElement, isMouseOver: false);
 
         _inputState.HoveredElement = hovered;
         RefreshCachedWheelTargets(hovered);
         RefreshCachedClickTarget(hovered);
-        if (hovered is ITextInputControl newTextInput)
-        {
-            newTextInput.SetMouseOverFromInput(true);
-        }
-
-        if (hovered is Button newButton)
-        {
-            newButton.SetMouseOverFromInput(true);
-        }
+        SetHoverState(hovered, isMouseOver: true);
     }
 
     private UIElement? PromoteHoverTarget(UIElement? hovered)
     {
-        if (hovered == null || hovered is Button)
+        if (hovered == null)
         {
             return hovered;
         }
 
-        if (TryFindAncestor<Button>(hovered, out var button) && button != null)
+        for (var current = hovered; current != null; current = current.VisualParent ?? current.LogicalParent)
         {
-            return button;
+            if (IsHoverHostElement(current))
+            {
+                return current;
+            }
         }
 
         return hovered;
+    }
+
+    private static bool IsHoverHostElement(UIElement element)
+    {
+        return element is ITextInputControl or Button or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
+    }
+
+    private static void SetHoverState(UIElement? element, bool isMouseOver)
+    {
+        switch (element)
+        {
+            case null:
+                return;
+            case ITextInputControl textInput:
+                textInput.SetMouseOverFromInput(isMouseOver);
+                return;
+            case Button button:
+                button.SetMouseOverFromInput(isMouseOver);
+                return;
+            case ListBoxItem listBoxItem:
+                if (listBoxItem.IsMouseOver != isMouseOver)
+                {
+                    listBoxItem.IsMouseOver = isMouseOver;
+                }
+
+                return;
+            case DataGridRow dataGridRow:
+                if (dataGridRow.IsMouseOver != isMouseOver)
+                {
+                    dataGridRow.IsMouseOver = isMouseOver;
+                }
+
+                return;
+            case TabItem tabItem:
+                if (tabItem.IsMouseOver != isMouseOver)
+                {
+                    tabItem.IsMouseOver = isMouseOver;
+                }
+
+                return;
+            case TreeViewItem treeViewItem:
+                if (treeViewItem.IsMouseOver != isMouseOver)
+                {
+                    treeViewItem.IsMouseOver = isMouseOver;
+                }
+
+                return;
+        }
     }
 
     private void DispatchPointerMove(UIElement? target, Vector2 pointerPosition)
@@ -489,6 +524,11 @@ public sealed partial class UiRoot
         }
         else if (_inputState.CapturedPointerElement == null)
         {
+            if (target is RichTextBox richTextBox)
+            {
+                richTextBox.UpdateHoveredHyperlinkFromPointer(pointerPosition);
+            }
+
             var resolved = TryResolveContextMenuMenuItemTarget(pointerPosition, target, out var contextMenuMenuItem);
             if (resolved)
             {
@@ -1189,7 +1229,7 @@ public sealed partial class UiRoot
     private static bool IsKnownClickCapableElement(UIElement element)
     {
         return element is Button or ITextInputControl or ScrollViewer or ScrollBar or
-            ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem;
+            ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem or TreeViewItem;
     }
 
     private bool IsElementConnectedToVisualRoot(UIElement element)
@@ -1507,7 +1547,8 @@ public sealed partial class UiRoot
 
     private static bool IsClickCapableElement(UIElement element)
     {
-        if (element is Button or ITextInputControl or ScrollViewer or ScrollBar or ListBoxItem or ListViewItem or DataGridRow)
+        if (element is Button or ITextInputControl or ScrollViewer or ScrollBar or
+            ListBoxItem or ListViewItem or DataGridRow or ComboBoxItem or TabItem or TreeViewItem)
         {
             return true;
         }

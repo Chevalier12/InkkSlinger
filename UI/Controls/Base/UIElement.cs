@@ -34,6 +34,28 @@ public class UIElement : DependencyObject
             typeof(UIElement),
             new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty VisibilityProperty =
+        DependencyProperty.Register(
+            nameof(Visibility),
+            typeof(Visibility),
+            typeof(UIElement),
+            new FrameworkPropertyMetadata(
+                Visibility.Visible,
+                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is not UIElement element || args.NewValue is not Visibility visibility)
+                    {
+                        return;
+                    }
+
+                    var shouldBeVisible = visibility == Visibility.Visible;
+                    if (element.IsVisible != shouldBeVisible)
+                    {
+                        element.IsVisible = shouldBeVisible;
+                    }
+                }));
+
     public static readonly DependencyProperty IsEnabledProperty =
         DependencyProperty.Register(
             nameof(IsEnabled),
@@ -101,6 +123,12 @@ public class UIElement : DependencyObject
     {
         get => GetValue<bool>(IsVisibleProperty);
         set => SetValue(IsVisibleProperty, value);
+    }
+
+    public Visibility Visibility
+    {
+        get => GetValue<Visibility>(VisibilityProperty);
+        set => SetValue(VisibilityProperty, value);
     }
 
     public bool IsEnabled

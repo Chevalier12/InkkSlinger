@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -15,6 +16,7 @@ public class Game1 : Game
     private Panel _root = null!;
     private UiRoot _uiRoot = null!;
     private ControlsCatalogView? _catalogView;
+    private WindowThemeBinding? _windowThemeBinding;
 
     public Game1()
     {
@@ -29,10 +31,14 @@ public class Game1 : Game
 
     protected override void Initialize()
     {
-        _root = new Panel
+        var appMarkupPath = Path.Combine(AppContext.BaseDirectory, "App.xml");
+        if (File.Exists(appMarkupPath))
         {
-            Background = new Color(18, 22, 30)
-        };
+            XamlLoader.LoadApplicationResourcesFromFile(appMarkupPath, clearExisting: true);
+        }
+
+        _root = new Panel();
+        _windowThemeBinding = new WindowThemeBinding(_window, _root);
 
         _catalogView = new ControlsCatalogView();
         _root.AddChild(_catalogView);
@@ -110,6 +116,8 @@ public class Game1 : Game
     {
         _window.ClientSizeChanged -= OnClientSizeChanged;
         _window.NativeWindow.TextInput -= OnTextInput;
+        _windowThemeBinding?.Dispose();
+        _windowThemeBinding = null;
 
         _uiCompositeTarget?.Dispose();
         _uiCompositeTarget = null;
@@ -192,3 +200,4 @@ public class Game1 : Game
         return viewport;
     }
 }
+

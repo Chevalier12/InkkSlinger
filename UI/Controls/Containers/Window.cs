@@ -109,11 +109,63 @@ internal sealed class GraphicsDeviceManagerAdapter : IWindowGraphicsAdapter
     }
 }
 
-public sealed class Window : IDisposable
+public sealed class Window : DependencyObject, IDisposable
 {
+    public static readonly DependencyProperty BackgroundProperty =
+        DependencyProperty.Register(
+            nameof(Background),
+            typeof(Color),
+            typeof(Window),
+            new FrameworkPropertyMetadata(Color.Transparent));
+
+    public static readonly DependencyProperty ForegroundProperty =
+        DependencyProperty.Register(
+            nameof(Foreground),
+            typeof(Color),
+            typeof(Window),
+            new FrameworkPropertyMetadata(Color.White));
+
+    public static readonly DependencyProperty FontFamilyProperty =
+        DependencyProperty.Register(
+            nameof(FontFamily),
+            typeof(string),
+            typeof(Window),
+            new FrameworkPropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty FontSizeProperty =
+        DependencyProperty.Register(
+            nameof(FontSize),
+            typeof(float),
+            typeof(Window),
+            new FrameworkPropertyMetadata(12f));
+
+    public static readonly DependencyProperty FontWeightProperty =
+        DependencyProperty.Register(
+            nameof(FontWeight),
+            typeof(string),
+            typeof(Window),
+            new FrameworkPropertyMetadata("Normal"));
+
+    public static readonly DependencyProperty StyleProperty =
+        DependencyProperty.Register(
+            nameof(Style),
+            typeof(Style),
+            typeof(Window),
+            new FrameworkPropertyMetadata(
+                null,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is Window window)
+                    {
+                        window.OnStyleChanged(args.OldValue as Style, args.NewValue as Style);
+                    }
+                }));
+
     private readonly Game? _game;
     private readonly IWindowNativeAdapter _nativeWindow;
     private readonly IWindowGraphicsAdapter _graphics;
+    private Style? _activeImplicitStyle;
+    private bool _isApplyingImplicitStyle;
     private bool _disposed;
 
     public Window(Game game, GraphicsDeviceManager graphics)
@@ -138,6 +190,8 @@ public sealed class Window : IDisposable
         _nativeWindow = nativeWindow;
         _graphics = graphics;
         _nativeWindow.ClientSizeChanged += OnClientSizeChanged;
+        UiApplication.Current.Resources.Changed += OnApplicationResourcesChanged;
+        UpdateImplicitStyle();
     }
 
     public event EventHandler? ClientSizeChanged;
@@ -201,6 +255,42 @@ public sealed class Window : IDisposable
 
     public IntPtr Handle => _nativeWindow.Handle;
 
+    public Color Background
+    {
+        get => GetValue<Color>(BackgroundProperty);
+        set => SetValue(BackgroundProperty, value);
+    }
+
+    public Color Foreground
+    {
+        get => GetValue<Color>(ForegroundProperty);
+        set => SetValue(ForegroundProperty, value);
+    }
+
+    public string FontFamily
+    {
+        get => GetValue<string>(FontFamilyProperty) ?? string.Empty;
+        set => SetValue(FontFamilyProperty, value);
+    }
+
+    public float FontSize
+    {
+        get => GetValue<float>(FontSizeProperty);
+        set => SetValue(FontSizeProperty, value);
+    }
+
+    public string FontWeight
+    {
+        get => GetValue<string>(FontWeightProperty) ?? "Normal";
+        set => SetValue(FontWeightProperty, value);
+    }
+
+    public Style? Style
+    {
+        get => GetValue<Style>(StyleProperty);
+        set => SetValue(StyleProperty, value);
+    }
+
     public void SetClientSize(int width, int height, bool applyChanges = true)
     {
         if (width <= 0)
@@ -263,10 +353,86 @@ public sealed class Window : IDisposable
 
         _disposed = true;
         _nativeWindow.ClientSizeChanged -= OnClientSizeChanged;
+        UiApplication.Current.Resources.Changed -= OnApplicationResourcesChanged;
+        if (Style is Style style)
+        {
+            style.Detach(this);
+        }
     }
 
     private void OnClientSizeChanged(object? sender, EventArgs e)
     {
         ClientSizeChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnApplicationResourcesChanged(object? sender, ResourceDictionaryChangedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        UpdateImplicitStyle();
+    }
+
+    private void OnStyleChanged(Style? oldStyle, Style? newStyle)
+    {
+        if (!_isApplyingImplicitStyle)
+        {
+            _activeImplicitStyle = null;
+        }
+
+        oldStyle?.Detach(this);
+        newStyle?.Apply(this);
+
+        if (_isApplyingImplicitStyle)
+        {
+            _activeImplicitStyle = newStyle;
+        }
+    }
+
+    private void UpdateImplicitStyle()
+    {
+        if (!ShouldApplyImplicitStyle())
+        {
+            return;
+        }
+
+        if (UiApplication.Current.Resources.TryGetValue(typeof(Window), out var resource) &&
+            resource is Style style)
+        {
+            if (!ReferenceEquals(Style, style))
+            {
+                _isApplyingImplicitStyle = true;
+                try
+                {
+                    Style = style;
+                }
+                finally
+                {
+                    _isApplyingImplicitStyle = false;
+                }
+            }
+
+            _activeImplicitStyle = style;
+            return;
+        }
+
+        if (ImplicitStylePolicy.CanClearImplicit(Style, _activeImplicitStyle))
+        {
+            _isApplyingImplicitStyle = true;
+            try
+            {
+                Style = null;
+            }
+            finally
+            {
+                _isApplyingImplicitStyle = false;
+            }
+        }
+
+        _activeImplicitStyle = null;
+    }
+
+    private bool ShouldApplyImplicitStyle()
+    {
+        return ImplicitStylePolicy.ShouldApply(Style, _activeImplicitStyle);
     }
 }
