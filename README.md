@@ -7,7 +7,7 @@
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (`Release`, 0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -c Release -v minimal` |
-| Test suite | Pass (`451/451`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
+| Test suite | Partial (`457/462`, 5 failing) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
 | WPF control coverage | Broad but incomplete (`68/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `9` unchecked TODO items | `TODO.md` (missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
@@ -16,7 +16,7 @@
 
 **Not yet production-ready as a general-purpose framework claim.**
 
-**Conditionally usable** for production only when your app stays inside the currently implemented/tested surface area and you accept the known gaps above.
+**Conditionally usable** for production only when your app stays inside the currently implemented/tested surface area and you accept the known gaps above (including the current 5 failing regression/perf tests).
 
 If the bar is "ship a targeted app on this stack," that can be reasonable.  
 If the bar is "framework-level broad production readiness," the current open parity/coverage gaps mean **not yet**.

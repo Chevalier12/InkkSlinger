@@ -128,6 +128,18 @@ public class TreeViewItem : ItemsControl
         set => SetValue(IndentProperty, value);
     }
 
+    protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
+    {
+        base.OnDependencyPropertyChanged(args);
+
+        if (args.Property != IsExpandedProperty)
+        {
+            return;
+        }
+
+        UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
+    }
+
     protected override bool IsItemItsOwnContainerOverride(object item)
     {
         return item is TreeViewItem;

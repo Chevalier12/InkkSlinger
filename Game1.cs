@@ -7,7 +7,7 @@ namespace InkkSlinger;
 
 public class Game1 : Game
 {
-    private const bool EnableExperimentalPartialRedraw = false;
+    private static readonly bool EnableExperimentalPartialRedraw = true;
 
     private readonly GraphicsDeviceManager _graphics;
     private readonly InkkSlinger.Window _window;
@@ -50,8 +50,8 @@ public class Game1 : Game
         {
             UseRetainedRenderList = EnableExperimentalPartialRedraw,
             UseDirtyRegionRendering = EnableExperimentalPartialRedraw,
-            UseConditionalDrawScheduling = true,
-            UseElementRenderCaches = EnableExperimentalPartialRedraw,
+            UseConditionalDrawScheduling = !EnableExperimentalPartialRedraw,
+            UseElementRenderCaches = false,
             UseSoftwareCursor = false
         };
 
@@ -84,12 +84,22 @@ public class Game1 : Game
     protected override void Draw(GameTime gameTime)
     {
         var viewport = EnsureViewportMatchesBackBuffer();
-        EnsureUiCompositeTarget(viewport);
+        var targetRecreated = EnsureUiCompositeTarget(viewport);
+        if (EnableExperimentalPartialRedraw && targetRecreated)
+        {
+            _uiRoot.ForceFullRedrawForSurfaceReset();
+        }
 
-        if (_uiRoot.ShouldDrawThisFrame(gameTime, viewport, GraphicsDevice))
+        var shouldDraw = _uiRoot.ShouldDrawThisFrame(gameTime, viewport, GraphicsDevice);
+
+        if (shouldDraw)
         {
             GraphicsDevice.SetRenderTarget(_uiCompositeTarget);
-            GraphicsDevice.Clear(Color.CornflowerBlue);
+            if (!EnableExperimentalPartialRedraw)
+            {
+                GraphicsDevice.Clear(Color.CornflowerBlue);
+            }
+
             _uiRoot.Draw(_spriteBatch, gameTime);
             GraphicsDevice.SetRenderTarget(null);
         }
@@ -139,17 +149,20 @@ public class Game1 : Game
         }
     }
 
-    private void EnsureUiCompositeTarget(Viewport viewport)
+    private bool EnsureUiCompositeTarget(Viewport viewport)
     {
         if (_uiCompositeTarget != null &&
             !_uiCompositeTarget.IsDisposed &&
             _uiCompositeTarget.Width == viewport.Width &&
             _uiCompositeTarget.Height == viewport.Height)
         {
-            return;
+            return false;
         }
 
         _uiCompositeTarget?.Dispose();
+        var usage = EnableExperimentalPartialRedraw
+            ? RenderTargetUsage.PreserveContents
+            : RenderTargetUsage.DiscardContents;
         _uiCompositeTarget = new RenderTarget2D(
             GraphicsDevice,
             Math.Max(1, viewport.Width),
@@ -158,7 +171,8 @@ public class Game1 : Game
             SurfaceFormat.Color,
             DepthFormat.None,
             0,
-            RenderTargetUsage.DiscardContents);
+            usage);
+        return true;
     }
 
     private void EnsureBackBufferMatchesClientSize()
@@ -200,4 +214,3 @@ public class Game1 : Game
         return viewport;
     }
 }
-

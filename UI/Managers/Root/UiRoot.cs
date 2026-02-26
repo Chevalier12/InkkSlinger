@@ -251,6 +251,13 @@ public sealed partial class UiRoot
             UseConditionalDrawScheduling);
     }
 
+    internal void ForceFullRedrawForSurfaceReset()
+    {
+        _hasRenderInvalidation = true;
+        _mustDrawNextFrame = true;
+        _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
+    }
+
     public void Update(GameTime gameTime, Viewport viewport)
     {
         Dispatcher.VerifyAccess();

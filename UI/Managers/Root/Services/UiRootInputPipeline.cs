@@ -255,8 +255,9 @@ public sealed partial class UiRoot
             }
 
             if (_inputState.HoveredElement != null &&
+                !delta.PointerMoved &&
                 (delta.WheelDelta != 0 || ShouldReuseHoveredTargetForPointerMove(_inputState.HoveredElement)) &&
-                PointerLikelyInsideElement(_inputState.HoveredElement, pointerPosition))
+                PointerInsideHoveredTargetForReuse(_inputState.HoveredElement, pointerPosition))
             {
                 // Do not refresh click-target reuse cache from hover-reuse paths.
                 // Hover can be stale while pointer moves without precise retargeting.
@@ -583,6 +584,8 @@ public sealed partial class UiRoot
             target = ancestorButton;
         }
 
+        UpdateHover(target);
+
         UIElement? textInputTarget = null;
         if (button == MouseButton.Left &&
             TryFindWheelTextInputAncestor(target, out var ancestorTextInput) &&
@@ -813,12 +816,14 @@ public sealed partial class UiRoot
         if (TryFindOpenContextMenu(out var openContextMenu) &&
             openContextMenu.HandleMouseWheelFromInput(pointerPosition, delta))
         {
+            RefreshHoverAfterWheelContentMutation(pointerPosition);
             TrackWheelPointerPosition(pointerPosition);
             return;
         }
 
         if (TryHandleTextInputWheel(_cachedWheelTextInputTarget, delta))
         {
+            RefreshHoverAfterWheelContentMutation(pointerPosition);
             TrackWheelPointerPosition(pointerPosition);
             return;
         }
@@ -831,6 +836,14 @@ public sealed partial class UiRoot
             var wheelHandleStart = Stopwatch.GetTimestamp();
             var handled = cachedViewer.HandleMouseWheelFromInput(delta);
             wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
+            if (handled)
+            {
+                RefreshHoverAfterWheelContentMutation(pointerPosition);
+            }
+            else
+            {
+                RefreshHoverAfterWheel(pointerPosition);
+            }
             TrackWheelPointerPosition(pointerPosition);
             return;
         }
@@ -854,9 +867,28 @@ public sealed partial class UiRoot
             var wheelHandleStart = Stopwatch.GetTimestamp();
             var handled = scrollViewer.HandleMouseWheelFromInput(delta);
             wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
+            if (handled)
+            {
+                RefreshHoverAfterWheelContentMutation(pointerPosition);
+            }
         }
 
+        RefreshHoverAfterWheel(pointerPosition);
         TrackWheelPointerPosition(pointerPosition);
+    }
+
+    private void RefreshHoverAfterWheel(Vector2 pointerPosition)
+    {
+        _hasCachedPointerResolveTarget = false;
+        _cachedPointerResolveTarget = null;
+        _lastInputHitTestCount++;
+        var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        UpdateHover(hoverTarget);
+    }
+
+    private void RefreshHoverAfterWheelContentMutation(Vector2 pointerPosition)
+    {
+        RefreshHoverAfterWheel(pointerPosition);
     }
 
     private void EnsureCachedWheelTargetsAreCurrent(Vector2 pointerPosition)
@@ -874,6 +906,11 @@ public sealed partial class UiRoot
 
     private static bool PointerLikelyInsideElement(UIElement element, Vector2 pointerPosition)
     {
+        if (RequiresPrecisePointerContainmentCheck(element))
+        {
+            return element.HitTest(pointerPosition);
+        }
+
         if (IsPointInsideElementSlot(element, pointerPosition.X, pointerPosition.Y))
         {
             return true;
@@ -881,6 +918,30 @@ public sealed partial class UiRoot
 
         // Fallback for non-framework visuals with custom hit geometry.
         return element is not FrameworkElement && element.HitTest(pointerPosition);
+    }
+
+    private bool PointerInsideHoveredTargetForReuse(UIElement hovered, Vector2 pointerPosition)
+    {
+        if (!IsElementConnectedToVisualRoot(hovered))
+        {
+            return false;
+        }
+
+        return hovered.HitTest(pointerPosition);
+    }
+
+    private static bool RequiresPrecisePointerContainmentCheck(UIElement element)
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current.TryGetLocalRenderTransformSnapshot(out _) ||
+                current.TryGetLocalClipSnapshot(out _))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool CanScrollViewerInWheelDirection(ScrollViewer viewer, int delta)
@@ -1072,6 +1133,14 @@ public sealed partial class UiRoot
             return false;
         }
 
+        // TreeViewItem layout slots include descendant rows when expanded, so
+        // candidate shortcutting can incorrectly pin clicks to the ancestor item.
+        // Let precise hit-testing determine the concrete row target.
+        if (candidate is TreeViewItem)
+        {
+            return false;
+        }
+
         for (var current = candidate; current != null; current = current.VisualParent ?? current.LogicalParent)
         {
             if (IsKnownClickCapableElement(current))
@@ -1154,7 +1223,7 @@ public sealed partial class UiRoot
 
         if (hovered is Button or ITextInputControl or
             ListBox or ListView or DataGrid or
-            ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem or TreeViewItem)
+            MenuItem or ComboBoxItem or TabItem)
         {
             return true;
         }
@@ -1192,7 +1261,7 @@ public sealed partial class UiRoot
 
     private bool IsNarrowHoveredAnchor(UIElement anchor)
     {
-        if (anchor is ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem)
+        if (anchor is ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem or TreeViewItem)
         {
             return true;
         }

@@ -4,7 +4,7 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `451/451` passing.
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `457/462` passing (5 known failures in `InputDispatchOptimizationTests` and `ViewportResizeInputRegressionTests` after hover-correctness hardening).
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - This file tracks completed milestones, known parity gaps, and control coverage.
@@ -50,6 +50,8 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] Controls catalog style-driven demo refresh shipped: preview XML surfaces moved to shared theme tokens, template-driven demo visuals, and preview-chrome harmonization across samples.
 - [x] Controls catalog regression hardening shipped: layout/hover/scroll-persistence stability fixes with dedicated regressions (`ControlsCatalogLayoutTests`, `ControlsCatalogHoverRegressionTests`, `ControlsCatalogScrollPersistenceTests`).
 - [x] Scoped default `App.xml` resource bootstrap for file-backed view loads: `XamlLoader.LoadInto(...)` now hydrates missing app resources into the target root scope before parse, resolving `DarkBgBrush` lookup failures in view-loading tests without globally mutating app resources.
+- [x] Experimental partial redraw host hardening: preserve-composition target path, redraw-on-surface-reset behavior, and compatibility fallback tuning for CatalogView validation.
+- [x] Input hover/selection hardening for catalog + tree interactions: fixed stale hover reuse and retained-list structural sync regressions (`TreeViewInputTests`, `ScrollViewerWheelHoverRegressionTests`, `ControlsCatalogHoverRegressionTests`).
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
