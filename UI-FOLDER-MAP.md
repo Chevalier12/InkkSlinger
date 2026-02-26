@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-02-26
+Generated: 2026-02-26 (refreshed)
 
 ```text
 UI/

@@ -2,7 +2,9 @@
 
 ## Status
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
+- App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `451/451` passing.
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - This file tracks completed milestones, known parity gaps, and control coverage.
@@ -44,6 +46,10 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] CollectionView parity pass: `ICollectionView` stack (`CollectionView`, `ListCollectionView`, `CollectionViewSource`) with filter/sort/group/current-item semantics, strict `ItemsSource` vs `Items` mutation behavior, grouped projection via `GroupStyle`/`GroupItem`, DataGrid header sort integration with view sort descriptors, XAML parser/schema support, dedicated parity demo (`--collectionview-parity-demo`), and follow-up diagnostics (`CollectionViewCpuDiagnostics`, pointer resolve instrumentation).
 - [x] ListView lab added as dedicated validation surface (`--listview-lab`).
 - [x] Collection add-isolation lab added as dedicated validation surface (legacy flag path: `--collection-add-isolation-demo`; now browsed from `ControlsCatalogView`).
+- [x] App.xml resource/theme pipeline shipped: host startup now loads `App.xml` application resources, including implicit styles and shared theme keys, with phased compatibility + parser regression coverage (`AppXmlPhase1-4CompatibilityTests`, `AppXmlResourcesTests`, `XamlResourceDictionarySourceTests`).
+- [x] Controls catalog style-driven demo refresh shipped: preview XML surfaces moved to shared theme tokens, template-driven demo visuals, and preview-chrome harmonization across samples.
+- [x] Controls catalog regression hardening shipped: layout/hover/scroll-persistence stability fixes with dedicated regressions (`ControlsCatalogLayoutTests`, `ControlsCatalogHoverRegressionTests`, `ControlsCatalogScrollPersistenceTests`).
+- [x] Scoped default `App.xml` resource bootstrap for file-backed view loads: `XamlLoader.LoadInto(...)` now hydrates missing app resources into the target root scope before parse, resolving `DarkBgBrush` lookup failures in view-loading tests without globally mutating app resources.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
@@ -54,6 +60,9 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] `TreeView` / `TreeViewItem` text rendering and keyboard navigation stability fixes.
 - [x] `ResizeGrip` control support with drag and keyboard resizing.
 - [x] `Thumb` control support with drag lifecycle events and demo.
+- [x] App-level theme/style application path (`App.xml`) integrated into host startup + compatibility test matrix.
+- [x] Style-driven control preview surfaces and template parity pass across catalog demos.
+- [x] Resolve app-theme static-resource lookup regressions (`DarkBgBrush`) in test/demo view-loading paths (`ControlsCatalog*`, `AdornerClippingTests`, `XNameSourceGeneratorTests`, `PasswordBoxTests`).
 
 ## Diagnostics Backlog
 - [x] Tail-latency diagnostics (`p95`/`p99`) for click/move/scroll interaction windows, based on `event->next-draw` latency.

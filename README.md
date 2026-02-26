@@ -2,12 +2,12 @@
 
 ## Is It Usable Yet? (tm sign here)
 
-### Evidence Pass (2026-02-24)
+### Evidence Pass (2026-02-26)
 
 | Check | Result | Evidence |
 |---|---|---|
-| Solution build | Pass (0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -v minimal` |
-| Test suite | Fail (`388/389`, 1 failing) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal` |
+| Solution build | Pass (`Release`, 0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -c Release -v minimal` |
+| Test suite | Pass (`451/451`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
 | WPF control coverage | Broad but incomplete (`68/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `9` unchecked TODO items | `TODO.md` (missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
@@ -78,6 +78,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Layout framework | Measure/arrange across framework elements and panels | `UI/Controls/Base/FrameworkElement.cs`, `UI/Managers/Layout/LayoutManager.cs`, `UI/Controls/Panels/*` | Implemented |
 | Visual tree utilities | Tree traversal + hit-test support for input/render decisions | `UI/Managers/Tree/VisualTreeHelper.cs` | Implemented |
 | Resource dictionaries | Local/tree/app resource resolution with dictionary change notifications | `UI/Resources/Core/ResourceDictionary.cs`, `UI/Resources/Core/ResourceResolver.cs`, `UI/Resources/Types/ResourceDictionaryChangedEventArgs.cs` | Implemented |
+| Application resource bootstrapping | `App.xml` load path into `UiApplication` with implicit theme/style availability at host startup | `Game1.cs` (`LoadApplicationResourcesFromFile`), `App.xml`, `InkkSlinger.Tests/AppXmlResourcesTests.cs` | Implemented (tested) |
 | Style system | `Style`, `Setter`, implicit/explicit style application, `BasedOn` support | `UI/Styling/Core/Style.cs`, `UI/Styling/Core/Setter.cs`, `TODO.md` (`Completed Milestones`) | Implemented |
 | Trigger framework | Property/data/multi-data/event triggers + condition evaluation | `UI/Styling/Triggers/Trigger.cs`, `UI/Styling/Triggers/DataTrigger.cs`, `UI/Styling/Triggers/MultiDataTrigger.cs`, `UI/Styling/Triggers/EventTrigger.cs` | Implemented |
 | Trigger action runtime | `SetValueAction` + storyboard action family in trigger execution path | `UI/Styling/Actions/SetValueAction.cs`, `UI/Styling/Actions/StoryboardActions.cs`, `UI/Xaml/Core/XamlLoader.cs` (`BuildTriggerAction`) | Implemented |
@@ -106,7 +107,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 55 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (55 files) | Implemented |
+| Regression safety net | 72 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (72 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -167,7 +168,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 ## UI Architecture Map
 
-The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-24):
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-26):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers
@@ -215,8 +216,8 @@ Prerequisite:
 
 ```powershell
 dotnet restore InkkSlinger.sln
-dotnet build InkkSlinger.sln -v minimal
-dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -v minimal
+dotnet build InkkSlinger.sln -c Release -v minimal
+dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal
 ```
 
 ## Test Environment

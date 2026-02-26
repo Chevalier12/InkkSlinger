@@ -17,6 +17,9 @@ public static class XamlLoader
     private static readonly XNamespace XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly Assembly UiAssembly = typeof(UIElement).Assembly;
     private static readonly Dictionary<string, Type> TypeByName = BuildTypeMap();
+    private static readonly object DefaultApplicationResourceCacheLock = new();
+    private static ResourceDictionary? DefaultApplicationResourceCache;
+    private static bool HasAttemptedDefaultApplicationResourceLoad;
     [ThreadStatic]
     private static FrameworkElement? CurrentLoadRootScope;
     [ThreadStatic]
@@ -87,6 +90,8 @@ public static class XamlLoader
 
     public static void LoadInto(UserControl target, string path, object? codeBehind = null)
     {
+        EnsureDefaultApplicationResourcesInScope(target);
+
         var fileReadStart = Stopwatch.GetTimestamp();
         var xaml = File.ReadAllText(path);
         var baseDirectory = Path.GetDirectoryName(Path.GetFullPath(path));
@@ -2491,6 +2496,76 @@ public static class XamlLoader
         }
 
         throw CreateXamlException($"StaticResource key '{key}' was not found.");
+    }
+
+    private static void EnsureDefaultApplicationResourcesInScope(FrameworkElement target)
+    {
+        var defaults = GetDefaultApplicationResources();
+        if (defaults == null)
+        {
+            return;
+        }
+
+        MergeMissingResourceEntries(target.Resources, defaults);
+    }
+
+    private static ResourceDictionary? GetDefaultApplicationResources()
+    {
+        lock (DefaultApplicationResourceCacheLock)
+        {
+            if (HasAttemptedDefaultApplicationResourceLoad)
+            {
+                return DefaultApplicationResourceCache;
+            }
+
+            HasAttemptedDefaultApplicationResourceLoad = true;
+
+            var appMarkupPath = Path.Combine(AppContext.BaseDirectory, "App.xml");
+            if (!File.Exists(appMarkupPath))
+            {
+                return null;
+            }
+
+            var xaml = File.ReadAllText(appMarkupPath);
+            XDocument document;
+            try
+            {
+                document = XDocument.Parse(xaml, LoadOptions.SetLineInfo);
+            }
+            catch (Exception ex)
+            {
+                throw CreateXamlException("Failed to parse default App.xml document.", null, ex);
+            }
+
+            if (document.Root == null)
+            {
+                throw CreateXamlException("Default App.xml document has no root element.", document);
+            }
+
+            var baseDirectory = Path.GetDirectoryName(Path.GetFullPath(appMarkupPath));
+            RunWithinXamlBaseDirectory(baseDirectory, () =>
+            {
+                DefaultApplicationResourceCache = ParseApplicationResourcesDocument(document.Root);
+            });
+
+            return DefaultApplicationResourceCache;
+        }
+    }
+
+    private static void MergeMissingResourceEntries(ResourceDictionary target, ResourceDictionary source)
+    {
+        foreach (var pair in source)
+        {
+            if (!target.ContainsKey(pair.Key))
+            {
+                target[pair.Key] = pair.Value;
+            }
+        }
+
+        foreach (var merged in source.MergedDictionaries)
+        {
+            MergeMissingResourceEntries(target, merged);
+        }
     }
 
     private static ResourceDictionary LoadResourceDictionaryFromSource(
