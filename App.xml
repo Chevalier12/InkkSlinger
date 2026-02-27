@@ -55,6 +55,12 @@
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="RenderTransform">
+          <Setter.Value>
+            <ScaleTransform ScaleX="1" ScaleY="1" />
+          </Setter.Value>
+        </Setter>
         <Setter Property="Template">
           <Setter.Value>
             <ControlTemplate TargetType="{x:Type Button}">
@@ -65,20 +71,68 @@
                       CornerRadius="6"
                       Padding="{TemplateBinding Padding}"
                       SnapsToDevicePixels="True">
+                <Border.Effect>
+                  <DropShadowEffect x:Name="shadow"
+                                    Color="#FF8C00"
+                                    ShadowDepth="0"
+                                    BlurRadius="0"
+                                    Opacity="0" />
+                </Border.Effect>
                 <ContentPresenter HorizontalAlignment="Center"
                                   VerticalAlignment="Center" />
               </Border>
               <ControlTemplate.Triggers>
+
+                <!-- ── Hover: scale up + orange glow ── -->
+                <EventTrigger RoutedEvent="MouseEnter">
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                      To="1.03" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                      To="1.03" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetName="shadow"
+                                      Storyboard.TargetProperty="BlurRadius"
+                                      To="12" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetName="shadow"
+                                      Storyboard.TargetProperty="Opacity"
+                                      To="0.5" Duration="0:0:0.15" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </EventTrigger>
+
+                <!-- ── Leave: settle back ── -->
+                <EventTrigger RoutedEvent="MouseLeave">
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                      To="1.0" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                      To="1.0" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetName="shadow"
+                                      Storyboard.TargetProperty="BlurRadius"
+                                      To="0" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetName="shadow"
+                                      Storyboard.TargetProperty="Opacity"
+                                      To="0" Duration="0:0:0.15" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </EventTrigger>
+
+                <!-- ── Hover colors (alongside animation) ── -->
                 <Trigger Property="IsMouseOver" Value="True">
                   <Setter TargetName="border" Property="Background" Value="#333333" />
                   <Setter TargetName="border" Property="BorderBrush" Value="#FF8C00" />
                   <Setter Property="Foreground" Value="#FFA940" />
                 </Trigger>
+
+                <!-- ── Press: snap in, solid orange ── -->
                 <Trigger Property="IsPressed" Value="True">
                   <Setter TargetName="border" Property="Background" Value="#FF8C00" />
                   <Setter TargetName="border" Property="BorderBrush" Value="#CC7000" />
                   <Setter Property="Foreground" Value="#1A1A1A" />
                 </Trigger>
+
                 <Trigger Property="IsEnabled" Value="False">
                   <Setter TargetName="border" Property="Background" Value="#242424" />
                   <Setter TargetName="border" Property="BorderBrush" Value="#333333" />

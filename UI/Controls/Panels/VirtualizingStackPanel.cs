@@ -326,18 +326,27 @@ public class VirtualizingStackPanel : Panel
 
     protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
     {
+        var hasBaseTransform = base.TryGetLocalRenderTransform(out var baseTransform, out var baseInverseTransform);
         var offsetX = -HorizontalOffset;
         var offsetY = -VerticalOffset;
         if (AreClose(offsetX, 0f) && AreClose(offsetY, 0f))
         {
-            transform = Matrix.Identity;
-            inverseTransform = Matrix.Identity;
-            return false;
+            transform = baseTransform;
+            inverseTransform = baseInverseTransform;
+            return hasBaseTransform;
         }
 
-        transform = Matrix.CreateTranslation(offsetX, offsetY, 0f);
-        inverseTransform = Matrix.CreateTranslation(-offsetX, -offsetY, 0f);
-        return true;
+        var localScrollTransform = Matrix.CreateTranslation(offsetX, offsetY, 0f);
+        var localScrollInverseTransform = Matrix.CreateTranslation(-offsetX, -offsetY, 0f);
+        return TryComposeLocalTransforms(
+            hasPrimaryTransform: localScrollTransform != Matrix.Identity,
+            primaryTransform: localScrollTransform,
+            primaryInverse: localScrollInverseTransform,
+            hasSecondaryTransform: hasBaseTransform,
+            secondaryTransform: baseTransform,
+            secondaryInverse: baseInverseTransform,
+            out transform,
+            out inverseTransform);
     }
 
     public void LineUp()

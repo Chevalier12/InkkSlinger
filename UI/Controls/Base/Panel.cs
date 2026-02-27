@@ -227,33 +227,42 @@ public class Panel : FrameworkElement
 
     protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
     {
+        var hasBaseTransform = base.TryGetLocalRenderTransform(out var baseTransform, out var baseInverseTransform);
         if (!ScrollViewer.GetUseTransformContentScrolling(this))
         {
-            transform = Matrix.Identity;
-            inverseTransform = Matrix.Identity;
-            return false;
+            transform = baseTransform;
+            inverseTransform = baseInverseTransform;
+            return hasBaseTransform;
         }
 
         var viewer = FindDirectOwningScrollViewer();
         if (viewer == null)
         {
-            transform = Matrix.Identity;
-            inverseTransform = Matrix.Identity;
-            return false;
+            transform = baseTransform;
+            inverseTransform = baseInverseTransform;
+            return hasBaseTransform;
         }
 
         var offsetX = -viewer.HorizontalOffset;
         var offsetY = -viewer.VerticalOffset;
         if (MathF.Abs(offsetX) <= 0.01f && MathF.Abs(offsetY) <= 0.01f)
         {
-            transform = Matrix.Identity;
-            inverseTransform = Matrix.Identity;
-            return false;
+            transform = baseTransform;
+            inverseTransform = baseInverseTransform;
+            return hasBaseTransform;
         }
 
-        transform = Matrix.CreateTranslation(offsetX, offsetY, 0f);
-        inverseTransform = Matrix.CreateTranslation(-offsetX, -offsetY, 0f);
-        return true;
+        var localScrollTransform = Matrix.CreateTranslation(offsetX, offsetY, 0f);
+        var localScrollInverseTransform = Matrix.CreateTranslation(-offsetX, -offsetY, 0f);
+        return TryComposeLocalTransforms(
+            hasPrimaryTransform: localScrollTransform != Matrix.Identity,
+            primaryTransform: localScrollTransform,
+            primaryInverse: localScrollInverseTransform,
+            hasSecondaryTransform: hasBaseTransform,
+            secondaryTransform: baseTransform,
+            secondaryInverse: baseInverseTransform,
+            out transform,
+            out inverseTransform);
     }
 
     private void OnChildDependencyPropertyChanged(object? sender, DependencyPropertyChangedEventArgs args)

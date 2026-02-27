@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 
 namespace InkkSlinger;
 
@@ -364,7 +365,7 @@ internal readonly struct AnimationLaneKey : IEquatable<AnimationLaneKey>
     public bool Equals(AnimationLaneKey other)
     {
         return ReferenceEquals(Target, other.Target) &&
-               ReferenceEquals(Descriptor, other.Descriptor);
+               DescriptorEquals(Descriptor, other.Descriptor);
     }
 
     public override bool Equals(object? obj)
@@ -374,7 +375,36 @@ internal readonly struct AnimationLaneKey : IEquatable<AnimationLaneKey>
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(Target, Descriptor);
+        return HashCode.Combine(
+            RuntimeHelpers.GetHashCode(Target),
+            ComputeDescriptorHashCode(Descriptor));
+    }
+
+    private static bool DescriptorEquals(object left, object right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is PropertyInfo leftProperty && right is PropertyInfo rightProperty)
+        {
+            return string.Equals(leftProperty.Name, rightProperty.Name, StringComparison.Ordinal) &&
+                   leftProperty.MetadataToken == rightProperty.MetadataToken &&
+                   Equals(leftProperty.Module, rightProperty.Module);
+        }
+
+        return false;
+    }
+
+    private static int ComputeDescriptorHashCode(object descriptor)
+    {
+        if (descriptor is PropertyInfo property)
+        {
+            return HashCode.Combine(property.Name, property.MetadataToken, property.Module);
+        }
+
+        return RuntimeHelpers.GetHashCode(descriptor);
     }
 }
 
@@ -432,7 +462,10 @@ internal sealed class ClrPropertyAnimationSink : AnimationValueSink
 
     public override object? GetValue() => Property.GetValue(Target);
 
-    public override void SetValue(object? value) => Property.SetValue(Target, value);
+    public override void SetValue(object? value)
+    {
+        Property.SetValue(Target, value);
+    }
 
     public override void ClearValue(object? restoreValue) => Property.SetValue(Target, restoreValue);
 }

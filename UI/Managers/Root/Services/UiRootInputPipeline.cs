@@ -416,17 +416,36 @@ public sealed partial class UiRoot
     private void UpdateHover(UIElement? hovered)
     {
         hovered = PromoteHoverTarget(hovered);
-        if (ReferenceEquals(_inputState.HoveredElement, hovered))
+        var previousHovered = _inputState.HoveredElement;
+        if (ReferenceEquals(previousHovered, hovered))
         {
             return;
         }
 
-        SetHoverState(_inputState.HoveredElement, isMouseOver: false);
+        SetHoverState(previousHovered, isMouseOver: false);
 
         _inputState.HoveredElement = hovered;
         RefreshCachedWheelTargets(hovered);
         RefreshCachedClickTarget(hovered);
         SetHoverState(hovered, isMouseOver: true);
+
+        var pointerPosition = _inputState.LastPointerPosition;
+        if (previousHovered != null)
+        {
+            _lastInputRoutedEventCount++;
+            previousHovered.RaiseRoutedEventInternal(
+                UIElement.MouseLeaveEvent,
+                new MouseRoutedEventArgs(UIElement.MouseLeaveEvent, pointerPosition, MouseButton.Left));
+        }
+
+        if (hovered != null)
+        {
+            _lastInputRoutedEventCount++;
+            hovered.RaiseRoutedEventInternal(
+                UIElement.MouseEnterEvent,
+                new MouseRoutedEventArgs(UIElement.MouseEnterEvent, pointerPosition, MouseButton.Left));
+        }
+
     }
 
     private UIElement? PromoteHoverTarget(UIElement? hovered)
@@ -1214,12 +1233,19 @@ public sealed partial class UiRoot
 
     private bool ShouldReuseHoveredTargetForPointerMove(UIElement hovered)
     {
+        if (hovered.RenderTransform != null ||
+            hovered.HasRoutedHandlerForEvent(UIElement.MouseEnterEvent) ||
+            hovered.HasRoutedHandlerForEvent(UIElement.MouseLeaveEvent))
+        {
+            return false;
+        }
+
         if (hovered is ScrollViewer or ScrollBar)
         {
             return false;
         }
 
-        if (hovered is Button or ITextInputControl or
+        if (hovered is ITextInputControl or
             ListBox or ListView or DataGrid or
             MenuItem or ComboBoxItem or TabItem)
         {

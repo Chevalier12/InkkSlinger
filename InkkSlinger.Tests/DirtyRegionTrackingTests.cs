@@ -65,6 +65,22 @@ public class DirtyRegionTrackingTests
     }
 
     [Fact]
+    public void DirtyRegions_NormalizeToPixelEnvelope_ForFractionalBounds()
+    {
+        var tracker = new DirtyRegionTracker(maxRegionCount: 8);
+        tracker.SetViewport(new LayoutRect(0f, 0f, 100f, 100f));
+
+        tracker.AddDirtyRegion(new LayoutRect(10.2f, 20.6f, 3.1f, 4.1f));
+
+        Assert.False(tracker.IsFullFrameDirty);
+        Assert.Single(tracker.Regions);
+        Assert.Equal(10f, tracker.Regions[0].X);
+        Assert.Equal(20f, tracker.Regions[0].Y);
+        Assert.Equal(4f, tracker.Regions[0].Width);
+        Assert.Equal(5f, tracker.Regions[0].Height);
+    }
+
+    [Fact]
     public void UiRoot_DirtyDiagnostics_ReflectDirtyRegionState()
     {
         var root = new Panel();

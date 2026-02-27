@@ -76,6 +76,7 @@ public sealed partial class UiRoot
             else
             {
                 _visualRoot.Draw(spriteBatch);
+
                 LastDirtyRectCount = 1;
                 LastDirtyAreaPercentage = 1d;
             }

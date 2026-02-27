@@ -91,11 +91,72 @@ public class UIElement : DependencyObject
                         return 1f;
                     }
 
-                    return opacity;
+                     return opacity;
+                 }));
+
+    public static readonly DependencyProperty RenderTransformProperty =
+        DependencyProperty.Register(
+            nameof(RenderTransform),
+            typeof(Transform),
+            typeof(UIElement),
+            new FrameworkPropertyMetadata(
+                null,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is not UIElement element)
+                    {
+                        return;
+                    }
+
+                    if (args.OldValue is Transform oldTransform)
+                    {
+                        oldTransform.Changed -= element.OnRenderTransformChanged;
+                    }
+
+                    if (args.NewValue is Transform newTransform)
+                    {
+                        newTransform.Changed += element.OnRenderTransformChanged;
+                    }
+                }));
+
+    public static readonly DependencyProperty RenderTransformOriginProperty =
+        DependencyProperty.Register(
+            nameof(RenderTransformOrigin),
+            typeof(Vector2),
+            typeof(UIElement),
+            new FrameworkPropertyMetadata(Vector2.Zero, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty EffectProperty =
+        DependencyProperty.Register(
+            nameof(Effect),
+            typeof(Effect),
+            typeof(UIElement),
+            new FrameworkPropertyMetadata(
+                null,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is not UIElement element)
+                    {
+                        return;
+                    }
+
+                    if (args.OldValue is Effect oldEffect)
+                    {
+                        oldEffect.Changed -= element.OnEffectChanged;
+                    }
+
+                    if (args.NewValue is Effect newEffect)
+                    {
+                        newEffect.Changed += element.OnEffectChanged;
+                    }
                 }));
 
     public static readonly RoutedEvent PreviewMouseMoveEvent = new(nameof(PreviewMouseMoveEvent), RoutingStrategy.Tunnel);
     public static readonly RoutedEvent MouseMoveEvent = new(nameof(MouseMoveEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent MouseEnterEvent = new(nameof(MouseEnterEvent), RoutingStrategy.Direct);
+    public static readonly RoutedEvent MouseLeaveEvent = new(nameof(MouseLeaveEvent), RoutingStrategy.Direct);
     public static readonly RoutedEvent PreviewMouseDownEvent = new(nameof(PreviewMouseDownEvent), RoutingStrategy.Tunnel);
     public static readonly RoutedEvent MouseDownEvent = new(nameof(MouseDownEvent), RoutingStrategy.Bubble);
     public static readonly RoutedEvent PreviewMouseUpEvent = new(nameof(PreviewMouseUpEvent), RoutingStrategy.Tunnel);
@@ -147,6 +208,24 @@ public class UIElement : DependencyObject
     {
         get => GetValue<float>(OpacityProperty);
         set => SetValue(OpacityProperty, value);
+    }
+
+    public Transform? RenderTransform
+    {
+        get => GetValue<Transform>(RenderTransformProperty);
+        set => SetValue(RenderTransformProperty, value);
+    }
+
+    public Vector2 RenderTransformOrigin
+    {
+        get => GetValue<Vector2>(RenderTransformOriginProperty);
+        set => SetValue(RenderTransformOriginProperty, value);
+    }
+
+    public Effect? Effect
+    {
+        get => GetValue<Effect>(EffectProperty);
+        set => SetValue(EffectProperty, value);
     }
 
     public LayoutRect LayoutSlot => _layoutSlot;
@@ -248,6 +327,7 @@ public class UIElement : DependencyObject
 
         try
         {
+            Effect?.Render(this, spriteBatch, Opacity);
             OnRender(spriteBatch);
             var currentClip = spriteBatch.GraphicsDevice.ScissorRectangle;
 
@@ -298,9 +378,67 @@ public class UIElement : DependencyObject
 
     protected virtual bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
     {
-        transform = Matrix.Identity;
-        inverseTransform = Matrix.Identity;
-        return false;
+        var localRenderTransform = RenderTransform;
+        if (localRenderTransform == null)
+        {
+            transform = Matrix.Identity;
+            inverseTransform = Matrix.Identity;
+            return false;
+        }
+
+        transform = localRenderTransform.ToMatrix();
+        if (RenderTransformOrigin != Vector2.Zero)
+        {
+            var origin = RenderTransformOrigin;
+            var pivotX = LayoutSlot.X + (LayoutSlot.Width * origin.X);
+            var pivotY = LayoutSlot.Y + (LayoutSlot.Height * origin.Y);
+            transform = Matrix.CreateTranslation(-pivotX, -pivotY, 0f)
+                        * transform
+                        * Matrix.CreateTranslation(pivotX, pivotY, 0f);
+        }
+
+        if (!TryInvertMatrix(transform, out inverseTransform))
+        {
+            inverseTransform = Matrix.Identity;
+        }
+
+        return transform != Matrix.Identity;
+    }
+
+    protected static bool TryComposeLocalTransforms(
+        bool hasPrimaryTransform,
+        Matrix primaryTransform,
+        Matrix primaryInverse,
+        bool hasSecondaryTransform,
+        Matrix secondaryTransform,
+        Matrix secondaryInverse,
+        out Matrix combinedTransform,
+        out Matrix combinedInverse)
+    {
+        if (!hasPrimaryTransform && !hasSecondaryTransform)
+        {
+            combinedTransform = Matrix.Identity;
+            combinedInverse = Matrix.Identity;
+            return false;
+        }
+
+        if (!hasPrimaryTransform)
+        {
+            combinedTransform = secondaryTransform;
+            combinedInverse = secondaryInverse;
+            return true;
+        }
+
+        if (!hasSecondaryTransform)
+        {
+            combinedTransform = primaryTransform;
+            combinedInverse = primaryInverse;
+            return true;
+        }
+
+        combinedTransform = primaryTransform * secondaryTransform;
+        combinedInverse = secondaryInverse * primaryInverse;
+        return true;
     }
 
     internal bool HasLocalRenderTransform()
@@ -971,6 +1109,42 @@ public class UIElement : DependencyObject
                rectRight > clip.X &&
                rect.Y < clipBottom &&
                rectBottom > clip.Y;
+    }
+
+    private void OnEffectChanged()
+    {
+        InvalidateVisual();
+    }
+
+    private void OnRenderTransformChanged()
+    {
+        InvalidateVisual();
+    }
+
+    private static bool TryInvertMatrix(Matrix matrix, out Matrix inverse)
+    {
+        inverse = Matrix.Invert(matrix);
+        return IsFinite(inverse.M11) &&
+               IsFinite(inverse.M12) &&
+               IsFinite(inverse.M13) &&
+               IsFinite(inverse.M14) &&
+               IsFinite(inverse.M21) &&
+               IsFinite(inverse.M22) &&
+               IsFinite(inverse.M23) &&
+               IsFinite(inverse.M24) &&
+               IsFinite(inverse.M31) &&
+               IsFinite(inverse.M32) &&
+               IsFinite(inverse.M33) &&
+               IsFinite(inverse.M34) &&
+               IsFinite(inverse.M41) &&
+               IsFinite(inverse.M42) &&
+               IsFinite(inverse.M43) &&
+               IsFinite(inverse.M44);
+    }
+
+    private static bool IsFinite(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
     }
 
     private readonly struct RoutedHandlerEntry

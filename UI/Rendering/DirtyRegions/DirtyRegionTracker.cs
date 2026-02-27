@@ -153,7 +153,17 @@ internal sealed class DirtyRegionTracker
             height = -height;
         }
 
-        return new LayoutRect(x, y, width, height);
+        var right = x + width;
+        var bottom = y + height;
+        var snappedX = MathF.Floor(x);
+        var snappedY = MathF.Floor(y);
+        var snappedRight = MathF.Ceiling(right);
+        var snappedBottom = MathF.Ceiling(bottom);
+        return new LayoutRect(
+            snappedX,
+            snappedY,
+            MathF.Max(0f, snappedRight - snappedX),
+            MathF.Max(0f, snappedBottom - snappedY));
     }
 
     private static bool IsValid(LayoutRect region)

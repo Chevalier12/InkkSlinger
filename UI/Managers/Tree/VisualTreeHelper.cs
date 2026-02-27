@@ -157,6 +157,7 @@ public static class VisualTreeHelper
         {
             var ordered = panel.GetChildrenOrderedByZIndex();
             if (ordered.Count >= 16 &&
+                CanUseMonotonicVerticalPanelFastPath(ordered) &&
                 TryHitTestMonotonicVerticalPanelChildren(
                     panel,
                     ordered,
@@ -497,7 +498,7 @@ public static class VisualTreeHelper
         out UIElement? hit)
     {
         hit = null;
-        if (children.Count == 0)
+        if (children.Count == 0 || !CanUseMonotonicVerticalPanelFastPath(children))
         {
             return false;
         }
@@ -769,6 +770,21 @@ public static class VisualTreeHelper
         cache.ChildCount = containers.Count;
         cache.IsMonotonic = isMonotonic;
         return isMonotonic;
+    }
+
+    private static bool CanUseMonotonicVerticalPanelFastPath(IReadOnlyList<UIElement> children)
+    {
+        for (var i = 0; i < children.Count; i++)
+        {
+            var child = children[i];
+            if (child.TryGetLocalRenderTransformSnapshot(out _) ||
+                child.TryGetLocalClipSnapshot(out _))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool IsMonotonicByY(IReadOnlyList<UIElement> containers)

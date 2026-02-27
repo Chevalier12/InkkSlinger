@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 
@@ -6,16 +7,42 @@ namespace InkkSlinger;
 
 public abstract class Transform
 {
+    internal event Action? Changed;
+
     public abstract Matrix ToMatrix();
 
     public Vector2 TransformPoint(Vector2 point)
     {
         return Vector2.Transform(point, ToMatrix());
     }
+
+    protected void RaiseChanged()
+    {
+        Changed?.Invoke();
+    }
+
+    protected static bool NearlyEqual(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.0001f;
+    }
+
+    protected bool SetField(ref float field, float value)
+    {
+        if (NearlyEqual(field, value))
+        {
+            return false;
+        }
+
+        field = value;
+        RaiseChanged();
+        return true;
+    }
 }
 
 public sealed class MatrixTransform : Transform
 {
+    private Matrix _matrix;
+
     public MatrixTransform()
         : this(Matrix.Identity)
     {
@@ -23,10 +50,23 @@ public sealed class MatrixTransform : Transform
 
     public MatrixTransform(Matrix matrix)
     {
-        Matrix = matrix;
+        _matrix = matrix;
     }
 
-    public Matrix Matrix { get; set; }
+    public Matrix Matrix
+    {
+        get => _matrix;
+        set
+        {
+            if (_matrix == value)
+            {
+                return;
+            }
+
+            _matrix = value;
+            RaiseChanged();
+        }
+    }
 
     public override Matrix ToMatrix()
     {
@@ -36,9 +76,20 @@ public sealed class MatrixTransform : Transform
 
 public sealed class TranslateTransform : Transform
 {
-    public float X { get; set; }
+    private float _x;
+    private float _y;
 
-    public float Y { get; set; }
+    public float X
+    {
+        get => _x;
+        set => _ = SetField(ref _x, value);
+    }
+
+    public float Y
+    {
+        get => _y;
+        set => _ = SetField(ref _y, value);
+    }
 
     public override Matrix ToMatrix()
     {
@@ -48,13 +99,34 @@ public sealed class TranslateTransform : Transform
 
 public sealed class ScaleTransform : Transform
 {
-    public float ScaleX { get; set; } = 1f;
+    private float _scaleX = 1f;
+    private float _scaleY = 1f;
+    private float _centerX;
+    private float _centerY;
 
-    public float ScaleY { get; set; } = 1f;
+    public float ScaleX
+    {
+        get => _scaleX;
+        set => _ = SetField(ref _scaleX, value);
+    }
 
-    public float CenterX { get; set; }
+    public float ScaleY
+    {
+        get => _scaleY;
+        set => _ = SetField(ref _scaleY, value);
+    }
 
-    public float CenterY { get; set; }
+    public float CenterX
+    {
+        get => _centerX;
+        set => _ = SetField(ref _centerX, value);
+    }
+
+    public float CenterY
+    {
+        get => _centerY;
+        set => _ = SetField(ref _centerY, value);
+    }
 
     public override Matrix ToMatrix()
     {
@@ -71,11 +143,27 @@ public sealed class ScaleTransform : Transform
 
 public sealed class RotateTransform : Transform
 {
-    public float Angle { get; set; }
+    private float _angle;
+    private float _centerX;
+    private float _centerY;
 
-    public float CenterX { get; set; }
+    public float Angle
+    {
+        get => _angle;
+        set => _ = SetField(ref _angle, value);
+    }
 
-    public float CenterY { get; set; }
+    public float CenterX
+    {
+        get => _centerX;
+        set => _ = SetField(ref _centerX, value);
+    }
+
+    public float CenterY
+    {
+        get => _centerY;
+        set => _ = SetField(ref _centerY, value);
+    }
 
     public override Matrix ToMatrix()
     {
@@ -93,13 +181,34 @@ public sealed class RotateTransform : Transform
 
 public sealed class SkewTransform : Transform
 {
-    public float AngleX { get; set; }
+    private float _angleX;
+    private float _angleY;
+    private float _centerX;
+    private float _centerY;
 
-    public float AngleY { get; set; }
+    public float AngleX
+    {
+        get => _angleX;
+        set => _ = SetField(ref _angleX, value);
+    }
 
-    public float CenterX { get; set; }
+    public float AngleY
+    {
+        get => _angleY;
+        set => _ = SetField(ref _angleY, value);
+    }
 
-    public float CenterY { get; set; }
+    public float CenterX
+    {
+        get => _centerX;
+        set => _ = SetField(ref _centerX, value);
+    }
+
+    public float CenterY
+    {
+        get => _centerY;
+        set => _ = SetField(ref _centerY, value);
+    }
 
     public override Matrix ToMatrix()
     {
@@ -124,7 +233,14 @@ public sealed class SkewTransform : Transform
 
 public sealed class TransformGroup : Transform
 {
-    public List<Transform> Children { get; } = new();
+    private readonly TransformCollection _children;
+
+    public TransformGroup()
+    {
+        _children = new TransformCollection(OnChildrenChanged);
+    }
+
+    public IList<Transform> Children => _children;
 
     public override Matrix ToMatrix()
     {
@@ -135,5 +251,136 @@ public sealed class TransformGroup : Transform
         }
 
         return matrix;
+    }
+
+    private void OnChildrenChanged()
+    {
+        RaiseChanged();
+    }
+
+    private sealed class TransformCollection : IList<Transform>
+    {
+        private readonly List<Transform> _items = new();
+        private readonly Action _onChanged;
+
+        public TransformCollection(Action onChanged)
+        {
+            _onChanged = onChanged;
+        }
+
+        public Transform this[int index]
+        {
+            get => _items[index];
+            set
+            {
+                ArgumentNullException.ThrowIfNull(value);
+                var existing = _items[index];
+                if (ReferenceEquals(existing, value))
+                {
+                    return;
+                }
+
+                Detach(existing);
+                _items[index] = value;
+                Attach(value);
+                _onChanged();
+            }
+        }
+
+        public int Count => _items.Count;
+
+        public bool IsReadOnly => false;
+
+        public void Add(Transform item)
+        {
+            ArgumentNullException.ThrowIfNull(item);
+            _items.Add(item);
+            Attach(item);
+            _onChanged();
+        }
+
+        public void Clear()
+        {
+            if (_items.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < _items.Count; i++)
+            {
+                Detach(_items[i]);
+            }
+
+            _items.Clear();
+            _onChanged();
+        }
+
+        public bool Contains(Transform item)
+        {
+            return _items.Contains(item);
+        }
+
+        public void CopyTo(Transform[] array, int arrayIndex)
+        {
+            _items.CopyTo(array, arrayIndex);
+        }
+
+        public IEnumerator<Transform> GetEnumerator()
+        {
+            return _items.GetEnumerator();
+        }
+
+        public int IndexOf(Transform item)
+        {
+            return _items.IndexOf(item);
+        }
+
+        public void Insert(int index, Transform item)
+        {
+            ArgumentNullException.ThrowIfNull(item);
+            _items.Insert(index, item);
+            Attach(item);
+            _onChanged();
+        }
+
+        public bool Remove(Transform item)
+        {
+            if (!_items.Remove(item))
+            {
+                return false;
+            }
+
+            Detach(item);
+            _onChanged();
+            return true;
+        }
+
+        public void RemoveAt(int index)
+        {
+            var item = _items[index];
+            _items.RemoveAt(index);
+            Detach(item);
+            _onChanged();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return _items.GetEnumerator();
+        }
+
+        private void Attach(Transform transform)
+        {
+            transform.Changed += OnChildChanged;
+        }
+
+        private void Detach(Transform transform)
+        {
+            transform.Changed -= OnChildChanged;
+        }
+
+        private void OnChildChanged()
+        {
+            _onChanged();
+        }
     }
 }

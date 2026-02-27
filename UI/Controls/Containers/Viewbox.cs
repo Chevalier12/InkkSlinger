@@ -94,17 +94,18 @@ public class Viewbox : ContentControl
 
     protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
     {
-        transform = Matrix.Identity;
-        inverseTransform = Matrix.Identity;
+        var hasBaseTransform = base.TryGetLocalRenderTransform(out var baseTransform, out var baseInverseTransform);
+        transform = baseTransform;
+        inverseTransform = baseInverseTransform;
 
         if (ContentElement is not FrameworkElement)
         {
-            return false;
+            return hasBaseTransform;
         }
 
         if (_arrangedScale == Vector2.One && _arrangedOffset == Vector2.Zero)
         {
-            return false;
+            return hasBaseTransform;
         }
 
         var originX = LayoutSlot.X;
@@ -112,19 +113,27 @@ public class Viewbox : ContentControl
         var translateX = originX + _arrangedOffset.X;
         var translateY = originY + _arrangedOffset.Y;
 
-        transform =
+        var localViewboxTransform =
             Matrix.CreateTranslation(-originX, -originY, 0f) *
             Matrix.CreateScale(_arrangedScale.X, _arrangedScale.Y, 1f) *
             Matrix.CreateTranslation(translateX, translateY, 0f);
 
         var inverseScaleX = _arrangedScale.X == 0f ? 0f : 1f / _arrangedScale.X;
         var inverseScaleY = _arrangedScale.Y == 0f ? 0f : 1f / _arrangedScale.Y;
-        inverseTransform =
+        var localViewboxInverseTransform =
             Matrix.CreateTranslation(-translateX, -translateY, 0f) *
             Matrix.CreateScale(inverseScaleX, inverseScaleY, 1f) *
             Matrix.CreateTranslation(originX, originY, 0f);
 
-        return true;
+        return TryComposeLocalTransforms(
+            hasPrimaryTransform: localViewboxTransform != Matrix.Identity,
+            primaryTransform: localViewboxTransform,
+            primaryInverse: localViewboxInverseTransform,
+            hasSecondaryTransform: hasBaseTransform,
+            secondaryTransform: baseTransform,
+            secondaryInverse: baseInverseTransform,
+            out transform,
+            out inverseTransform);
     }
 
     private static Vector2 ComputeScaleFactor(

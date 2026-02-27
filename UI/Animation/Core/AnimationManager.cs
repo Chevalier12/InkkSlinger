@@ -12,6 +12,7 @@ public sealed class AnimationManager
     private readonly Dictionary<StoryboardControlKey, StoryboardInstance> _controllableByName = new();
     private readonly Dictionary<AnimationLaneKey, AppliedLaneState> _appliedLanes = new();
     private long _nextSequence;
+    private int _nextStoryboardInstanceId;
     private TimeSpan _currentTime = TimeSpan.Zero;
 
     public static AnimationManager Current => Instance;
@@ -129,6 +130,11 @@ public sealed class AnimationManager
     internal long ReserveSequence()
     {
         return ++_nextSequence;
+    }
+
+    internal int ReserveStoryboardInstanceId()
+    {
+        return ++_nextStoryboardInstanceId;
     }
 
     internal void RemoveFromLane(AnimationLaneKey key, StoryboardInstance owner, HandoffBehavior handoff)
@@ -384,7 +390,10 @@ internal sealed class StoryboardInstance
         _startedAt = startedAt;
         ControlName = controlName;
         IsControllable = isControllable;
+        DebugId = manager.ReserveStoryboardInstanceId();
     }
+
+    public int DebugId { get; }
 
     public Storyboard Storyboard { get; }
 
@@ -427,7 +436,10 @@ internal sealed class StoryboardInstance
                     _startedAt,
                     _manager.ReserveSequence(),
                     descriptor.ParentBeginOffset,
-                    descriptor.ParentSpeedRatio));
+                    descriptor.ParentSpeedRatio,
+                    DebugId,
+                    ControlName,
+                    animation.TargetProperty));
         }
 
         IsCompleted = _entries.Count == 0;
@@ -615,6 +627,9 @@ internal sealed class AnimationLaneEntry
     private readonly object? _destinationValue;
     private readonly TimeSpan _parentBeginOffset;
     private readonly float _parentSpeedRatio;
+    private readonly int _ownerStoryboardInstanceId;
+    private readonly string? _ownerControlName;
+    private readonly string _targetPropertyPath;
     private TimeSpan _startedAt;
 
     public AnimationLaneEntry(
@@ -623,7 +638,10 @@ internal sealed class AnimationLaneEntry
         TimeSpan startedAt,
         long sequence,
         TimeSpan parentBeginOffset,
-        float parentSpeedRatio)
+        float parentSpeedRatio,
+        int ownerStoryboardInstanceId,
+        string? ownerControlName,
+        string targetPropertyPath)
     {
         _sink = sink;
         Animation = animation;
@@ -631,6 +649,9 @@ internal sealed class AnimationLaneEntry
         Sequence = sequence;
         _parentBeginOffset = parentBeginOffset;
         _parentSpeedRatio = parentSpeedRatio;
+        _ownerStoryboardInstanceId = ownerStoryboardInstanceId;
+        _ownerControlName = ownerControlName;
+        _targetPropertyPath = targetPropertyPath;
         _originValue = sink.GetValue();
         _destinationValue = _originValue;
     }
@@ -692,7 +713,15 @@ internal sealed class AnimationLaneEntry
             }
             else
             {
-                _latest = new LaneContribution(Key, _sink, Sequence, _originValue, finalValue);
+                _latest = new LaneContribution(
+                    Key,
+                    _sink,
+                    Sequence,
+                    _originValue,
+                    finalValue,
+                    _ownerStoryboardInstanceId,
+                    _ownerControlName,
+                    _targetPropertyPath);
             }
 
             return;
@@ -711,7 +740,15 @@ internal sealed class AnimationLaneEntry
             {
                 var holdProgress = ComputeCycleProgress(totalActiveTicks, cycleTicks, Animation.AutoReverse);
                 var holdValue = ConvertForSink(Animation.GetCurrentValue(_originValue, _destinationValue, holdProgress));
-                _latest = new LaneContribution(Key, _sink, Sequence, _originValue, holdValue);
+                _latest = new LaneContribution(
+                    Key,
+                    _sink,
+                    Sequence,
+                    _originValue,
+                    holdValue,
+                    _ownerStoryboardInstanceId,
+                    _ownerControlName,
+                    _targetPropertyPath);
             }
             else
             {
@@ -724,7 +761,15 @@ internal sealed class AnimationLaneEntry
 
         var cycleProgress = ComputeCycleProgress(scaledTicksClamped, cycleTicks, Animation.AutoReverse);
         var currentValue = ConvertForSink(Animation.GetCurrentValue(_originValue, _destinationValue, Math.Clamp(cycleProgress, 0f, 1f)));
-        _latest = new LaneContribution(Key, _sink, Sequence, _originValue, currentValue);
+        _latest = new LaneContribution(
+            Key,
+            _sink,
+            Sequence,
+            _originValue,
+            currentValue,
+            _ownerStoryboardInstanceId,
+            _ownerControlName,
+            _targetPropertyPath);
     }
 
     public bool TryGetContribution(out LaneContribution contribution)
@@ -838,13 +883,19 @@ internal readonly struct LaneContribution
         AnimationValueSink sink,
         long sequence,
         object? originValue,
-        object? value)
+        object? value,
+        int ownerStoryboardInstanceId,
+        string? ownerControlName,
+        string targetPropertyPath)
     {
         Key = key;
         Sink = sink;
         Sequence = sequence;
         OriginValue = originValue;
         Value = value;
+        OwnerStoryboardInstanceId = ownerStoryboardInstanceId;
+        OwnerControlName = ownerControlName;
+        TargetPropertyPath = targetPropertyPath;
     }
 
     public AnimationLaneKey Key { get; }
@@ -856,4 +907,10 @@ internal readonly struct LaneContribution
     public object? OriginValue { get; }
 
     public object? Value { get; }
+
+    public int OwnerStoryboardInstanceId { get; }
+
+    public string? OwnerControlName { get; }
+
+    public string TargetPropertyPath { get; }
 }

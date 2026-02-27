@@ -129,7 +129,9 @@ internal sealed class TemplateTriggerEngine
                         continue;
                     }
 
-                    pair.Key.Target.SetTemplateTriggerValue(pair.Key.Property, pair.Value);
+                    pair.Key.Target.SetTemplateTriggerValue(
+                        pair.Key.Property,
+                        StyleValueCloneUtility.CloneForAssignment(pair.Value));
                 }
 
                 _activeTriggerValues.Clear();

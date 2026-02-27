@@ -90,7 +90,7 @@ public class Style
                 continue;
             }
 
-            target.SetStyleValue(setter.Property, setter.Value);
+            target.SetStyleValue(setter.Property, StyleValueCloneUtility.CloneForAssignment(setter.Value));
             state.AppliedStyleProperties.Add(setter.Property);
         }
     }
@@ -130,7 +130,7 @@ public class Style
                         continue;
                     }
 
-                    target.SetStyleTriggerValue(desired.Key, desired.Value);
+                    target.SetStyleTriggerValue(desired.Key, StyleValueCloneUtility.CloneForAssignment(desired.Value));
                 }
 
                 state.ActiveTriggerValues.Clear();
