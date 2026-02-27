@@ -103,7 +103,7 @@ public sealed partial class UiRoot
                 contextMenuMoveHandled = true;
             }
 
-            var hasOpenContextMenu = TryFindOpenContextMenu(out _) || HasAnyOpenContextMenu(_visualRoot);
+            var hasOpenContextMenu = _lastKnownOpenContextMenu is { IsOpen: true } || TryFindOpenContextMenu(out _);
             var shouldRouteMove = !contextMenuMoveHandled &&
                                   (hasOpenContextMenu ||
                                   !ReferenceEquals(previousHovered, _inputState.HoveredElement) ||
@@ -255,7 +255,6 @@ public sealed partial class UiRoot
             }
 
             if (_inputState.HoveredElement != null &&
-                !delta.PointerMoved &&
                 (delta.WheelDelta != 0 || ShouldReuseHoveredTargetForPointerMove(_inputState.HoveredElement)) &&
                 PointerInsideHoveredTargetForReuse(_inputState.HoveredElement, pointerPosition))
             {
@@ -881,7 +880,6 @@ public sealed partial class UiRoot
     {
         _hasCachedPointerResolveTarget = false;
         _cachedPointerResolveTarget = null;
-        _lastInputHitTestCount++;
         var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
         UpdateHover(hoverTarget);
     }
@@ -1814,24 +1812,6 @@ public sealed partial class UiRoot
         for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
         {
             if (ReferenceEquals(current, ancestor))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool HasAnyOpenContextMenu(UIElement root)
-    {
-        if (root is ContextMenu contextMenu && contextMenu.IsOpen)
-        {
-            return true;
-        }
-
-        foreach (var child in root.GetVisualChildren())
-        {
-            if (HasAnyOpenContextMenu(child))
             {
                 return true;
             }

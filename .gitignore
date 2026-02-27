@@ -28,3 +28,10 @@ Desktop.ini
 # Local documentation
 Docs/
 
+# Local agent instructions
+AGENTS.md
+agents.md
+
+# Local diagnostics notes
+diagnostics-instrumentation-guide.md
+

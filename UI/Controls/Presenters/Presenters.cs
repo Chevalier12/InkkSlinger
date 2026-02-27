@@ -39,6 +39,10 @@ public class ContentPresenter : FrameworkElement
 
     private UIElement? _presentedElement;
     private DependencyObject? _sourceOwner;
+    private object? _lastEffectiveContent;
+    private DataTemplate? _lastEffectiveTemplate;
+    private DataTemplateSelector? _lastEffectiveTemplateSelector;
+    private bool _hasEffectivePresentationState;
 
     public object? Content
     {
@@ -82,7 +86,10 @@ public class ContentPresenter : FrameworkElement
 
     internal void NotifyOwnerContentChanged()
     {
-        RefreshPresentedElement();
+        if (RefreshPresentedElement())
+        {
+            InvalidateMeasure();
+        }
     }
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
@@ -94,8 +101,10 @@ public class ContentPresenter : FrameworkElement
             args.Property == ContentSourceProperty)
         {
             RefreshSourceBinding();
-            RefreshPresentedElement();
-            InvalidateMeasure();
+            if (RefreshPresentedElement())
+            {
+                InvalidateMeasure();
+            }
         }
     }
 
@@ -103,16 +112,20 @@ public class ContentPresenter : FrameworkElement
     {
         base.OnVisualParentChanged(oldParent, newParent);
         RefreshSourceBinding();
-        RefreshPresentedElement();
-        InvalidateMeasure();
+        if (RefreshPresentedElement())
+        {
+            InvalidateMeasure();
+        }
     }
 
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
     {
         base.OnLogicalParentChanged(oldParent, newParent);
         RefreshSourceBinding();
-        RefreshPresentedElement();
-        InvalidateMeasure();
+        if (RefreshPresentedElement())
+        {
+            InvalidateMeasure();
+        }
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
@@ -175,15 +188,30 @@ public class ContentPresenter : FrameworkElement
 
     private void OnSourceOwnerPropertyChanged(object? sender, DependencyPropertyChangedEventArgs args)
     {
-        RefreshPresentedElement();
-        InvalidateMeasure();
+        if (!IsSourceOwnerPropertyRelevant(args.Property))
+        {
+            return;
+        }
+
+        if (RefreshPresentedElement())
+        {
+            InvalidateMeasure();
+        }
     }
 
-    private void RefreshPresentedElement()
+    private bool RefreshPresentedElement()
     {
         var content = ResolveEffectiveContent();
         var template = ResolveEffectiveTemplate();
         var selector = ResolveEffectiveTemplateSelector();
+        if (_hasEffectivePresentationState &&
+            Equals(_lastEffectiveContent, content) &&
+            ReferenceEquals(_lastEffectiveTemplate, template) &&
+            ReferenceEquals(_lastEffectiveTemplateSelector, selector))
+        {
+            return false;
+        }
+
         var selectedTemplate = DataTemplateResolver.ResolveTemplateForContent(
             this,
             content,
@@ -191,6 +219,11 @@ public class ContentPresenter : FrameworkElement
             selector,
             this);
         var built = BuildContentElement(content, selectedTemplate);
+        if (ReferenceEquals(_presentedElement, built))
+        {
+            CacheEffectivePresentationState(content, template, selector);
+            return false;
+        }
 
         if (_presentedElement != null)
         {
@@ -204,6 +237,46 @@ public class ContentPresenter : FrameworkElement
             _presentedElement.SetVisualParent(this);
             _presentedElement.SetLogicalParent(this);
         }
+
+        CacheEffectivePresentationState(content, template, selector);
+        return true;
+    }
+
+    private void CacheEffectivePresentationState(object? content, DataTemplate? template, DataTemplateSelector? selector)
+    {
+        _lastEffectiveContent = content;
+        _lastEffectiveTemplate = template;
+        _lastEffectiveTemplateSelector = selector;
+        _hasEffectivePresentationState = true;
+    }
+
+    private bool IsSourceOwnerPropertyRelevant(DependencyProperty property)
+    {
+        var contentSource = ContentSource;
+        if (string.IsNullOrEmpty(contentSource))
+        {
+            contentSource = "Content";
+        }
+
+        if (!HasLocalValue(ContentProperty) &&
+            string.Equals(property.Name, contentSource, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (!HasLocalValue(ContentTemplateProperty) &&
+            string.Equals(property.Name, contentSource + "Template", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (!HasLocalValue(ContentTemplateSelectorProperty) &&
+            string.Equals(property.Name, contentSource + "TemplateSelector", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private object? ResolveEffectiveContent()

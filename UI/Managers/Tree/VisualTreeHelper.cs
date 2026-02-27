@@ -12,6 +12,7 @@ public static class VisualTreeHelper
     private static readonly bool EnableHitTestTrace = false;
     private static int _itemsPresenterNeighborProbeCount;
     private static int _itemsPresenterFullFallbackCount;
+    private static readonly ConditionalWeakTable<Panel, PanelMonotonicCacheEntry> PanelMonotonicCache = new();
     public static UIElement? HitTest(UIElement root, Vector2 position)
     {
         return HitTestCore(
@@ -157,6 +158,7 @@ public static class VisualTreeHelper
             var ordered = panel.GetChildrenOrderedByZIndex();
             if (ordered.Count >= 16 &&
                 TryHitTestMonotonicVerticalPanelChildren(
+                    panel,
                     ordered,
                     position,
                     nextHorizontalOffset,
@@ -480,6 +482,7 @@ public static class VisualTreeHelper
     }
 
     private static bool TryHitTestMonotonicVerticalPanelChildren(
+        Panel panel,
         IReadOnlyList<UIElement> children,
         Vector2 position,
         float accumulatedHorizontalOffset,
@@ -494,7 +497,13 @@ public static class VisualTreeHelper
         out UIElement? hit)
     {
         hit = null;
-        if (children.Count == 0 || !IsMonotonicByY(children))
+        if (children.Count == 0)
+        {
+            return false;
+        }
+
+        var isMonotonicByY = IsMonotonicByY(panel, children);
+        if (!isMonotonicByY)
         {
             return false;
         }
@@ -508,7 +517,7 @@ public static class VisualTreeHelper
 
         var candidate = (int)(probeY / averageHeight);
         candidate = Math.Clamp(candidate, 0, children.Count - 1);
-        candidate = FindCandidateIndexByY(children, probeY, candidate);
+        candidate = FindCandidateIndexByY(children, probeY, candidate, isMonotonicByY: true);
         candidate = RefineIndexByLayoutSlot(children, probeY, candidate);
 
         hit = HitTestCore(
@@ -705,6 +714,63 @@ public static class VisualTreeHelper
         return Math.Clamp(low, 0, containers.Count - 1);
     }
 
+    private static int FindCandidateIndexByY(IReadOnlyList<UIElement> containers, float y, int guess, bool isMonotonicByY)
+    {
+        if (containers.Count == 0)
+        {
+            return 0;
+        }
+
+        guess = Math.Clamp(guess, 0, containers.Count - 1);
+        if (!isMonotonicByY)
+        {
+            return guess;
+        }
+
+        var low = 0;
+        var high = containers.Count - 1;
+        while (low <= high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (!TryGetVerticalRange(containers[middle], out var top, out var bottom))
+            {
+                return guess;
+            }
+
+            if (y < top)
+            {
+                high = middle - 1;
+                continue;
+            }
+
+            if (y > bottom)
+            {
+                low = middle + 1;
+                continue;
+            }
+
+            return middle;
+        }
+
+        return Math.Clamp(low, 0, containers.Count - 1);
+    }
+
+    private static bool IsMonotonicByY(Panel panel, IReadOnlyList<UIElement> containers)
+    {
+        var cache = PanelMonotonicCache.GetOrCreateValue(panel);
+        var layoutVersion = panel.RenderCacheLayoutVersion;
+        if (cache.LayoutVersion == layoutVersion && cache.ChildCount == containers.Count)
+        {
+            return cache.IsMonotonic;
+        }
+
+        var isMonotonic = IsMonotonicByY(containers);
+        cache.LayoutVersion = layoutVersion;
+        cache.ChildCount = containers.Count;
+        cache.IsMonotonic = isMonotonic;
+        return isMonotonic;
+    }
+
     private static bool IsMonotonicByY(IReadOnlyList<UIElement> containers)
     {
         var lastTop = float.NegativeInfinity;
@@ -836,6 +902,13 @@ public static class VisualTreeHelper
                 _pool.Push(list);
             }
         }
+    }
+
+    private sealed class PanelMonotonicCacheEntry
+    {
+        public int LayoutVersion;
+        public int ChildCount;
+        public bool IsMonotonic;
     }
 }
 

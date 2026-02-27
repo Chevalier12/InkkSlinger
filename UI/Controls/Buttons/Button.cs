@@ -81,14 +81,14 @@ public class Button : ContentControl
             nameof(IsMouseOver),
             typeof(bool),
             typeof(Button),
-            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(false));
 
     public new static readonly DependencyProperty IsPressedProperty =
         DependencyProperty.Register(
             nameof(IsPressed),
             typeof(bool),
             typeof(Button),
-            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(false));
 
     public Button()
     {
