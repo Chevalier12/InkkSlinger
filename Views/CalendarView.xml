@@ -21,8 +21,7 @@
     </Border>
 
     <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <Calendar Width="280" Height="260" FirstDayOfWeek="Monday" />
+      <Calendar Width="280" Height="260" FirstDayOfWeek="Monday" SelectionMode="SingleRange" />
     </Border>
   </Grid>
 </UserControl>
-

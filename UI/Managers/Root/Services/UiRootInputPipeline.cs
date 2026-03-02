@@ -405,6 +405,7 @@ public sealed partial class UiRoot
     private int GetPointerResolveStateStamp()
     {
         return HashCode.Combine(
+            _layoutGeneration,
             LayoutPasses,
             MeasureInvalidationCount,
             ArrangeInvalidationCount,
@@ -916,6 +917,19 @@ public sealed partial class UiRoot
 
         var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
         UpdateHover(hoverTarget);
+    }
+
+    private void RefreshPointerTargetsAfterLayoutMutation()
+    {
+        _hasCachedPointerResolveTarget = false;
+        _cachedPointerResolveTarget = null;
+        _cachedClickTarget = null;
+        _lastClickDownTarget = null;
+        _hasLastClickDownPointerPosition = false;
+        _lastClickUpTarget = null;
+        _hasLastClickUpPointerPosition = false;
+        _cachedWheelTextInputTarget = null;
+        _cachedWheelScrollViewerTarget = null;
     }
 
     private void RefreshHoverAfterWheelContentMutation(Vector2 pointerPosition, UIElement? mutationRoot = null)
@@ -2322,5 +2336,3 @@ public sealed partial class UiRoot
     }
 
 }
-
-

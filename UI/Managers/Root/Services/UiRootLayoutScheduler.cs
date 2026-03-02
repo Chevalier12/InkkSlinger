@@ -65,6 +65,8 @@ public sealed partial class UiRoot
         _layoutRoot.Measure(new Vector2(viewport.Width, viewport.Height));
         _layoutRoot.Arrange(new LayoutRect(0f, 0f, viewport.Width, viewport.Height));
         LayoutPasses = 1;
+        _layoutGeneration++;
+        RefreshPointerTargetsAfterLayoutMutation();
         _hasCompletedInitialLayout = true;
         LayoutExecutedFrameCount++;
     }

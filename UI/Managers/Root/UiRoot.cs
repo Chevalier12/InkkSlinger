@@ -73,6 +73,7 @@ public sealed partial class UiRoot
     private Viewport _lastLayoutViewport;
     private bool _hasLastLayoutViewport;
     private bool _hasCompletedInitialLayout;
+    private int _layoutGeneration;
     private Viewport _lastScheduledViewport;
     private bool _hasLastScheduledViewport;
     private GraphicsDevice? _lastGraphicsDevice;

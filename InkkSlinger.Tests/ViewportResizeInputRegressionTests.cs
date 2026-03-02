@@ -63,12 +63,12 @@ public sealed class ViewportResizeInputRegressionTests
 
         var uiRoot = new UiRoot(root);
 
+        var pointer = FindSharedListItemPointer(root, leftList, rightList, uiRoot);
+
         RunLayout(uiRoot, width: 200, height: 180, elapsedMs: 16);
-        var pointer = new Vector2(150f, 40f); // Right ListBox at 200px width.
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
 
         RunLayout(uiRoot, width: 400, height: 180, elapsedMs: 32);
-        // Same pointer is now over the left ListBox at 400px width.
         ClickWithoutPointerMove(uiRoot, pointer);
 
         Assert.True(
@@ -111,5 +111,51 @@ public sealed class ViewportResizeInputRegressionTests
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
             new Viewport(0, 0, width, height));
+    }
+
+    private static Vector2 FindSharedListItemPointer(Grid root, ListBox leftList, ListBox rightList, UiRoot uiRoot)
+    {
+        RunLayout(uiRoot, width: 200, height: 180, elapsedMs: 8);
+        var rightHitPoints = new List<Vector2>();
+        for (var y = 4f; y < 176f; y += 2f)
+        {
+            for (var x = 102f; x < 198f; x += 2f)
+            {
+                var point = new Vector2(x, y);
+                var hit = VisualTreeHelper.HitTest(root, point);
+                var hitList = FindAncestor<ListBox>(FindAncestor<ListBoxItem>(hit));
+                if (ReferenceEquals(hitList, rightList))
+                {
+                    rightHitPoints.Add(point);
+                }
+            }
+        }
+
+        RunLayout(uiRoot, width: 400, height: 180, elapsedMs: 8);
+        foreach (var point in rightHitPoints)
+        {
+            var hit = VisualTreeHelper.HitTest(root, point);
+            var hitList = FindAncestor<ListBox>(FindAncestor<ListBoxItem>(hit));
+            if (ReferenceEquals(hitList, leftList))
+            {
+                return point;
+            }
+        }
+
+        throw new InvalidOperationException("Could not find a stationary pointer position that maps from right list item (200px) to left list item (400px).");
+    }
+
+    private static TElement? FindAncestor<TElement>(UIElement? element)
+        where TElement : UIElement
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is TElement typed)
+            {
+                return typed;
+            }
+        }
+
+        return null;
     }
 }
