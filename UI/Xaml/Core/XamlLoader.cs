@@ -3679,6 +3679,33 @@ public static class XamlLoader
             return TimeSpan.Parse(rawValue, CultureInfo.InvariantCulture);
         }
 
+        if (targetType == typeof(DateTime))
+        {
+            var trimmed = rawValue.Trim();
+            if (DateTime.TryParse(
+                    trimmed,
+                    CultureInfo.CurrentCulture,
+                    DateTimeStyles.AllowWhiteSpaces,
+                    out var currentCultureDate))
+            {
+                return currentCultureDate;
+            }
+
+            if (DateTime.TryParse(
+                    trimmed,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.RoundtripKind,
+                    out var invariantDate))
+            {
+                return invariantDate;
+            }
+
+            throw CreateXamlException(
+                $"Cannot parse '{rawValue}' as DateTime.",
+                code: XamlDiagnosticCode.InvalidValue,
+                hint: "Use a valid date value compatible with current or invariant culture.");
+        }
+
         if (targetType == typeof(KeySpline))
         {
             return KeySpline.Parse(rawValue);

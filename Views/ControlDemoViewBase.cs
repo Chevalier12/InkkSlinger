@@ -229,6 +229,17 @@ internal static class ControlDemoSupport
                 cb.Items.Add("Three");
                 return cb;
             }
+            case "Calendar":
+                return new Calendar
+                {
+                    DisplayDate = new DateTime(2026, 3, 1),
+                    SelectedDate = new DateTime(2026, 3, 18)
+                };
+            case "DatePicker":
+                return new DatePicker
+                {
+                    SelectedDate = new DateTime(2026, 3, 18)
+                };
             case "Menu":
             {
                 var menu = new Menu();
@@ -605,6 +616,7 @@ internal static class ControlDemoSupport
                 "TextBox" => 260f,
                 "PasswordBox" => 260f,
                 "ComboBox" => 260f,
+                "DatePicker" => 260f,
                 _ => element.Width
             };
         }
@@ -617,6 +629,7 @@ internal static class ControlDemoSupport
                 "ListBox" => 260f,
                 "ListView" => 260f,
                 "TreeView" => 260f,
+                "Calendar" => 260f,
                 "ItemsControl" => 220f,
                 "ScrollViewer" => 260f,
                 "VirtualizingStackPanel" => 260f,

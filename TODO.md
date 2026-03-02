@@ -125,7 +125,7 @@ Pointer-move dispatch is forced while any context menu is open (so hover transit
 - [ ] AccessText
 - [x] Border
 - [x] Button
-- [ ] Calendar
+- [x] Calendar
 - [x] Canvas
 - [x] CheckBox
 - [x] ComboBox
@@ -140,7 +140,7 @@ Pointer-move dispatch is forced while any context menu is open (so hover transit
 - [x] DataGridDetailsPresenter
 - [x] DataGridRow
 - [x] DataGridRowHeader
-- [ ] DatePicker
+- [x] DatePicker
 - [x] Decorator
 - [x] DockPanel
 - [ ] DocumentViewer

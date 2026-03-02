@@ -59,8 +59,10 @@
         <xs:element ref="ToggleButton" />
         <xs:element ref="CheckBox" />
         <xs:element ref="RadioButton" />
+        <xs:element ref="Calendar" />
         <xs:element ref="ComboBox" />
         <xs:element ref="ComboBoxItem" />
+        <xs:element ref="DatePicker" />
         <xs:element ref="TextBox" />
         <xs:element ref="PasswordBox" />
         <xs:element ref="RichTextBox" />
@@ -1817,6 +1819,35 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="calendarType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="SelectedDate" type="xs:string" />
+        <xs:attribute name="DisplayDate" type="xs:string" />
+        <xs:attribute name="DisplayDateStart" type="xs:string" />
+        <xs:attribute name="DisplayDateEnd" type="xs:string" />
+        <xs:attribute name="FirstDayOfWeek" type="xs:string" />
+        <xs:attribute name="SelectedDateChanged" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="datePickerType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="SelectedDate" type="xs:string" />
+        <xs:attribute name="DisplayDate" type="xs:string" />
+        <xs:attribute name="DisplayDateStart" type="xs:string" />
+        <xs:attribute name="DisplayDateEnd" type="xs:string" />
+        <xs:attribute name="FirstDayOfWeek" type="xs:string" />
+        <xs:attribute name="Text" type="xs:string" />
+        <xs:attribute name="IsReadOnly" type="xs:boolean" />
+        <xs:attribute name="IsDropDownOpen" type="xs:boolean" />
+        <xs:attribute name="SelectedDateChanged" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="sortDescriptionType">
     <xs:attribute name="PropertyName" type="xs:string" />
     <xs:attribute name="Direction" type="xs:string" />
@@ -2007,8 +2038,10 @@
   <xs:element name="ToggleButton" type="toggleButtonType" />
   <xs:element name="CheckBox" type="checkBoxType" />
   <xs:element name="RadioButton" type="radioButtonType" />
+  <xs:element name="Calendar" type="calendarType" />
   <xs:element name="ComboBoxItem" type="comboBoxItemType" />
   <xs:element name="ComboBox" type="comboBoxType" />
+  <xs:element name="DatePicker" type="datePickerType" />
   <xs:element name="TextBox" type="textBoxType" />
   <xs:element name="PasswordBox" type="passwordBoxType" />
   <xs:element name="RichTextBox" type="richTextBoxType" />
