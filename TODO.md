@@ -4,7 +4,7 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `457/462` passing (5 known failures in `InputDispatchOptimizationTests` and `ViewportResizeInputRegressionTests` after hover-correctness hardening).
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `468/473` passing (5 known failures across `ConditionalDrawTests`, `InputDispatchOptimizationTests`, `UiRootTelemetryTests`, and `ViewportResizeInputRegressionTests`).
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - This file tracks completed milestones, known parity gaps, and control coverage.
@@ -52,6 +52,9 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] Scoped default `App.xml` resource bootstrap for file-backed view loads: `XamlLoader.LoadInto(...)` now hydrates missing app resources into the target root scope before parse, resolving `DarkBgBrush` lookup failures in view-loading tests without globally mutating app resources.
 - [x] Experimental partial redraw host hardening: preserve-composition target path, redraw-on-surface-reset behavior, and compatibility fallback tuning for CatalogView validation.
 - [x] Input hover/selection hardening for catalog + tree interactions: fixed stale hover reuse and retained-list structural sync regressions (`TreeViewInputTests`, `ScrollViewerWheelHoverRegressionTests`, `ControlsCatalogHoverRegressionTests`).
+- [x] Host-level conditional draw suppression pass: `Game1` now calls `SuppressDraw()` on frames where `UiRoot.ShouldDrawThisFrame(...)` is false, reducing idle CPU in steady-state scenes.
+- [x] Animation manager idle optimization pass: hold/fill lanes no longer force running-animation state, unchanged lane values avoid redundant sink writes, and frozen filling lanes are parked until lane mutations/reactivation.
+- [x] Controls catalog demo expansion: added `Catch Me!` interactive canvas view with storyboard-driven run-away ellipse behavior.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
@@ -70,7 +73,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] Tail-latency diagnostics (`p95`/`p99`) for click/move/scroll interaction windows, based on `event->next-draw` latency.
 - [x] Frame-budget miss diagnostics for 60 FPS (`16.6ms`) with dominant phase attribution (`input`, `layout`, `draw`, `other update`).
 - [x] Dirty-region effectiveness diagnostics: partial redraw success rate, dirty-rect merge ratio, and full-redraw fallback trigger breakdown.
-- [x] Render-cache churn diagnostics: per-frame hit/miss/rebuild ratios and top invalidation sources.
+- [x] Retained-render churn diagnostics: per-frame retained-sync/invalidations and top redraw-driver attribution.
 - [x] Allocation and GC diagnostics during interaction windows (allocated bytes delta, Gen0/1/2 collection deltas).
 - [x] Input-routing complexity diagnostics: route depth and handler invocation counts for pointer/wheel/key routes.
 - [x] No-op invalidation diagnostics (invalidations that produce no layout/visual delta).
