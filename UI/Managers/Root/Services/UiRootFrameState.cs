@@ -83,10 +83,6 @@ public sealed partial class UiRoot
         {
             Current = null;
         }
-
-        _cacheSpriteBatch?.Dispose();
-        _cacheSpriteBatch = null;
-        _renderCacheStore.Dispose();
     }
 
     internal void NotifyInvalidation(UiInvalidationType invalidationType, UIElement? source = null)
@@ -140,7 +136,6 @@ public sealed partial class UiRoot
         _renderListNeedsFullRebuild = true;
         _mustDrawNextFrame = true;
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
-        _renderCacheStore.Clear();
         EnqueueDirtyRenderNode(element);
     }
 

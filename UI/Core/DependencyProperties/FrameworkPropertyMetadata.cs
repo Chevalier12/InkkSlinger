@@ -31,4 +31,6 @@ public class FrameworkPropertyMetadata
     public bool AffectsRender => (Options & FrameworkPropertyMetadataOptions.AffectsRender) != 0;
 
     public bool BindsTwoWayByDefault => (Options & FrameworkPropertyMetadataOptions.BindsTwoWayByDefault) != 0;
+
+    public bool VisibilityAffectsMeasure => (Options & FrameworkPropertyMetadataOptions.VisibilityAffectsMeasure) != 0;
 }

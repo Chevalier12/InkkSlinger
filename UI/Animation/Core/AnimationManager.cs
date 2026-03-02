@@ -20,7 +20,7 @@ public sealed class AnimationManager
     public TimeSpan CurrentTime => _currentTime;
 
     public bool HasRunningAnimations =>
-        _storyboards.Any(static storyboard => !storyboard.IsCompleted && !storyboard.IsPaused);
+        _storyboards.Any(static storyboard => storyboard.HasTimeAdvancingAnimations);
 
     public void ResetForTests()
     {
@@ -67,6 +67,7 @@ public sealed class AnimationManager
 
         instance.Start(handoff);
         _storyboards.Add(instance);
+        InvalidateFrozenLaneState(instance);
 
         if (isControllable && !string.IsNullOrWhiteSpace(controlName))
         {
@@ -87,6 +88,7 @@ public sealed class AnimationManager
         foreach (var instance in FindInstances(storyboard, containingObject))
         {
             instance.Resume(_currentTime);
+            InvalidateFrozenLaneState(instance);
         }
     }
 
@@ -111,6 +113,7 @@ public sealed class AnimationManager
         foreach (var instance in FindInstances(storyboard, containingObject))
         {
             instance.Seek(offset, TimeSeekOrigin.BeginTime, _currentTime);
+            InvalidateFrozenLaneState(instance);
         }
     }
 
@@ -119,6 +122,7 @@ public sealed class AnimationManager
         foreach (var instance in FindInstances(storyboard, containingObject))
         {
             instance.SpeedRatio = Math.Max(0.01f, speedRatio);
+            InvalidateFrozenLaneState(instance);
         }
     }
 
@@ -144,6 +148,8 @@ public sealed class AnimationManager
             return;
         }
 
+        InvalidateFrozenLaneState(key);
+
         foreach (var instance in _storyboards)
         {
             if (ReferenceEquals(instance, owner))
@@ -167,6 +173,11 @@ public sealed class AnimationManager
         {
             foreach (var entry in storyboard.Entries)
             {
+                if (_appliedLanes.TryGetValue(entry.Key, out var appliedState) && appliedState.IsParkedFrozen)
+                {
+                    continue;
+                }
+
                 if (!entry.TryGetContribution(out var contribution))
                 {
                     continue;
@@ -186,6 +197,11 @@ public sealed class AnimationManager
         foreach (var key in inactive)
         {
             var state = _appliedLanes[key];
+            if (state.IsParkedFrozen && HasLiveContributionForLane(key))
+            {
+                continue;
+            }
+
             state.Sink.ClearValue(state.BaseValue);
             _appliedLanes.Remove(key);
         }
@@ -201,6 +217,18 @@ public sealed class AnimationManager
                 _appliedLanes[key] = applied;
             }
 
+            var hasTimeAdvancingContribution = laneContributions.Exists(static contribution => contribution.IsTimeAdvancing);
+            var contributionSignature = 0;
+            if (!hasTimeAdvancingContribution)
+            {
+                contributionSignature = ComputeContributionSignature(laneContributions);
+                if (applied.HasFrozenContributionSignature && applied.FrozenContributionSignature == contributionSignature)
+                {
+                    applied.IsParkedFrozen = true;
+                    continue;
+                }
+            }
+
             object? current = applied.BaseValue;
             for (var i = 0; i < laneContributions.Count; i++)
             {
@@ -210,8 +238,130 @@ public sealed class AnimationManager
                     : ComposeValue(current, contribution.OriginValue, contribution.Value);
             }
 
-            sink.SetValue(ConvertForSinkType(current, sink.ValueType));
+            var converted = ConvertForSinkType(current, sink.ValueType);
+            if (!applied.HasLastAppliedValue || !ValuesEqual(applied.LastAppliedValue, converted))
+            {
+                sink.SetValue(converted);
+                applied.LastAppliedValue = converted;
+                applied.HasLastAppliedValue = true;
+            }
+
+            if (hasTimeAdvancingContribution)
+            {
+                applied.HasFrozenContributionSignature = false;
+                applied.FrozenContributionSignature = 0;
+                applied.IsParkedFrozen = false;
+            }
+            else
+            {
+                applied.HasFrozenContributionSignature = true;
+                applied.FrozenContributionSignature = contributionSignature;
+                applied.IsParkedFrozen = true;
+            }
         }
+    }
+
+    private bool HasLiveContributionForLane(AnimationLaneKey key)
+    {
+        foreach (var storyboard in _storyboards)
+        {
+            foreach (var entry in storyboard.Entries)
+            {
+                if (!entry.Key.Equals(key))
+                {
+                    continue;
+                }
+
+                if (entry.TryGetContribution(out _))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private void InvalidateFrozenLaneState(StoryboardInstance storyboard)
+    {
+        foreach (var entry in storyboard.Entries)
+        {
+            InvalidateFrozenLaneState(entry.Key);
+        }
+    }
+
+    private void InvalidateFrozenLaneState(AnimationLaneKey key)
+    {
+        if (!_appliedLanes.TryGetValue(key, out var state))
+        {
+            return;
+        }
+
+        state.IsParkedFrozen = false;
+        state.HasFrozenContributionSignature = false;
+        state.FrozenContributionSignature = 0;
+    }
+
+    private static int ComputeContributionSignature(IReadOnlyList<LaneContribution> contributions)
+    {
+        var hash = new HashCode();
+        for (var i = 0; i < contributions.Count; i++)
+        {
+            var contribution = contributions[i];
+            hash.Add(contribution.OwnerStoryboardInstanceId);
+            hash.Add(contribution.Sequence);
+            hash.Add(contribution.TargetPropertyPath, StringComparer.Ordinal);
+            hash.Add(ComputeValueHashCode(contribution.Value));
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private static int ComputeValueHashCode(object? value)
+    {
+        if (value == null)
+        {
+            return 0;
+        }
+
+        return value switch
+        {
+            float number => HashCode.Combine(number),
+            double number => HashCode.Combine(number),
+            decimal number => HashCode.Combine(number),
+            Vector2 vector => HashCode.Combine(vector.X, vector.Y),
+            Thickness thickness => HashCode.Combine(thickness.Left, thickness.Top, thickness.Right, thickness.Bottom),
+            Color color => HashCode.Combine(color.R, color.G, color.B, color.A),
+            _ => value.GetHashCode()
+        };
+    }
+
+    private static bool ValuesEqual(object? left, object? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left == null || right == null)
+        {
+            return false;
+        }
+
+        return left switch
+        {
+            float leftFloat when right is float rightFloat => leftFloat.Equals(rightFloat),
+            double leftDouble when right is double rightDouble => leftDouble.Equals(rightDouble),
+            decimal leftDecimal when right is decimal rightDecimal => leftDecimal.Equals(rightDecimal),
+            Vector2 leftVector when right is Vector2 rightVector => leftVector.Equals(rightVector),
+            Thickness leftThickness when right is Thickness rightThickness =>
+                leftThickness.Left.Equals(rightThickness.Left) &&
+                leftThickness.Top.Equals(rightThickness.Top) &&
+                leftThickness.Right.Equals(rightThickness.Right) &&
+                leftThickness.Bottom.Equals(rightThickness.Bottom),
+            Color leftColor when right is Color rightColor => leftColor.Equals(rightColor),
+            _ => left.Equals(right)
+        };
     }
 
     private static object? ComposeValue(object? current, object? origin, object? value)
@@ -362,6 +512,16 @@ public sealed class AnimationManager
         public AnimationValueSink Sink { get; }
 
         public object? BaseValue { get; }
+
+        public object? LastAppliedValue { get; set; }
+
+        public bool HasLastAppliedValue { get; set; }
+
+        public int FrozenContributionSignature { get; set; }
+
+        public bool HasFrozenContributionSignature { get; set; }
+
+        public bool IsParkedFrozen { get; set; }
     }
 }
 
@@ -406,6 +566,11 @@ internal sealed class StoryboardInstance
     public bool IsCompleted { get; private set; }
 
     public bool IsPaused { get; private set; }
+
+    public bool HasTimeAdvancingAnimations =>
+        !IsCompleted &&
+        !IsPaused &&
+        _entries.Exists(static entry => entry.IsTimeAdvancing && !entry.IsStopped);
 
     public float SpeedRatio { get; set; } = 1f;
 
@@ -664,6 +829,8 @@ internal sealed class AnimationLaneEntry
 
     public bool IsStopped { get; private set; }
 
+    public bool IsTimeAdvancing { get; private set; }
+
     public float SpeedRatio { get; set; } = 1f;
 
     public void Seek(TimeSpan now, TimeSpan startedAt)
@@ -680,11 +847,13 @@ internal sealed class AnimationLaneEntry
     public void Stop()
     {
         IsStopped = true;
+        IsTimeAdvancing = false;
     }
 
     public void Remove()
     {
         IsStopped = true;
+        IsTimeAdvancing = false;
     }
 
     public void Advance(TimeSpan now, TimeSpan pausedDuration)
@@ -699,6 +868,7 @@ internal sealed class AnimationLaneEntry
         if (elapsed < TimeSpan.Zero)
         {
             _latest = null;
+            IsTimeAdvancing = false;
             return;
         }
 
@@ -709,16 +879,19 @@ internal sealed class AnimationLaneEntry
             if (Animation.FillBehavior == FillBehavior.Stop)
             {
                 IsStopped = true;
+                IsTimeAdvancing = false;
                 _latest = null;
             }
             else
             {
+                IsTimeAdvancing = false;
                 _latest = new LaneContribution(
                     Key,
                     _sink,
                     Sequence,
                     _originValue,
                     finalValue,
+                    isTimeAdvancing: false,
                     _ownerStoryboardInstanceId,
                     _ownerControlName,
                     _targetPropertyPath);
@@ -738,6 +911,7 @@ internal sealed class AnimationLaneEntry
         {
             if (Animation.FillBehavior == FillBehavior.HoldEnd && totalActiveTicks > 0L)
             {
+                IsTimeAdvancing = false;
                 var holdProgress = ComputeCycleProgress(totalActiveTicks, cycleTicks, Animation.AutoReverse);
                 var holdValue = ConvertForSink(Animation.GetCurrentValue(_originValue, _destinationValue, holdProgress));
                 _latest = new LaneContribution(
@@ -746,6 +920,7 @@ internal sealed class AnimationLaneEntry
                     Sequence,
                     _originValue,
                     holdValue,
+                    isTimeAdvancing: false,
                     _ownerStoryboardInstanceId,
                     _ownerControlName,
                     _targetPropertyPath);
@@ -753,12 +928,14 @@ internal sealed class AnimationLaneEntry
             else
             {
                 IsStopped = true;
+                IsTimeAdvancing = false;
                 _latest = null;
             }
 
             return;
         }
 
+        IsTimeAdvancing = true;
         var cycleProgress = ComputeCycleProgress(scaledTicksClamped, cycleTicks, Animation.AutoReverse);
         var currentValue = ConvertForSink(Animation.GetCurrentValue(_originValue, _destinationValue, Math.Clamp(cycleProgress, 0f, 1f)));
         _latest = new LaneContribution(
@@ -767,6 +944,7 @@ internal sealed class AnimationLaneEntry
             Sequence,
             _originValue,
             currentValue,
+            isTimeAdvancing: true,
             _ownerStoryboardInstanceId,
             _ownerControlName,
             _targetPropertyPath);
@@ -884,6 +1062,7 @@ internal readonly struct LaneContribution
         long sequence,
         object? originValue,
         object? value,
+        bool isTimeAdvancing,
         int ownerStoryboardInstanceId,
         string? ownerControlName,
         string targetPropertyPath)
@@ -893,6 +1072,7 @@ internal readonly struct LaneContribution
         Sequence = sequence;
         OriginValue = originValue;
         Value = value;
+        IsTimeAdvancing = isTimeAdvancing;
         OwnerStoryboardInstanceId = ownerStoryboardInstanceId;
         OwnerControlName = ownerControlName;
         TargetPropertyPath = targetPropertyPath;
@@ -907,6 +1087,8 @@ internal readonly struct LaneContribution
     public object? OriginValue { get; }
 
     public object? Value { get; }
+
+    public bool IsTimeAdvancing { get; }
 
     public int OwnerStoryboardInstanceId { get; }
 

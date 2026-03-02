@@ -12,17 +12,10 @@ public sealed partial class UiRoot
     private const bool EnableRetainedRenderListByDefault = true;
     private const bool EnableDirtyRegionRenderingByDefault = true;
     private const bool EnableConditionalDrawByDefault = true;
-    private const bool EnableElementRenderCacheByDefault = true;
-    private const bool EnableRenderCacheBoundaryOverlayByDefault = false;
-    private const bool EnableRenderCacheCounterTraceByDefault = false;
     private static readonly RasterizerState UiRasterizerState = new()
     {
         ScissorTestEnable = true
     };
-
-    private const int MaxCacheTextureDimension = 2048;
-    private const int MaxElementRenderCacheCount = 64;
-    private const long MaxElementRenderCacheBytes = 128L * 1024L * 1024L;
 
     private readonly UIElement _visualRoot;
     private readonly FrameworkElement? _layoutRoot;
@@ -30,11 +23,9 @@ public sealed partial class UiRoot
     private readonly Dictionary<UIElement, int> _renderNodeIndices = new();
     private readonly Queue<UIElement> _dirtyRenderQueue = new();
     private readonly HashSet<UIElement> _dirtyRenderSet = new();
+    private readonly HashSet<UIElement> _dirtyRenderRootsRequireDeepSync = new();
     private readonly List<UiUpdatePhase> _lastUpdatePhaseOrder = new(5);
     private readonly DirtyRegionTracker _dirtyRegions = new();
-    private readonly IRenderCachePolicy _renderCachePolicy = new DefaultRenderCachePolicy();
-    private readonly RenderCacheStore _renderCacheStore = new(MaxElementRenderCacheCount, MaxElementRenderCacheBytes);
-    private readonly List<LayoutRect> _lastFrameCachedSubtreeBounds = new();
     private readonly InputManager _inputManager = new();
     private readonly InputDispatchState _inputState = new();
     private UIElement? _cachedClickTarget;
@@ -71,8 +62,6 @@ public sealed partial class UiRoot
     private int _clickCpuResolveCapturedCount;
     private int _clickCpuResolveHoveredCount;
     private int _clickCpuResolveHitTestCount;
-    private SpriteBatch? _cacheSpriteBatch;
-    private long _lastRenderCacheCounterTraceTimestamp;
     private bool _hasMeasureInvalidation;
     private bool _hasArrangeInvalidation;
     private bool _hasRenderInvalidation;
@@ -98,9 +87,6 @@ public sealed partial class UiRoot
         UseRetainedRenderList = EnableRetainedRenderListByDefault;
         UseDirtyRegionRendering = EnableDirtyRegionRenderingByDefault;
         UseConditionalDrawScheduling = EnableConditionalDrawByDefault;
-        UseElementRenderCaches = EnableElementRenderCacheByDefault;
-        ShowCachedSubtreeBoundsOverlay = EnableRenderCacheBoundaryOverlayByDefault;
-        TraceRenderCacheCounters = EnableRenderCacheCounterTraceByDefault;
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
         Current = this;
     }
@@ -112,12 +98,6 @@ public sealed partial class UiRoot
     public bool UseDirtyRegionRendering { get; set; }
 
     public bool UseConditionalDrawScheduling { get; set; }
-
-    public bool UseElementRenderCaches { get; set; }
-
-    public bool ShowCachedSubtreeBoundsOverlay { get; set; }
-
-    public bool TraceRenderCacheCounters { get; set; }
 
     public bool AlwaysDrawCompatibilityMode { get; set; }
 
@@ -189,22 +169,6 @@ public sealed partial class UiRoot
 
     public bool LastDrawUsedPartialRedraw { get; private set; }
 
-    public int CacheHitCount { get; private set; }
-
-    public int CacheMissCount { get; private set; }
-
-    public int CacheRebuildCount { get; private set; }
-
-    public int LastFrameCacheHitCount { get; private set; }
-
-    public int LastFrameCacheMissCount { get; private set; }
-
-    public int LastFrameCacheRebuildCount { get; private set; }
-
-    public int CacheEntryCount => _renderCacheStore.Count;
-
-    public long CacheBytes => _renderCacheStore.TotalBytes;
-
     public UiRedrawReason LastShouldDrawReasons { get; private set; }
 
     public UiRedrawReason LastDrawReasons { get; private set; }
@@ -239,11 +203,6 @@ public sealed partial class UiRoot
             LastDirtyAreaPercentage,
             LastDirtyRectCount,
             FullRedrawFallbackCount,
-            CacheEntryCount,
-            CacheBytes,
-            LastFrameCacheHitCount,
-            LastFrameCacheMissCount,
-            LastFrameCacheRebuildCount,
             LastShouldDrawReasons,
             LastDrawReasons,
             UseRetainedRenderList,
@@ -365,28 +324,6 @@ public sealed partial class UiRoot
     internal IReadOnlyList<UiUpdatePhase> GetLastUpdatePhaseOrderForTests()
     {
         return new List<UiUpdatePhase>(_lastUpdatePhaseOrder);
-    }
-
-    internal bool TryGetRenderCacheContextForTests(UIElement visual, out RenderCachePolicyContext context)
-    {
-        context = default;
-        if (!_renderNodeIndices.TryGetValue(visual, out var renderNodeIndex))
-        {
-            return false;
-        }
-
-        context = CreateRenderCacheContext(_retainedRenderList[renderNodeIndex]);
-        return true;
-    }
-
-    internal bool CanCacheVisualForTests(UIElement visual)
-    {
-        if (!TryGetRenderCacheContextForTests(visual, out var context))
-        {
-            return false;
-        }
-
-        return _renderCachePolicy.CanCache(visual, context);
     }
 
     internal bool TryGetLastPointerResolveHitTestMetricsForTests(out HitTestMetrics metrics)

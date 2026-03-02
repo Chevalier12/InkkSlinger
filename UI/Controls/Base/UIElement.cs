@@ -22,8 +22,8 @@ public class UIElement : DependencyObject
     private int _measureInvalidationCount;
     private int _arrangeInvalidationCount;
     private int _renderInvalidationCount;
-    private int _renderCacheRenderVersion;
-    private int _renderCacheLayoutVersion;
+    private int _renderVersionStamp;
+    private int _layoutVersionStamp;
     private bool _suppressNextLogicalBindingTreeNotify;
     private bool _suppressNextLogicalParentChanged;
 
@@ -41,7 +41,7 @@ public class UIElement : DependencyObject
             typeof(UIElement),
             new FrameworkPropertyMetadata(
                 Visibility.Visible,
-                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
+                FrameworkPropertyMetadataOptions.VisibilityAffectsMeasure,
                 propertyChangedCallback: static (dependencyObject, args) =>
                 {
                     if (dependencyObject is not UIElement element || args.NewValue is not Visibility visibility)
@@ -244,9 +244,9 @@ public class UIElement : DependencyObject
 
     public int RenderInvalidationCount => _renderInvalidationCount;
 
-    internal int RenderCacheRenderVersion => _renderCacheRenderVersion;
+    internal int RenderVersionStamp => _renderVersionStamp;
 
-    internal int RenderCacheLayoutVersion => _renderCacheLayoutVersion;
+    internal int LayoutVersionStamp => _layoutVersionStamp;
 
     public virtual IEnumerable<UIElement> GetVisualChildren()
     {
@@ -473,7 +473,7 @@ public class UIElement : DependencyObject
         var phaseStart = Stopwatch.GetTimestamp();
         NeedsMeasure = true;
         _measureInvalidationCount++;
-        _renderCacheLayoutVersion++;
+        _layoutVersionStamp++;
         MarkSubtreeDirty();
 
         phaseStart = Stopwatch.GetTimestamp();
@@ -498,7 +498,7 @@ public class UIElement : DependencyObject
         var phaseStart = Stopwatch.GetTimestamp();
         NeedsArrange = true;
         _arrangeInvalidationCount++;
-        _renderCacheLayoutVersion++;
+        _layoutVersionStamp++;
         MarkSubtreeDirty();
 
         phaseStart = Stopwatch.GetTimestamp();
@@ -521,7 +521,7 @@ public class UIElement : DependencyObject
 
         NeedsRender = true;
         _renderInvalidationCount++;
-        _renderCacheRenderVersion++;
+        _renderVersionStamp++;
         MarkSubtreeDirty();
         UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, this);
     }
@@ -668,7 +668,7 @@ public class UIElement : DependencyObject
     {
         if (!AreRectsEqual(_layoutSlot, layoutSlot))
         {
-            _renderCacheLayoutVersion++;
+            _layoutVersionStamp++;
         }
 
         _layoutSlot = layoutSlot;

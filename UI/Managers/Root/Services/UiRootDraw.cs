@@ -19,10 +19,6 @@ public sealed partial class UiRoot
         var drawStart = Stopwatch.GetTimestamp();
         DrawCalls = 1;
         LastDrawUsedPartialRedraw = false;
-        LastFrameCacheHitCount = 0;
-        LastFrameCacheMissCount = 0;
-        LastFrameCacheRebuildCount = 0;
-        _lastFrameCachedSubtreeBounds.Clear();
         LastDrawReasons = _scheduledDrawReasons;
         _scheduledDrawReasons = UiRedrawReason.None;
 
@@ -30,13 +26,6 @@ public sealed partial class UiRoot
         if (!_hasLastLayoutViewport || !AreViewportsEqual(_lastLayoutViewport, graphicsDevice.Viewport))
         {
             SyncDirtyRegionViewport(graphicsDevice.Viewport);
-        }
-
-        _renderCacheStore.EnsureDevice(graphicsDevice);
-
-        if (UseRetainedRenderList)
-        {
-            PrepareElementRenderCaches(graphicsDevice);
         }
 
         var usePartialClear = UseRetainedRenderList &&
@@ -81,11 +70,6 @@ public sealed partial class UiRoot
                 LastDirtyAreaPercentage = 1d;
             }
 
-            if (ShowCachedSubtreeBoundsOverlay && _lastFrameCachedSubtreeBounds.Count > 0)
-            {
-                DrawCachedSubtreeBoundsOverlay(spriteBatch, _lastFrameCachedSubtreeBounds);
-            }
-
             if (UseSoftwareCursor)
             {
                 DrawSoftwareCursor(spriteBatch, _inputState.LastPointerPosition);
@@ -106,7 +90,6 @@ public sealed partial class UiRoot
         ClearDirtyRenderQueue();
         _dirtyRegions.Clear();
         LastDrawMs = Stopwatch.GetElapsedTime(drawStart).TotalMilliseconds;
-        TraceRenderCacheCountersIfEnabled();
     }
 
     private void DrawSoftwareCursor(SpriteBatch spriteBatch, Vector2 pointer)

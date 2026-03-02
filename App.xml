@@ -262,21 +262,21 @@
               <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Border x:Name="checkBorder"
                         Width="20" Height="20"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False"
                         CornerRadius="4"
-                        Background="{StaticResource DarkSurfaceBrush}"
-                        BorderBrush="{StaticResource DarkBorderBrush}"
                         BorderThickness="2"
                         SnapsToDevicePixels="True">
                   <Path x:Name="checkMark"
                         Data="M 3,8 L 7,12 L 14,4"
-                        Stroke="{StaticResource DarkBgBrush}"
+                        Stroke="{StaticResource TextPrimaryBrush}"
                         StrokeThickness="2"
-                        Visibility="Collapsed"
                         VerticalAlignment="Center"
                         HorizontalAlignment="Center"
                         Margin="1" />
                 </Border>
                 <ContentPresenter Margin="8,0,0,0"
+                                  IsHitTestVisible="False"
                                   VerticalAlignment="Center"
                                   RecognizesAccessKey="True" />
               </StackPanel>
@@ -284,6 +284,13 @@
                 <Trigger Property="IsMouseOver" Value="True">
                   <Setter TargetName="checkBorder" Property="BorderBrush"
                           Value="{StaticResource OrangePrimaryBrush}" />
+                </Trigger>
+                <Trigger Property="IsChecked" Value="False">
+                  <Setter TargetName="checkBorder" Property="Background"
+                          Value="{StaticResource DarkSurfaceBrush}" />
+                  <Setter TargetName="checkBorder" Property="BorderBrush"
+                          Value="{StaticResource DarkBorderBrush}" />
+                  <Setter TargetName="checkMark" Property="Visibility" Value="Collapsed" />
                 </Trigger>
                 <Trigger Property="IsChecked" Value="True">
                   <Setter TargetName="checkBorder" Property="Background"
@@ -316,19 +323,19 @@
               <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Border x:Name="outerCircle"
                         Width="20" Height="20"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False"
                         CornerRadius="10"
-                        Background="{StaticResource DarkSurfaceBrush}"
-                        BorderBrush="{StaticResource DarkBorderBrush}"
                         BorderThickness="2"
                         SnapsToDevicePixels="True">
                   <Ellipse x:Name="innerDot"
                            Width="10" Height="10"
                            Fill="{StaticResource DarkBgBrush}"
-                           Visibility="Collapsed"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center" />
                 </Border>
                 <ContentPresenter Margin="8,0,0,0"
+                                  IsHitTestVisible="False"
                                   VerticalAlignment="Center"
                                   RecognizesAccessKey="True" />
               </StackPanel>
@@ -336,6 +343,13 @@
                 <Trigger Property="IsMouseOver" Value="True">
                   <Setter TargetName="outerCircle" Property="BorderBrush"
                           Value="{StaticResource OrangePrimaryBrush}" />
+                </Trigger>
+                <Trigger Property="IsChecked" Value="False">
+                  <Setter TargetName="outerCircle" Property="Background"
+                          Value="{StaticResource DarkSurfaceBrush}" />
+                  <Setter TargetName="outerCircle" Property="BorderBrush"
+                          Value="{StaticResource DarkBorderBrush}" />
+                  <Setter TargetName="innerDot" Property="Visibility" Value="Collapsed" />
                 </Trigger>
                 <Trigger Property="IsChecked" Value="True">
                   <Setter TargetName="outerCircle" Property="Background"

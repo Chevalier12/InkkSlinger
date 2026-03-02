@@ -266,8 +266,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     public int SelectionLength => Math.Abs(_caretIndex - _selectionAnchor);
 
-    internal bool IsRenderCacheStable => !IsFocused && SelectionLength == 0;
-
     public RichTextBoxPerformanceSnapshot GetPerformanceSnapshot()
     {
         return _perfTracker.GetSnapshot(_undoManager);

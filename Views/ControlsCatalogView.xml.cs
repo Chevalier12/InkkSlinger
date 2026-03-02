@@ -52,7 +52,7 @@ public partial class ControlsCatalogView : UserControl
             var capture = name;
             var button = new Button
             {
-                Text = name,
+                Text = GetDisplayName(name),
                 Margin = new Thickness(0, 0, 0, 4)
             };
             button.Click += (_, _) => ShowControl(capture);
@@ -64,7 +64,7 @@ public partial class ControlsCatalogView : UserControl
     {
         if (_selectedControlLabel != null)
         {
-            _selectedControlLabel.Text = $"Selected: {controlName}";
+            _selectedControlLabel.Text = $"Selected: {GetDisplayName(controlName)}";
         }
 
         if (_previewHost != null)
@@ -90,6 +90,13 @@ public partial class ControlsCatalogView : UserControl
         }
 
         return new MissingControlView(controlName);
+    }
+
+    private static string GetDisplayName(string controlName)
+    {
+        return string.Equals(controlName, "CatchMe", StringComparison.Ordinal)
+            ? "Catch Me!"
+            : controlName;
     }
 
     private static void HarmonizePreviewChrome(UserControl view)

@@ -355,7 +355,9 @@ public class FrameworkElement : UIElement
         Dispatcher.VerifyAccess();
         if (!IsVisible)
         {
-            DesiredSize = Vector2.Zero;
+            DesiredSize = new Vector2(
+                0f,
+                0f);
             _previousAvailableSize = availableSize;
             _isMeasureValid = true;
             ClearMeasureInvalidation();
@@ -535,7 +537,11 @@ public class FrameworkElement : UIElement
 
         if (ReferenceEquals(args.Property, IsVisibleProperty))
         {
-            InvalidateMeasure();
+            var visibilityMetadata = VisibilityProperty.GetMetadata(this);
+            if (visibilityMetadata.VisibilityAffectsMeasure)
+            {
+                InvalidateMeasure();
+            }
         }
 
         if (args.Property == StyleProperty)

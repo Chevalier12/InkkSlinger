@@ -457,8 +457,6 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         private set => SetValue(IsFocusedProperty, value);
     }
 
-    internal bool IsRenderCacheStable => !IsFocused && Selection.IsEmpty;
-
     public int CaretIndex => _editor.CaretIndex;
 
     public int TextLength => _editor.Length;

@@ -37,6 +37,33 @@ public sealed class ControlsCatalogHoverScaleBehaviorTests
         Assert.True(transform.ScaleX <= 1.03f + 0.001f);
     }
 
+    [Fact]
+    public void CatalogButtons_HoverRecovers_AfterMovingToHeaderLabel()
+    {
+        var catalog = new ControlsCatalogView();
+        var host = Assert.IsType<StackPanel>(catalog.FindName("ControlButtonsHost"));
+        var button = Assert.IsType<Button>(host.Children[0]);
+        var header = FindLabelByText(catalog, "Control Views");
+
+        var uiRoot = new UiRoot(catalog);
+        RunLayout(uiRoot, 1200, 900, 16);
+
+        var buttonPoint = FindPointHittingTarget(catalog, button, 1200, 900);
+        var headerPoint = FindPointHittingTarget(catalog, header, 1200, 900);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(buttonPoint, pointerMoved: true));
+        RunLayout(uiRoot, 1200, 900, 32);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(headerPoint, pointerMoved: true));
+        RunLayout(uiRoot, 1200, 900, 48);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(buttonPoint, pointerMoved: true));
+        RunLayout(uiRoot, 1200, 900, 64);
+
+        var transform = Assert.IsType<ScaleTransform>(button.RenderTransform);
+        Assert.True(transform.ScaleX > 1f);
+    }
+
     private static Vector2 FindPointHittingTarget(UIElement root, UIElement target, int width, int height)
     {
         for (var y = 0; y < height; y += 2)
@@ -66,6 +93,27 @@ public sealed class ControlsCatalogHoverScaleBehaviorTests
         }
 
         return false;
+    }
+
+    private static Label FindLabelByText(UIElement root, string text)
+    {
+        var stack = new Stack<UIElement>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (current is Label label && string.Equals(label.Text, text, StringComparison.Ordinal))
+            {
+                return label;
+            }
+
+            foreach (var child in current.GetVisualChildren())
+            {
+                stack.Push(child);
+            }
+        }
+
+        throw new InvalidOperationException($"Could not find label with text '{text}'.");
     }
 
     private static InputDelta CreatePointerDelta(Vector2 pointer, bool pointerMoved)

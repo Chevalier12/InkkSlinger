@@ -7,6 +7,18 @@ namespace InkkSlinger;
 
 public abstract class Shape : FrameworkElement
 {
+    static Shape()
+    {
+        var baseMetadata = UIElement.VisibilityProperty.GetMetadata(typeof(UIElement));
+        UIElement.VisibilityProperty.OverrideMetadata(
+            typeof(Shape),
+            new FrameworkPropertyMetadata(
+                baseMetadata.DefaultValue,
+                baseMetadata.Options & ~FrameworkPropertyMetadataOptions.VisibilityAffectsMeasure,
+                baseMetadata.PropertyChangedCallback,
+                baseMetadata.CoerceValueCallback));
+    }
+
     public static readonly DependencyProperty FillProperty =
         DependencyProperty.Register(
             nameof(Fill),

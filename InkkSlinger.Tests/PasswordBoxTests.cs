@@ -101,30 +101,6 @@ public class PasswordBoxTests
     }
 
     [Fact]
-    public void RenderCachePolicy_PasswordBox_IsCacheableOnlyWhenStable()
-    {
-        var policy = new DefaultRenderCachePolicy();
-        var passwordBox = new PasswordBox();
-        var context = new RenderCachePolicyContext(
-            IsEffectivelyVisible: true,
-            HasBoundsSnapshot: true,
-            BoundsSnapshot: new LayoutRect(0f, 0f, 300f, 80f),
-            HasTransformState: false,
-            HasClipState: true,
-            RenderStateStepCount: 1,
-            RenderStateSignature: 101,
-            SubtreeVisualCount: 1,
-            SubtreeHighCostVisualCount: 1,
-            SubtreeRenderVersionStamp: passwordBox.RenderCacheRenderVersion,
-            SubtreeLayoutVersionStamp: passwordBox.RenderCacheLayoutVersion);
-
-        Assert.True(policy.CanCache(passwordBox, context));
-
-        passwordBox.SetValue(PasswordBox.IsFocusedProperty, true);
-        Assert.False(policy.CanCache(passwordBox, context));
-    }
-
-    [Fact]
     public void XamlLoader_CanInstantiatePasswordBox_AndApplyAttributes()
     {
         const string xml = """

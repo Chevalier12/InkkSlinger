@@ -856,7 +856,7 @@ public sealed partial class UiRoot
             wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
             if (handled)
             {
-                RefreshHoverAfterWheelContentMutation(pointerPosition);
+                RefreshHoverAfterWheelContentMutation(pointerPosition, cachedViewer);
             }
             else
             {
@@ -887,7 +887,7 @@ public sealed partial class UiRoot
             wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
             if (handled)
             {
-                RefreshHoverAfterWheelContentMutation(pointerPosition);
+                RefreshHoverAfterWheelContentMutation(pointerPosition, scrollViewer);
             }
         }
 
@@ -899,13 +899,34 @@ public sealed partial class UiRoot
     {
         _hasCachedPointerResolveTarget = false;
         _cachedPointerResolveTarget = null;
+
+        var existingHovered = _inputState.HoveredElement;
+        if (existingHovered != null && PointerInsideHoveredTargetForReuse(existingHovered, pointerPosition))
+        {
+            return;
+        }
+
         var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
         UpdateHover(hoverTarget);
     }
 
-    private void RefreshHoverAfterWheelContentMutation(Vector2 pointerPosition)
+    private void RefreshHoverAfterWheelContentMutation(Vector2 pointerPosition, UIElement? mutationRoot = null)
     {
-        RefreshHoverAfterWheel(pointerPosition);
+        _hasCachedPointerResolveTarget = false;
+        _cachedPointerResolveTarget = null;
+
+        UIElement? hoverTarget = null;
+        if (mutationRoot != null && IsElementConnectedToVisualRoot(mutationRoot))
+        {
+            hoverTarget = VisualTreeHelper.HitTest(mutationRoot, pointerPosition);
+        }
+
+        if (hoverTarget == null)
+        {
+            hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        }
+
+        UpdateHover(hoverTarget);
     }
 
     private void EnsureCachedWheelTargetsAreCurrent(Vector2 pointerPosition)
@@ -1254,13 +1275,13 @@ public sealed partial class UiRoot
 
         if (hovered is not FrameworkElement frameworkElement)
         {
-            return true;
+            return false;
         }
 
         var anchorArea = MathF.Max(0f, frameworkElement.LayoutSlot.Width) * MathF.Max(0f, frameworkElement.LayoutSlot.Height);
         if (anchorArea <= 0f)
         {
-            return true;
+            return false;
         }
 
         var rootArea = 0f;
@@ -1276,11 +1297,11 @@ public sealed partial class UiRoot
 
         if (rootArea <= 0f)
         {
-            return true;
+            return false;
         }
 
         var areaRatio = anchorArea / rootArea;
-        return areaRatio < 0.20f;
+        return hovered is Label && areaRatio < 0.02f;
     }
 
     private bool IsNarrowHoveredAnchor(UIElement anchor)

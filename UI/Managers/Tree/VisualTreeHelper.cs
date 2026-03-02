@@ -157,7 +157,6 @@ public static class VisualTreeHelper
         {
             var ordered = panel.GetChildrenOrderedByZIndex();
             if (ordered.Count >= 16 &&
-                CanUseMonotonicVerticalPanelFastPath(ordered) &&
                 TryHitTestMonotonicVerticalPanelChildren(
                     panel,
                     ordered,
@@ -516,7 +515,13 @@ public static class VisualTreeHelper
             averageHeight = 24f;
         }
 
-        var candidate = (int)(probeY / averageHeight);
+        var originY = 0f;
+        if (TryGetVerticalRange(children[0], out var firstTop, out _))
+        {
+            originY = firstTop;
+        }
+
+        var candidate = (int)((probeY - originY) / averageHeight);
         candidate = Math.Clamp(candidate, 0, children.Count - 1);
         candidate = FindCandidateIndexByY(children, probeY, candidate, isMonotonicByY: true);
         candidate = RefineIndexByLayoutSlot(children, probeY, candidate);
@@ -538,49 +543,81 @@ public static class VisualTreeHelper
             return true;
         }
 
-        const int neighborRadius = 6;
-        for (var delta = 1; delta <= neighborRadius; delta++)
+        var searchLower = true;
+        var searchUpper = true;
+        var lower = candidate - 1;
+        var upper = candidate + 1;
+        while (lower >= 0 || upper < children.Count)
         {
-            var lower = candidate - delta;
-            if (lower >= 0)
+            if (searchLower && lower >= 0)
             {
-                hit = HitTestCore(
-                    children[lower],
-                    position,
-                    accumulatedHorizontalOffset,
-                    accumulatedVerticalOffset,
-                    collector,
-                    depth + 1,
-                    ancestorTransformToRoot,
-                    hasAncestorTransformToRoot,
-                    rootToAncestorInverse,
-                    hasRootToAncestorInverse,
-                    hasClipInAncestry);
-                if (hit != null)
+                if (TryGetVerticalRange(children[lower], out _, out var lowerBottom) && probeY > lowerBottom)
                 {
-                    return true;
+                    searchLower = false;
+                }
+                else
+                {
+                    hit = HitTestCore(
+                        children[lower],
+                        position,
+                        accumulatedHorizontalOffset,
+                        accumulatedVerticalOffset,
+                        collector,
+                        depth + 1,
+                        ancestorTransformToRoot,
+                        hasAncestorTransformToRoot,
+                        rootToAncestorInverse,
+                        hasRootToAncestorInverse,
+                        hasClipInAncestry);
+                    if (hit != null)
+                    {
+                        return true;
+                    }
+
+                    lower--;
                 }
             }
-
-            var upper = candidate + delta;
-            if (upper < children.Count)
+            else
             {
-                hit = HitTestCore(
-                    children[upper],
-                    position,
-                    accumulatedHorizontalOffset,
-                    accumulatedVerticalOffset,
-                    collector,
-                    depth + 1,
-                    ancestorTransformToRoot,
-                    hasAncestorTransformToRoot,
-                    rootToAncestorInverse,
-                    hasRootToAncestorInverse,
-                    hasClipInAncestry);
-                if (hit != null)
+                searchLower = false;
+            }
+
+            if (searchUpper && upper < children.Count)
+            {
+                if (TryGetVerticalRange(children[upper], out var upperTop, out _) && probeY < upperTop)
                 {
-                    return true;
+                    searchUpper = false;
                 }
+                else
+                {
+                    hit = HitTestCore(
+                        children[upper],
+                        position,
+                        accumulatedHorizontalOffset,
+                        accumulatedVerticalOffset,
+                        collector,
+                        depth + 1,
+                        ancestorTransformToRoot,
+                        hasAncestorTransformToRoot,
+                        rootToAncestorInverse,
+                        hasRootToAncestorInverse,
+                        hasClipInAncestry);
+                    if (hit != null)
+                    {
+                        return true;
+                    }
+
+                    upper++;
+                }
+            }
+            else
+            {
+                searchUpper = false;
+            }
+
+            if (!searchLower && !searchUpper)
+            {
+                break;
             }
         }
 
@@ -759,7 +796,7 @@ public static class VisualTreeHelper
     private static bool IsMonotonicByY(Panel panel, IReadOnlyList<UIElement> containers)
     {
         var cache = PanelMonotonicCache.GetOrCreateValue(panel);
-        var layoutVersion = panel.RenderCacheLayoutVersion;
+        var layoutVersion = panel.LayoutVersionStamp;
         if (cache.LayoutVersion == layoutVersion && cache.ChildCount == containers.Count)
         {
             return cache.IsMonotonic;
@@ -777,8 +814,7 @@ public static class VisualTreeHelper
         for (var i = 0; i < children.Count; i++)
         {
             var child = children[i];
-            if (child.TryGetLocalRenderTransformSnapshot(out _) ||
-                child.TryGetLocalClipSnapshot(out _))
+            if (child.TryGetLocalClipSnapshot(out _))
             {
                 return false;
             }

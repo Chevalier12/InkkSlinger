@@ -17,6 +17,7 @@ public class Game1 : Game
     private UiRoot _uiRoot = null!;
     private ControlsCatalogView? _catalogView;
     private WindowThemeBinding? _windowThemeBinding;
+    private bool _shouldDrawUiThisFrame = true;
 
     public Game1()
     {
@@ -50,8 +51,7 @@ public class Game1 : Game
         {
             UseRetainedRenderList = EnableExperimentalPartialRedraw,
             UseDirtyRegionRendering = EnableExperimentalPartialRedraw,
-            UseConditionalDrawScheduling = !EnableExperimentalPartialRedraw,
-            UseElementRenderCaches = false,
+            UseConditionalDrawScheduling = true,
             UseSoftwareCursor = false
         };
 
@@ -78,6 +78,12 @@ public class Game1 : Game
         EnsureBackBufferMatchesClientSize();
         var viewport = EnsureViewportMatchesBackBuffer();
         _uiRoot.Update(gameTime, viewport);
+        _shouldDrawUiThisFrame = _uiRoot.ShouldDrawThisFrame(gameTime, viewport, GraphicsDevice);
+        if (!_shouldDrawUiThisFrame)
+        {
+            SuppressDraw();
+        }
+
         base.Update(gameTime);
     }
 
@@ -90,9 +96,7 @@ public class Game1 : Game
             _uiRoot.ForceFullRedrawForSurfaceReset();
         }
 
-        var shouldDraw = _uiRoot.ShouldDrawThisFrame(gameTime, viewport, GraphicsDevice);
-
-        if (shouldDraw)
+        if (_shouldDrawUiThisFrame)
         {
             GraphicsDevice.SetRenderTarget(_uiCompositeTarget);
             if (!EnableExperimentalPartialRedraw)

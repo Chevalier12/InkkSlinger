@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
@@ -33,16 +31,6 @@ public sealed partial class UiRoot
                 continue;
             }
 
-            if (TryDrawCachedNode(spriteBatch, node, out var subtreeEndIndexExclusive))
-            {
-                if (subtreeEndIndexExclusive > i + 1)
-                {
-                    i = subtreeEndIndexExclusive - 1;
-                }
-
-                continue;
-            }
-
             DrawRetainedNode(spriteBatch, node);
         }
     }
@@ -66,16 +54,6 @@ public sealed partial class UiRoot
 
                     if (node.HasSubtreeBoundsSnapshot && !Intersects(node.SubtreeBoundsSnapshot, dirtyRegion))
                     {
-                        continue;
-                    }
-
-                    if (TryDrawCachedNode(spriteBatch, node, out var subtreeEndIndexExclusive))
-                    {
-                        if (subtreeEndIndexExclusive > nodeIndex + 1)
-                        {
-                            nodeIndex = subtreeEndIndexExclusive - 1;
-                        }
-
                         continue;
                     }
 
@@ -108,7 +86,6 @@ public sealed partial class UiRoot
             pushedTransformCount++;
         }
 
-        var drawStart = Stopwatch.GetTimestamp();
         try
         {
             node.Visual.DrawSelf(spriteBatch);

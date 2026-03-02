@@ -14,6 +14,7 @@ public static class ControlViews
         "Button",
         "Calendar",
         "Canvas",
+        "CatchMe",
         "CheckBox",
         "ComboBox",
         "ComboBoxItem",
