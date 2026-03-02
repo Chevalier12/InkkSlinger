@@ -130,7 +130,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private bool _isCaretVisible = true;
     private bool _isSelectingWithPointer;
     private bool _pointerSelectionMoved;
-    private string? _pendingPointerHyperlinkUri;
+    private Hyperlink? _pendingPointerHyperlink;
     private Hyperlink? _hoveredHyperlink;
     private readonly Dictionary<Hyperlink, Style?> _appliedImplicitHyperlinkStyles = new();
     private bool _hasPendingRenderDirtyBoundsHint;
@@ -1422,7 +1422,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         UpdatePointerClickCount(pointerPosition);
         var index = GetTextIndexFromPoint(pointerPosition);
         _lastSelectionHitTestOffset = index;
-        _pendingPointerHyperlinkUri = ResolveHyperlinkUriAtOffset(index);
+        _pendingPointerHyperlink = ResolveHyperlinkAtOffset(index);
         _pointerSelectionMoved = false;
         if (_pointerClickCount >= 3)
         {
@@ -1475,12 +1475,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         if (IsReadOnly &&
             !_pointerSelectionMoved &&
             SelectionLength == 0 &&
-            !string.IsNullOrWhiteSpace(_pendingPointerHyperlinkUri))
+            _pendingPointerHyperlink != null)
         {
-            RaiseHyperlinkNavigate(_pendingPointerHyperlinkUri!);
+            TryActivateHyperlink(_pendingPointerHyperlink);
         }
 
-        _pendingPointerHyperlinkUri = null;
+        _pendingPointerHyperlink = null;
         return true;
     }
 
@@ -3691,14 +3691,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private bool TryActivateHyperlinkAtSelection()
     {
         var offset = SelectionLength > 0 ? SelectionStart : _caretIndex;
-        var uri = ResolveHyperlinkUriAtOffset(offset);
-        if (string.IsNullOrWhiteSpace(uri))
+        var hyperlink = ResolveHyperlinkAtOffset(offset);
+        if (hyperlink == null)
         {
             return false;
         }
 
-        RaiseHyperlinkNavigate(uri);
-        return true;
+        return TryActivateHyperlink(hyperlink);
     }
 
     private void RaiseHyperlinkNavigate(string uri)
@@ -3707,9 +3706,38 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         RaiseRoutedEventInternal(HyperlinkNavigateEvent, args);
     }
 
-    private string? ResolveHyperlinkUriAtOffset(int offset)
+    private bool TryActivateHyperlink(Hyperlink hyperlink)
     {
-        return ResolveHyperlinkAtOffset(offset)?.NavigateUri;
+        if (hyperlink.Command is RoutedCommand routedCommand)
+        {
+            var target = CommandTargetResolver.Resolve(hyperlink.CommandTarget, this);
+            if (!CommandManager.CanExecute(routedCommand, hyperlink.CommandParameter, target))
+            {
+                return false;
+            }
+
+            CommandManager.Execute(routedCommand, hyperlink.CommandParameter, target);
+            return true;
+        }
+
+        if (hyperlink.Command != null)
+        {
+            if (!hyperlink.Command.CanExecute(hyperlink.CommandParameter))
+            {
+                return false;
+            }
+
+            hyperlink.Command.Execute(hyperlink.CommandParameter);
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(hyperlink.NavigateUri))
+        {
+            return false;
+        }
+
+        RaiseHyperlinkNavigate(hyperlink.NavigateUri!);
+        return true;
     }
 
     private Hyperlink? ResolveHyperlinkAtOffset(int offset)
@@ -3743,7 +3771,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             }
 
             if (inline is Hyperlink hyperlink &&
-                !string.IsNullOrWhiteSpace(hyperlink.NavigateUri))
+                (!string.IsNullOrWhiteSpace(hyperlink.NavigateUri) || hyperlink.Command != null))
             {
                 return hyperlink;
             }

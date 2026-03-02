@@ -157,7 +157,7 @@ public sealed class Italic : Span;
 
 public sealed class Underline : Span;
 
-public sealed class Hyperlink : Span
+public sealed class Hyperlink : Span, ICommandSource
 {
     public static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
@@ -180,6 +180,27 @@ public sealed class Hyperlink : Span
             typeof(Hyperlink),
             new FrameworkPropertyMetadata(false));
 
+    public static readonly DependencyProperty CommandProperty =
+        DependencyProperty.Register(
+            nameof(Command),
+            typeof(System.Windows.Input.ICommand),
+            typeof(Hyperlink),
+            new FrameworkPropertyMetadata(null));
+
+    public static readonly DependencyProperty CommandParameterProperty =
+        DependencyProperty.Register(
+            nameof(CommandParameter),
+            typeof(object),
+            typeof(Hyperlink),
+            new FrameworkPropertyMetadata(null));
+
+    public static readonly DependencyProperty CommandTargetProperty =
+        DependencyProperty.Register(
+            nameof(CommandTarget),
+            typeof(UIElement),
+            typeof(Hyperlink),
+            new FrameworkPropertyMetadata(null));
+
     public Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
@@ -196,6 +217,24 @@ public sealed class Hyperlink : Span
     {
         get => GetValue<bool>(IsMouseOverProperty);
         set => SetValue(IsMouseOverProperty, value);
+    }
+
+    public System.Windows.Input.ICommand? Command
+    {
+        get => GetValue<System.Windows.Input.ICommand>(CommandProperty);
+        set => SetValue(CommandProperty, value);
+    }
+
+    public object? CommandParameter
+    {
+        get => GetValue(CommandParameterProperty);
+        set => SetValue(CommandParameterProperty, value);
+    }
+
+    public UIElement? CommandTarget
+    {
+        get => GetValue<UIElement>(CommandTargetProperty);
+        set => SetValue(CommandTargetProperty, value);
     }
 
     public string? NavigateUri { get; set; }

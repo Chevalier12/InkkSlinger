@@ -54,6 +54,25 @@ public sealed class RichTextCommandingTests
         Assert.Equal("ab", DocumentEditing.GetText(editor.Document));
     }
 
+    [Fact]
+    public void HyperlinkCommand_Activation_ExecutesBoundCommand()
+    {
+        var executions = 0;
+        var command = new CallbackCommand(_ => executions++);
+        var editor = new RichTextBox();
+        var hyperlink = new Hyperlink
+        {
+            Command = command
+        };
+
+        var activationMethod = typeof(RichTextBox).GetMethod("TryActivateHyperlink", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(activationMethod);
+        var handled = (bool)activationMethod!.Invoke(editor, new object[] { hyperlink })!;
+
+        Assert.True(handled);
+        Assert.Equal(1, executions);
+    }
+
     private static RichTextBox CreateEditor(string text)
     {
         var editor = new RichTextBox();
@@ -62,4 +81,5 @@ public sealed class RichTextCommandingTests
         editor.SetFocusedFromInput(true);
         return editor;
     }
+
 }

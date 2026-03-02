@@ -2,7 +2,7 @@ using System;
 
 namespace InkkSlinger;
 
-public sealed class RoutedCommand : System.Windows.Input.ICommand
+public class RoutedCommand : System.Windows.Input.ICommand
 {
     public RoutedCommand(string? name = null, Type? ownerType = null)
     {

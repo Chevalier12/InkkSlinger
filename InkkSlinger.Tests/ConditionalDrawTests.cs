@@ -23,6 +23,7 @@ public class ConditionalDrawTests
     [Fact]
     public void IdleScene_SkipsDraw_AfterInitialFrameAndStateClear()
     {
+        AnimationManager.Current.ResetForTests();
         var root = new Panel();
         var uiRoot = new UiRoot(root);
 

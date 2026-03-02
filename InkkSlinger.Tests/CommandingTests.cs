@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Xunit;
 
@@ -8,6 +10,20 @@ namespace InkkSlinger.Tests;
 
 public class CommandingTests
 {
+    [Fact]
+    public void Button_ImplementsICommandSource()
+    {
+        var button = new Button();
+        Assert.IsAssignableFrom<ICommandSource>(button);
+    }
+
+    [Fact]
+    public void Hyperlink_ImplementsICommandSource()
+    {
+        var hyperlink = new Hyperlink();
+        Assert.IsAssignableFrom<ICommandSource>(hyperlink);
+    }
+
     [Fact]
     public void Execute_UsesFocusedElementBindingsBeforeAncestors()
     {
@@ -159,6 +175,198 @@ public class CommandingTests
         Assert.Equal(string.Empty, effectiveText);
     }
 
+    [Fact]
+    public void ButtonCommandTarget_WhenNull_FallsBackToFocusedElement()
+    {
+        FocusManager.ClearFocus();
+        try
+        {
+            var source = new Button { Text = "Source" };
+            var focusedTarget = new TextBox();
+            var command = new RoutedCommand("Probe", typeof(CommandingTests));
+            var executedOnFocused = 0;
+
+            focusedTarget.CommandBindings.Add(
+                new CommandBinding(
+                    command,
+                    (_, _) => executedOnFocused++,
+                    (_, args) => args.CanExecute = true));
+
+            source.Command = command;
+            FocusManager.SetFocus(focusedTarget);
+
+            var onClick = typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(onClick);
+            onClick!.Invoke(source, null);
+
+            Assert.Equal(1, executedOnFocused);
+        }
+        finally
+        {
+            FocusManager.ClearFocus();
+        }
+    }
+
+    [Fact]
+    public void ButtonCommandTarget_ExplicitTarget_WinsOverFocusedFallback()
+    {
+        FocusManager.ClearFocus();
+        try
+        {
+            var source = new Button { Text = "Source" };
+            var focusedTarget = new TextBox();
+            var explicitTarget = new TextBox();
+            var command = new RoutedCommand("Probe", typeof(CommandingTests));
+            var focusedExecutions = 0;
+            var explicitExecutions = 0;
+
+            focusedTarget.CommandBindings.Add(
+                new CommandBinding(
+                    command,
+                    (_, _) => focusedExecutions++,
+                    (_, args) => args.CanExecute = true));
+            explicitTarget.CommandBindings.Add(
+                new CommandBinding(
+                    command,
+                    (_, _) => explicitExecutions++,
+                    (_, args) => args.CanExecute = true));
+
+            source.Command = command;
+            source.CommandTarget = explicitTarget;
+            FocusManager.SetFocus(focusedTarget);
+
+            var onClick = typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(onClick);
+            onClick!.Invoke(source, null);
+
+            Assert.Equal(0, focusedExecutions);
+            Assert.Equal(1, explicitExecutions);
+        }
+        finally
+        {
+            FocusManager.ClearFocus();
+        }
+    }
+
+    [Fact]
+    public void RoutedCommand_ManualInvalidateRequerySuggested_RefreshesCommandSources()
+    {
+        FocusManager.ClearFocus();
+        try
+        {
+            var root = new Grid();
+            var target = new TextBox();
+            var source = new Button();
+            var command = new RoutedCommand("Probe", typeof(CommandingTests));
+            var canExecute = true;
+
+            target.CommandBindings.Add(
+                new CommandBinding(
+                    command,
+                    (_, _) => { },
+                    (_, args) => args.CanExecute = canExecute));
+
+            root.AddChild(target);
+            root.AddChild(source);
+            FocusManager.SetFocus(target);
+
+            source.Command = command;
+            Assert.True(source.IsEnabled);
+
+            canExecute = false;
+            CommandManager.InvalidateRequerySuggested();
+            Assert.False(source.IsEnabled);
+
+            canExecute = true;
+            CommandManager.InvalidateRequerySuggested();
+            Assert.True(source.IsEnabled);
+        }
+        finally
+        {
+            FocusManager.ClearFocus();
+        }
+    }
+
+    [Fact]
+    public void RoutedCommand_FocusChange_RequeriesAcrossMultipleSources()
+    {
+        FocusManager.ClearFocus();
+        try
+        {
+            var root = new Grid();
+            var leftTarget = new TextBox();
+            var rightTarget = new TextBox();
+            var sourceA = new Button();
+            var sourceB = new Button();
+            var command = new RoutedCommand("Probe", typeof(CommandingTests));
+
+            leftTarget.CommandBindings.Add(
+                new CommandBinding(
+                    command,
+                    (_, _) => { },
+                    (_, args) => args.CanExecute = ReferenceEquals(args.Target, leftTarget)));
+
+            root.AddChild(leftTarget);
+            root.AddChild(rightTarget);
+            root.AddChild(sourceA);
+            root.AddChild(sourceB);
+
+            sourceA.Command = command;
+            sourceB.Command = command;
+
+            FocusManager.SetFocus(leftTarget);
+            CommandManager.InvalidateRequerySuggested();
+            Assert.True(sourceA.IsEnabled);
+            Assert.True(sourceB.IsEnabled);
+
+            FocusManager.SetFocus(rightTarget);
+            CommandManager.InvalidateRequerySuggested();
+            Assert.False(sourceA.IsEnabled);
+            Assert.False(sourceB.IsEnabled);
+        }
+        finally
+        {
+            FocusManager.ClearFocus();
+        }
+    }
+
+    [Fact]
+    public void MenuItem_UsesRoutedUICommandText_WhenHeaderMissing()
+    {
+        var item = new MenuItem
+        {
+            Command = new RoutedUICommand(text: "_Run", name: "Run", ownerType: typeof(CommandingTests))
+        };
+
+        var displayHeader = InvokeDisplayHeaderText(item);
+        Assert.Equal("Run", displayHeader);
+    }
+
+    [Fact]
+    public void XamlBinding_ButtonCommand_FromDataContext_ExecutesWithoutParserSpecialCase()
+    {
+        var viewModel = new CommandHostViewModel();
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <Button x:Name="Action" Command="{Binding Execute}" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        root.DataContext = viewModel;
+        var button = Assert.IsType<Button>(root.FindName("Action"));
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 180, 16);
+        var clickPoint = new Vector2(button.LayoutSlot.X + 8f, button.LayoutSlot.Y + 8f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(clickPoint, leftPressed: true, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(clickPoint, leftReleased: true));
+
+        Assert.Equal(1, viewModel.ExecutionCount);
+    }
+
     private static string InvokeEffectiveGestureText(MenuItem item)
     {
         var method = typeof(MenuItem).GetMethod("GetEffectiveInputGestureText", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -166,32 +374,53 @@ public class CommandingTests
         return (string)method!.Invoke(item, null)!;
     }
 
-    private sealed class CallbackCommand : System.Windows.Input.ICommand
+    private static string InvokeDisplayHeaderText(MenuItem item)
     {
-        private readonly Action<object?> _execute;
-        private readonly Func<object?, bool> _canExecute;
+        var method = typeof(MenuItem).GetMethod("GetDisplayHeaderText", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        return (string)method!.Invoke(item, null)!;
+    }
 
-        public CallbackCommand(Action<object?> execute, Func<object?, bool>? canExecute = null)
+    private static InputDelta CreatePointerDelta(
+        Vector2 pointer,
+        bool leftPressed = false,
+        bool leftReleased = false,
+        bool pointerMoved = false)
+    {
+        return new InputDelta
         {
-            _execute = execute;
-            _canExecute = canExecute ?? (_ => true);
-        }
+            Previous = new InputSnapshot(default, default, pointer),
+            Current = new InputSnapshot(default, default, pointer),
+            PressedKeys = new List<Keys>(),
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char>(),
+            PointerMoved = pointerMoved,
+            WheelDelta = 0,
+            LeftPressed = leftPressed,
+            LeftReleased = leftReleased,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
+    }
 
-        public event EventHandler? CanExecuteChanged;
+    private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
+    {
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
+            new Viewport(0, 0, width, height));
+    }
 
-        public bool CanExecute(object? parameter)
+    private sealed class CommandHostViewModel
+    {
+        public CallbackCommand Execute { get; }
+
+        public int ExecutionCount { get; private set; }
+
+        public CommandHostViewModel()
         {
-            return _canExecute(parameter);
-        }
-
-        public void Execute(object? parameter)
-        {
-            _execute(parameter);
-        }
-
-        public void RaiseCanExecuteChanged()
-        {
-            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            Execute = new CallbackCommand(_ => ExecutionCount++);
         }
     }
 }

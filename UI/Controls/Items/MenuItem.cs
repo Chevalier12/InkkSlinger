@@ -931,7 +931,7 @@ public class MenuItem : ItemsControl
             return string.Empty;
         }
 
-        var routeStart = CommandTarget ?? this;
+        var routeStart = ResolveCommandTarget();
         return InputGestureService.TryGetFirstGestureTextForCommand(Command, routeStart, out var gestureText)
             ? gestureText
             : string.Empty;
@@ -1181,7 +1181,15 @@ public class MenuItem : ItemsControl
 
     private string GetDisplayHeaderText()
     {
-        return MenuAccessText.StripAccessMarkers(Header);
+        var header = Header;
+        if (string.IsNullOrWhiteSpace(header) &&
+            Command is RoutedUICommand routedUiCommand &&
+            !string.IsNullOrWhiteSpace(routedUiCommand.Text))
+        {
+            header = routedUiCommand.Text;
+        }
+
+        return MenuAccessText.StripAccessMarkers(header);
     }
 }
 

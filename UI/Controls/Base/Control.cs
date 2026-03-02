@@ -7,7 +7,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
-public class Control : FrameworkElement
+public class Control : FrameworkElement, ICommandSource
 {
     public static readonly DependencyProperty DefaultStyleKeyProperty =
         DependencyProperty.Register(nameof(DefaultStyleKey), typeof(System.Type), typeof(Control), new FrameworkPropertyMetadata(null));
@@ -389,7 +389,7 @@ public class Control : FrameworkElement
             return false;
         }
 
-        var target = CommandTarget ?? this;
+        var target = ResolveCommandTarget();
 
         if (Command is RoutedCommand routedCommand)
         {
@@ -441,7 +441,7 @@ public class Control : FrameworkElement
             return;
         }
 
-        var target = CommandTarget ?? this;
+        var target = ResolveCommandTarget();
         var canExecute = Command is RoutedCommand routedCommand
             ? CommandManager.CanExecute(routedCommand, CommandParameter, target)
             : Command.CanExecute(CommandParameter);
@@ -514,6 +514,11 @@ public class Control : FrameworkElement
 
         _storedIsEnabledLocalValue = DependencyObject.UnsetValue;
         _isCommandDisablingIsEnabled = false;
+    }
+
+    protected UIElement ResolveCommandTarget()
+    {
+        return CommandTargetResolver.Resolve(CommandTarget, this);
     }
 
     private void SetTemplateTree(UIElement root)

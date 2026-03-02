@@ -9,6 +9,7 @@ public class UiRootTelemetryTests
     [Fact]
     public void MetricsSnapshot_TracksLayoutAndDrawSkipCounters()
     {
+        AnimationManager.Current.ResetForTests();
         var root = new Panel();
         var uiRoot = new UiRoot(root);
         var viewport = new Viewport(0, 0, 1280, 720);
