@@ -4,7 +4,7 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `468/473` passing (5 known failures across `ConditionalDrawTests`, `InputDispatchOptimizationTests`, `UiRootTelemetryTests`, and `ViewportResizeInputRegressionTests`).
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `477/480` passing (3 known failures across `InputDispatchOptimizationTests` and `ViewportResizeInputRegressionTests`).
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - This file tracks completed milestones, known parity gaps, and control coverage.
@@ -68,6 +68,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] App-level theme/style application path (`App.xml`) integrated into host startup + compatibility test matrix.
 - [x] Style-driven control preview surfaces and template parity pass across catalog demos.
 - [x] Resolve app-theme static-resource lookup regressions (`DarkBgBrush`) in test/demo view-loading paths (`ControlsCatalog*`, `AdornerClippingTests`, `XNameSourceGeneratorTests`, `PasswordBoxTests`).
+- [x] `Calendar` and `DatePicker` MVP parity pass: selectable month grid, keyboard navigation, popup-backed date selection, text parse/format behavior, XAML/schema support, and constrained-height overflow regression coverage.
 
 ## Diagnostics Backlog
 - [x] Tail-latency diagnostics (`p95`/`p99`) for click/move/scroll interaction windows, based on `event->next-draw` latency.

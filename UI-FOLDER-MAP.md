@@ -122,6 +122,8 @@ UI/
       DataGridRow.cs
       DataGridRowHeader.cs
     Inputs/
+      Calendar.cs
+      DatePicker.cs
       ITextInputControl.cs
       PasswordBox.cs
       RichTextBox.FormattingEngine.cs
