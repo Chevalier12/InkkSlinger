@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-02-26 (refreshed after input/hover fixes; folder structure unchanged)
+Generated: 2026-03-02 (full filesystem refresh)
 
 ```text
 UI/
@@ -122,9 +122,6 @@ UI/
       DataGridRow.cs
       DataGridRowHeader.cs
     Inputs/
-      Core/
-      Diagnostics/
-      Rendering/
       ITextInputControl.cs
       PasswordBox.cs
       RichTextBox.FormattingEngine.cs
@@ -198,7 +195,6 @@ UI/
       NameScopeService.cs
     Threading/
       Dispatcher.cs
-    Types/
   Diagnostics/
     XamlDiagnostic.cs
     XamlDiagnosticCode.cs
@@ -261,16 +257,12 @@ UI/
         UiRootFrameState.cs
         UiRootInputPipeline.cs
         UiRootLayoutScheduler.cs
-        UiRootRenderCache.cs
         UiRootRetainedTree.cs
       UiRoot.cs
       UiRootTypes.cs
     Tree/
       VisualTreeHelper.cs
   Rendering/
-    Cache/
-      RenderCachePolicy.cs
-      RenderCacheStore.cs
     Core/
       UiDrawing.cs
     DirtyRegions/
@@ -296,7 +288,10 @@ UI/
       ImplicitStylePolicy.cs
       Setter.cs
       Style.cs
+      StyleValueCloneUtility.cs
       VisualStates.cs
+    Effects/
+      Effects.cs
     Triggers/
       Condition.cs
       DataTrigger.cs

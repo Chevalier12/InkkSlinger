@@ -2,12 +2,13 @@
 
 ## Is It Usable Yet? (tm sign here)
 
-### Evidence Pass (2026-02-26)
+### Evidence Pass (2026-03-02)
 
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (`Release`, 0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -c Release -v minimal` |
-| Test suite | Partial (`457/462`, 5 failing) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
+| Test suite | Partial (`468/473`, 5 failing) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
+| Current failing test areas | `4` classes (`ConditionalDraw`, `InputDispatchOptimization`, `UiRootTelemetry`, `ViewportResizeInputRegression`) | Latest full release test run (`2026-03-02`) |
 | WPF control coverage | Broad but incomplete (`68/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `9` unchecked TODO items | `TODO.md` (missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
@@ -16,7 +17,7 @@
 
 **Not yet production-ready as a general-purpose framework claim.**
 
-**Conditionally usable** for production only when your app stays inside the currently implemented/tested surface area and you accept the known gaps above (including the current 5 failing regression/perf tests).
+**Conditionally usable** for production only when your app stays inside the currently implemented/tested surface area and you accept the known gaps above (including the current 5 failing regression tests).
 
 If the bar is "ship a targeted app on this stack," that can be reasonable.  
 If the bar is "framework-level broad production readiness," the current open parity/coverage gaps mean **not yet**.
@@ -100,14 +101,14 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Scrolling primitives | `ScrollViewer`, `ScrollBar`, visibility and owner-scrolling behavior | `UI/Controls/Scrolling/ScrollViewer.cs`, `UI/Controls/Scrolling/ScrollBar.cs`, `InkkSlinger.Tests/ScrollViewerViewerOwnedScrollingTests.cs` | Implemented (tested) |
 | Virtualization | Virtualizing panel infrastructure for large item collections | `UI/Controls/Panels/VirtualizingStackPanel.cs`, `UI/Controls/Scrolling/VirtualizationEnums.cs`, `TODO.md` (`WPF Parity Gaps`: virtualization checked) | Implemented |
 | Rendering invalidation | Dirty region tracking + conditional draw scheduling | `UI/Rendering/DirtyRegions/DirtyRegionTracker.cs`, `UI/Managers/Root/Services/UiRootFrameState.cs`, `InkkSlinger.Tests/DirtyRegionTrackingTests.cs`, `InkkSlinger.Tests/ConditionalDrawTests.cs` | Implemented (tested) |
-| Render caching | Element cache policy/store + visual-layer cache behavior | `UI/Rendering/Cache/RenderCachePolicy.cs`, `UI/Rendering/Cache/RenderCacheStore.cs`, `InkkSlinger.Tests/RenderCachePolicyTests.cs`, `InkkSlinger.Tests/VisualLayerCachingTests.cs` | Implemented (tested) |
+| Retained rendering + redraw scheduling | Retained render-list sync, dirty-region tracking, and conditional draw scheduling | `UI/Managers/Root/Services/UiRootRetainedTree.cs`, `UI/Managers/Root/Services/UiRootDraw.cs`, `UI/Rendering/DirtyRegions/DirtyRegionTracker.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/DirtyRegionTrackingTests.cs`, `InkkSlinger.Tests/ConditionalDrawTests.cs` | Implemented (regression coverage in progress) |
 | Render queue and invalidation correctness | Queue ordering and invalidation semantics in root draw/update pipeline | `UI/Managers/Root/UiRoot.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/InvalidationFlagsTests.cs` | Implemented (tested) |
 | Adorner infrastructure | Adorner base/layer/decorator + anchored/handles authoring helpers (`AnchoredAdorner`, `HandlesAdornerBase`) with clipping/tracking coverage | `UI/Controls/Adorners/*`, `InkkSlinger.Tests/AdornerClippingTests.cs`, `InkkSlinger.Tests/AdornerParityDepthTests.cs` | Implemented (tested) |
 | Control breadth snapshot | 68 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `68/77`) | Broad |
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
-| Runtime telemetry/diagnostics | UiRoot frame/cache/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 72 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (72 files) | Implemented |
+| Runtime telemetry/diagnostics | UiRoot frame/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (regression currently failing) |
+| Regression safety net | 85 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (85 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -122,7 +123,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 - Storyboards, timelines, keyframes, easing, and animation manager
 - Virtualization primitives (`VirtualizingStackPanel` and scrolling infrastructure)
 - Transform-based `ScrollViewer` content scrolling for plain panel hosts by default, with attached-property opt-out (`ScrollViewer.UseTransformContentScrolling="False"`)
-- Dirty-region-aware rendering and cache policy in `UiRoot`/`UI/Rendering`
+- Dirty-region-aware rendering with retained-list synchronization and conditional draw scheduling in `UiRoot`/`UI/Rendering`
 - Tooling support via schemas and `x:Name` source generation
 
 ### Not Yet Implemented / Out of Scope (For Now)
@@ -168,7 +169,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 ## UI Architecture Map
 
-The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-26):
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-03-02):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers
@@ -180,7 +181,7 @@ The following reflects `UI-FOLDER-MAP.md` (generated 2026-02-26):
 - `UI/Input`: focus/input managers and input state snapshots
 - `UI/Layout`: shared layout types (`Thickness`, alignment, orientation, etc.)
 - `UI/Managers`: layout manager, visual tree helper, `UiRoot` services and diagnostics
-- `UI/Rendering`: draw pipeline, dirty regions, cache, text renderer
+- `UI/Rendering`: draw pipeline, dirty regions, text renderer
 - `UI/Resources`: dictionaries and resolution/application resources
 - `UI/Styling`: styles, setters, visual states, triggers, trigger actions
 - `UI/Templating`: control/data templates and trigger engine
@@ -196,7 +197,7 @@ At runtime, the framework generally flows as:
 3. Layout pass when required
 4. UI tree update
 5. Conditional draw pass based on invalidation/redraw reasons
-6. Dirty-region or full-frame composition
+6. If draw is scheduled: dirty-region or full-frame composition; otherwise host-level draw suppression
 
 This keeps behavior deterministic while reducing unnecessary redraw work for large trees.
 
