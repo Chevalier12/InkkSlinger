@@ -72,6 +72,76 @@ public sealed class CalendarTests
         }
     }
 
+    [Fact]
+    public void DisplayDateStart_PreventsNavigationBeforeStart()
+    {
+        var (uiRoot, calendar) = CreateFixture();
+        calendar.DisplayDateStart = new DateTime(2026, 3, 10);
+        calendar.DisplayDate = new DateTime(2026, 3, 15);
+        RunLayout(uiRoot);
+
+        Assert.False(calendar.PreviousMonthButtonForTesting.IsEnabled);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.PageUp));
+        Assert.Equal(3, calendar.DisplayDate.Month);
+    }
+
+    [Fact]
+    public void DisplayDateEnd_PreventsNavigationAfterEnd()
+    {
+        var (uiRoot, calendar) = CreateFixture();
+        calendar.DisplayDateEnd = new DateTime(2026, 3, 20);
+        calendar.DisplayDate = new DateTime(2026, 3, 15);
+        RunLayout(uiRoot);
+
+        Assert.False(calendar.NextMonthButtonForTesting.IsEnabled);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.PageDown));
+        Assert.Equal(3, calendar.DisplayDate.Month);
+    }
+
+    [Fact]
+    public void SelectedDate_OutsideRange_IsClampedToRange()
+    {
+        var (uiRoot, calendar) = CreateFixture();
+        calendar.DisplayDateStart = new DateTime(2026, 3, 10);
+        calendar.DisplayDateEnd = new DateTime(2026, 3, 20);
+
+        calendar.SelectedDate = new DateTime(2026, 3, 5);
+        Assert.Equal(new DateTime(2026, 3, 10), calendar.SelectedDate);
+
+        calendar.SelectedDate = new DateTime(2026, 3, 25);
+        Assert.Equal(new DateTime(2026, 3, 20), calendar.SelectedDate);
+    }
+
+    [Fact]
+    public void FirstDayOfWeek_Monday_UpdatesHeaderLabels()
+    {
+        var (uiRoot, calendar) = CreateFixture();
+        calendar.FirstDayOfWeek = DayOfWeek.Monday;
+        RunLayout(uiRoot);
+
+        var shortestDayNames = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.ShortestDayNames;
+        Assert.Equal(shortestDayNames[(int)DayOfWeek.Monday], calendar.WeekDayLabelsForTesting[0].Text);
+    }
+
+    [Fact]
+    public void KeyboardNavigation_PastMonthBoundary_AdvancesDisplayMonth()
+    {
+        var (uiRoot, calendar) = CreateFixture();
+        calendar.DisplayDate = new DateTime(2026, 3, 1);
+        calendar.SelectedDate = new DateTime(2026, 3, 31);
+        RunLayout(uiRoot);
+
+        Assert.True(calendar.TryGetDayButtonIndexForDateForTesting(calendar.SelectedDate.Value, out var index));
+        Click(uiRoot, GetCenter(calendar.DayButtonsForTesting[index]));
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Right));
+
+        Assert.Equal(new DateTime(2026, 4, 1), calendar.SelectedDate);
+        Assert.Equal(4, calendar.DisplayDate.Month);
+    }
+
     private static (UiRoot UiRoot, Calendar Calendar) CreateFixture()
     {
         var host = new Canvas

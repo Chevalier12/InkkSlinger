@@ -10,10 +10,6 @@ public partial class CalendarView : UserControl
     {
         var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "CalendarView.xml");
         XamlLoader.LoadInto(this, markupPath, this);
-        if (this.FindName("DemoHost") is ContentControl demoHost)
-        {
-            demoHost.Content = ControlDemoSupport.BuildSampleElement("Calendar");
-        }
     }
 
     public void SetFont(SpriteFont? font)

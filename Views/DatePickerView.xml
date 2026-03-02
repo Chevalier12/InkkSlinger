@@ -21,7 +21,7 @@
     </Border>
 
     <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <ContentControl x:Name="DemoHost" />
+      <DatePicker Width="260" Height="32" />
     </Border>
   </Grid>
 </UserControl>

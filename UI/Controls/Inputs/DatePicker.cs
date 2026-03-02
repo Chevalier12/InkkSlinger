@@ -67,7 +67,7 @@ public class DatePicker : UserControl
                     }
 
                     var typed = value is DateTime date ? date : DateTime.Today;
-                    return datePicker.CoerceDateWithinRange(typed.Date);
+                    return datePicker.CoerceDisplayDateMonthStart(typed);
                 }));
 
     public static readonly DependencyProperty DisplayDateStartProperty =
@@ -222,11 +222,14 @@ public class DatePicker : UserControl
         _calendar = new Calendar
         {
             Width = 244f,
-            Height = 232f
+            Height = 232f,
+            SelectionMode = CalendarSelectionMode.SingleDate
         };
         _calendar.SelectedDateChanged += OnCalendarSelectedDateChanged;
 
         Content = _rootGrid;
+
+        AddHandler<KeyRoutedEventArgs>(UIElement.KeyDownEvent, OnDatePickerKeyDown, handledEventsToo: true);
 
         Height = 32f;
         FirstDayOfWeek = DayOfWeek.Sunday;
@@ -359,7 +362,7 @@ public class DatePicker : UserControl
             return;
         }
 
-        var normalizedDisplayDate = CoerceDateWithinRange(DisplayDate);
+        var normalizedDisplayDate = CoerceDisplayDateMonthStart(DisplayDate);
         if (normalizedDisplayDate != DisplayDate)
         {
             DisplayDate = normalizedDisplayDate;
@@ -502,11 +505,22 @@ public class DatePicker : UserControl
         IsDropDownOpen = false;
     }
 
+    private void OnDatePickerKeyDown(object? sender, KeyRoutedEventArgs args)
+    {
+        _ = sender;
+        if (args.Key == Keys.Escape && IsDropDownOpen)
+        {
+            IsDropDownOpen = false;
+            args.Handled = true;
+        }
+    }
+
     private void OpenDropDown()
     {
         var host = FindHostPanel();
         if (host == null)
         {
+            System.Diagnostics.Debug.WriteLine($"[DatePicker] FindHostPanel returned null for {this}. Unable to open dropdown.");
             _isSynchronizingDropDown = true;
             try
             {
@@ -531,8 +545,8 @@ public class DatePicker : UserControl
         _popup.PlacementMode = PopupPlacementMode.Bottom;
         _popup.HorizontalOffset = 0f;
         _popup.VerticalOffset = 2f;
-        _popup.Width = MathF.Max(ActualWidth > 0f ? ActualWidth : Width, 220f);
-        _popup.Height = MathF.Max(_calendar.Height, 232f);
+        _popup.Width = float.NaN;
+        _popup.Height = float.NaN;
         _popup.Show(host);
     }
 
@@ -584,6 +598,8 @@ public class DatePicker : UserControl
         _isSynchronizingSelection = true;
         try
         {
+            // DatePicker remains single-date by design (WPF parity).
+            _calendar.SelectionMode = CalendarSelectionMode.SingleDate;
             _calendar.DisplayDateStart = DisplayDateStart;
             _calendar.DisplayDateEnd = DisplayDateEnd;
             _calendar.FirstDayOfWeek = FirstDayOfWeek;
@@ -666,6 +682,36 @@ public class DatePicker : UserControl
         }
 
         return normalized;
+    }
+
+    private DateTime CoerceDisplayDateMonthStart(DateTime date)
+    {
+        var normalized = NormalizeToMonthStart(date);
+        if (DisplayDateStart.HasValue)
+        {
+            var monthStart = NormalizeToMonthStart(DisplayDateStart.Value);
+            if (normalized < monthStart)
+            {
+                normalized = monthStart;
+            }
+        }
+
+        if (DisplayDateEnd.HasValue)
+        {
+            var monthStart = NormalizeToMonthStart(DisplayDateEnd.Value);
+            if (normalized > monthStart)
+            {
+                normalized = monthStart;
+            }
+        }
+
+        return normalized;
+    }
+
+    private static DateTime NormalizeToMonthStart(DateTime date)
+    {
+        var normalized = date.Date;
+        return new DateTime(normalized.Year, normalized.Month, 1);
     }
 
     private static bool TryParseDateText(string text, out DateTime date)

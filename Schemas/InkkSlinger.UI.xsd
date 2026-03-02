@@ -1827,7 +1827,9 @@
         <xs:attribute name="DisplayDateStart" type="xs:string" />
         <xs:attribute name="DisplayDateEnd" type="xs:string" />
         <xs:attribute name="FirstDayOfWeek" type="xs:string" />
+        <xs:attribute name="SelectionMode" type="xs:string" />
         <xs:attribute name="SelectedDateChanged" type="xs:string" />
+        <xs:attribute name="SelectedDatesChanged" type="xs:string" />
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>

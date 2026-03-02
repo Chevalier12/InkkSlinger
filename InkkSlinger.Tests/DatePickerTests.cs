@@ -65,6 +65,71 @@ public sealed class DatePickerTests
         Assert.Equal("not-a-date", datePicker.Text);
     }
 
+    [Fact]
+    public void IsReadOnly_True_DisablesDropDownButtonAndTextEditing()
+    {
+        var (uiRoot, datePicker) = CreateFixture();
+        datePicker.IsReadOnly = true;
+        RunLayout(uiRoot);
+
+        Assert.False(datePicker.DropDownButtonForTesting.IsEnabled);
+        Assert.True(datePicker.TextBoxForTesting.IsReadOnly);
+
+        Click(uiRoot, GetCenter(datePicker.DropDownButtonForTesting));
+        Assert.False(datePicker.IsDropDownOpen);
+    }
+
+    [Fact]
+    public void TextEntry_OutOfRangeDate_IsNotCommittedWhenBoundarySet()
+    {
+        var (uiRoot, datePicker) = CreateFixture();
+        datePicker.DisplayDateStart = new DateTime(2026, 3, 10);
+        datePicker.DisplayDateEnd = new DateTime(2026, 3, 20);
+        RunLayout(uiRoot);
+
+        datePicker.TextBoxForTesting.Text = "2026-03-05";
+        Click(uiRoot, GetCenter(datePicker.TextBoxForTesting));
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter));
+
+        Assert.Equal(new DateTime(2026, 3, 10), datePicker.SelectedDate);
+    }
+
+    [Fact]
+    public void EnterKey_CommitsTextAndNormalizesDisplay()
+    {
+        var (uiRoot, datePicker) = CreateFixture();
+        RunLayout(uiRoot);
+
+        datePicker.TextBoxForTesting.Text = "2026-04-10";
+        Click(uiRoot, GetCenter(datePicker.TextBoxForTesting));
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter));
+
+        Assert.Equal(new DateTime(2026, 4, 10), datePicker.SelectedDate);
+        var expectedText = new DateTime(2026, 4, 10).ToString("d", CultureInfo.CurrentCulture);
+        Assert.Equal(expectedText, datePicker.Text);
+    }
+
+    [Fact]
+    public void EscapeKey_ClosesDropDown()
+    {
+        var (uiRoot, datePicker) = CreateFixture();
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(datePicker.DropDownButtonForTesting));
+        RunLayout(uiRoot);
+        Assert.True(datePicker.IsDropDownOpen);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Escape));
+        Assert.False(datePicker.IsDropDownOpen);
+    }
+
+    [Fact]
+    public void DropDownCalendar_RemainsSingleDateMode()
+    {
+        var (_, datePicker) = CreateFixture();
+        Assert.Equal(CalendarSelectionMode.SingleDate, datePicker.DropDownCalendarForTesting.SelectionMode);
+    }
+
     private static (UiRoot UiRoot, DatePicker DatePicker) CreateFixture()
     {
         var host = new Canvas
@@ -97,6 +162,27 @@ public sealed class DatePickerTests
     {
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true));
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true));
+    }
+
+    private static InputDelta CreateKeyDownDelta(Keys key)
+    {
+        var pointer = new Vector2(16f, 16f);
+        return new InputDelta
+        {
+            Previous = new InputSnapshot(default, default, pointer),
+            Current = new InputSnapshot(default, default, pointer),
+            PressedKeys = new List<Keys> { key },
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char>(),
+            PointerMoved = false,
+            WheelDelta = 0,
+            LeftPressed = false,
+            LeftReleased = false,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
     }
 
     private static InputDelta CreatePointerDelta(Vector2 pointer, bool leftPressed = false, bool leftReleased = false)

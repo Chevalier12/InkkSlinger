@@ -10,10 +10,6 @@ public partial class DatePickerView : UserControl
     {
         var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "DatePickerView.xml");
         XamlLoader.LoadInto(this, markupPath, this);
-        if (this.FindName("DemoHost") is ContentControl demoHost)
-        {
-            demoHost.Content = ControlDemoSupport.BuildSampleElement("DatePicker");
-        }
     }
 
     public void SetFont(SpriteFont? font)

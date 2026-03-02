@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -10,6 +11,9 @@ public class Calendar : UserControl
 {
     public static readonly RoutedEvent SelectedDateChangedEvent =
         new(nameof(SelectedDateChanged), RoutingStrategy.Bubble);
+
+    public static readonly RoutedEvent SelectedDatesChangedEvent =
+        new(nameof(SelectedDatesChanged), RoutingStrategy.Bubble);
 
     public static readonly DependencyProperty SelectedDateProperty =
         DependencyProperty.Register(
@@ -33,6 +37,11 @@ public class Calendar : UserControl
                         return value;
                     }
 
+                    if (calendar.SelectionMode == CalendarSelectionMode.None)
+                    {
+                        return null;
+                    }
+
                     if (value is null)
                     {
                         return null;
@@ -44,6 +53,21 @@ public class Calendar : UserControl
                     }
 
                     return null;
+                }));
+
+    public static readonly DependencyProperty SelectionModeProperty =
+        DependencyProperty.Register(
+            nameof(SelectionMode),
+            typeof(CalendarSelectionMode),
+            typeof(Calendar),
+            new FrameworkPropertyMetadata(
+                CalendarSelectionMode.SingleDate,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is Calendar calendar && args.NewValue is CalendarSelectionMode selectionMode)
+                    {
+                        calendar.OnSelectionModeChanged(selectionMode);
+                    }
                 }));
 
     public static readonly DependencyProperty DisplayDateProperty =
@@ -143,6 +167,14 @@ public class Calendar : UserControl
     private readonly Label[] _weekDayLabels = new Label[7];
     private readonly Button[] _dayButtons = new Button[42];
     private readonly DateTime[] _dayButtonDates = new DateTime[42];
+    private readonly List<CalendarDateRange> _selectedRanges = new();
+    private readonly List<DateTime> _selectedDates = new();
+    private readonly HashSet<DateTime> _selectedDateLookup = new();
+
+    private DateTime? _rangeAnchorDate;
+    private DateTime? _lastActiveDate;
+    private ModifierKeys _clickModifiers;
+    private bool _isSynchronizingSelectedDate;
 
     public Calendar()
     {
@@ -239,6 +271,7 @@ public class Calendar : UserControl
                 Padding = new Thickness(0f),
                 BorderThickness = 1f
             };
+            button.AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, (_, args) => _clickModifiers = args.Modifiers);
             button.Click += (_, _) => OnDayButtonClicked(buttonIndex);
             _dayButtons[i] = button;
             _daysGrid.AddChild(button);
@@ -261,11 +294,25 @@ public class Calendar : UserControl
         remove => RemoveHandler(SelectedDateChangedEvent, value);
     }
 
+    public event EventHandler<SelectionChangedEventArgs> SelectedDatesChanged
+    {
+        add => AddHandler(SelectedDatesChangedEvent, value);
+        remove => RemoveHandler(SelectedDatesChangedEvent, value);
+    }
+
     public DateTime? SelectedDate
     {
         get => GetValue<DateTime?>(SelectedDateProperty);
         set => SetValue(SelectedDateProperty, value);
     }
+
+    public CalendarSelectionMode SelectionMode
+    {
+        get => GetValue<CalendarSelectionMode>(SelectionModeProperty);
+        set => SetValue(SelectionModeProperty, value);
+    }
+
+    public IReadOnlyList<DateTime> SelectedDates => _selectedDates;
 
     public DateTime DisplayDate
     {
@@ -293,6 +340,9 @@ public class Calendar : UserControl
 
     protected internal IReadOnlyList<Button> DayButtonsForTesting => _dayButtons;
     protected internal string MonthLabelTextForTesting => _monthLabel.Text;
+    protected internal IReadOnlyList<Label> WeekDayLabelsForTesting => _weekDayLabels;
+    protected internal Button PreviousMonthButtonForTesting => _previousMonthButton;
+    protected internal Button NextMonthButtonForTesting => _nextMonthButton;
 
     protected internal bool TryGetDayButtonIndexForDateForTesting(DateTime date, out int index)
     {
@@ -310,28 +360,143 @@ public class Calendar : UserControl
         return false;
     }
 
+    public void SetSelectedDates(IEnumerable<DateTime> dates)
+    {
+        ArgumentNullException.ThrowIfNull(dates);
+
+        if (SelectionMode == CalendarSelectionMode.None)
+        {
+            ApplySelectionChange([], null, null);
+            return;
+        }
+
+        var ranges = BuildRangesFromDates(dates);
+        if (SelectionMode == CalendarSelectionMode.SingleDate)
+        {
+            var projected = ProjectSingleDateFromRanges(ranges);
+            if (projected.HasValue)
+            {
+                ApplySelectionChange([new CalendarDateRange(projected.Value, projected.Value)], projected.Value, projected.Value);
+            }
+            else
+            {
+                ApplySelectionChange([], null, null);
+            }
+
+            return;
+        }
+
+        if (SelectionMode == CalendarSelectionMode.SingleRange)
+        {
+            if (ranges.Count == 0)
+            {
+                ApplySelectionChange([], null, null);
+                return;
+            }
+
+            var minDate = ranges[0].Start;
+            var maxDate = ranges[0].End;
+            for (var i = 1; i < ranges.Count; i++)
+            {
+                if (ranges[i].Start < minDate)
+                {
+                    minDate = ranges[i].Start;
+                }
+
+                if (ranges[i].End > maxDate)
+                {
+                    maxDate = ranges[i].End;
+                }
+            }
+
+            var singleRange = new CalendarDateRange(minDate, maxDate);
+            ApplySelectionChange([singleRange], singleRange.End, singleRange.End);
+            return;
+        }
+
+        DateTime? active = ranges.Count > 0 ? ranges[^1].End : null;
+        ApplySelectionChange(ranges, active, active);
+    }
+
     private void OnSelectedDateChanged(DateTime? oldValue, DateTime? newValue)
     {
-        if (newValue.HasValue)
+        if (_isSynchronizingSelectedDate)
         {
-            var selectedDate = newValue.Value.Date;
-            if (DisplayDate.Year != selectedDate.Year || DisplayDate.Month != selectedDate.Month)
+            return;
+        }
+
+        if (!newValue.HasValue)
+        {
+            ApplySelectionChange([], null, null);
+            return;
+        }
+
+        var normalized = newValue.Value.Date;
+        if (SelectionMode == CalendarSelectionMode.None)
+        {
+            ApplySelectionChange([], null, null);
+            return;
+        }
+
+        normalized = CoerceDateWithinRange(normalized);
+        ApplySelectionChange([new CalendarDateRange(normalized, normalized)], normalized, normalized);
+    }
+
+    private void OnSelectionModeChanged(CalendarSelectionMode selectionMode)
+    {
+        if (selectionMode == CalendarSelectionMode.None)
+        {
+            ApplySelectionChange([], null, null);
+            return;
+        }
+
+        if (_selectedRanges.Count == 0)
+        {
+            UpdateCalendarView();
+            return;
+        }
+
+        if (selectionMode == CalendarSelectionMode.SingleDate)
+        {
+            var projected = _lastActiveDate;
+            if (!projected.HasValue || !_selectedDateLookup.Contains(projected.Value.Date))
             {
-                DisplayDate = selectedDate;
+                projected = _selectedRanges[0].Start;
             }
+
+            ApplySelectionChange([new CalendarDateRange(projected.Value, projected.Value)], projected, projected);
+            return;
+        }
+
+        if (selectionMode == CalendarSelectionMode.SingleRange)
+        {
+            var minDate = _selectedRanges[0].Start;
+            var maxDate = _selectedRanges[0].End;
+            for (var i = 1; i < _selectedRanges.Count; i++)
+            {
+                if (_selectedRanges[i].Start < minDate)
+                {
+                    minDate = _selectedRanges[i].Start;
+                }
+
+                if (_selectedRanges[i].End > maxDate)
+                {
+                    maxDate = _selectedRanges[i].End;
+                }
+            }
+
+            var normalized = new CalendarDateRange(minDate, maxDate);
+            var active = _lastActiveDate;
+            if (!active.HasValue || !normalized.Contains(active.Value))
+            {
+                active = normalized.End;
+            }
+
+            ApplySelectionChange([normalized], active, active);
+            return;
         }
 
         UpdateCalendarView();
-
-        var removedItems = oldValue.HasValue
-            ? new object[] { oldValue.Value }
-            : Array.Empty<object>();
-        var addedItems = newValue.HasValue
-            ? new object[] { newValue.Value }
-            : Array.Empty<object>();
-        RaiseRoutedEvent(
-            SelectedDateChangedEvent,
-            new SelectionChangedEventArgs(SelectedDateChangedEvent, removedItems, addedItems));
     }
 
     private void OnDisplayRangeChanged()
@@ -342,25 +507,22 @@ public class Calendar : UserControl
             return;
         }
 
-        if (SelectedDate.HasValue)
-        {
-            var selected = SelectedDate.Value.Date;
-            var coerced = CoerceDateWithinRange(selected);
-            if (coerced != selected)
-            {
-                SelectedDate = coerced;
-            }
-        }
-
         var coercedDisplayDate = CoerceDisplayDateToRange(DisplayDate);
         if (coercedDisplayDate != DisplayDate)
         {
             DisplayDate = coercedDisplayDate;
         }
-        else
+
+        var clampedRanges = ClampRangesToDisplayBounds(_selectedRanges);
+        if (!AreRangesEqual(_selectedRanges, clampedRanges))
         {
-            UpdateCalendarView();
+            DateTime? active = _lastActiveDate.HasValue ? ClampDateInsideDisplayBounds(_lastActiveDate.Value) : null;
+            DateTime? anchor = _rangeAnchorDate.HasValue ? ClampDateInsideDisplayBounds(_rangeAnchorDate.Value) : active;
+            ApplySelectionChange(clampedRanges, active, anchor);
+            return;
         }
+
+        UpdateCalendarView();
     }
 
     private void NavigateMonth(int monthDelta)
@@ -382,86 +544,289 @@ public class Calendar : UserControl
         }
 
         var date = _dayButtonDates[buttonIndex].Date;
+        if (!IsDateSelectable(date) || SelectionMode == CalendarSelectionMode.None)
+        {
+            return;
+        }
+
+        var modifiers = _clickModifiers;
+        _clickModifiers = ModifierKeys.None;
+        var ctrl = (modifiers & ModifierKeys.Control) != 0;
+        var shift = (modifiers & ModifierKeys.Shift) != 0;
+
+        if (shift && SelectionMode is CalendarSelectionMode.SingleRange or CalendarSelectionMode.MultipleRange)
+        {
+            var anchor = ResolveRangeAnchor(date);
+            ApplyRangeSelection(anchor, date, keepExisting: SelectionMode == CalendarSelectionMode.MultipleRange);
+            return;
+        }
+
+        if (ctrl && SelectionMode == CalendarSelectionMode.MultipleRange)
+        {
+            ToggleDateSelection(date);
+            return;
+        }
+
+        SelectSingleDate(date);
+    }
+
+    private void OnKeyDown(object? sender, KeyRoutedEventArgs args)
+    {
+        _ = sender;
+
+        if (!TryGetNavigatedDate(args.Key, out var targetDate))
+        {
+            return;
+        }
+
+        args.Handled = true;
+
+        if (SelectionMode == CalendarSelectionMode.None)
+        {
+            DisplayDate = targetDate;
+            return;
+        }
+
+        var ctrl = (args.Modifiers & ModifierKeys.Control) != 0;
+        var shift = (args.Modifiers & ModifierKeys.Shift) != 0;
+
+        if (ctrl && SelectionMode == CalendarSelectionMode.MultipleRange)
+        {
+            MoveActiveDateWithoutSelectionMutation(targetDate);
+            return;
+        }
+
+        if (shift && SelectionMode is CalendarSelectionMode.SingleRange or CalendarSelectionMode.MultipleRange)
+        {
+            var anchor = ResolveRangeAnchor(targetDate);
+            ApplyRangeSelection(anchor, targetDate, keepExisting: SelectionMode == CalendarSelectionMode.MultipleRange);
+            return;
+        }
+
+        SelectSingleDate(targetDate);
+    }
+
+    private bool TryGetNavigatedDate(Keys key, out DateTime targetDate)
+    {
+        var anchor = (_lastActiveDate ?? SelectedDate ?? DisplayDate).Date;
+        switch (key)
+        {
+            case Keys.Left:
+                targetDate = CoerceDateWithinRange(anchor.AddDays(-1));
+                return true;
+            case Keys.Right:
+                targetDate = CoerceDateWithinRange(anchor.AddDays(1));
+                return true;
+            case Keys.Up:
+                targetDate = CoerceDateWithinRange(anchor.AddDays(-7));
+                return true;
+            case Keys.Down:
+                targetDate = CoerceDateWithinRange(anchor.AddDays(7));
+                return true;
+            case Keys.PageUp:
+                targetDate = CoerceDateWithinRange(anchor.AddMonths(-1));
+                return true;
+            case Keys.PageDown:
+                targetDate = CoerceDateWithinRange(anchor.AddMonths(1));
+                return true;
+            case Keys.Home:
+                targetDate = CoerceDateWithinRange(new DateTime(DisplayDate.Year, DisplayDate.Month, 1));
+                return true;
+            case Keys.End:
+                targetDate = CoerceDateWithinRange(new DateTime(DisplayDate.Year, DisplayDate.Month, DateTime.DaysInMonth(DisplayDate.Year, DisplayDate.Month)));
+                return true;
+            default:
+                targetDate = default;
+                return false;
+        }
+    }
+
+    private void MoveActiveDateWithoutSelectionMutation(DateTime date)
+    {
         if (!IsDateSelectable(date))
         {
             return;
         }
 
-        SelectedDate = date;
-    }
-
-    private void OnKeyDown(object? sender, KeyRoutedEventArgs args)
-    {
-        if (args.Modifiers != ModifierKeys.None)
+        _lastActiveDate = date.Date;
+        if (!_rangeAnchorDate.HasValue)
         {
-            return;
+            _rangeAnchorDate = _lastActiveDate;
         }
 
-        switch (args.Key)
+        if (DisplayDate.Year != date.Year || DisplayDate.Month != date.Month)
         {
-            case Keys.Left:
-                MoveSelectionByDays(-1);
-                args.Handled = true;
-                break;
-            case Keys.Right:
-                MoveSelectionByDays(1);
-                args.Handled = true;
-                break;
-            case Keys.Up:
-                MoveSelectionByDays(-7);
-                args.Handled = true;
-                break;
-            case Keys.Down:
-                MoveSelectionByDays(7);
-                args.Handled = true;
-                break;
-            case Keys.PageUp:
-                MoveSelectionByMonths(-1);
-                args.Handled = true;
-                break;
-            case Keys.PageDown:
-                MoveSelectionByMonths(1);
-                args.Handled = true;
-                break;
-            case Keys.Home:
-                SelectDate(new DateTime(DisplayDate.Year, DisplayDate.Month, 1));
-                args.Handled = true;
-                break;
-            case Keys.End:
-                SelectDate(new DateTime(DisplayDate.Year, DisplayDate.Month, DateTime.DaysInMonth(DisplayDate.Year, DisplayDate.Month)));
-                args.Handled = true;
-                break;
-        }
-    }
-
-    private void MoveSelectionByDays(int dayDelta)
-    {
-        var anchor = (SelectedDate ?? DisplayDate).Date;
-        SelectDate(anchor.AddDays(dayDelta));
-    }
-
-    private void MoveSelectionByMonths(int monthDelta)
-    {
-        var anchor = (SelectedDate ?? DisplayDate).Date;
-        SelectDate(anchor.AddMonths(monthDelta));
-    }
-
-    private void SelectDate(DateTime date)
-    {
-        var normalized = CoerceDateWithinRange(date.Date);
-        if (SelectedDate != normalized)
-        {
-            SelectedDate = normalized;
-            return;
-        }
-
-        if (DisplayDate.Year != normalized.Year || DisplayDate.Month != normalized.Month)
-        {
-            DisplayDate = normalized;
+            DisplayDate = date;
             return;
         }
 
         UpdateCalendarView();
+    }
+
+    private void SelectSingleDate(DateTime date)
+    {
+        var normalized = CoerceDateWithinRange(date.Date);
+        if (SelectionMode == CalendarSelectionMode.None)
+        {
+            ApplySelectionChange([], null, null);
+            return;
+        }
+
+        ApplySelectionChange([new CalendarDateRange(normalized, normalized)], normalized, normalized);
+    }
+
+    private void ApplyRangeSelection(DateTime anchorDate, DateTime targetDate, bool keepExisting)
+    {
+        var normalizedAnchor = CoerceDateWithinRange(anchorDate.Date);
+        var normalizedTarget = CoerceDateWithinRange(targetDate.Date);
+        var range = new CalendarDateRange(normalizedAnchor, normalizedTarget);
+
+        List<CalendarDateRange> nextRanges;
+        if (!keepExisting || SelectionMode == CalendarSelectionMode.SingleRange)
+        {
+            nextRanges = [range];
+        }
+        else
+        {
+            nextRanges = new List<CalendarDateRange>(_selectedRanges);
+            AddRangeAndMerge(nextRanges, range);
+        }
+
+        ApplySelectionChange(nextRanges, normalizedTarget, normalizedAnchor);
+    }
+
+    private void ToggleDateSelection(DateTime date)
+    {
+        var normalized = CoerceDateWithinRange(date.Date);
+        var nextRanges = new List<CalendarDateRange>(_selectedRanges);
+
+        var removed = TryRemoveDateFromRanges(nextRanges, normalized);
+        if (!removed)
+        {
+            AddRangeAndMerge(nextRanges, new CalendarDateRange(normalized, normalized));
+        }
+
+        DateTime? active = nextRanges.Count > 0 ? normalized : null;
+        DateTime? anchor = nextRanges.Count > 0 ? normalized : null;
+        ApplySelectionChange(nextRanges, active, anchor);
+    }
+
+    private DateTime ResolveRangeAnchor(DateTime fallback)
+    {
+        if (_rangeAnchorDate.HasValue)
+        {
+            return _rangeAnchorDate.Value.Date;
+        }
+
+        if (_lastActiveDate.HasValue)
+        {
+            return _lastActiveDate.Value.Date;
+        }
+
+        if (SelectedDate.HasValue)
+        {
+            return SelectedDate.Value.Date;
+        }
+
+        return fallback.Date;
+    }
+
+    private void ApplySelectionChange(List<CalendarDateRange> nextRanges, DateTime? activeDate, DateTime? anchorDate)
+    {
+        NormalizeAndMergeRanges(nextRanges);
+
+        var previousSelectedDate = SelectedDate;
+        var previousSelectedDates = new List<DateTime>(_selectedDates);
+
+        _selectedRanges.Clear();
+        _selectedRanges.AddRange(nextRanges);
+
+        RebuildSelectedDateCaches();
+
+        if (activeDate.HasValue)
+        {
+            var normalizedActive = CoerceDateWithinRange(activeDate.Value.Date);
+            _lastActiveDate = _selectedDateLookup.Contains(normalizedActive)
+                ? normalizedActive
+                : _selectedDates.Count > 0
+                    ? _selectedDates[^1]
+                    : null;
+        }
+        else
+        {
+            _lastActiveDate = _selectedDates.Count > 0 ? _selectedDates[^1] : null;
+        }
+
+        if (anchorDate.HasValue)
+        {
+            var normalizedAnchor = CoerceDateWithinRange(anchorDate.Value.Date);
+            _rangeAnchorDate = _selectedDateLookup.Contains(normalizedAnchor)
+                ? normalizedAnchor
+                : _lastActiveDate;
+        }
+        else
+        {
+            _rangeAnchorDate = _lastActiveDate;
+        }
+
+        var projectedSelectedDate = ProjectSelectedDateFromSelection();
+        if (projectedSelectedDate.HasValue &&
+            (DisplayDate.Year != projectedSelectedDate.Value.Year || DisplayDate.Month != projectedSelectedDate.Value.Month))
+        {
+            DisplayDate = projectedSelectedDate.Value;
+        }
+
+        if (previousSelectedDate != projectedSelectedDate)
+        {
+            _isSynchronizingSelectedDate = true;
+            try
+            {
+                SelectedDate = projectedSelectedDate;
+            }
+            finally
+            {
+                _isSynchronizingSelectedDate = false;
+            }
+        }
+
+        UpdateCalendarView();
+
+        if (!AreDateListsEqual(previousSelectedDates, _selectedDates))
+        {
+            var removedDates = BuildSelectionDelta(previousSelectedDates, _selectedDates);
+            var addedDates = BuildSelectionDelta(_selectedDates, previousSelectedDates);
+            RaiseRoutedEvent(
+                SelectedDatesChangedEvent,
+                new SelectionChangedEventArgs(SelectedDatesChangedEvent, removedDates, addedDates));
+        }
+
+        if (previousSelectedDate != projectedSelectedDate)
+        {
+            var removedItems = previousSelectedDate.HasValue
+                ? new object[] { previousSelectedDate.Value }
+                : Array.Empty<object>();
+            var addedItems = projectedSelectedDate.HasValue
+                ? new object[] { projectedSelectedDate.Value }
+                : Array.Empty<object>();
+            RaiseRoutedEvent(
+                SelectedDateChangedEvent,
+                new SelectionChangedEventArgs(SelectedDateChangedEvent, removedItems, addedItems));
+        }
+    }
+
+    private DateTime? ProjectSelectedDateFromSelection()
+    {
+        if (SelectionMode == CalendarSelectionMode.None || _selectedDates.Count == 0)
+        {
+            return null;
+        }
+
+        if (_lastActiveDate.HasValue && _selectedDateLookup.Contains(_lastActiveDate.Value.Date))
+        {
+            return _lastActiveDate.Value.Date;
+        }
+
+        return _selectedDates[^1];
     }
 
     private void UpdateCalendarView()
@@ -469,11 +834,11 @@ public class Calendar : UserControl
         var displayMonth = NormalizeToMonthStart(DisplayDate);
         _monthLabel.Text = displayMonth.ToString("Y", CultureInfo.CurrentCulture);
 
-        var abbreviatedDayNames = CultureInfo.CurrentCulture.DateTimeFormat.AbbreviatedDayNames;
+        var shortestDayNames = CultureInfo.CurrentCulture.DateTimeFormat.ShortestDayNames;
         for (var i = 0; i < _weekDayLabels.Length; i++)
         {
             var index = (((int)FirstDayOfWeek + i) % 7 + 7) % 7;
-            _weekDayLabels[i].Text = abbreviatedDayNames[index];
+            _weekDayLabels[i].Text = shortestDayNames[index];
         }
 
         var offsetFromFirstDay = ((int)displayMonth.DayOfWeek - (int)FirstDayOfWeek + 7) % 7;
@@ -489,29 +854,33 @@ public class Calendar : UserControl
             button.Text = date.Day.ToString(CultureInfo.InvariantCulture);
 
             var inDisplayMonth = date.Month == displayMonth.Month && date.Year == displayMonth.Year;
-            var isSelected = SelectedDate.HasValue && SelectedDate.Value.Date == date;
+            var isPrimarySelected = _lastActiveDate.HasValue && _lastActiveDate.Value.Date == date;
+            var isSelectedInRange = _selectedDateLookup.Contains(date);
             var isToday = date == today;
             var isEnabled = IsDateSelectable(date);
 
             button.IsEnabled = isEnabled;
-            button.Background = ResolveDayButtonBackground(inDisplayMonth, isSelected, isToday);
-            button.Foreground = ResolveDayButtonForeground(inDisplayMonth, isEnabled, isSelected);
-            button.BorderBrush = isSelected
-                ? new Color(160, 205, 255)
-                : isToday
-                ? new Color(122, 122, 140)
-                : new Color(78, 78, 78);
+            button.Background = ResolveDayButtonBackground(inDisplayMonth, isSelectedInRange, isPrimarySelected, isToday);
+            button.Foreground = ResolveDayButtonForeground(inDisplayMonth, isEnabled, isSelectedInRange, isPrimarySelected);
+            button.BorderBrush = ResolveDayButtonBorderBrush(isSelectedInRange, isPrimarySelected, isToday);
         }
 
         _previousMonthButton.IsEnabled = CanDisplayMonth(displayMonth.AddMonths(-1));
         _nextMonthButton.IsEnabled = CanDisplayMonth(displayMonth.AddMonths(1));
     }
 
-    private static Color ResolveDayButtonBackground(bool inDisplayMonth, bool isSelected, bool isToday)
+    private static Color ResolveDayButtonBackground(bool inDisplayMonth, bool isSelectedInRange, bool isPrimarySelected, bool isToday)
     {
-        if (isSelected)
+        if (isPrimarySelected)
         {
             return new Color(64, 100, 146);
+        }
+
+        if (isSelectedInRange)
+        {
+            return inDisplayMonth
+                ? new Color(50, 72, 98)
+                : new Color(42, 60, 82);
         }
 
         if (isToday)
@@ -526,21 +895,46 @@ public class Calendar : UserControl
             : new Color(28, 28, 28);
     }
 
-    private static Color ResolveDayButtonForeground(bool inDisplayMonth, bool isEnabled, bool isSelected)
+    private static Color ResolveDayButtonForeground(bool inDisplayMonth, bool isEnabled, bool isSelectedInRange, bool isPrimarySelected)
     {
         if (!isEnabled)
         {
             return new Color(96, 96, 96);
         }
 
-        if (isSelected)
+        if (isPrimarySelected)
         {
             return Color.White;
+        }
+
+        if (isSelectedInRange)
+        {
+            return new Color(228, 238, 248);
         }
 
         return inDisplayMonth
             ? new Color(236, 236, 236)
             : new Color(150, 150, 150);
+    }
+
+    private static Color ResolveDayButtonBorderBrush(bool isSelectedInRange, bool isPrimarySelected, bool isToday)
+    {
+        if (isPrimarySelected)
+        {
+            return new Color(160, 205, 255);
+        }
+
+        if (isSelectedInRange)
+        {
+            return new Color(120, 155, 196);
+        }
+
+        if (isToday)
+        {
+            return new Color(122, 122, 140);
+        }
+
+        return new Color(78, 78, 78);
     }
 
     private bool CanDisplayMonth(DateTime monthStart)
@@ -591,6 +985,259 @@ public class Calendar : UserControl
         }
 
         return normalized;
+    }
+
+    private DateTime ClampDateInsideDisplayBounds(DateTime date)
+    {
+        if (!DisplayDateStart.HasValue && !DisplayDateEnd.HasValue)
+        {
+            return date.Date;
+        }
+
+        return CoerceDateWithinRange(date.Date);
+    }
+
+    private List<CalendarDateRange> ClampRangesToDisplayBounds(IEnumerable<CalendarDateRange> ranges)
+    {
+        var minDate = DisplayDateStart?.Date;
+        var maxDate = DisplayDateEnd?.Date;
+        var clamped = new List<CalendarDateRange>();
+
+        foreach (var range in ranges)
+        {
+            var nextStart = range.Start;
+            var nextEnd = range.End;
+
+            if (minDate.HasValue && nextEnd < minDate.Value)
+            {
+                continue;
+            }
+
+            if (maxDate.HasValue && nextStart > maxDate.Value)
+            {
+                continue;
+            }
+
+            if (minDate.HasValue && nextStart < minDate.Value)
+            {
+                nextStart = minDate.Value;
+            }
+
+            if (maxDate.HasValue && nextEnd > maxDate.Value)
+            {
+                nextEnd = maxDate.Value;
+            }
+
+            if (nextStart <= nextEnd)
+            {
+                clamped.Add(new CalendarDateRange(nextStart, nextEnd));
+            }
+        }
+
+        NormalizeAndMergeRanges(clamped);
+        return clamped;
+    }
+
+    private List<CalendarDateRange> BuildRangesFromDates(IEnumerable<DateTime> dates)
+    {
+        var normalizedDates = new List<DateTime>();
+        foreach (var date in dates)
+        {
+            var coerced = CoerceDateWithinRange(date.Date);
+            if (IsDateSelectable(coerced))
+            {
+                normalizedDates.Add(coerced);
+            }
+        }
+
+        if (normalizedDates.Count == 0)
+        {
+            return [];
+        }
+
+        normalizedDates.Sort();
+
+        var uniqueDates = new List<DateTime>(normalizedDates.Count);
+        DateTime? last = null;
+        foreach (var normalizedDate in normalizedDates)
+        {
+            if (!last.HasValue || normalizedDate != last.Value)
+            {
+                uniqueDates.Add(normalizedDate);
+                last = normalizedDate;
+            }
+        }
+
+        var ranges = new List<CalendarDateRange>();
+        var rangeStart = uniqueDates[0];
+        var rangeEnd = uniqueDates[0];
+        for (var i = 1; i < uniqueDates.Count; i++)
+        {
+            var next = uniqueDates[i];
+            if (next == rangeEnd.AddDays(1))
+            {
+                rangeEnd = next;
+                continue;
+            }
+
+            ranges.Add(new CalendarDateRange(rangeStart, rangeEnd));
+            rangeStart = next;
+            rangeEnd = next;
+        }
+
+        ranges.Add(new CalendarDateRange(rangeStart, rangeEnd));
+        NormalizeAndMergeRanges(ranges);
+        return ranges;
+    }
+
+    private static DateTime? ProjectSingleDateFromRanges(IReadOnlyList<CalendarDateRange> ranges)
+    {
+        if (ranges.Count == 0)
+        {
+            return null;
+        }
+
+        return ranges[^1].End;
+    }
+
+    private void RebuildSelectedDateCaches()
+    {
+        _selectedDates.Clear();
+        _selectedDateLookup.Clear();
+
+        foreach (var range in _selectedRanges)
+        {
+            var cursor = range.Start;
+            while (cursor <= range.End)
+            {
+                if (_selectedDateLookup.Add(cursor))
+                {
+                    _selectedDates.Add(cursor);
+                }
+
+                cursor = cursor.AddDays(1);
+            }
+        }
+    }
+
+    private static void NormalizeAndMergeRanges(List<CalendarDateRange> ranges)
+    {
+        if (ranges.Count <= 1)
+        {
+            return;
+        }
+
+        ranges.Sort(static (left, right) => left.Start.CompareTo(right.Start));
+
+        var merged = new List<CalendarDateRange>(ranges.Count)
+        {
+            ranges[0]
+        };
+
+        for (var i = 1; i < ranges.Count; i++)
+        {
+            var current = ranges[i];
+            var previous = merged[^1];
+            if (current.Start <= previous.End.AddDays(1))
+            {
+                var mergedEnd = current.End > previous.End ? current.End : previous.End;
+                merged[^1] = new CalendarDateRange(previous.Start, mergedEnd);
+            }
+            else
+            {
+                merged.Add(current);
+            }
+        }
+
+        ranges.Clear();
+        ranges.AddRange(merged);
+    }
+
+    private static void AddRangeAndMerge(List<CalendarDateRange> ranges, CalendarDateRange range)
+    {
+        ranges.Add(range);
+        NormalizeAndMergeRanges(ranges);
+    }
+
+    private static bool TryRemoveDateFromRanges(List<CalendarDateRange> ranges, DateTime date)
+    {
+        var normalized = date.Date;
+        for (var i = 0; i < ranges.Count; i++)
+        {
+            var range = ranges[i];
+            if (!range.Contains(normalized))
+            {
+                continue;
+            }
+
+            ranges.RemoveAt(i);
+            if (range.Start < normalized)
+            {
+                ranges.Insert(i, new CalendarDateRange(range.Start, normalized.AddDays(-1)));
+                i++;
+            }
+
+            if (range.End > normalized)
+            {
+                ranges.Insert(i, new CalendarDateRange(normalized.AddDays(1), range.End));
+            }
+
+            NormalizeAndMergeRanges(ranges);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool AreDateListsEqual(IReadOnlyList<DateTime> left, IReadOnlyList<DateTime> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (left[i] != right[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool AreRangesEqual(IReadOnlyList<CalendarDateRange> left, IReadOnlyList<CalendarDateRange> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (left[i].Start != right[i].Start || left[i].End != right[i].End)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static object[] BuildSelectionDelta(IReadOnlyList<DateTime> left, IReadOnlyList<DateTime> right)
+    {
+        var rightLookup = new HashSet<DateTime>(right);
+        var delta = new List<object>();
+        foreach (var date in left)
+        {
+            if (!rightLookup.Contains(date))
+            {
+                delta.Add(date);
+            }
+        }
+
+        return delta.ToArray();
     }
 
     private DateTime CoerceDisplayDateToRange(DateTime date)
