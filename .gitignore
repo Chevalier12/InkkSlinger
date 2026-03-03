@@ -28,6 +28,9 @@ Desktop.ini
 # Local documentation
 Docs/
 
+# Local automation scripts
+scripts/
+
 # Local agent instructions
 AGENTS.md
 agents.md
