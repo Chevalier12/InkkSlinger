@@ -8,7 +8,7 @@ public class Style
 {
     private static readonly ConditionalWeakTable<DependencyObject, StyleInstanceState> States = new();
 
-    private readonly List<Setter> _setters = new();
+    private readonly List<SetterBase> _setters = new();
     private readonly List<TriggerBase> _triggers = new();
 
     public Style(Type targetType)
@@ -20,7 +20,7 @@ public class Style
 
     public Style? BasedOn { get; set; }
 
-    public IList<Setter> Setters => _setters;
+    public IList<SetterBase> Setters => _setters;
 
     public IList<TriggerBase> Triggers => _triggers;
 
@@ -83,15 +83,33 @@ public class Style
     {
         BasedOn?.ApplySettersRecursive(target, state);
 
-        foreach (var setter in _setters)
+        foreach (var setterBase in _setters)
         {
-            if (!string.IsNullOrWhiteSpace(setter.TargetName))
+            if (setterBase is Setter setter)
             {
+                if (!string.IsNullOrWhiteSpace(setter.TargetName))
+                {
+                    continue;
+                }
+
+                target.SetStyleValue(setter.Property, StyleValueCloneUtility.CloneForAssignment(setter.Value));
+                state.AppliedStyleProperties.Add(setter.Property);
                 continue;
             }
 
-            target.SetStyleValue(setter.Property, StyleValueCloneUtility.CloneForAssignment(setter.Value));
-            state.AppliedStyleProperties.Add(setter.Property);
+            if (setterBase is EventSetter eventSetter && target is UIElement uiElement)
+            {
+                var routedEvent = EventTrigger.ResolveRoutedEvent(uiElement.GetType(), eventSetter.Event);
+                if (routedEvent == null)
+                {
+                    throw new InvalidOperationException(
+                        $"RoutedEvent '{eventSetter.Event}' could not be resolved on '{uiElement.GetType().Name}'.");
+                }
+
+                var wrappedHandler = WrapEventSetterHandler(eventSetter.Handler);
+                uiElement.AddHandler(routedEvent, wrappedHandler);
+                state.AppliedEventHandlers.Add((uiElement, routedEvent, wrappedHandler));
+            }
         }
     }
 
@@ -275,10 +293,26 @@ public class Style
             target.ClearStyleValue(property);
         }
 
+        foreach (var appliedHandler in state.AppliedEventHandlers)
+        {
+            appliedHandler.Element.RemoveHandler(appliedHandler.RoutedEvent, appliedHandler.Handler);
+        }
+
         state.ActiveTriggerValues.Clear();
         state.ActiveTriggerMatches.Clear();
         state.AppliedStyleProperties.Clear();
+        state.AppliedEventHandlers.Clear();
         state.ConditionProperties.Clear();
+    }
+
+    private static EventHandler<RoutedEventArgs> WrapEventSetterHandler(Delegate handler)
+    {
+        if (handler is EventHandler<RoutedEventArgs> routedHandler)
+        {
+            return routedHandler;
+        }
+
+        return (sender, args) => handler.DynamicInvoke(sender, args);
     }
 
     private sealed class StyleInstanceState
@@ -299,5 +333,7 @@ public class Style
         public Dictionary<TriggerBase, bool> ActiveTriggerMatches { get; } = new();
 
         public List<TriggerBase> AttachedTriggers { get; } = new();
+
+        public List<(UIElement Element, RoutedEvent RoutedEvent, EventHandler<RoutedEventArgs> Handler)> AppliedEventHandlers { get; } = new();
     }
 }

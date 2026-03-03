@@ -123,7 +123,7 @@ public sealed class EventTrigger : TriggerBase
             $"EventTrigger SourceName '{SourceName}' could not be resolved.");
     }
 
-    private static RoutedEvent? ResolveRoutedEvent(Type sourceType, string routedEventName)
+    internal static RoutedEvent? ResolveRoutedEvent(Type sourceType, string routedEventName)
     {
         if (string.IsNullOrWhiteSpace(routedEventName))
         {

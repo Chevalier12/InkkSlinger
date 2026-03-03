@@ -27,7 +27,7 @@ public static class InputGestureService
     public static bool Execute(Keys key, ModifierKeys modifiers, UIElement? focusedElement, UIElement visualRoot)
     {
         return ExecuteMatchingBindings(
-            static (binding, state) => binding is KeyBinding keyBinding && keyBinding.Matches(state.Key, state.Modifiers),
+            static (binding, state) => binding is KeyBinding keyBinding && keyBinding.Matches(state.key, state.modifiers),
             (key, modifiers),
             focusedElement,
             visualRoot);
@@ -36,7 +36,7 @@ public static class InputGestureService
     public static bool Execute(MouseButton button, ModifierKeys modifiers, UIElement? focusedElement, UIElement visualRoot)
     {
         return ExecuteMatchingBindings(
-            static (binding, state) => binding is MouseBinding mouseBinding && mouseBinding.Matches(state.Button, state.Modifiers),
+            static (binding, state) => binding is MouseBinding mouseBinding && mouseBinding.Matches(state.button, state.modifiers),
             (button, modifiers),
             focusedElement,
             visualRoot);

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Xunit;
 
@@ -116,7 +117,7 @@ public sealed class MultiTriggerTests
 
         var root = (UserControl)XamlLoader.LoadFromString(xaml);
         var style = Assert.IsType<Style>(root.Resources["ProbeStyle"]);
-        var templateSetter = Assert.Single(style.Setters, s => ReferenceEquals(s.Property, Control.TemplateProperty));
+        var templateSetter = Assert.Single(style.Setters.OfType<Setter>(), s => ReferenceEquals(s.Property, Control.TemplateProperty));
         var template = Assert.IsType<ControlTemplate>(templateSetter.Value);
         var multiTrigger = Assert.IsType<MultiTrigger>(Assert.Single(template.Triggers));
         Assert.Equal(2, multiTrigger.Conditions.Count);

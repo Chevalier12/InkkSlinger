@@ -152,7 +152,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Resources/XAML | Full merged-dictionary authoring + WPF merge edge semantics | Runtime merge API in `UI/Resources/Core/ResourceDictionary.cs`; no dedicated merged-dictionary parse path in `UI/Xaml/Core/XamlLoader.cs` | Partial |
 | Styling/XAML | Trigger actions are limited to `SetValueAction`, `BeginStoryboard`, `StopStoryboard`, `PauseStoryboard`, `ResumeStoryboard`, `SeekStoryboard`, `RemoveStoryboard` | `UI/Xaml/Core/XamlLoader.cs` (`BuildTriggerAction`) | Partial |
 | Styling API | `MultiTrigger` | `UI/Styling/Triggers/MultiTrigger.cs`, `InkkSlinger.Tests/MultiTriggerTests.cs` | Implemented (tested) |
-| Styling API | `EventSetter` | No matching type in `UI/Styling` | Not implemented |
+| Styling API | `EventSetter` | `UI/Styling/Core/EventSetter.cs`, `UI/Xaml/Core/XamlLoader.cs`, `UI/Styling/Core/Style.cs`, `InkkSlinger.Tests/EventSetterTests.cs` | Implemented (tested) |
 | Commanding/Input API | Declarative `InputBinding` model with `KeyGesture` + `MouseGesture` (`KeyBinding`/`MouseBinding`) | `UI/Input/Types/InputBinding.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Input/Types/KeyGesture.cs`, `UI/Input/Types/MouseBinding.cs`, `UI/Input/Types/MouseGesture.cs`, `UI/Controls/Base/UIElement.cs` | Implemented |
 | Commanding API | `RoutedUICommand` surface | `UI/Commanding/RoutedUICommand.cs`, `InkkSlinger.Tests/CommandingTests.cs` (`RoutedUICommand_Xaml_MenuHeaderAndGestureAndExecution_IntegrateEndToEnd`) | Implemented (tested) |
 | Commanding API | `ICommandSource` ecosystem parity across controls | `UI/Commanding/ICommandSource.cs`, `UI/Commanding/CommandTargetResolver.cs`, command hookup remains control-specific across parts of the control stack | Partial |

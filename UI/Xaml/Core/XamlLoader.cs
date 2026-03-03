@@ -469,7 +469,7 @@ public static class XamlLoader
     {
         if (string.Equals(element.Name.LocalName, nameof(Style), StringComparison.Ordinal))
         {
-            return BuildStyle(element, resourceScope);
+            return BuildStyle(element, resourceScope, codeBehind);
         }
 
         if (string.Equals(element.Name.LocalName, nameof(ControlTemplate), StringComparison.Ordinal))
@@ -957,7 +957,7 @@ public static class XamlLoader
         }
     }
 
-    private static Style BuildStyle(XElement element, FrameworkElement? resourceScope)
+    private static Style BuildStyle(XElement element, FrameworkElement? resourceScope, object? codeBehind)
     {
         var targetTypeText = GetRequiredAttributeValue(element, nameof(Style.TargetType));
         var targetType = ResolveStyleTargetType(targetTypeText);
@@ -976,12 +976,19 @@ public static class XamlLoader
             {
                 foreach (var setterElement in child.Elements())
                 {
-                    if (!string.Equals(setterElement.Name.LocalName, nameof(Setter), StringComparison.Ordinal))
+                    if (string.Equals(setterElement.Name.LocalName, nameof(Setter), StringComparison.Ordinal))
                     {
-                        throw CreateXamlException("Style.Setters can only contain Setter elements.", setterElement);
+                        style.Setters.Add(BuildSetter(setterElement, targetType, resourceScope));
+                        continue;
                     }
 
-                    style.Setters.Add(BuildSetter(setterElement, targetType, resourceScope));
+                    if (string.Equals(setterElement.Name.LocalName, nameof(EventSetter), StringComparison.Ordinal))
+                    {
+                        style.Setters.Add(BuildEventSetter(setterElement, targetType, codeBehind));
+                        continue;
+                    }
+
+                    throw CreateXamlException("Style.Setters can only contain Setter or EventSetter elements.", setterElement);
                 }
 
                 continue;
@@ -1000,6 +1007,12 @@ public static class XamlLoader
             if (string.Equals(childName, nameof(Setter), StringComparison.Ordinal))
             {
                 style.Setters.Add(BuildSetter(child, targetType, resourceScope));
+                continue;
+            }
+
+            if (string.Equals(childName, nameof(EventSetter), StringComparison.Ordinal))
+            {
+                style.Setters.Add(BuildEventSetter(child, targetType, codeBehind));
                 continue;
             }
 
@@ -2159,6 +2172,52 @@ public static class XamlLoader
         return new Setter(targetName, dependencyProperty, convertedValue);
     }
 
+    private static EventSetter BuildEventSetter(XElement element, Type styleTargetType, object? codeBehind)
+    {
+        var eventName = GetRequiredAttributeValue(element, "Event");
+        var handlerName = GetRequiredAttributeValue(element, "Handler");
+
+        if (codeBehind == null)
+        {
+            throw CreateXamlException(
+                $"EventSetter for '{eventName}' requires a code-behind instance to resolve handler '{handlerName}'.",
+                element);
+        }
+
+        var routedEvent = EventTrigger.ResolveRoutedEvent(styleTargetType, eventName);
+        if (routedEvent == null)
+        {
+            throw CreateXamlException(
+                $"RoutedEvent '{eventName}' could not be resolved on '{styleTargetType.Name}'.",
+                element);
+        }
+
+        var method = ResolveCodeBehindHandlerMethod(codeBehind, handlerName);
+        var parameters = method.GetParameters();
+        if (parameters.Length != 2 || !typeof(RoutedEventArgs).IsAssignableFrom(parameters[1].ParameterType))
+        {
+            throw CreateXamlException(
+                $"EventSetter handler '{handlerName}' must have signature '(object sender, RoutedEventArgs args)'.",
+                element);
+        }
+
+        var delegateType = typeof(EventHandler<>).MakeGenericType(parameters[1].ParameterType);
+        Delegate handler;
+        try
+        {
+            handler = Delegate.CreateDelegate(delegateType, codeBehind, method);
+        }
+        catch (ArgumentException ex)
+        {
+            throw CreateXamlException(
+                $"Handler method '{handlerName}' on code-behind type '{codeBehind.GetType().Name}' is not compatible with EventSetter delegate type '{delegateType.Name}'.",
+                element,
+                ex);
+        }
+
+        return new EventSetter(eventName, handler);
+    }
+
     private static object BuildSetterValue(
         XElement setterElement,
         Type styleTargetType,
@@ -2852,6 +2911,15 @@ public static class XamlLoader
                 $"Event '{eventName}' requires a code-behind instance to resolve handler '{handlerName}'.");
         }
 
+        var method = ResolveCodeBehindHandlerMethod(codeBehind, handlerName);
+
+        var delegateInstance = Delegate.CreateDelegate(eventInfo.EventHandlerType!, codeBehind, method);
+        eventInfo.AddEventHandler(target, delegateInstance);
+        return true;
+    }
+
+    private static MethodInfo ResolveCodeBehindHandlerMethod(object codeBehind, string handlerName)
+    {
         var method = codeBehind.GetType().GetMethod(
             handlerName,
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -2862,9 +2930,7 @@ public static class XamlLoader
                 $"Handler method '{handlerName}' was not found on code-behind type '{codeBehind.GetType().Name}'.");
         }
 
-        var delegateInstance = Delegate.CreateDelegate(eventInfo.EventHandlerType!, codeBehind, method);
-        eventInfo.AddEventHandler(target, delegateInstance);
-        return true;
+        return method;
     }
 
     private static void ApplyProperty(object target, string propertyName, string valueText, FrameworkElement? resourceScope)

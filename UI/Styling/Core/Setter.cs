@@ -1,6 +1,6 @@
 namespace InkkSlinger;
 
-public sealed class Setter
+public sealed class Setter : SetterBase
 {
     public Setter(DependencyProperty property, object? value)
         : this(string.Empty, property, value)

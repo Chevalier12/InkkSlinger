@@ -135,6 +135,7 @@
         <xs:element ref="Style.Setters" />
         <xs:element ref="Style.Triggers" />
         <xs:element ref="Setter" />
+        <xs:element ref="EventSetter" />
         <xs:element ref="Trigger" />
         <xs:element ref="MultiTrigger" />
         <xs:element ref="DataTrigger" />
@@ -149,7 +150,10 @@
 
   <xs:complexType name="styleSettersType">
     <xs:sequence minOccurs="0" maxOccurs="unbounded">
-      <xs:element ref="Setter" />
+      <xs:choice>
+        <xs:element ref="Setter" />
+        <xs:element ref="EventSetter" />
+      </xs:choice>
     </xs:sequence>
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
@@ -170,6 +174,12 @@
   <xs:complexType name="setterType">
     <xs:attribute name="Property" type="xs:string" use="required" />
     <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="eventSetterType">
+    <xs:attribute name="Event" type="xs:string" use="required" />
+    <xs:attribute name="Handler" type="xs:string" use="required" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -1944,6 +1954,7 @@
   <xs:element name="Style.Setters" type="styleSettersType" />
   <xs:element name="Style.Triggers" type="styleTriggersType" />
   <xs:element name="Setter" type="setterType" />
+  <xs:element name="EventSetter" type="eventSetterType" />
   <xs:element name="Trigger" type="triggerType" />
   <xs:element name="Trigger.Setters" type="triggerSettersType" />
   <xs:element name="Trigger.EnterActions" type="triggerActionsType" />
