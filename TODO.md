@@ -4,7 +4,7 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `477/480` passing (3 known failures across `InputDispatchOptimizationTests` and `ViewportResizeInputRegressionTests`).
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `518/518` passing.
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - This file tracks completed milestones, known parity gaps, and control coverage.
@@ -31,6 +31,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] XML markup migration completed for views (`.xaml` -> `.xml`) with runtime/project path updates.
 - [x] Schema/tooling hardening for XML authoring: expanded `InkkSlinger.UI.xsd` for resources/styles/triggers/bindings and added local `Xaml2006.xsd` mapping support for `x:` namespace.
 - [x] Declarative commanding input model: `UIElement.InputBindings` + `KeyBinding`/`KeyGesture` routing, XAML authoring support, and menu shortcut auto-text derivation when unset.
+- [x] Commanding API parity expansion: added `RoutedUICommand`, shared command target resolver plumbing, and `ICommandSource` contract with command/menu integration and regression coverage.
 - [x] Binding parity gap #5 shipped: `PriorityBinding`, `BindingGroup` (inherited + named group resolution), and `UpdateSourceExceptionFilter` across `Binding`/`MultiBinding` with XAML + schema + regression coverage.
 - [x] Binding regression safety-net expansion: added coverage for `BindingGroup` atomic commit/rollback, `PriorityBinding` edge cases, `UpdateSourceExceptionFilter` semantics, parser negative cases, and mode-trigger-validation matrix combinations.
 - [x] Frame-latency diagnostics shipped (`INKKSLINGER_FRAME_LATENCY_LOGS`): alert-only 60 FPS thresholds, `event->next-draw` latency focus, miss-rate/dominant-phase attribution, and coalescing-aware sampling for move/scroll.
@@ -58,6 +59,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
+- [x] `MultiTrigger` parity support: runtime evaluation, style/template XAML parsing, strict condition validation (`Property` xor `Binding` by trigger type), schema updates, and regression coverage.
 - [x] Trigger `EnterActions` / `ExitActions` support.
 - [x] `ListView` / `ListViewItem` control support with keyboard navigation fixes.
 - [x] `ContextMenu` parity rebase: WPF-style menu semantics (`ItemsControl` + `MenuItem` containers), attached-property element XAML shape (`<Button.ContextMenu>`), right-click open pipeline, and keyboard/pointer submenu traversal behavior.

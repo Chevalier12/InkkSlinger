@@ -136,6 +136,7 @@
         <xs:element ref="Style.Triggers" />
         <xs:element ref="Setter" />
         <xs:element ref="Trigger" />
+        <xs:element ref="MultiTrigger" />
         <xs:element ref="DataTrigger" />
         <xs:element ref="MultiDataTrigger" />
         <xs:element ref="EventTrigger" />
@@ -157,6 +158,7 @@
     <xs:sequence minOccurs="0" maxOccurs="unbounded">
       <xs:choice>
         <xs:element ref="Trigger" />
+        <xs:element ref="MultiTrigger" />
         <xs:element ref="DataTrigger" />
         <xs:element ref="MultiDataTrigger" />
         <xs:element ref="EventTrigger" />
@@ -235,6 +237,20 @@
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
+  <xs:complexType name="multiTriggerType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="MultiTrigger.Conditions" />
+        <xs:element ref="MultiTrigger.Setters" />
+        <xs:element ref="MultiTrigger.EnterActions" />
+        <xs:element ref="MultiTrigger.ExitActions" />
+        <xs:element ref="Condition" />
+        <xs:element ref="Setter" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
   <xs:complexType name="eventTriggerType">
     <xs:sequence minOccurs="0" maxOccurs="unbounded">
       <xs:choice>
@@ -282,6 +298,7 @@
         <xs:element ref="Condition.Binding" />
       </xs:choice>
     </xs:sequence>
+    <xs:attribute name="Property" type="xs:string" />
     <xs:attribute name="Binding" type="xs:string" />
     <xs:attribute name="Value" type="xs:string" use="required" />
     <xs:anyAttribute processContents="lax" />
@@ -1921,6 +1938,11 @@
   <xs:element name="Trigger.Setters" type="triggerSettersType" />
   <xs:element name="Trigger.EnterActions" type="triggerActionsType" />
   <xs:element name="Trigger.ExitActions" type="triggerActionsType" />
+  <xs:element name="MultiTrigger" type="multiTriggerType" />
+  <xs:element name="MultiTrigger.Conditions" type="multiDataTriggerConditionsType" />
+  <xs:element name="MultiTrigger.Setters" type="triggerSettersType" />
+  <xs:element name="MultiTrigger.EnterActions" type="triggerActionsType" />
+  <xs:element name="MultiTrigger.ExitActions" type="triggerActionsType" />
   <xs:element name="DataTrigger" type="dataTriggerType" />
   <xs:element name="DataTrigger.Binding" type="dataTriggerBindingType" />
   <xs:element name="DataTrigger.Setters" type="dataTriggerSettersType" />

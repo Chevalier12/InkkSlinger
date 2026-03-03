@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-03-02 (full filesystem refresh)
+Generated: 2026-03-03 (full filesystem refresh)
 
 ```text
 UI/
@@ -63,11 +63,14 @@ UI/
       ValidationRule.cs
   Commanding/
     CanExecuteRoutedEventArgs.cs
+    CommandTargetResolver.cs
     CommandBinding.cs
     CommandManager.cs
     EditingCommands.cs
     ExecutedRoutedEventArgs.cs
+    ICommandSource.cs
     RoutedCommand.cs
+    RoutedUICommand.cs
   Controls/
     Adorners/
       Adorner.cs
@@ -123,6 +126,8 @@ UI/
       DataGridRowHeader.cs
     Inputs/
       Calendar.cs
+      CalendarDateRange.cs
+      CalendarSelectionMode.cs
       DatePicker.cs
       ITextInputControl.cs
       PasswordBox.cs
@@ -298,6 +303,7 @@ UI/
       Condition.cs
       DataTrigger.cs
       EventTrigger.cs
+      MultiTrigger.cs
       MultiDataTrigger.cs
       Trigger.cs
       TriggerBase.cs

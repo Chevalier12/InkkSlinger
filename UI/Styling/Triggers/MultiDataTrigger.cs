@@ -82,10 +82,7 @@ public sealed class MultiDataTrigger : TriggerBase
 
         for (var i = 0; i < _conditions.Count; i++)
         {
-            if (_conditions[i].Binding == null)
-            {
-                throw new InvalidOperationException($"MultiDataTrigger condition at index {i} requires a Binding.");
-            }
+            _conditions[i].ValidateForMultiDataTrigger(i);
         }
     }
 

@@ -2,13 +2,13 @@
 
 ## Is It Usable Yet? (tm sign here)
 
-### Evidence Pass (2026-03-02)
+### Evidence Pass (2026-03-03)
 
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (`Release`, 0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -c Release -v minimal` |
-| Test suite | Partial (`477/480`, 3 failing) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
-| Current failing test areas | `2` classes (`InputDispatchOptimization`, `ViewportResizeInputRegression`) | Latest full release test run (`2026-03-02`) |
+| Test suite | Pass (`518/518`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
+| Current failing test areas | `None` | Latest full release test run (`2026-03-03`) |
 | WPF control coverage | Broad but incomplete (`70/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `7` unchecked TODO items | `TODO.md` (missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
@@ -17,7 +17,7 @@
 
 **Not yet production-ready as a general-purpose framework claim.**
 
-**Conditionally usable** for production only when your app stays inside the currently implemented/tested surface area and you accept the known gaps above (including the current 3 failing regression tests).
+**Conditionally usable** for production only when your app stays inside the currently implemented/tested surface area and you accept the known gaps above.
 
 If the bar is "ship a targeted app on this stack," that can be reasonable.  
 If the bar is "framework-level broad production readiness," the current open parity/coverage gaps mean **not yet**.
@@ -107,8 +107,8 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Control breadth snapshot | 70 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `70/77`) | Broad |
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
-| Runtime telemetry/diagnostics | UiRoot frame/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (regression currently failing) |
-| Regression safety net | 87 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (87 files) | Implemented |
+| Runtime telemetry/diagnostics | UiRoot frame/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
+| Regression safety net | 89 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (89 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -151,14 +151,14 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | XAML tooling | WPF designer/Blend/XAML compilation parity | Runtime loader path in `UI/Xaml/Core/XamlLoader.cs`; no compile-time XAML toolchain in repo | Not implemented |
 | Resources/XAML | Full merged-dictionary authoring + WPF merge edge semantics | Runtime merge API in `UI/Resources/Core/ResourceDictionary.cs`; no dedicated merged-dictionary parse path in `UI/Xaml/Core/XamlLoader.cs` | Partial |
 | Styling/XAML | Trigger actions are limited to `SetValueAction`, `BeginStoryboard`, `StopStoryboard`, `PauseStoryboard`, `ResumeStoryboard`, `SeekStoryboard`, `RemoveStoryboard` | `UI/Xaml/Core/XamlLoader.cs` (`BuildTriggerAction`) | Partial |
-| Styling API | `MultiTrigger` | No matching type in `UI/Styling/Triggers` | Not implemented |
+| Styling API | `MultiTrigger` | `UI/Styling/Triggers/MultiTrigger.cs`, `InkkSlinger.Tests/MultiTriggerTests.cs` | Implemented (tested) |
 | Styling API | `EventSetter` | No matching type in `UI/Styling` | Not implemented |
 | Commanding/Input API | Declarative `InputBinding` / `KeyGesture` keyboard model (`MouseGesture` pending) | `UI/Input/Types/InputBinding.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Input/Types/KeyGesture.cs`, `UI/Controls/Base/UIElement.cs` | Partial |
-| Commanding API | `RoutedUICommand` surface | No matching `RoutedUICommand` type in `UI/Commanding` | Not implemented |
-| Commanding API | `ICommandSource` ecosystem parity across controls | No matching `ICommandSource` type in `UI/`; command hookup is control-specific | Partial |
+| Commanding API | `RoutedUICommand` surface | `UI/Commanding/RoutedUICommand.cs`, `InkkSlinger.Tests/CommandingTests.cs` (`RoutedUICommand_Xaml_MenuHeaderAndGestureAndExecution_IntegrateEndToEnd`) | Implemented (tested) |
+| Commanding API | `ICommandSource` ecosystem parity across controls | `UI/Commanding/ICommandSource.cs`, `UI/Commanding/CommandTargetResolver.cs`, command hookup remains control-specific across parts of the control stack | Partial |
 | Container behavior | `UserControl` custom `ControlTemplate` is blocked (`NotSupportedException`) | `UI/Controls/Containers/UserControl.cs` | Not supported |
 | Geometry path parser | Path commands `S/s`, `T/t`, `A/a` are rejected | `UI/Geometry/Parsing/PathMarkupParser.cs` | Partial |
-| Text pipeline | Virtual wrapped text layout optimization is intentionally disabled for correctness during resize reflow | `UI/Controls/Inputs/TextBox.cs` (`CanUseVirtualWrappedLayout`) | Temporarily disabled |
+| Text pipeline | Virtual wrapped text layout optimization is enabled for wrapped layouts with finite positive width and guarded by resize/input regressions | `UI/Controls/Inputs/TextBox.cs` (`CanUseVirtualWrappedLayout`), `InkkSlinger.Tests/ViewportResizeInputRegressionTests.cs`, `InkkSlinger.Tests/InputDispatchOptimizationTests.cs` | Implemented (tested) |
 | Framework services | `Freezable` semantics and related WPF service patterns | No `Freezable` infrastructure in `UI/` | Not implemented |
 | Layout parity | Layout rounding / DPI-specific rounding parity (`UseLayoutRounding`-style behavior) | No matching layout-rounding API in `UI/Layout`/`UI/Controls` | Not implemented |
 | Input stack | Touch/stylus/tablet pipelines | No corresponding types under `UI/Input` | Not implemented |
@@ -167,7 +167,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 ## UI Architecture Map
 
-The following reflects `UI-FOLDER-MAP.md` (generated 2026-03-02):
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-03-03):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers
@@ -270,4 +270,3 @@ This repository is source-available under a permission-based model:
 ## Commercial License FAQ
 
 - See `COMMERCIAL-LICENSE-FAQ.md` for scenario-based examples
-

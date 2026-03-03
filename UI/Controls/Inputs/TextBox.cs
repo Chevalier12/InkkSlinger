@@ -1034,10 +1034,11 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
     private bool CanUseVirtualWrappedLayout(float contentWidth)
     {
-        // Virtual wrap currently produces incorrect line realization/extent in
-        // resize scenarios (e.g. wrapped lines not reflowing as width changes).
-        // Fall back to the full wrapping path for correctness.
-        return false;
+        // Virtual wrap is only valid for wrapped layouts with a finite, positive width.
+        return TextWrapping != TextWrapping.NoWrap &&
+               contentWidth > 1f &&
+               !float.IsNaN(contentWidth) &&
+               !float.IsInfinity(contentWidth);
     }
 
     private TextViewportState BuildTextViewportState()
@@ -3942,6 +3943,5 @@ public readonly record struct TextBoxPerformanceSnapshot(
     double AverageEnsureCaretMilliseconds,
     double MaxEnsureCaretMilliseconds,
     TextEditingBufferMetrics BufferMetrics);
-
 
 

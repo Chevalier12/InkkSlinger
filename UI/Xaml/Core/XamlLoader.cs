@@ -1004,6 +1004,7 @@ public static class XamlLoader
             }
 
             if (string.Equals(childName, nameof(Trigger), StringComparison.Ordinal) ||
+                string.Equals(childName, nameof(MultiTrigger), StringComparison.Ordinal) ||
                 string.Equals(childName, nameof(DataTrigger), StringComparison.Ordinal) ||
                 string.Equals(childName, nameof(MultiDataTrigger), StringComparison.Ordinal) ||
                 string.Equals(childName, nameof(EventTrigger), StringComparison.Ordinal))
@@ -1251,6 +1252,7 @@ public static class XamlLoader
             }
 
             if (string.Equals(childName, nameof(Trigger), StringComparison.Ordinal) ||
+                string.Equals(childName, nameof(MultiTrigger), StringComparison.Ordinal) ||
                 string.Equals(childName, nameof(DataTrigger), StringComparison.Ordinal) ||
                 string.Equals(childName, nameof(MultiDataTrigger), StringComparison.Ordinal))
             {
@@ -1656,6 +1658,11 @@ public static class XamlLoader
             return BuildDataTrigger(element, styleTargetType, resourceScope, setterTargetTypeResolver);
         }
 
+        if (string.Equals(element.Name.LocalName, nameof(MultiTrigger), StringComparison.Ordinal))
+        {
+            return BuildMultiTrigger(element, styleTargetType, resourceScope, setterTargetTypeResolver);
+        }
+
         if (string.Equals(element.Name.LocalName, nameof(MultiDataTrigger), StringComparison.Ordinal))
         {
             return BuildMultiDataTrigger(element, styleTargetType, resourceScope, setterTargetTypeResolver);
@@ -1769,7 +1776,13 @@ public static class XamlLoader
 
         foreach (var conditionElement in EnumerateConditionElements(element, "MultiDataTrigger.Conditions"))
         {
-            multiDataTrigger.Conditions.Add(BuildCondition(conditionElement, resourceScope));
+            var condition = BuildCondition(conditionElement, styleTargetType, resourceScope);
+            if (condition.Binding == null || condition.Property != null)
+            {
+                throw CreateXamlException("MultiDataTrigger condition requires Binding and forbids Property.", conditionElement);
+            }
+
+            multiDataTrigger.Conditions.Add(condition);
         }
 
         if (multiDataTrigger.Conditions.Count == 0)
@@ -1791,6 +1804,46 @@ public static class XamlLoader
             "MultiDataTrigger.ExitActions");
 
         return multiDataTrigger;
+    }
+
+    private static MultiTrigger BuildMultiTrigger(
+        XElement element,
+        Type styleTargetType,
+        FrameworkElement? resourceScope,
+        Func<string, Type?>? setterTargetTypeResolver)
+    {
+        var multiTrigger = new MultiTrigger();
+
+        foreach (var conditionElement in EnumerateConditionElements(element, "MultiTrigger.Conditions"))
+        {
+            var condition = BuildCondition(conditionElement, styleTargetType, resourceScope);
+            if (condition.Property == null || condition.Binding != null)
+            {
+                throw CreateXamlException("MultiTrigger condition requires Property and forbids Binding.", conditionElement);
+            }
+
+            multiTrigger.Conditions.Add(condition);
+        }
+
+        if (multiTrigger.Conditions.Count == 0)
+        {
+            throw CreateXamlException("MultiTrigger requires at least one Condition.", element);
+        }
+
+        foreach (var setterElement in EnumerateSetterElements(element, "MultiTrigger.Setters"))
+        {
+            multiTrigger.Setters.Add(BuildSetter(setterElement, styleTargetType, resourceScope, setterTargetTypeResolver));
+        }
+
+        BuildTriggerActions(
+            element,
+            styleTargetType,
+            resourceScope,
+            multiTrigger,
+            "MultiTrigger.EnterActions",
+            "MultiTrigger.ExitActions");
+
+        return multiTrigger;
     }
 
     private static IEnumerable<XElement> EnumerateSetterElements(XElement triggerElement, string propertyElementName)
@@ -1847,8 +1900,15 @@ public static class XamlLoader
         }
     }
 
-    private static Condition BuildCondition(XElement element, FrameworkElement? resourceScope)
+    private static Condition BuildCondition(XElement element, Type styleTargetType, FrameworkElement? resourceScope)
     {
+        DependencyProperty? property = null;
+        var propertyText = GetOptionalAttributeValue(element, nameof(Condition.Property));
+        if (!string.IsNullOrWhiteSpace(propertyText))
+        {
+            property = ResolveSetterProperty(styleTargetType, propertyText);
+        }
+
         Binding? binding = null;
         var bindingText = GetOptionalAttributeValue(element, nameof(Condition.Binding));
         if (!string.IsNullOrWhiteSpace(bindingText))
@@ -1856,7 +1916,10 @@ public static class XamlLoader
             binding = ParseBindingMarkup(bindingText, resourceScope);
         }
 
-        var value = ParseLooseValue(GetRequiredAttributeValue(element, nameof(Condition.Value)));
+        var rawValue = GetRequiredAttributeValue(element, nameof(Condition.Value));
+        var value = property == null
+            ? ParseLooseValue(rawValue)
+            : ConvertValue(rawValue, property.PropertyType);
 
         foreach (var child in element.Elements())
         {
@@ -1874,13 +1937,9 @@ public static class XamlLoader
             binding = BuildBindingElement(bindingChildren[0], typeof(object), resourceScope);
         }
 
-        if (binding == null)
-        {
-            throw CreateXamlException("Condition requires a Binding.", element);
-        }
-
         return new Condition
         {
+            Property = property,
             Binding = binding,
             Value = value
         };
