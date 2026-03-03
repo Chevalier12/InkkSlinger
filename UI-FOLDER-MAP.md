@@ -242,7 +242,9 @@ UI/
       KeyBinding.cs
       KeyGesture.cs
       ModifierKeys.cs
+      MouseBinding.cs
       MouseButton.cs
+      MouseGesture.cs
   Layout/
     Types/
       Alignment.cs

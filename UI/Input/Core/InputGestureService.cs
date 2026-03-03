@@ -26,26 +26,20 @@ public static class InputGestureService
 
     public static bool Execute(Keys key, ModifierKeys modifiers, UIElement? focusedElement, UIElement visualRoot)
     {
-        var start = focusedElement ?? visualRoot;
-        var executed = false;
+        return ExecuteMatchingBindings(
+            static (binding, state) => binding is KeyBinding keyBinding && keyBinding.Matches(state.Key, state.Modifiers),
+            (key, modifiers),
+            focusedElement,
+            visualRoot);
+    }
 
-        for (var current = start; current != null; current = current.VisualParent ?? current.LogicalParent)
-        {
-            for (var i = 0; i < current.InputBindings.Count; i++)
-            {
-                if (current.InputBindings[i] is not KeyBinding binding || !binding.Matches(key, modifiers))
-                {
-                    continue;
-                }
-
-                if (TryExecuteBinding(binding, focusedElement, current))
-                {
-                    executed = true;
-                }
-            }
-        }
-
-        return executed;
+    public static bool Execute(MouseButton button, ModifierKeys modifiers, UIElement? focusedElement, UIElement visualRoot)
+    {
+        return ExecuteMatchingBindings(
+            static (binding, state) => binding is MouseBinding mouseBinding && mouseBinding.Matches(state.Button, state.Modifiers),
+            (button, modifiers),
+            focusedElement,
+            visualRoot);
     }
 
     public static bool TryGetFirstGestureTextForCommand(
@@ -76,7 +70,35 @@ public static class InputGestureService
         return false;
     }
 
-    private static bool TryExecuteBinding(KeyBinding binding, UIElement? focusedElement, UIElement owner)
+    private static bool ExecuteMatchingBindings<TState>(
+        Func<InputBinding, TState, bool> matcher,
+        TState state,
+        UIElement? focusedElement,
+        UIElement visualRoot)
+    {
+        var start = focusedElement ?? visualRoot;
+        var executed = false;
+
+        for (var current = start; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            for (var i = 0; i < current.InputBindings.Count; i++)
+            {
+                if (current.InputBindings[i] is not InputBinding binding || !matcher(binding, state))
+                {
+                    continue;
+                }
+
+                if (TryExecuteBinding(binding, focusedElement, current))
+                {
+                    executed = true;
+                }
+            }
+        }
+
+        return executed;
+    }
+
+    private static bool TryExecuteBinding(InputBinding binding, UIElement? focusedElement, UIElement owner)
     {
         var command = binding.Command;
         if (command == null)

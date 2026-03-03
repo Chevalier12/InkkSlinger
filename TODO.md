@@ -31,6 +31,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] XML markup migration completed for views (`.xaml` -> `.xml`) with runtime/project path updates.
 - [x] Schema/tooling hardening for XML authoring: expanded `InkkSlinger.UI.xsd` for resources/styles/triggers/bindings and added local `Xaml2006.xsd` mapping support for `x:` namespace.
 - [x] Declarative commanding input model: `UIElement.InputBindings` + `KeyBinding`/`KeyGesture` routing, XAML authoring support, and menu shortcut auto-text derivation when unset.
+- [x] Mouse gesture commanding parity pass: added `MouseBinding`/`MouseGesture`, press-edge execution routing (`Left`/`Right`/`Middle`) through `InputGestureService`, and XAML/schema parser coverage.
 - [x] Commanding API parity expansion: added `RoutedUICommand`, shared command target resolver plumbing, and `ICommandSource` contract with command/menu integration and regression coverage.
 - [x] Binding parity gap #5 shipped: `PriorityBinding`, `BindingGroup` (inherited + named group resolution), and `UpdateSourceExceptionFilter` across `Binding`/`MultiBinding` with XAML + schema + regression coverage.
 - [x] Binding regression safety-net expansion: added coverage for `BindingGroup` atomic commit/rollback, `PriorityBinding` edge cases, `UpdateSourceExceptionFilter` semantics, parser negative cases, and mode-trigger-validation matrix combinations.

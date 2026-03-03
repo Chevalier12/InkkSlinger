@@ -804,6 +804,7 @@
     <xs:sequence minOccurs="0" maxOccurs="unbounded">
       <xs:choice>
         <xs:element ref="KeyBinding" />
+        <xs:element ref="MouseBinding" />
       </xs:choice>
     </xs:sequence>
     <xs:anyAttribute processContents="lax" />
@@ -811,6 +812,15 @@
 
   <xs:complexType name="keyBindingType">
     <xs:attribute name="Key" type="xs:string" use="required" />
+    <xs:attribute name="Modifiers" type="xs:string" />
+    <xs:attribute name="Command" type="xs:string" />
+    <xs:attribute name="CommandTarget" type="xs:string" />
+    <xs:attribute name="CommandParameter" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="mouseBindingType">
+    <xs:attribute name="Button" type="xs:string" use="required" />
     <xs:attribute name="Modifiers" type="xs:string" />
     <xs:attribute name="Command" type="xs:string" />
     <xs:attribute name="CommandTarget" type="xs:string" />
@@ -2026,6 +2036,7 @@
   <xs:element name="FrameworkElement.BindingGroup" type="frameworkElementBindingGroupType" />
   <xs:element name="UIElement.InputBindings" type="inputBindingsType" />
   <xs:element name="KeyBinding" type="keyBindingType" />
+  <xs:element name="MouseBinding" type="mouseBindingType" />
   <xs:element name="StackPanel" type="stackPanelType" />
   <xs:element name="VirtualizingStackPanel" type="virtualizingStackPanelType" />
   <xs:element name="Canvas" type="canvasType" />

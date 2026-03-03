@@ -127,6 +127,11 @@ public sealed partial class UiRoot
             _hasLastClickDownPointerPosition = true;
             var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
+            _ = InputGestureService.Execute(
+                MouseButton.Left,
+                _inputState.CurrentModifiers,
+                _inputState.FocusedElement,
+                _visualRoot);
             clickResolveHitTests = 0;
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
@@ -148,8 +153,22 @@ public sealed partial class UiRoot
         {
             var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Right);
+            _ = InputGestureService.Execute(
+                MouseButton.Right,
+                _inputState.CurrentModifiers,
+                _inputState.FocusedElement,
+                _visualRoot);
             clickResolveHitTests = 0;
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
+        }
+
+        if (delta.MiddlePressed)
+        {
+            _ = InputGestureService.Execute(
+                MouseButton.Middle,
+                _inputState.CurrentModifiers,
+                _inputState.FocusedElement,
+                _visualRoot);
         }
 
         if (delta.RightReleased)

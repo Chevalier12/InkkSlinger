@@ -153,7 +153,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Styling/XAML | Trigger actions are limited to `SetValueAction`, `BeginStoryboard`, `StopStoryboard`, `PauseStoryboard`, `ResumeStoryboard`, `SeekStoryboard`, `RemoveStoryboard` | `UI/Xaml/Core/XamlLoader.cs` (`BuildTriggerAction`) | Partial |
 | Styling API | `MultiTrigger` | `UI/Styling/Triggers/MultiTrigger.cs`, `InkkSlinger.Tests/MultiTriggerTests.cs` | Implemented (tested) |
 | Styling API | `EventSetter` | No matching type in `UI/Styling` | Not implemented |
-| Commanding/Input API | Declarative `InputBinding` / `KeyGesture` keyboard model (`MouseGesture` pending) | `UI/Input/Types/InputBinding.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Input/Types/KeyGesture.cs`, `UI/Controls/Base/UIElement.cs` | Partial |
+| Commanding/Input API | Declarative `InputBinding` model with `KeyGesture` + `MouseGesture` (`KeyBinding`/`MouseBinding`) | `UI/Input/Types/InputBinding.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Input/Types/KeyGesture.cs`, `UI/Input/Types/MouseBinding.cs`, `UI/Input/Types/MouseGesture.cs`, `UI/Controls/Base/UIElement.cs` | Implemented |
 | Commanding API | `RoutedUICommand` surface | `UI/Commanding/RoutedUICommand.cs`, `InkkSlinger.Tests/CommandingTests.cs` (`RoutedUICommand_Xaml_MenuHeaderAndGestureAndExecution_IntegrateEndToEnd`) | Implemented (tested) |
 | Commanding API | `ICommandSource` ecosystem parity across controls | `UI/Commanding/ICommandSource.cs`, `UI/Commanding/CommandTargetResolver.cs`, command hookup remains control-specific across parts of the control stack | Partial |
 | Container behavior | `UserControl` custom `ControlTemplate` is blocked (`NotSupportedException`) | `UI/Controls/Containers/UserControl.cs` | Not supported |

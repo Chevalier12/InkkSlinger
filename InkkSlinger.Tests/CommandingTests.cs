@@ -125,6 +125,174 @@ public class CommandingTests
     }
 
     [Fact]
+    public void ExecuteMouse_UsesFocusedElementBindingsBeforeAncestors()
+    {
+        var root = new StackPanel();
+        var child = new Button();
+        root.AddChild(child);
+
+        var executionOrder = new List<string>();
+        child.InputBindings.Add(new MouseBinding
+        {
+            Button = MouseButton.Left,
+            Modifiers = ModifierKeys.Control,
+            Command = new CallbackCommand(_ => executionOrder.Add("focused"))
+        });
+        root.InputBindings.Add(new MouseBinding
+        {
+            Button = MouseButton.Left,
+            Modifiers = ModifierKeys.Control,
+            Command = new CallbackCommand(_ => executionOrder.Add("ancestor"))
+        });
+
+        var executed = InputGestureService.Execute(MouseButton.Left, ModifierKeys.Control, child, root);
+
+        Assert.True(executed);
+        Assert.Equal(new[] { "focused", "ancestor" }, executionOrder);
+    }
+
+    [Fact]
+    public void ExecuteMouse_UsesAncestorBindingWhenFocusedHasNone()
+    {
+        var root = new StackPanel();
+        var child = new Button();
+        root.AddChild(child);
+
+        var executedCount = 0;
+        root.InputBindings.Add(new MouseBinding
+        {
+            Button = MouseButton.Left,
+            Modifiers = ModifierKeys.Control,
+            Command = new CallbackCommand(_ => executedCount++)
+        });
+
+        var executed = InputGestureService.Execute(MouseButton.Left, ModifierKeys.Control, child, root);
+
+        Assert.True(executed);
+        Assert.Equal(1, executedCount);
+    }
+
+    [Fact]
+    public void ExecuteMouse_UsesExplicitCommandTargetWhenProvided()
+    {
+        var root = new StackPanel();
+        var focused = new Button();
+        var explicitTarget = new Button();
+        root.AddChild(focused);
+        root.AddChild(explicitTarget);
+
+        var command = new RoutedCommand("OpenMouse", typeof(CommandingTests));
+        var executedCount = 0;
+        explicitTarget.CommandBindings.Add(new CommandBinding(command, (_, _) => executedCount++));
+
+        root.InputBindings.Add(new MouseBinding
+        {
+            Button = MouseButton.Left,
+            Modifiers = ModifierKeys.Control,
+            Command = command,
+            CommandTarget = explicitTarget
+        });
+
+        var executed = InputGestureService.Execute(MouseButton.Left, ModifierKeys.Control, focused, root);
+
+        Assert.True(executed);
+        Assert.Equal(1, executedCount);
+    }
+
+    [Fact]
+    public void ExecuteMouse_DoesNotShortCircuitWhenEarlierBindingCannotExecute()
+    {
+        var root = new StackPanel();
+        var executedCount = 0;
+
+        root.InputBindings.Add(new MouseBinding
+        {
+            Button = MouseButton.Left,
+            Modifiers = ModifierKeys.Control,
+            Command = new CallbackCommand(_ => { }, _ => false)
+        });
+        root.InputBindings.Add(new MouseBinding
+        {
+            Button = MouseButton.Left,
+            Modifiers = ModifierKeys.Control,
+            Command = new CallbackCommand(_ => executedCount++)
+        });
+
+        var executed = InputGestureService.Execute(MouseButton.Left, ModifierKeys.Control, null, root);
+
+        Assert.True(executed);
+        Assert.Equal(1, executedCount);
+    }
+
+    [Fact]
+    public void UiRootInputDelta_LeftPressed_TriggersMouseBindingCommand()
+    {
+        var root = new Grid();
+        var executedCount = 0;
+        root.InputBindings.Add(new MouseBinding
+        {
+            Button = MouseButton.Left,
+            Modifiers = ModifierKeys.None,
+            Command = new CallbackCommand(_ => executedCount++)
+        });
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(10f, 10f), leftPressed: true));
+
+        Assert.Equal(1, executedCount);
+    }
+
+    [Fact]
+    public void UiRootInputDelta_RightPressedWithModifiers_TriggersMatchingMouseBindingOnly()
+    {
+        var root = new Grid();
+        var matchingExecutions = 0;
+        var nonMatchingExecutions = 0;
+        root.InputBindings.Add(new MouseBinding
+        {
+            Button = MouseButton.Right,
+            Modifiers = ModifierKeys.Control,
+            Command = new CallbackCommand(_ => matchingExecutions++)
+        });
+        root.InputBindings.Add(new MouseBinding
+        {
+            Button = MouseButton.Right,
+            Modifiers = ModifierKeys.None,
+            Command = new CallbackCommand(_ => nonMatchingExecutions++)
+        });
+
+        var keyboard = new KeyboardState(Keys.LeftControl);
+        var uiRoot = new UiRoot(root);
+        uiRoot.RunInputDeltaForTests(
+            CreatePointerDelta(
+                new Vector2(10f, 10f),
+                rightPressed: true,
+                previousKeyboard: keyboard,
+                currentKeyboard: keyboard));
+
+        Assert.Equal(1, matchingExecutions);
+        Assert.Equal(0, nonMatchingExecutions);
+    }
+
+    [Fact]
+    public void UiRootInputDelta_MiddlePressed_TriggersMouseBindingCommand()
+    {
+        var root = new Grid();
+        var executedCount = 0;
+        root.InputBindings.Add(new MouseBinding
+        {
+            Button = MouseButton.Middle,
+            Modifiers = ModifierKeys.None,
+            Command = new CallbackCommand(_ => executedCount++)
+        });
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(10f, 10f), middlePressed: true));
+
+        Assert.Equal(1, executedCount);
+    }
+
+    [Fact]
     public void MenuItem_AutoDerivesInputGestureText_WhenUnset()
     {
         var root = new StackPanel();
@@ -459,12 +627,18 @@ public class CommandingTests
         Vector2 pointer,
         bool leftPressed = false,
         bool leftReleased = false,
+        bool rightPressed = false,
+        bool rightReleased = false,
+        bool middlePressed = false,
+        bool middleReleased = false,
+        KeyboardState? previousKeyboard = null,
+        KeyboardState? currentKeyboard = null,
         bool pointerMoved = false)
     {
         return new InputDelta
         {
-            Previous = new InputSnapshot(default, default, pointer),
-            Current = new InputSnapshot(default, default, pointer),
+            Previous = new InputSnapshot(previousKeyboard ?? default, default, pointer),
+            Current = new InputSnapshot(currentKeyboard ?? default, default, pointer),
             PressedKeys = new List<Keys>(),
             ReleasedKeys = new List<Keys>(),
             TextInput = new List<char>(),
@@ -472,10 +646,10 @@ public class CommandingTests
             WheelDelta = 0,
             LeftPressed = leftPressed,
             LeftReleased = leftReleased,
-            RightPressed = false,
-            RightReleased = false,
-            MiddlePressed = false,
-            MiddleReleased = false
+            RightPressed = rightPressed,
+            RightReleased = rightReleased,
+            MiddlePressed = middlePressed,
+            MiddleReleased = middleReleased
         };
     }
 
