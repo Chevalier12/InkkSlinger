@@ -45,6 +45,42 @@ public sealed class ViewportResizeInputRegressionTests
     }
 
     [Fact]
+    public void StationaryClick_AfterLayoutMutationWithoutViewportResize_ShouldTargetElementUnderCurrentPointer()
+    {
+        var root = new Grid();
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100f) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100f) });
+
+        var leftClicks = 0;
+        var rightClicks = 0;
+
+        var leftButton = new Button { Text = "Left" };
+        leftButton.Click += (_, _) => leftClicks++;
+        Grid.SetColumn(leftButton, 0);
+        root.AddChild(leftButton);
+
+        var rightButton = new Button { Text = "Right" };
+        rightButton.Click += (_, _) => rightClicks++;
+        Grid.SetColumn(rightButton, 1);
+        root.AddChild(rightButton);
+
+        var uiRoot = new UiRoot(root);
+
+        RunLayout(uiRoot, width: 200, height: 120, elapsedMs: 16);
+        var pointer = new Vector2(150f, 60f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+
+        root.ColumnDefinitions[0].Width = new GridLength(160f);
+        root.ColumnDefinitions[1].Width = new GridLength(40f);
+        RunLayout(uiRoot, width: 200, height: 120, elapsedMs: 32);
+        ClickWithoutPointerMove(uiRoot, pointer);
+
+        Assert.True(
+            leftClicks == 1 && rightClicks == 0,
+            $"Expected stationary click after layout mutation to invoke left button only. leftClicks={leftClicks}, rightClicks={rightClicks}");
+    }
+
+    [Fact]
     public void StationaryClick_AfterViewportResize_ShouldSelectListBoxItemUnderCurrentPointer()
     {
         var root = new Grid();

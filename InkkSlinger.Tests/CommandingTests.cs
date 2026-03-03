@@ -315,14 +315,50 @@ public class CommandingTests
             sourceB.Command = command;
 
             FocusManager.SetFocus(leftTarget);
-            CommandManager.InvalidateRequerySuggested();
+            TriggerInputRequery(root);
             Assert.True(sourceA.IsEnabled);
             Assert.True(sourceB.IsEnabled);
 
             FocusManager.SetFocus(rightTarget);
-            CommandManager.InvalidateRequerySuggested();
+            TriggerInputRequery(root);
             Assert.False(sourceA.IsEnabled);
             Assert.False(sourceB.IsEnabled);
+        }
+        finally
+        {
+            FocusManager.ClearFocus();
+        }
+    }
+
+    [Fact]
+    public void RoutedCommand_InputTriggeredRequery_RefreshesCommandSourcesOnStateChange()
+    {
+        FocusManager.ClearFocus();
+        try
+        {
+            var root = new Grid();
+            var target = new TextBox();
+            var source = new Button();
+            var command = new RoutedCommand("Probe", typeof(CommandingTests));
+            var canExecute = true;
+
+            target.CommandBindings.Add(
+                new CommandBinding(
+                    command,
+                    (_, _) => { },
+                    (_, args) => args.CanExecute = canExecute));
+
+            root.AddChild(target);
+            root.AddChild(source);
+            source.Command = command;
+            FocusManager.SetFocus(target);
+
+            TriggerInputRequery(root);
+            Assert.True(source.IsEnabled);
+
+            canExecute = false;
+            TriggerInputRequery(root);
+            Assert.False(source.IsEnabled);
         }
         finally
         {
@@ -365,6 +401,44 @@ public class CommandingTests
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(clickPoint, leftReleased: true));
 
         Assert.Equal(1, viewModel.ExecutionCount);
+    }
+
+    [Fact]
+    public void RoutedUICommand_Xaml_MenuHeaderAndGestureAndExecution_IntegrateEndToEnd()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <RoutedUICommand x:Key="OpenCommand" Text="_Open" />
+  </UserControl.Resources>
+  <Grid x:Name="Root">
+    <UIElement.InputBindings>
+      <KeyBinding Key="O" Modifiers="Control" Command="{StaticResource OpenCommand}" />
+    </UIElement.InputBindings>
+    <Menu>
+      <MenuItem x:Name="OpenItem" Command="{StaticResource OpenCommand}" />
+    </Menu>
+    <Button x:Name="ExecuteButton" Command="{StaticResource OpenCommand}" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var grid = Assert.IsType<Grid>(root.FindName("Root"));
+        var openItem = Assert.IsType<MenuItem>(root.FindName("OpenItem"));
+        var executeButton = Assert.IsType<Button>(root.FindName("ExecuteButton"));
+        var command = Assert.IsType<RoutedUICommand>(openItem.Command);
+        var executionCount = 0;
+        grid.CommandBindings.Add(new CommandBinding(command, (_, _) => executionCount++));
+
+        Assert.Equal("Open", InvokeDisplayHeaderText(openItem));
+        Assert.Equal("Ctrl+O", InvokeEffectiveGestureText(openItem));
+
+        var onClick = typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(onClick);
+        onClick!.Invoke(executeButton, null);
+
+        Assert.Equal(1, executionCount);
     }
 
     private static string InvokeEffectiveGestureText(MenuItem item)
@@ -410,6 +484,28 @@ public class CommandingTests
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
             new Viewport(0, 0, width, height));
+    }
+
+    private static void TriggerInputRequery(UIElement root)
+    {
+        var uiRoot = new UiRoot(root);
+        uiRoot.RunInputDeltaForTests(
+            new InputDelta
+            {
+                Previous = new InputSnapshot(default, default, Vector2.Zero),
+                Current = new InputSnapshot(default, default, Vector2.Zero),
+                PressedKeys = new List<Keys> { Keys.F1 },
+                ReleasedKeys = new List<Keys>(),
+                TextInput = new List<char>(),
+                PointerMoved = false,
+                WheelDelta = 0,
+                LeftPressed = false,
+                LeftReleased = false,
+                RightPressed = false,
+                RightReleased = false,
+                MiddlePressed = false,
+                MiddleReleased = false
+            });
     }
 
     private sealed class CommandHostViewModel

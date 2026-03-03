@@ -10,5 +10,5 @@ public sealed class RoutedUICommand : RoutedCommand
         Text = text;
     }
 
-    public string? Text { get; }
+    public string? Text { get; set; }
 }

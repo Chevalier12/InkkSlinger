@@ -193,6 +193,33 @@ public sealed partial class UiRoot
             DispatchTextInput(delta.TextInput[i]);
         }
         _lastInputTextDispatchMs = Stopwatch.GetElapsedTime(textStart).TotalMilliseconds;
+
+        if (ShouldInvalidateCommandRequeryForInput(delta))
+        {
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    private static bool ShouldInvalidateCommandRequeryForInput(InputDelta delta)
+    {
+        if (delta.LeftPressed || delta.LeftReleased ||
+            delta.RightPressed || delta.RightReleased ||
+            delta.MiddlePressed || delta.MiddleReleased)
+        {
+            return true;
+        }
+
+        if (delta.WheelDelta != 0)
+        {
+            return true;
+        }
+
+        if (delta.PressedKeys.Count > 0 || delta.ReleasedKeys.Count > 0 || delta.TextInput.Count > 0)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private UIElement? ResolvePointerTarget(InputDelta delta)
