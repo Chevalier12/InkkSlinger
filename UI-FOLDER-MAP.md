@@ -11,8 +11,8 @@ UI/
     Easing/
       Easing.cs
     KeyFrames/
-      KeyFrameTiming.cs
       KeyFrames.cs
+      KeyFrameTiming.cs
       KeySpline.cs
       ObjectKeyFrames.cs
     Timelines/
@@ -38,9 +38,9 @@ UI/
       RelayCommand.cs
     Converters/
       DelimitedMultiValueConverter.cs
+      IdentityValueConverter.cs
       IMultiValueConverter.cs
       IValueConverter.cs
-      IdentityValueConverter.cs
     Core/
       Binding.cs
       BindingBase.cs
@@ -63,9 +63,9 @@ UI/
       ValidationRule.cs
   Commanding/
     CanExecuteRoutedEventArgs.cs
-    CommandTargetResolver.cs
     CommandBinding.cs
     CommandManager.cs
+    CommandTargetResolver.cs
     EditingCommands.cs
     ExecutedRoutedEventArgs.cs
     ICommandSource.cs
@@ -99,10 +99,13 @@ UI/
     Containers/
       ExpandDirection.cs
       Expander.cs
+      Frame.cs
       GridResizeBehavior.cs
       GridResizeDirection.cs
       GridSplitter.cs
       GroupBox.cs
+      NavigationService.cs
+      Page.cs
       Popup.cs
       PopupPlacementMode.cs
       ResizeGrip.cs
@@ -125,17 +128,20 @@ UI/
       DataGridRow.cs
       DataGridRowHeader.cs
     Inputs/
+      Core/
+      Diagnostics/
+      Rendering/
       Calendar.cs
       CalendarDateRange.cs
       CalendarSelectionMode.cs
       DatePicker.cs
       ITextInputControl.cs
       PasswordBox.cs
+      RichTextBox.cs
       RichTextBox.FormattingEngine.cs
       RichTextBox.ListOperations.cs
       RichTextBox.Navigation.cs
       RichTextBox.TableOperations.cs
-      RichTextBox.cs
       RichTextBoxPerformanceTracker.cs
       Slider.cs
       TextBox.cs
@@ -202,6 +208,7 @@ UI/
       NameScopeService.cs
     Threading/
       Dispatcher.cs
+    Types/
   Diagnostics/
     XamlDiagnostic.cs
     XamlDiagnosticCode.cs
@@ -272,6 +279,7 @@ UI/
     Tree/
       VisualTreeHelper.cs
   Rendering/
+    Cache/
     Core/
       UiDrawing.cs
     DirtyRegions/
@@ -307,8 +315,8 @@ UI/
       Condition.cs
       DataTrigger.cs
       EventTrigger.cs
-      MultiTrigger.cs
       MultiDataTrigger.cs
+      MultiTrigger.cs
       Trigger.cs
       TriggerBase.cs
     GroupStyle.cs

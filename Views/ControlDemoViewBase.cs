@@ -380,6 +380,22 @@ internal static class ControlDemoSupport
                     ViewportSize = 20f,
                     Value = 35f
                 };
+            case "Page":
+                return new Page
+                {
+                    Title = "Sample Page",
+                    Content = BuildItemLabel("Page Content")
+                };
+            case "Frame":
+            {
+                var frame = new Frame();
+                frame.Navigate(new Page
+                {
+                    Title = "Frame Start",
+                    Content = BuildItemLabel("Frame Current Content")
+                });
+                return frame;
+            }
             case "UserControl":
                 return new UserControl { Content = new Label { Text = "UserControl content" } };
             case "Window":

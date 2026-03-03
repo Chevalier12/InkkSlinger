@@ -4,7 +4,7 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `518/518` passing.
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `555/555` passing.
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - This file tracks completed milestones, known parity gaps, and control coverage.
@@ -58,6 +58,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] Host-level conditional draw suppression pass: `Game1` now calls `SuppressDraw()` on frames where `UiRoot.ShouldDrawThisFrame(...)` is false, reducing idle CPU in steady-state scenes.
 - [x] Animation manager idle optimization pass: hold/fill lanes no longer force running-animation state, unchanged lane values avoid redundant sink writes, and frozen filling lanes are parked until lane mutations/reactivation.
 - [x] Controls catalog demo expansion: added `Catch Me!` interactive canvas view with storyboard-driven run-away ellipse behavior.
+- [x] `Frame`/`Page` navigation vertical slice: object navigation journal (`Navigate`, `GoBack`, `GoForward`, `CanGoBack`, `CanGoForward`), page-scoped `NavigationService` attach/detach semantics, XAML/schema support, and regression coverage (`FrameNavigationTests`).
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
@@ -150,7 +151,7 @@ Pointer-move dispatch is forced while any context menu is open (so hover transit
 - [x] DockPanel
 - [ ] DocumentViewer
 - [x] Expander
-- [ ] Frame
+- [x] Frame
 - [x] Grid
 - [x] GridSplitter
 - [x] GroupBox
@@ -169,7 +170,7 @@ Pointer-move dispatch is forced while any context menu is open (so hover transit
 - [ ] MediaElement
 - [x] Menu
 - [x] MenuItem
-- [ ] Page
+- [x] Page
 - [x] Panel
 - [x] PasswordBox
 - [x] Popup
