@@ -2176,6 +2176,15 @@ public static class XamlLoader
     {
         var eventName = GetRequiredAttributeValue(element, "Event");
         var handlerName = GetRequiredAttributeValue(element, "Handler");
+        var handledEventsTooText = GetOptionalAttributeValue(element, "HandledEventsToo");
+        var handledEventsToo = false;
+        if (!string.IsNullOrWhiteSpace(handledEventsTooText) &&
+            !bool.TryParse(handledEventsTooText, out handledEventsToo))
+        {
+            throw CreateXamlException(
+                $"EventSetter HandledEventsToo value '{handledEventsTooText}' is not valid. Use 'True' or 'False'.",
+                element);
+        }
 
         if (codeBehind == null)
         {
@@ -2193,15 +2202,24 @@ public static class XamlLoader
         }
 
         var method = ResolveCodeBehindHandlerMethod(codeBehind, handlerName);
-        var parameters = method.GetParameters();
-        if (parameters.Length != 2 || !typeof(RoutedEventArgs).IsAssignableFrom(parameters[1].ParameterType))
+        if (!IsSupportedEventSetterHandlerSignature(method, styleTargetType))
         {
             throw CreateXamlException(
-                $"EventSetter handler '{handlerName}' must have signature '(object sender, RoutedEventArgs args)'.",
+                $"EventSetter handler '{handlerName}' is not supported. Use 0, 1, or 2 parameters compatible with sender/args.",
                 element);
         }
 
-        var delegateType = typeof(EventHandler<>).MakeGenericType(parameters[1].ParameterType);
+        var parameters = method.GetParameters();
+        var delegateType = parameters.Length switch
+        {
+            0 => typeof(Action),
+            1 => typeof(Action<>).MakeGenericType(parameters[0].ParameterType),
+            2 => typeof(Action<,>).MakeGenericType(parameters[0].ParameterType, parameters[1].ParameterType),
+            _ => throw CreateXamlException(
+                $"EventSetter handler '{handlerName}' is not supported. Use 0, 1, or 2 parameters compatible with sender/args.",
+                element)
+        };
+
         Delegate handler;
         try
         {
@@ -2210,12 +2228,12 @@ public static class XamlLoader
         catch (ArgumentException ex)
         {
             throw CreateXamlException(
-                $"Handler method '{handlerName}' on code-behind type '{codeBehind.GetType().Name}' is not compatible with EventSetter delegate type '{delegateType.Name}'.",
+                $"Handler method '{handlerName}' on code-behind type '{codeBehind.GetType().Name}' could not be bound to a supported EventSetter delegate shape.",
                 element,
                 ex);
         }
 
-        return new EventSetter(eventName, handler);
+        return new EventSetter(eventName, handler, handledEventsToo);
     }
 
     private static object BuildSetterValue(
@@ -2931,6 +2949,40 @@ public static class XamlLoader
         }
 
         return method;
+    }
+
+    private static bool IsSupportedEventSetterHandlerSignature(MethodInfo method, Type eventSourceType)
+    {
+        var parameters = method.GetParameters();
+        if (parameters.Length > 2)
+        {
+            return false;
+        }
+
+        if (parameters.Length == 0)
+        {
+            return true;
+        }
+
+        foreach (var parameter in parameters)
+        {
+            var parameterType = parameter.ParameterType;
+            if (parameterType.IsValueType)
+            {
+                return false;
+            }
+
+            if (parameterType == typeof(object) ||
+                typeof(RoutedEventArgs).IsAssignableFrom(parameterType) ||
+                parameterType.IsAssignableFrom(eventSourceType))
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 
     private static void ApplyProperty(object target, string propertyName, string valueText, FrameworkElement? resourceScope)

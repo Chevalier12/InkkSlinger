@@ -294,8 +294,10 @@ UI/
       StoryboardActions.cs
       TriggerAction.cs
     Core/
+      EventSetter.cs
       ImplicitStylePolicy.cs
       Setter.cs
+      SetterBase.cs
       Style.cs
       StyleValueCloneUtility.cs
       VisualStates.cs

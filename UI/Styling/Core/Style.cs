@@ -106,8 +106,12 @@ public class Style
                         $"RoutedEvent '{eventSetter.Event}' could not be resolved on '{uiElement.GetType().Name}'.");
                 }
 
-                var wrappedHandler = WrapEventSetterHandler(eventSetter.Handler);
-                uiElement.AddHandler(routedEvent, wrappedHandler);
+                var wrappedHandler = WrapEventSetterHandler(
+                    eventSetter.Handler,
+                    eventSetter.Event,
+                    TargetType,
+                    uiElement.GetType());
+                uiElement.AddHandler(routedEvent, wrappedHandler, eventSetter.HandledEventsToo);
                 state.AppliedEventHandlers.Add((uiElement, routedEvent, wrappedHandler));
             }
         }
@@ -305,14 +309,118 @@ public class Style
         state.ConditionProperties.Clear();
     }
 
-    private static EventHandler<RoutedEventArgs> WrapEventSetterHandler(Delegate handler)
+    private static EventHandler<RoutedEventArgs> WrapEventSetterHandler(
+        Delegate handler,
+        string eventName,
+        Type styleTargetType,
+        Type runtimeTargetType)
     {
         if (handler is EventHandler<RoutedEventArgs> routedHandler)
         {
             return routedHandler;
         }
 
-        return (sender, args) => handler.DynamicInvoke(sender, args);
+        var parameters = handler.Method.GetParameters();
+        if (parameters.Length == 0)
+        {
+            return (_, _) => handler.DynamicInvoke();
+        }
+
+        if (parameters.Length == 1)
+        {
+            var parameterType = parameters[0].ParameterType;
+            return (sender, args) =>
+            {
+                try
+                {
+                    var value = ResolveEventSetterArgument(parameterType, sender, args, preferSender: false);
+                    handler.DynamicInvoke(value);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    throw CreateEventSetterHandlerContextException(ex, handler, eventName, styleTargetType, runtimeTargetType);
+                }
+            };
+        }
+
+        if (parameters.Length == 2)
+        {
+            var firstType = parameters[0].ParameterType;
+            var secondType = parameters[1].ParameterType;
+            return (sender, args) =>
+            {
+                try
+                {
+                    var first = ResolveEventSetterArgument(firstType, sender, args, preferSender: true);
+                    var second = ResolveEventSetterArgument(secondType, sender, args, preferSender: false);
+                    handler.DynamicInvoke(first, second);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    throw CreateEventSetterHandlerContextException(ex, handler, eventName, styleTargetType, runtimeTargetType);
+                }
+            };
+        }
+
+        throw new InvalidOperationException(
+            $"EventSetter handler '{handler.Method.Name}' is not supported. Expected 0, 1, or 2 parameters.");
+    }
+
+    private static object? ResolveEventSetterArgument(Type parameterType, object? sender, RoutedEventArgs args, bool preferSender)
+    {
+        if (preferSender)
+        {
+            if (sender == null)
+            {
+                if (!parameterType.IsValueType)
+                {
+                    return null;
+                }
+            }
+            else if (parameterType.IsAssignableFrom(sender.GetType()))
+            {
+                return sender;
+            }
+
+            if (parameterType.IsAssignableFrom(args.GetType()))
+            {
+                return args;
+            }
+        }
+        else
+        {
+            if (parameterType.IsAssignableFrom(args.GetType()))
+            {
+                return args;
+            }
+
+            if (sender == null)
+            {
+                if (!parameterType.IsValueType)
+                {
+                    return null;
+                }
+            }
+            else if (parameterType.IsAssignableFrom(sender.GetType()))
+            {
+                return sender;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"EventSetter handler parameter type '{parameterType.Name}' is not compatible with sender/args.");
+    }
+
+    private static InvalidOperationException CreateEventSetterHandlerContextException(
+        InvalidOperationException inner,
+        Delegate handler,
+        string eventName,
+        Type styleTargetType,
+        Type runtimeTargetType)
+    {
+        return new InvalidOperationException(
+            $"EventSetter handler invocation failed for Style.TargetType '{styleTargetType.Name}', runtime target '{runtimeTargetType.Name}', event '{eventName}', handler '{handler.Method.DeclaringType?.Name}.{handler.Method.Name}'.",
+            inner);
     }
 
     private sealed class StyleInstanceState

@@ -14,7 +14,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] XAML resources: `UserControl.Resources` / `Panel.Resources`, `x:Key`, `{StaticResource ...}`.
 - [x] XAML resources: `{DynamicResource ...}` for attribute-based dependency and attached property assignment (setter/trigger value usage deferred).
 - [x] Style completeness: `BasedOn`, explicit style references, implicit style lookup by `TargetType`.
-- [x] Style event binding parity: `EventSetter` support in style model/runtime + XAML parsing with code-behind handler resolution and regression coverage.
+- [x] Style event binding parity: `EventSetter` support in style model/runtime + XAML parsing with code-behind handler resolution (including `HandledEventsToo` and flexible 0/1/2-parameter handler signatures) and regression coverage.
 - [x] Binding parity: `Source`, `ElementName`, `RelativeSource`.
 - [x] Cleanup: `#nullable enable`, reflection-assigned `x:Name` warning cleanup.
 - [x] Popup/window visuals moved to XAML resources/styles.

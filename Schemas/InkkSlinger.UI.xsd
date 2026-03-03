@@ -180,6 +180,7 @@
   <xs:complexType name="eventSetterType">
     <xs:attribute name="Event" type="xs:string" use="required" />
     <xs:attribute name="Handler" type="xs:string" use="required" />
+    <xs:attribute name="HandledEventsToo" type="xs:boolean" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
