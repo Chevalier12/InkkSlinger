@@ -69,6 +69,7 @@ UI/
     EditingCommands.cs
     ExecutedRoutedEventArgs.cs
     ICommandSource.cs
+    NavigationCommands.cs
     RoutedCommand.cs
     RoutedUICommand.cs
   Controls/
@@ -97,6 +98,7 @@ UI/
       Thumb.cs
       ToggleButton.cs
     Containers/
+      DocumentViewer.cs
       ExpandDirection.cs
       Expander.cs
       Frame.cs
@@ -135,6 +137,7 @@ UI/
       CalendarDateRange.cs
       CalendarSelectionMode.cs
       DatePicker.cs
+      IHyperlinkHoverHost.cs
       ITextInputControl.cs
       PasswordBox.cs
       RichTextBox.cs
@@ -352,6 +355,10 @@ UI/
       DocumentLayoutEngine.cs
     Types/
       TextWrapping.cs
+    Viewing/
+      DocumentPageMap.cs
+      DocumentViewerInteractionState.cs
+      DocumentViewportController.cs
   Xaml/
     Core/
       XamlLoader.cs

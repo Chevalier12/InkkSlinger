@@ -7,10 +7,10 @@
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (`Release`, 0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -c Release -v minimal` |
-| Test suite | Pass (`572/572`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
-| Current failing test areas | `None` | Latest full release test run (`2026-03-03`) |
-| WPF control coverage | Broad but incomplete (`73/77`) | `TODO.md` -> `## WPF Control Coverage` |
-| Open tracked work | `4` unchecked TODO items | `TODO.md` (missing controls) |
+| Test suite | Pass (`593/593`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
+| Current failing test areas | `None` | Latest full release test run (`2026-03-04`) |
+| WPF control coverage | Broad but incomplete (`74/77`) | `TODO.md` -> `## WPF Control Coverage` |
+| Open tracked work | `3` unchecked TODO items | `TODO.md` (missing controls) |
 | Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
 
 ### Honest Verdict
@@ -104,11 +104,11 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Retained rendering + redraw scheduling | Retained render-list sync, dirty-region tracking, and conditional draw scheduling | `UI/Managers/Root/Services/UiRootRetainedTree.cs`, `UI/Managers/Root/Services/UiRootDraw.cs`, `UI/Rendering/DirtyRegions/DirtyRegionTracker.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/DirtyRegionTrackingTests.cs`, `InkkSlinger.Tests/ConditionalDrawTests.cs` | Implemented (regression coverage in progress) |
 | Render queue and invalidation correctness | Queue ordering and invalidation semantics in root draw/update pipeline | `UI/Managers/Root/UiRoot.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/InvalidationFlagsTests.cs` | Implemented (tested) |
 | Adorner infrastructure | Adorner base/layer/decorator + anchored/handles authoring helpers (`AnchoredAdorner`, `HandlesAdornerBase`) with clipping/tracking coverage | `UI/Controls/Adorners/*`, `InkkSlinger.Tests/AdornerClippingTests.cs`, `InkkSlinger.Tests/AdornerParityDepthTests.cs` | Implemented (tested) |
-| Control breadth snapshot | 73 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `73/77`) | Broad |
+| Control breadth snapshot | 74 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `74/77`) | Broad |
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 95 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (95 files) | Implemented |
+| Regression safety net | 102 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (102 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -132,7 +132,6 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 | Area | Gap / Limitation | Evidence | State |
 |---|---|---|---|
-| Control coverage | `DocumentViewer` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `InkCanvas` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
 | Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
@@ -164,7 +163,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 ## UI Architecture Map
 
-The following reflects `UI-FOLDER-MAP.md` (generated 2026-03-03):
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-03-04):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers
