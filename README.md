@@ -11,7 +11,7 @@
 | Current failing test areas | `None` | Latest full release test run (`2026-03-04`) |
 | WPF control coverage | Broad but incomplete (`74/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `3` unchecked TODO items (all bounty controls) | `TODO.md` (missing controls) |
-| Explicit unsupported behavior | Present | `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
+| Explicit unsupported behavior | None currently tracked | Latest parity/status pass (`2026-03-04`) |
 
 ### Honest Verdict
 
@@ -88,7 +88,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Binding core | `Path`, `Source`, `ElementName`, `RelativeSource`, modes and update triggers | `UI/Binding/Core/Binding.cs`, `UI/Binding/Core/BindingExpression.cs`, `UI/Binding/Core/BindingOperations.cs`, `UI/Binding/Types/BindingEnums.cs` | Implemented |
 | Binding lifecycle robustness | Rebind behavior on source/data-context/tree changes | `TODO.md` (`Completed Milestones`: binding lifecycle robustness) | Implemented |
 | Routed commanding core | `RoutedCommand`, command bindings, editing command catalog, can-execute/execute pipeline | `UI/Commanding/RoutedCommand.cs`, `UI/Commanding/CommandManager.cs`, `UI/Commanding/CommandBinding.cs`, `UI/Commanding/EditingCommands.cs`, `InkkSlinger.Tests/CommandingTests.cs` | Implemented (tested) |
-| Gesture-to-command bridge | Declarative `InputBindings`/`KeyBinding` keyboard chord routing into commands, including menu-mode key routing integration | `UI/Input/Core/InputGestureService.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Controls/Base/UIElement.cs`, `UI/Managers/Root/Services/UiRootInputPipeline.cs`, `InkkSlinger.Tests/MenuParityInputTests.cs` | Implemented |
+| Gesture-to-command bridge | Declarative `InputBindings`/`KeyBinding`/`MouseBinding` routing plus imperative `InputGestureService.Register(...)` keyboard/mouse registration, including menu-mode key routing integration | `UI/Input/Core/InputGestureService.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Input/Types/MouseBinding.cs`, `UI/Controls/Base/UIElement.cs`, `UI/Managers/Root/Services/UiRootInputPipeline.cs`, `InkkSlinger.Tests/CommandingTests.cs`, `InkkSlinger.Tests/MenuParityInputTests.cs` | Implemented (tested) |
 | XAML/XML loader | Runtime object graph construction, attached properties, handlers, bindings, templates, triggers | `UI/Xaml/Core/XamlLoader.cs` | Implemented |
 | XAML diagnostics | Element/attribute error reporting with contextual diagnostics | `UI/Xaml/Core/XamlLoader.cs`, `TODO.md` (`Completed Milestones`: better diagnostics) | Implemented |
 | XML schema/tooling | Authoring schemas for framework + `x:` namespace support | `Schemas/InkkSlinger.UI.xsd`, `Schemas/Xaml2006.xsd`, `TODO.md` (`Completed Milestones`) | Implemented |

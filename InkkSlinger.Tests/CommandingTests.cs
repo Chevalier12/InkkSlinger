@@ -10,6 +10,11 @@ namespace InkkSlinger.Tests;
 
 public class CommandingTests
 {
+    public CommandingTests()
+    {
+        InputGestureService.Clear();
+    }
+
     [Fact]
     public void Button_ImplementsICommandSource()
     {
@@ -222,6 +227,270 @@ public class CommandingTests
 
         Assert.True(executed);
         Assert.Equal(1, executedCount);
+    }
+
+    [Fact]
+    public void Register_KeyGesture_ExecutesRoutedCommandOnTarget()
+    {
+        var root = new StackPanel();
+        var target = new Button();
+        root.AddChild(target);
+
+        var command = new RoutedCommand("Open", typeof(CommandingTests));
+        var executedCount = 0;
+        target.CommandBindings.Add(new CommandBinding(command, (_, _) => executedCount++));
+
+        InputGestureService.Register(Keys.O, ModifierKeys.Control, command, target);
+
+        var executed = InputGestureService.Execute(Keys.O, ModifierKeys.Control, null, root);
+
+        Assert.True(executed);
+        Assert.Equal(1, executedCount);
+    }
+
+    [Fact]
+    public void Register_KeyGesture_WithParameter_ForwardsParameter()
+    {
+        var root = new StackPanel();
+        var target = new Button();
+        root.AddChild(target);
+
+        var command = new RoutedCommand("Open", typeof(CommandingTests));
+        object? seenParameter = null;
+        target.CommandBindings.Add(new CommandBinding(command, (_, args) => seenParameter = args.Parameter));
+
+        InputGestureService.Register(Keys.O, ModifierKeys.Control, command, target, parameter: "payload");
+
+        var executed = InputGestureService.Execute(Keys.O, ModifierKeys.Control, null, root);
+
+        Assert.True(executed);
+        Assert.Equal("payload", seenParameter);
+    }
+
+    [Fact]
+    public void Register_KeyGesture_CanExecuteFalse_DoesNotExecute()
+    {
+        var root = new StackPanel();
+        var target = new Button();
+        root.AddChild(target);
+
+        var command = new RoutedCommand("Open", typeof(CommandingTests));
+        var executedCount = 0;
+        target.CommandBindings.Add(
+            new CommandBinding(
+                command,
+                (_, _) => executedCount++,
+                (_, args) => args.CanExecute = false));
+
+        InputGestureService.Register(Keys.O, ModifierKeys.Control, command, target);
+
+        var executed = InputGestureService.Execute(Keys.O, ModifierKeys.Control, null, root);
+
+        Assert.False(executed);
+        Assert.Equal(0, executedCount);
+    }
+
+    [Fact]
+    public void Clear_RemovesImperativeKeyBindings()
+    {
+        var root = new StackPanel();
+        var target = new Button();
+        root.AddChild(target);
+
+        var command = new RoutedCommand("Open", typeof(CommandingTests));
+        var executedCount = 0;
+        target.CommandBindings.Add(new CommandBinding(command, (_, _) => executedCount++));
+
+        InputGestureService.Register(Keys.O, ModifierKeys.Control, command, target);
+        InputGestureService.Clear();
+
+        var executed = InputGestureService.Execute(Keys.O, ModifierKeys.Control, null, root);
+
+        Assert.False(executed);
+        Assert.Equal(0, executedCount);
+    }
+
+    [Fact]
+    public void Execute_ImperativeKey_TargetOutsideVisualRoot_DoesNotExecute()
+    {
+        var root = new StackPanel();
+        var otherRoot = new StackPanel();
+        var target = new Button();
+        otherRoot.AddChild(target);
+
+        var command = new RoutedCommand("Open", typeof(CommandingTests));
+        var executedCount = 0;
+        target.CommandBindings.Add(new CommandBinding(command, (_, _) => executedCount++));
+
+        InputGestureService.Register(Keys.O, ModifierKeys.Control, command, target);
+
+        var executed = InputGestureService.Execute(Keys.O, ModifierKeys.Control, null, root);
+
+        Assert.False(executed);
+        Assert.Equal(0, executedCount);
+    }
+
+    [Fact]
+    public void Register_MouseGesture_ExecutesRoutedCommandOnTarget()
+    {
+        var root = new StackPanel();
+        var target = new Button();
+        root.AddChild(target);
+
+        var command = new RoutedCommand("OpenMouse", typeof(CommandingTests));
+        var executedCount = 0;
+        target.CommandBindings.Add(new CommandBinding(command, (_, _) => executedCount++));
+
+        InputGestureService.Register(MouseButton.Right, ModifierKeys.Control, command, target);
+
+        var executed = InputGestureService.Execute(MouseButton.Right, ModifierKeys.Control, null, root);
+
+        Assert.True(executed);
+        Assert.Equal(1, executedCount);
+    }
+
+    [Fact]
+    public void Register_MouseGesture_ModifierMismatch_DoesNotExecute()
+    {
+        var root = new StackPanel();
+        var target = new Button();
+        root.AddChild(target);
+
+        var command = new RoutedCommand("OpenMouse", typeof(CommandingTests));
+        var executedCount = 0;
+        target.CommandBindings.Add(new CommandBinding(command, (_, _) => executedCount++));
+
+        InputGestureService.Register(MouseButton.Right, ModifierKeys.Control, command, target);
+
+        var executed = InputGestureService.Execute(MouseButton.Right, ModifierKeys.None, null, root);
+
+        Assert.False(executed);
+        Assert.Equal(0, executedCount);
+    }
+
+    [Fact]
+    public void Clear_RemovesImperativeMouseBindings()
+    {
+        var root = new StackPanel();
+        var target = new Button();
+        root.AddChild(target);
+
+        var command = new RoutedCommand("OpenMouse", typeof(CommandingTests));
+        var executedCount = 0;
+        target.CommandBindings.Add(new CommandBinding(command, (_, _) => executedCount++));
+
+        InputGestureService.Register(MouseButton.Right, ModifierKeys.Control, command, target);
+        InputGestureService.Clear();
+
+        var executed = InputGestureService.Execute(MouseButton.Right, ModifierKeys.Control, null, root);
+
+        Assert.False(executed);
+        Assert.Equal(0, executedCount);
+    }
+
+    [Fact]
+    public void Execute_DeclarativeThenImperative_OrderIsDeterministic()
+    {
+        var root = new StackPanel();
+        var focused = new Button();
+        root.AddChild(focused);
+
+        var executionOrder = new List<string>();
+        focused.InputBindings.Add(new KeyBinding
+        {
+            Key = Keys.O,
+            Modifiers = ModifierKeys.Control,
+            Command = new CallbackCommand(_ => executionOrder.Add("declarative"))
+        });
+
+        var command = new RoutedCommand("Open", typeof(CommandingTests));
+        focused.CommandBindings.Add(new CommandBinding(command, (_, _) => executionOrder.Add("imperative")));
+        InputGestureService.Register(Keys.O, ModifierKeys.Control, command, focused);
+
+        var executed = InputGestureService.Execute(Keys.O, ModifierKeys.Control, focused, root);
+
+        Assert.True(executed);
+        Assert.Equal(new[] { "declarative", "imperative" }, executionOrder);
+    }
+
+    [Fact]
+    public void Execute_ImperativeDoesNotBlockDeclarativeWhenCanExecuteFalse()
+    {
+        var root = new StackPanel();
+        var focused = new Button();
+        root.AddChild(focused);
+
+        var executionOrder = new List<string>();
+        focused.InputBindings.Add(new KeyBinding
+        {
+            Key = Keys.O,
+            Modifiers = ModifierKeys.Control,
+            Command = new CallbackCommand(_ => executionOrder.Add("declarative"))
+        });
+
+        var command = new RoutedCommand("Open", typeof(CommandingTests));
+        focused.CommandBindings.Add(
+            new CommandBinding(
+                command,
+                (_, _) => executionOrder.Add("imperative"),
+                (_, args) => args.CanExecute = false));
+        InputGestureService.Register(Keys.O, ModifierKeys.Control, command, focused);
+
+        var executed = InputGestureService.Execute(Keys.O, ModifierKeys.Control, focused, root);
+
+        Assert.True(executed);
+        Assert.Equal(new[] { "declarative" }, executionOrder);
+    }
+
+    [Fact]
+    public void Execute_ReturnsTrue_WhenOnlyImperativeExecutes()
+    {
+        var root = new StackPanel();
+        var target = new Button();
+        root.AddChild(target);
+
+        var command = new RoutedCommand("Open", typeof(CommandingTests));
+        target.CommandBindings.Add(new CommandBinding(command, (_, _) => { }));
+        InputGestureService.Register(Keys.O, ModifierKeys.Control, command, target);
+
+        var executed = InputGestureService.Execute(Keys.O, ModifierKeys.Control, null, root);
+
+        Assert.True(executed);
+    }
+
+    [Fact]
+    public void Register_Key_NullCommand_ThrowsArgumentNullException()
+    {
+        var target = new Button();
+
+        Assert.Throws<ArgumentNullException>(() =>
+            InputGestureService.Register(Keys.O, ModifierKeys.Control, command: null!, target));
+    }
+
+    [Fact]
+    public void Register_Key_NullTarget_ThrowsArgumentNullException()
+    {
+        var command = new RoutedCommand("Open", typeof(CommandingTests));
+
+        Assert.Throws<ArgumentNullException>(() =>
+            InputGestureService.Register(Keys.O, ModifierKeys.Control, command, target: null!));
+    }
+
+    [Fact]
+    public void Clear_IsIdempotent()
+    {
+        InputGestureService.Clear();
+        InputGestureService.Clear();
+    }
+
+    [Fact]
+    public void Register_StoresImperativeTargetAsWeakReference()
+    {
+        var registrationType = typeof(InputGestureService).GetNestedType("ImperativeRegistration", BindingFlags.NonPublic);
+        Assert.NotNull(registrationType);
+        var targetProperty = registrationType!.GetProperty("Target", BindingFlags.Instance | BindingFlags.Public);
+        Assert.NotNull(targetProperty);
+        Assert.Equal(typeof(WeakReference<UIElement>), targetProperty!.PropertyType);
     }
 
     [Fact]
