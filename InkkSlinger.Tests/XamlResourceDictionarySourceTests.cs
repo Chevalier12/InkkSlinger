@@ -100,6 +100,59 @@ public sealed class XamlResourceDictionarySourceTests
         }
     }
 
+    [Fact]
+    public void MergedResourceDictionary_SourceCycle_ThrowsWithSourceLocationContext()
+    {
+        var tempRoot = CreateTempDirectory();
+        try
+        {
+            var firstPath = Path.Combine(tempRoot, "First.xaml");
+            var secondPath = Path.Combine(tempRoot, "Second.xaml");
+            File.WriteAllText(
+                firstPath,
+                """
+<ResourceDictionary xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="Second.xaml" />
+  </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>
+""");
+            File.WriteAllText(
+                secondPath,
+                """
+<ResourceDictionary xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="First.xaml" />
+  </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>
+""");
+
+            var hostPath = Path.Combine(tempRoot, "Host.xaml");
+            File.WriteAllText(
+                hostPath,
+                """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="First.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+</UserControl>
+""");
+
+            var ex = Assert.Throws<InvalidOperationException>(() => XamlLoader.LoadFromFile(hostPath));
+            Assert.Contains("Source cycle", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Line", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Property=Source", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            TryDeleteDirectory(tempRoot);
+        }
+    }
+
     private static string CreateTempDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), "InkkSlinger.Tests", Guid.NewGuid().ToString("N"));

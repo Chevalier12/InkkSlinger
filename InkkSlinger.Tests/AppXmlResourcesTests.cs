@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Xunit;
@@ -76,6 +77,31 @@ public sealed class AppXmlResourcesTests
         {
             RestoreApplicationResources(backup);
         }
+    }
+
+    [Fact]
+    public void MergeMissingResourceEntries_PreservesMergedDictionaryStructure()
+    {
+        var target = new ResourceDictionary();
+        target["RootKey"] = "root";
+
+        var merged = new ResourceDictionary();
+        merged["Accent"] = "merged";
+        var source = new ResourceDictionary();
+        source.AddMergedDictionary(merged);
+
+        var mergeMethod = typeof(XamlLoader).GetMethod(
+            "MergeMissingResourceEntries",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(mergeMethod);
+
+        mergeMethod!.Invoke(null, new object[] { target, source });
+
+        Assert.Single(target.MergedDictionaries);
+        Assert.Same(merged, target.MergedDictionaries[0]);
+        Assert.Equal("root", target["RootKey"]);
+        Assert.True(target.TryGetValue("Accent", out var accent));
+        Assert.Equal("merged", accent);
     }
 
     private static ResourceSnapshot CaptureApplicationResources()

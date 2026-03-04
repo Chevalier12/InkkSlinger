@@ -27,6 +27,8 @@ public static class XamlLoader
     [ThreadStatic]
     private static Stack<string>? CurrentXamlBaseDirectories;
     [ThreadStatic]
+    private static Stack<string>? CurrentResourceDictionarySourcePaths;
+    [ThreadStatic]
     private static Stack<Action<XamlDiagnostic>>? CurrentDiagnosticSinks;
     [ThreadStatic]
     private static Stack<List<Action>>? CurrentDeferredFinalizeActions;
@@ -370,7 +372,17 @@ public static class XamlLoader
                         itemElement);
                 }
 
-                dictionary.AddMergedDictionary(mergedDictionary);
+                try
+                {
+                    dictionary.AddMergedDictionary(mergedDictionary);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    throw CreateXamlException(
+                        $"Failed to merge resource dictionary: {ex.Message}",
+                        itemElement,
+                        ex);
+                }
             }
 
             return true;
@@ -2768,8 +2780,43 @@ public static class XamlLoader
 
         foreach (var merged in source.MergedDictionaries)
         {
-            MergeMissingResourceEntries(target, merged);
+            if (!ContainsMergedDictionaryReference(target, merged))
+            {
+                target.AddMergedDictionary(merged);
+            }
         }
+    }
+
+    private static bool ContainsMergedDictionaryReference(ResourceDictionary dictionary, ResourceDictionary target)
+    {
+        var visited = new HashSet<ResourceDictionary>();
+        return ContainsMergedDictionaryReferenceCore(dictionary, target, visited);
+    }
+
+    private static bool ContainsMergedDictionaryReferenceCore(
+        ResourceDictionary dictionary,
+        ResourceDictionary target,
+        HashSet<ResourceDictionary> visited)
+    {
+        if (!visited.Add(dictionary))
+        {
+            return false;
+        }
+
+        foreach (var merged in dictionary.MergedDictionaries)
+        {
+            if (ReferenceEquals(merged, target))
+            {
+                return true;
+            }
+
+            if (ContainsMergedDictionaryReferenceCore(merged, target, visited))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static ResourceDictionary LoadResourceDictionaryFromSource(
@@ -2779,38 +2826,48 @@ public static class XamlLoader
         XObject? location)
     {
         var resolvedPath = ResolveXamlSourcePath(source, location);
+        if (HasActiveResourceDictionarySourcePath(resolvedPath))
+        {
+            throw CreateXamlException(
+                $"ResourceDictionary Source cycle detected for '{resolvedPath}'.",
+                location);
+        }
+
         if (!File.Exists(resolvedPath))
         {
             throw CreateXamlException($"ResourceDictionary source '{source}' was not found at '{resolvedPath}'.", location);
         }
 
-        var xaml = File.ReadAllText(resolvedPath);
-        XDocument document;
-        try
+        return RunWithinResourceDictionarySourcePath(resolvedPath, () =>
         {
-            document = XDocument.Parse(xaml, LoadOptions.SetLineInfo);
-        }
-        catch (Exception ex)
-        {
-            throw CreateXamlException($"Failed to parse ResourceDictionary source '{resolvedPath}'.", location, ex);
-        }
+            var xaml = File.ReadAllText(resolvedPath);
+            XDocument document;
+            try
+            {
+                document = XDocument.Parse(xaml, LoadOptions.SetLineInfo);
+            }
+            catch (Exception ex)
+            {
+                throw CreateXamlException($"Failed to parse ResourceDictionary source '{resolvedPath}'.", location, ex);
+            }
 
-        var root = document.Root;
-        if (root == null ||
-            !string.Equals(root.Name.LocalName, nameof(ResourceDictionary), StringComparison.Ordinal))
-        {
-            throw CreateXamlException(
-                $"ResourceDictionary source '{resolvedPath}' must have a ResourceDictionary root element.",
-                location);
-        }
+            var root = document.Root;
+            if (root == null ||
+                !string.Equals(root.Name.LocalName, nameof(ResourceDictionary), StringComparison.Ordinal))
+            {
+                throw CreateXamlException(
+                    $"ResourceDictionary source '{resolvedPath}' must have a ResourceDictionary root element.",
+                    location);
+            }
 
-        ResourceDictionary dictionary = null!;
-        var baseDirectory = Path.GetDirectoryName(resolvedPath);
-        RunWithinXamlBaseDirectory(baseDirectory, () =>
-        {
-            dictionary = (ResourceDictionary)BuildObject(root, codeBehind, resourceScope);
+            ResourceDictionary dictionary = null!;
+            var baseDirectory = Path.GetDirectoryName(resolvedPath);
+            RunWithinXamlBaseDirectory(baseDirectory, () =>
+            {
+                dictionary = (ResourceDictionary)BuildObject(root, codeBehind, resourceScope);
+            });
+            return dictionary;
         });
-        return dictionary;
     }
 
     private static string ResolveXamlSourcePath(string source, XObject? location)
@@ -4107,6 +4164,44 @@ public static class XamlLoader
                 CollectBindingsWithDeferredReferences(childBinding, accumulator);
             }
         }
+    }
+
+    private static T RunWithinResourceDictionarySourcePath<T>(string path, Func<T> action)
+    {
+        CurrentResourceDictionarySourcePaths ??= new Stack<string>();
+        var normalized = Path.GetFullPath(path);
+        CurrentResourceDictionarySourcePaths.Push(normalized);
+        try
+        {
+            return action();
+        }
+        finally
+        {
+            _ = CurrentResourceDictionarySourcePaths.Pop();
+            if (CurrentResourceDictionarySourcePaths.Count == 0)
+            {
+                CurrentResourceDictionarySourcePaths = null;
+            }
+        }
+    }
+
+    private static bool HasActiveResourceDictionarySourcePath(string path)
+    {
+        if (CurrentResourceDictionarySourcePaths == null || CurrentResourceDictionarySourcePaths.Count == 0)
+        {
+            return false;
+        }
+
+        var normalized = Path.GetFullPath(path);
+        foreach (var activePath in CurrentResourceDictionarySourcePaths)
+        {
+            if (string.Equals(activePath, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void QueueDeferredFinalizeAction(Action action)

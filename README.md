@@ -7,10 +7,10 @@
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (`Release`, 0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -c Release -v minimal` |
-| Test suite | Pass (`593/593`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
+| Test suite | Pass (`638/638`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
 | Current failing test areas | `None` | Latest full release test run (`2026-03-04`) |
 | WPF control coverage | Broad but incomplete (`74/77`) | `TODO.md` -> `## WPF Control Coverage` |
-| Open tracked work | `3` unchecked TODO items | `TODO.md` (missing controls) |
+| Open tracked work | `3` unchecked TODO items (all bounty controls) | `TODO.md` (missing controls) |
 | Explicit unsupported behavior | Present | `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
 
 ### Honest Verdict
@@ -108,7 +108,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 102 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (102 files) | Implemented |
+| Regression safety net | 106 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (106 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -145,7 +145,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | XAML language | Practical markup-extension core (`x:Static`, `x:Type`, `x:Null`, `x:Reference` + existing binding/resource/template forms) | `UI/Xaml/Core/XamlLoader.cs`, `InkkSlinger.Tests/XamlMarkupExtensionTests.cs` | Implemented |
 | XAML language | Compile-time metadata extensions (`x:Class`, full WPF compile-time ecosystem) | Runtime loader explicitly rejects unsupported `x:` metadata beyond runtime surface | Not implemented |
 | XAML tooling | WPF designer/Blend/XAML compilation parity | Runtime loader path in `UI/Xaml/Core/XamlLoader.cs`; no compile-time XAML toolchain in repo | Not implemented |
-| Resources/XAML | Full merged-dictionary authoring + WPF merge edge semantics | Runtime merge API in `UI/Resources/Core/ResourceDictionary.cs`; no dedicated merged-dictionary parse path in `UI/Xaml/Core/XamlLoader.cs` | Partial |
+| Resources/XAML | Full merged-dictionary authoring + WPF merge edge semantics (`ResourceDictionary.MergedDictionaries`, `Source` chaining, cycle safety, reverse merge precedence) | `UI/Resources/Core/ResourceDictionary.cs`, `UI/Xaml/Core/XamlLoader.cs`, `InkkSlinger.Tests/ResourceDictionaryMergedSemanticsTests.cs`, `InkkSlinger.Tests/XamlResourceDictionarySourceTests.cs` | Implemented (tested) |
 | Styling/XAML | Trigger actions are limited to `SetValueAction`, `BeginStoryboard`, `StopStoryboard`, `PauseStoryboard`, `ResumeStoryboard`, `SeekStoryboard`, `RemoveStoryboard` | `UI/Xaml/Core/XamlLoader.cs` (`BuildTriggerAction`) | Partial |
 | Styling API | `MultiTrigger` | `UI/Styling/Triggers/MultiTrigger.cs`, `InkkSlinger.Tests/MultiTriggerTests.cs` | Implemented (tested) |
 | Styling API | `EventSetter` | `UI/Styling/Core/EventSetter.cs`, `UI/Xaml/Core/XamlLoader.cs`, `UI/Styling/Core/Style.cs`, `InkkSlinger.Tests/EventSetterTests.cs` | Implemented (tested) |

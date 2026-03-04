@@ -295,6 +295,7 @@ UI/
   Resources/
     Core/
       ResourceDictionary.cs
+      ResourceReferenceExpressions.cs
       ResourceResolver.cs
       UiApplication.cs
     Types/

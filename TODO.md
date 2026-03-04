@@ -4,7 +4,7 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `593/593` passing.
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `638/638` passing.
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - This file tracks completed milestones, known parity gaps, and control coverage.
@@ -51,6 +51,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] ListView lab added as dedicated validation surface (`--listview-lab`).
 - [x] Collection add-isolation lab added as dedicated validation surface (legacy flag path: `--collection-add-isolation-demo`; now browsed from `ControlsCatalogView`).
 - [x] App.xml resource/theme pipeline shipped: host startup now loads `App.xml` application resources, including implicit styles and shared theme keys, with phased compatibility + parser regression coverage (`AppXmlPhase1-4CompatibilityTests`, `AppXmlResourcesTests`, `XamlResourceDictionarySourceTests`).
+- [x] Merged `ResourceDictionary` parity pass: reverse merge precedence (last merged wins), cycle-safe merge attach, `Source`-chained cycle diagnostics with line/property context, default `App.xml` bootstrap preserving merged-dictionary structure, schema authoring support (`Application`/`Application.Resources`/`ResourceDictionary`/`ResourceDictionary.MergedDictionaries`), and dedicated regression coverage (`ResourceDictionaryMergedSemanticsTests`, `XamlResourceDictionarySourceTests`, `AppXmlResourcesTests`).
 - [x] Controls catalog style-driven demo refresh shipped: preview XML surfaces moved to shared theme tokens, template-driven demo visuals, and preview-chrome harmonization across samples.
 - [x] Controls catalog regression hardening shipped: layout/hover/scroll-persistence stability fixes with dedicated regressions (`ControlsCatalogLayoutTests`, `ControlsCatalogHoverRegressionTests`, `ControlsCatalogScrollPersistenceTests`).
 - [x] Scoped default `App.xml` resource bootstrap for file-backed view loads: `XamlLoader.LoadInto(...)` now hydrates missing app resources into the target root scope before parse, resolving `DarkBgBrush` lookup failures in view-loading tests without globally mutating app resources.

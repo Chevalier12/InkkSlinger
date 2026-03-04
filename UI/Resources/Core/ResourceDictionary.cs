@@ -44,6 +44,18 @@ public class ResourceDictionary : IDictionary<object, object>
 
     public void AddMergedDictionary(ResourceDictionary dictionary)
     {
+        ArgumentNullException.ThrowIfNull(dictionary);
+
+        if (ReferenceEquals(dictionary, this))
+        {
+            throw new InvalidOperationException("A ResourceDictionary cannot merge itself.");
+        }
+
+        if (dictionary.ContainsMergedDictionaryReference(this))
+        {
+            throw new InvalidOperationException("A ResourceDictionary merge cannot introduce a cycle.");
+        }
+
         _mergedDictionaries.Add(dictionary);
         dictionary.Changed += OnMergedDictionaryChanged;
         OnChanged(new ResourceDictionaryChangedEventArgs(ResourceDictionaryChangeAction.MergeChanged, null));
@@ -145,8 +157,9 @@ public class ResourceDictionary : IDictionary<object, object>
 
     private object? FindInMergedDictionaries(object key, out bool found)
     {
-        foreach (var dictionary in _mergedDictionaries)
+        for (var index = _mergedDictionaries.Count - 1; index >= 0; index--)
         {
+            var dictionary = _mergedDictionaries[index];
             if (dictionary.TryGetValue(key, out var value))
             {
                 found = true;
@@ -156,6 +169,38 @@ public class ResourceDictionary : IDictionary<object, object>
 
         found = false;
         return null;
+    }
+
+    private bool ContainsMergedDictionaryReference(ResourceDictionary target)
+    {
+        var visited = new HashSet<ResourceDictionary>();
+        return ContainsMergedDictionaryReferenceCore(this, target, visited);
+    }
+
+    private static bool ContainsMergedDictionaryReferenceCore(
+        ResourceDictionary current,
+        ResourceDictionary target,
+        HashSet<ResourceDictionary> visited)
+    {
+        if (!visited.Add(current))
+        {
+            return false;
+        }
+
+        foreach (var merged in current._mergedDictionaries)
+        {
+            if (ReferenceEquals(merged, target))
+            {
+                return true;
+            }
+
+            if (ContainsMergedDictionaryReferenceCore(merged, target, visited))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void OnMergedDictionaryChanged(object? sender, ResourceDictionaryChangedEventArgs e)

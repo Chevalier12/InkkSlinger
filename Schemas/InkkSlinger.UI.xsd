@@ -131,6 +131,41 @@
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
+  <xs:complexType name="applicationType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="Application.Resources" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="applicationResourcesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="ResourceDictionary" />
+        <xs:any processContents="lax" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="resourceDictionaryType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:choice>
+        <xs:element ref="ResourceDictionary.MergedDictionaries" />
+        <xs:any processContents="lax" />
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="Source" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="resourceDictionaryMergedDictionariesType">
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element ref="ResourceDictionary" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
   <xs:complexType name="dataTemplateType">
     <xs:sequence minOccurs="0" maxOccurs="1">
       <xs:any processContents="lax" />
@@ -1991,6 +2026,10 @@
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
+  <xs:element name="Application" type="applicationType" />
+  <xs:element name="Application.Resources" type="applicationResourcesType" />
+  <xs:element name="ResourceDictionary" type="resourceDictionaryType" />
+  <xs:element name="ResourceDictionary.MergedDictionaries" type="resourceDictionaryMergedDictionariesType" />
   <xs:element name="UserControl" type="userControlType" />
   <xs:element name="Panel" type="panelType" />
   <xs:element name="Grid" type="gridType" />
