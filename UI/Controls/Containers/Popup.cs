@@ -152,6 +152,8 @@ public class Popup : ContentControl
     public event EventHandler? Closed;
 
     private Panel? _host;
+    private UIElement? _focusBeforeOpen;
+    private UIElement? _pendingFocusRestore;
     private bool _isOpen;
     private bool _isCloseHovered;
     private bool _isClosePressed;
@@ -298,6 +300,7 @@ public class Popup : ContentControl
             return;
         }
 
+        _focusBeforeOpen = FocusManager.GetFocusedElement();
         _host = host;
         _host.LayoutUpdated += OnHostLayoutUpdated;
         host.AddChild(this);
@@ -332,6 +335,8 @@ public class Popup : ContentControl
         _host.LayoutUpdated -= OnHostLayoutUpdated;
         _host = null;
         _isOpen = false;
+        _pendingFocusRestore = _focusBeforeOpen;
+        _focusBeforeOpen = null;
 
         Closed?.Invoke(this, EventArgs.Empty);
     }
@@ -717,6 +722,13 @@ public class Popup : ContentControl
         {
             Close();
         }
+    }
+
+    internal bool TryConsumePendingFocusRestore(out UIElement? element)
+    {
+        element = _pendingFocusRestore;
+        _pendingFocusRestore = null;
+        return element != null;
     }
 
 

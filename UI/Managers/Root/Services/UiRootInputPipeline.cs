@@ -22,6 +22,10 @@ public sealed partial class UiRoot
     private string _lastPointerResolvePath = "None";
     private HitTestMetrics? _lastPointerResolveHitTestMetrics;
     private ContextMenu? _lastKnownOpenContextMenu;
+    private bool _suppressNextLeftReleaseAfterOverlayDismiss;
+    private bool _suppressNextRightReleaseAfterOverlayDismiss;
+    private bool _suppressCurrentLeftPressGesture;
+    private bool _suppressCurrentRightPressGesture;
 
     private void RunInputAndEventsPhase(GameTime gameTime)
     {
@@ -122,16 +126,20 @@ public sealed partial class UiRoot
 
         if (delta.LeftPressed)
         {
+            _suppressCurrentLeftPressGesture = false;
             _lastClickDownTarget = pointerTarget;
             _lastClickDownPointerPosition = delta.Current.PointerPosition;
             _hasLastClickDownPointerPosition = true;
             var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
-            _ = InputGestureService.Execute(
-                MouseButton.Left,
-                _inputState.CurrentModifiers,
-                _inputState.FocusedElement,
-                _visualRoot);
+            if (!_suppressCurrentLeftPressGesture)
+            {
+                _ = InputGestureService.Execute(
+                    MouseButton.Left,
+                    _inputState.CurrentModifiers,
+                    _inputState.FocusedElement,
+                    _visualRoot);
+            }
             clickResolveHitTests = 0;
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
@@ -151,13 +159,17 @@ public sealed partial class UiRoot
 
         if (delta.RightPressed)
         {
+            _suppressCurrentRightPressGesture = false;
             var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Right);
-            _ = InputGestureService.Execute(
-                MouseButton.Right,
-                _inputState.CurrentModifiers,
-                _inputState.FocusedElement,
-                _visualRoot);
+            if (!_suppressCurrentRightPressGesture)
+            {
+                _ = InputGestureService.Execute(
+                    MouseButton.Right,
+                    _inputState.CurrentModifiers,
+                    _inputState.FocusedElement,
+                    _visualRoot);
+            }
             clickResolveHitTests = 0;
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
@@ -636,7 +648,22 @@ public sealed partial class UiRoot
             return;
         }
 
-        _ = TryDismissOverlayOnOutsidePointerDown(pointerPosition, target);
+        var dismissResult = TryDismissOverlayOnOutsidePointerDown(pointerPosition, target);
+        if (dismissResult.Consumed)
+        {
+            if (button == MouseButton.Left)
+            {
+                _suppressCurrentLeftPressGesture = true;
+                _suppressNextLeftReleaseAfterOverlayDismiss = true;
+            }
+            else if (button == MouseButton.Right)
+            {
+                _suppressCurrentRightPressGesture = true;
+                _suppressNextRightReleaseAfterOverlayDismiss = true;
+            }
+
+            return;
+        }
 
         if (target == null)
         {
@@ -748,6 +775,20 @@ public sealed partial class UiRoot
 
     private void DispatchMouseUp(UIElement? target, Vector2 pointerPosition, MouseButton button)
     {
+        if (button == MouseButton.Left &&
+            _suppressNextLeftReleaseAfterOverlayDismiss)
+        {
+            _suppressNextLeftReleaseAfterOverlayDismiss = false;
+            return;
+        }
+
+        if (button == MouseButton.Right &&
+            _suppressNextRightReleaseAfterOverlayDismiss)
+        {
+            _suppressNextRightReleaseAfterOverlayDismiss = false;
+            return;
+        }
+
         var routedTarget = _inputState.CapturedPointerElement ?? target;
         if (routedTarget == null)
         {
@@ -792,6 +833,10 @@ public sealed partial class UiRoot
         else if (_inputState.CapturedPointerElement is Popup popup && button == MouseButton.Left)
         {
             popup.HandlePointerUpFromInput(pointerPosition);
+            if (!popup.IsOpen)
+            {
+                TrySynchronizePopupFocusRestore(popup);
+            }
         }
         else if (_inputState.CapturedPointerElement == null && target is MenuItem menuItemTarget)
         {
@@ -1888,22 +1933,21 @@ public sealed partial class UiRoot
         }
     }
 
-    private bool TryDismissOverlayOnOutsidePointerDown(Vector2 pointerPosition, UIElement? pointerTarget)
+    private OverlayDismissResult TryDismissOverlayOnOutsidePointerDown(Vector2 pointerPosition, UIElement? pointerTarget)
     {
         if (!TryGetTopOverlayCandidate(out var candidate) ||
             !candidate.CloseOnOutsidePointerDown)
         {
-            return false;
+            return OverlayDismissResult.None;
         }
 
         if ((pointerTarget != null && IsElementDescendantOf(pointerTarget, candidate.Element)) ||
             candidate.Element.HitTest(pointerPosition))
         {
-            return false;
+            return OverlayDismissResult.None;
         }
 
-        CloseOverlay(candidate.Element);
-        return true;
+        return CloseOverlay(candidate.Element, consumePointerClick: true);
     }
 
     private bool TryDismissTopOverlayOnEscape()
@@ -1914,8 +1958,7 @@ public sealed partial class UiRoot
             return false;
         }
 
-        CloseOverlay(candidate.Element);
-        return true;
+        return CloseOverlay(candidate.Element, consumePointerClick: false).Dismissed;
     }
 
     private bool TryGetTopOverlayCandidate(out OverlayCandidate candidate)
@@ -1952,17 +1995,23 @@ public sealed partial class UiRoot
         return false;
     }
 
-    private static void CloseOverlay(UIElement overlay)
+    private OverlayDismissResult CloseOverlay(UIElement overlay, bool consumePointerClick)
     {
         switch (overlay)
         {
             case Popup popup:
                 popup.Close();
+                TrySynchronizePopupFocusRestore(popup);
                 break;
             case ContextMenu contextMenu:
                 contextMenu.Close();
+                TrySynchronizeContextMenuFocusRestore(contextMenu);
                 break;
+            default:
+                return OverlayDismissResult.None;
         }
+
+        return new OverlayDismissResult(Dismissed: true, Consumed: consumePointerClick);
     }
 
     private static void CollectOverlayCandidate(
@@ -2049,6 +2098,13 @@ public sealed partial class UiRoot
         bool CloseOnOutsidePointerDown,
         bool CloseOnEscape);
 
+    private readonly record struct OverlayDismissResult(
+        bool Dismissed,
+        bool Consumed)
+    {
+        internal static OverlayDismissResult None => new(Dismissed: false, Consumed: false);
+    }
+
     private void SetFocus(UIElement? element)
     {
         if (ReferenceEquals(_inputState.FocusedElement, element))
@@ -2128,6 +2184,16 @@ public sealed partial class UiRoot
     private void TrySynchronizeContextMenuFocusRestore(ContextMenu contextMenu)
     {
         if (contextMenu.TryConsumePendingFocusRestore(out var focusTarget) && focusTarget != null)
+        {
+            SetFocus(focusTarget);
+        }
+    }
+
+    private void TrySynchronizePopupFocusRestore(Popup popup)
+    {
+        if (popup.TryConsumePendingFocusRestore(out var focusTarget) &&
+            focusTarget != null &&
+            IsElementDescendantOf(focusTarget, _visualRoot))
         {
             SetFocus(focusTarget);
         }
