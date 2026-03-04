@@ -23,6 +23,9 @@ internal static class PathMarkupParser
         private Vector2 _current;
         private Vector2 _figureStart;
         private bool _hasOpenFigure;
+        private Vector2? _lastCubicControl;
+        private Vector2? _lastQuadraticControl;
+        private char _lastCurveCommand;
 
         public Parser(string data)
         {
@@ -103,15 +106,34 @@ internal static class PathMarkupParser
                 case 'c':
                     CubicTo(relative: true);
                     break;
+                case 'S':
+                    SmoothCubicTo(relative: false);
+                    break;
+                case 's':
+                    SmoothCubicTo(relative: true);
+                    break;
                 case 'Q':
                     QuadraticTo(relative: false);
                     break;
                 case 'q':
                     QuadraticTo(relative: true);
                     break;
+                case 'T':
+                    SmoothQuadraticTo(relative: false);
+                    break;
+                case 't':
+                    SmoothQuadraticTo(relative: true);
+                    break;
+                case 'A':
+                    ArcTo(relative: false);
+                    break;
+                case 'a':
+                    ArcTo(relative: true);
+                    break;
                 case 'Z':
                 case 'z':
                     CloseOpenFigure(true);
+                    ClearCurveState();
                     break;
                 default:
                     throw new FormatException($"Path command '{_command}' is not supported.");
@@ -123,6 +145,7 @@ internal static class PathMarkupParser
             var first = ReadPoint(relative ? _current : Vector2.Zero, relative);
             CloseOpenFigure(false);
             StartFigure(first);
+            ClearCurveState();
 
             while (TryPeekNumberStart())
             {
@@ -134,6 +157,7 @@ internal static class PathMarkupParser
         private void LineTo(bool relative)
         {
             EnsureFigureStarted();
+            ClearCurveState();
             while (TryPeekNumberStart())
             {
                 var point = ReadPoint(_current, relative);
@@ -144,6 +168,7 @@ internal static class PathMarkupParser
         private void HorizontalTo(bool relative)
         {
             EnsureFigureStarted();
+            ClearCurveState();
             while (TryPeekNumberStart())
             {
                 var x = ReadNumber();
@@ -157,6 +182,7 @@ internal static class PathMarkupParser
         private void VerticalTo(bool relative)
         {
             EnsureFigureStarted();
+            ClearCurveState();
             while (TryPeekNumberStart())
             {
                 var y = ReadNumber();
@@ -177,6 +203,27 @@ internal static class PathMarkupParser
                 var end = ReadPoint(_current, relative);
                 AddBezierCubic(_current, c1, c2, end);
                 _current = end;
+                _lastCubicControl = c2;
+                _lastQuadraticControl = null;
+                _lastCurveCommand = 'C';
+            }
+        }
+
+        private void SmoothCubicTo(bool relative)
+        {
+            EnsureFigureStarted();
+            while (TryPeekNumberStart())
+            {
+                var c1 = (_lastCurveCommand == 'C' || _lastCurveCommand == 'S') && _lastCubicControl.HasValue
+                    ? ReflectControlPoint(_current, _lastCubicControl.Value)
+                    : _current;
+                var c2 = ReadPoint(_current, relative);
+                var end = ReadPoint(_current, relative);
+                AddBezierCubic(_current, c1, c2, end);
+                _current = end;
+                _lastCubicControl = c2;
+                _lastQuadraticControl = null;
+                _lastCurveCommand = 'S';
             }
         }
 
@@ -189,7 +236,166 @@ internal static class PathMarkupParser
                 var end = ReadPoint(_current, relative);
                 AddBezierQuadratic(_current, c, end);
                 _current = end;
+                _lastQuadraticControl = c;
+                _lastCubicControl = null;
+                _lastCurveCommand = 'Q';
             }
+        }
+
+        private void SmoothQuadraticTo(bool relative)
+        {
+            EnsureFigureStarted();
+            while (TryPeekNumberStart())
+            {
+                var control = (_lastCurveCommand == 'Q' || _lastCurveCommand == 'T') && _lastQuadraticControl.HasValue
+                    ? ReflectControlPoint(_current, _lastQuadraticControl.Value)
+                    : _current;
+                var end = ReadPoint(_current, relative);
+                AddBezierQuadratic(_current, control, end);
+                _current = end;
+                _lastQuadraticControl = control;
+                _lastCubicControl = null;
+                _lastCurveCommand = 'T';
+            }
+        }
+
+        private void ArcTo(bool relative)
+        {
+            EnsureFigureStarted();
+            ClearCurveState();
+            while (TryPeekNumberStart())
+            {
+                var rx = MathF.Abs(ReadNumber());
+                var ry = MathF.Abs(ReadNumber());
+                var xAxisRotation = ReadNumber();
+                var largeArc = ReadFlag();
+                var sweep = ReadFlag();
+                var end = ReadPoint(_current, relative);
+                AddArc(_current, rx, ry, xAxisRotation, largeArc, sweep, end);
+                _current = end;
+            }
+        }
+
+        private void AddArc(
+            Vector2 start,
+            float rx,
+            float ry,
+            float xAxisRotationDegrees,
+            bool largeArc,
+            bool sweep,
+            Vector2 end)
+        {
+            if (Vector2.DistanceSquared(start, end) <= 0.000001f)
+            {
+                return;
+            }
+
+            if (rx <= 0f || ry <= 0f)
+            {
+                AddPoint(end);
+                return;
+            }
+
+            var phi = DegreesToRadians(xAxisRotationDegrees % 360f);
+            var cosPhi = MathF.Cos(phi);
+            var sinPhi = MathF.Sin(phi);
+
+            var dx2 = (start.X - end.X) * 0.5f;
+            var dy2 = (start.Y - end.Y) * 0.5f;
+            var x1Prime = (cosPhi * dx2) + (sinPhi * dy2);
+            var y1Prime = (-sinPhi * dx2) + (cosPhi * dy2);
+
+            var rxSq = rx * rx;
+            var rySq = ry * ry;
+            var x1PrimeSq = x1Prime * x1Prime;
+            var y1PrimeSq = y1Prime * y1Prime;
+
+            var lambda = (x1PrimeSq / rxSq) + (y1PrimeSq / rySq);
+            if (lambda > 1f)
+            {
+                var scale = MathF.Sqrt(lambda);
+                rx *= scale;
+                ry *= scale;
+                rxSq = rx * rx;
+                rySq = ry * ry;
+            }
+
+            var numerator = (rxSq * rySq) - (rxSq * y1PrimeSq) - (rySq * x1PrimeSq);
+            var denominator = (rxSq * y1PrimeSq) + (rySq * x1PrimeSq);
+            var coeff = 0f;
+            if (denominator > 0f)
+            {
+                var ratio = MathF.Max(0f, numerator / denominator);
+                coeff = (largeArc == sweep ? -1f : 1f) * MathF.Sqrt(ratio);
+            }
+
+            var cxPrime = coeff * ((rx * y1Prime) / ry);
+            var cyPrime = coeff * (-(ry * x1Prime) / rx);
+
+            var cx = (cosPhi * cxPrime) - (sinPhi * cyPrime) + ((start.X + end.X) * 0.5f);
+            var cy = (sinPhi * cxPrime) + (cosPhi * cyPrime) + ((start.Y + end.Y) * 0.5f);
+
+            var ux = (x1Prime - cxPrime) / rx;
+            var uy = (y1Prime - cyPrime) / ry;
+            var vx = (-x1Prime - cxPrime) / rx;
+            var vy = (-y1Prime - cyPrime) / ry;
+
+            var theta1 = MathF.Atan2(uy, ux);
+            var deltaTheta = SignedAngle(ux, uy, vx, vy);
+
+            if (!sweep && deltaTheta > 0f)
+            {
+                deltaTheta -= MathF.PI * 2f;
+            }
+            else if (sweep && deltaTheta < 0f)
+            {
+                deltaTheta += MathF.PI * 2f;
+            }
+
+            if (MathF.Abs(deltaTheta) <= 0.000001f)
+            {
+                AddPoint(end);
+                return;
+            }
+
+            const float maxArcStepRadians = MathF.PI / 12f;
+            var segments = Math.Max(1, (int)MathF.Ceiling(MathF.Abs(deltaTheta) / maxArcStepRadians));
+            for (var i = 1; i <= segments; i++)
+            {
+                var t = i / (float)segments;
+                var theta = theta1 + (deltaTheta * t);
+                var cosTheta = MathF.Cos(theta);
+                var sinTheta = MathF.Sin(theta);
+                var x = cx + (rx * cosPhi * cosTheta) - (ry * sinPhi * sinTheta);
+                var y = cy + (rx * sinPhi * cosTheta) + (ry * cosPhi * sinTheta);
+                _currentPoints.Add(new Vector2(x, y));
+            }
+
+            _currentPoints[^1] = end;
+        }
+
+        private static float SignedAngle(float ux, float uy, float vx, float vy)
+        {
+            var dot = (ux * vx) + (uy * vy);
+            var det = (ux * vy) - (uy * vx);
+            return MathF.Atan2(det, dot);
+        }
+
+        private static float DegreesToRadians(float degrees)
+        {
+            return degrees * (MathF.PI / 180f);
+        }
+
+        private static Vector2 ReflectControlPoint(Vector2 around, Vector2 control)
+        {
+            return new Vector2((2f * around.X) - control.X, (2f * around.Y) - control.Y);
+        }
+
+        private void ClearCurveState()
+        {
+            _lastCubicControl = null;
+            _lastQuadraticControl = null;
+            _lastCurveCommand = default;
         }
 
         private void AddBezierQuadratic(Vector2 start, Vector2 control, Vector2 end)
@@ -285,6 +491,30 @@ internal static class PathMarkupParser
             }
 
             return new Vector2(origin.X + x, origin.Y + y);
+        }
+
+        private bool ReadFlag()
+        {
+            SkipSeparators();
+            if (_index >= _data.Length)
+            {
+                throw new FormatException("Unexpected end of path data while reading arc flag.");
+            }
+
+            var c = _data[_index];
+            if (c == '0')
+            {
+                _index++;
+                return false;
+            }
+
+            if (c == '1')
+            {
+                _index++;
+                return true;
+            }
+
+            throw new FormatException($"Arc flag must be 0 or 1 near '{_data[_index..]}'.");
         }
 
         private float ReadNumber()
