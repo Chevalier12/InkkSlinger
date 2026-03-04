@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -6,6 +8,8 @@ namespace InkkSlinger;
 
 public class UserControl : ContentControl
 {
+    private UIElement? _cachedTemplateRoot;
+
     public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
@@ -79,18 +83,82 @@ public class UserControl : ContentControl
                 "UserControl.Content must be a UIElement. Wrap non-visual data in a visual element.");
         }
 
-        if (args.Property == TemplateProperty &&
-            args.NewValue != null)
+        if (args.Property == TemplateProperty)
         {
-            throw new NotSupportedException(
-                "UserControl does not support custom ControlTemplate. Compose the visual tree through Content instead.");
+            DetachTemplateContentPresenters();
+            // Clear early so any re-entrant layout during template clear/rebuild cannot observe a stale root.
+            _cachedTemplateRoot = null;
         }
 
         base.OnDependencyPropertyChanged(args);
+
+        if (args.Property == TemplateProperty && HasTemplateAssigned())
+        {
+            RefreshCachedTemplateRoot();
+        }
+    }
+
+    public override IEnumerable<UIElement> GetVisualChildren()
+    {
+        if (!HasTemplateAssigned())
+        {
+            foreach (var child in base.GetVisualChildren())
+            {
+                yield return child;
+            }
+
+            yield break;
+        }
+
+        foreach (var child in base.GetVisualChildren())
+        {
+            if (ReferenceEquals(child, ContentElement))
+            {
+                continue;
+            }
+
+            yield return child;
+        }
+    }
+
+    public override IEnumerable<UIElement> GetLogicalChildren()
+    {
+        if (!HasTemplateAssigned())
+        {
+            foreach (var child in base.GetLogicalChildren())
+            {
+                yield return child;
+            }
+
+            yield break;
+        }
+
+        foreach (var child in base.GetLogicalChildren())
+        {
+            if (ReferenceEquals(child, ContentElement))
+            {
+                continue;
+            }
+
+            yield return child;
+        }
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        if (HasTemplateAssigned())
+        {
+            EnsureTemplateAppliedIfNeeded();
+
+            if (_cachedTemplateRoot is FrameworkElement templateRoot)
+            {
+                templateRoot.Measure(availableSize);
+                return templateRoot.DesiredSize;
+            }
+
+            return Vector2.Zero;
+        }
+
         var measured = base.MeasureOverride(availableSize);
         var chrome = GetChromeThickness();
         return new Vector2(measured.X + chrome.Horizontal, measured.Y + chrome.Vertical);
@@ -98,6 +166,19 @@ public class UserControl : ContentControl
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        if (HasTemplateAssigned())
+        {
+            EnsureTemplateAppliedIfNeeded();
+
+            if (_cachedTemplateRoot is FrameworkElement templateRoot)
+            {
+                templateRoot.Arrange(new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
+            }
+
+            return finalSize;
+        }
+
+        // Intentional compatibility path: base arranges content first; we then re-arrange with UserControl chrome offsets.
         base.ArrangeOverride(finalSize);
 
         if (ContentElement is FrameworkElement content)
@@ -116,6 +197,11 @@ public class UserControl : ContentControl
     protected override void OnRender(SpriteBatch spriteBatch)
     {
         base.OnRender(spriteBatch);
+
+        if (HasTemplateAssigned())
+        {
+            return;
+        }
 
         var slot = LayoutSlot;
         var border = BorderThickness;
@@ -167,5 +253,83 @@ public class UserControl : ContentControl
             border.Top + padding.Top,
             border.Right + padding.Right,
             border.Bottom + padding.Bottom);
+    }
+
+    private bool HasTemplateAssigned()
+    {
+        return Template != null;
+    }
+
+    private void EnsureTemplateAppliedIfNeeded()
+    {
+        if (Template != null && !HasTemplateRoot)
+        {
+            _cachedTemplateRoot = null;
+            ApplyTemplate();
+            RefreshCachedTemplateRoot();
+            return;
+        }
+
+        if (HasTemplateAssigned() && _cachedTemplateRoot == null && HasTemplateRoot)
+        {
+            RefreshCachedTemplateRoot();
+        }
+    }
+
+    private void RefreshCachedTemplateRoot()
+    {
+        _cachedTemplateRoot = null;
+        foreach (var child in base.GetVisualChildren())
+        {
+            if (!ReferenceEquals(child, ContentElement))
+            {
+                _cachedTemplateRoot = child;
+                return;
+            }
+        }
+    }
+
+    private void DetachTemplateContentPresenters()
+    {
+        var templateRoot = _cachedTemplateRoot;
+        if (templateRoot == null)
+        {
+            foreach (var child in base.GetVisualChildren())
+            {
+                if (!ReferenceEquals(child, ContentElement))
+                {
+                    templateRoot = child;
+                    break;
+                }
+            }
+        }
+
+        if (templateRoot == null)
+        {
+            return;
+        }
+
+        var pending = new Stack<UIElement>();
+        var visited = new HashSet<UIElement>();
+        pending.Push(templateRoot);
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            if (!visited.Add(current))
+            {
+                continue;
+            }
+
+            if (current is ContentPresenter presenter)
+            {
+                DetachContentPresenter(presenter);
+            }
+
+            foreach (var child in current.GetVisualChildren().Concat(current.GetLogicalChildren()))
+            {
+                pending.Push(child);
+            }
+        }
     }
 }

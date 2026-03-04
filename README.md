@@ -11,7 +11,7 @@
 | Current failing test areas | `None` | Latest full release test run (`2026-03-04`) |
 | WPF control coverage | Broad but incomplete (`74/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `3` unchecked TODO items | `TODO.md` (missing controls) |
-| Explicit unsupported behavior | Present | `UI/Controls/Containers/UserControl.cs` blocks custom `ControlTemplate`; `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
+| Explicit unsupported behavior | Present | `UI/Input/Core/InputGestureService.cs` blocks imperative gesture registration |
 
 ### Honest Verdict
 
@@ -152,7 +152,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Commanding/Input API | Declarative `InputBinding` model with `KeyGesture` + `MouseGesture` (`KeyBinding`/`MouseBinding`) | `UI/Input/Types/InputBinding.cs`, `UI/Input/Types/KeyBinding.cs`, `UI/Input/Types/KeyGesture.cs`, `UI/Input/Types/MouseBinding.cs`, `UI/Input/Types/MouseGesture.cs`, `UI/Controls/Base/UIElement.cs` | Implemented |
 | Commanding API | `RoutedUICommand` surface | `UI/Commanding/RoutedUICommand.cs`, `InkkSlinger.Tests/CommandingTests.cs` (`RoutedUICommand_Xaml_MenuHeaderAndGestureAndExecution_IntegrateEndToEnd`) | Implemented (tested) |
 | Commanding API | `ICommandSource` ecosystem parity across controls | `UI/Commanding/ICommandSource.cs`, `UI/Commanding/CommandTargetResolver.cs`, command hookup remains control-specific across parts of the control stack | Partial |
-| Container behavior | `UserControl` custom `ControlTemplate` is blocked (`NotSupportedException`) | `UI/Controls/Containers/UserControl.cs` | Not supported |
+| Container behavior | `UserControl` supports custom `ControlTemplate` (WPF-strict template path; content is surfaced through `ContentPresenter`) | `UI/Controls/Containers/UserControl.cs`, `InkkSlinger.Tests/UserControlTemplateParityTests.cs` | Implemented (tested) |
 | Geometry path parser | Path commands `S/s`, `T/t`, `A/a` are rejected | `UI/Geometry/Parsing/PathMarkupParser.cs` | Partial |
 | Text pipeline | Virtual wrapped text layout optimization is enabled for wrapped layouts with finite positive width and guarded by resize/input regressions | `UI/Controls/Inputs/TextBox.cs` (`CanUseVirtualWrappedLayout`), `InkkSlinger.Tests/ViewportResizeInputRegressionTests.cs`, `InkkSlinger.Tests/InputDispatchOptimizationTests.cs` | Implemented (tested) |
 | Framework services | `Freezable` semantics and related WPF service patterns | No `Freezable` infrastructure in `UI/` | Not implemented |

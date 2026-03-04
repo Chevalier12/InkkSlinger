@@ -60,6 +60,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] Controls catalog demo expansion: added `Catch Me!` interactive canvas view with storyboard-driven run-away ellipse behavior.
 - [x] `Frame`/`Page` navigation vertical slice: object navigation journal (`Navigate`, `GoBack`, `GoForward`, `CanGoBack`, `CanGoForward`), page-scoped `NavigationService` attach/detach semantics, XAML/schema support, and regression coverage (`FrameNavigationTests`).
 - [x] `DocumentViewer` vertical slice: read-only paged FlowDocument viewing (selection, copy, hyperlink hover/activation, zoom/page navigation commands), shared viewing helpers (`DocumentViewportController`/`DocumentPageMap`), XAML/schema support, and focused regression coverage (`DocumentViewer*Tests`).
+- [x] `UserControl` templating parity pass: custom `ControlTemplate` support enabled with WPF-strict behavior (`Content` is surfaced only through template `ContentPresenter`), including direct/template-style/XAML property-element regression coverage.
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
