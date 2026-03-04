@@ -3708,26 +3708,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private bool TryActivateHyperlink(Hyperlink hyperlink)
     {
-        if (hyperlink.Command is RoutedCommand routedCommand)
+        if (CommandSourceExecution.TryExecute(hyperlink, this))
         {
-            var target = CommandTargetResolver.Resolve(hyperlink.CommandTarget, this);
-            if (!CommandManager.CanExecute(routedCommand, hyperlink.CommandParameter, target))
-            {
-                return false;
-            }
-
-            CommandManager.Execute(routedCommand, hyperlink.CommandParameter, target);
-            return true;
-        }
-
-        if (hyperlink.Command != null)
-        {
-            if (!hyperlink.Command.CanExecute(hyperlink.CommandParameter))
-            {
-                return false;
-            }
-
-            hyperlink.Command.Execute(hyperlink.CommandParameter);
             return true;
         }
 

@@ -384,31 +384,7 @@ public class Control : FrameworkElement, ICommandSource
 
     protected bool ExecuteCommand()
     {
-        if (Command == null)
-        {
-            return false;
-        }
-
-        var target = ResolveCommandTarget();
-
-        if (Command is RoutedCommand routedCommand)
-        {
-            if (!CommandManager.CanExecute(routedCommand, CommandParameter, target))
-            {
-                return false;
-            }
-
-            CommandManager.Execute(routedCommand, CommandParameter, target);
-            return true;
-        }
-
-        if (!Command.CanExecute(CommandParameter))
-        {
-            return false;
-        }
-
-        Command.Execute(CommandParameter);
-        return true;
+        return CommandSourceExecution.TryExecute(this, this);
     }
 
     private void RefreshCommandSubscriptions(System.Windows.Input.ICommand? oldCommand, System.Windows.Input.ICommand? newCommand)
@@ -441,12 +417,7 @@ public class Control : FrameworkElement, ICommandSource
             return;
         }
 
-        var target = ResolveCommandTarget();
-        var canExecute = Command is RoutedCommand routedCommand
-            ? CommandManager.CanExecute(routedCommand, CommandParameter, target)
-            : Command.CanExecute(CommandParameter);
-
-        if (canExecute)
+        if (CommandSourceExecution.CanExecute(this, this))
         {
             RestoreIsEnabledIfCommandDisabledIt();
             return;

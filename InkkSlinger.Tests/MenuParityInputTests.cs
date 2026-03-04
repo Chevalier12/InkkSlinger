@@ -128,6 +128,24 @@ public class MenuParityInputTests
     }
 
     [Fact]
+    public void Enter_OnLeafWithCommand_RaisesClickAndExecutesCommand_ThenClosesMenu()
+    {
+        var fixture = CreateFixture();
+        FocusByClick(fixture.UiRoot, fixture.EditorTextBox);
+
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.F, new KeyboardState(Keys.LeftAlt)));
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Down));
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Right));
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Right));
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter));
+
+        Assert.Equal(1, fixture.ConsoleMenuItemClicks);
+        Assert.Equal(1, fixture.ConsoleCommandExecutions);
+        Assert.False(fixture.Menu.IsMenuMode);
+        Assert.False(fixture.FileMenuItem.IsSubmenuOpen);
+    }
+
+    [Fact]
     public void Escape_ClosesMenu_AndRestoresPreviousFocus()
     {
         var fixture = CreateFixture();
@@ -266,15 +284,17 @@ public class MenuParityInputTests
         menu.Items.Add(edit);
 
         var executions = 0;
+        var clicks = 0;
         var openConsoleCommand = new RoutedCommand("OpenConsole", typeof(MenuParityInputTests));
         root.CommandBindings.Add(new CommandBinding(openConsoleCommand, (_, _) => executions++));
         console.Command = openConsoleCommand;
         console.CommandTarget = root;
+        console.Click += (_, _) => clicks++;
 
         var uiRoot = new UiRoot(root);
         RunLayout(uiRoot, 960, 640, 16);
 
-        return new Fixture(uiRoot, menu, file, edit, @new, project, console, editorTextBox, sideTextBox, () => executions);
+        return new Fixture(uiRoot, menu, file, edit, @new, project, console, editorTextBox, sideTextBox, () => executions, () => clicks);
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
@@ -286,6 +306,7 @@ public class MenuParityInputTests
     private sealed class Fixture
     {
         private readonly Func<int> _executionCountProvider;
+        private readonly Func<int> _clickCountProvider;
 
         public Fixture(
             UiRoot uiRoot,
@@ -297,7 +318,8 @@ public class MenuParityInputTests
             MenuItem consoleMenuItem,
             TextBox editorTextBox,
             TextBox sideTextBox,
-            Func<int> executionCountProvider)
+            Func<int> executionCountProvider,
+            Func<int> clickCountProvider)
         {
             UiRoot = uiRoot;
             Menu = menu;
@@ -309,6 +331,7 @@ public class MenuParityInputTests
             EditorTextBox = editorTextBox;
             SideTextBox = sideTextBox;
             _executionCountProvider = executionCountProvider;
+            _clickCountProvider = clickCountProvider;
         }
 
         public UiRoot UiRoot { get; }
@@ -322,6 +345,7 @@ public class MenuParityInputTests
         public TextBox SideTextBox { get; }
 
         public int ConsoleCommandExecutions => _executionCountProvider();
+        public int ConsoleMenuItemClicks => _clickCountProvider();
     }
 }
 

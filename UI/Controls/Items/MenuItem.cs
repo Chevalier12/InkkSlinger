@@ -733,13 +733,14 @@ public class MenuItem : ItemsControl
 
     internal bool InvokeLeaf()
     {
-        if (Command != null)
+        RaiseClick();
+
+        if (Command == null)
         {
-            return ExecuteCommand();
+            return true;
         }
 
-        RaiseClick();
-        return true;
+        return CommandSourceExecution.TryExecute(this, this);
     }
 
     private float MeasureTextWidth(string text)

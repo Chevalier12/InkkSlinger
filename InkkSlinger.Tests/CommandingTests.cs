@@ -613,6 +613,127 @@ public class CommandingTests
     }
 
     [Fact]
+    public void MenuItem_CommandInvocation_RaisesClickAndExecutesCommand()
+    {
+        var root = new StackPanel();
+        var target = new TextBox();
+        var item = new MenuItem();
+        root.AddChild(target);
+        root.AddChild(item);
+
+        var command = new RoutedCommand("ProbeMenuItem", typeof(CommandingTests));
+        var commandExecutions = 0;
+        var clickExecutions = 0;
+        target.CommandBindings.Add(new CommandBinding(command, (_, _) => commandExecutions++));
+        item.Click += (_, _) => clickExecutions++;
+        item.Command = command;
+        item.CommandTarget = target;
+
+        var invoked = InvokeLeaf(item);
+
+        Assert.True(invoked);
+        Assert.Equal(1, clickExecutions);
+        Assert.Equal(1, commandExecutions);
+    }
+
+    [Fact]
+    public void MenuItem_CommandTarget_WhenNull_FallsBackToFocusedElement()
+    {
+        FocusManager.ClearFocus();
+        try
+        {
+            var source = new MenuItem();
+            var focusedTarget = new TextBox();
+            var command = new RoutedCommand("ProbeMenuItem", typeof(CommandingTests));
+            var executedOnFocused = 0;
+
+            focusedTarget.CommandBindings.Add(
+                new CommandBinding(
+                    command,
+                    (_, _) => executedOnFocused++,
+                    (_, args) => args.CanExecute = true));
+
+            source.Command = command;
+            FocusManager.SetFocus(focusedTarget);
+
+            var invoked = InvokeLeaf(source);
+
+            Assert.True(invoked);
+            Assert.Equal(1, executedOnFocused);
+        }
+        finally
+        {
+            FocusManager.ClearFocus();
+        }
+    }
+
+    [Fact]
+    public void MenuItem_CommandTarget_ExplicitTarget_WinsOverFocusedFallback()
+    {
+        FocusManager.ClearFocus();
+        try
+        {
+            var source = new MenuItem();
+            var focusedTarget = new TextBox();
+            var explicitTarget = new TextBox();
+            var command = new RoutedCommand("ProbeMenuItem", typeof(CommandingTests));
+            var focusedExecutions = 0;
+            var explicitExecutions = 0;
+
+            focusedTarget.CommandBindings.Add(
+                new CommandBinding(
+                    command,
+                    (_, _) => focusedExecutions++,
+                    (_, args) => args.CanExecute = true));
+            explicitTarget.CommandBindings.Add(
+                new CommandBinding(
+                    command,
+                    (_, _) => explicitExecutions++,
+                    (_, args) => args.CanExecute = true));
+
+            source.Command = command;
+            source.CommandTarget = explicitTarget;
+            FocusManager.SetFocus(focusedTarget);
+
+            var invoked = InvokeLeaf(source);
+
+            Assert.True(invoked);
+            Assert.Equal(0, focusedExecutions);
+            Assert.Equal(1, explicitExecutions);
+        }
+        finally
+        {
+            FocusManager.ClearFocus();
+        }
+    }
+
+    [Fact]
+    public void MenuItem_CommandCannotExecute_ClickStillRaised_CommandNotExecuted()
+    {
+        var source = new MenuItem();
+        var target = new TextBox();
+        var command = new RoutedCommand("ProbeMenuItem", typeof(CommandingTests));
+        var clickExecutions = 0;
+        var commandExecutions = 0;
+
+        target.CommandBindings.Add(
+            new CommandBinding(
+                command,
+                (_, _) => commandExecutions++,
+                (_, args) => args.CanExecute = false));
+
+        source.Click += (_, _) => clickExecutions++;
+        source.Command = command;
+        source.CommandTarget = target;
+
+        var invoked = InvokeLeaf(source);
+
+        Assert.False(invoked);
+        Assert.Equal(1, clickExecutions);
+        Assert.Equal(0, commandExecutions);
+    }
+
+    [Fact]
     public void ButtonCommandTarget_WhenNull_FallsBackToFocusedElement()
     {
         FocusManager.ClearFocus();
@@ -890,6 +1011,13 @@ public class CommandingTests
         var method = typeof(MenuItem).GetMethod("GetDisplayHeaderText", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(method);
         return (string)method!.Invoke(item, null)!;
+    }
+
+    private static bool InvokeLeaf(MenuItem item)
+    {
+        var method = typeof(MenuItem).GetMethod("InvokeLeaf", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        return (bool)method!.Invoke(item, null)!;
     }
 
     private static InputDelta CreatePointerDelta(
