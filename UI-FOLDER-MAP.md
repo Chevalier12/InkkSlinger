@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-03-03 (full filesystem refresh)
+Generated: 2026-03-04 (full filesystem refresh)
 
 ```text
 UI/
@@ -175,6 +175,7 @@ UI/
       GroupItem.cs
       Presenters.cs
     Primitives/
+      AccessText.cs
       Border.cs
       Image.cs
       ImageSource.cs
@@ -237,6 +238,7 @@ UI/
       PathMarkupParser.cs
   Input/
     Core/
+      AccessKeyService.cs
       FocusManager.cs
       InputGestureService.cs
       InputManager.cs
@@ -333,6 +335,7 @@ UI/
       TemplatePartAttribute.cs
   Text/
     Core/
+      AccessTextParser.cs
       TextLayout.cs
     Documents/
       Operations/

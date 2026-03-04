@@ -55,6 +55,7 @@
         <xs:element ref="UserControl" />
         <xs:element ref="Label" />
         <xs:element ref="TextBlock" />
+        <xs:element ref="AccessText" />
         <xs:element ref="Button" />
         <xs:element ref="ToggleButton" />
         <xs:element ref="CheckBox" />
@@ -1195,6 +1196,14 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="accessTextType">
+    <xs:complexContent>
+      <xs:extension base="textBlockType">
+        <xs:attribute name="TargetName" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="buttonType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
@@ -2099,6 +2108,7 @@
   <xs:element name="TransformGroup.Children" type="transformGroupChildrenType" />
   <xs:element name="Label" type="labelType" />
   <xs:element name="TextBlock" type="textBlockType" />
+  <xs:element name="AccessText" type="accessTextType" />
   <xs:element name="Button" type="buttonType" />
   <xs:element name="Button.ContextMenu" type="buttonContextMenuType" />
   <xs:element name="ToggleButton" type="toggleButtonType" />

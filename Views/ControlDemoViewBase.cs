@@ -147,6 +147,9 @@ internal static class ControlDemoSupport
             case Label label:
                 label.Font = font;
                 break;
+            case AccessText accessText:
+                accessText.Font = font;
+                break;
             case TextBlock textBlock:
                 textBlock.Font = font;
                 break;
@@ -197,6 +200,35 @@ internal static class ControlDemoSupport
                 return new Label { Text = "Label" };
             case "TextBlock":
                 return new TextBlock { Text = "TextBlock sample" };
+            case "AccessText":
+            {
+                var root = new StackPanel
+                {
+                    Margin = new Thickness(4)
+                };
+                var button = new Button
+                {
+                    Name = "SaveButton",
+                    Text = "Save",
+                    Width = 180f
+                };
+                var accessText = new AccessText
+                {
+                    Text = "_Save action",
+                    TargetName = "SaveButton",
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Foreground = new Color(232, 245, 255)
+                };
+                var hint = new Label
+                {
+                    Text = "Press Alt+S to invoke Save.",
+                    Foreground = new Color(180, 210, 235)
+                };
+                root.AddChild(accessText);
+                root.AddChild(button);
+                root.AddChild(hint);
+                return root;
+            }
             case "TextBox":
                 return new TextBox { Text = "TextBox sample" };
             case "PasswordBox":

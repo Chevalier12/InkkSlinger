@@ -4,7 +4,7 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `555/555` passing.
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `572/572` passing.
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - This file tracks completed milestones, known parity gaps, and control coverage.
@@ -128,7 +128,7 @@ Pointer-move dispatch is forced while any context menu is open (so hover transit
 `CollectionView` stack with `CollectionViewSource` authoring, plus `ItemsControl.ItemsSource` support across controls with WPF-style `Items` mutation guards while source-bound.
 
 ## WPF Control Coverage
-- [ ] AccessText
+- [x] AccessText
 - [x] Border
 - [x] Button
 - [x] Calendar

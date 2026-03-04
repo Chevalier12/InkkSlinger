@@ -1806,6 +1806,11 @@ public sealed partial class UiRoot
                 {
                     return;
                 }
+
+                if (AccessKeyService.TryExecute(accessKey, _visualRoot, _inputState.FocusedElement))
+                {
+                    return;
+                }
             }
 
             if (TryFindMenuInMenuMode(out var activeMenu) &&

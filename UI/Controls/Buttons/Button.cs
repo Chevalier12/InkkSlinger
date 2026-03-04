@@ -92,6 +92,7 @@ public class Button : ContentControl
 
     public Button()
     {
+        RecognizesAccessKey = true;
     }
 
     public event System.EventHandler<RoutedSimpleEventArgs> Click

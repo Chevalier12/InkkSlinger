@@ -127,6 +127,7 @@ public class MenuItem : ItemsControl
 
     public MenuItem()
     {
+        RecognizesAccessKey = true;
     }
 
     public event EventHandler<RoutedSimpleEventArgs> Click
