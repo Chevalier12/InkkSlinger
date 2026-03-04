@@ -7,11 +7,11 @@
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (`Release`, 0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -c Release -v minimal` |
-| Test suite | Pass (`638/638`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
+| Test suite | Pass (`692/692`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
 | Current failing test areas | `None` | Latest full release test run (`2026-03-04`) |
 | WPF control coverage | Broad but incomplete (`74/77`) | `TODO.md` -> `## WPF Control Coverage` |
-| Open tracked work | `3` unchecked TODO items (all bounty controls) | `TODO.md` (missing controls) |
-| Explicit unsupported behavior | None currently tracked | Latest parity/status pass (`2026-03-04`) |
+| Open tracked work | `4` unchecked TODO items (`3` bounty controls + `1` non-bounty input parity item) | `TODO.md` |
+| Explicit unsupported behavior | Touch/stylus/tablet input pipeline is unsupported until `InkCanvas`/`InkPresenter` are implemented | `TODO.md` (`## WPF Control Coverage` + input parity notes) |
 
 ### Honest Verdict
 
@@ -109,7 +109,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 106 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (106 files) | Implemented |
+| Regression safety net | 113 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (113 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -154,10 +154,10 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Commanding API | `RoutedUICommand` surface | `UI/Commanding/RoutedUICommand.cs`, `InkkSlinger.Tests/CommandingTests.cs` (`RoutedUICommand_Xaml_MenuHeaderAndGestureAndExecution_IntegrateEndToEnd`) | Implemented (tested) |
 | Commanding API | `ICommandSource` ecosystem parity across controls | `UI/Commanding/ICommandSource.cs`, `UI/Commanding/CommandTargetResolver.cs`, `UI/Commanding/CommandSourceExecution.cs`, `InkkSlinger.Tests/CommandingTests.cs`, `InkkSlinger.Tests/RichTextCommandingTests.cs`, `InkkSlinger.Tests/DocumentViewerCommandingTests.cs`, `InkkSlinger.Tests/MenuParityInputTests.cs` | Implemented (tested) |
 | Container behavior | `UserControl` supports custom `ControlTemplate` (WPF-strict template path; content is surfaced through `ContentPresenter`) | `UI/Controls/Containers/UserControl.cs`, `InkkSlinger.Tests/UserControlTemplateParityTests.cs` | Implemented (tested) |
-| Geometry path parser | Path commands `S/s`, `T/t`, `A/a` are rejected | `UI/Geometry/Parsing/PathMarkupParser.cs` | Partial |
+| Geometry path parser | Path commands `S/s`, `T/t`, `A/a` are supported with flattened-geometry output | `UI/Geometry/Parsing/PathMarkupParser.cs`, `InkkSlinger.Tests/PathMarkupParserParityTests.cs` | Implemented (tested) |
 | Text pipeline | Virtual wrapped text layout optimization is enabled for wrapped layouts with finite positive width and guarded by resize/input regressions | `UI/Controls/Inputs/TextBox.cs` (`CanUseVirtualWrappedLayout`), `InkkSlinger.Tests/ViewportResizeInputRegressionTests.cs`, `InkkSlinger.Tests/InputDispatchOptimizationTests.cs` | Implemented (tested) |
 | Layout parity | Core layout rounding parity (`UseLayoutRounding`-style behavior) for measure/arrange slot rounding with inherited DP semantics | `UI/Controls/Base/FrameworkElement.cs`, `UI/Controls/Base/UIElement.cs`, `InkkSlinger.Tests/UseLayoutRoundingTests.cs` | Implemented (core scope) |
-| Input stack | Touch/stylus/tablet pipelines | No corresponding types under `UI/Input` | Not implemented |
+| Input stack | Touch/stylus/tablet pipelines | No corresponding types under `UI/Input`; explicitly unsupported until `InkCanvas`/`InkPresenter` are implemented | Unsupported until `InkCanvas`/`InkPresenter` |
 | Accessibility | UI automation / `AutomationPeer` layer | No corresponding types in `UI/`; no automation tree APIs | Not implemented |
 | Rendering parity | Pixel-identical WPF rendering/composition fidelity | Framework targets MonoGame parity behavior, not WPF pixel-clone output | Out of scope |
 

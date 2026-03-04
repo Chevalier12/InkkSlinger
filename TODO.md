@@ -4,9 +4,10 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `638/638` passing.
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `692/692` passing.
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
+- Touch/stylus/tablet input pipeline parity is explicitly unsupported until `InkCanvas` and `InkPresenter` are implemented.
 - This file tracks completed milestones, known parity gaps, and control coverage.
 
 ## Completed Milestones
@@ -132,6 +133,8 @@ Rebased `ContextMenu` toward WPF-like menu semantics (`MenuItem`/`Separator`, ke
 Pointer-move dispatch is forced while any context menu is open (so hover transitions are not dropped when raw hit targets jitter), and hover diagnostics now emit `BeforeMove`/`AfterMove` state.
 - [x] Data/view layer parity:
 `CollectionView` stack with `CollectionViewSource` authoring, plus `ItemsControl.ItemsSource` support across controls with WPF-style `Items` mutation guards while source-bound.
+- [ ] Touch/stylus/tablet input pipeline parity:
+explicitly unsupported until `InkCanvas` and `InkPresenter` are implemented.
 
 ## WPF Control Coverage
 - Bounties:
