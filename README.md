@@ -132,9 +132,9 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 | Area | Gap / Limitation | Evidence | State |
 |---|---|---|---|
-| Control coverage | `InkCanvas` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
-| Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
-| Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented |
+| Control coverage | `InkCanvas` | `TODO.md` (`## WPF Control Coverage`) | Not implemented ([bounty #3](https://github.com/Chevalier12/InkkSlinger/issues/3)) |
+| Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Not implemented ([bounty #3](https://github.com/Chevalier12/InkkSlinger/issues/3)) |
+| Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented ([bounty #5](https://github.com/Chevalier12/InkkSlinger/issues/5)) |
 | Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Implemented |
 | Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
 | Data/view layer | WPF `CollectionView` stack (current item/filter/sort/group) with `CollectionViewSource` | `UI/Binding/Collections/*`, `UI/Controls/Base/ItemsControl.cs`, `UI/Xaml/Core/XamlLoader.cs`, `InkkSlinger.Tests/CollectionViewCoreTests.cs`, `InkkSlinger.Tests/XamlCollectionViewParserTests.cs` | Implemented (tested) |
@@ -160,6 +160,8 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Input stack | Touch/stylus/tablet pipelines | No corresponding types under `UI/Input` | Not implemented |
 | Accessibility | UI automation / `AutomationPeer` layer | No corresponding types in `UI/`; no automation tree APIs | Not implemented |
 | Rendering parity | Pixel-identical WPF rendering/composition fidelity | Framework targets MonoGame parity behavior, not WPF pixel-clone output | Out of scope |
+
+Bounty note: if nobody picks up the open bounties for `InkCanvas`, `InkPresenter`, and `MediaElement`, I will implement them myself after I finish the rest of the current priority queue.
 
 ## UI Architecture Map
 

@@ -129,6 +129,10 @@ Pointer-move dispatch is forced while any context menu is open (so hover transit
 `CollectionView` stack with `CollectionViewSource` authoring, plus `ItemsControl.ItemsSource` support across controls with WPF-style `Items` mutation guards while source-bound.
 
 ## WPF Control Coverage
+- Bounties:
+  - `InkCanvas` + `InkPresenter`: https://github.com/Chevalier12/InkkSlinger/issues/3
+  - `MediaElement`: https://github.com/Chevalier12/InkkSlinger/issues/5
+- If nobody picks up these bounties, I will implement these controls myself after I finish the rest of the current priority queue.
 - [x] AccessText
 - [x] Border
 - [x] Button
@@ -160,15 +164,15 @@ Pointer-move dispatch is forced while any context menu is open (so hover transit
 - [x] HeaderedContentControl
 - [x] HeaderedItemsControl
 - [x] Image
-- [ ] InkCanvas
-- [ ] InkPresenter
+- [ ] InkCanvas (bounty: https://github.com/Chevalier12/InkkSlinger/issues/3)
+- [ ] InkPresenter (bounty: https://github.com/Chevalier12/InkkSlinger/issues/3)
 - [x] ItemsControl
 - [x] Label
 - [x] ListBox
 - [x] ListBoxItem
 - [x] ListView
 - [x] ListViewItem
-- [ ] MediaElement
+- [ ] MediaElement (bounty: https://github.com/Chevalier12/InkkSlinger/issues/5)
 - [x] Menu
 - [x] MenuItem
 - [x] Page
