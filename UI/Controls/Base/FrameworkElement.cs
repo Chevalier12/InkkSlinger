@@ -175,6 +175,8 @@ public class FrameworkElement : UIElement
 
     public event EventHandler? LayoutUpdated;
 
+    internal event EventHandler? ResourceScopeInvalidated;
+
     public string Name
     {
         get => GetValue<string>(NameProperty) ?? string.Empty;
@@ -573,6 +575,7 @@ public class FrameworkElement : UIElement
         AttachResourceParent(newParent as FrameworkElement);
         RefreshResourceBindings();
         UpdateImplicitStyle();
+        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
         NotifyDescendantResourcesChanged();
 
         phaseStart = Stopwatch.GetTimestamp();
@@ -602,6 +605,7 @@ public class FrameworkElement : UIElement
         AttachResourceParent(newParent as FrameworkElement);
         RefreshResourceBindings();
         UpdateImplicitStyle();
+        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
         NotifyDescendantResourcesChanged();
 
         phaseStart = Stopwatch.GetTimestamp();
@@ -636,6 +640,7 @@ public class FrameworkElement : UIElement
     {
         RefreshResourceBindings();
         UpdateImplicitStyle();
+        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
         NotifyDescendantResourcesChanged();
     }
 
@@ -643,6 +648,7 @@ public class FrameworkElement : UIElement
     {
         RefreshResourceBindings();
         UpdateImplicitStyle();
+        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
         NotifyDescendantResourcesChanged();
     }
 
@@ -650,6 +656,7 @@ public class FrameworkElement : UIElement
     {
         RefreshResourceBindings();
         UpdateImplicitStyle();
+        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
         NotifyDescendantResourcesChanged();
     }
 
@@ -738,6 +745,7 @@ public class FrameworkElement : UIElement
             if (child is FrameworkElement frameworkChild)
             {
                 frameworkChild.RefreshResourceBindings();
+                frameworkChild.ResourceScopeInvalidated?.Invoke(frameworkChild, EventArgs.Empty);
                 frameworkChild.NotifyDescendantResourcesChanged();
             }
         }

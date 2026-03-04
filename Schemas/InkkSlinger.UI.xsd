@@ -13,6 +13,10 @@
     <xs:restriction base="xs:string" />
   </xs:simpleType>
 
+  <xs:simpleType name="xamlValueType">
+    <xs:restriction base="xs:string" />
+  </xs:simpleType>
+
   <xs:simpleType name="textWrappingType">
     <xs:restriction base="xs:string">
       <xs:enumeration value="NoWrap" />
@@ -178,7 +182,7 @@
 
   <xs:complexType name="setterType">
     <xs:attribute name="Property" type="xs:string" use="required" />
-    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:attribute name="Value" type="xamlValueType" use="required" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -199,7 +203,7 @@
       </xs:choice>
     </xs:sequence>
     <xs:attribute name="Property" type="xs:string" use="required" />
-    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:attribute name="Value" type="xamlValueType" use="required" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -220,8 +224,8 @@
         <xs:element ref="Setter" />
       </xs:choice>
     </xs:sequence>
-    <xs:attribute name="Binding" type="xs:string" />
-    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:attribute name="Binding" type="xamlValueType" />
+    <xs:attribute name="Value" type="xamlValueType" use="required" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -315,8 +319,8 @@
       </xs:choice>
     </xs:sequence>
     <xs:attribute name="Property" type="xs:string" />
-    <xs:attribute name="Binding" type="xs:string" />
-    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:attribute name="Binding" type="xamlValueType" />
+    <xs:attribute name="Value" type="xamlValueType" use="required" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -344,7 +348,7 @@
 
   <xs:complexType name="setValueActionType">
     <xs:attribute name="Property" type="xs:string" use="required" />
-    <xs:attribute name="Value" type="xs:string" use="required" />
+    <xs:attribute name="Value" type="xamlValueType" use="required" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -353,7 +357,7 @@
       <xs:element ref="Storyboard" />
     </xs:sequence>
     <xs:attribute name="Name" type="xs:string" />
-    <xs:attribute name="Storyboard" type="xs:string" />
+    <xs:attribute name="Storyboard" type="xamlValueType" />
     <xs:attribute name="HandoffBehavior" type="xs:string" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
@@ -753,21 +757,21 @@
 
   <xs:complexType name="bindingType">
     <xs:attribute name="Path" type="xs:string" />
-    <xs:attribute name="Source" type="xs:string" />
+    <xs:attribute name="Source" type="xamlValueType" />
     <xs:attribute name="ElementName" type="xs:string" />
-    <xs:attribute name="RelativeSource" type="xs:string" />
+    <xs:attribute name="RelativeSource" type="xamlValueType" />
     <xs:attribute name="Mode" type="xs:string" />
     <xs:attribute name="UpdateSourceTrigger" type="xs:string" />
-    <xs:attribute name="Converter" type="xs:string" />
-    <xs:attribute name="ConverterParameter" type="xs:string" />
+    <xs:attribute name="Converter" type="xamlValueType" />
+    <xs:attribute name="ConverterParameter" type="xamlValueType" />
     <xs:attribute name="ConverterCulture" type="xs:string" />
-    <xs:attribute name="FallbackValue" type="xs:string" />
-    <xs:attribute name="TargetNullValue" type="xs:string" />
+    <xs:attribute name="FallbackValue" type="xamlValueType" />
+    <xs:attribute name="TargetNullValue" type="xamlValueType" />
     <xs:attribute name="ValidatesOnDataErrors" type="xs:boolean" />
     <xs:attribute name="ValidatesOnNotifyDataErrors" type="xs:boolean" />
     <xs:attribute name="ValidatesOnExceptions" type="xs:boolean" />
     <xs:attribute name="BindingGroupName" type="xs:string" />
-    <xs:attribute name="UpdateSourceExceptionFilter" type="xs:string" />
+    <xs:attribute name="UpdateSourceExceptionFilter" type="xamlValueType" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -777,16 +781,16 @@
     </xs:sequence>
     <xs:attribute name="Mode" type="xs:string" />
     <xs:attribute name="UpdateSourceTrigger" type="xs:string" />
-    <xs:attribute name="Converter" type="xs:string" />
-    <xs:attribute name="ConverterParameter" type="xs:string" />
+    <xs:attribute name="Converter" type="xamlValueType" />
+    <xs:attribute name="ConverterParameter" type="xamlValueType" />
     <xs:attribute name="ConverterCulture" type="xs:string" />
-    <xs:attribute name="FallbackValue" type="xs:string" />
-    <xs:attribute name="TargetNullValue" type="xs:string" />
+    <xs:attribute name="FallbackValue" type="xamlValueType" />
+    <xs:attribute name="TargetNullValue" type="xamlValueType" />
     <xs:attribute name="ValidatesOnDataErrors" type="xs:boolean" />
     <xs:attribute name="ValidatesOnNotifyDataErrors" type="xs:boolean" />
     <xs:attribute name="ValidatesOnExceptions" type="xs:boolean" />
     <xs:attribute name="BindingGroupName" type="xs:string" />
-    <xs:attribute name="UpdateSourceExceptionFilter" type="xs:string" />
+    <xs:attribute name="UpdateSourceExceptionFilter" type="xamlValueType" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -796,10 +800,10 @@
     </xs:sequence>
     <xs:attribute name="Mode" type="xs:string" />
     <xs:attribute name="UpdateSourceTrigger" type="xs:string" />
-    <xs:attribute name="FallbackValue" type="xs:string" />
-    <xs:attribute name="TargetNullValue" type="xs:string" />
+    <xs:attribute name="FallbackValue" type="xamlValueType" />
+    <xs:attribute name="TargetNullValue" type="xamlValueType" />
     <xs:attribute name="BindingGroupName" type="xs:string" />
-    <xs:attribute name="UpdateSourceExceptionFilter" type="xs:string" />
+    <xs:attribute name="UpdateSourceExceptionFilter" type="xamlValueType" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 

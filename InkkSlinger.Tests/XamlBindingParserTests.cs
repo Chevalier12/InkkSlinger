@@ -352,6 +352,100 @@ public class XamlBindingParserTests
         Assert.Contains("UpdateSourceExceptionFilter", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void BindingMarkup_WithXStaticSource_ParsesAndApplies()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <ContentControl x:Name="Probe" Content="{Binding Path=Length, Source={x:Static x:String.Empty}}" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = (ContentControl?)root.FindName("Probe");
+
+        Assert.NotNull(probe);
+        Assert.Equal(0, Assert.IsType<int>(probe!.Content));
+    }
+
+    [Fact]
+    public void BindingMarkup_WithXReferenceForwardSource_ParsesAndApplies()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <ContentControl x:Name="Probe" Content="{Binding Path=Text, Source={x:Reference Source}}" />
+    <TextBlock x:Name="Source" Text="ref-text" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = (ContentControl?)root.FindName("Probe");
+
+        Assert.NotNull(probe);
+        Assert.Equal("ref-text", probe!.Content);
+    }
+
+    [Fact]
+    public void MultiBindingElement_WithForwardXReferenceChildSources_ParsesAndApplies()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <DelimitedMultiValueConverter x:Key="Joiner" Separator="|" />
+  </UserControl.Resources>
+  <Grid>
+    <ContentControl x:Name="Probe">
+      <ContentControl.Content>
+        <MultiBinding Converter="{StaticResource Joiner}">
+          <Binding Path="Text" Source="{x:Reference Left}" />
+          <Binding Path="Text" Source="{x:Reference Right}" />
+        </MultiBinding>
+      </ContentControl.Content>
+    </ContentControl>
+    <TextBlock x:Name="Left" Text="L" />
+    <TextBlock x:Name="Right" Text="R" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = (ContentControl?)root.FindName("Probe");
+
+        Assert.NotNull(probe);
+        Assert.Equal("L|R", probe!.Content);
+    }
+
+    [Fact]
+    public void PriorityBindingElement_WithForwardXReferenceChildSource_ParsesAndApplies()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <TextBlock x:Name="Fallback" Text="fallback" />
+    <ContentControl x:Name="Probe">
+      <ContentControl.Content>
+        <PriorityBinding>
+          <Binding Path="Text" Source="{x:Reference Preferred}" />
+          <Binding Path="Text" ElementName="Fallback" />
+        </PriorityBinding>
+      </ContentControl.Content>
+    </ContentControl>
+    <TextBlock x:Name="Preferred" Text="preferred" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = (ContentControl?)root.FindName("Probe");
+
+        Assert.NotNull(probe);
+        Assert.Equal("preferred", probe!.Content);
+    }
+
     private sealed class ThrowingSetterViewModel
     {
         private string _value = "seed";

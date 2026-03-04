@@ -32,34 +32,54 @@ public class Style
         }
 
         var state = States.GetValue(target, _ => new StyleInstanceState());
-        state.ReapplyRequested = () => ApplyTriggers(target, state);
-
-        ClearAppliedValues(target, state);
-        DetachTriggers(target, state);
-
-        ApplySettersRecursive(target, state);
-        var activeTriggers = new List<TriggerBase>();
-        CollectTriggersRecursive(activeTriggers);
-        CollectConditionProperties(activeTriggers, state.ConditionProperties);
-        AttachTriggers(target, state, activeTriggers);
-
-        if (!state.IsSubscribed)
+        if (state.IsApplyingStyle)
         {
-            state.Handler = (_, args) =>
+            state.StyleReapplyPending = true;
+            return;
+        }
+
+        state.IsApplyingStyle = true;
+        try
+        {
+            do
             {
-                if (!state.ConditionProperties.Contains(args.Property))
+                state.StyleReapplyPending = false;
+                state.ReapplyRequested = () => ApplyTriggers(target, state);
+
+                ClearAppliedValues(target, state);
+                DetachTriggers(target, state);
+                AttachResourceScopeHandler(target, state);
+
+                ApplySettersRecursive(target, state);
+                var activeTriggers = new List<TriggerBase>();
+                CollectTriggersRecursive(activeTriggers);
+                CollectConditionProperties(activeTriggers, state.ConditionProperties);
+                AttachTriggers(target, state, activeTriggers);
+
+                if (!state.IsSubscribed)
                 {
-                    return;
+                    state.Handler = (_, args) =>
+                    {
+                        if (!state.ConditionProperties.Contains(args.Property))
+                        {
+                            return;
+                        }
+
+                        ApplyTriggers(target, state);
+                    };
+
+                    target.DependencyPropertyChanged += state.Handler;
+                    state.IsSubscribed = true;
                 }
 
                 ApplyTriggers(target, state);
-            };
-
-            target.DependencyPropertyChanged += state.Handler;
-            state.IsSubscribed = true;
+            }
+            while (state.StyleReapplyPending);
         }
-
-        ApplyTriggers(target, state);
+        finally
+        {
+            state.IsApplyingStyle = false;
+        }
     }
 
     public void Detach(DependencyObject target)
@@ -72,6 +92,11 @@ public class Style
         if (state.IsSubscribed && state.Handler != null)
         {
             target.DependencyPropertyChanged -= state.Handler;
+        }
+
+        if (state.ResourceScopeHandler != null && target is FrameworkElement frameworkElement)
+        {
+            frameworkElement.ResourceScopeInvalidated -= state.ResourceScopeHandler;
         }
 
         DetachTriggers(target, state);
@@ -92,7 +117,12 @@ public class Style
                     continue;
                 }
 
-                target.SetStyleValue(setter.Property, StyleValueCloneUtility.CloneForAssignment(setter.Value));
+                if (!ResourceReferenceResolver.TryResolve(target, setter.Property, setter.Value, out var resolvedValue))
+                {
+                    continue;
+                }
+
+                target.SetStyleValue(setter.Property, StyleValueCloneUtility.CloneForAssignment(resolvedValue));
                 state.AppliedStyleProperties.Add(setter.Property);
                 continue;
             }
@@ -193,9 +223,43 @@ public class Style
                     continue;
                 }
 
-                accumulator[setter.Property] = setter.Value;
+                if (!ResourceReferenceResolver.TryResolve(target, setter.Property, setter.Value, out var resolvedValue))
+                {
+                    continue;
+                }
+
+                accumulator[setter.Property] = resolvedValue;
             }
         }
+    }
+
+    private static void AttachResourceScopeHandler(DependencyObject target, StyleInstanceState state)
+    {
+        if (target is not FrameworkElement frameworkElement)
+        {
+            return;
+        }
+
+        if (state.ResourceScopeHandler != null)
+        {
+            frameworkElement.ResourceScopeInvalidated -= state.ResourceScopeHandler;
+        }
+
+        state.ResourceScopeHandler = (_, _) =>
+        {
+            if (state.IsApplyingStyle)
+            {
+                state.StyleReapplyPending = true;
+                return;
+            }
+
+            if (target.GetValue(FrameworkElement.StyleProperty) is Style style)
+            {
+                style.Apply(target);
+            }
+        };
+
+        frameworkElement.ResourceScopeInvalidated += state.ResourceScopeHandler;
     }
 
     private static void ApplyTriggerActions(
@@ -427,9 +491,12 @@ public class Style
     {
         public bool IsSubscribed;
         public bool IsApplyingTriggers;
+        public bool IsApplyingStyle;
         public bool ReapplyPending;
+        public bool StyleReapplyPending;
 
         public EventHandler<DependencyPropertyChangedEventArgs>? Handler;
+        public EventHandler? ResourceScopeHandler;
         public Action? ReapplyRequested;
 
         public HashSet<DependencyProperty> AppliedStyleProperties { get; } = new();

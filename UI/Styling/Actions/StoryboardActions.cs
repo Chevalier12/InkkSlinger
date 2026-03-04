@@ -21,6 +21,7 @@ public sealed class TriggerActionContext
 public sealed class BeginStoryboard : TriggerAction
 {
     public Storyboard? Storyboard { get; set; }
+    internal object? StoryboardResourceReference { get; set; }
 
     public string Name { get; set; } = string.Empty;
 
@@ -33,13 +34,14 @@ public sealed class BeginStoryboard : TriggerAction
             return;
         }
 
-        if (Storyboard == null)
+        var storyboard = ResolveStoryboard(scope);
+        if (storyboard == null)
         {
             return;
         }
 
         AnimationManager.Current.BeginStoryboard(
-            Storyboard,
+            storyboard,
             scope,
             string.IsNullOrWhiteSpace(Name) ? null : Name,
             null,
@@ -49,24 +51,45 @@ public sealed class BeginStoryboard : TriggerAction
 
     internal override void Invoke(TriggerActionContext context)
     {
-        if (Storyboard == null)
-        {
-            return;
-        }
-
         var scope = context.Scope ?? context.Target as FrameworkElement;
         if (scope == null)
         {
             return;
         }
 
+        var storyboard = ResolveStoryboard(scope);
+        if (storyboard == null)
+        {
+            return;
+        }
+
         AnimationManager.Current.BeginStoryboard(
-            Storyboard,
+            storyboard,
             scope,
             string.IsNullOrWhiteSpace(Name) ? null : Name,
             context.ResolveByName,
             isControllable: true,
             HandoffBehavior);
+    }
+
+    private Storyboard? ResolveStoryboard(FrameworkElement scope)
+    {
+        if (Storyboard != null)
+        {
+            return Storyboard;
+        }
+
+        if (StoryboardResourceReference is not DynamicResourceReferenceExpression dynamicReference)
+        {
+            return null;
+        }
+
+        if (!scope.TryFindResource(dynamicReference.Key, out var resource))
+        {
+            return null;
+        }
+
+        return resource as Storyboard;
     }
 }
 

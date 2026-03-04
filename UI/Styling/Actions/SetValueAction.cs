@@ -16,6 +16,11 @@ public sealed class SetValueAction : TriggerAction
 
     public override void Invoke(DependencyObject target)
     {
-        target.SetValue(Property, Value);
+        if (!ResourceReferenceResolver.TryResolve(target, Property, Value, out var resolvedValue))
+        {
+            return;
+        }
+
+        target.SetValue(Property, resolvedValue);
     }
 }

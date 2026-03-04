@@ -13,6 +13,7 @@ internal sealed class TemplateTriggerEngine
     private readonly Dictionary<(DependencyObject Target, DependencyProperty Property), object?> _activeTriggerValues = new();
     private readonly Dictionary<TriggerBase, bool> _activeTriggerMatches = new();
     private EventHandler<DependencyPropertyChangedEventArgs>? _ownerChangeHandler;
+    private EventHandler? _resourceScopeHandler;
     private bool _isSubscribed;
     private bool _isApplying;
     private bool _reapplyPending;
@@ -48,6 +49,12 @@ internal sealed class TemplateTriggerEngine
             _isSubscribed = true;
         }
 
+        if (_resourceScopeHandler == null)
+        {
+            _resourceScopeHandler = (_, _) => Reapply();
+            _owner.ResourceScopeInvalidated += _resourceScopeHandler;
+        }
+
         Reapply();
     }
 
@@ -57,6 +64,12 @@ internal sealed class TemplateTriggerEngine
         {
             _owner.DependencyPropertyChanged -= _ownerChangeHandler;
             _isSubscribed = false;
+        }
+
+        if (_resourceScopeHandler != null)
+        {
+            _owner.ResourceScopeInvalidated -= _resourceScopeHandler;
+            _resourceScopeHandler = null;
         }
 
         foreach (var trigger in _attachedTriggers)
@@ -105,14 +118,19 @@ internal sealed class TemplateTriggerEngine
                     foreach (var setter in trigger.Setters)
                     {
                         var target = ResolveTarget(setter.TargetName);
-                        if (target == null)
-                        {
-                            continue;
-                        }
-
-                        desired[(target, setter.Property)] = setter.Value;
+                    if (target == null)
+                    {
+                        continue;
                     }
+
+                    if (!ResourceReferenceResolver.TryResolve(target, setter.Property, setter.Value, out var resolvedValue))
+                    {
+                        continue;
+                    }
+
+                    desired[(target, setter.Property)] = resolvedValue;
                 }
+            }
 
                 foreach (var active in _activeTriggerValues)
                 {

@@ -131,25 +131,30 @@ public class DynamicResourceXamlTests
     }
 
     [Fact]
-    public void DynamicResource_InSetterValue_ThrowsHelpfulXamlException()
+    public void DynamicResource_InSetterValue_ResolvesAndUpdates()
     {
         const string xaml = """
 <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <UserControl.Resources>
-    <Style x:Key="TextStyle" TargetType="{x:Type TextBlock}">
+    <SolidColorBrush x:Key="SharedBrush" Color="#112233" />
+    <Style x:Key="ButtonStyle" TargetType="{x:Type Button}">
       <Style.Setters>
-        <Setter Property="Text" Value="{DynamicResource SharedText}" />
+        <Setter Property="Background" Value="{DynamicResource SharedBrush}" />
       </Style.Setters>
     </Style>
   </UserControl.Resources>
   <Grid>
-    <TextBlock Style="{StaticResource TextStyle}" />
+    <Button x:Name="Probe" Style="{StaticResource ButtonStyle}" />
   </Grid>
 </UserControl>
 """;
 
-        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
-        Assert.Contains("DynamicResource is not supported", ex.Message, StringComparison.OrdinalIgnoreCase);
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = Assert.IsType<Button>(root.FindName("Probe"));
+        Assert.Equal(new Microsoft.Xna.Framework.Color(0x11, 0x22, 0x33), probe.Background);
+
+        root.Resources["SharedBrush"] = new SolidColorBrush(new Microsoft.Xna.Framework.Color(0x44, 0x55, 0x66));
+        Assert.Equal(new Microsoft.Xna.Framework.Color(0x44, 0x55, 0x66), probe.Background);
     }
 
     [Fact]
@@ -173,5 +178,101 @@ public class DynamicResourceXamlTests
         root.Resources["AccentBrush"] = new SolidColorBrush(new Microsoft.Xna.Framework.Color(0x44, 0x55, 0x66));
 
         Assert.Equal(new Microsoft.Xna.Framework.Color(0x44, 0x55, 0x66), button.Background);
+    }
+
+    [Fact]
+    public void DynamicResource_InTriggerSetter_UpdatesWhileActive()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <SolidColorBrush x:Key="HoverBrush" Color="#223344" />
+    <Style x:Key="ProbeStyle" TargetType="{x:Type Button}">
+      <Style.Triggers>
+        <Trigger Property="IsEnabled" Value="False">
+          <Trigger.Setters>
+            <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+          </Trigger.Setters>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+  </UserControl.Resources>
+  <Grid>
+    <Button x:Name="Probe" Style="{StaticResource ProbeStyle}" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = Assert.IsType<Button>(root.FindName("Probe"));
+        probe.IsEnabled = false;
+        Assert.Equal(new Microsoft.Xna.Framework.Color(0x22, 0x33, 0x44), probe.Background);
+
+        root.Resources["HoverBrush"] = new SolidColorBrush(new Microsoft.Xna.Framework.Color(0x55, 0x66, 0x77));
+        Assert.Equal(new Microsoft.Xna.Framework.Color(0x55, 0x66, 0x77), probe.Background);
+    }
+
+    [Fact]
+    public void DynamicResource_InSetValueAction_ResolvesAtInvokeTime()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <SolidColorBrush x:Key="SharedBrush" Color="#102030" />
+    <Style x:Key="ProbeStyle" TargetType="{x:Type Button}">
+      <Style.Triggers>
+        <Trigger Property="IsEnabled" Value="False">
+          <Trigger.EnterActions>
+            <SetValueAction Property="Background" Value="{DynamicResource SharedBrush}" />
+          </Trigger.EnterActions>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+  </UserControl.Resources>
+  <Grid>
+    <Button x:Name="Probe" Style="{StaticResource ProbeStyle}" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = Assert.IsType<Button>(root.FindName("Probe"));
+        probe.IsEnabled = false;
+        Assert.Equal(new Microsoft.Xna.Framework.Color(0x10, 0x20, 0x30), probe.Background);
+
+        root.Resources["SharedBrush"] = new SolidColorBrush(new Microsoft.Xna.Framework.Color(0x40, 0x50, 0x60));
+        probe.IsEnabled = true;
+        probe.IsEnabled = false;
+        Assert.Equal(new Microsoft.Xna.Framework.Color(0x40, 0x50, 0x60), probe.Background);
+    }
+
+    [Fact]
+    public void DynamicResource_InBeginStoryboardAttribute_LoadsSuccessfully()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <Storyboard x:Key="DisableStoryboard">
+      <DoubleAnimation Storyboard.TargetName="Probe" Storyboard.TargetProperty="Opacity" To="0.4" Duration="0:0:0" />
+    </Storyboard>
+    <Style x:Key="ProbeStyle" TargetType="{x:Type Button}">
+      <Style.Triggers>
+        <Trigger Property="IsEnabled" Value="False">
+          <Trigger.EnterActions>
+            <BeginStoryboard Storyboard="{DynamicResource DisableStoryboard}" />
+          </Trigger.EnterActions>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+  </UserControl.Resources>
+  <Grid>
+    <Button x:Name="Probe" Style="{StaticResource ProbeStyle}" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = Assert.IsType<Button>(root.FindName("Probe"));
+        Assert.NotNull(probe);
     }
 }

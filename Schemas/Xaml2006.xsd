@@ -8,5 +8,7 @@
   <xs:attribute name="Name" type="xs:string" />
   <xs:attribute name="Key" type="xs:string" />
   <xs:attribute name="Type" type="xs:string" />
+  <xs:attribute name="Class" type="xs:string" />
+  <xs:attribute name="Reference" type="xs:string" />
 
 </xs:schema>

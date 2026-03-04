@@ -574,13 +574,13 @@ public class Control : FrameworkElement, ICommandSource
                 continue;
             }
 
-            target.SetTemplateValue(binding.TargetProperty, ResolveTemplateBindingValue(binding));
+            target.SetTemplateValue(binding.TargetProperty, ResolveTemplateBindingValue(binding, target));
 
             EventHandler<DependencyPropertyChangedEventArgs> handler = (_, args) =>
             {
                 if (args.Property == binding.SourceProperty)
                 {
-                    target.SetTemplateValue(binding.TargetProperty, ResolveTemplateBindingValue(binding));
+                    target.SetTemplateValue(binding.TargetProperty, ResolveTemplateBindingValue(binding, target));
                 }
             };
 
@@ -609,22 +609,56 @@ public class Control : FrameworkElement, ICommandSource
         _templateBindingHandlers.Clear();
     }
 
-    private object? ResolveTemplateBindingValue(TemplateBinding binding)
+    private object? ResolveTemplateBindingValue(TemplateBinding binding, DependencyObject target)
     {
         var value = GetValue(binding.SourceProperty);
         var source = GetValueSource(binding.SourceProperty);
         if (value == null && binding.TargetNullValue != null)
         {
-            value = binding.TargetNullValue;
+            if (ResourceReferenceResolver.TryResolveForType(
+                    this,
+                    binding.TargetNullValue,
+                    binding.TargetProperty.PropertyType,
+                    $"TemplateBinding {binding.TargetProperty.Name}.TargetNullValue",
+                    out var resolvedTargetNullValue) &&
+                !ReferenceEquals(resolvedTargetNullValue, DependencyObject.UnsetValue))
+            {
+                value = resolvedTargetNullValue;
+            }
+            else
+            {
+                value = null;
+            }
+
             return CoerceTemplateBindingValue(value, binding.TargetProperty.PropertyType);
         }
 
         if (source == DependencyPropertyValueSource.Default && binding.FallbackValue != null)
         {
-            value = binding.FallbackValue;
+            if (ResourceReferenceResolver.TryResolveForType(
+                    this,
+                    binding.FallbackValue,
+                    binding.TargetProperty.PropertyType,
+                    $"TemplateBinding {binding.TargetProperty.Name}.FallbackValue",
+                    out var resolvedFallbackValue) &&
+                !ReferenceEquals(resolvedFallbackValue, DependencyObject.UnsetValue))
+            {
+                value = resolvedFallbackValue;
+            }
+            else
+            {
+                value = null;
+            }
+
             return CoerceTemplateBindingValue(value, binding.TargetProperty.PropertyType);
         }
 
+        if (!ResourceReferenceResolver.TryResolve(target, binding.TargetProperty, value, out var resolvedValue))
+        {
+            return null;
+        }
+
+        value = resolvedValue;
         return CoerceTemplateBindingValue(value, binding.TargetProperty.PropertyType);
     }
 

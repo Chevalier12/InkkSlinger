@@ -28,6 +28,8 @@ public static class XamlLoader
     private static Stack<string>? CurrentXamlBaseDirectories;
     [ThreadStatic]
     private static Stack<Action<XamlDiagnostic>>? CurrentDiagnosticSinks;
+    [ThreadStatic]
+    private static Stack<List<Action>>? CurrentDeferredFinalizeActions;
 
     public static UIElement LoadFromFile(string path, object? codeBehind = null)
     {
@@ -75,10 +77,13 @@ public static class XamlLoader
         {
             var rootScope = uiRoot as FrameworkElement;
             CurrentLoadRootScope = rootScope;
-            RunWithinConstructionScope(rootScope, () =>
+            RunWithinDeferredFinalizeActions(() =>
             {
-                ApplyAttributes(uiRoot, rootElement, codeBehind, rootScope);
-                ApplyChildren(uiRoot, rootElement, codeBehind, rootScope);
+                RunWithinConstructionScope(rootScope, () =>
+                {
+                    ApplyAttributes(uiRoot, rootElement, codeBehind, rootScope);
+                    ApplyChildren(uiRoot, rootElement, codeBehind, rootScope);
+                });
             });
             return uiRoot;
         }
@@ -172,11 +177,14 @@ public static class XamlLoader
         CurrentLoadRootScope = target;
         try
         {
-            RunWithinConstructionScope(target, () =>
+            RunWithinDeferredFinalizeActions(() =>
             {
-                ApplyAttributes(target, root, codeBehind, target);
-                target.Content = null;
-                ApplyChildren(target, root, codeBehind, target);
+                RunWithinConstructionScope(target, () =>
+                {
+                    ApplyAttributes(target, root, codeBehind, target);
+                    target.Content = null;
+                    ApplyChildren(target, root, codeBehind, target);
+                });
             });
         }
         finally
@@ -448,6 +456,15 @@ public static class XamlLoader
                     bindingBase = BuildPriorityBindingElement(childElement, dependencyProperty.PropertyType, bindingScope);
                 }
 
+                if (TryQueueDeferredBindingReferenceResolution(
+                        dependencyObject,
+                        dependencyProperty,
+                        bindingBase,
+                        bindingScope))
+                {
+                    return true;
+                }
+
                 BindingOperations.SetBinding(dependencyObject, dependencyProperty, bindingBase);
                 return true;
             }
@@ -619,6 +636,7 @@ public static class XamlLoader
                 if (localName == "Name")
                 {
                     AssignName(target, value, codeBehind);
+                    continue;
                 }
 
                 if (localName == "Key")
@@ -626,7 +644,10 @@ public static class XamlLoader
                     continue;
                 }
 
-                continue;
+                throw CreateXamlException(
+                    $"x:{localName} metadata is not supported by this runtime loader.",
+                    attribute,
+                    code: XamlDiagnosticCode.UnsupportedConstruct);
             }
 
             // Ignore foreign-namespace metadata attributes like xsi:schemaLocation.
@@ -639,7 +660,7 @@ public static class XamlLoader
             {
                 if (localName.Contains('.', StringComparison.Ordinal))
                 {
-                    ApplyAttachedProperty(target, localName, value, resourceScope);
+                    ApplyAttachedProperty(target, localName, value, resourceScope, attribute);
                     continue;
                 }
 
@@ -673,7 +694,7 @@ public static class XamlLoader
                     continue;
                 }
 
-                ApplyProperty(target, localName, value, resourceScope);
+                ApplyProperty(target, localName, value, resourceScope, attribute);
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException)
             {
@@ -1506,20 +1527,13 @@ public static class XamlLoader
     {
         markup = default;
 
-        var trimmed = rawValue.Trim();
-        if (!trimmed.StartsWith("{", StringComparison.Ordinal) ||
-            !trimmed.EndsWith("}", StringComparison.Ordinal))
+        if (!TryParseMarkupExtensionExpression(rawValue, out var expression) ||
+            !string.Equals(expression.Name, "TemplateBinding", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        var body = trimmed[1..^1].Trim();
-        if (!body.StartsWith("TemplateBinding", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var arguments = body["TemplateBinding".Length..].Trim();
+        var arguments = expression.Body;
         if (string.IsNullOrWhiteSpace(arguments))
         {
             throw CreateXamlException("TemplateBinding markup requires a source property.", location);
@@ -1607,7 +1621,7 @@ public static class XamlLoader
         var trimmed = rawValueText.Trim();
         if (TryParseDynamicResourceKey(trimmed, out _))
         {
-            throw CreateXamlException($"{optionName} does not support DynamicResource.", location);
+            return new DynamicResourceReferenceExpression(GetMarkupExtensionRequiredValue(trimmed, "DynamicResource", "resource key"));
         }
 
         if (TryParseStaticResourceKey(trimmed, out var staticResourceKey))
@@ -1621,6 +1635,48 @@ public static class XamlLoader
             {
                 throw CreateXamlException($"Failed to parse TemplateBinding {optionName}: {ex.Message}", location, ex);
             }
+        }
+
+        if (TryResolveXNull(trimmed, out var isXNull) && isXNull)
+        {
+            if (valueType.IsValueType && Nullable.GetUnderlyingType(valueType) == null)
+            {
+                throw CreateXamlException($"Failed to parse TemplateBinding {optionName}: x:Null is not assignable to '{valueType.Name}'.", location);
+            }
+
+            return null;
+        }
+
+        if (TryResolveXType(trimmed, out var xType))
+        {
+            if (valueType != typeof(object) && valueType != typeof(Type))
+            {
+                throw CreateXamlException($"Failed to parse TemplateBinding {optionName}: x:Type is not assignable to '{valueType.Name}'.", location);
+            }
+
+            return xType;
+        }
+
+        if (TryResolveXReference(trimmed, resourceScope, out var xReferenceValue, location))
+        {
+            if (xReferenceValue is DeferredXReference deferredReference)
+            {
+                throw CreateXamlException(
+                    $"TemplateBinding {optionName} could not resolve x:Reference target '{deferredReference.Name}'.",
+                    location);
+            }
+
+            return xReferenceValue;
+        }
+
+        if (TryResolveXStatic(trimmed, out var xStaticValue, location))
+        {
+            return ResourceReferenceResolver.Coerce(xStaticValue, valueType, $"TemplateBinding {optionName}");
+        }
+
+        if (IsMarkupExtensionSyntax(trimmed))
+        {
+            ThrowUnsupportedMarkupExtension(trimmed, $"TemplateBinding {optionName}", location);
         }
 
         try
@@ -2032,12 +2088,10 @@ public static class XamlLoader
             object convertedValue;
             if (TryParseDynamicResourceKey(valueText, out _))
             {
-                throw CreateXamlException(
-                    "DynamicResource is not supported in Setter/Trigger action values yet; use StaticResource or direct property assignment.",
-                    actionElement);
+                convertedValue = new DynamicResourceReferenceExpression(
+                    GetMarkupExtensionRequiredValue(valueText, "DynamicResource", "resource key"));
             }
-
-            if (TryParseStaticResourceKey(valueText, out var staticResourceKey))
+            else if (TryParseStaticResourceKey(valueText, out var staticResourceKey))
             {
                 var resolved = ResolveStaticResourceValue(staticResourceKey, resourceScope);
                 convertedValue = CoerceResolvedResourceValue(
@@ -2047,7 +2101,19 @@ public static class XamlLoader
             }
             else
             {
-                convertedValue = ConvertValue(valueText, dependencyProperty.PropertyType);
+                convertedValue = ConvertAssignableTextValue(
+                    valueText,
+                    dependencyProperty.PropertyType,
+                    resourceScope,
+                    actionElement,
+                    $"SetValueAction for {styleTargetType.Name}.{dependencyProperty.Name}");
+
+                if (convertedValue is DeferredXReference deferredReference)
+                {
+                    throw CreateXamlException(
+                        $"SetValueAction for {styleTargetType.Name}.{dependencyProperty.Name} could not resolve x:Reference target '{deferredReference.Name}'.",
+                        actionElement);
+                }
             }
 
             return new SetValueAction(dependencyProperty, convertedValue);
@@ -2079,6 +2145,10 @@ public static class XamlLoader
                             $"BeginStoryboard Storyboard resource '{storyboardResourceKey}' is not a Storyboard.",
                             actionElement);
                 }
+                else if (TryParseDynamicResourceKey(storyboardValue, out var dynamicStoryboardResourceKey))
+                {
+                    action.StoryboardResourceReference = new DynamicResourceReferenceExpression(dynamicStoryboardResourceKey);
+                }
             }
 
             foreach (var child in actionElement.Elements())
@@ -2089,7 +2159,7 @@ public static class XamlLoader
                 }
             }
 
-            if (action.Storyboard == null)
+            if (action.Storyboard == null && action.StoryboardResourceReference == null)
             {
                 throw CreateXamlException("BeginStoryboard requires a Storyboard.", actionElement);
             }
@@ -2320,9 +2390,8 @@ public static class XamlLoader
     {
         if (TryParseDynamicResourceKey(rawValueText, out _))
         {
-            throw CreateXamlException(
-                "DynamicResource is not supported in Setter/Trigger action values yet; use StaticResource or direct property assignment.",
-                location);
+            return new DynamicResourceReferenceExpression(
+                GetMarkupExtensionRequiredValue(rawValueText, "DynamicResource", "resource key"));
         }
 
         if (TryParseStaticResourceKey(rawValueText, out var staticResourceKey))
@@ -2334,7 +2403,20 @@ public static class XamlLoader
                 $"Setter for {styleTargetType.Name}.{dependencyProperty.Name}");
         }
 
-        return ConvertValue(rawValueText, dependencyProperty.PropertyType);
+        var converted = ConvertAssignableTextValue(
+            rawValueText,
+            dependencyProperty.PropertyType,
+            resourceScope,
+            location,
+            $"Setter for {styleTargetType.Name}.{dependencyProperty.Name}");
+        if (converted is DeferredXReference deferredReference)
+        {
+            throw CreateXamlException(
+                $"Setter for {styleTargetType.Name}.{dependencyProperty.Name} could not resolve x:Reference target '{deferredReference.Name}'.",
+                location);
+        }
+
+        return converted;
     }
 
     private static DependencyProperty ResolveSetterProperty(
@@ -2375,35 +2457,23 @@ public static class XamlLoader
 
     private static Binding ParseBindingMarkup(string rawMarkup, FrameworkElement? resourceScope)
     {
-        var trimmed = rawMarkup.Trim();
-        if (!trimmed.StartsWith("{", StringComparison.Ordinal) ||
-            !trimmed.EndsWith("}", StringComparison.Ordinal))
+        if (!TryParseMarkupExtensionExpression(rawMarkup, out var expression) ||
+            !string.Equals(expression.Name, "Binding", StringComparison.OrdinalIgnoreCase))
         {
             throw CreateXamlException($"Binding markup '{rawMarkup}' is invalid.");
         }
 
-        var markupBody = trimmed[1..^1].Trim();
-        if (!markupBody.StartsWith("Binding", StringComparison.OrdinalIgnoreCase))
-        {
-            throw CreateXamlException($"Binding markup '{rawMarkup}' is invalid.");
-        }
-
-        return ParseBinding(markupBody["Binding".Length..].Trim(), typeof(object), resourceScope);
+        return ParseBinding(expression.Body, typeof(object), resourceScope);
     }
 
     private static Type ResolveStyleTargetType(string targetTypeText)
     {
-        var trimmed = targetTypeText.Trim();
-        if (trimmed.StartsWith("{", StringComparison.Ordinal) &&
-            trimmed.EndsWith("}", StringComparison.Ordinal))
+        if (TryResolveXType(targetTypeText, out var xType))
         {
-            var body = trimmed[1..^1].Trim();
-            if (body.StartsWith("x:Type", StringComparison.OrdinalIgnoreCase))
-            {
-                trimmed = body["x:Type".Length..].Trim();
-            }
+            return xType;
         }
 
+        var trimmed = targetTypeText.Trim();
         return ResolveElementType(trimmed);
     }
 
@@ -2549,20 +2619,19 @@ public static class XamlLoader
     private static bool TryParseStaticResourceKey(string valueText, out string key)
     {
         key = string.Empty;
-        var trimmed = valueText.Trim();
-        if (!trimmed.StartsWith("{", StringComparison.Ordinal) ||
-            !trimmed.EndsWith("}", StringComparison.Ordinal))
+        if (!TryParseMarkupExtensionExpression(valueText, out var expression) ||
+            !string.Equals(expression.Name, "StaticResource", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        var markupBody = trimmed[1..^1].Trim();
-        if (!markupBody.StartsWith("StaticResource", StringComparison.OrdinalIgnoreCase))
+        var keyText = expression.Body;
+        if (keyText.StartsWith("Key=", StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            keyText = keyText["Key=".Length..];
         }
 
-        var keyText = markupBody["StaticResource".Length..].Trim();
+        keyText = keyText.Trim();
         if (string.IsNullOrWhiteSpace(keyText))
         {
             throw CreateXamlException("StaticResource markup requires a resource key.");
@@ -2575,20 +2644,19 @@ public static class XamlLoader
     private static bool TryParseDynamicResourceKey(string valueText, out string key)
     {
         key = string.Empty;
-        var trimmed = valueText.Trim();
-        if (!trimmed.StartsWith("{", StringComparison.Ordinal) ||
-            !trimmed.EndsWith("}", StringComparison.Ordinal))
+        if (!TryParseMarkupExtensionExpression(valueText, out var expression) ||
+            !string.Equals(expression.Name, "DynamicResource", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        var markupBody = trimmed[1..^1].Trim();
-        if (!markupBody.StartsWith("DynamicResource", StringComparison.OrdinalIgnoreCase))
+        var keyText = expression.Body;
+        if (keyText.StartsWith("ResourceKey=", StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            keyText = keyText["ResourceKey=".Length..];
         }
 
-        var keyText = markupBody["DynamicResource".Length..].Trim();
+        keyText = keyText.Trim();
         if (string.IsNullOrWhiteSpace(keyText))
         {
             throw CreateXamlException("DynamicResource markup requires a resource key.");
@@ -2985,7 +3053,12 @@ public static class XamlLoader
         return true;
     }
 
-    private static void ApplyProperty(object target, string propertyName, string valueText, FrameworkElement? resourceScope)
+    private static void ApplyProperty(
+        object target,
+        string propertyName,
+        string valueText,
+        FrameworkElement? resourceScope,
+        XObject? location = null)
     {
         var property = target.GetType().GetProperty(
             propertyName,
@@ -3011,8 +3084,68 @@ public static class XamlLoader
                 property.PropertyType,
                 $"{target.GetType().Name}.{propertyName}");
         }
+        else if (TryResolveXStatic(valueText, out var xStaticResolved))
+        {
+            converted = CoerceResolvedResourceValue(
+                xStaticResolved,
+                property.PropertyType,
+                $"{target.GetType().Name}.{propertyName}");
+        }
+        else if (TryResolveXType(valueText, out var xType))
+        {
+            if (property.PropertyType != typeof(object) && property.PropertyType != typeof(Type))
+            {
+                throw CreateXamlException(
+                    $"x:Type is not assignable to property '{target.GetType().Name}.{propertyName}' of type '{property.PropertyType.Name}'.",
+                    location);
+            }
+
+            converted = xType;
+        }
+        else if (TryResolveXNull(valueText, out var isXNull) && isXNull)
+        {
+            if (property.PropertyType.IsValueType && Nullable.GetUnderlyingType(property.PropertyType) == null)
+            {
+                throw CreateXamlException(
+                    $"x:Null is not assignable to property '{target.GetType().Name}.{propertyName}' of type '{property.PropertyType.Name}'.",
+                    location);
+            }
+
+            converted = null!;
+        }
+        else if (TryResolveXReference(valueText, target as FrameworkElement ?? resourceScope, out var xReferenceValue, location))
+        {
+            if (xReferenceValue is DeferredXReference deferredReference)
+            {
+                QueueDeferredFinalizeAction(() =>
+                {
+                    var resolvedReference = ResolveDeferredXReference(
+                        deferredReference,
+                        target as FrameworkElement ?? resourceScope,
+                        location);
+                    var coerced = CoerceResolvedResourceValue(
+                        resolvedReference,
+                        property.PropertyType,
+                        $"{target.GetType().Name}.{propertyName}");
+                    property.SetValue(target, coerced);
+                });
+                return;
+            }
+
+            converted = CoerceResolvedResourceValue(
+                xReferenceValue,
+                property.PropertyType,
+                $"{target.GetType().Name}.{propertyName}");
+        }
         else
         {
+            if (IsMarkupExtensionSyntax(valueText))
+            {
+                ThrowUnsupportedMarkupExtension(
+                    valueText,
+                    $"property '{target.GetType().Name}.{propertyName}'");
+            }
+
             converted = ConvertValue(valueText, property.PropertyType);
         }
 
@@ -3021,15 +3154,8 @@ public static class XamlLoader
 
     private static bool TryApplyBindingExpression(object target, string propertyName, string valueText, FrameworkElement? resourceScope)
     {
-        var trimmed = valueText.Trim();
-        if (!trimmed.StartsWith("{", StringComparison.Ordinal) ||
-            !trimmed.EndsWith("}", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var markupBody = trimmed[1..^1].Trim();
-        if (!markupBody.StartsWith("Binding", StringComparison.OrdinalIgnoreCase))
+        if (!TryParseMarkupExtensionExpression(valueText, out var expression) ||
+            !string.Equals(expression.Name, "Binding", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -3047,9 +3173,18 @@ public static class XamlLoader
                 $"Binding markup on '{target.GetType().Name}.{propertyName}' requires a dependency property named '{propertyName}Property'.");
         }
 
-        var bindingBody = markupBody["Binding".Length..].Trim();
         var bindingScope = target as FrameworkElement ?? resourceScope;
-        var binding = ParseBinding(bindingBody, dependencyProperty.PropertyType, bindingScope);
+        var binding = ParseBinding(expression.Body, dependencyProperty.PropertyType, bindingScope);
+
+        if (TryQueueDeferredBindingReferenceResolution(
+                dependencyObject,
+                dependencyProperty,
+                binding,
+                bindingScope))
+        {
+            return true;
+        }
+
         BindingOperations.SetBinding(dependencyObject, dependencyProperty, binding);
         return true;
     }
@@ -3375,46 +3510,7 @@ public static class XamlLoader
 
     private static List<string> SplitBindingSegments(string bindingBody)
     {
-        var segments = new List<string>();
-        var segmentStart = 0;
-        var braceDepth = 0;
-
-        for (var i = 0; i < bindingBody.Length; i++)
-        {
-            var ch = bindingBody[i];
-            if (ch == '{')
-            {
-                braceDepth++;
-                continue;
-            }
-
-            if (ch == '}')
-            {
-                braceDepth = Math.Max(0, braceDepth - 1);
-                continue;
-            }
-
-            if (ch != ',' || braceDepth != 0)
-            {
-                continue;
-            }
-
-            var segment = bindingBody[segmentStart..i].Trim();
-            if (segment.Length > 0)
-            {
-                segments.Add(segment);
-            }
-
-            segmentStart = i + 1;
-        }
-
-        var tail = bindingBody[segmentStart..].Trim();
-        if (tail.Length > 0)
-        {
-            segments.Add(tail);
-        }
-
-        return segments;
+        return SplitTopLevelSegments(bindingBody);
     }
 
     private static void ApplyRelativeSource(Binding binding, string rawValue)
@@ -3426,18 +3522,13 @@ public static class XamlLoader
             return;
         }
 
-        if (!trimmed.EndsWith("}", StringComparison.Ordinal))
+        if (!TryParseMarkupExtensionExpression(trimmed, out var expression) ||
+            !string.Equals(expression.Name, "RelativeSource", StringComparison.OrdinalIgnoreCase))
         {
             throw CreateXamlException($"RelativeSource expression '{rawValue}' is invalid.");
         }
 
-        var body = trimmed[1..^1].Trim();
-        if (!body.StartsWith("RelativeSource", StringComparison.OrdinalIgnoreCase))
-        {
-            throw CreateXamlException($"RelativeSource expression '{rawValue}' is invalid.");
-        }
-
-        var args = body["RelativeSource".Length..].Trim();
+        var args = expression.Body;
         if (string.IsNullOrWhiteSpace(args))
         {
             throw CreateXamlException("RelativeSource requires a mode.");
@@ -3537,11 +3628,36 @@ public static class XamlLoader
         return ResolveElementType(trimmed);
     }
 
-    private static object ResolveBindingSourceValue(string rawValue, FrameworkElement? resourceScope)
+    private static object? ResolveBindingSourceValue(string rawValue, FrameworkElement? resourceScope, XObject? location = null)
     {
         if (TryParseStaticResourceKey(rawValue, out var staticResourceKey))
         {
             return ResolveStaticResourceValue(staticResourceKey, resourceScope);
+        }
+
+        if (TryResolveXStatic(rawValue, out var xStaticResolved))
+        {
+            return xStaticResolved;
+        }
+
+        if (TryResolveXType(rawValue, out var xType))
+        {
+            return xType;
+        }
+
+        if (TryResolveXNull(rawValue, out var isXNull) && isXNull)
+        {
+            return null;
+        }
+
+        if (TryResolveXReference(rawValue, resourceScope, out var xReferenceValue, location))
+        {
+            return xReferenceValue;
+        }
+
+        if (IsMarkupExtensionSyntax(rawValue))
+        {
+            ThrowUnsupportedMarkupExtension(rawValue, $"binding option '{nameof(Binding.Source)}' or '{nameof(Binding.ConverterParameter)}'");
         }
 
         return ParseLooseValue(rawValue);
@@ -3555,8 +3671,27 @@ public static class XamlLoader
         {
             resolved = ResolveStaticResourceValue(staticResourceKey, resourceScope);
         }
+        else if (TryResolveXStatic(rawValue, out var xStaticResolved))
+        {
+            resolved = xStaticResolved;
+        }
+        else if (TryResolveXReference(rawValue, resourceScope, out var xReferenceValue))
+        {
+            if (xReferenceValue is DeferredXReference)
+            {
+                throw CreateXamlException(
+                    $"{optionName} does not support unresolved forward x:Reference values.");
+            }
+
+            resolved = xReferenceValue;
+        }
         else
         {
+            if (IsMarkupExtensionSyntax(rawValue))
+            {
+                ThrowUnsupportedMarkupExtension(rawValue, $"binding option '{optionName}'");
+            }
+
             resolved = ResolveStaticResourceValue(rawValue.Trim(), resourceScope);
         }
 
@@ -3591,7 +3726,8 @@ public static class XamlLoader
         object target,
         string attachedPropertyName,
         string valueText,
-        FrameworkElement? resourceScope)
+        FrameworkElement? resourceScope,
+        XObject? location = null)
     {
         var separatorIndex = attachedPropertyName.IndexOf('.');
         var ownerTypeName = attachedPropertyName[..separatorIndex];
@@ -3664,12 +3800,598 @@ public static class XamlLoader
                     $"Attached property '{ownerType.Name}.{propertyName}' requires a value assignable to '{valueType.Name}', but resource resolved to '{resolved.GetType().Name}'.");
             }
         }
+        else if (TryResolveXStatic(valueText, out var xStaticResolved))
+        {
+            converted = CoerceResolvedResourceValue(
+                xStaticResolved,
+                valueType,
+                $"attached property '{ownerType.Name}.{propertyName}'");
+        }
+        else if (TryResolveXType(valueText, out var xType))
+        {
+            if (valueType != typeof(object) && valueType != typeof(Type))
+            {
+                throw CreateXamlException(
+                    $"Attached property '{ownerType.Name}.{propertyName}' requires a value assignable to '{valueType.Name}', but x:Type was provided.",
+                    location);
+            }
+
+            converted = xType;
+        }
+        else if (TryResolveXNull(valueText, out var isXNull) && isXNull)
+        {
+            if (valueType.IsValueType && Nullable.GetUnderlyingType(valueType) == null)
+            {
+                throw CreateXamlException(
+                    $"Attached property '{ownerType.Name}.{propertyName}' does not accept x:Null for non-nullable type '{valueType.Name}'.",
+                    location);
+            }
+
+            converted = null!;
+        }
+        else if (TryResolveXReference(valueText, target as FrameworkElement ?? resourceScope, out var xReferenceValue, location))
+        {
+            if (xReferenceValue is DeferredXReference deferredReference)
+            {
+                QueueDeferredFinalizeAction(() =>
+                {
+                    var resolvedReference = ResolveDeferredXReference(
+                        deferredReference,
+                        target as FrameworkElement ?? resourceScope,
+                        location);
+                    var resolvedCoerced = CoerceResolvedResourceValue(
+                        resolvedReference,
+                        valueType,
+                        $"attached property '{ownerType.Name}.{propertyName}'");
+                    setter.Invoke(null, new[] { target, resolvedCoerced });
+                });
+                return;
+            }
+
+            converted = CoerceResolvedResourceValue(
+                xReferenceValue,
+                valueType,
+                $"attached property '{ownerType.Name}.{propertyName}'");
+        }
         else
         {
+            if (IsMarkupExtensionSyntax(valueText))
+            {
+                ThrowUnsupportedMarkupExtension(
+                    valueText,
+                    $"attached property '{ownerType.Name}.{propertyName}'");
+            }
+
             converted = ConvertValue(valueText, valueType);
         }
 
         setter.Invoke(null, new[] { target, converted });
+    }
+
+    private static bool TryResolveXStatic(string rawValue, out object resolved, XObject? location = null)
+    {
+        resolved = null!;
+        if (!TryParseMarkupExtensionExpression(rawValue, out var expression) ||
+            !string.Equals(expression.Name, "x:Static", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!TryParseNamedOrPositionalValue(expression, "Member", out var memberReference) ||
+            string.IsNullOrWhiteSpace(memberReference))
+        {
+            throw CreateXamlException(
+                "x:Static markup requires a member reference, e.g. {x:Static EditingCommands.Copy}.",
+                location,
+                code: XamlDiagnosticCode.InvalidValue);
+        }
+
+        var trimmedMemberReference = memberReference.Trim();
+        var separatorIndex = trimmedMemberReference.LastIndexOf('.');
+        if (separatorIndex <= 0 || separatorIndex == trimmedMemberReference.Length - 1)
+        {
+            throw CreateXamlException(
+                $"x:Static member reference '{trimmedMemberReference}' is invalid. Expected 'TypeName.MemberName'.",
+                location,
+                code: XamlDiagnosticCode.InvalidValue);
+        }
+
+        var typeReference = trimmedMemberReference[..separatorIndex].Trim();
+        var memberName = trimmedMemberReference[(separatorIndex + 1)..].Trim();
+
+        Type ownerType;
+        try
+        {
+            ownerType = ResolveTypeReference(typeReference);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException)
+        {
+            throw CreateXamlException(
+                $"x:Static type '{typeReference}' could not be resolved.",
+                location,
+                ex,
+                code: XamlDiagnosticCode.UnknownElement);
+        }
+
+        var field = ownerType.GetField(
+            memberName,
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+        if (field != null)
+        {
+            resolved = field.GetValue(null)!;
+            return true;
+        }
+
+        var property = ownerType.GetProperty(
+            memberName,
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+        if (property != null && property.CanRead && property.GetIndexParameters().Length == 0)
+        {
+            resolved = property.GetValue(null)!;
+            return true;
+        }
+
+        throw CreateXamlException(
+            $"x:Static member '{memberName}' was not found on type '{ownerType.Name}'.",
+            location,
+            code: XamlDiagnosticCode.UnknownProperty);
+    }
+
+    private static bool TryResolveXNull(string rawValue, out bool isXNull)
+    {
+        isXNull = false;
+        if (!TryParseMarkupExtensionExpression(rawValue, out var expression))
+        {
+            return false;
+        }
+
+        if (!string.Equals(expression.Name, "x:Null", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (expression.Segments.Count > 0 || !string.IsNullOrWhiteSpace(expression.Body))
+        {
+            throw CreateXamlException("x:Null markup does not accept arguments.");
+        }
+
+        isXNull = true;
+        return true;
+    }
+
+    private static bool TryResolveXType(string rawValue, out Type resolvedType, XObject? location = null)
+    {
+        resolvedType = typeof(object);
+        if (!TryParseMarkupExtensionExpression(rawValue, out var expression) ||
+            !string.Equals(expression.Name, "x:Type", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var typeText = expression.Body;
+        if (TryParseNamedOrPositionalValue(expression, "TypeName", out var namedOrPositional))
+        {
+            typeText = namedOrPositional;
+        }
+
+        if (string.IsNullOrWhiteSpace(typeText))
+        {
+            throw CreateXamlException("x:Type markup requires a type name.", location);
+        }
+
+        resolvedType = ResolveTypeReference(typeText);
+        return true;
+    }
+
+    private static bool TryResolveXReference(
+        string rawValue,
+        FrameworkElement? scope,
+        out object resolved,
+        XObject? location = null)
+    {
+        resolved = null!;
+        if (!TryParseMarkupExtensionExpression(rawValue, out var expression) ||
+            !string.Equals(expression.Name, "x:Reference", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!TryParseNamedOrPositionalValue(expression, "Name", out var name) ||
+            string.IsNullOrWhiteSpace(name))
+        {
+            throw CreateXamlException("x:Reference markup requires a target name.", location);
+        }
+
+        var targetName = name.Trim();
+        var resolvedNow = ResolveNameReference(scope, targetName);
+        if (resolvedNow != null)
+        {
+            resolved = resolvedNow;
+            return true;
+        }
+
+        resolved = new DeferredXReference(targetName);
+        return true;
+    }
+
+    private static object? ResolveNameReference(FrameworkElement? scope, string name)
+    {
+        if (scope == null || string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        return NameScopeService.FindName(scope, name) ?? scope.FindName(name);
+    }
+
+    private static object ResolveDeferredXReference(DeferredXReference deferred, FrameworkElement? scope, XObject? location = null)
+    {
+        var resolved = ResolveNameReference(scope, deferred.Name);
+        if (resolved != null)
+        {
+            return resolved;
+        }
+
+        if (CurrentLoadRootScope != null)
+        {
+            resolved = ResolveNameReference(CurrentLoadRootScope, deferred.Name);
+            if (resolved != null)
+            {
+                return resolved;
+            }
+        }
+
+        throw CreateXamlException($"x:Reference target '{deferred.Name}' could not be resolved.", location);
+    }
+
+    private static bool TryQueueDeferredBindingReferenceResolution(
+        DependencyObject target,
+        DependencyProperty dependencyProperty,
+        BindingBase bindingBase,
+        FrameworkElement? scope)
+    {
+        var deferredBindings = new List<Binding>();
+        CollectBindingsWithDeferredReferences(bindingBase, deferredBindings);
+        if (deferredBindings.Count == 0)
+        {
+            return false;
+        }
+
+        QueueDeferredFinalizeAction(() =>
+        {
+            foreach (var binding in deferredBindings)
+            {
+                if (binding.Source is DeferredXReference sourceDeferred)
+                {
+                    binding.Source = ResolveDeferredXReference(sourceDeferred, scope);
+                }
+
+                if (binding.ConverterParameter is DeferredXReference parameterDeferred)
+                {
+                    binding.ConverterParameter = ResolveDeferredXReference(parameterDeferred, scope);
+                }
+            }
+
+            BindingOperations.SetBinding(target, dependencyProperty, bindingBase);
+        });
+
+        return true;
+    }
+
+    private static void CollectBindingsWithDeferredReferences(BindingBase bindingBase, ICollection<Binding> accumulator)
+    {
+        if (bindingBase is Binding binding)
+        {
+            if (binding.Source is DeferredXReference || binding.ConverterParameter is DeferredXReference)
+            {
+                accumulator.Add(binding);
+            }
+
+            return;
+        }
+
+        if (bindingBase is MultiBinding multiBinding)
+        {
+            foreach (var childBinding in multiBinding.Bindings)
+            {
+                CollectBindingsWithDeferredReferences(childBinding, accumulator);
+            }
+
+            return;
+        }
+
+        if (bindingBase is PriorityBinding priorityBinding)
+        {
+            foreach (var childBinding in priorityBinding.Bindings)
+            {
+                CollectBindingsWithDeferredReferences(childBinding, accumulator);
+            }
+        }
+    }
+
+    private static void QueueDeferredFinalizeAction(Action action)
+    {
+        if (CurrentDeferredFinalizeActions == null || CurrentDeferredFinalizeActions.Count == 0)
+        {
+            action();
+            return;
+        }
+
+        CurrentDeferredFinalizeActions.Peek().Add(action);
+    }
+
+    private static void RunWithinDeferredFinalizeActions(Action action)
+    {
+        CurrentDeferredFinalizeActions ??= new Stack<List<Action>>();
+        var queue = new List<Action>();
+        CurrentDeferredFinalizeActions.Push(queue);
+        try
+        {
+            action();
+
+            // Keep draining in case a finalize action schedules more work.
+            for (var i = 0; i < queue.Count; i++)
+            {
+                queue[i]();
+            }
+        }
+        finally
+        {
+            CurrentDeferredFinalizeActions.Pop();
+            if (CurrentDeferredFinalizeActions.Count == 0)
+            {
+                CurrentDeferredFinalizeActions = null;
+            }
+        }
+    }
+
+    private static string GetMarkupExtensionRequiredValue(string rawValue, string extensionName, string argumentLabel)
+    {
+        if (!TryParseMarkupExtensionExpression(rawValue, out var expression) ||
+            !string.Equals(expression.Name, extensionName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw CreateXamlException($"Markup extension '{extensionName}' is invalid.");
+        }
+
+        if (TryParseNamedOrPositionalValue(expression, "Key", out var key))
+        {
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                return key.Trim();
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(expression.Body))
+        {
+            return expression.Body.Trim();
+        }
+
+        throw CreateXamlException($"Markup extension '{extensionName}' requires {argumentLabel}.");
+    }
+
+    private static object ConvertAssignableTextValue(
+        string rawValueText,
+        Type targetType,
+        FrameworkElement? resourceScope,
+        XObject? location,
+        string locationLabel)
+    {
+        if (TryResolveXNull(rawValueText, out var isXNull) && isXNull)
+        {
+            if (targetType.IsValueType && Nullable.GetUnderlyingType(targetType) == null)
+            {
+                throw CreateXamlException(
+                    $"x:Null is not assignable to '{targetType.Name}' for '{locationLabel}'.",
+                    location);
+            }
+
+            return null!;
+        }
+
+        if (TryResolveXType(rawValueText, out var xType, location))
+        {
+            if (targetType != typeof(object) && targetType != typeof(Type))
+            {
+                throw CreateXamlException(
+                    $"x:Type is not assignable to '{targetType.Name}' for '{locationLabel}'.",
+                    location);
+            }
+
+            return xType;
+        }
+
+        if (TryResolveXReference(rawValueText, resourceScope, out var xReferenceValue, location))
+        {
+            if (xReferenceValue is DeferredXReference deferredReference)
+            {
+                return deferredReference;
+            }
+
+            return ResourceReferenceResolver.Coerce(xReferenceValue, targetType, locationLabel)!;
+        }
+
+        if (TryResolveXStatic(rawValueText, out var xStaticValue, location))
+        {
+            return ResourceReferenceResolver.Coerce(xStaticValue, targetType, locationLabel)!;
+        }
+
+        if (IsMarkupExtensionSyntax(rawValueText))
+        {
+            ThrowUnsupportedMarkupExtension(rawValueText, locationLabel, location);
+        }
+
+        return ConvertValue(rawValueText, targetType);
+    }
+
+    private static bool IsMarkupExtensionSyntax(string valueText)
+    {
+        var trimmed = valueText.Trim();
+        return trimmed.StartsWith("{", StringComparison.Ordinal) &&
+               trimmed.EndsWith("}", StringComparison.Ordinal);
+    }
+
+    private static void ThrowUnsupportedMarkupExtension(string rawValue, string context, XObject? location = null)
+    {
+        if (!TryParseMarkupExtensionExpression(rawValue, out var expression))
+        {
+            throw CreateXamlException(
+                $"Markup extension expression '{rawValue}' is invalid for {context}.",
+                location,
+                code: XamlDiagnosticCode.InvalidValue);
+        }
+
+        throw CreateXamlException(
+            $"Markup extension '{expression.Name}' is not supported for {context}.",
+            location,
+            code: XamlDiagnosticCode.UnsupportedConstruct);
+    }
+
+    private static bool TryParseMarkupExtensionExpression(string rawValue, out MarkupExtensionExpression expression)
+    {
+        expression = default;
+        var trimmed = rawValue.Trim();
+        if (!trimmed.StartsWith("{", StringComparison.Ordinal) ||
+            !trimmed.EndsWith("}", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var markupBody = trimmed[1..^1].Trim();
+        if (string.IsNullOrWhiteSpace(markupBody))
+        {
+            throw CreateXamlException("Markup extension expression is empty.");
+        }
+
+        var separatorIndex = -1;
+        for (var i = 0; i < markupBody.Length; i++)
+        {
+            if (char.IsWhiteSpace(markupBody[i]) || markupBody[i] == ',')
+            {
+                separatorIndex = i;
+                break;
+            }
+        }
+
+        var name = separatorIndex >= 0
+            ? markupBody[..separatorIndex].Trim()
+            : markupBody;
+        var body = separatorIndex >= 0
+            ? markupBody[separatorIndex..].TrimStart().TrimStart(',')
+            : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw CreateXamlException("Markup extension expression is missing an extension name.");
+        }
+
+        var segments = SplitTopLevelSegments(body);
+        expression = new MarkupExtensionExpression(name, body, segments);
+        return true;
+    }
+
+    private static List<string> SplitTopLevelSegments(string rawBody)
+    {
+        var body = rawBody.Trim();
+        if (body.Length == 0)
+        {
+            return new List<string>();
+        }
+
+        var segments = new List<string>();
+        var segmentStart = 0;
+        var braceDepth = 0;
+
+        for (var i = 0; i < body.Length; i++)
+        {
+            var ch = body[i];
+            if (ch == '{')
+            {
+                braceDepth++;
+                continue;
+            }
+
+            if (ch == '}')
+            {
+                braceDepth--;
+                if (braceDepth < 0)
+                {
+                    throw CreateXamlException($"Markup extension body '{rawBody}' is invalid.");
+                }
+
+                continue;
+            }
+
+            if (ch != ',' || braceDepth != 0)
+            {
+                continue;
+            }
+
+            var segment = body[segmentStart..i].Trim();
+            if (segment.Length > 0)
+            {
+                segments.Add(segment);
+            }
+
+            segmentStart = i + 1;
+        }
+
+        if (braceDepth != 0)
+        {
+            throw CreateXamlException($"Markup extension body '{rawBody}' is invalid.");
+        }
+
+        var tail = body[segmentStart..].Trim();
+        if (tail.Length > 0)
+        {
+            segments.Add(tail);
+        }
+
+        return segments;
+    }
+
+    private static bool TryParseNamedOrPositionalValue(
+        MarkupExtensionExpression expression,
+        string namedKey,
+        out string value)
+    {
+        value = string.Empty;
+        var namedValue = default(string);
+        var positionalValue = default(string);
+
+        foreach (var segment in expression.Segments)
+        {
+            var equalsIndex = segment.IndexOf('=');
+            if (equalsIndex > 0 && equalsIndex < segment.Length - 1)
+            {
+                var key = segment[..equalsIndex].Trim();
+                var candidateValue = segment[(equalsIndex + 1)..].Trim();
+                if (string.Equals(key, namedKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    namedValue = candidateValue;
+                }
+
+                continue;
+            }
+
+            if (positionalValue == null)
+            {
+                positionalValue = segment.Trim();
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(namedValue))
+        {
+            value = namedValue!;
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(positionalValue))
+        {
+            value = positionalValue!;
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryApplyAttachedPropertyElement(
@@ -4484,6 +5206,32 @@ public static class XamlLoader
         }
 
         return true;
+    }
+
+    private readonly struct MarkupExtensionExpression
+    {
+        public MarkupExtensionExpression(string name, string body, List<string> segments)
+        {
+            Name = name;
+            Body = body;
+            Segments = segments;
+        }
+
+        public string Name { get; }
+
+        public string Body { get; }
+
+        public List<string> Segments { get; }
+    }
+
+    private sealed class DeferredXReference
+    {
+        public DeferredXReference(string name)
+        {
+            Name = name;
+        }
+
+        public string Name { get; }
     }
 
     private sealed class DiagnosticSinkScope : IDisposable

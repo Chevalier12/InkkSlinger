@@ -141,9 +141,9 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | XAML binding parser | Unrecognized binding attributes are rejected | `UI/Xaml/Core/XamlLoader.cs` (`BuildBindingElement`) | Partial |
 | XAML binding parser | Unrecognized binding keys are rejected | `UI/Xaml/Core/XamlLoader.cs` (`ParseBinding`) | Partial |
 | XAML `RelativeSource` parser | Only `Mode`, `AncestorType`, `AncestorLevel` keys are accepted | `UI/Xaml/Core/XamlLoader.cs` (`ParseRelativeSource`) | Partial |
-| XAML resources | `DynamicResource` markup support for attribute-based dependency and attached properties; setter/trigger values remain deferred | `UI/Xaml/Core/XamlLoader.cs` (`TryParseDynamicResourceKey`, `TryApplyDynamicResourceExpression`, `ApplyAttachedProperty`) | Partial |
-| XAML language | General WPF `MarkupExtension` ecosystem | No `MarkupExtension` base in `UI/`; parser uses explicit special cases | Not implemented |
-| XAML language | Broader `x:` metadata surface (`x:Class`, `x:Static`, etc.) | `UI/Xaml/Core/XamlLoader.cs` (`ApplyAttributes` handles `x:Name`/`x:Key` paths only) | Partial |
+| XAML resources | `DynamicResource` markup support across attribute-based dependency/attached properties, style setters, trigger setters, and trigger actions | `UI/Xaml/Core/XamlLoader.cs`, `UI/Styling/Core/Style.cs`, `UI/Templating/Core/TemplateTriggerEngine.cs`, `UI/Styling/Actions/SetValueAction.cs` | Implemented |
+| XAML language | Practical markup-extension core (`x:Static`, `x:Type`, `x:Null`, `x:Reference` + existing binding/resource/template forms) | `UI/Xaml/Core/XamlLoader.cs`, `InkkSlinger.Tests/XamlMarkupExtensionTests.cs` | Implemented |
+| XAML language | Compile-time metadata extensions (`x:Class`, full WPF compile-time ecosystem) | Runtime loader explicitly rejects unsupported `x:` metadata beyond runtime surface | Not implemented |
 | XAML tooling | WPF designer/Blend/XAML compilation parity | Runtime loader path in `UI/Xaml/Core/XamlLoader.cs`; no compile-time XAML toolchain in repo | Not implemented |
 | Resources/XAML | Full merged-dictionary authoring + WPF merge edge semantics | Runtime merge API in `UI/Resources/Core/ResourceDictionary.cs`; no dedicated merged-dictionary parse path in `UI/Xaml/Core/XamlLoader.cs` | Partial |
 | Styling/XAML | Trigger actions are limited to `SetValueAction`, `BeginStoryboard`, `StopStoryboard`, `PauseStoryboard`, `ResumeStoryboard`, `SeekStoryboard`, `RemoveStoryboard` | `UI/Xaml/Core/XamlLoader.cs` (`BuildTriggerAction`) | Partial |
