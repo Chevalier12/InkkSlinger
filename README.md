@@ -156,7 +156,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Geometry path parser | Path commands `S/s`, `T/t`, `A/a` are rejected | `UI/Geometry/Parsing/PathMarkupParser.cs` | Partial |
 | Text pipeline | Virtual wrapped text layout optimization is enabled for wrapped layouts with finite positive width and guarded by resize/input regressions | `UI/Controls/Inputs/TextBox.cs` (`CanUseVirtualWrappedLayout`), `InkkSlinger.Tests/ViewportResizeInputRegressionTests.cs`, `InkkSlinger.Tests/InputDispatchOptimizationTests.cs` | Implemented (tested) |
 | Framework services | `Freezable` semantics and related WPF service patterns | No `Freezable` infrastructure in `UI/` | Not implemented |
-| Layout parity | Layout rounding / DPI-specific rounding parity (`UseLayoutRounding`-style behavior) | No matching layout-rounding API in `UI/Layout`/`UI/Controls` | Not implemented |
+| Layout parity | Core layout rounding parity (`UseLayoutRounding`-style behavior) for measure/arrange slot rounding with inherited DP semantics | `UI/Controls/Base/FrameworkElement.cs`, `UI/Controls/Base/UIElement.cs`, `InkkSlinger.Tests/UseLayoutRoundingTests.cs` | Implemented (core scope) |
 | Input stack | Touch/stylus/tablet pipelines | No corresponding types under `UI/Input` | Not implemented |
 | Accessibility | UI automation / `AutomationPeer` layer | No corresponding types in `UI/`; no automation tree APIs | Not implemented |
 | Rendering parity | Pixel-identical WPF rendering/composition fidelity | Framework targets MonoGame parity behavior, not WPF pixel-clone output | Out of scope |

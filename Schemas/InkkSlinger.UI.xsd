@@ -120,6 +120,7 @@
       </xs:choice>
     </xs:sequence>
 
+    <xs:attribute name="UseLayoutRounding" type="xs:boolean" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 

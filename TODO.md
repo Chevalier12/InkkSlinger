@@ -23,6 +23,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] Resource resolution and precedence hardening: local/tree/app lookup and implicit style replacement behavior.
 - [x] Input/focus edge-case hardening: capture/focus recovery, popup open/close behavior, keyboard focus traversal.
 - [x] Layout and resize correctness under viewport changes and DPI-like scaling scenarios.
+- [x] Core layout rounding parity pass: added inherited `UseLayoutRounding` DP and measure/arrange rounding for layout slots and render sizes, with focused regression coverage (`UseLayoutRoundingTests`).
 - [x] Rendering and invalidation efficiency pass (reduced redundant invalidations/updates).
 - [x] Performance pass completed and baseline behavior verified in tests.
 - [x] Wheel input routing fix: when hover-bypass mode is enabled and hover target is null, wheel now falls back to normal target resolution instead of dropping the event.

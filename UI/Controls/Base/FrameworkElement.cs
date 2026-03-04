@@ -143,6 +143,15 @@ public class FrameworkElement : UIElement
             typeof(FrameworkElement),
             new FrameworkPropertyMetadata(false));
 
+    public static readonly DependencyProperty UseLayoutRoundingProperty =
+        DependencyProperty.Register(
+            nameof(UseLayoutRounding),
+            typeof(bool),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(
+                false,
+                FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure));
+
     public static readonly DependencyProperty FocusableProperty =
         DependencyProperty.Register(
             nameof(Focusable),
@@ -285,6 +294,12 @@ public class FrameworkElement : UIElement
         set => SetValue(SnapsToDevicePixelsProperty, value);
     }
 
+    public bool UseLayoutRounding
+    {
+        get => GetValue<bool>(UseLayoutRoundingProperty);
+        set => SetValue(UseLayoutRoundingProperty, value);
+    }
+
     public bool Focusable
     {
         get => GetValue<bool>(FocusableProperty);
@@ -355,35 +370,50 @@ public class FrameworkElement : UIElement
     public void Measure(Vector2 availableSize)
     {
         Dispatcher.VerifyAccess();
+        var useLayoutRounding = UseLayoutRounding;
+        var effectiveAvailableSize = useLayoutRounding
+            ? RoundLayoutSize(availableSize)
+            : availableSize;
+
         if (!IsVisible)
         {
             DesiredSize = new Vector2(
                 0f,
                 0f);
-            _previousAvailableSize = availableSize;
+            _previousAvailableSize = effectiveAvailableSize;
             _isMeasureValid = true;
             ClearMeasureInvalidation();
             return;
         }
 
-        if (_isMeasureValid && _previousAvailableSize == availableSize)
+        if (_isMeasureValid && _previousAvailableSize == effectiveAvailableSize)
         {
             return;
         }
 
-        _previousAvailableSize = availableSize;
+        _previousAvailableSize = effectiveAvailableSize;
 
         var margin = Margin;
         var innerAvailable = new Vector2(
-            MathF.Max(0f, availableSize.X - margin.Horizontal),
-            MathF.Max(0f, availableSize.Y - margin.Vertical));
+            MathF.Max(0f, effectiveAvailableSize.X - margin.Horizontal),
+            MathF.Max(0f, effectiveAvailableSize.Y - margin.Vertical));
 
         var measured = MeasureOverride(innerAvailable);
         measured = ApplyExplicitConstraints(measured);
+        if (useLayoutRounding)
+        {
+            measured = RoundLayoutSize(measured);
+        }
 
-        DesiredSize = new Vector2(
+        var desired = new Vector2(
             measured.X + margin.Horizontal,
             measured.Y + margin.Vertical);
+        if (useLayoutRounding)
+        {
+            desired = RoundLayoutSize(desired);
+        }
+
+        DesiredSize = desired;
 
         _isMeasureValid = true;
         ClearMeasureInvalidation();
@@ -392,18 +422,23 @@ public class FrameworkElement : UIElement
     public void Arrange(LayoutRect finalRect)
     {
         Dispatcher.VerifyAccess();
+        var useLayoutRounding = UseLayoutRounding;
+        var effectiveFinalRect = useLayoutRounding
+            ? RoundLayoutRect(finalRect)
+            : finalRect;
+
         if (_isArrangeValid &&
             _isMeasureValid &&
-            AreRectsEqual(_arrangeRect, finalRect))
+            AreRectsEqual(_arrangeRect, effectiveFinalRect))
         {
             return;
         }
 
-        _arrangeRect = finalRect;
+        _arrangeRect = effectiveFinalRect;
 
         if (!IsVisible)
         {
-            SetLayoutSlot(finalRect);
+            SetLayoutSlot(effectiveFinalRect);
             RenderSize = Vector2.Zero;
             _isArrangeValid = true;
             ClearArrangeInvalidation();
@@ -412,14 +447,14 @@ public class FrameworkElement : UIElement
 
         if (!_isMeasureValid)
         {
-            Measure(new Vector2(finalRect.Width, finalRect.Height));
+            Measure(new Vector2(effectiveFinalRect.Width, effectiveFinalRect.Height));
         }
 
         var margin = Margin;
-        var clientX = finalRect.X + margin.Left;
-        var clientY = finalRect.Y + margin.Top;
-        var clientWidth = MathF.Max(0f, finalRect.Width - margin.Horizontal);
-        var clientHeight = MathF.Max(0f, finalRect.Height - margin.Vertical);
+        var clientX = effectiveFinalRect.X + margin.Left;
+        var clientY = effectiveFinalRect.Y + margin.Top;
+        var clientWidth = MathF.Max(0f, effectiveFinalRect.Width - margin.Horizontal);
+        var clientHeight = MathF.Max(0f, effectiveFinalRect.Height - margin.Vertical);
 
         var arrangedWidth = ResolveAlignedSize(clientWidth, DesiredSize.X - margin.Horizontal, Width, HorizontalAlignment);
         var arrangedHeight = ResolveAlignedSize(clientHeight, DesiredSize.Y - margin.Vertical, Height, VerticalAlignment);
@@ -429,11 +464,31 @@ public class FrameworkElement : UIElement
 
         var arrangedX = ResolveAlignedPosition(clientX, clientWidth, arrangedWidth, HorizontalAlignment);
         var arrangedY = ResolveAlignedPosition(clientY, clientHeight, arrangedHeight, VerticalAlignment);
+        if (useLayoutRounding)
+        {
+            var roundedAlignedRect = RoundLayoutRect(new LayoutRect(arrangedX, arrangedY, arrangedWidth, arrangedHeight));
+            arrangedX = roundedAlignedRect.X;
+            arrangedY = roundedAlignedRect.Y;
+            arrangedWidth = roundedAlignedRect.Width;
+            arrangedHeight = roundedAlignedRect.Height;
+        }
 
         // ArrangeOverride needs the final aligned origin for child layout decisions.
         SetLayoutSlot(new LayoutRect(arrangedX, arrangedY, arrangedWidth, arrangedHeight));
         RenderSize = ArrangeOverride(new Vector2(arrangedWidth, arrangedHeight));
-        SetLayoutSlot(new LayoutRect(arrangedX, arrangedY, RenderSize.X, RenderSize.Y));
+        if (useLayoutRounding)
+        {
+            RenderSize = RoundLayoutSize(RenderSize);
+        }
+
+        var finalLayoutSlot = new LayoutRect(arrangedX, arrangedY, RenderSize.X, RenderSize.Y);
+        if (useLayoutRounding)
+        {
+            finalLayoutSlot = RoundLayoutRect(finalLayoutSlot);
+            RenderSize = new Vector2(finalLayoutSlot.Width, finalLayoutSlot.Height);
+        }
+
+        SetLayoutSlot(finalLayoutSlot);
 
         _isArrangeValid = true;
         ClearArrangeInvalidation();
@@ -842,6 +897,60 @@ public class FrameworkElement : UIElement
                MathF.Abs(left.Y - right.Y) <= epsilon &&
                MathF.Abs(left.Width - right.Width) <= epsilon &&
                MathF.Abs(left.Height - right.Height) <= epsilon;
+    }
+
+    private static LayoutRect RoundLayoutRect(LayoutRect rect)
+    {
+        if (!IsFinite(rect.X) || !IsFinite(rect.Y) || !IsFinite(rect.Width) || !IsFinite(rect.Height))
+        {
+            return new LayoutRect(
+                RoundLayoutScalar(rect.X),
+                RoundLayoutScalar(rect.Y),
+                RoundLayoutScalar(rect.Width),
+                RoundLayoutScalar(rect.Height));
+        }
+
+        var left = RoundLayoutScalar(rect.X);
+        var top = RoundLayoutScalar(rect.Y);
+        var right = RoundLayoutScalar(rect.X + rect.Width);
+        var bottom = RoundLayoutScalar(rect.Y + rect.Height);
+        return new LayoutRect(
+            left,
+            top,
+            MathF.Max(0f, right - left),
+            MathF.Max(0f, bottom - top));
+    }
+
+    private static Vector2 RoundLayoutSize(Vector2 size)
+    {
+        return new Vector2(
+            RoundLayoutSizeScalar(size.X),
+            RoundLayoutSizeScalar(size.Y));
+    }
+
+    private static float RoundLayoutSizeScalar(float value)
+    {
+        if (!IsFinite(value))
+        {
+            return value;
+        }
+
+        return MathF.Max(0f, MathF.Round(value));
+    }
+
+    private static float RoundLayoutScalar(float value)
+    {
+        if (!IsFinite(value))
+        {
+            return value;
+        }
+
+        return MathF.Round(value);
+    }
+
+    private static bool IsFinite(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
     }
 
 }

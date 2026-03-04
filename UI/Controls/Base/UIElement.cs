@@ -681,7 +681,8 @@ public class UIElement : DependencyObject
         {
             UIElement.IsEnabledProperty,
             FrameworkElement.DataContextProperty,
-            FrameworkElement.BindingGroupProperty
+            FrameworkElement.BindingGroupProperty,
+            FrameworkElement.UseLayoutRoundingProperty
         };
 
         phaseStart = Stopwatch.GetTimestamp();
