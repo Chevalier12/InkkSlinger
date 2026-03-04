@@ -428,6 +428,15 @@ internal static class ControlDemoSupport
                 });
                 return frame;
             }
+            case "DocumentViewer":
+            {
+                var viewer = new DocumentViewer
+                {
+                    Zoom = 100f
+                };
+                viewer.Document = BuildDocumentViewerSampleDocument();
+                return viewer;
+            }
             case "UserControl":
                 return new UserControl { Content = new Label { Text = "UserControl content" } };
             case "Window":
@@ -665,6 +674,7 @@ internal static class ControlDemoSupport
                 "PasswordBox" => 260f,
                 "ComboBox" => 260f,
                 "DatePicker" => 260f,
+                "DocumentViewer" => 520f,
                 _ => element.Width
             };
         }
@@ -683,6 +693,7 @@ internal static class ControlDemoSupport
                 "VirtualizingStackPanel" => 260f,
                 "WrapPanel" => 220f,
                 "UniformGrid" => 220f,
+                "DocumentViewer" => 320f,
                 _ => element.Height
             };
         }
@@ -750,6 +761,71 @@ internal static class ControlDemoSupport
             Text = text,
             Foreground = new Color(215, 235, 252)
         };
+    }
+
+    private static FlowDocument BuildDocumentViewerSampleDocument()
+    {
+        var document = new FlowDocument();
+
+        var intro = new Paragraph();
+        intro.Inlines.Add(new Run("DocumentViewer sample: "));
+        var bold = new Bold();
+        bold.Inlines.Add(new Run("read-only paging"));
+        intro.Inlines.Add(bold);
+        intro.Inlines.Add(new Run(", selection, and hyperlinks."));
+        document.Blocks.Add(intro);
+
+        var linkParagraph = new Paragraph();
+        var hyperlink = new Hyperlink { NavigateUri = "https://example.com/docs" };
+        hyperlink.Inlines.Add(new Run("Open documentation"));
+        linkParagraph.Inlines.Add(hyperlink);
+        document.Blocks.Add(linkParagraph);
+
+        var list = new InkkSlinger.List { IsOrdered = true };
+        list.Items.Add(BuildListItem("Zoom in/out and fit width."));
+        list.Items.Add(BuildListItem("Navigate pages with PageUp/PageDown."));
+        list.Items.Add(BuildListItem("Copy selected rich text to clipboard."));
+        document.Blocks.Add(list);
+
+        var table = new Table();
+        var group = new TableRowGroup();
+        var header = new TableRow();
+        header.Cells.Add(BuildCell("Feature"));
+        header.Cells.Add(BuildCell("Status"));
+        group.Rows.Add(header);
+        var row = new TableRow();
+        row.Cells.Add(BuildCell("Flow paging"));
+        row.Cells.Add(BuildCell("Implemented"));
+        group.Rows.Add(row);
+        table.RowGroups.Add(group);
+        document.Blocks.Add(table);
+
+        for (var i = 1; i <= 18; i++)
+        {
+            var paragraph = new Paragraph();
+            paragraph.Inlines.Add(new Run($"Line {i:D2}: scrolling content to validate page boundaries and wheel behavior."));
+            document.Blocks.Add(paragraph);
+        }
+
+        return document;
+    }
+
+    private static ListItem BuildListItem(string text)
+    {
+        var item = new ListItem();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run(text));
+        item.Blocks.Add(paragraph);
+        return item;
+    }
+
+    private static TableCell BuildCell(string text)
+    {
+        var cell = new TableCell();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run(text));
+        cell.Blocks.Add(paragraph);
+        return cell;
     }
 }
 

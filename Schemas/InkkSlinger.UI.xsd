@@ -68,6 +68,8 @@
         <xs:element ref="PasswordBox" />
         <xs:element ref="RichTextBox" />
         <xs:element ref="RichTextBox.Document" />
+        <xs:element ref="DocumentViewer" />
+        <xs:element ref="DocumentViewer.Document" />
         <xs:element ref="FlowDocument" />
         <xs:element ref="Paragraph" />
         <xs:element ref="Run" />
@@ -1581,6 +1583,25 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="documentViewerType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="TextWrapping" type="textWrappingType" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="Margin" type="thicknessType" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="xs:float" />
+        <xs:attribute name="Padding" type="thicknessType" />
+        <xs:attribute name="Zoom" type="xs:float" />
+        <xs:attribute name="MinZoom" type="xs:float" />
+        <xs:attribute name="MaxZoom" type="xs:float" />
+        <xs:attribute name="ZoomIncrement" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="frameType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
@@ -2122,6 +2143,8 @@
   <xs:element name="PasswordBox" type="passwordBoxType" />
   <xs:element name="RichTextBox" type="richTextBoxType" />
   <xs:element name="RichTextBox.Document" type="flowDocumentType" />
+  <xs:element name="DocumentViewer" type="documentViewerType" />
+  <xs:element name="DocumentViewer.Document" type="flowDocumentType" />
   <xs:element name="FlowDocument" type="flowDocumentType" />
   <xs:element name="FlowDocument.Blocks" type="flowDocumentBlocksType" />
   <xs:element name="Paragraph" type="paragraphType" />

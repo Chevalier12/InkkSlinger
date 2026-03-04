@@ -591,9 +591,9 @@ public sealed partial class UiRoot
         }
         else if (_inputState.CapturedPointerElement == null)
         {
-            if (target is RichTextBox richTextBox)
+            if (target is IHyperlinkHoverHost hyperlinkHoverHost)
             {
-                richTextBox.UpdateHoveredHyperlinkFromPointer(pointerPosition);
+                hyperlinkHoverHost.UpdateHoveredHyperlinkFromPointer(pointerPosition);
             }
 
             var resolved = TryResolveContextMenuMenuItemTarget(pointerPosition, target, out var contextMenuMenuItem);

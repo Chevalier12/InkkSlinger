@@ -10,7 +10,7 @@ using System.Collections.Immutable;
 
 namespace InkkSlinger;
 
-public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintProvider
+public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintProvider, IHyperlinkHoverHost
 {
     public static readonly RoutedEvent DocumentChangedEvent =
         new(nameof(DocumentChanged), RoutingStrategy.Bubble);
@@ -1519,7 +1519,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
     }
 
-    internal void UpdateHoveredHyperlinkFromPointer(Vector2 pointerPosition)
+    public void UpdateHoveredHyperlinkFromPointer(Vector2 pointerPosition)
     {
         if (!IsEnabled)
         {
@@ -3742,19 +3742,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private Hyperlink? ResolveHyperlinkAtOffset(int offset)
     {
-        var paragraphs = CollectParagraphEntries(Document);
-        for (var i = 0; i < paragraphs.Count; i++)
-        {
-            if (offset < paragraphs[i].StartOffset || offset > paragraphs[i].EndOffset)
-            {
-                continue;
-            }
-
-            var localOffset = Math.Clamp(offset - paragraphs[i].StartOffset, 0, Math.Max(0, paragraphs[i].EndOffset - paragraphs[i].StartOffset));
-            return ResolveHyperlinkWithinInlines(paragraphs[i].Paragraph.Inlines, localOffset);
-        }
-
-        return null;
+        return DocumentViewportController.ResolveHyperlinkAtOffset(Document, offset);
     }
 
     private static Hyperlink? ResolveHyperlinkWithinInlines(IEnumerable<Inline> inlines, int localOffset)
@@ -3828,7 +3816,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             implicitStyle = hyperlinkStyle;
         }
 
-        foreach (var hyperlink in EnumerateHyperlinks(Document))
+        foreach (var hyperlink in DocumentViewportController.EnumerateHyperlinks(Document))
         {
             currentHyperlinks.Add(hyperlink);
             ApplyHyperlinkImplicitStyle(hyperlink, implicitStyle);
