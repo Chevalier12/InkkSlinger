@@ -464,7 +464,22 @@ internal sealed class ClrPropertyAnimationSink : AnimationValueSink
 
     public override void SetValue(object? value)
     {
-        Property.SetValue(Target, value);
+        try
+        {
+            Property.SetValue(Target, value);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException inner)
+        {
+            throw new InvalidOperationException(
+                $"Failed to set animated property '{Target.GetType().Name}.{Property.Name}'. The target object rejected mutation.",
+                inner);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new InvalidOperationException(
+                $"Failed to set animated property '{Target.GetType().Name}.{Property.Name}'. The target object rejected mutation.",
+                ex);
+        }
     }
 
     public override void ClearValue(object? restoreValue) => Property.SetValue(Target, restoreValue);

@@ -4,13 +4,16 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
-public abstract class Effect
+public abstract class Effect : Freezable
 {
-    internal event Action? Changed;
-
-    protected void RaiseChanged()
+    public new Effect Clone()
     {
-        Changed?.Invoke();
+        return (Effect)base.Clone();
+    }
+
+    public new Effect CloneCurrentValue()
+    {
+        return (Effect)base.CloneCurrentValue();
     }
 
     internal abstract void Render(UIElement element, SpriteBatch spriteBatch, float elementOpacity);
@@ -28,13 +31,14 @@ public sealed class DropShadowEffect : Effect
         get => _color;
         set
         {
+            WritePreamble();
             if (_color == value)
             {
                 return;
             }
 
             _color = value;
-            RaiseChanged();
+            WritePostscript();
         }
     }
 
@@ -43,13 +47,14 @@ public sealed class DropShadowEffect : Effect
         get => _shadowDepth;
         set
         {
+            WritePreamble();
             if (MathF.Abs(_shadowDepth - value) <= 0.0001f)
             {
                 return;
             }
 
             _shadowDepth = value;
-            RaiseChanged();
+            WritePostscript();
         }
     }
 
@@ -58,6 +63,7 @@ public sealed class DropShadowEffect : Effect
         get => _blurRadius;
         set
         {
+            WritePreamble();
             var clamped = value < 0f ? 0f : value;
             if (MathF.Abs(_blurRadius - clamped) <= 0.0001f)
             {
@@ -65,7 +71,7 @@ public sealed class DropShadowEffect : Effect
             }
 
             _blurRadius = clamped;
-            RaiseChanged();
+            WritePostscript();
         }
     }
 
@@ -74,6 +80,7 @@ public sealed class DropShadowEffect : Effect
         get => _opacity;
         set
         {
+            WritePreamble();
             var clamped = Math.Clamp(value, 0f, 1f);
             if (MathF.Abs(_opacity - clamped) <= 0.0001f)
             {
@@ -81,8 +88,22 @@ public sealed class DropShadowEffect : Effect
             }
 
             _opacity = clamped;
-            RaiseChanged();
+            WritePostscript();
         }
+    }
+
+    protected override Freezable CreateInstanceCore()
+    {
+        return new DropShadowEffect();
+    }
+
+    protected override void CloneCore(Freezable source)
+    {
+        var typedSource = (DropShadowEffect)source;
+        _color = typedSource._color;
+        _shadowDepth = typedSource._shadowDepth;
+        _blurRadius = typedSource._blurRadius;
+        _opacity = typedSource._opacity;
     }
 
     internal override void Render(UIElement element, SpriteBatch spriteBatch, float elementOpacity)

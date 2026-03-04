@@ -1,3 +1,4 @@
+using System;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -68,5 +69,18 @@ public sealed class EffectPhase2Tests
         Assert.False(border.NeedsMeasure);
         Assert.False(border.NeedsArrange);
         Assert.True(border.NeedsRender);
+    }
+
+    [Fact]
+    public void FrozenDropShadowEffect_MutationThrows()
+    {
+        var effect = new DropShadowEffect
+        {
+            BlurRadius = 2f,
+            Opacity = 0.2f
+        };
+        effect.Freeze();
+
+        Assert.Throws<InvalidOperationException>(() => effect.BlurRadius = 9f);
     }
 }

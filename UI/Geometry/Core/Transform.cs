@@ -5,20 +5,23 @@ using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
-public abstract class Transform
+public abstract class Transform : Freezable
 {
-    internal event Action? Changed;
+    public new Transform Clone()
+    {
+        return (Transform)base.Clone();
+    }
+
+    public new Transform CloneCurrentValue()
+    {
+        return (Transform)base.CloneCurrentValue();
+    }
 
     public abstract Matrix ToMatrix();
 
     public Vector2 TransformPoint(Vector2 point)
     {
         return Vector2.Transform(point, ToMatrix());
-    }
-
-    protected void RaiseChanged()
-    {
-        Changed?.Invoke();
     }
 
     protected static bool NearlyEqual(float left, float right)
@@ -28,13 +31,14 @@ public abstract class Transform
 
     protected bool SetField(ref float field, float value)
     {
+        WritePreamble();
         if (NearlyEqual(field, value))
         {
             return false;
         }
 
         field = value;
-        RaiseChanged();
+        WritePostscript();
         return true;
     }
 }
@@ -58,14 +62,26 @@ public sealed class MatrixTransform : Transform
         get => _matrix;
         set
         {
+            WritePreamble();
             if (_matrix == value)
             {
                 return;
             }
 
             _matrix = value;
-            RaiseChanged();
+            WritePostscript();
         }
+    }
+
+    protected override Freezable CreateInstanceCore()
+    {
+        return new MatrixTransform();
+    }
+
+    protected override void CloneCore(Freezable source)
+    {
+        var typedSource = (MatrixTransform)source;
+        _matrix = typedSource._matrix;
     }
 
     public override Matrix ToMatrix()
@@ -89,6 +105,18 @@ public sealed class TranslateTransform : Transform
     {
         get => _y;
         set => _ = SetField(ref _y, value);
+    }
+
+    protected override Freezable CreateInstanceCore()
+    {
+        return new TranslateTransform();
+    }
+
+    protected override void CloneCore(Freezable source)
+    {
+        var typedSource = (TranslateTransform)source;
+        _x = typedSource._x;
+        _y = typedSource._y;
     }
 
     public override Matrix ToMatrix()
@@ -128,6 +156,20 @@ public sealed class ScaleTransform : Transform
         set => _ = SetField(ref _centerY, value);
     }
 
+    protected override Freezable CreateInstanceCore()
+    {
+        return new ScaleTransform();
+    }
+
+    protected override void CloneCore(Freezable source)
+    {
+        var typedSource = (ScaleTransform)source;
+        _scaleX = typedSource._scaleX;
+        _scaleY = typedSource._scaleY;
+        _centerX = typedSource._centerX;
+        _centerY = typedSource._centerY;
+    }
+
     public override Matrix ToMatrix()
     {
         if (MathF.Abs(CenterX) < 0.0001f && MathF.Abs(CenterY) < 0.0001f)
@@ -163,6 +205,19 @@ public sealed class RotateTransform : Transform
     {
         get => _centerY;
         set => _ = SetField(ref _centerY, value);
+    }
+
+    protected override Freezable CreateInstanceCore()
+    {
+        return new RotateTransform();
+    }
+
+    protected override void CloneCore(Freezable source)
+    {
+        var typedSource = (RotateTransform)source;
+        _angle = typedSource._angle;
+        _centerX = typedSource._centerX;
+        _centerY = typedSource._centerY;
     }
 
     public override Matrix ToMatrix()
@@ -210,6 +265,20 @@ public sealed class SkewTransform : Transform
         set => _ = SetField(ref _centerY, value);
     }
 
+    protected override Freezable CreateInstanceCore()
+    {
+        return new SkewTransform();
+    }
+
+    protected override void CloneCore(Freezable source)
+    {
+        var typedSource = (SkewTransform)source;
+        _angleX = typedSource._angleX;
+        _angleY = typedSource._angleY;
+        _centerX = typedSource._centerX;
+        _centerY = typedSource._centerY;
+    }
+
     public override Matrix ToMatrix()
     {
         var tanX = MathF.Tan(MathHelper.ToRadians(AngleX));
@@ -237,10 +306,38 @@ public sealed class TransformGroup : Transform
 
     public TransformGroup()
     {
-        _children = new TransformCollection(OnChildrenChanged);
+        _children = new TransformCollection(this, OnChildrenChanged);
     }
 
     public IList<Transform> Children => _children;
+
+    protected override Freezable CreateInstanceCore()
+    {
+        return new TransformGroup();
+    }
+
+    protected override void CloneCore(Freezable source)
+    {
+        var typedSource = (TransformGroup)source;
+        _children.Clear();
+        foreach (var child in typedSource.Children)
+        {
+            _children.Add(child.Clone());
+        }
+    }
+
+    protected override bool FreezeCore(bool isChecking)
+    {
+        foreach (var child in _children)
+        {
+            if (!FreezeValue(child, isChecking))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     public override Matrix ToMatrix()
     {
@@ -255,16 +352,18 @@ public sealed class TransformGroup : Transform
 
     private void OnChildrenChanged()
     {
-        RaiseChanged();
+        WritePostscript();
     }
 
     private sealed class TransformCollection : IList<Transform>
     {
+        private readonly TransformGroup _owner;
         private readonly List<Transform> _items = new();
         private readonly Action _onChanged;
 
-        public TransformCollection(Action onChanged)
+        public TransformCollection(TransformGroup owner, Action onChanged)
         {
+            _owner = owner;
             _onChanged = onChanged;
         }
 
@@ -274,6 +373,7 @@ public sealed class TransformGroup : Transform
             set
             {
                 ArgumentNullException.ThrowIfNull(value);
+                _owner.WritePreamble();
                 var existing = _items[index];
                 if (ReferenceEquals(existing, value))
                 {
@@ -294,6 +394,7 @@ public sealed class TransformGroup : Transform
         public void Add(Transform item)
         {
             ArgumentNullException.ThrowIfNull(item);
+            _owner.WritePreamble();
             _items.Add(item);
             Attach(item);
             _onChanged();
@@ -301,6 +402,7 @@ public sealed class TransformGroup : Transform
 
         public void Clear()
         {
+            _owner.WritePreamble();
             if (_items.Count == 0)
             {
                 return;
@@ -338,6 +440,7 @@ public sealed class TransformGroup : Transform
         public void Insert(int index, Transform item)
         {
             ArgumentNullException.ThrowIfNull(item);
+            _owner.WritePreamble();
             _items.Insert(index, item);
             Attach(item);
             _onChanged();
@@ -345,6 +448,7 @@ public sealed class TransformGroup : Transform
 
         public bool Remove(Transform item)
         {
+            _owner.WritePreamble();
             if (!_items.Remove(item))
             {
                 return false;
@@ -357,6 +461,7 @@ public sealed class TransformGroup : Transform
 
         public void RemoveAt(int index)
         {
+            _owner.WritePreamble();
             var item = _items[index];
             _items.RemoveAt(index);
             Detach(item);

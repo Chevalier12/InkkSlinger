@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -26,7 +27,18 @@ public sealed class AnimationManager
     {
         foreach (var state in _appliedLanes.Values)
         {
-            state.Sink.ClearValue(state.BaseValue);
+            try
+            {
+                state.Sink.ClearValue(state.BaseValue);
+            }
+            catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException)
+            {
+                // Test reset must be best-effort even if a lane targeted a now-frozen CLR object.
+            }
+            catch (InvalidOperationException)
+            {
+                // Test reset must be best-effort even if a lane targeted a now-frozen CLR object.
+            }
         }
 
         _appliedLanes.Clear();
