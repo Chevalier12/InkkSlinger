@@ -121,6 +121,13 @@
     </xs:sequence>
 
     <xs:attribute name="UseLayoutRounding" type="xs:boolean" />
+    <xs:attribute name="AutomationProperties.Name" type="xs:string" />
+    <xs:attribute name="AutomationProperties.AutomationId" type="xs:string" />
+    <xs:attribute name="AutomationProperties.HelpText" type="xs:string" />
+    <xs:attribute name="AutomationProperties.ItemType" type="xs:string" />
+    <xs:attribute name="AutomationProperties.ItemStatus" type="xs:string" />
+    <xs:attribute name="AutomationProperties.LabeledBy" type="xs:string" />
+    <xs:attribute name="AutomationProperties.IsRequiredForForm" type="xs:boolean" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 

@@ -79,6 +79,7 @@ public sealed partial class UiRoot
 
     public void Shutdown()
     {
+        Automation.Shutdown();
         if (ReferenceEquals(Current, this))
         {
             Current = null;
@@ -137,6 +138,7 @@ public sealed partial class UiRoot
         _mustDrawNextFrame = true;
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
         EnqueueDirtyRenderNode(element);
+        Automation.NotifyVisualStructureChanged(element, oldParent, newParent);
     }
 
 }

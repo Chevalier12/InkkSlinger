@@ -734,6 +734,7 @@ public class MenuItem : ItemsControl
     internal bool InvokeLeaf()
     {
         RaiseClick();
+        UiRoot.Current?.Automation.NotifyInvoke(this);
 
         if (Command == null)
         {

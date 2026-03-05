@@ -188,6 +188,7 @@ public class Button : ContentControl
     protected virtual void OnClick()
     {
         RaiseClickEvent();
+        UiRoot.Current?.Automation.NotifyInvoke(this);
         ExecuteCommand();
     }
 

@@ -2115,7 +2115,8 @@ public sealed partial class UiRoot
         var old = _inputState.FocusedElement;
         _inputState.FocusedElement = element;
         FocusManager.SetFocus(element);
-
+        Automation.NotifyFocusChanged(old, element);
+        
         if (old is ITextInputControl oldTextInput)
         {
             oldTextInput.SetFocusedFromInput(false);

@@ -85,6 +85,7 @@ public sealed partial class UiRoot
     {
         _visualRoot = visualRoot ?? throw new ArgumentNullException(nameof(visualRoot));
         _layoutRoot = visualRoot as FrameworkElement;
+        Automation = new AutomationManager(_visualRoot);
         UseRetainedRenderList = EnableRetainedRenderListByDefault;
         UseDirtyRegionRendering = EnableDirtyRegionRenderingByDefault;
         UseConditionalDrawScheduling = EnableConditionalDrawByDefault;
@@ -93,6 +94,8 @@ public sealed partial class UiRoot
     }
 
     public static UiRoot? Current { get; private set; }
+
+    public AutomationManager Automation { get; }
 
     public bool UseRetainedRenderList { get; set; }
 
@@ -211,6 +214,11 @@ public sealed partial class UiRoot
             UseConditionalDrawScheduling);
     }
 
+    public AutomationMetricsSnapshot GetAutomationMetricsSnapshot()
+    {
+        return Automation.GetMetricsSnapshot();
+    }
+
     internal void ForceFullRedrawForSurfaceReset()
     {
         _hasRenderInvalidation = true;
@@ -221,6 +229,7 @@ public sealed partial class UiRoot
     public void Update(GameTime gameTime, Viewport viewport)
     {
         Dispatcher.VerifyAccess();
+        Automation.BeginFrame();
         var updateStart = Stopwatch.GetTimestamp();
 
         ResetUpdatePhaseState();
@@ -242,6 +251,7 @@ public sealed partial class UiRoot
             () => RunRenderSchedulingPhase(viewport));
 
         LastUpdateMs = Stopwatch.GetElapsedTime(updateStart).TotalMilliseconds;
+        Automation.EndFrameAndFlush();
     }
 
     public void EnqueueDeferredOperation(Action operation)
