@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+using System;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
@@ -8,8 +7,7 @@ public partial class CalendarView : UserControl
 {
     public CalendarView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "CalendarView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
     }
 
     public void SetFont(SpriteFont? font)
@@ -22,4 +20,5 @@ public partial class CalendarView : UserControl
         ControlDemoSupport.ApplyFontRecursive(this, font);
     }
 }
+
 

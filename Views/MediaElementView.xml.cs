@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+using System;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
@@ -8,8 +7,7 @@ public partial class MediaElementView : UserControl
 {
     public MediaElementView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "MediaElementView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
         if (this.FindName("DemoHost") is ContentControl demoHost)
         {
             demoHost.Content = ControlDemoSupport.BuildSampleElement("MediaElement");
@@ -26,4 +24,5 @@ public partial class MediaElementView : UserControl
         ControlDemoSupport.ApplyFontRecursive(this, font);
     }
 }
+
 

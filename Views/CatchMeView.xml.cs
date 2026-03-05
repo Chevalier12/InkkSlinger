@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -14,8 +13,7 @@ public partial class CatchMeView : UserControl
 
     public CatchMeView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "CatchMeView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
 
         _playfield = this.FindName("Playfield") as Canvas;
         _runner = this.FindName("RunnerEllipse") as FrameworkElement;
@@ -145,3 +143,4 @@ public partial class CatchMeView : UserControl
         return new Vector2(MathF.Cos(angle), MathF.Sin(angle));
     }
 }
+

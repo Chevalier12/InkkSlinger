@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+using System;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
@@ -8,8 +7,7 @@ public partial class TabItemView : UserControl
 {
     public TabItemView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "TabItemView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
         if (this.FindName("DemoHost") is ContentControl demoHost)
         {
             demoHost.Content = ControlDemoSupport.BuildSampleElement("TabItem");
@@ -26,4 +24,5 @@ public partial class TabItemView : UserControl
         ControlDemoSupport.ApplyFontRecursive(this, font);
     }
 }
+
 

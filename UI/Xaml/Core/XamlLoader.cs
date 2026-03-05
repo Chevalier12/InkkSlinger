@@ -108,6 +108,20 @@ public static class XamlLoader
         });
     }
 
+    public static void LoadIntoCompiled(UserControl target, string path, object? codeBehind = null, string? ownerTypeName = null)
+    {
+        try
+        {
+            LoadInto(target, path, codeBehind);
+        }
+        catch (InvalidOperationException ex) when (!string.IsNullOrWhiteSpace(ownerTypeName))
+        {
+            throw new InvalidOperationException(
+                $"Failed to initialize compiled view '{ownerTypeName}' from '{path}'. {ex.Message}",
+                ex);
+        }
+    }
+
     public static void LoadApplicationResourcesFromFile(string path, bool clearExisting = false)
     {
         var xaml = File.ReadAllText(path);
@@ -652,6 +666,14 @@ public static class XamlLoader
                 }
 
                 if (localName == "Key")
+                {
+                    continue;
+                }
+
+                if (localName == "Class" ||
+                    localName == "ClassModifier" ||
+                    localName == "FieldModifier" ||
+                    localName == "Subclass")
                 {
                     continue;
                 }

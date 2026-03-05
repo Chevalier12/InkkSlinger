@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -17,8 +16,7 @@ public partial class PageView : UserControl
 
     public PageView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "PageView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
 
         if (this.FindName("DemoHost") is ContentControl demoHost)
         {
@@ -310,3 +308,4 @@ public partial class PageView : UserControl
         }
     }
 }
+

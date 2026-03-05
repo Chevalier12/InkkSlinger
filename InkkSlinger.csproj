@@ -11,6 +11,11 @@
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <ApplicationIcon>Icon.ico</ApplicationIcon>
     </PropertyGroup>
+    <PropertyGroup>
+        <InkkSlingerXamlCompileEnabled>true</InkkSlingerXamlCompileEnabled>
+        <InkkSlingerXamlStrictMode>true</InkkSlingerXamlStrictMode>
+        <InkkSlingerXamlMigrationMode>Phased</InkkSlingerXamlMigrationMode>
+    </PropertyGroup>
     <ItemGroup>
         <None Remove="Icon.ico"/>
         <None Remove="Icon.bmp"/>
@@ -25,8 +30,13 @@
         <None Update="@(_CodeBehindXml)" CopyToOutputDirectory="PreserveNewest" />
         <None Include="Views\\**\\*.xml" CopyToOutputDirectory="PreserveNewest" />
         <None Include="App.xml" CopyToOutputDirectory="PreserveNewest" />
-        <AdditionalFiles Include="@(_CodeBehindXml)" />
+        <AdditionalFiles Include="@(_CodeBehindXml)" InkkSlingerXamlCompileOptOut="false" />
         <None Include="Schemas\\**\\*.xsd" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+    <ItemGroup>
+        <CompilerVisibleProperty Include="InkkSlingerXamlCompileEnabled" />
+        <CompilerVisibleProperty Include="InkkSlingerXamlStrictMode" />
+        <CompilerVisibleProperty Include="InkkSlingerXamlMigrationMode" />
     </ItemGroup>
     <ItemGroup>
         <EmbeddedResource Include="Icon.ico">

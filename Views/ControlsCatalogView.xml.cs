@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -15,8 +14,7 @@ public partial class ControlsCatalogView : UserControl
 
     public ControlsCatalogView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "ControlsCatalogView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
 
         _controlButtonsHost = this.FindName("ControlButtonsHost") as StackPanel;
         _selectedControlLabel = this.FindName("SelectedControlLabel") as Label;
@@ -184,3 +182,4 @@ public sealed class MissingControlView : UserControl
         };
     }
 }
+

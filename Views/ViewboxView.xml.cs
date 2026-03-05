@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+using System;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
@@ -8,8 +7,7 @@ public partial class ViewboxView : UserControl
 {
     public ViewboxView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "ViewboxView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
         if (this.FindName("DemoHost") is ContentControl demoHost)
         {
             demoHost.Content = ControlDemoSupport.BuildSampleElement("Viewbox");
@@ -26,4 +24,5 @@ public partial class ViewboxView : UserControl
         ControlDemoSupport.ApplyFontRecursive(this, font);
     }
 }
+
 

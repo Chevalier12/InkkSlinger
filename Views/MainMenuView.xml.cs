@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+using System;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
@@ -8,8 +7,7 @@ public partial class MainMenuView : UserControl
 {
     public MainMenuView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "MainMenuView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
     }
 
     public void SetFont(SpriteFont? font)
@@ -20,4 +18,5 @@ public partial class MainMenuView : UserControl
         }
     }
 }
+
 

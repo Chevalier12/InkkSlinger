@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -18,8 +17,7 @@ public partial class FrameView : UserControl
 
     public FrameView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "FrameView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
 
         if (this.FindName("DemoHost") is ContentControl demoHost)
         {
@@ -304,3 +302,4 @@ public partial class FrameView : UserControl
         _serviceStateLabel!.Text = "Current page service: n/a (content is not Page)";
     }
 }
+

@@ -1,6 +1,7 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <UserControl xmlns="urn:inkkslinger-ui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.ControlsCatalogView"
              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
              xsi:schemaLocation="urn:inkkslinger-ui ../Schemas/InkkSlinger.UI.xsd
                                  http://schemas.microsoft.com/winfx/2006/xaml ../Schemas/Xaml2006.xsd"
@@ -14,7 +15,7 @@
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
 
-    <!-- ── Sidebar ── -->
+    <!-- Sidebar -->
     <Border Grid.Column="0"
             Background="#2A2A2A"
             BorderBrush="#3F3F3F"
@@ -52,7 +53,7 @@
       </Grid>
     </Border>
 
-    <!-- ── Main Content ── -->
+    <!-- Main Content -->
     <Grid Grid.Column="1">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
@@ -85,3 +86,6 @@
     </Grid>
   </Grid>
 </UserControl>
+
+
+

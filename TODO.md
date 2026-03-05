@@ -39,6 +39,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] Text wrapping wired into text-bearing controls (`TextBlock`/`Label`, `Button`, popup title rendering path).
 - [x] XML markup migration completed for views (`.xaml` -> `.xml`) with runtime/project path updates.
 - [x] Schema/tooling hardening for XML authoring: expanded `InkkSlinger.UI.xsd` for resources/styles/triggers/bindings and added local `Xaml2006.xsd` mapping support for `x:` namespace.
+- [x] Compile-time XML/class pipeline: shipped generator-driven `InitializeComponent` + `x:Name` field wiring with strict `x:Class` validation, `x:FieldModifier`/`x:ClassModifier` support, event-handler compile diagnostics, runtime acceptance of compile-time `x:` directives, and migrated `Views/*.xml(.cs)` constructors to generated initialization.
 - [x] Declarative commanding input model: `UIElement.InputBindings` + `KeyBinding`/`KeyGesture` routing, XAML authoring support, and menu shortcut auto-text derivation when unset.
 - [x] Mouse gesture commanding parity pass: added `MouseBinding`/`MouseGesture`, press-edge execution routing (`Left`/`Right`/`Middle`) through `InputGestureService`, and XAML/schema parser coverage.
 - [x] Commanding API parity expansion: added `RoutedUICommand`, shared command target resolver plumbing, and `ICommandSource` contract with command/menu integration and regression coverage.

@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+using System;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
@@ -8,8 +7,7 @@ public partial class ProgressBarView : UserControl
 {
     public ProgressBarView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "ProgressBarView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
         if (this.FindName("DemoHost") is ContentControl demoHost)
         {
             demoHost.Content = ControlDemoSupport.BuildSampleElement("ProgressBar");
@@ -26,4 +24,5 @@ public partial class ProgressBarView : UserControl
         ControlDemoSupport.ApplyFontRecursive(this, font);
     }
 }
+
 

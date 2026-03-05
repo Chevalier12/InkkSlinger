@@ -40,9 +40,244 @@ public class Grid : UIElement
 """;
 
         var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
-        var generatedSource = result.Results.Single().GeneratedSources.Single().SourceText.ToString();
+        var generatedSource = result.Results.Single().GeneratedSources
+            .Single(static s => s.HintName.EndsWith("Names.g.cs", StringComparison.Ordinal))
+            .SourceText.ToString();
 
         Assert.Contains("private global::InkkSlinger.Grid? RootGrid { get; set; }", generatedSource);
+    }
+
+    [Fact]
+    public void GeneratesInitializeComponent_ForValidXClassView()
+    {
+        const string source = """
+namespace InkkSlinger;
+
+public partial class SampleView : UserControl
+{
+}
+
+public class UserControl
+{
+}
+""";
+
+        const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.SampleView">
+</UserControl>
+""";
+
+        var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
+        var generated = result.Results.Single().GeneratedSources.Select(static s => s.SourceText.ToString()).ToArray();
+        var initSource = generated.Single(static text => text.Contains("private void InitializeComponent()", StringComparison.Ordinal));
+        Assert.Contains("Path.Combine(global::System.AppContext.BaseDirectory, \"Views\", \"SampleView.xml\")", initSource);
+    }
+
+    [Fact]
+    public void ReportsDiagnostic_WhenXClassIsMissing()
+    {
+        const string source = """
+namespace InkkSlinger;
+
+public partial class SampleView : UserControl
+{
+}
+
+public class UserControl
+{
+}
+""";
+
+        const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl x:Name="Root" />
+</UserControl>
+""";
+
+        var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
+        var ids = result.Results.Single().Diagnostics.Select(static d => d.Id).ToImmutableHashSet(StringComparer.Ordinal);
+        Assert.Contains("XNAME010", ids);
+    }
+
+    [Fact]
+    public void GeneratesNamedField_WithFieldModifier()
+    {
+        const string source = """
+namespace InkkSlinger;
+
+public partial class SampleView : UserControl
+{
+}
+
+public class UserControl
+{
+}
+
+public class Grid : UserControl
+{
+}
+""";
+
+        const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.SampleView">
+  <Grid x:Name="RootGrid" x:FieldModifier="internal" />
+</UserControl>
+""";
+
+        var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
+        var generatedSource = result.Results.Single().GeneratedSources.Single(static s => s.HintName.EndsWith("Names.g.cs", StringComparison.Ordinal)).SourceText.ToString();
+        Assert.Contains("internal global::InkkSlinger.Grid? RootGrid { get; set; }", generatedSource);
+    }
+
+    [Fact]
+    public void ReportsDiagnostic_WhenEventHandlerSignatureDoesNotMatchDelegate()
+    {
+        const string source = """
+namespace InkkSlinger;
+
+using System;
+
+public partial class SampleView : UserControl
+{
+    private void HandleClick(object sender)
+    {
+    }
+}
+
+public class UserControl
+{
+}
+
+public class Button : UserControl
+{
+    public event EventHandler? Click;
+}
+""";
+
+        const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.SampleView">
+  <Button Click="HandleClick" />
+</UserControl>
+""";
+
+        var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
+        var ids = result.Results.Single().Diagnostics.Select(static d => d.Id).ToImmutableHashSet(StringComparer.Ordinal);
+        Assert.Contains("XNAME041", ids);
+    }
+
+    [Fact]
+    public void ReportsDiagnostic_ForUnknownEventLikeAttribute()
+    {
+        const string source = """
+namespace InkkSlinger;
+
+public partial class SampleView : UserControl
+{
+}
+
+public class UserControl
+{
+}
+""";
+
+        const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.SampleView"
+             NotAPropertyOrEvent="Handler" />
+""";
+
+        var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
+        var ids = result.Results.Single().Diagnostics.Select(static d => d.Id).ToImmutableHashSet(StringComparer.Ordinal);
+        Assert.Contains("XNAME042", ids);
+    }
+
+    [Fact]
+    public void UnknownEventLikeAttribute_OnReadOnlyProperty_StillReportsDiagnostic()
+    {
+        const string source = """
+namespace InkkSlinger;
+
+public partial class SampleView : UserControl
+{
+}
+
+public class UserControl
+{
+    public string ReadOnlyProp => "value";
+}
+""";
+
+        const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.SampleView"
+             ReadOnlyProp="Handler" />
+""";
+
+        var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
+        var ids = result.Results.Single().Diagnostics.Select(static d => d.Id).ToImmutableHashSet(StringComparer.Ordinal);
+        Assert.Contains("XNAME042", ids);
+    }
+
+    [Fact]
+    public void ReportsDiagnostic_WhenClassModifierDoesNotMatchOwnerAccessibility()
+    {
+        const string source = """
+namespace InkkSlinger;
+
+public partial class SampleView : UserControl
+{
+}
+
+public class UserControl
+{
+}
+""";
+
+        const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.SampleView"
+             x:ClassModifier="internal" />
+""";
+
+        var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
+        var ids = result.Results.Single().Diagnostics.Select(static d => d.Id).ToImmutableHashSet(StringComparer.Ordinal);
+        Assert.Contains("XNAME033", ids);
+    }
+
+    [Fact]
+    public void ReportsDiagnostic_WhenOwnerTypeIsNotUserControl()
+    {
+        const string source = """
+namespace InkkSlinger;
+
+public partial class SampleView
+{
+}
+
+public class UserControl
+{
+}
+""";
+
+        const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.SampleView" />
+""";
+
+        var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
+        var ids = result.Results.Single().Diagnostics.Select(static d => d.Id).ToImmutableHashSet(StringComparer.Ordinal);
+        Assert.Contains("XNAME036", ids);
     }
 
     [Fact]

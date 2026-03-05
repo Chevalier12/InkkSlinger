@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+using System;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
@@ -8,8 +7,7 @@ public partial class UserControlView : UserControl
 {
     public UserControlView()
     {
-        var markupPath = Path.Combine(AppContext.BaseDirectory, "Views", "UserControlView.xml");
-        XamlLoader.LoadInto(this, markupPath, this);
+        InitializeComponent();
         if (this.FindName("DemoHost") is ContentControl demoHost)
         {
             demoHost.Content = ControlDemoSupport.BuildSampleElement("UserControl");
@@ -26,4 +24,5 @@ public partial class UserControlView : UserControl
         ControlDemoSupport.ApplyFontRecursive(this, font);
     }
 }
+
 
