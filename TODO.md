@@ -4,7 +4,7 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `762/762` passing.
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `799/799` passing.
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - Touch/stylus/tablet input pipeline parity is explicitly unsupported until `InkCanvas` and `InkPresenter` are implemented.
@@ -66,6 +66,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] Experimental partial redraw host hardening: preserve-composition target path, redraw-on-surface-reset behavior, and compatibility fallback tuning for CatalogView validation.
 - [x] Input hover/selection hardening for catalog + tree interactions: fixed stale hover reuse and retained-list structural sync regressions (`TreeViewInputTests`, `ScrollViewerWheelHoverRegressionTests`, `ControlsCatalogHoverRegressionTests`).
 - [x] Host-level conditional draw suppression pass: `Game1` now calls `SuppressDraw()` on frames where `UiRoot.ShouldDrawThisFrame(...)` is false, reducing idle CPU in steady-state scenes.
+- [x] Retained rendering + redraw scheduling regression hardening: added exhaustive retained-sync (`RetainedRenderSyncRegressionTests`), scheduling-reason (`RedrawSchedulingRegressionTests`), and dirty-bounds/negative-edge (`DirtyBoundsEdgeRegressionTests`) suites, including metadata invariants, mixed-reason scheduling masks, dirty-region normalization/clip/coverage boundaries, and deterministic `UiRoot` test hooks.
 - [x] Animation manager idle optimization pass: hold/fill lanes no longer force running-animation state, unchanged lane values avoid redundant sink writes, and frozen filling lanes are parked until lane mutations/reactivation.
 - [x] Controls catalog demo expansion: added `Catch Me!` interactive canvas view with storyboard-driven run-away ellipse behavior.
 - [x] `Frame`/`Page` navigation vertical slice: object navigation journal (`Navigate`, `GoBack`, `GoForward`, `CanGoBack`, `CanGoForward`), page-scoped `NavigationService` attach/detach semantics, XAML/schema support, and regression coverage (`FrameNavigationTests`).

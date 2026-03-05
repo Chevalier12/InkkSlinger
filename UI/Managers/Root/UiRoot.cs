@@ -317,6 +317,31 @@ public sealed partial class UiRoot
         SynchronizeRetainedRenderList();
     }
 
+    internal bool IsRenderListFullRebuildPendingForTests()
+    {
+        return _renderListNeedsFullRebuild;
+    }
+
+    internal int GetRetainedNodeSubtreeEndIndexForTests(UIElement visual)
+    {
+        if (!_renderNodeIndices.TryGetValue(visual, out var nodeIndex))
+        {
+            throw new ArgumentException("Visual is not tracked in retained render list.", nameof(visual));
+        }
+
+        return _retainedRenderList[nodeIndex].SubtreeEndIndexExclusive;
+    }
+
+    internal UiRedrawReason GetScheduledDrawReasonsForTests()
+    {
+        return _scheduledDrawReasons;
+    }
+
+    internal void RemoveRetainedNodeIndexForTests(UIElement visual)
+    {
+        _ = _renderNodeIndices.Remove(visual);
+    }
+
     internal void CompleteDrawStateForTests()
     {
         _hasMeasureInvalidation = false;

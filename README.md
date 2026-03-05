@@ -7,7 +7,7 @@
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (`Release`, 0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -c Release -v minimal` |
-| Test suite | Pass (`762/762`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
+| Test suite | Pass (`799/799`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
 | Current failing test areas | `None` | Latest full release test run (`2026-03-05`) |
 | WPF control coverage | Broad but incomplete (`74/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `4` unchecked TODO items (`3` bounty controls + `1` non-bounty input parity item) | `TODO.md` |
@@ -102,14 +102,14 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Scrolling primitives | `ScrollViewer`, `ScrollBar`, visibility and owner-scrolling behavior | `UI/Controls/Scrolling/ScrollViewer.cs`, `UI/Controls/Scrolling/ScrollBar.cs`, `InkkSlinger.Tests/ScrollViewerViewerOwnedScrollingTests.cs` | Implemented (tested) |
 | Virtualization | Virtualizing panel infrastructure for large item collections | `UI/Controls/Panels/VirtualizingStackPanel.cs`, `UI/Controls/Scrolling/VirtualizationEnums.cs`, `TODO.md` (`WPF Parity Gaps`: virtualization checked) | Implemented |
 | Rendering invalidation | Dirty region tracking + conditional draw scheduling | `UI/Rendering/DirtyRegions/DirtyRegionTracker.cs`, `UI/Managers/Root/Services/UiRootFrameState.cs`, `InkkSlinger.Tests/DirtyRegionTrackingTests.cs`, `InkkSlinger.Tests/ConditionalDrawTests.cs` | Implemented (tested) |
-| Retained rendering + redraw scheduling | Retained render-list sync, dirty-region tracking, and conditional draw scheduling | `UI/Managers/Root/Services/UiRootRetainedTree.cs`, `UI/Managers/Root/Services/UiRootDraw.cs`, `UI/Rendering/DirtyRegions/DirtyRegionTracker.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/DirtyRegionTrackingTests.cs`, `InkkSlinger.Tests/ConditionalDrawTests.cs` | Implemented (regression coverage in progress) |
+| Retained rendering + redraw scheduling | Retained render-list sync, dirty-region tracking, and conditional draw scheduling | `UI/Managers/Root/Services/UiRootRetainedTree.cs`, `UI/Managers/Root/Services/UiRootDraw.cs`, `UI/Rendering/DirtyRegions/DirtyRegionTracker.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/DirtyRegionTrackingTests.cs`, `InkkSlinger.Tests/ConditionalDrawTests.cs`, `InkkSlinger.Tests/RetainedRenderSyncRegressionTests.cs`, `InkkSlinger.Tests/RedrawSchedulingRegressionTests.cs`, `InkkSlinger.Tests/DirtyBoundsEdgeRegressionTests.cs` | Implemented (tested) |
 | Render queue and invalidation correctness | Queue ordering and invalidation semantics in root draw/update pipeline | `UI/Managers/Root/UiRoot.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/InvalidationFlagsTests.cs` | Implemented (tested) |
 | Adorner infrastructure | Adorner base/layer/decorator + anchored/handles authoring helpers (`AnchoredAdorner`, `HandlesAdornerBase`) with clipping/tracking coverage | `UI/Controls/Adorners/*`, `InkkSlinger.Tests/AdornerClippingTests.cs`, `InkkSlinger.Tests/AdornerParityDepthTests.cs` | Implemented (tested) |
 | Control breadth snapshot | 74 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `74/77`) | Broad |
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (tested) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 130 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (130 files) | Implemented |
+| Regression safety net | 133 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (133 files) | Implemented |
 
 ### Implemented Foundations
 
