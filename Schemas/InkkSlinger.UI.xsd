@@ -325,6 +325,8 @@
         <xs:element ref="ResumeStoryboard" />
         <xs:element ref="SeekStoryboard" />
         <xs:element ref="RemoveStoryboard" />
+        <xs:element ref="SetStoryboardSpeedRatio" />
+        <xs:element ref="SkipStoryboardToFill" />
       </xs:choice>
     </xs:sequence>
     <xs:attribute name="RoutedEvent" type="xs:string" use="required" />
@@ -343,6 +345,8 @@
         <xs:element ref="ResumeStoryboard" />
         <xs:element ref="SeekStoryboard" />
         <xs:element ref="RemoveStoryboard" />
+        <xs:element ref="SetStoryboardSpeedRatio" />
+        <xs:element ref="SkipStoryboardToFill" />
       </xs:choice>
     </xs:sequence>
     <xs:anyAttribute processContents="lax" />
@@ -384,6 +388,8 @@
         <xs:element ref="ResumeStoryboard" />
         <xs:element ref="SeekStoryboard" />
         <xs:element ref="RemoveStoryboard" />
+        <xs:element ref="SetStoryboardSpeedRatio" />
+        <xs:element ref="SkipStoryboardToFill" />
       </xs:choice>
     </xs:sequence>
     <xs:anyAttribute processContents="lax" />
@@ -414,6 +420,12 @@
     <xs:attribute name="BeginStoryboardName" type="xs:string" use="required" />
     <xs:attribute name="Offset" type="xs:string" />
     <xs:attribute name="Origin" type="xs:string" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="setStoryboardSpeedRatioActionType">
+    <xs:attribute name="BeginStoryboardName" type="xs:string" use="required" />
+    <xs:attribute name="SpeedRatio" type="xs:string" />
     <xs:anyAttribute processContents="lax" />
   </xs:complexType>
 
@@ -2103,6 +2115,8 @@
   <xs:element name="ResumeStoryboard" type="namedStoryboardActionType" />
   <xs:element name="SeekStoryboard" type="seekStoryboardActionType" />
   <xs:element name="RemoveStoryboard" type="namedStoryboardActionType" />
+  <xs:element name="SetStoryboardSpeedRatio" type="setStoryboardSpeedRatioActionType" />
+  <xs:element name="SkipStoryboardToFill" type="namedStoryboardActionType" />
   <xs:element name="Storyboard" type="storyboardType" />
   <xs:element name="Storyboard.Children" type="storyboardChildrenType" />
   <xs:element name="DoubleAnimation" type="doubleAnimationType" />

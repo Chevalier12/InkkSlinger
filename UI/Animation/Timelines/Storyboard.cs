@@ -47,6 +47,11 @@ public sealed class Storyboard : Timeline
         AnimationManager.Current.SetStoryboardSpeedRatio(this, containingObject, speedRatio);
     }
 
+    public void SkipToFill(FrameworkElement containingObject)
+    {
+        AnimationManager.Current.SkipStoryboardToFill(this, containingObject);
+    }
+
     public static void SetTargetName(object timeline, string value)
     {
         if (timeline is AnimationTimeline animation)

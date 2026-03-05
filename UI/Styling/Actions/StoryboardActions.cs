@@ -99,15 +99,18 @@ public sealed class PauseStoryboard : TriggerAction
 
     public override void Invoke(DependencyObject target)
     {
-        if (target is FrameworkElement scope)
+        var scope = StoryboardActionHelper.ResolveScope(target);
+        if (scope == null)
         {
-            InvokeByName(scope, s => s.Pause(AnimationManager.Current.CurrentTime));
+            return;
         }
+
+        InvokeByName(scope, s => s.Pause(AnimationManager.Current.CurrentTime));
     }
 
     internal override void Invoke(TriggerActionContext context)
     {
-        var scope = context.Scope ?? context.Target as FrameworkElement;
+        var scope = StoryboardActionHelper.ResolveScope(context);
         if (scope == null)
         {
             return;
@@ -118,15 +121,7 @@ public sealed class PauseStoryboard : TriggerAction
 
     private void InvokeByName(FrameworkElement scope, Action<StoryboardInstance> apply)
     {
-        if (string.IsNullOrWhiteSpace(BeginStoryboardName))
-        {
-            return;
-        }
-
-        if (AnimationManager.Current.TryResolveControllable(scope, BeginStoryboardName, out var instance) && instance != null)
-        {
-            apply(instance);
-        }
+        StoryboardActionHelper.InvokeControllableByName(scope, BeginStoryboardName, apply);
     }
 }
 
@@ -136,15 +131,18 @@ public sealed class ResumeStoryboard : TriggerAction
 
     public override void Invoke(DependencyObject target)
     {
-        if (target is FrameworkElement scope)
+        var scope = StoryboardActionHelper.ResolveScope(target);
+        if (scope == null)
         {
-            InvokeByName(scope, s => s.Resume(AnimationManager.Current.CurrentTime));
+            return;
         }
+
+        InvokeByName(scope, s => s.Resume(AnimationManager.Current.CurrentTime));
     }
 
     internal override void Invoke(TriggerActionContext context)
     {
-        var scope = context.Scope ?? context.Target as FrameworkElement;
+        var scope = StoryboardActionHelper.ResolveScope(context);
         if (scope == null)
         {
             return;
@@ -155,15 +153,7 @@ public sealed class ResumeStoryboard : TriggerAction
 
     private void InvokeByName(FrameworkElement scope, Action<StoryboardInstance> apply)
     {
-        if (string.IsNullOrWhiteSpace(BeginStoryboardName))
-        {
-            return;
-        }
-
-        if (AnimationManager.Current.TryResolveControllable(scope, BeginStoryboardName, out var instance) && instance != null)
-        {
-            apply(instance);
-        }
+        StoryboardActionHelper.InvokeControllableByName(scope, BeginStoryboardName, apply);
     }
 }
 
@@ -173,15 +163,18 @@ public sealed class StopStoryboard : TriggerAction
 
     public override void Invoke(DependencyObject target)
     {
-        if (target is FrameworkElement scope)
+        var scope = StoryboardActionHelper.ResolveScope(target);
+        if (scope == null)
         {
-            InvokeByName(scope, s => s.Stop());
+            return;
         }
+
+        InvokeByName(scope, s => s.Stop());
     }
 
     internal override void Invoke(TriggerActionContext context)
     {
-        var scope = context.Scope ?? context.Target as FrameworkElement;
+        var scope = StoryboardActionHelper.ResolveScope(context);
         if (scope == null)
         {
             return;
@@ -192,15 +185,7 @@ public sealed class StopStoryboard : TriggerAction
 
     private void InvokeByName(FrameworkElement scope, Action<StoryboardInstance> apply)
     {
-        if (string.IsNullOrWhiteSpace(BeginStoryboardName))
-        {
-            return;
-        }
-
-        if (AnimationManager.Current.TryResolveControllable(scope, BeginStoryboardName, out var instance) && instance != null)
-        {
-            apply(instance);
-        }
+        StoryboardActionHelper.InvokeControllableByName(scope, BeginStoryboardName, apply);
     }
 }
 
@@ -210,15 +195,18 @@ public sealed class RemoveStoryboard : TriggerAction
 
     public override void Invoke(DependencyObject target)
     {
-        if (target is FrameworkElement scope)
+        var scope = StoryboardActionHelper.ResolveScope(target);
+        if (scope == null)
         {
-            InvokeByName(scope, s => s.Remove());
+            return;
         }
+
+        InvokeByName(scope, s => s.Remove());
     }
 
     internal override void Invoke(TriggerActionContext context)
     {
-        var scope = context.Scope ?? context.Target as FrameworkElement;
+        var scope = StoryboardActionHelper.ResolveScope(context);
         if (scope == null)
         {
             return;
@@ -229,15 +217,7 @@ public sealed class RemoveStoryboard : TriggerAction
 
     private void InvokeByName(FrameworkElement scope, Action<StoryboardInstance> apply)
     {
-        if (string.IsNullOrWhiteSpace(BeginStoryboardName))
-        {
-            return;
-        }
-
-        if (AnimationManager.Current.TryResolveControllable(scope, BeginStoryboardName, out var instance) && instance != null)
-        {
-            apply(instance);
-        }
+        StoryboardActionHelper.InvokeControllableByName(scope, BeginStoryboardName, apply);
     }
 }
 
@@ -251,15 +231,18 @@ public sealed class SeekStoryboard : TriggerAction
 
     public override void Invoke(DependencyObject target)
     {
-        if (target is FrameworkElement scope)
+        var scope = StoryboardActionHelper.ResolveScope(target);
+        if (scope == null)
         {
-            InvokeByName(scope, s => s.Seek(Offset, Origin, AnimationManager.Current.CurrentTime));
+            return;
         }
+
+        InvokeByName(scope, s => s.Seek(Offset, Origin, AnimationManager.Current.CurrentTime));
     }
 
     internal override void Invoke(TriggerActionContext context)
     {
-        var scope = context.Scope ?? context.Target as FrameworkElement;
+        var scope = StoryboardActionHelper.ResolveScope(context);
         if (scope == null)
         {
             return;
@@ -270,12 +253,114 @@ public sealed class SeekStoryboard : TriggerAction
 
     private void InvokeByName(FrameworkElement scope, Action<StoryboardInstance> apply)
     {
-        if (string.IsNullOrWhiteSpace(BeginStoryboardName))
+        StoryboardActionHelper.InvokeControllableByName(scope, BeginStoryboardName, apply);
+    }
+}
+
+public sealed class SetStoryboardSpeedRatio : TriggerAction
+{
+    public string BeginStoryboardName { get; set; } = string.Empty;
+
+    public float SpeedRatio { get; set; } = 1f;
+
+    public override void Invoke(DependencyObject target)
+    {
+        ValidateSpeedRatio();
+
+        var scope = StoryboardActionHelper.ResolveScope(target);
+        if (scope == null)
         {
             return;
         }
 
-        if (AnimationManager.Current.TryResolveControllable(scope, BeginStoryboardName, out var instance) && instance != null)
+        StoryboardActionHelper.InvokeControllableByName(
+            scope,
+            BeginStoryboardName,
+            s => AnimationManager.Current.SetControllableSpeedRatio(s, SpeedRatio));
+    }
+
+    internal override void Invoke(TriggerActionContext context)
+    {
+        ValidateSpeedRatio();
+
+        var scope = StoryboardActionHelper.ResolveScope(context);
+        if (scope == null)
+        {
+            return;
+        }
+
+        StoryboardActionHelper.InvokeControllableByName(
+            scope,
+            BeginStoryboardName,
+            s => AnimationManager.Current.SetControllableSpeedRatio(s, SpeedRatio));
+    }
+
+    private void ValidateSpeedRatio()
+    {
+        if (!float.IsFinite(SpeedRatio) || SpeedRatio <= 0f)
+        {
+            throw new InvalidOperationException(
+                $"SetStoryboardSpeedRatio requires a finite positive SpeedRatio. Actual value: {SpeedRatio}.");
+        }
+    }
+}
+
+public sealed class SkipStoryboardToFill : TriggerAction
+{
+    public string BeginStoryboardName { get; set; } = string.Empty;
+
+    public override void Invoke(DependencyObject target)
+    {
+        var scope = StoryboardActionHelper.ResolveScope(target);
+        if (scope == null)
+        {
+            return;
+        }
+
+        StoryboardActionHelper.InvokeControllableByName(
+            scope,
+            BeginStoryboardName,
+            s => s.SkipToFill(AnimationManager.Current.CurrentTime));
+    }
+
+    internal override void Invoke(TriggerActionContext context)
+    {
+        var scope = StoryboardActionHelper.ResolveScope(context);
+        if (scope == null)
+        {
+            return;
+        }
+
+        StoryboardActionHelper.InvokeControllableByName(
+            scope,
+            BeginStoryboardName,
+            s => s.SkipToFill(AnimationManager.Current.CurrentTime));
+    }
+}
+
+internal static class StoryboardActionHelper
+{
+    public static FrameworkElement? ResolveScope(DependencyObject target)
+    {
+        return target as FrameworkElement;
+    }
+
+    public static FrameworkElement? ResolveScope(TriggerActionContext context)
+    {
+        return context.Scope ?? context.Target as FrameworkElement;
+    }
+
+    public static void InvokeControllableByName(
+        FrameworkElement scope,
+        string beginStoryboardName,
+        Action<StoryboardInstance> apply)
+    {
+        if (string.IsNullOrWhiteSpace(beginStoryboardName))
+        {
+            return;
+        }
+
+        if (AnimationManager.Current.TryResolveControllable(scope, beginStoryboardName, out var instance) && instance != null)
         {
             apply(instance);
         }

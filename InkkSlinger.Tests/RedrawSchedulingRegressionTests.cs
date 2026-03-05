@@ -8,6 +8,11 @@ namespace InkkSlinger.Tests;
 
 public sealed class RedrawSchedulingRegressionTests
 {
+    public RedrawSchedulingRegressionTests()
+    {
+        AnimationManager.Current.ResetForTests();
+    }
+
     [Fact]
     public void IdleFrame_KeepsScheduledReasonsNone()
     {

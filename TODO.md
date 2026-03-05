@@ -78,6 +78,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.
 - [x] `MultiTrigger` parity support: runtime evaluation, style/template XAML parsing, strict condition validation (`Property` xor `Binding` by trigger type), schema updates, and regression coverage.
 - [x] Trigger `EnterActions` / `ExitActions` support.
+- [x] Trigger-action parity completion: added `SetStoryboardSpeedRatio` and `SkipStoryboardToFill` across runtime, XAML parser/schema support, and regression coverage.
 - [x] `ListView` / `ListViewItem` control support with keyboard navigation fixes.
 - [x] `ContextMenu` parity rebase: WPF-style menu semantics (`ItemsControl` + `MenuItem` containers), attached-property element XAML shape (`<Button.ContextMenu>`), right-click open pipeline, and keyboard/pointer submenu traversal behavior.
 - [x] `ProgressBar` control support (determinate + indeterminate rendering).

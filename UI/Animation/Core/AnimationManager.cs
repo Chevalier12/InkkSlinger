@@ -138,9 +138,24 @@ public sealed class AnimationManager
         }
     }
 
+    public void SkipStoryboardToFill(Storyboard storyboard, FrameworkElement containingObject)
+    {
+        foreach (var instance in FindInstances(storyboard, containingObject))
+        {
+            instance.SkipToFill(_currentTime);
+            InvalidateFrozenLaneState(instance);
+        }
+    }
+
     internal bool TryResolveControllable(FrameworkElement containingObject, string controlName, out StoryboardInstance? instance)
     {
         return _controllableByName.TryGetValue(new StoryboardControlKey(containingObject, controlName), out instance);
+    }
+
+    internal void SetControllableSpeedRatio(StoryboardInstance instance, float speedRatio)
+    {
+        instance.SpeedRatio = Math.Max(0.01f, speedRatio);
+        InvalidateFrozenLaneState(instance);
     }
 
     internal long ReserveSequence()
@@ -706,6 +721,21 @@ internal sealed class StoryboardInstance
         }
     }
 
+    public void SkipToFill(TimeSpan now)
+    {
+        if (Storyboard.RepeatBehavior.IsForever)
+        {
+            return;
+        }
+
+        foreach (var entry in _entries)
+        {
+            entry.SkipToFill(now, _startedAt);
+        }
+
+        IsCompleted = _entries.All(e => e.IsStopped);
+    }
+
     public void RemoveLane(AnimationLaneKey key)
     {
         foreach (var entry in _entries)
@@ -852,19 +882,72 @@ internal sealed class AnimationLaneEntry
             return;
         }
 
+        _isForcedFillHold = false;
         _startedAt = startedAt;
         Advance(now, TimeSpan.Zero);
+    }
+
+    public void SkipToFill(TimeSpan now, TimeSpan startedAt)
+    {
+        if (IsStopped)
+        {
+            return;
+        }
+
+        _startedAt = startedAt;
+        _isForcedFillHold = false;
+        IsTimeAdvancing = false;
+
+        // Forever timelines do not have a terminal fill boundary to skip to.
+        if (Animation.RepeatBehavior.IsForever)
+        {
+            return;
+        }
+
+        var effectiveDuration = ResolveEffectiveDuration(Animation);
+        var totalActiveDuration = ResolveTotalActiveDuration(Animation, effectiveDuration);
+        var totalActiveTicks = totalActiveDuration.Ticks;
+        if (totalActiveTicks <= 0L)
+        {
+            totalActiveTicks = effectiveDuration.Ticks;
+        }
+
+        if (Animation.FillBehavior == FillBehavior.Stop)
+        {
+            IsStopped = true;
+            _isForcedFillHold = false;
+            _latest = null;
+            return;
+        }
+
+        var cycleProgress = effectiveDuration.Ticks <= 0L
+            ? 1f
+            : ComputeCycleProgress(totalActiveTicks, effectiveDuration.Ticks, Animation.AutoReverse);
+        var holdValue = ConvertForSink(Animation.GetCurrentValue(_originValue, _destinationValue, cycleProgress));
+        _latest = new LaneContribution(
+            Key,
+            _sink,
+            Sequence,
+            _originValue,
+            holdValue,
+            isTimeAdvancing: false,
+            _ownerStoryboardInstanceId,
+            _ownerControlName,
+            _targetPropertyPath);
+        _isForcedFillHold = true;
     }
 
     public void Stop()
     {
         IsStopped = true;
+        _isForcedFillHold = false;
         IsTimeAdvancing = false;
     }
 
     public void Remove()
     {
         IsStopped = true;
+        _isForcedFillHold = false;
         IsTimeAdvancing = false;
     }
 
@@ -872,6 +955,12 @@ internal sealed class AnimationLaneEntry
     {
         if (IsStopped)
         {
+            return;
+        }
+
+        if (_isForcedFillHold)
+        {
+            IsTimeAdvancing = false;
             return;
         }
 
@@ -1039,6 +1128,7 @@ internal sealed class AnimationLaneEntry
     }
 
     private LaneContribution? _latest;
+    private bool _isForcedFillHold;
 
     private static float ComputeCycleProgress(long timelineTicks, long cycleTicks, bool autoReverse)
     {

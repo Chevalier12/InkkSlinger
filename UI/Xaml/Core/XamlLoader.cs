@@ -2128,7 +2128,9 @@ public static class XamlLoader
                 string.Equals(child.Name.LocalName, nameof(PauseStoryboard), StringComparison.Ordinal) ||
                 string.Equals(child.Name.LocalName, nameof(ResumeStoryboard), StringComparison.Ordinal) ||
                 string.Equals(child.Name.LocalName, nameof(SeekStoryboard), StringComparison.Ordinal) ||
-                string.Equals(child.Name.LocalName, nameof(RemoveStoryboard), StringComparison.Ordinal))
+                string.Equals(child.Name.LocalName, nameof(RemoveStoryboard), StringComparison.Ordinal) ||
+                string.Equals(child.Name.LocalName, nameof(SetStoryboardSpeedRatio), StringComparison.Ordinal) ||
+                string.Equals(child.Name.LocalName, nameof(SkipStoryboardToFill), StringComparison.Ordinal))
             {
                 yield return child;
             }
@@ -2277,6 +2279,44 @@ public static class XamlLoader
             }
 
             return seek;
+        }
+
+        if (string.Equals(actionElement.Name.LocalName, nameof(SetStoryboardSpeedRatio), StringComparison.Ordinal))
+        {
+            var setSpeedRatio = new SetStoryboardSpeedRatio
+            {
+                BeginStoryboardName = GetRequiredAttributeValue(actionElement, nameof(SetStoryboardSpeedRatio.BeginStoryboardName))
+            };
+
+            var speedRatioText = GetOptionalAttributeValue(actionElement, nameof(SetStoryboardSpeedRatio.SpeedRatio));
+            if (!string.IsNullOrWhiteSpace(speedRatioText))
+            {
+                if (!float.TryParse(speedRatioText, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedSpeedRatio))
+                {
+                    throw CreateXamlException(
+                        $"SetStoryboardSpeedRatio SpeedRatio value '{speedRatioText}' is not valid. Use a finite positive number.",
+                        actionElement);
+                }
+
+                if (!float.IsFinite(parsedSpeedRatio) || parsedSpeedRatio <= 0f)
+                {
+                    throw CreateXamlException(
+                        $"SetStoryboardSpeedRatio SpeedRatio value '{speedRatioText}' must be finite and greater than 0.",
+                        actionElement);
+                }
+
+                setSpeedRatio.SpeedRatio = parsedSpeedRatio;
+            }
+
+            return setSpeedRatio;
+        }
+
+        if (string.Equals(actionElement.Name.LocalName, nameof(SkipStoryboardToFill), StringComparison.Ordinal))
+        {
+            return new SkipStoryboardToFill
+            {
+                BeginStoryboardName = GetRequiredAttributeValue(actionElement, nameof(SkipStoryboardToFill.BeginStoryboardName))
+            };
         }
 
         throw CreateXamlException(
