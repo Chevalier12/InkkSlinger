@@ -66,6 +66,23 @@ public sealed class WindowWrapperEdgeParityTests
         Assert.Equal(1, eventCount);
     }
 
+    [Fact]
+    public void SetPositionAndLeftTop_ShouldUpdateNativePosition()
+    {
+        var native = new FakeWindowNativeAdapter();
+        var graphics = new FakeWindowGraphicsAdapter();
+        var window = new Window(native, graphics);
+
+        window.SetPosition(140, 220);
+        Assert.Equal(new Point(140, 220), native.Position);
+        Assert.Equal(140, window.Left);
+        Assert.Equal(220, window.Top);
+
+        window.Left = 320;
+        window.Top = 480;
+        Assert.Equal(new Point(320, 480), native.Position);
+    }
+
     private static Window CreateWindow()
     {
         return new Window(new FakeWindowNativeAdapter(), new FakeWindowGraphicsAdapter());

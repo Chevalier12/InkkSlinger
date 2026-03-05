@@ -1,4 +1,6 @@
 using System;
+using System.Reflection;
+using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
@@ -31,6 +33,7 @@ internal sealed class WindowThemeBinding : IDisposable
     {
         _ = sender;
         if (args.Property == Window.BackgroundProperty ||
+            args.Property == Window.ForegroundProperty ||
             args.Property == Window.FontFamilyProperty ||
             args.Property == Window.FontSizeProperty ||
             args.Property == Window.FontWeightProperty)
@@ -45,9 +48,23 @@ internal sealed class WindowThemeBinding : IDisposable
         {
             panel.Background = _window.Background;
         }
+        
+        ApplyForegroundIfSupported(_root, _window.Foreground);
 
         _root.FontFamily = _window.FontFamily;
         _root.FontSize = _window.FontSize;
         _root.FontWeight = _window.FontWeight;
+    }
+
+    private static void ApplyForegroundIfSupported(FrameworkElement target, Color value)
+    {
+        var property = target.GetType().GetProperty(
+            "Foreground",
+            BindingFlags.Public | BindingFlags.Instance);
+        if (property is { CanWrite: true } &&
+            property.PropertyType == typeof(Color))
+        {
+            property.SetValue(target, value);
+        }
     }
 }

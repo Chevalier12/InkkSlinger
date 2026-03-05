@@ -83,6 +83,40 @@ public sealed class OverlayDismissAndFocusParityTests
     }
 
     [Fact]
+    public void Escape_WithStackedOverlaysAndDetachedRestoreTarget_KeepsCurrentFocus()
+    {
+        var (uiRoot, host) = CreateUiRootWithHost();
+        var originalFocus = AddFocusableTextBox(host, 24f, 24f);
+        var distractor = AddFocusableTextBox(host, 24f, 76f);
+        RunLayout(uiRoot);
+
+        FocusByClick(uiRoot, originalFocus);
+
+        var popup = CreatePopup(dismissOnOutsideClick: true, canClose: true);
+        popup.Left = 220f;
+        popup.Top = 110f;
+        popup.Show(host);
+
+        var contextMenu = CreateSimpleContextMenu();
+        contextMenu.OpenAt(host, 120f, 80f);
+        Panel.SetZIndex(contextMenu, Panel.GetZIndex(popup) + 1);
+        RunLayout(uiRoot);
+
+        host.RemoveChild(originalFocus);
+        uiRoot.SetFocusedElementForTests(distractor);
+        Assert.Same(distractor, FocusManager.GetFocusedElement());
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Escape));
+        Assert.False(contextMenu.IsOpen);
+        Assert.True(popup.IsOpen);
+        Assert.Same(distractor, FocusManager.GetFocusedElement());
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Escape));
+        Assert.False(popup.IsOpen);
+        Assert.Same(distractor, FocusManager.GetFocusedElement());
+    }
+
+    [Fact]
     public void Popup_CloseOnEscape_RestoresFocusToElementFocusedBeforeOpen()
     {
         var (uiRoot, host) = CreateUiRootWithHost();

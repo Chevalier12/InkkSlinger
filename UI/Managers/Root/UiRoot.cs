@@ -337,6 +337,12 @@ public sealed partial class UiRoot
         return new List<UiUpdatePhase>(_lastUpdatePhaseOrder);
     }
 
+    internal void SetFocusedElementForTests(UIElement? element)
+    {
+        _inputState.FocusedElement = element;
+        FocusManager.SetFocus(element);
+    }
+
     internal bool TryGetLastPointerResolveHitTestMetricsForTests(out HitTestMetrics metrics)
     {
         if (_lastPointerResolveHitTestMetrics.HasValue)

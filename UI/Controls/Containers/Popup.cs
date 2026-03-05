@@ -291,7 +291,7 @@ public class Popup : ContentControl
         SyncMarginFromPlacement();
     }
 
-    public void Show(Panel host)
+    public void Open(Panel host)
     {
         Dispatcher.VerifyAccess();
         if (_isOpen)
@@ -310,13 +310,18 @@ public class Popup : ContentControl
         Opened?.Invoke(this, EventArgs.Empty);
     }
 
+    public void Show(Panel host)
+    {
+        Open(host);
+    }
+
     public void ShowCentered(Panel host, float width, float height)
     {
         Width = width;
         Height = height;
         Left = MathF.Max(0f, (host.LayoutSlot.Width - width) / 2f);
         Top = MathF.Max(0f, (host.LayoutSlot.Height - height) / 2f);
-        Show(host);
+        Open(host);
     }
 
     public void Close()
@@ -758,6 +763,20 @@ public class Popup : ContentControl
                 computedLeft = ((hostWidth - currentWidth) / 2f) + HorizontalOffset;
                 computedTop = ((hostHeight - currentHeight) / 2f) + VerticalOffset;
                 break;
+            case PopupPlacementMode.Top:
+                if (PlacementTarget != null)
+                {
+                    computedLeft = (PlacementTarget.LayoutSlot.X - _host.LayoutSlot.X) + HorizontalOffset;
+                    computedTop = (PlacementTarget.LayoutSlot.Y - _host.LayoutSlot.Y) - currentHeight + VerticalOffset;
+                }
+                else
+                {
+                    // Without a placement target, keep explicit coordinates stable.
+                    computedLeft = Left + HorizontalOffset;
+                    computedTop = Top + VerticalOffset;
+                }
+
+                break;
             case PopupPlacementMode.Bottom:
                 if (PlacementTarget != null)
                 {
@@ -766,6 +785,20 @@ public class Popup : ContentControl
                 }
                 else
                 {
+                    computedLeft = Left + HorizontalOffset;
+                    computedTop = Top + VerticalOffset;
+                }
+
+                break;
+            case PopupPlacementMode.Left:
+                if (PlacementTarget != null)
+                {
+                    computedLeft = (PlacementTarget.LayoutSlot.X - _host.LayoutSlot.X) - currentWidth + HorizontalOffset;
+                    computedTop = (PlacementTarget.LayoutSlot.Y - _host.LayoutSlot.Y) + VerticalOffset;
+                }
+                else
+                {
+                    // Without a placement target, keep explicit coordinates stable.
                     computedLeft = Left + HorizontalOffset;
                     computedTop = Top + VerticalOffset;
                 }

@@ -159,6 +159,16 @@ public sealed class PopupEdgeParityTests
         Assert.InRange(popup.Left, 0f, 400f - 180f);
         Assert.InRange(popup.Top, 0f, 240f - 90f);
 
+        popup.PlacementMode = PopupPlacementMode.Top;
+        RunLayout(uiRoot);
+        Assert.InRange(popup.Left, 0f, 400f - 180f);
+        Assert.InRange(popup.Top, 0f, 240f - 90f);
+
+        popup.PlacementMode = PopupPlacementMode.Left;
+        RunLayout(uiRoot);
+        Assert.InRange(popup.Left, 0f, 400f - 180f);
+        Assert.InRange(popup.Top, 0f, 240f - 90f);
+
         popup.PlacementMode = PopupPlacementMode.Absolute;
         popup.Left = 999f;
         popup.Top = 999f;
@@ -224,6 +234,42 @@ public sealed class PopupEdgeParityTests
 
         Assert.True(popup.Left > startLeft + 20f, $"Left did not move enough. start={startLeft}, current={popup.Left}");
         Assert.True(popup.Top > startTop + 20f, $"Top did not move enough. start={startTop}, current={popup.Top}");
+    }
+
+    [Fact]
+    public void XamlParser_ShouldParsePopupPlacementModeTopAndLeft()
+    {
+        const string topXaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <Popup Name="ProbeTop" PlacementMode="Top">
+      <Popup.Content>
+        <Label Text="probe"/>
+      </Popup.Content>
+    </Popup>
+  </Grid>
+</UserControl>
+""";
+
+        const string leftXaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <Popup Name="ProbeLeft" PlacementMode="Left">
+      <Popup.Content>
+        <Label Text="probe"/>
+      </Popup.Content>
+    </Popup>
+  </Grid>
+</UserControl>
+""";
+
+        var topRoot = (UserControl)XamlLoader.LoadFromString(topXaml);
+        var leftRoot = (UserControl)XamlLoader.LoadFromString(leftXaml);
+
+        var probeTop = Assert.IsType<Popup>(topRoot.FindName("ProbeTop"));
+        var probeLeft = Assert.IsType<Popup>(leftRoot.FindName("ProbeLeft"));
+        Assert.Equal(PopupPlacementMode.Top, probeTop.PlacementMode);
+        Assert.Equal(PopupPlacementMode.Left, probeLeft.PlacementMode);
     }
 
     private static Popup CreatePopup(bool dismissOnOutsideClick, bool canClose)

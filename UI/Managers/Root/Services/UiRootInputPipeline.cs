@@ -26,6 +26,12 @@ public sealed partial class UiRoot
     private bool _suppressNextRightReleaseAfterOverlayDismiss;
     private bool _suppressCurrentLeftPressGesture;
     private bool _suppressCurrentRightPressGesture;
+    private UIElement? _toolTipHoverTarget;
+    private ToolTip? _activeToolTip;
+    private UIElement? _activeToolTipTarget;
+    private double _toolTipHoverElapsedMs;
+    private double _activeToolTipElapsedMs;
+    private double _timeSinceToolTipClosedMs = double.PositiveInfinity;
 
     private void RunInputAndEventsPhase(GameTime gameTime)
     {
@@ -49,6 +55,7 @@ public sealed partial class UiRoot
         _lastInputCaptureMs = Stopwatch.GetElapsedTime(captureStart).TotalMilliseconds;
         var dispatchStart = Stopwatch.GetTimestamp();
         ProcessInputDelta(delta);
+        TickToolTipLifecycle(gameTime.ElapsedGameTime.TotalMilliseconds);
         _lastInputDispatchMs = Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
 
         var updateStart = Stopwatch.GetTimestamp();
@@ -57,6 +64,11 @@ public sealed partial class UiRoot
     }
 
     internal void RunInputDeltaForTests(InputDelta delta)
+    {
+        RunInputDeltaForTests(delta, 0d);
+    }
+
+    internal void RunInputDeltaForTests(InputDelta delta, double elapsedMs)
     {
         _lastInputHitTestCount = 0;
         _lastInputRoutedEventCount = 0;
@@ -72,6 +84,7 @@ public sealed partial class UiRoot
         _lastInputKeyDispatchMs = 0d;
         _lastInputTextDispatchMs = 0d;
         ProcessInputDelta(delta);
+        TickToolTipLifecycle(Math.Max(0d, elapsedMs));
     }
 
     private void ProcessInputDelta(InputDelta delta)
@@ -126,6 +139,7 @@ public sealed partial class UiRoot
 
         if (delta.LeftPressed)
         {
+            DismissToolTipForPointerInteraction();
             _suppressCurrentLeftPressGesture = false;
             _lastClickDownTarget = pointerTarget;
             _lastClickDownPointerPosition = delta.Current.PointerPosition;
@@ -159,6 +173,7 @@ public sealed partial class UiRoot
 
         if (delta.RightPressed)
         {
+            DismissToolTipForPointerInteraction();
             _suppressCurrentRightPressGesture = false;
             var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Right);
@@ -176,6 +191,7 @@ public sealed partial class UiRoot
 
         if (delta.MiddlePressed)
         {
+            DismissToolTipForPointerInteraction();
             _ = InputGestureService.Execute(
                 MouseButton.Middle,
                 _inputState.CurrentModifiers,
@@ -506,6 +522,7 @@ public sealed partial class UiRoot
                 new MouseRoutedEventArgs(UIElement.MouseEnterEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers));
         }
 
+        UpdateToolTipHoverTarget(hovered);
     }
 
     private UIElement? PromoteHoverTarget(UIElement? hovered)
@@ -572,6 +589,169 @@ public sealed partial class UiRoot
 
                 return;
         }
+    }
+
+    private void DismissToolTipForPointerInteraction()
+    {
+        _toolTipHoverTarget = null;
+        _toolTipHoverElapsedMs = 0d;
+        CloseActiveToolTip();
+    }
+
+    private void UpdateToolTipHoverTarget(UIElement? hovered)
+    {
+        if (TryResolveToolTipSourceFromHover(hovered, out var resolvedTarget))
+        {
+            if (ReferenceEquals(_toolTipHoverTarget, resolvedTarget))
+            {
+                return;
+            }
+
+            _toolTipHoverTarget = resolvedTarget;
+            _toolTipHoverElapsedMs = 0d;
+            if (_activeToolTipTarget != null &&
+                !ReferenceEquals(_activeToolTipTarget, resolvedTarget))
+            {
+                CloseActiveToolTip();
+            }
+
+            return;
+        }
+
+        _toolTipHoverTarget = null;
+        _toolTipHoverElapsedMs = 0d;
+        CloseActiveToolTip();
+    }
+
+    private void TickToolTipLifecycle(double elapsedMs)
+    {
+        if (_timeSinceToolTipClosedMs != double.PositiveInfinity)
+        {
+            _timeSinceToolTipClosedMs += elapsedMs;
+        }
+
+        if (_activeToolTip != null)
+        {
+            if (!_activeToolTip.IsOpen)
+            {
+                CloseActiveToolTip();
+                return;
+            }
+
+            _activeToolTipElapsedMs += elapsedMs;
+            if (_activeToolTipTarget == null ||
+                !IsElementConnectedToVisualRoot(_activeToolTipTarget) ||
+                !_activeToolTipTarget.IsEnabled ||
+                !ReferenceEquals(_toolTipHoverTarget, _activeToolTipTarget))
+            {
+                CloseActiveToolTip();
+                return;
+            }
+
+            var showDuration = ToolTipService.GetShowDuration(_activeToolTipTarget);
+            if (_activeToolTipElapsedMs >= showDuration)
+            {
+                _toolTipHoverTarget = null;
+                _toolTipHoverElapsedMs = 0d;
+                CloseActiveToolTip();
+                return;
+            }
+        }
+
+        if (_toolTipHoverTarget == null ||
+            _activeToolTip != null ||
+            !IsElementConnectedToVisualRoot(_toolTipHoverTarget) ||
+            !_toolTipHoverTarget.IsEnabled)
+        {
+            return;
+        }
+
+        var initialDelay = ToolTipService.GetInitialShowDelay(_toolTipHoverTarget);
+        var betweenDelay = ToolTipService.GetBetweenShowDelay(_toolTipHoverTarget);
+        var requiredDelay = _timeSinceToolTipClosedMs <= betweenDelay ? 0 : initialDelay;
+        _toolTipHoverElapsedMs += elapsedMs;
+        if (_toolTipHoverElapsedMs < requiredDelay)
+        {
+            return;
+        }
+
+        if (!TryBuildToolTipForTarget(_toolTipHoverTarget, out var tooltip) ||
+            tooltip == null)
+        {
+            return;
+        }
+
+        var host = FindHostPanelForElement(_toolTipHoverTarget);
+        if (host == null)
+        {
+            return;
+        }
+
+        tooltip.ShowFor(host, _toolTipHoverTarget);
+        _activeToolTip = tooltip;
+        _activeToolTipTarget = _toolTipHoverTarget;
+        _activeToolTipElapsedMs = 0d;
+    }
+
+    private static bool TryResolveToolTipSourceFromHover(UIElement? hovered, out UIElement target)
+    {
+        for (var current = hovered; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (!ToolTipService.GetIsEnabled(current))
+            {
+                continue;
+            }
+
+            if (ToolTipService.GetToolTip(current) != null)
+            {
+                target = current;
+                return true;
+            }
+        }
+
+        target = null!;
+        return false;
+    }
+
+    private static bool TryBuildToolTipForTarget(UIElement target, out ToolTip tooltip)
+    {
+        var toolTipValue = ToolTipService.GetToolTip(target);
+        switch (toolTipValue)
+        {
+            case null:
+                tooltip = null!;
+                return false;
+            case ToolTip providedToolTip:
+                tooltip = providedToolTip;
+                return true;
+            case UIElement element:
+                throw new InvalidOperationException(
+                    $"ToolTipService.ToolTip does not support UIElement values ('{element.GetType().Name}') " +
+                    "because reparenting live visuals is unsafe. Use a ToolTip instance instead.");
+            default:
+                tooltip = new ToolTip
+                {
+                    Content = new Label
+                    {
+                        Text = toolTipValue.ToString() ?? string.Empty
+                    }
+                };
+                return true;
+        }
+    }
+
+    private void CloseActiveToolTip()
+    {
+        if (_activeToolTip == null)
+        {
+            return;
+        }
+
+        _activeToolTip.Close();
+        _activeToolTip = null;
+        _activeToolTipTarget = null;
+        _activeToolTipElapsedMs = 0d;
+        _timeSinceToolTipClosedMs = 0d;
     }
 
     private void DispatchPointerMove(UIElement? target, Vector2 pointerPosition)
@@ -1836,8 +2016,8 @@ public sealed partial class UiRoot
 
             if (key == Keys.F10 && modifiers == ModifierKeys.None)
             {
-                var menu = FindFirstVisualOfType<Menu>(_visualRoot);
-                if (menu != null && menu.TryActivateMenuBarFromKeyboard(_inputState.FocusedElement))
+                if (TryResolveScopedMenuForKeyboard(out var menu) &&
+                    menu.TryActivateMenuBarFromKeyboard(_inputState.FocusedElement))
                 {
                     TrySynchronizeMenuFocusRestore(menu);
                     return;
@@ -2043,13 +2223,15 @@ public sealed partial class UiRoot
                 break;
         }
 
-        if (isOverlay && IsBetterOverlayCandidate(depth, zIndex, currentOrder, hasCandidate, bestDepth, bestZIndex, bestOrder))
+        var overlayCandidate = new OverlayCandidate(element, closeOnOutsidePointerDown, closeOnEscape);
+        if (isOverlay &&
+            IsBetterOverlayCandidate(depth, zIndex, currentOrder, hasCandidate, bestDepth, bestZIndex, bestOrder))
         {
             hasCandidate = true;
             bestDepth = depth;
             bestZIndex = zIndex;
             bestOrder = currentOrder;
-            bestCandidate = new OverlayCandidate(element, closeOnOutsidePointerDown, closeOnEscape);
+            bestCandidate = overlayCandidate;
         }
 
         foreach (var child in element.GetVisualChildren())
@@ -2151,20 +2333,40 @@ public sealed partial class UiRoot
 
     private bool TryHandleMenuAccessKey(char accessKey)
     {
-        var menu = FindFirstVisualOfType<Menu>(_visualRoot);
-        if (menu == null || !menu.TryHandleAccessKeyFromInput(accessKey, _inputState.FocusedElement))
+        foreach (var menu in EnumerateMenusForKeyboardScope())
         {
-            return false;
+            if (!menu.TryHandleAccessKeyFromInput(accessKey, _inputState.FocusedElement))
+            {
+                continue;
+            }
+
+            TrySynchronizeMenuFocusRestore(menu);
+            return true;
         }
 
-        TrySynchronizeMenuFocusRestore(menu);
-        return true;
+        return false;
     }
 
     private bool TryFindMenuInMenuMode(out Menu menu)
     {
-        var candidate = FindFirstVisualOfType<Menu>(_visualRoot);
-        if (candidate != null && candidate.IsMenuMode)
+        foreach (var candidate in EnumerateMenusForKeyboardScope())
+        {
+            if (!candidate.IsMenuMode)
+            {
+                continue;
+            }
+
+            menu = candidate;
+            return true;
+        }
+
+        menu = null!;
+        return false;
+    }
+
+    private bool TryResolveScopedMenuForKeyboard(out Menu menu)
+    {
+        foreach (var candidate in EnumerateMenusForKeyboardScope())
         {
             menu = candidate;
             return true;
@@ -2174,26 +2376,138 @@ public sealed partial class UiRoot
         return false;
     }
 
+    private IReadOnlyList<Menu> EnumerateMenusForKeyboardScope()
+    {
+        var allMenus = new List<Menu>();
+        CollectVisualsOfType(_visualRoot, allMenus);
+        if (allMenus.Count == 0)
+        {
+            return allMenus;
+        }
+
+        var prioritized = new List<Menu>(allMenus.Count);
+        if (TryFindAnyMenuInMenuMode(allMenus, out var activeMenuMode))
+        {
+            AddUniqueMenu(prioritized, activeMenuMode);
+        }
+
+        if (TryFindAncestorMenuOfFocusedElement(out var focusedAncestorMenu))
+        {
+            AddUniqueMenu(prioritized, focusedAncestorMenu);
+        }
+
+        if (TryFindHighestZVisibleMenu(allMenus, out var highestZMenu))
+        {
+            AddUniqueMenu(prioritized, highestZMenu);
+        }
+
+        for (var i = 0; i < allMenus.Count; i++)
+        {
+            AddUniqueMenu(prioritized, allMenus[i]);
+        }
+
+        return prioritized;
+    }
+
+    private bool TryFindAnyMenuInMenuMode(IReadOnlyList<Menu> menus, out Menu menu)
+    {
+        menu = null!;
+        var found = false;
+        var bestZIndex = int.MinValue;
+        for (var i = 0; i < menus.Count; i++)
+        {
+            var candidate = menus[i];
+            if (!candidate.IsMenuMode)
+            {
+                continue;
+            }
+
+            var candidateZ = Panel.GetZIndex(candidate);
+            if (!found || candidateZ > bestZIndex)
+            {
+                menu = candidate;
+                bestZIndex = candidateZ;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    private bool TryFindAncestorMenuOfFocusedElement(out Menu menu)
+    {
+        for (var current = _inputState.FocusedElement; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is Menu focusedMenu)
+            {
+                menu = focusedMenu;
+                return true;
+            }
+        }
+
+        menu = null!;
+        return false;
+    }
+
+    private static bool TryFindHighestZVisibleMenu(IReadOnlyList<Menu> menus, out Menu menu)
+    {
+        menu = null!;
+        var found = false;
+        var bestZIndex = int.MinValue;
+        for (var i = 0; i < menus.Count; i++)
+        {
+            var candidate = menus[i];
+            if (!candidate.IsVisible)
+            {
+                continue;
+            }
+
+            var candidateZIndex = Panel.GetZIndex(candidate);
+            if (!found || candidateZIndex > bestZIndex)
+            {
+                menu = candidate;
+                bestZIndex = candidateZIndex;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    private static void AddUniqueMenu(List<Menu> menus, Menu menu)
+    {
+        for (var i = 0; i < menus.Count; i++)
+        {
+            if (ReferenceEquals(menus[i], menu))
+            {
+                return;
+            }
+        }
+
+        menus.Add(menu);
+    }
+
     private void TrySynchronizeMenuFocusRestore(Menu menu)
     {
-        if (menu.TryConsumePendingFocusRestore(out var focusTarget) && focusTarget != null)
-        {
-            SetFocus(focusTarget);
-        }
+        _ = menu.TryConsumePendingFocusRestore(out var focusTarget);
+        TryRestoreFocusIfConnected(focusTarget);
     }
 
     private void TrySynchronizeContextMenuFocusRestore(ContextMenu contextMenu)
     {
-        if (contextMenu.TryConsumePendingFocusRestore(out var focusTarget) && focusTarget != null)
-        {
-            SetFocus(focusTarget);
-        }
+        _ = contextMenu.TryConsumePendingFocusRestore(out var focusTarget);
+        TryRestoreFocusIfConnected(focusTarget);
     }
 
     private void TrySynchronizePopupFocusRestore(Popup popup)
     {
-        if (popup.TryConsumePendingFocusRestore(out var focusTarget) &&
-            focusTarget != null &&
+        _ = popup.TryConsumePendingFocusRestore(out var focusTarget);
+        TryRestoreFocusIfConnected(focusTarget);
+    }
+
+    private void TryRestoreFocusIfConnected(UIElement? focusTarget)
+    {
+        if (focusTarget != null &&
             IsElementDescendantOf(focusTarget, _visualRoot))
         {
             SetFocus(focusTarget);
@@ -2451,6 +2765,20 @@ public sealed partial class UiRoot
         }
 
         return null;
+    }
+
+    private static void CollectVisualsOfType<TElement>(UIElement root, List<TElement> results)
+        where TElement : UIElement
+    {
+        if (root is TElement typed)
+        {
+            results.Add(typed);
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            CollectVisualsOfType(child, results);
+        }
     }
 
 }

@@ -7,7 +7,7 @@
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (`Release`, 0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -c Release -v minimal` |
-| Test suite | Pass (`711/711`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
+| Test suite | Pass (`762/762`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
 | Current failing test areas | `None` | Latest full release test run (`2026-03-05`) |
 | WPF control coverage | Broad but incomplete (`74/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `4` unchecked TODO items (`3` bounty controls + `1` non-bounty input parity item) | `TODO.md` |
@@ -106,10 +106,10 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Render queue and invalidation correctness | Queue ordering and invalidation semantics in root draw/update pipeline | `UI/Managers/Root/UiRoot.cs`, `InkkSlinger.Tests/RenderQueueTests.cs`, `InkkSlinger.Tests/InvalidationFlagsTests.cs` | Implemented (tested) |
 | Adorner infrastructure | Adorner base/layer/decorator + anchored/handles authoring helpers (`AnchoredAdorner`, `HandlesAdornerBase`) with clipping/tracking coverage | `UI/Controls/Adorners/*`, `InkkSlinger.Tests/AdornerClippingTests.cs`, `InkkSlinger.Tests/AdornerParityDepthTests.cs` | Implemented (tested) |
 | Control breadth snapshot | 74 implemented controls out of 77 tracked WPF controls | `TODO.md` (`## WPF Control Coverage`, computed: `74/77`) | Broad |
-| Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (ongoing depth) |
+| Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (tested) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 114 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (114 files) | Implemented |
+| Regression safety net | 130 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (130 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -137,7 +137,7 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 | Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Not implemented ([bounty #3](https://github.com/Chevalier12/InkkSlinger/issues/3)) |
 | Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented ([bounty #5](https://github.com/Chevalier12/InkkSlinger/issues/5)) |
 | Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Implemented |
-| Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Ongoing |
+| Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Implemented |
 | Data/view layer | WPF `CollectionView` stack (current item/filter/sort/group) with `CollectionViewSource` | `UI/Binding/Collections/*`, `UI/Controls/Base/ItemsControl.cs`, `UI/Xaml/Core/XamlLoader.cs`, `InkkSlinger.Tests/CollectionViewCoreTests.cs`, `InkkSlinger.Tests/XamlCollectionViewParserTests.cs` | Implemented (tested) |
 | XAML binding parser | Unrecognized binding attributes are rejected | `UI/Xaml/Core/XamlLoader.cs` (`BuildBindingElement`), `InkkSlinger.Tests/XamlBindingParserTests.cs` | Implemented (tested) |
 | XAML binding parser | Unrecognized binding keys are rejected | `UI/Xaml/Core/XamlLoader.cs` (`ParseBinding`), `InkkSlinger.Tests/XamlBindingParserTests.cs` | Implemented (tested) |
@@ -165,7 +165,7 @@ Bounty note: if nobody picks up the open bounties for `InkCanvas`, `InkPresenter
 
 ## UI Architecture Map
 
-The following reflects `UI-FOLDER-MAP.md` (generated 2026-03-04):
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-03-05):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers

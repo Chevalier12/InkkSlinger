@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-03-04 (full filesystem refresh)
+Generated: 2026-03-05 (full filesystem refresh)
 
 ```text
 UI/
@@ -116,6 +116,7 @@ UI/
       ToolBar.cs
       ToolBarTray.cs
       ToolTip.cs
+      ToolTipService.cs
       UserControl.cs
       Viewbox.cs
       Window.cs

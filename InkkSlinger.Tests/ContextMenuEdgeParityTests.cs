@@ -123,6 +123,39 @@ public sealed class ContextMenuEdgeParityTests
     }
 
     [Fact]
+    public void Esc_WhenRestoreTargetDetached_ShouldNotRestoreDetachedFocus()
+    {
+        var (uiRoot, host) = CreateUiRootWithHost();
+        var target = new Button { Width = 160f, Height = 30f, Text = "Open" };
+        host.AddChild(target);
+        Canvas.SetLeft(target, 40f);
+        Canvas.SetTop(target, 50f);
+
+        var originalFocus = new TextBox { Width = 120f, Height = 30f };
+        host.AddChild(originalFocus);
+        Canvas.SetLeft(originalFocus, 40f);
+        Canvas.SetTop(originalFocus, 100f);
+
+        var menu = CreateSimpleContextMenu();
+        ContextMenu.SetContextMenu(target, menu);
+        RunLayout(uiRoot);
+
+        Click(uiRoot, new Vector2(originalFocus.LayoutSlot.X + 6f, originalFocus.LayoutSlot.Y + 6f));
+        var pointer = new Vector2(60f, 60f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, rightPressed: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, rightReleased: true));
+        Assert.True(menu.IsOpen);
+
+        host.RemoveChild(originalFocus);
+        uiRoot.SetFocusedElementForTests(target);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Escape));
+
+        Assert.False(menu.IsOpen);
+        Assert.Same(target, FocusManager.GetFocusedElement());
+    }
+
+    [Fact]
     public void OutsideClick_WhenStaysOpenFalse_ShouldClose()
     {
         var (uiRoot, host) = CreateUiRootWithHost();

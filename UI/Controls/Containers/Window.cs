@@ -233,6 +233,18 @@ public sealed class Window : DependencyObject, IDisposable
         set => _nativeWindow.Position = value;
     }
 
+    public int Left
+    {
+        get => Position.X;
+        set => Position = new Point(value, Position.Y);
+    }
+
+    public int Top
+    {
+        get => Position.Y;
+        set => Position = new Point(Position.X, value);
+    }
+
     public Rectangle ClientBounds => _nativeWindow.ClientBounds;
 
     public Point ClientSize => new(ClientBounds.Width, ClientBounds.Height);
@@ -358,6 +370,11 @@ public sealed class Window : DependencyObject, IDisposable
         {
             style.Detach(this);
         }
+    }
+
+    public void SetPosition(int x, int y)
+    {
+        Position = new Point(x, y);
     }
 
     private void OnClientSizeChanged(object? sender, EventArgs e)

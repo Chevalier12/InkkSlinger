@@ -171,6 +171,22 @@ public class MenuParityInputTests
         Assert.False(fixture.Menu.IsMenuMode);
     }
 
+    [Fact]
+    public void Escape_DoesNotRestoreFocusToDetachedElement()
+    {
+        var fixture = CreateFixture();
+        FocusByClick(fixture.UiRoot, fixture.SideTextBox);
+
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.F, new KeyboardState(Keys.LeftAlt)));
+        fixture.Root.RemoveChild(fixture.SideTextBox);
+        fixture.UiRoot.SetFocusedElementForTests(fixture.EditorTextBox);
+
+        fixture.UiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Escape));
+
+        Assert.False(fixture.Menu.IsMenuMode);
+        Assert.Same(fixture.EditorTextBox, FocusManager.GetFocusedElement());
+    }
+
     [Theory]
     [InlineData("_File", "File")]
     [InlineData("E_xit", "Exit")]
@@ -294,7 +310,7 @@ public class MenuParityInputTests
         var uiRoot = new UiRoot(root);
         RunLayout(uiRoot, 960, 640, 16);
 
-        return new Fixture(uiRoot, menu, file, edit, @new, project, console, editorTextBox, sideTextBox, () => executions, () => clicks);
+        return new Fixture(root, uiRoot, menu, file, edit, @new, project, console, editorTextBox, sideTextBox, () => executions, () => clicks);
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
@@ -309,6 +325,7 @@ public class MenuParityInputTests
         private readonly Func<int> _clickCountProvider;
 
         public Fixture(
+            Grid root,
             UiRoot uiRoot,
             Menu menu,
             MenuItem fileMenuItem,
@@ -321,6 +338,7 @@ public class MenuParityInputTests
             Func<int> executionCountProvider,
             Func<int> clickCountProvider)
         {
+            Root = root;
             UiRoot = uiRoot;
             Menu = menu;
             FileMenuItem = fileMenuItem;
@@ -334,6 +352,7 @@ public class MenuParityInputTests
             _clickCountProvider = clickCountProvider;
         }
 
+        public Grid Root { get; }
         public UiRoot UiRoot { get; }
         public Menu Menu { get; }
         public MenuItem FileMenuItem { get; }

@@ -4,7 +4,7 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `711/711` passing.
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `762/762` passing.
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - Touch/stylus/tablet input pipeline parity is explicitly unsupported until `InkCanvas` and `InkPresenter` are implemented.
@@ -25,6 +25,9 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] Binding lifecycle robustness: detach/rebind on reparent and DataContext/source changes.
 - [x] Resource resolution and precedence hardening: local/tree/app lookup and implicit style replacement behavior.
 - [x] Input/focus edge-case hardening: capture/focus recovery, popup open/close behavior, keyboard focus traversal.
+- [x] Tooltip parity completion: added `ToolTipService` attached properties (`ToolTip`, `IsEnabled`, `InitialShowDelay`, `BetweenShowDelay`, `ShowDuration`) with hover-timed open/reopen/auto-close lifecycle and non-interactive tooltip behavior in `UiRoot` input pipeline, plus focused regression coverage (`ToolTipParityTests`).
+- [x] Focus-restore safety hardening: menu/context-menu focus restore now guards against detached targets (matching popup restore safety), with regressions across menu/context-menu/stacked-overlay paths.
+- [x] Multi-menu keyboard routing parity: replaced single-menu keyboard/access-key assumptions with scoped menu resolution (active menu mode -> focused ancestor menu -> highest-z visible menu -> fallback), plus dedicated regressions (`MultiMenuParityInputTests`).
 - [x] Overlay dismiss/input parity hardening: outside-click now dismisses only the topmost eligible overlay and consumes the initiating click, right-click dismiss no longer opens underlay context menus from the same click, and popup close restores pre-open focus only when the restore target remains in the active visual tree.
 - [x] Layout and resize correctness under viewport changes and DPI-like scaling scenarios.
 - [x] Core layout rounding parity pass: added inherited `UseLayoutRounding` DP and measure/arrange rounding for layout slots and render sizes, with focused regression coverage (`UseLayoutRoundingTests`).
