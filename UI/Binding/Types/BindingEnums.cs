@@ -22,5 +22,6 @@ public enum RelativeSourceMode
     None,
     Self,
     TemplatedParent,
-    FindAncestor
+    FindAncestor,
+    PreviousData
 }

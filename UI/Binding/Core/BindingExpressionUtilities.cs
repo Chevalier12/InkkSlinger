@@ -311,6 +311,11 @@ internal static class BindingExpressionUtilities
             }
         }
 
+        if (binding.RelativeSourceMode == RelativeSourceMode.PreviousData)
+        {
+            return ResolvePreviousData(targetElement);
+        }
+
         return null;
     }
 
@@ -368,5 +373,30 @@ internal static class BindingExpressionUtilities
     private static UIElement? GetTreeParent(UIElement element)
     {
         return element.VisualParent ?? element.LogicalParent;
+    }
+
+    private static object? ResolvePreviousData(UIElement targetElement)
+    {
+        for (var candidate = targetElement; candidate != null; candidate = GetTreeParent(candidate))
+        {
+            for (var current = candidate; current != null; current = GetTreeParent(current))
+            {
+                if (current is not ItemsControl itemsControl ||
+                    !itemsControl.TryGetGeneratedItemInfo(candidate, out _, out var index))
+                {
+                    continue;
+                }
+
+                if (index <= 0 ||
+                    !itemsControl.TryGetGeneratedItemByIndex(index - 1, out var previous))
+                {
+                    return null;
+                }
+
+                return previous;
+            }
+        }
+
+        return null;
     }
 }

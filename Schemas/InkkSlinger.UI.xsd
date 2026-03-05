@@ -798,7 +798,24 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="relativeSourceType">
+    <xs:attribute name="Mode" type="xs:string" />
+    <xs:attribute name="AncestorType" type="xamlValueType" />
+    <xs:attribute name="AncestorLevel" type="xs:int" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="bindingRelativeSourceType">
+    <xs:sequence>
+      <xs:element ref="RelativeSource" />
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
   <xs:complexType name="bindingType">
+    <xs:sequence minOccurs="0" maxOccurs="1">
+      <xs:element ref="Binding.RelativeSource" />
+    </xs:sequence>
     <xs:attribute name="Path" type="xs:string" />
     <xs:attribute name="Source" type="xamlValueType" />
     <xs:attribute name="ElementName" type="xs:string" />
@@ -2141,7 +2158,9 @@
   <xs:element name="BounceEase" type="easingFunctionType" />
   <xs:element name="CircleEase" type="easingFunctionType" />
   <xs:element name="ExponentialEase" type="exponentialEaseType" />
+  <xs:element name="RelativeSource" type="relativeSourceType" />
   <xs:element name="Binding" type="bindingType" />
+  <xs:element name="Binding.RelativeSource" type="bindingRelativeSourceType" />
   <xs:element name="MultiBinding" type="multiBindingType" />
   <xs:element name="PriorityBinding" type="priorityBindingType" />
   <xs:element name="BindingGroup" type="bindingGroupType" />

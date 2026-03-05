@@ -76,4 +76,30 @@ public static class BindingOperations
             expression.OnTargetTreeChanged();
         }
     }
+
+    internal static void NotifyTargetTreeChangedRecursive(UIElement root)
+    {
+        var visited = new HashSet<UIElement>();
+        NotifyTargetTreeChangedRecursive(root, visited);
+    }
+
+    private static void NotifyTargetTreeChangedRecursive(UIElement element, HashSet<UIElement> visited)
+    {
+        if (!visited.Add(element))
+        {
+            return;
+        }
+
+        NotifyTargetTreeChanged(element);
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            NotifyTargetTreeChangedRecursive(child, visited);
+        }
+
+        foreach (var child in element.GetLogicalChildren())
+        {
+            NotifyTargetTreeChangedRecursive(child, visited);
+        }
+    }
 }

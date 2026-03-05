@@ -1092,6 +1092,9 @@ public static class XamlLoader
     private static Binding BuildBindingElement(XElement element, Type targetPropertyType, FrameworkElement? resourceScope)
     {
         var binding = new Binding();
+        var hasSourceSelector = false;
+        var hasElementNameSelector = false;
+        var hasRelativeSourceAttribute = false;
         foreach (var attribute in element.Attributes())
         {
             if (attribute.IsNamespaceDeclaration)
@@ -1113,6 +1116,19 @@ public static class XamlLoader
                 continue;
             }
 
+            if (string.Equals(localName, "RelativeSource", StringComparison.OrdinalIgnoreCase))
+            {
+                hasRelativeSourceAttribute = true;
+            }
+            else if (string.Equals(localName, nameof(Binding.Source), StringComparison.OrdinalIgnoreCase))
+            {
+                hasSourceSelector = true;
+            }
+            else if (string.Equals(localName, nameof(Binding.ElementName), StringComparison.OrdinalIgnoreCase))
+            {
+                hasElementNameSelector = true;
+            }
+
             if (TryApplyBindingOption(binding, localName, rawValue, targetPropertyType, resourceScope))
             {
                 continue;
@@ -1121,6 +1137,36 @@ public static class XamlLoader
             throw CreateXamlException($"Binding attribute '{localName}' is not supported.", attribute);
         }
 
+        var hasRelativeSourcePropertyElement = false;
+        foreach (var child in element.Elements())
+        {
+            if (!string.Equals(child.Name.LocalName, "Binding.RelativeSource", StringComparison.Ordinal))
+            {
+                throw CreateXamlException("Binding can only contain Binding.RelativeSource child elements.", child);
+            }
+
+            if (hasRelativeSourcePropertyElement)
+            {
+                throw CreateXamlException("Binding.RelativeSource can only be specified once.", child);
+            }
+
+            if (hasRelativeSourceAttribute)
+            {
+                throw CreateXamlException(
+                    "Binding cannot specify RelativeSource both as an attribute and as a Binding.RelativeSource property element.",
+                    child);
+            }
+
+            ApplyBindingRelativeSourcePropertyElement(binding, child);
+            hasRelativeSourcePropertyElement = true;
+        }
+
+        ValidateBindingSourceSelectorConflict(
+            binding,
+            element,
+            hasSourceSelector,
+            hasElementNameSelector,
+            hasRelativeSourceAttribute || hasRelativeSourcePropertyElement);
         return binding;
     }
 
@@ -3273,6 +3319,9 @@ public static class XamlLoader
     private static Binding ParseBinding(string bindingBody, Type targetPropertyType, FrameworkElement? resourceScope)
     {
         var binding = new Binding();
+        var hasSourceSelector = false;
+        var hasElementNameSelector = false;
+        var hasRelativeSourceSelector = false;
         if (string.IsNullOrWhiteSpace(bindingBody))
         {
             return binding;
@@ -3299,6 +3348,19 @@ public static class XamlLoader
             var key = segment[..equalsIndex].Trim();
             var rawValue = segment[(equalsIndex + 1)..].Trim();
 
+            if (string.Equals(key, nameof(Binding.Source), StringComparison.OrdinalIgnoreCase))
+            {
+                hasSourceSelector = true;
+            }
+            else if (string.Equals(key, nameof(Binding.ElementName), StringComparison.OrdinalIgnoreCase))
+            {
+                hasElementNameSelector = true;
+            }
+            else if (string.Equals(key, "RelativeSource", StringComparison.OrdinalIgnoreCase))
+            {
+                hasRelativeSourceSelector = true;
+            }
+
             if (TryApplyBindingOption(binding, key, rawValue, targetPropertyType, resourceScope))
             {
                 continue;
@@ -3307,6 +3369,11 @@ public static class XamlLoader
             throw CreateXamlException($"Binding key '{key}' is not supported.");
         }
 
+        ValidateBindingSourceSelectorConflict(
+            binding,
+            sourceSelectorSpecified: hasSourceSelector,
+            elementNameSelectorSpecified: hasElementNameSelector,
+            relativeSourceSelectorSpecified: hasRelativeSourceSelector);
         return binding;
     }
 
@@ -3572,62 +3639,217 @@ public static class XamlLoader
 
     private static void ApplyRelativeSource(Binding binding, string rawValue)
     {
+        ResetBindingRelativeSource(binding);
         var trimmed = rawValue.Trim();
+        var segments = new List<string>();
         if (!trimmed.StartsWith("{", StringComparison.Ordinal))
         {
-            binding.RelativeSourceMode = ParseRelativeSourceMode(trimmed);
-            return;
+            segments = SplitBindingSegments(trimmed);
         }
-
-        if (!TryParseMarkupExtensionExpression(trimmed, out var expression) ||
-            !string.Equals(expression.Name, "RelativeSource", StringComparison.OrdinalIgnoreCase))
+        else
         {
-            throw CreateXamlException($"RelativeSource expression '{rawValue}' is invalid.");
+            if (!TryParseMarkupExtensionExpression(trimmed, out var expression) ||
+                !string.Equals(expression.Name, "RelativeSource", StringComparison.OrdinalIgnoreCase))
+            {
+                throw CreateXamlException($"RelativeSource expression '{rawValue}' is invalid.");
+            }
+
+            if (string.IsNullOrWhiteSpace(expression.Body))
+            {
+                throw CreateXamlException("RelativeSource requires a mode.");
+            }
+
+            segments = expression.Segments;
         }
 
-        var args = expression.Body;
-        if (string.IsNullOrWhiteSpace(args))
+        ApplyRelativeSourceSegments(binding, segments);
+    }
+
+    private static void ApplyRelativeSourceSegments(Binding binding, List<string> segments)
+    {
+        if (segments.Count == 0)
         {
             throw CreateXamlException("RelativeSource requires a mode.");
         }
 
-        var parts = SplitBindingSegments(args);
-        if (parts.Count == 1 && !parts[0].Contains('=', StringComparison.Ordinal))
+        var hasMode = false;
+        var hasAncestorType = false;
+        var hasAncestorLevel = false;
+        for (var i = 0; i < segments.Count; i++)
         {
-            binding.RelativeSourceMode = ParseRelativeSourceMode(parts[0]);
-            return;
-        }
-
-        foreach (var part in parts)
-        {
-            var equalsIndex = part.IndexOf('=');
-            if (equalsIndex <= 0 || equalsIndex == part.Length - 1)
+            var segment = segments[i];
+            var equalsIndex = segment.IndexOf('=');
+            if (equalsIndex < 0)
             {
-                throw CreateXamlException($"RelativeSource segment '{part}' is invalid.");
+                if (i > 0)
+                {
+                    throw CreateXamlException("RelativeSource requires the positional mode segment to appear first.");
+                }
+
+                if (hasMode)
+                {
+                    throw CreateXamlException($"RelativeSource segment '{segment}' is invalid.");
+                }
+
+                binding.RelativeSourceMode = ParseRelativeSourceMode(segment);
+                hasMode = true;
+                continue;
             }
 
-            var key = part[..equalsIndex].Trim();
-            var value = part[(equalsIndex + 1)..].Trim();
+            if (equalsIndex == 0 || equalsIndex == segment.Length - 1)
+            {
+                throw CreateXamlException($"RelativeSource segment '{segment}' is invalid.");
+            }
+
+            var key = segment[..equalsIndex].Trim();
+            var value = segment[(equalsIndex + 1)..].Trim();
 
             if (string.Equals(key, "Mode", StringComparison.OrdinalIgnoreCase))
             {
                 binding.RelativeSourceMode = ParseRelativeSourceMode(value);
+                hasMode = true;
                 continue;
             }
 
             if (string.Equals(key, "AncestorType", StringComparison.OrdinalIgnoreCase))
             {
                 binding.RelativeSourceAncestorType = ResolveTypeReference(value);
+                hasAncestorType = true;
                 continue;
             }
 
             if (string.Equals(key, "AncestorLevel", StringComparison.OrdinalIgnoreCase))
             {
                 binding.RelativeSourceAncestorLevel = int.Parse(value, CultureInfo.InvariantCulture);
+                hasAncestorLevel = true;
                 continue;
             }
 
             throw CreateXamlException($"RelativeSource key '{key}' is not supported.");
+        }
+
+        ValidateRelativeSourceConfiguration(binding, hasMode, hasAncestorType, hasAncestorLevel);
+    }
+
+    private static void ApplyBindingRelativeSourcePropertyElement(Binding binding, XElement propertyElement)
+    {
+        var children = propertyElement.Elements().ToList();
+        if (children.Count != 1 || !string.Equals(children[0].Name.LocalName, "RelativeSource", StringComparison.Ordinal))
+        {
+            throw CreateXamlException(
+                "Binding.RelativeSource must contain exactly one RelativeSource element.",
+                propertyElement);
+        }
+
+        var relativeSourceElement = children[0];
+        ResetBindingRelativeSource(binding);
+        var hasMode = false;
+        var hasAncestorType = false;
+        var hasAncestorLevel = false;
+        foreach (var attribute in relativeSourceElement.Attributes())
+        {
+            if (attribute.IsNamespaceDeclaration || !string.IsNullOrEmpty(attribute.Name.NamespaceName))
+            {
+                continue;
+            }
+
+            var key = attribute.Name.LocalName;
+            var value = attribute.Value;
+            if (string.Equals(key, "Mode", StringComparison.OrdinalIgnoreCase))
+            {
+                binding.RelativeSourceMode = ParseRelativeSourceMode(value);
+                hasMode = true;
+                continue;
+            }
+
+            if (string.Equals(key, "AncestorType", StringComparison.OrdinalIgnoreCase))
+            {
+                binding.RelativeSourceAncestorType = ResolveTypeReference(value);
+                hasAncestorType = true;
+                continue;
+            }
+
+            if (string.Equals(key, "AncestorLevel", StringComparison.OrdinalIgnoreCase))
+            {
+                binding.RelativeSourceAncestorLevel = int.Parse(value, CultureInfo.InvariantCulture);
+                hasAncestorLevel = true;
+                continue;
+            }
+
+            throw CreateXamlException($"RelativeSource attribute '{key}' is not supported.", attribute);
+        }
+
+        ValidateRelativeSourceConfiguration(binding, hasMode, hasAncestorType, hasAncestorLevel, relativeSourceElement);
+    }
+
+    private static void ValidateRelativeSourceConfiguration(
+        Binding binding,
+        bool hasMode,
+        bool hasAncestorType,
+        bool hasAncestorLevel,
+        XObject? location = null)
+    {
+        if (!hasMode)
+        {
+            throw CreateXamlException("RelativeSource requires a mode.", location);
+        }
+
+        if (binding.RelativeSourceMode == RelativeSourceMode.FindAncestor && !hasAncestorType)
+        {
+            throw CreateXamlException("RelativeSource FindAncestor mode requires AncestorType.", location);
+        }
+
+        if (binding.RelativeSourceMode != RelativeSourceMode.FindAncestor && (hasAncestorType || hasAncestorLevel))
+        {
+            throw CreateXamlException(
+                "RelativeSource AncestorType and AncestorLevel are only valid when Mode=FindAncestor.",
+                location);
+        }
+
+        if (hasAncestorLevel && binding.RelativeSourceAncestorLevel < 1)
+        {
+            throw CreateXamlException("RelativeSource AncestorLevel must be greater than or equal to 1.", location);
+        }
+    }
+
+    private static void ResetBindingRelativeSource(Binding binding)
+    {
+        binding.RelativeSourceMode = RelativeSourceMode.None;
+        binding.RelativeSourceAncestorType = null;
+        binding.RelativeSourceAncestorLevel = 1;
+    }
+
+    private static void ValidateBindingSourceSelectorConflict(
+        Binding binding,
+        XObject? location = null,
+        bool? sourceSelectorSpecified = null,
+        bool? elementNameSelectorSpecified = null,
+        bool? relativeSourceSelectorSpecified = null)
+    {
+        var selectedSources = 0;
+        var hasSourceSelector = sourceSelectorSpecified ?? binding.Source != null;
+        if (hasSourceSelector)
+        {
+            selectedSources++;
+        }
+
+        var hasElementNameSelector = elementNameSelectorSpecified ?? !string.IsNullOrWhiteSpace(binding.ElementName);
+        if (hasElementNameSelector)
+        {
+            selectedSources++;
+        }
+
+        var hasRelativeSourceSelector = relativeSourceSelectorSpecified ?? binding.RelativeSourceMode != RelativeSourceMode.None;
+        if (hasRelativeSourceSelector)
+        {
+            selectedSources++;
+        }
+
+        if (selectedSources > 1)
+        {
+            throw CreateXamlException(
+                "Binding source selectors Source, ElementName, and RelativeSource are mutually exclusive.",
+                location);
         }
     }
 

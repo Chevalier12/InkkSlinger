@@ -446,6 +446,204 @@ public class XamlBindingParserTests
         Assert.Equal("preferred", probe!.Content);
     }
 
+    [Fact]
+    public void BindingMarkup_WithRelativeSourceFindAncestorMixedSyntax_ParsesAndApplies()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Width="37">
+    <Border>
+      <ContentControl x:Name="Probe"
+                      Content="{Binding Path=Width, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Grid}}}" />
+    </Border>
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = (ContentControl?)root.FindName("Probe");
+
+        Assert.NotNull(probe);
+        Assert.Equal(37f, Assert.IsType<float>(probe!.Content));
+    }
+
+    [Fact]
+    public void BindingMarkup_WithRelativeSourcePreviousData_ParsesAndUsesFallbackOutsideItemsContext()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <ContentControl x:Name="Probe"
+                    Content="{Binding Path=Name, RelativeSource={RelativeSource Mode=PreviousData}, FallbackValue=no-prev}" />
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = (ContentControl?)root.FindName("Probe");
+
+        Assert.NotNull(probe);
+        Assert.Equal("no-prev", probe!.Content);
+    }
+
+    [Fact]
+    public void BindingElement_WithRelativeSourcePropertyElement_ParsesAndApplies()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Width="42">
+    <Grid Width="11">
+      <ContentControl x:Name="Probe">
+        <ContentControl.Content>
+          <Binding Path="Width">
+            <Binding.RelativeSource>
+              <RelativeSource Mode="FindAncestor" AncestorType="{x:Type Grid}" AncestorLevel="2" />
+            </Binding.RelativeSource>
+          </Binding>
+        </ContentControl.Content>
+      </ContentControl>
+    </Grid>
+  </Grid>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var probe = (ContentControl?)root.FindName("Probe");
+
+        Assert.NotNull(probe);
+        Assert.Equal(42f, Assert.IsType<float>(probe!.Content));
+    }
+
+    [Fact]
+    public void BindingMarkup_WithRelativeSourceFindAncestorWithoutAncestorType_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <ContentControl Content="{Binding Path=Width, RelativeSource={RelativeSource FindAncestor}}" />
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("AncestorType", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BindingMarkup_WithRelativeSourceSelfAndAncestorType_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <ContentControl Content="{Binding RelativeSource={RelativeSource Mode=Self, AncestorType={x:Type Grid}}}" />
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("only valid when Mode=FindAncestor", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BindingMarkup_WithRelativeSourceAncestorLevelZero_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <ContentControl Content="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Grid}, AncestorLevel=0}}" />
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("AncestorLevel", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BindingMarkup_WithRelativeSourceUnknownKey_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <ContentControl Content="{Binding RelativeSource={RelativeSource Mode=Self, UnknownOption=x}}" />
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("not supported", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BindingMarkup_WithRelativeSourcePositionalModeNotFirst_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <ContentControl Content="{Binding RelativeSource={RelativeSource AncestorType={x:Type Grid}, FindAncestor}}" />
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("mode segment to appear first", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BindingMarkup_WithConflictingSourceSelectors_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <TextBlock x:Name="Source" Text="ok" />
+    <ContentControl Content="{Binding Path=Text, Source={x:Reference Source}, ElementName=Source}" />
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("mutually exclusive", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BindingMarkup_WithExplicitNullSourceAndElementName_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <TextBlock x:Name="Source" Text="ok" />
+    <ContentControl Content="{Binding Path=Text, Source={x:Null}, ElementName=Source}" />
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("mutually exclusive", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void BindingElement_WithRelativeSourceAttributeAndPropertyElement_Throws()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <ContentControl>
+      <ContentControl.Content>
+        <Binding Path="Width" RelativeSource="{RelativeSource Mode=Self}">
+          <Binding.RelativeSource>
+            <RelativeSource Mode="FindAncestor" AncestorType="{x:Type Grid}" />
+          </Binding.RelativeSource>
+        </Binding>
+      </ContentControl.Content>
+    </ContentControl>
+  </Grid>
+</UserControl>
+""";
+
+        var ex = Assert.ThrowsAny<Exception>(() => XamlLoader.LoadFromString(xaml));
+        Assert.Contains("both as an attribute and as a Binding.RelativeSource", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class ThrowingSetterViewModel
     {
         private string _value = "seed";

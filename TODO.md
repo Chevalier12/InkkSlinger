@@ -18,6 +18,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] Style completeness: `BasedOn`, explicit style references, implicit style lookup by `TargetType`.
 - [x] Style event binding parity: `EventSetter` support in style model/runtime + XAML parsing with code-behind handler resolution (including `HandledEventsToo` and flexible 0/1/2-parameter handler signatures) and regression coverage.
 - [x] Binding parity: `Source`, `ElementName`, `RelativeSource`.
+- [x] Scope B binding parser/runtime parity pass: mixed/named `RelativeSource` grammar support, strict source-selector conflict validation (`Source` vs `ElementName` vs `RelativeSource`), `Binding.RelativeSource` property-element parsing, and runtime `RelativeSource PreviousData` resolution against active generated item projection order.
 - [x] Cleanup: `#nullable enable`, reflection-assigned `x:Name` warning cleanup.
 - [x] Popup/window visuals moved to XAML resources/styles.
 - [x] Baseline tests for resources/styles/bindings/style precedence.

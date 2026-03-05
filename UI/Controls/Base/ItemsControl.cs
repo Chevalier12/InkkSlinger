@@ -317,6 +317,37 @@ public class ItemsControl : Control
         return ItemsSource != null;
     }
 
+    internal bool TryGetGeneratedItemInfo(UIElement container, out object? item, out int index)
+    {
+        for (var i = 0; i < _generatedChildren.Count; i++)
+        {
+            if (!ReferenceEquals(_generatedChildren[i].Container, container))
+            {
+                continue;
+            }
+
+            item = _generatedChildren[i].Item;
+            index = i;
+            return true;
+        }
+
+        item = null;
+        index = -1;
+        return false;
+    }
+
+    internal bool TryGetGeneratedItemByIndex(int index, out object? item)
+    {
+        if (index < 0 || index >= _generatedChildren.Count)
+        {
+            item = null;
+            return false;
+        }
+
+        item = _generatedChildren[index].Item;
+        return true;
+    }
+
     private bool IsGroupedVisualProjectionActive =>
         SupportsGroupedVisualProjection &&
         _itemsSourceView != null &&
@@ -787,8 +818,34 @@ public class ItemsControl : Control
 
     private void FinalizeItemsIncrementalChange(NotifyCollectionChangedEventArgs e)
     {
+        RefreshIncrementalBindingSources(e);
         OnItemsIncrementalChanged(e);
         InvalidateMeasure();
+    }
+
+    private void RefreshIncrementalBindingSources(NotifyCollectionChangedEventArgs e)
+    {
+        if (_generatedChildren.Count == 0)
+        {
+            return;
+        }
+
+        var startIndex = e.Action switch
+        {
+            NotifyCollectionChangedAction.Add => e.NewStartingIndex < 0 ? _generatedChildren.Count - 1 : e.NewStartingIndex,
+            NotifyCollectionChangedAction.Remove => e.OldStartingIndex < 0 ? 0 : e.OldStartingIndex,
+            NotifyCollectionChangedAction.Replace => Math.Min(
+                e.OldStartingIndex < 0 ? 0 : e.OldStartingIndex,
+                e.NewStartingIndex < 0 ? 0 : e.NewStartingIndex),
+            NotifyCollectionChangedAction.Move => Math.Min(e.OldStartingIndex, e.NewStartingIndex),
+            _ => 0
+        };
+
+        startIndex = Math.Clamp(startIndex, 0, _generatedChildren.Count - 1);
+        for (var i = startIndex; i < _generatedChildren.Count; i++)
+        {
+            BindingOperations.NotifyTargetTreeChangedRecursive(_generatedChildren[i].Container);
+        }
     }
 
     protected virtual void OnItemsIncrementalChanged(NotifyCollectionChangedEventArgs e)
