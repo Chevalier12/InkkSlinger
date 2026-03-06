@@ -5,12 +5,41 @@ namespace InkkSlinger;
 
 public class DataGridCell : Control
 {
+    public static readonly DependencyProperty ContentProperty =
+        DependencyProperty.Register(
+            nameof(Content),
+            typeof(object),
+            typeof(DataGridCell),
+            new FrameworkPropertyMetadata(
+                null,
+                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is not DataGridCell cell || cell._isSynchronizingContentValue)
+                    {
+                        return;
+                    }
+
+                    cell.SyncAliasValue(ContentProperty, ValueProperty, args.NewValue);
+                }));
+
     public static readonly DependencyProperty ValueProperty =
         DependencyProperty.Register(
             nameof(Value),
             typeof(object),
             typeof(DataGridCell),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                null,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is not DataGridCell cell || cell._isSynchronizingContentValue)
+                    {
+                        return;
+                    }
+
+                    cell.SyncAliasValue(ValueProperty, ContentProperty, args.NewValue);
+                }));
 
     public new static readonly DependencyProperty IsSelectedProperty =
         DependencyProperty.Register(
@@ -53,6 +82,14 @@ public class DataGridCell : Control
             typeof(SpriteFont),
             typeof(DataGridCell),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+
+    private bool _isSynchronizingContentValue;
+
+    public object? Content
+    {
+        get => GetValue(ContentProperty);
+        set => SetValue(ContentProperty, value);
+    }
 
     public object? Value
     {
@@ -202,6 +239,11 @@ public class DataGridCell : Control
                 Opacity);
         }
 
+        if (HasTemplateRoot)
+        {
+            return;
+        }
+
         var text = Value?.ToString() ?? string.Empty;
         if (string.IsNullOrEmpty(text))
         {
@@ -218,6 +260,27 @@ public class DataGridCell : Control
         var x = left;
         var y = top + ((contentHeight - lineHeight) / 2f);
         FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(x, y), Foreground * Opacity);
+    }
+
+    private void SyncAliasValue(DependencyProperty? sourceProperty, DependencyProperty? targetProperty, object? value)
+    {
+        if (sourceProperty == null || targetProperty == null)
+        {
+            return;
+        }
+
+        _isSynchronizingContentValue = true;
+        try
+        {
+            if (!Equals(GetValue(targetProperty), value))
+            {
+                SetValue(targetProperty, value);
+            }
+        }
+        finally
+        {
+            _isSynchronizingContentValue = false;
+        }
     }
 }
 

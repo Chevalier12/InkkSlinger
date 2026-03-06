@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -92,11 +93,37 @@ public static class ControlViews
 
 internal static class ControlDemoSupport
 {
-    private sealed class DemoRow
+    internal sealed class DemoRow
     {
         public required int Id { get; init; }
 
         public required string Name { get; init; }
+    }
+
+    private static readonly DemoRow[] SampleDataGridRows =
+    {
+        new() { Id = 1, Name = "Alpha" },
+        new() { Id = 2, Name = "Bravo" },
+        new() { Id = 3, Name = "Charlie" },
+        new() { Id = 4, Name = "Delta" },
+        new() { Id = 5, Name = "Echo" },
+        new() { Id = 6, Name = "Foxtrot" },
+        new() { Id = 7, Name = "Golf" },
+        new() { Id = 8, Name = "Hotel" },
+        new() { Id = 9, Name = "India" },
+        new() { Id = 10, Name = "Juliet" },
+        new() { Id = 11, Name = "Kilo" },
+        new() { Id = 12, Name = "Lima" },
+    };
+
+    private static ObservableCollection<DemoRow> CreateSampleDataGridItemsSource()
+    {
+        return new ObservableCollection<DemoRow>(
+            SampleDataGridRows.Select(static row => new DemoRow
+            {
+                Id = row.Id,
+                Name = row.Name
+            }));
     }
 
     internal static UIElement BuildSampleElement(string controlName)
@@ -309,12 +336,7 @@ internal static class ControlDemoSupport
             case "DataGrid":
             {
                 var dg = new DataGrid();
-                dg.Items.Add(new DemoRow { Id = 1, Name = "Alpha" });
-                dg.Items.Add(new DemoRow { Id = 2, Name = "Bravo" });
-                dg.Items.Add(new DemoRow { Id = 3, Name = "Charlie" });
-                dg.Items.Add(new DemoRow { Id = 4, Name = "Delta" });
-                dg.Items.Add(new DemoRow { Id = 5, Name = "Echo" });
-                dg.Items.Add(new DemoRow { Id = 6, Name = "Foxtrot" });
+                dg.ItemsSource = CreateSampleDataGridItemsSource();
                 return dg;
             }
             case "DataGridCell":
@@ -586,8 +608,7 @@ internal static class ControlDemoSupport
 
                 break;
             case DataGrid dataGrid:
-                dataGrid.Items.Add(new DemoRow { Id = 1, Name = "Row 1" });
-                dataGrid.Items.Add(new DemoRow { Id = 2, Name = "Row 2" });
+                dataGrid.ItemsSource = CreateSampleDataGridItemsSource();
                 break;
             default:
                 itemsControl.Items.Add($"{controlName} Item 1");
