@@ -16,6 +16,7 @@
 
 # VS Code
 .vscode/
+.dotnet-cli/
 
 # OS files
 Thumbs.db

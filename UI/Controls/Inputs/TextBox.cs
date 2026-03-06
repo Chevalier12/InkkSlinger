@@ -1986,7 +1986,11 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             _horizontalOffset = caretX - MathF.Max(0f, view.ViewportRect.Width - 1f);
         }
 
-        if (caretY < _verticalOffset)
+        if (maxVerticalOffset <= 0f)
+        {
+            _verticalOffset = 0f;
+        }
+        else if (caretY < _verticalOffset)
         {
             _verticalOffset = caretY;
         }
@@ -2016,6 +2020,11 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
     private float GetMaxVerticalOffset(LayoutResult layout, LayoutRect contentRect)
     {
+        if (GetLineCount(layout) <= 1)
+        {
+            return 0f;
+        }
+
         var extentHeight = GetLineCount(layout) * GetLineHeight();
         return MathF.Max(0f, extentHeight - contentRect.Height);
     }
@@ -3235,14 +3244,21 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
     private float GetTextRenderTopInset()
     {
-        // FontStash glyph rasterization can sit slightly above the provided origin.
-        // Offset the text baseline so the first row is fully visible within the viewport clip.
-        return FontStashTextRenderer.IsEnabled ? 3f : 0f;
+        if (!FontStashTextRenderer.IsEnabled)
+        {
+            return 0f;
+        }
+
+        var lineHeight = GetLineHeight();
+        var measuredHeight = GetMeasuredGlyphHeight();
+        return MathF.Floor((lineHeight - measuredHeight) * 0.25f);
     }
 
     private LayoutRect GetTextRenderClipRect(LayoutRect viewportRect)
     {
-        var verticalBleed = FontStashTextRenderer.IsEnabled ? 6f : 0f;
+        var verticalBleed = FontStashTextRenderer.IsEnabled
+            ? MathF.Ceiling(GetMeasuredGlyphVerticalOverflow() + 1f)
+            : 0f;
         var top = MathF.Max(LayoutSlot.Y, viewportRect.Y - verticalBleed);
         var bottom = MathF.Min(LayoutSlot.Y + LayoutSlot.Height, viewportRect.Y + viewportRect.Height + verticalBleed);
         return new LayoutRect(
@@ -3250,6 +3266,19 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             top,
             viewportRect.Width,
             MathF.Max(0f, bottom - top));
+    }
+
+    private float GetMeasuredGlyphVerticalOverflow()
+    {
+        var lineHeight = GetLineHeight();
+        var measuredHeight = GetMeasuredGlyphHeight();
+        return MathF.Max(0f, measuredHeight - lineHeight);
+    }
+
+    private float GetMeasuredGlyphHeight()
+    {
+        var measured = FontStashTextRenderer.MeasureHeight(Font, "Ag");
+        return measured > 0f ? measured : GetLineHeight();
     }
 
     private void CacheViewportLayoutState(TextViewportLayoutState state, LayoutRect innerRect)

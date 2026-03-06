@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -130,6 +131,38 @@ public sealed class DatePickerTests
         Assert.Equal(CalendarSelectionMode.SingleDate, datePicker.DropDownCalendarForTesting.SelectionMode);
     }
 
+    [Fact]
+    public void InternalTextBox_UsesSingleLineHiddenScrollConfiguration()
+    {
+        var (_, datePicker) = CreateFixture();
+
+        Assert.Equal(TextWrapping.NoWrap, datePicker.TextBoxForTesting.TextWrapping);
+        Assert.Equal(ScrollBarVisibility.Hidden, datePicker.TextBoxForTesting.HorizontalScrollBarVisibility);
+        Assert.Equal(ScrollBarVisibility.Disabled, datePicker.TextBoxForTesting.VerticalScrollBarVisibility);
+        Assert.Equal(2f, datePicker.TextBoxForTesting.Padding.Top);
+        Assert.Equal(2f, datePicker.TextBoxForTesting.Padding.Bottom);
+    }
+
+    [Fact]
+    public void TypingShortText_DoesNotScrollDatePickerTextBoxVertically()
+    {
+        var (uiRoot, datePicker) = CreateFixture();
+        var pointer = GetCenter(datePicker.TextBoxForTesting);
+
+        Click(uiRoot, pointer);
+        datePicker.TextBoxForTesting.Text = string.Empty;
+        RunLayout(uiRoot);
+
+        uiRoot.RunInputDeltaForTests(CreateTextInputDelta('a', pointer));
+        RunLayout(uiRoot);
+        Assert.Equal(0f, datePicker.TextBoxForTesting.VerticalOffsetForTesting);
+
+        uiRoot.RunInputDeltaForTests(CreateTextInputDelta('s', pointer));
+        RunLayout(uiRoot);
+        Assert.Equal(0f, datePicker.TextBoxForTesting.VerticalOffsetForTesting);
+        Assert.Equal("as", datePicker.TextBoxForTesting.Text);
+    }
+
     private static (UiRoot UiRoot, DatePicker DatePicker) CreateFixture()
     {
         var host = new Canvas
@@ -198,6 +231,26 @@ public sealed class DatePickerTests
             WheelDelta = 0,
             LeftPressed = leftPressed,
             LeftReleased = leftReleased,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
+    }
+
+    private static InputDelta CreateTextInputDelta(char character, Vector2 pointer)
+    {
+        return new InputDelta
+        {
+            Previous = new InputSnapshot(default, default, pointer),
+            Current = new InputSnapshot(default, default, pointer),
+            PressedKeys = new List<Keys>(),
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char> { character },
+            PointerMoved = false,
+            WheelDelta = 0,
+            LeftPressed = false,
+            LeftReleased = false,
             RightPressed = false,
             RightReleased = false,
             MiddlePressed = false,

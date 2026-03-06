@@ -201,7 +201,10 @@ public class DatePicker : UserControl
         _textBox = new TextBox
         {
             Margin = new Thickness(0f),
-            Padding = new Thickness(8f, 5f, 8f, 5f)
+            Padding = new Thickness(8f, 2f, 8f, 2f),
+            TextWrapping = TextWrapping.NoWrap,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
         _textBox.TextChanged += OnTextBoxTextChanged;
         _textBox.AddHandler<KeyRoutedEventArgs>(UIElement.KeyDownEvent, OnTextBoxKeyDown, handledEventsToo: true);
