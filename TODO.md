@@ -4,7 +4,7 @@
 - Core XAML/resources/styles/bindings pipeline is implemented and tested.
 - App-level resource bootstrap is wired through `App.xml` at host startup (`XamlLoader.LoadApplicationResourcesFromFile(...)` in `Game1`).
 - Current framework is usable for menu/data/rich-text oriented MonoGame UI.
-- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `799/799` passing.
+- Current validation baseline: `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` -> `855/855` passing.
 - CollectionView parity core (`Sort`/`Filter`/`Group`/`CurrentItem`) is implemented with `ItemsSource` integration and XAML `CollectionViewSource` authoring.
 - Current default host launch surface is `ControlsCatalogView` (selected control previews), replacing prior CLI demo-mode switching.
 - Touch/stylus/tablet input pipeline parity is explicitly unsupported until `InkCanvas` and `InkPresenter` are implemented.
@@ -74,6 +74,7 @@ Note: milestone references to `--demo-flags` are legacy launch paths from older 
 - [x] `DocumentViewer` vertical slice: read-only paged FlowDocument viewing (selection, copy, hyperlink hover/activation, zoom/page navigation commands), shared viewing helpers (`DocumentViewportController`/`DocumentPageMap`), XAML/schema support, and focused regression coverage (`DocumentViewer*Tests`).
 - [x] `UserControl` templating parity pass: custom `ControlTemplate` support enabled with WPF-strict behavior (`Content` is surfaced only through template `ContentPresenter`), including direct/template-style/XAML property-element regression coverage.
 - [x] Internal automation/accessibility pass: shipped `AutomationPeer` runtime tree with frame-coalesced automation events, attached `AutomationProperties` metadata surface, broad control peer mapping + pattern providers (`Invoke`/`Value`/`RangeValue`/`Selection`/`SelectionItem`/`ExpandCollapse`/`Scroll`), and focused automation regression suites.
+- [x] DataGrid editing/layout and typography parity refactor: rebuilt DataGrid state/presenter plumbing (`DataGridState`, `DataGridRowsPresenter`, `DataGridColumnHeadersPresenter`, `DataGridEditingEventArgs`, row-header lane coordination), fixed editing/focus/scroll/sort/layout regressions across the demo/catalog surfaces, pushed font-size-aware text measurement/rendering through the shared text stack (`FontStashTextRenderer`, `TextLayout`, `TextBlock`, `TextBox`, presenter fallback paths), and added dedicated regressions (`DataGridParityChecklistTests`, `TextFontSizeParityTests`, expanded styled/control-demo DataGrid suites).
 
 ## Current Workstream Snapshot
 - [x] DataTrigger parity improvements, including `MultiDataTrigger`.

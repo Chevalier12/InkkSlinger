@@ -2,13 +2,13 @@
 
 ## Is It Usable Yet? (tm sign here)
 
-### Evidence Pass (2026-03-05)
+### Evidence Pass (2026-03-07)
 
 | Check | Result | Evidence |
 |---|---|---|
 | Solution build | Pass (`Release`, 0 errors, 0 warnings) | `dotnet build InkkSlinger.sln -c Release -v minimal` |
-| Test suite | Pass (`799/799`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
-| Current failing test areas | `None` | Latest full release test run (`2026-03-05`) |
+| Test suite | Pass (`855/855`) | `dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal` |
+| Current failing test areas | `None` | Latest full release test run (`2026-03-07`) |
 | WPF control coverage | Broad but incomplete (`74/77`) | `TODO.md` -> `## WPF Control Coverage` |
 | Open tracked work | `4` unchecked TODO items (`3` bounty controls + `1` non-bounty input parity item) | `TODO.md` |
 | Explicit unsupported behavior | Touch/stylus/tablet input pipeline is unsupported until `InkCanvas`/`InkPresenter` are implemented | `TODO.md` (`## WPF Control Coverage` + input parity notes) |
@@ -109,7 +109,7 @@ This matrix is compiled from `TODO.md` completed work, concrete type coverage un
 | Container/windowing primitives | `Window`, `Popup`, `ContextMenu`, `ToolTip`, `UserControl`, `Viewbox` | `UI/Controls/Containers/*`, `UI/Controls/Items/ContextMenu.cs`, `InkkSlinger.Tests/ContextMenuEdgeParityTests.cs` | Implemented (tested) |
 | Item and data controls | `ListBox`, `ListView`, `TreeView`, `Menu`, `DataGrid` families | `UI/Controls/Items/*`, `UI/Controls/DataGrid/*`, `TODO.md` (`Current Workstream Snapshot`) | Implemented (ongoing depth) |
 | Runtime telemetry/diagnostics | UiRoot frame/draw/layout telemetry snapshot surfaces | `UI/Managers/Root/UiRootTypes.cs`, `UI/Diagnostics/*`, `InkkSlinger.Tests/UiRootTelemetryTests.cs` | Implemented (tested) |
-| Regression safety net | 133 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (133 files) | Implemented |
+| Regression safety net | 142 focused test files covering core pipeline/regressions | `InkkSlinger.Tests/*Tests.cs` (142 files) | Implemented |
 
 ### Implemented Foundations
 
@@ -165,7 +165,7 @@ Bounty note: if nobody picks up the open bounties for `InkCanvas`, `InkPresenter
 
 ## UI Architecture Map
 
-The following reflects `UI-FOLDER-MAP.md` (generated 2026-03-05):
+The following reflects `UI-FOLDER-MAP.md` (generated 2026-03-07):
 
 - `UI/Animation`: timelines, keyframes, easing, animation orchestration
 - `UI/Binding`: bindings, expressions, operations, command helpers

@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-03-05 (full filesystem refresh)
+Generated: 2026-03-07 (full filesystem refresh)
 
 ```text
 UI/
@@ -126,10 +126,15 @@ UI/
       DataGridCell.cs
       DataGridColumn.cs
       DataGridColumnHeader.cs
+      DataGridColumnHeadersPresenter.cs
       DataGridDetailsPresenter.cs
+      DataGridEditingEventArgs.cs
       DataGridEnums.cs
       DataGridRow.cs
       DataGridRowHeader.cs
+      DataGridRowHeaderLaneCoordinator.cs
+      DataGridRowsPresenter.cs
+      DataGridState.cs
     Inputs/
       Core/
       Diagnostics/
