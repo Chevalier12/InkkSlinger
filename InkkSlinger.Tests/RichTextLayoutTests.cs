@@ -179,6 +179,22 @@ public sealed class RichTextLayoutTests
             $"Expected caret at bold boundary to align with next run start. caretX={caretPos.X:0.###}, nextX={nextRun.Bounds.X:0.###}");
     }
 
+    [Fact]
+    public void WrappedLongToken_EndCaret_StaysOnLastVisualLine()
+    {
+        var document = new FlowDocument();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+        document.Blocks.Add(paragraph);
+
+        var layout = Layout(document, 45f);
+        var lastLine = layout.Lines[^1];
+        Assert.NotEmpty(lastLine.Text);
+
+        Assert.True(layout.TryGetCaretPosition(DocumentEditing.GetText(document).Length, out var caretPos));
+        Assert.Equal(lastLine.Bounds.Y, caretPos.Y);
+    }
+
     private static ListItem BuildItem(string text)
     {
         var item = new ListItem();

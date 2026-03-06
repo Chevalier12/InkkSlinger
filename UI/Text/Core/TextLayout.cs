@@ -67,6 +67,7 @@ public static class TextLayout
             return;
         }
 
+        var initialLineCount = lines.Count;
         var line = string.Empty;
         var index = 0;
         while (index < paragraph.Length)
@@ -96,7 +97,10 @@ public static class TextLayout
             BreakLongToken(token, font, availableWidth, lines);
         }
 
-        lines.Add(line);
+        if (line.Length > 0 || lines.Count == initialLineCount)
+        {
+            lines.Add(line);
+        }
     }
 
     private static void BreakLongToken(string token, SpriteFont? font, float availableWidth, IList<string> lines)
