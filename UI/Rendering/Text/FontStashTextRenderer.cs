@@ -53,6 +53,17 @@ internal static class FontStashTextRenderer
         Vector2 position,
         Color color)
     {
+        DrawString(spriteBatch, spriteFont, text, position, color, GetRenderFontSize(spriteFont));
+    }
+
+    public static void DrawString(
+        SpriteBatch spriteBatch,
+        SpriteFont? spriteFont,
+        string text,
+        Vector2 position,
+        Color color,
+        float fontSize)
+    {
         if (string.IsNullOrEmpty(text))
         {
             return;
@@ -60,7 +71,7 @@ internal static class FontStashTextRenderer
 
         if (IsEnabled)
         {
-            DrawString(spriteBatch, text, position, color, GetRenderFontSize(spriteFont));
+            DrawString(spriteBatch, text, position, color, ResolveRenderFontSize(spriteFont, fontSize));
             return;
         }
 
@@ -182,6 +193,11 @@ internal static class FontStashTextRenderer
 
     public static float MeasureWidth(SpriteFont? spriteFont, string text)
     {
+        return MeasureWidth(spriteFont, text, GetRenderFontSize(spriteFont));
+    }
+
+    public static float MeasureWidth(SpriteFont? spriteFont, string text, float fontSize)
+    {
         if (string.IsNullOrEmpty(text))
         {
             return 0f;
@@ -189,7 +205,7 @@ internal static class FontStashTextRenderer
 
         if (IsEnabled)
         {
-            return MeasureWidth(text, GetRenderFontSize(spriteFont));
+            return MeasureWidth(text, ResolveRenderFontSize(spriteFont, fontSize));
         }
 
         return spriteFont?.MeasureString(text).X ?? 0f;
@@ -217,6 +233,11 @@ internal static class FontStashTextRenderer
 
     public static float MeasureHeight(SpriteFont? spriteFont, string text)
     {
+        return MeasureHeight(spriteFont, text, GetRenderFontSize(spriteFont));
+    }
+
+    public static float MeasureHeight(SpriteFont? spriteFont, string text, float fontSize)
+    {
         if (string.IsNullOrEmpty(text))
         {
             return 0f;
@@ -224,7 +245,7 @@ internal static class FontStashTextRenderer
 
         if (IsEnabled)
         {
-            if (!TryGetFont(GetRenderFontSize(spriteFont), out var font))
+            if (!TryGetFont(ResolveRenderFontSize(spriteFont, fontSize), out var font))
             {
                 return 0f;
             }
@@ -237,9 +258,14 @@ internal static class FontStashTextRenderer
 
     public static float GetLineHeight(SpriteFont? spriteFont)
     {
+        return GetLineHeight(spriteFont, GetRenderFontSize(spriteFont));
+    }
+
+    public static float GetLineHeight(SpriteFont? spriteFont, float fontSize)
+    {
         if (IsEnabled)
         {
-            return MathF.Max(8f, GetRenderFontSize(spriteFont));
+            return MathF.Max(8f, ResolveRenderFontSize(spriteFont, fontSize));
         }
 
         return spriteFont?.LineSpacing ?? 14f;
@@ -389,5 +415,16 @@ internal static class FontStashTextRenderer
         }
 
         return MathF.Max(8f, spriteFont.LineSpacing - 2f);
+    }
+
+    private static float ResolveRenderFontSize(SpriteFont? spriteFont, float requestedFontSize)
+    {
+        var baseFontSize = GetRenderFontSize(spriteFont);
+        if (requestedFontSize <= 0f)
+        {
+            return baseFontSize;
+        }
+
+        return MathF.Max(8f, requestedFontSize);
     }
 }

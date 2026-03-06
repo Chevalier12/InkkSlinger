@@ -102,6 +102,8 @@ public class ItemsControl : Control
 
     protected virtual bool SupportsGroupedVisualProjection => this is not Selector and not DataGrid;
 
+    protected virtual bool CanReconcileProjectedContainersOnReset => true;
+
     protected IReadOnlyList<UIElement> ItemContainers => _itemContainers;
 
     internal IReadOnlyList<UIElement> GetItemContainersForPresenter()
@@ -780,6 +782,7 @@ public class ItemsControl : Control
         }
 
         if (e.Action == NotifyCollectionChangedAction.Reset &&
+            CanReconcileProjectedContainersOnReset &&
             !grouped)
         {
             var reconciled = TryReconcileProjectedContainers();

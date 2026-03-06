@@ -765,7 +765,11 @@ public sealed partial class UiRoot
         var dispatchStart = Stopwatch.GetTimestamp(); _lastInputPointerEventCount++;
         _lastInputRoutedEventCount += 2; routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseMoveEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers)); routedTarget.RaiseRoutedEventInternal(UIElement.MouseMoveEvent, new MouseRoutedEventArgs(UIElement.MouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers));
 
-        if (_inputState.CapturedPointerElement is ITextInputControl dragTextInput)
+        if (_inputState.CapturedPointerElement is DataGrid dragDataGrid)
+        {
+            dragDataGrid.HandlePointerMoveFromInput(pointerPosition);
+        }
+        else if (_inputState.CapturedPointerElement is ITextInputControl dragTextInput)
         {
             dragTextInput.HandlePointerMoveFromInput(pointerPosition);
         }
@@ -874,9 +878,16 @@ public sealed partial class UiRoot
         _lastInputRoutedEventCount += 2;
         target.RaiseRoutedEventInternal(UIElement.PreviewMouseDownEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseDownEvent, pointerPosition, button, _inputState.CurrentModifiers));
         target.RaiseRoutedEventInternal(UIElement.MouseDownEvent, new MouseRoutedEventArgs(UIElement.MouseDownEvent, pointerPosition, button, _inputState.CurrentModifiers));
+        var dataGridFocusTarget = target != null &&
+                                  TryFindAncestor<DataGrid>(target, out var focusedDataGrid) &&
+                                  focusedDataGrid != null &&
+                                  (target is not ITextInputControl || focusedDataGrid.ShouldRetainFocusForInputTarget(target))
+            ? focusedDataGrid
+            : null;
+
         if (target is not Menu && target is not MenuItem)
         {
-            SetFocus(textInputTarget ?? target);
+            SetFocus(dataGridFocusTarget ?? textInputTarget ?? target);
         }
 
         if (target is MenuItem menuItemTarget)
@@ -895,7 +906,17 @@ public sealed partial class UiRoot
             _ = contextMenuMenuItem.HandlePointerDownFromInput(); return;
         }
 
-        if (button == MouseButton.Left && target is Button pressedButton)
+        if (button == MouseButton.Left &&
+            target != null &&
+            dataGridFocusTarget != null &&
+            dataGridFocusTarget.HandlePointerDownFromInput(target, pointerPosition, out var captureDataGrid))
+        {
+            if (captureDataGrid)
+            {
+                CapturePointer(dataGridFocusTarget);
+            }
+        }
+        else if (button == MouseButton.Left && target is Button pressedButton)
         {
             pressedButton.SetPressedFromInput(true);
             CapturePointer(target);
@@ -982,7 +1003,11 @@ public sealed partial class UiRoot
         routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseUpEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseUpEvent, pointerPosition, button, _inputState.CurrentModifiers));
         routedTarget.RaiseRoutedEventInternal(UIElement.MouseUpEvent, new MouseRoutedEventArgs(UIElement.MouseUpEvent, pointerPosition, button, _inputState.CurrentModifiers));
 
-        if (_inputState.CapturedPointerElement is Button pressedButton && button == MouseButton.Left)
+        if (_inputState.CapturedPointerElement is DataGrid capturedDataGrid && button == MouseButton.Left)
+        {
+            _ = capturedDataGrid.HandlePointerUpFromInput(pointerPosition);
+        }
+        else if (_inputState.CapturedPointerElement is Button pressedButton && button == MouseButton.Left)
         {
             var shouldInvoke = ReferenceEquals(target, pressedButton) ||
                                (target != null &&
@@ -2065,6 +2090,12 @@ public sealed partial class UiRoot
                 return;
             }
 
+            if (_inputState.FocusedElement is DataGrid focusedDataGrid &&
+                focusedDataGrid.HandleKeyDownFromInput(key, modifiers))
+            {
+                return;
+            }
+
             if (_inputState.FocusedElement is ITextInputControl focusedTextInput &&
                 focusedTextInput.HandleKeyDownFromInput(key, modifiers))
             {
@@ -2107,7 +2138,11 @@ public sealed partial class UiRoot
         var dispatchStart = Stopwatch.GetTimestamp(); _lastInputTextEventCount++;
         _lastInputRoutedEventCount += 2; focused.RaiseRoutedEventInternal(UIElement.PreviewTextInputEvent, new TextInputRoutedEventArgs(UIElement.PreviewTextInputEvent, character)); focused.RaiseRoutedEventInternal(UIElement.TextInputEvent, new TextInputRoutedEventArgs(UIElement.TextInputEvent, character));
 
-        if (focused is ITextInputControl textInput)
+        if (focused is DataGrid dataGrid)
+        {
+            _ = dataGrid.HandleTextInputFromInput(character);
+        }
+        else if (focused is ITextInputControl textInput)
         {
             _ = textInput.HandleTextInputFromInput(character);
         }
@@ -2299,14 +2334,26 @@ public sealed partial class UiRoot
         FocusManager.SetFocus(element);
         Automation.NotifyFocusChanged(old, element);
         
-        if (old is ITextInputControl oldTextInput)
+        if (old is DataGrid oldDataGrid)
+        {
+            oldDataGrid.SetFocusedFromInput(false);
+            old.RaiseRoutedEventInternal(UIElement.LostFocusEvent, new FocusChangedRoutedEventArgs(UIElement.LostFocusEvent, old, element));
+            _lastInputRoutedEventCount++;
+        }
+        else if (old is ITextInputControl oldTextInput)
         {
             oldTextInput.SetFocusedFromInput(false);
             old.RaiseRoutedEventInternal(UIElement.LostFocusEvent, new FocusChangedRoutedEventArgs(UIElement.LostFocusEvent, old, element));
             _lastInputRoutedEventCount++;
         }
 
-        if (element is ITextInputControl newTextInput)
+        if (element is DataGrid newDataGrid)
+        {
+            newDataGrid.SetFocusedFromInput(true);
+            element.RaiseRoutedEventInternal(UIElement.GotFocusEvent, new FocusChangedRoutedEventArgs(UIElement.GotFocusEvent, old, element));
+            _lastInputRoutedEventCount++;
+        }
+        else if (element is ITextInputControl newTextInput)
         {
             newTextInput.SetFocusedFromInput(true);
             element.RaiseRoutedEventInternal(UIElement.GotFocusEvent, new FocusChangedRoutedEventArgs(UIElement.GotFocusEvent, old, element));

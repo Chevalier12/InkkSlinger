@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
 using System.Reflection;
 using Xunit;
 
@@ -28,14 +30,10 @@ public class DataGridCollectionViewTests
         grid.Measure(new Microsoft.Xna.Framework.Vector2(600, 400));
         grid.Arrange(new LayoutRect(0, 0, 600, 400));
 
-        var headersField = typeof(DataGrid).GetField("_columnHeaders", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(headersField);
-        var headers = Assert.IsType<System.Collections.Generic.List<DataGridColumnHeader>>(headersField!.GetValue(grid));
+        var headers = grid.ColumnHeadersForTesting;
         Assert.NotEmpty(headers);
 
-        var invoke = typeof(DataGrid).GetMethod("OnColumnHeaderClick", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(invoke);
-        invoke!.Invoke(grid, [headers[0], new RoutedSimpleEventArgs(Button.ClickEvent)]);
+        headers[0].RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
 
         var view = Assert.IsAssignableFrom<ICollectionView>(typeof(ItemsControl)
             .GetProperty("ItemsSourceView", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -61,22 +59,18 @@ public class DataGridCollectionViewTests
         grid.Measure(new Microsoft.Xna.Framework.Vector2(600, 400));
         grid.Arrange(new LayoutRect(0, 0, 600, 400));
 
-        var headersField = typeof(DataGrid).GetField("_columnHeaders", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(headersField);
-        var headers = Assert.IsType<System.Collections.Generic.List<DataGridColumnHeader>>(headersField!.GetValue(grid));
+        var headers = grid.ColumnHeadersForTesting;
         Assert.NotEmpty(headers);
 
-        var invoke = typeof(DataGrid).GetMethod("OnColumnHeaderClick", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(invoke);
-
-        invoke!.Invoke(grid, [headers[0], new RoutedSimpleEventArgs(Button.ClickEvent)]);
+        headers[0].RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
         Assert.Equal(DataGridSortDirection.Ascending, headers[0].SortDirection);
 
-        invoke.Invoke(grid, [headers[0], new RoutedSimpleEventArgs(Button.ClickEvent)]);
+        headers[0].RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
         Assert.Equal(DataGridSortDirection.Descending, headers[0].SortDirection);
 
         var firstRow = Assert.IsType<DataGridRow>(grid.GetItemContainersForPresenter()[0]);
         Assert.Equal("2", firstRow.Cells[0].Value?.ToString());
+        Assert.Equal("2", firstRow.Cells[0].Content?.ToString());
     }
 
     [Fact]
@@ -97,25 +91,21 @@ public class DataGridCollectionViewTests
         grid.Measure(new Microsoft.Xna.Framework.Vector2(600, 400));
         grid.Arrange(new LayoutRect(0, 0, 600, 400));
 
-        var headersField = typeof(DataGrid).GetField("_columnHeaders", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(headersField);
-        var headers = Assert.IsType<System.Collections.Generic.List<DataGridColumnHeader>>(headersField!.GetValue(grid));
+        var headers = grid.ColumnHeadersForTesting;
         Assert.Equal(2, headers.Count);
 
         var view = Assert.IsAssignableFrom<ICollectionView>(typeof(ItemsControl)
             .GetProperty("ItemsSourceView", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(grid));
-        var invoke = typeof(DataGrid).GetMethod("OnColumnHeaderClick", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(invoke);
 
         var nameHeader = Assert.Single(headers, static header => header.Text == nameof(Row.Name));
-        invoke!.Invoke(grid, [nameHeader, new RoutedSimpleEventArgs(Button.ClickEvent)]);
+        nameHeader.RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
         Assert.Equal(DataGridSortDirection.Ascending, nameHeader.SortDirection);
         Assert.Single(view.SortDescriptions);
         Assert.Equal(nameof(Row.Name), view.SortDescriptions[0].PropertyName);
 
         var idHeader = Assert.Single(headers, static header => header.Text == nameof(Row.Id));
-        invoke.Invoke(grid, [idHeader, new RoutedSimpleEventArgs(Button.ClickEvent)]);
+        idHeader.RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
 
         Assert.Equal(DataGridSortDirection.None, nameHeader.SortDirection);
         Assert.Equal(DataGridSortDirection.Ascending, idHeader.SortDirection);
@@ -127,5 +117,128 @@ public class DataGridCollectionViewTests
         Assert.Equal("B", firstRow.Cells[1].Value?.ToString());
     }
 
+    [Fact]
+    public void DataGrid_ThirdHeaderClick_ClearsSort()
+    {
+        var source = new ObservableCollection<Row>
+        {
+            new(2, "B"),
+            new(1, "A")
+        };
+
+        var grid = new DataGrid
+        {
+            ItemsSource = source
+        };
+
+        grid.Measure(new Microsoft.Xna.Framework.Vector2(600, 400));
+        grid.Arrange(new LayoutRect(0, 0, 600, 400));
+
+        var header = Assert.Single(grid.ColumnHeadersForTesting, static item => item.Text == nameof(Row.Id));
+        var view = Assert.IsAssignableFrom<ICollectionView>(typeof(ItemsControl)
+            .GetProperty("ItemsSourceView", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(grid));
+
+        header.RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
+        header.RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
+        header.RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
+
+        Assert.Equal(DataGridSortDirection.None, header.SortDirection);
+        Assert.Empty(view.SortDescriptions);
+    }
+
+    [Fact]
+    public void DataGrid_ItemPropertyChange_UpdatesVisibleCellWithoutRebuildingRow()
+    {
+        var source = new ObservableCollection<ObservableRow>
+        {
+            new(1, "Alpha")
+        };
+
+        var grid = new DataGrid
+        {
+            ItemsSource = source
+        };
+
+        grid.Measure(new Microsoft.Xna.Framework.Vector2(600, 400));
+        grid.Arrange(new LayoutRect(0, 0, 600, 400));
+
+        var originalRow = Assert.IsType<DataGridRow>(grid.GetItemContainersForPresenter()[0]);
+        var originalCell = originalRow.Cells[1];
+        Assert.Equal("Alpha", originalCell.Content?.ToString());
+
+        source[0].Name = "Updated";
+
+        var currentRow = Assert.IsType<DataGridRow>(grid.GetItemContainersForPresenter()[0]);
+        Assert.Same(originalRow, currentRow);
+        Assert.Same(originalCell, currentRow.Cells[1]);
+        Assert.Equal("Updated", currentRow.Cells[1].Content?.ToString());
+        Assert.Equal("Updated", currentRow.Cells[1].Value?.ToString());
+    }
+
+    [Fact]
+    public void DataGrid_ChangingItemsSource_RebuildsAutoGeneratedHeadersWithoutStaleState()
+    {
+        var firstSource = new ObservableCollection<Row>
+        {
+            new(1, "Alpha")
+        };
+        var secondSource = new ObservableCollection<OtherRow>
+        {
+            new("A1", true)
+        };
+
+        var grid = new DataGrid
+        {
+            ItemsSource = firstSource
+        };
+
+        grid.Measure(new Microsoft.Xna.Framework.Vector2(600, 400));
+        grid.Arrange(new LayoutRect(0, 0, 600, 400));
+
+        Assert.Equal(new[] { nameof(Row.Id), nameof(Row.Name) }, grid.ColumnHeadersForTesting.Select(static header => header.Text));
+
+        grid.ItemsSource = secondSource;
+        grid.Measure(new Microsoft.Xna.Framework.Vector2(600, 400));
+        grid.Arrange(new LayoutRect(0, 0, 600, 400));
+
+        Assert.Equal(new[] { nameof(OtherRow.Code), nameof(OtherRow.Enabled) }, grid.ColumnHeadersForTesting.Select(static header => header.Text));
+        var firstRow = Assert.IsType<DataGridRow>(grid.GetItemContainersForPresenter()[0]);
+        Assert.Equal("A1", firstRow.Cells[0].Content?.ToString());
+        Assert.Equal("True", firstRow.Cells[1].Content?.ToString());
+    }
+
     private sealed record Row(int Id, string Name);
+
+    private sealed record OtherRow(string Code, bool Enabled);
+
+    private sealed class ObservableRow : INotifyPropertyChanged
+    {
+        private string _name;
+
+        public ObservableRow(int id, string name)
+        {
+            Id = id;
+            _name = name;
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public int Id { get; }
+
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                if (_name == value)
+                {
+                    return;
+                }
+
+                _name = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+            }
+        }
+    }
 }

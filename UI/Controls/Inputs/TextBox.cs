@@ -878,11 +878,12 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         base.OnDependencyPropertyChanged(args);
 
         if (ReferenceEquals(args.Property, FontProperty) ||
+            ReferenceEquals(args.Property, FontSizeProperty) ||
             ReferenceEquals(args.Property, TextWrappingProperty) ||
             ReferenceEquals(args.Property, PaddingProperty) ||
             ReferenceEquals(args.Property, BorderThicknessProperty))
         {
-            if (ReferenceEquals(args.Property, FontProperty))
+            if (ReferenceEquals(args.Property, FontProperty) || ReferenceEquals(args.Property, FontSizeProperty))
             {
                 _glyphWidthCache.Clear();
             }
@@ -1238,7 +1239,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             return width;
         }
 
-        width = FontStashTextRenderer.MeasureWidth(Font, ch.ToString());
+        width = FontStashTextRenderer.MeasureWidth(Font, ch.ToString(), FontSize);
         _glyphWidthCache[ch] = width;
         return width;
     }
@@ -1250,7 +1251,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             return;
         }
 
-        FontStashTextRenderer.DrawString(spriteBatch, Font, text, position, color);
+        FontStashTextRenderer.DrawString(spriteBatch, Font, text, position, color, FontSize);
     }
 
     private bool CanUseVisibleTextBatchPath(int firstVisibleLine, int lastVisibleLine)
@@ -3239,7 +3240,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
     private float GetLineHeight()
     {
-        return FontStashTextRenderer.GetLineHeight(Font);
+        return FontStashTextRenderer.GetLineHeight(Font, FontSize);
     }
 
     private float GetTextRenderTopInset()
@@ -3277,7 +3278,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
     private float GetMeasuredGlyphHeight()
     {
-        var measured = FontStashTextRenderer.MeasureHeight(Font, "Ag");
+        var measured = FontStashTextRenderer.MeasureHeight(Font, "Ag", FontSize);
         return measured > 0f ? measured : GetLineHeight();
     }
 

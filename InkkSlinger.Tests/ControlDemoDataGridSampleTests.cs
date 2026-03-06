@@ -44,6 +44,10 @@ public sealed class ControlDemoDataGridSampleTests
         var lastRow = rows.Last();
         Assert.Equal("12", lastRow.Cells[0].Value?.ToString());
         Assert.Equal("Lima", lastRow.Cells[1].Value?.ToString());
+        Assert.DoesNotContain(
+            uiRoot.GetRetainedVisualOrderForTests(),
+            static visual => visual is Label label &&
+                             string.Equals(label.Text, "InkkSlinger.ControlDemoSupport+DemoRow", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -132,6 +136,74 @@ public sealed class ControlDemoDataGridSampleTests
         Assert.Equal(DataGridSortDirection.Descending, idHeader.SortDirection);
         Assert.Equal("12", dataGrid.RowsForTesting[0].Cells[0].Value?.ToString());
         Assert.Equal("Lima", dataGrid.RowsForTesting[0].Cells[1].Value?.ToString());
+    }
+
+    [Fact]
+    public void DataGridView_FirstHeaderSort_KeepsDemoGridViewportWidthStable()
+    {
+        var view = new DataGridView();
+        view.Width = 1200f;
+        view.Height = 520f;
+
+        var host = new Canvas
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+        host.AddChild(view);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1200, 520);
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(view);
+        Assert.NotNull(dataGrid);
+
+        var viewportWidthBeforeSort = dataGrid!.ScrollViewerForTesting.ViewportWidth;
+        var gridWidthBeforeSort = dataGrid.ActualWidth;
+
+        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.Text == "Name");
+        Assert.NotNull(nameHeader);
+
+        Click(uiRoot, GetCenter(nameHeader!.LayoutSlot));
+        RunLayout(uiRoot, 1200, 520);
+
+        Assert.Equal(DataGridSortDirection.Ascending, nameHeader.SortDirection);
+        Assert.Equal("Alpha", dataGrid.RowsForTesting[0].Cells[1].Value?.ToString());
+        Assert.True(dataGrid.ScrollViewerForTesting.ViewportWidth >= viewportWidthBeforeSort - 0.5f);
+        Assert.True(dataGrid.ActualWidth >= gridWidthBeforeSort - 0.5f);
+    }
+
+    [Fact]
+    public void DataGridView_FirstHeaderSort_KeepsCellHeightAlignedWithRowHeight()
+    {
+        var view = new DataGridView();
+        view.Width = 1200f;
+        view.Height = 520f;
+
+        var host = new Canvas
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+        host.AddChild(view);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1200, 520);
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(view);
+        Assert.NotNull(dataGrid);
+
+        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid!, static header => header.Text == "Name");
+        Assert.NotNull(nameHeader);
+
+        Click(uiRoot, GetCenter(nameHeader!.LayoutSlot));
+        RunLayout(uiRoot, 1200, 520);
+
+        var firstRow = dataGrid.RowsForTesting[0];
+        var firstCell = firstRow.Cells[0];
+        var contentHeight = firstRow.LayoutSlot.Height;
+
+        Assert.Equal(contentHeight, firstCell.LayoutSlot.Height, 0.5f);
     }
 
     private static TElement? FindFirstVisualChild<TElement>(UIElement root)

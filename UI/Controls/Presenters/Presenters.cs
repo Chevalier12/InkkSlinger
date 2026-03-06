@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
@@ -196,6 +197,13 @@ public class ContentPresenter : FrameworkElement
         if (RefreshPresentedElement())
         {
             InvalidateMeasure();
+            return;
+        }
+
+        if (TryRefreshFallbackLabelStyling())
+        {
+            InvalidateMeasure();
+            InvalidateVisual();
         }
     }
 
@@ -272,6 +280,15 @@ public class ContentPresenter : FrameworkElement
 
         if (!HasLocalValue(ContentTemplateSelectorProperty) &&
             string.Equals(property.Name, contentSource + "TemplateSelector", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (string.Equals(property.Name, nameof(FrameworkElement.FontFamily), StringComparison.Ordinal) ||
+            string.Equals(property.Name, nameof(FrameworkElement.FontSize), StringComparison.Ordinal) ||
+            string.Equals(property.Name, nameof(FrameworkElement.FontWeight), StringComparison.Ordinal) ||
+            string.Equals(property.Name, nameof(Control.Font), StringComparison.Ordinal) ||
+            string.Equals(property.Name, nameof(Control.Foreground), StringComparison.Ordinal))
         {
             return true;
         }
@@ -364,10 +381,71 @@ public class ContentPresenter : FrameworkElement
 
         if (content != null)
         {
-            return new Label { Text = content.ToString() ?? string.Empty };
+            var label = new Label { Text = content.ToString() ?? string.Empty };
+            ApplyFallbackLabelStyling(label);
+            return label;
         }
 
         return null;
+    }
+
+    private bool TryRefreshFallbackLabelStyling()
+    {
+        if (_presentedElement is not Label label)
+        {
+            return false;
+        }
+
+        var content = ResolveEffectiveContent();
+        if (content == null || content is UIElement)
+        {
+            return false;
+        }
+
+        if (ResolveEffectiveTemplate() != null)
+        {
+            return false;
+        }
+
+        ApplyFallbackLabelStyling(label);
+        return true;
+    }
+
+    private void ApplyFallbackLabelStyling(Label label)
+    {
+        if (_sourceOwner is FrameworkElement frameworkElement)
+        {
+            label.FontFamily = frameworkElement.FontFamily;
+            label.FontSize = frameworkElement.FontSize;
+            label.FontWeight = frameworkElement.FontWeight;
+        }
+
+        if (_sourceOwner != null && TryGetOwnerPropertyValue<SpriteFont>(_sourceOwner, nameof(Control.Font), out var font))
+        {
+            label.Font = font;
+        }
+
+        if (_sourceOwner != null && TryGetOwnerPropertyValue<Color>(_sourceOwner, nameof(Control.Foreground), out var foreground))
+        {
+            label.Foreground = foreground;
+        }
+    }
+
+    private static bool TryGetOwnerPropertyValue<TValue>(DependencyObject owner, string propertyName, out TValue value)
+    {
+        var property = FindReadableProperty(owner.GetType(), propertyName);
+        if (property?.PropertyType == typeof(TValue))
+        {
+            var resolved = property.GetValue(owner);
+            if (resolved is TValue typed)
+            {
+                value = typed;
+                return true;
+            }
+        }
+
+        value = default!;
+        return false;
     }
 
     private bool WouldCreatePresentationCycle(UIElement candidate)

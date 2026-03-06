@@ -31,7 +31,17 @@ public class DataGridColumnHeader : Button
         set => SetValue(SortDirectionProperty, value);
     }
 
+    internal DataGrid? Owner { get; set; }
+
     internal int ColumnIndex { get; set; }
+
+    internal void BindState(DataGridColumnState columnState, SpriteFont? font)
+    {
+        ColumnIndex = columnState.DisplayIndex;
+        Text = columnState.HeaderText;
+        Font = font;
+        SortDirection = columnState.SortDirection;
+    }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {

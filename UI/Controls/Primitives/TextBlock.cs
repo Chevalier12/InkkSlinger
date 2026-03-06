@@ -49,6 +49,7 @@ public class TextBlock : FrameworkElement
     private long _renderTotalTicks;
     private long _renderMaxTicks;
     private long _renderLastTicks;
+    private float _layoutCacheFontSize = float.NaN;
 
     public string Text
     {
@@ -124,7 +125,7 @@ public class TextBlock : FrameworkElement
             : RenderSize.X;
         var layout = ResolveLayout(renderWidth);
 
-        var lineSpacing = FontStashTextRenderer.GetLineHeight(Font);
+        var lineSpacing = FontStashTextRenderer.GetLineHeight(Font, FontSize);
         for (var i = 0; i < layout.Lines.Count; i++)
         {
             var line = layout.Lines[i];
@@ -134,7 +135,7 @@ public class TextBlock : FrameworkElement
             }
 
             var position = new Vector2(LayoutSlot.X, LayoutSlot.Y + (i * lineSpacing));
-            FontStashTextRenderer.DrawString(spriteBatch, Font, line, position, Foreground * Opacity);
+            FontStashTextRenderer.DrawString(spriteBatch, Font, line, position, Foreground * Opacity, FontSize);
         }
 
         var renderTicks = Stopwatch.GetTimestamp() - renderStart;
@@ -156,7 +157,8 @@ public class TextBlock : FrameworkElement
         }
 
         if (ReferenceEquals(args.Property, FontProperty) ||
-            ReferenceEquals(args.Property, TextWrappingProperty))
+            ReferenceEquals(args.Property, TextWrappingProperty) ||
+            ReferenceEquals(args.Property, FontSizeProperty))
         {
             InvalidateLayoutCache();
         }
@@ -168,6 +170,7 @@ public class TextBlock : FrameworkElement
         if (_hasLayoutCache &&
             _layoutCacheTextVersion == _textVersion &&
             ReferenceEquals(_layoutCacheFont, Font) &&
+            WidthMatches(_layoutCacheFontSize, FontSize) &&
             _layoutCacheWrapping == TextWrapping &&
             widthMatches)
         {
@@ -176,10 +179,11 @@ public class TextBlock : FrameworkElement
         }
 
         _layoutCacheMissCount++;
-        var result = TextLayout.Layout(Text, Font, width, TextWrapping);
+        var result = TextLayout.Layout(Text, Font, FontSize, width, TextWrapping);
         _layoutCacheTextVersion = _textVersion;
         _layoutCacheWidth = width;
         _layoutCacheFont = Font;
+        _layoutCacheFontSize = FontSize;
         _layoutCacheWrapping = TextWrapping;
         _layoutCacheResult = result;
         _hasLayoutCache = true;
@@ -192,6 +196,7 @@ public class TextBlock : FrameworkElement
         _layoutCacheTextVersion = -1;
         _layoutCacheWidth = float.NaN;
         _layoutCacheFont = null;
+        _layoutCacheFontSize = float.NaN;
         _layoutCacheResult = TextLayout.TextLayoutResult.Empty;
     }
 
