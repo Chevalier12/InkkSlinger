@@ -253,6 +253,11 @@ public class UIElement : DependencyObject
         yield break;
     }
 
+    internal virtual IEnumerable<UIElement> GetRetainedRenderChildren()
+    {
+        return GetVisualChildren();
+    }
+
     public virtual IEnumerable<UIElement> GetLogicalChildren()
     {
         yield break;

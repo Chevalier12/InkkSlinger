@@ -204,7 +204,7 @@ public sealed partial class UiRoot
         traversalOrder += 1;
 
         var metadata = CreateSubtreeMetadataForNode(node);
-        foreach (var child in visual.GetVisualChildren())
+        foreach (var child in visual.GetRetainedRenderChildren())
         {
             var childResult = BuildRenderSubtree(child, traversalOrder, depth + 1, node);
             traversalOrder = childResult.TraversalOrder;
@@ -300,7 +300,7 @@ public sealed partial class UiRoot
         }
 
         var metadata = CreateSubtreeMetadataForNode(updated);
-        foreach (var child in visual.GetVisualChildren())
+        foreach (var child in visual.GetRetainedRenderChildren())
         {
             if (!_renderNodeIndices.TryGetValue(child, out var childNodeIndex))
             {
@@ -329,7 +329,7 @@ public sealed partial class UiRoot
 
     private bool CanSafelyDowngradeForcedDeepSync(UIElement root)
     {
-        foreach (var child in root.GetVisualChildren())
+        foreach (var child in root.GetRetainedRenderChildren())
         {
             if (child.SubtreeDirty)
             {
@@ -357,7 +357,7 @@ public sealed partial class UiRoot
             parentNode);
         var metadata = CreateSubtreeMetadataForNode(updated);
 
-        foreach (var child in visual.GetVisualChildren())
+        foreach (var child in visual.GetRetainedRenderChildren())
         {
             var childMetadata = UpdateRenderNodeSubtreeRecursive(child, updated);
             if (_renderListNeedsFullRebuild)
@@ -407,7 +407,7 @@ public sealed partial class UiRoot
                 parentNode);
 
             var metadata = CreateSubtreeMetadataForNode(updated);
-            foreach (var child in current.GetVisualChildren())
+            foreach (var child in current.GetRetainedRenderChildren())
             {
                 if (!_renderNodeIndices.TryGetValue(child, out var childNodeIndex))
                 {

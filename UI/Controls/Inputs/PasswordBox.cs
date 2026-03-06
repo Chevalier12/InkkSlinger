@@ -899,6 +899,19 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     protected override bool ShouldAutoDrawVisualChildren => !HasTemplateRoot;
 
+    internal override IEnumerable<UIElement> GetRetainedRenderChildren()
+    {
+        if (HasTemplateRoot)
+        {
+            yield break;
+        }
+
+        foreach (var child in base.GetRetainedRenderChildren())
+        {
+            yield return child;
+        }
+    }
+
     private void DrawTemplateVisualTree(SpriteBatch spriteBatch)
     {
         foreach (var child in base.GetVisualChildren())
@@ -906,6 +919,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             child.Draw(spriteBatch);
         }
     }
+
 
 
 
