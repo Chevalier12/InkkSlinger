@@ -735,20 +735,27 @@ public class UIElement : DependencyObject
         args.OriginalSource ??= this;
         if (routedEvent.RoutingStrategy == RoutingStrategy.Direct)
         {
-            InvokeRoutedEvent(this, routedEvent, args);
+            var classHandlerMilliseconds = 0d;
+            var instanceHandlerMilliseconds = 0d;
+            InvokeRoutedEvent(this, routedEvent, args, ref classHandlerMilliseconds, ref instanceHandlerMilliseconds);
             return;
         }
 
         var route = RentRoute();
+        var routeBuildStart = Stopwatch.GetTimestamp();
+        var classHandlerElapsedMilliseconds = 0d;
+        var instanceHandlerElapsedMilliseconds = 0d;
         try
         {
             BuildRoute(this, route);
+            var routeBuildMilliseconds = Stopwatch.GetElapsedTime(routeBuildStart).TotalMilliseconds;
+            var routeTraverseStart = Stopwatch.GetTimestamp();
 
             if (routedEvent.RoutingStrategy == RoutingStrategy.Tunnel)
             {
                 for (var i = route.Count - 1; i >= 0; i--)
                 {
-                    InvokeRoutedEvent(route[i], routedEvent, args);
+                    InvokeRoutedEvent(route[i], routedEvent, args, ref classHandlerElapsedMilliseconds, ref instanceHandlerElapsedMilliseconds);
                 }
 
                 return;
@@ -756,8 +763,9 @@ public class UIElement : DependencyObject
 
             for (var i = 0; i < route.Count; i++)
             {
-                InvokeRoutedEvent(route[i], routedEvent, args);
+                InvokeRoutedEvent(route[i], routedEvent, args, ref classHandlerElapsedMilliseconds, ref instanceHandlerElapsedMilliseconds);
             }
+
         }
         finally
         {
@@ -881,16 +889,51 @@ public class UIElement : DependencyObject
         }
     }
 
-    private void InvokeRoutedEvent(UIElement target, RoutedEvent routedEvent, RoutedEventArgs args)
+    private void InvokeRoutedEvent(
+        UIElement target,
+        RoutedEvent routedEvent,
+        RoutedEventArgs args,
+        ref double classHandlerMilliseconds,
+        ref double instanceHandlerMilliseconds)
     {
         args.Source = target;
-        target.DispatchRoutedEvent(routedEvent, args);
+        target.DispatchRoutedEvent(routedEvent, args, ref classHandlerMilliseconds, ref instanceHandlerMilliseconds);
     }
 
-    private void DispatchRoutedEvent(RoutedEvent routedEvent, RoutedEventArgs args)
+    private void DispatchRoutedEvent(
+        RoutedEvent routedEvent,
+        RoutedEventArgs args,
+        ref double classHandlerMilliseconds,
+        ref double instanceHandlerMilliseconds)
     {
+        var classHandlerStart = Stopwatch.GetTimestamp();
         EventManager.InvokeClassHandlers(this, routedEvent, args);
+        classHandlerMilliseconds += Stopwatch.GetElapsedTime(classHandlerStart).TotalMilliseconds;
+        var instanceHandlerStart = Stopwatch.GetTimestamp();
         InvokeInstanceHandlers(routedEvent, args);
+        instanceHandlerMilliseconds += Stopwatch.GetElapsedTime(instanceHandlerStart).TotalMilliseconds;
+    }
+
+    private static int CountClassHandlers(List<UIElement> route, RoutedEvent routedEvent)
+    {
+        var count = 0;
+        for (var i = 0; i < route.Count; i++)
+        {
+            count += EventManager.GetClassHandlerCount(route[i].GetType(), routedEvent);
+        }
+
+        return count;
+    }
+
+    private static int CountInstanceHandlers(List<UIElement> route, RoutedEvent routedEvent)
+    {
+        var count = 0;
+        for (var i = 0; i < route.Count; i++)
+        {
+            count += route[i].GetRoutedHandlerCountForEvent(routedEvent);
+        }
+
+        return count;
     }
 
     private void InvokeInstanceHandlers(RoutedEvent routedEvent, RoutedEventArgs args)
@@ -910,6 +953,7 @@ public class UIElement : DependencyObject
                 continue;
             }
 
+            var handlerStart = Stopwatch.GetTimestamp();
             handlerEntry.Invoker(this, args);
         }
     }

@@ -76,12 +76,7 @@ public class DataGridCell : Control
             typeof(DataGridCell),
             new FrameworkPropertyMetadata(new Color(57, 80, 111), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty FontProperty =
-        DependencyProperty.Register(
-            nameof(Font),
-            typeof(SpriteFont),
-            typeof(DataGridCell),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
 
     private bool _isSynchronizingContentValue;
     private DataGrid? _owner;

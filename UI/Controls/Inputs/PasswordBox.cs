@@ -41,12 +41,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
                     return text;
                 }));
 
-    public new static readonly DependencyProperty FontProperty =
-        DependencyProperty.Register(
-            nameof(Font),
-            typeof(SpriteFont),
-            typeof(PasswordBox),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
 
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(

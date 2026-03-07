@@ -34,12 +34,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 },
                 coerceValueCallback: static (_, value) => value as FlowDocument ?? CreateDefaultDocument()));
 
-    public new static readonly DependencyProperty FontProperty =
-        DependencyProperty.Register(
-            nameof(Font),
-            typeof(SpriteFont),
-            typeof(RichTextBox),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
 
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(

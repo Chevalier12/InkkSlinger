@@ -22,6 +22,11 @@ public sealed partial class UiRoot
     private string _lastPointerResolvePath = "None";
     private HitTestMetrics? _lastPointerResolveHitTestMetrics;
     private ContextMenu? _lastKnownOpenContextMenu;
+    private int _overlayCandidateVersion;
+    private OverlayCandidate _cachedTopOverlayCandidate;
+    private int _cachedTopOverlayCandidateVersion = -1;
+    private bool _cachedTopOverlayCandidateHasValue;
+    private bool _hasCachedTopOverlayCandidate;
     private bool _suppressNextLeftReleaseAfterOverlayDismiss;
     private bool _suppressNextRightReleaseAfterOverlayDismiss;
     private bool _suppressCurrentLeftPressGesture;
@@ -32,6 +37,19 @@ public sealed partial class UiRoot
     private double _toolTipHoverElapsedMs;
     private double _activeToolTipElapsedMs;
     private double _timeSinceToolTipClosedMs = double.PositiveInfinity;
+    private double _lastInputPointerMoveCapturedDataGridHandlerMs;
+    private double _lastInputPointerMoveCapturedTextInputHandlerMs;
+    private double _lastInputPointerMoveCapturedScrollViewerHandlerMs;
+    private double _lastInputPointerMoveCapturedSliderHandlerMs;
+    private double _lastInputPointerMoveCapturedPopupHandlerMs;
+    private double _lastInputPointerMoveHyperlinkHandlerMs;
+    private double _lastInputPointerMoveContextMenuItemHandlerMs;
+    private double _lastInputPointerMoveMenuItemHandlerMs;
+    private double _lastInputPointerMoveMenuFocusRestoreMs;
+    private double _lastInputPointerRouteOuterContextMenuProbeMs;
+    private double _lastInputPointerRouteOuterGateMs;
+    private double _lastInputPointerRouteOuterDispatchCallMs;
+    private int _lastInputPointerRouteDispatchCount;
 
     private void RunInputAndEventsPhase(GameTime gameTime)
     {
@@ -46,16 +64,47 @@ public sealed partial class UiRoot
         _lastInputPointerTargetResolveMs = 0d;
         _lastInputHoverUpdateMs = 0d;
         _lastInputPointerRouteMs = 0d;
+        _lastInputPointerMoveDispatchMs = 0d;
+        _lastInputPointerMoveRoutedEventsMs = 0d;
+        _lastInputPointerMoveHandlerMs = 0d;
+        _lastInputPointerMovePreviewEventMs = 0d;
+        _lastInputPointerMoveBubbleEventMs = 0d;
+        _lastInputPointerMoveCapturedDataGridHandlerMs = 0d;
+        _lastInputPointerMoveCapturedTextInputHandlerMs = 0d;
+        _lastInputPointerMoveCapturedScrollViewerHandlerMs = 0d;
+        _lastInputPointerMoveCapturedSliderHandlerMs = 0d;
+        _lastInputPointerMoveCapturedPopupHandlerMs = 0d;
+        _lastInputPointerMoveHyperlinkHandlerMs = 0d;
+        _lastInputPointerMoveContextMenuItemHandlerMs = 0d;
+        _lastInputPointerMoveMenuItemHandlerMs = 0d;
+        _lastInputPointerMoveMenuFocusRestoreMs = 0d;
+        _lastInputPointerRouteOuterContextMenuProbeMs = 0d;
+        _lastInputPointerRouteOuterGateMs = 0d;
+        _lastInputPointerRouteOuterDispatchCallMs = 0d;
+        _lastInputPointerRouteDispatchCount = 0;
+        _lastInputPointerResolveContextMenuCheckMs = 0d;
+        _lastInputPointerResolveContextMenuOverlayCandidateMs = 0d;
+        _lastInputPointerResolveContextMenuCachedMenuMs = 0d;
+        _lastInputPointerResolveHoverReuseCheckMs = 0d;
+        _lastInputPointerResolveFinalHitTestMs = 0d;
+        _lastInputToolTipLifecycleMs = 0d;
+        _lastInputCommandRequeryMs = 0d;
         _lastInputKeyDispatchMs = 0d;
         _lastInputTextDispatchMs = 0d;
         _lastVisualUpdateMs = 0d;
+        _clickCpuResolveCachedCount = 0;
+        _clickCpuResolveCapturedCount = 0;
+        _clickCpuResolveHoveredCount = 0;
+        _clickCpuResolveHitTestCount = 0;
 
         var captureStart = Stopwatch.GetTimestamp();
         var delta = _inputManager.Capture();
         _lastInputCaptureMs = Stopwatch.GetElapsedTime(captureStart).TotalMilliseconds;
         var dispatchStart = Stopwatch.GetTimestamp();
         ProcessInputDelta(delta);
+        var tooltipStart = Stopwatch.GetTimestamp();
         TickToolTipLifecycle(gameTime.ElapsedGameTime.TotalMilliseconds);
+        _lastInputToolTipLifecycleMs = Stopwatch.GetElapsedTime(tooltipStart).TotalMilliseconds;
         _lastInputDispatchMs = Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
 
         var updateStart = Stopwatch.GetTimestamp();
@@ -81,10 +130,43 @@ public sealed partial class UiRoot
         _lastInputPointerTargetResolveMs = 0d;
         _lastInputHoverUpdateMs = 0d;
         _lastInputPointerRouteMs = 0d;
+        _lastInputPointerMoveDispatchMs = 0d;
+        _lastInputPointerMoveRoutedEventsMs = 0d;
+        _lastInputPointerMoveHandlerMs = 0d;
+        _lastInputPointerMovePreviewEventMs = 0d;
+        _lastInputPointerMoveBubbleEventMs = 0d;
+        _lastInputPointerMoveCapturedDataGridHandlerMs = 0d;
+        _lastInputPointerMoveCapturedTextInputHandlerMs = 0d;
+        _lastInputPointerMoveCapturedScrollViewerHandlerMs = 0d;
+        _lastInputPointerMoveCapturedSliderHandlerMs = 0d;
+        _lastInputPointerMoveCapturedPopupHandlerMs = 0d;
+        _lastInputPointerMoveHyperlinkHandlerMs = 0d;
+        _lastInputPointerMoveContextMenuItemHandlerMs = 0d;
+        _lastInputPointerMoveMenuItemHandlerMs = 0d;
+        _lastInputPointerMoveMenuFocusRestoreMs = 0d;
+        _lastInputPointerRouteOuterContextMenuProbeMs = 0d;
+        _lastInputPointerRouteOuterGateMs = 0d;
+        _lastInputPointerRouteOuterDispatchCallMs = 0d;
+        _lastInputPointerRouteDispatchCount = 0;
+        _lastInputPointerResolveContextMenuCheckMs = 0d;
+        _lastInputPointerResolveContextMenuOverlayCandidateMs = 0d;
+        _lastInputPointerResolveContextMenuCachedMenuMs = 0d;
+        _lastInputPointerResolveHoverReuseCheckMs = 0d;
+        _lastInputPointerResolveFinalHitTestMs = 0d;
+        _lastInputToolTipLifecycleMs = 0d;
+        _lastInputCommandRequeryMs = 0d;
         _lastInputKeyDispatchMs = 0d;
         _lastInputTextDispatchMs = 0d;
+        _clickCpuResolveCachedCount = 0;
+        _clickCpuResolveCapturedCount = 0;
+        _clickCpuResolveHoveredCount = 0;
+        _clickCpuResolveHitTestCount = 0;
+        var dispatchStart = Stopwatch.GetTimestamp();
         ProcessInputDelta(delta);
+        var tooltipStart = Stopwatch.GetTimestamp();
         TickToolTipLifecycle(Math.Max(0d, elapsedMs));
+        _lastInputToolTipLifecycleMs = Stopwatch.GetElapsedTime(tooltipStart).TotalMilliseconds;
+        _lastInputDispatchMs = Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
     }
 
     private void ProcessInputDelta(InputDelta delta)
@@ -116,19 +198,25 @@ public sealed partial class UiRoot
             {
                 var hoverHandleStart = Stopwatch.GetTimestamp();
                 contextMenuHoverItem.HandlePointerMoveFromInput();
-                var hoverHandleMs = Stopwatch.GetElapsedTime(hoverHandleStart).TotalMilliseconds;
+                _lastInputPointerMoveHandlerMs += Stopwatch.GetElapsedTime(hoverHandleStart).TotalMilliseconds;
                 contextMenuMoveHandled = true;
             }
 
+            var outerContextMenuProbeStart = Stopwatch.GetTimestamp();
             var hasOpenContextMenu = _lastKnownOpenContextMenu is { IsOpen: true } || TryFindOpenContextMenu(out _);
+            _lastInputPointerRouteOuterContextMenuProbeMs += Stopwatch.GetElapsedTime(outerContextMenuProbeStart).TotalMilliseconds;
+            var outerGateStart = Stopwatch.GetTimestamp();
             var shouldRouteMove = !contextMenuMoveHandled &&
                                   (hasOpenContextMenu ||
                                   !ReferenceEquals(previousHovered, _inputState.HoveredElement) ||
                                   _inputState.CapturedPointerElement != null);
+            _lastInputPointerRouteOuterGateMs += Stopwatch.GetElapsedTime(outerGateStart).TotalMilliseconds;
             if (shouldRouteMove)
             {
                 var routeStart = Stopwatch.GetTimestamp();
                 DispatchPointerMove(pointerTarget, delta.Current.PointerPosition);
+                _lastInputPointerRouteOuterDispatchCallMs += Stopwatch.GetElapsedTime(routeStart).TotalMilliseconds;
+                _lastInputPointerRouteDispatchCount++;
                 pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
             }
             if (UseSoftwareCursor)
@@ -243,8 +331,11 @@ public sealed partial class UiRoot
 
         if (ShouldInvalidateCommandRequeryForInput(delta))
         {
+            var commandRequeryStart = Stopwatch.GetTimestamp();
             CommandManager.InvalidateRequerySuggested();
+            _lastInputCommandRequeryMs = Stopwatch.GetElapsedTime(commandRequeryStart).TotalMilliseconds;
         }
+
     }
 
     private static bool ShouldInvalidateCommandRequeryForInput(InputDelta delta)
@@ -323,15 +414,25 @@ public sealed partial class UiRoot
 
         if (!requiresPreciseTarget)
         {
-            if (TryFindOpenContextMenu(out _))
+            var contextMenuCheckStart = Stopwatch.GetTimestamp();
+            var hasOpenContextMenu = TryFindOpenContextMenu(out _);
+            _lastInputPointerResolveContextMenuCheckMs += Stopwatch.GetElapsedTime(contextMenuCheckStart).TotalMilliseconds;
+            if (hasOpenContextMenu)
             {
                 _lastInputHitTestCount++;
-                return FinalizePointerResolve("ContextMenuOpenHitTest", VisualTreeHelper.HitTest(_visualRoot, pointerPosition));
+                var contextMenuHitTestStart = Stopwatch.GetTimestamp();
+                var contextMenuHit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+                _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(contextMenuHitTestStart).TotalMilliseconds;
+                return FinalizePointerResolve("ContextMenuOpenHitTest", contextMenuHit);
             }
 
-            if (_inputState.HoveredElement != null &&
+            var hoverReuseCheckStart = Stopwatch.GetTimestamp();
+            var canReuseHoveredTarget =
+                _inputState.HoveredElement != null &&
                 (delta.WheelDelta != 0 || ShouldReuseHoveredTargetForPointerMove(_inputState.HoveredElement)) &&
-                PointerInsideHoveredTargetForReuse(_inputState.HoveredElement, pointerPosition))
+                PointerInsideHoveredTargetForReuse(_inputState.HoveredElement, pointerPosition);
+            _lastInputPointerResolveHoverReuseCheckMs += Stopwatch.GetElapsedTime(hoverReuseCheckStart).TotalMilliseconds;
+            if (canReuseHoveredTarget)
             {
                 // Do not refresh click-target reuse cache from hover-reuse paths.
                 // Hover can be stale while pointer moves without precise retargeting.
@@ -408,7 +509,9 @@ public sealed partial class UiRoot
         }
 
         var finalPath = bypassClickTargetShortcuts ? "OverlayBypassHitTest" : "HitTest";
+        var finalHitTestStart = Stopwatch.GetTimestamp();
         var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
+        _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(finalHitTestStart).TotalMilliseconds;
         _lastPointerResolveHitTestMetrics = metrics;
         return FinalizePointerResolve(finalPath, hit);
     }
@@ -555,39 +658,47 @@ public sealed partial class UiRoot
             case null:
                 return;
             case ITextInputControl textInput:
+            {
                 textInput.SetMouseOverFromInput(isMouseOver);
                 return;
+            }
             case Button button:
+            {
                 button.SetMouseOverFromInput(isMouseOver);
                 return;
+            }
             case ListBoxItem listBoxItem:
+            {
                 if (listBoxItem.IsMouseOver != isMouseOver)
                 {
                     listBoxItem.IsMouseOver = isMouseOver;
                 }
-
                 return;
+            }
             case DataGridRow dataGridRow:
+            {
                 if (dataGridRow.IsMouseOver != isMouseOver)
                 {
                     dataGridRow.IsMouseOver = isMouseOver;
                 }
-
                 return;
+            }
             case TabItem tabItem:
+            {
                 if (tabItem.IsMouseOver != isMouseOver)
                 {
                     tabItem.IsMouseOver = isMouseOver;
                 }
-
                 return;
+            }
             case TreeViewItem treeViewItem:
+            {
                 if (treeViewItem.IsMouseOver != isMouseOver)
                 {
                     treeViewItem.IsMouseOver = isMouseOver;
                 }
-
                 return;
+            }
         }
     }
 
@@ -762,34 +873,67 @@ public sealed partial class UiRoot
             return;
         }
 
-        var dispatchStart = Stopwatch.GetTimestamp(); _lastInputPointerEventCount++;
-        _lastInputRoutedEventCount += 2; routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseMoveEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers)); routedTarget.RaiseRoutedEventInternal(UIElement.MouseMoveEvent, new MouseRoutedEventArgs(UIElement.MouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers));
+        var dispatchStart = Stopwatch.GetTimestamp();
+        _lastInputPointerEventCount++;
+        var routedEventsStart = Stopwatch.GetTimestamp();
+        _lastInputRoutedEventCount += 2;
+        var previewStart = Stopwatch.GetTimestamp();
+        routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseMoveEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers));
+        _lastInputPointerMovePreviewEventMs += Stopwatch.GetElapsedTime(previewStart).TotalMilliseconds;
+        var bubbleStart = Stopwatch.GetTimestamp();
+        routedTarget.RaiseRoutedEventInternal(UIElement.MouseMoveEvent, new MouseRoutedEventArgs(UIElement.MouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers));
+        _lastInputPointerMoveBubbleEventMs += Stopwatch.GetElapsedTime(bubbleStart).TotalMilliseconds;
+        _lastInputPointerMoveRoutedEventsMs += Stopwatch.GetElapsedTime(routedEventsStart).TotalMilliseconds;
 
         if (_inputState.CapturedPointerElement is DataGrid dragDataGrid)
         {
+            var handlerStart = Stopwatch.GetTimestamp();
             dragDataGrid.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+            _lastInputPointerMoveCapturedDataGridHandlerMs += elapsed;
         }
         else if (_inputState.CapturedPointerElement is ITextInputControl dragTextInput)
         {
+            var handlerStart = Stopwatch.GetTimestamp();
             dragTextInput.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+            _lastInputPointerMoveCapturedTextInputHandlerMs += elapsed;
         }
         else if (_inputState.CapturedPointerElement is ScrollViewer dragScrollViewer)
         {
+            var handlerStart = Stopwatch.GetTimestamp();
             dragScrollViewer.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+            _lastInputPointerMoveCapturedScrollViewerHandlerMs += elapsed;
         }
         else if (_inputState.CapturedPointerElement is Slider dragSlider)
         {
+            var handlerStart = Stopwatch.GetTimestamp();
             dragSlider.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+            _lastInputPointerMoveCapturedSliderHandlerMs += elapsed;
         }
         else if (_inputState.CapturedPointerElement is Popup dragPopup)
         {
+            var handlerStart = Stopwatch.GetTimestamp();
             dragPopup.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+            _lastInputPointerMoveCapturedPopupHandlerMs += elapsed;
         }
         else if (_inputState.CapturedPointerElement == null)
         {
             if (target is IHyperlinkHoverHost hyperlinkHoverHost)
             {
+                var handlerStart = Stopwatch.GetTimestamp();
                 hyperlinkHoverHost.UpdateHoveredHyperlinkFromPointer(pointerPosition);
+                var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+                _lastInputPointerMoveHandlerMs += elapsed;
+                _lastInputPointerMoveHyperlinkHandlerMs += elapsed;
             }
 
             var resolved = TryResolveContextMenuMenuItemTarget(pointerPosition, target, out var contextMenuMenuItem);
@@ -797,21 +941,33 @@ public sealed partial class UiRoot
             {
                 var hoverHandleStart = Stopwatch.GetTimestamp();
                 contextMenuMenuItem.HandlePointerMoveFromInput();
-                var hoverHandleMs = Stopwatch.GetElapsedTime(hoverHandleStart).TotalMilliseconds;
+                var elapsed = Stopwatch.GetElapsedTime(hoverHandleStart).TotalMilliseconds;
+                _lastInputPointerMoveHandlerMs += elapsed;
+                _lastInputPointerMoveContextMenuItemHandlerMs += elapsed;
+                _lastInputPointerMoveDispatchMs += Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
                 return;
             }
 
             if (target is MenuItem menuItem)
             {
+                var handlerStart = Stopwatch.GetTimestamp();
                 menuItem.HandlePointerMoveFromInput();
+                var handlerElapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+                _lastInputPointerMoveHandlerMs += handlerElapsed;
+                _lastInputPointerMoveMenuItemHandlerMs += handlerElapsed;
                 if (menuItem.OwnerMenu is { } ownerMenu)
                 {
+                    var focusRestoreStart = Stopwatch.GetTimestamp();
                     TrySynchronizeMenuFocusRestore(ownerMenu);
+                    _lastInputPointerMoveMenuFocusRestoreMs += Stopwatch.GetElapsedTime(focusRestoreStart).TotalMilliseconds;
                 }
 
+                _lastInputPointerMoveDispatchMs += Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
                 return;
             }
         }
+
+        _lastInputPointerMoveDispatchMs += Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
     }
 
     private void DispatchMouseDown(UIElement? target, Vector2 pointerPosition, MouseButton button)
@@ -1373,6 +1529,7 @@ public sealed partial class UiRoot
 
     private void RefreshCachedWheelTargets(UIElement? hovered)
     {
+        var resetStart = Stopwatch.GetTimestamp();
         var previousTextInput = _cachedWheelTextInputTarget;
         var previousScrollViewer = _cachedWheelScrollViewerTarget;
         _cachedWheelTextInputTarget = null;
@@ -1384,12 +1541,14 @@ public sealed partial class UiRoot
 
         if (TryFindWheelTextInputAncestor(hovered, out var textInput) && textInput != null)
         {
-            _cachedWheelTextInputTarget = textInput; return;
+            _cachedWheelTextInputTarget = textInput;
+            return;
         }
 
         if (TryFindAncestor<ScrollViewer>(hovered, out var scrollViewer) && scrollViewer != null)
         {
-            _cachedWheelScrollViewerTarget = scrollViewer; return;
+            _cachedWheelScrollViewerTarget = scrollViewer;
+            return;
         }
     }
 
@@ -2178,6 +2337,13 @@ public sealed partial class UiRoot
 
     private bool TryGetTopOverlayCandidate(out OverlayCandidate candidate)
     {
+        if (_cachedTopOverlayCandidateHasValue &&
+            _cachedTopOverlayCandidateVersion == _overlayCandidateVersion)
+        {
+            candidate = _cachedTopOverlayCandidate;
+            return _hasCachedTopOverlayCandidate;
+        }
+
         var hasCandidate = false;
         var bestDepth = int.MinValue;
         var bestZIndex = int.MinValue;
@@ -2193,8 +2359,21 @@ public sealed partial class UiRoot
             ref bestZIndex,
             ref bestOrder,
             ref currentCandidate);
+        _cachedTopOverlayCandidateVersion = _overlayCandidateVersion;
+        _cachedTopOverlayCandidate = currentCandidate;
+        _cachedTopOverlayCandidateHasValue = true;
+        _hasCachedTopOverlayCandidate = hasCandidate;
         candidate = currentCandidate;
         return hasCandidate;
+    }
+
+    private void InvalidateOverlayCandidateCache()
+    {
+        _overlayCandidateVersion++;
+        _cachedTopOverlayCandidateHasValue = false;
+        _hasCachedTopOverlayCandidate = false;
+        _cachedTopOverlayCandidate = default;
+        _cachedTopOverlayCandidateVersion = -1;
     }
 
     private static bool IsElementDescendantOf(UIElement element, UIElement ancestor)
@@ -2225,6 +2404,8 @@ public sealed partial class UiRoot
             default:
                 return OverlayDismissResult.None;
         }
+
+        InvalidateOverlayCandidateCache();
 
         return new OverlayDismissResult(Dismissed: true, Consumed: consumePointerClick);
     }
@@ -2583,6 +2764,7 @@ public sealed partial class UiRoot
         CloseAllOpenContextMenus();
         contextMenu.OpenAtPointer(host, pointerPosition, target);
         _lastKnownOpenContextMenu = contextMenu;
+        InvalidateOverlayCandidateCache();
         if (contextMenu.TryHitTestMenuItem(pointerPosition, out var hoveredItem))
         {
             contextMenu.HandlePointerMoveFromInput(hoveredItem);
@@ -2614,6 +2796,7 @@ public sealed partial class UiRoot
         CloseAllOpenContextMenus();
         contextMenu.OpenAt(host, slot.X, slot.Y + slot.Height, target);
         _lastKnownOpenContextMenu = contextMenu;
+        InvalidateOverlayCandidateCache();
         return true;
     }
 
@@ -2630,14 +2813,32 @@ public sealed partial class UiRoot
 
     private bool TryFindOpenContextMenu(out ContextMenu contextMenu)
     {
+        var cachedMenuStart = Stopwatch.GetTimestamp();
+        if (_lastKnownOpenContextMenu is { IsOpen: true } knownOpenContextMenu)
+        {
+            _lastInputPointerResolveContextMenuCachedMenuMs += Stopwatch.GetElapsedTime(cachedMenuStart).TotalMilliseconds;
+            contextMenu = knownOpenContextMenu;
+            return true;
+        }
+
+        _lastInputPointerResolveContextMenuCachedMenuMs += Stopwatch.GetElapsedTime(cachedMenuStart).TotalMilliseconds;
+        if (_lastKnownOpenContextMenu is not null)
+        {
+            _lastKnownOpenContextMenu = null;
+        }
+
+        var overlayCandidateStart = Stopwatch.GetTimestamp();
         if (TryGetTopOverlayCandidate(out var candidate) &&
             candidate.Element is ContextMenu openContextMenu &&
             openContextMenu.IsOpen)
         {
+            _lastInputPointerResolveContextMenuOverlayCandidateMs += Stopwatch.GetElapsedTime(overlayCandidateStart).TotalMilliseconds;
+            _lastKnownOpenContextMenu = openContextMenu;
             contextMenu = openContextMenu;
             return true;
         }
 
+        _lastInputPointerResolveContextMenuOverlayCandidateMs += Stopwatch.GetElapsedTime(overlayCandidateStart).TotalMilliseconds;
         contextMenu = null!;
         return false;
     }
@@ -2646,6 +2847,7 @@ public sealed partial class UiRoot
     {
         CloseOpenContextMenusRecursive(_visualRoot);
         _lastKnownOpenContextMenu = null;
+        InvalidateOverlayCandidateCache();
     }
 
     private static void CloseOpenContextMenusRecursive(UIElement element)

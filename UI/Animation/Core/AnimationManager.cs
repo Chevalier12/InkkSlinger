@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -12,6 +13,7 @@ public sealed class AnimationManager
     private readonly List<StoryboardInstance> _storyboards = new();
     private readonly Dictionary<StoryboardControlKey, StoryboardInstance> _controllableByName = new();
     private readonly Dictionary<AnimationLaneKey, AppliedLaneState> _appliedLanes = new();
+    private ConditionalWeakTable<Storyboard, StoryboardInstance.PreparedStoryboardMetadata> _preparedStoryboardMetadata = new();
     private long _nextSequence;
     private int _nextStoryboardInstanceId;
     private TimeSpan _currentTime = TimeSpan.Zero;
@@ -42,6 +44,7 @@ public sealed class AnimationManager
         }
 
         _appliedLanes.Clear();
+        _preparedStoryboardMetadata = new ConditionalWeakTable<Storyboard, StoryboardInstance.PreparedStoryboardMetadata>();
         _storyboards.Clear();
         _controllableByName.Clear();
         _nextSequence = 0L;
@@ -80,11 +83,15 @@ public sealed class AnimationManager
         instance.Start(handoff);
         _storyboards.Add(instance);
         InvalidateFrozenLaneState(instance);
-
         if (isControllable && !string.IsNullOrWhiteSpace(controlName))
         {
             _controllableByName[new StoryboardControlKey(containingObject, controlName)] = instance;
         }
+    }
+
+    public void PrepareStoryboardMetadata(Storyboard storyboard)
+    {
+        _ = GetOrCreatePreparedStoryboardMetadata(storyboard);
     }
 
     public void PauseStoryboard(Storyboard storyboard, FrameworkElement containingObject)
@@ -188,9 +195,44 @@ public sealed class AnimationManager
         }
     }
 
+    internal void RemoveFromLanes(IReadOnlyCollection<AnimationLaneKey> keys, StoryboardInstance owner, HandoffBehavior handoff)
+    {
+        if (handoff != HandoffBehavior.SnapshotAndReplace || keys.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var key in keys)
+        {
+            InvalidateFrozenLaneState(key);
+        }
+
+        foreach (var instance in _storyboards)
+        {
+            if (ReferenceEquals(instance, owner))
+            {
+                continue;
+            }
+
+            instance.RemoveLanes(keys);
+        }
+    }
+
     private IEnumerable<StoryboardInstance> FindInstances(Storyboard storyboard, FrameworkElement containingObject)
     {
         return _storyboards.Where(s => ReferenceEquals(s.Storyboard, storyboard) && ReferenceEquals(s.Scope, containingObject));
+    }
+
+    internal StoryboardInstance.PreparedStoryboardMetadata GetOrCreatePreparedStoryboardMetadata(Storyboard storyboard)
+    {
+        if (_preparedStoryboardMetadata.TryGetValue(storyboard, out var prepared))
+        {
+            return prepared;
+        }
+
+        prepared = StoryboardInstance.PreparedStoryboardMetadata.Create(storyboard);
+        _preparedStoryboardMetadata.Add(storyboard, prepared);
+        return prepared;
     }
 
     private void ComposeAndApplyActiveLanes()
@@ -605,35 +647,39 @@ internal sealed class StoryboardInstance
 
     public void Start(HandoffBehavior handoff)
     {
-        foreach (var descriptor in EnumerateLeafAnimations(Storyboard, TimeSpan.Zero, 1f))
+        var laneKeysToReplace = new HashSet<AnimationLaneKey>();
+        var resolvedTargetCache = new Dictionary<string, object?>(StringComparer.Ordinal);
+        var preparedMetadata = _manager.GetOrCreatePreparedStoryboardMetadata(Storyboard);
+
+        foreach (var descriptor in preparedMetadata.Lanes)
         {
-            var animation = descriptor.Animation;
-            var target = ResolveTarget(animation, Scope, _resolveTargetByName);
+            var target = ResolveTarget(descriptor.Animation, Scope, _resolveTargetByName, resolvedTargetCache);
             if (target == null)
             {
                 continue;
             }
 
-            var sink = AnimationPropertyPathResolver.Resolve(target, animation.TargetProperty);
+            var sink = AnimationPropertyPathResolver.Resolve(target, descriptor.Animation.TargetProperty);
             if (sink == null)
             {
                 continue;
             }
 
-            _manager.RemoveFromLane(sink.Key, this, handoff);
+            laneKeysToReplace.Add(sink.Key);
             _entries.Add(
                 new AnimationLaneEntry(
                     sink,
-                    animation,
+                    descriptor.Animation,
                     _startedAt,
                     _manager.ReserveSequence(),
                     descriptor.ParentBeginOffset,
                     descriptor.ParentSpeedRatio,
                     DebugId,
                     ControlName,
-                    animation.TargetProperty));
+                    descriptor.Animation.TargetProperty));
         }
 
+        _manager.RemoveFromLanes(laneKeysToReplace, this, handoff);
         IsCompleted = _entries.Count == 0;
     }
 
@@ -747,6 +793,22 @@ internal sealed class StoryboardInstance
         }
     }
 
+    public void RemoveLanes(IReadOnlyCollection<AnimationLaneKey> keys)
+    {
+        if (keys.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var entry in _entries)
+        {
+            if (keys.Contains(entry.Key))
+            {
+                entry.Remove();
+            }
+        }
+    }
+
     private TimeSpan ResolveStoryboardDuration()
     {
         if (_entries.Count == 0)
@@ -755,34 +817,6 @@ internal sealed class StoryboardInstance
         }
 
         return _entries.Max(e => e.GetTotalDurationWithOffsets());
-    }
-
-    private static object? ResolveTarget(
-        AnimationTimeline animation,
-        FrameworkElement scope,
-        Func<string, object?>? resolveByName)
-    {
-        if (string.IsNullOrWhiteSpace(animation.TargetName))
-        {
-            return scope;
-        }
-
-        if (resolveByName != null)
-        {
-            var fromResolver = resolveByName(animation.TargetName);
-            if (fromResolver != null)
-            {
-                return fromResolver;
-            }
-        }
-
-        var scoped = NameScopeService.FindName(scope, animation.TargetName);
-        if (scoped != null)
-        {
-            return scoped;
-        }
-
-        return scope.FindName(animation.TargetName);
     }
 
     private static IEnumerable<LeafAnimationDescriptor> EnumerateLeafAnimations(
@@ -810,7 +844,45 @@ internal sealed class StoryboardInstance
         }
     }
 
-    private readonly struct LeafAnimationDescriptor
+    private static object? ResolveTarget(
+        AnimationTimeline animation,
+        FrameworkElement scope,
+        Func<string, object?>? resolveByName,
+        Dictionary<string, object?> resolvedTargetCache)
+    {
+        if (string.IsNullOrWhiteSpace(animation.TargetName))
+        {
+            return scope;
+        }
+
+        if (resolvedTargetCache.TryGetValue(animation.TargetName, out var cached))
+        {
+            return cached;
+        }
+
+        if (resolveByName != null)
+        {
+            var fromResolver = resolveByName(animation.TargetName);
+            if (fromResolver != null)
+            {
+                resolvedTargetCache[animation.TargetName] = fromResolver;
+                return fromResolver;
+            }
+        }
+
+        var scoped = NameScopeService.FindName(scope, animation.TargetName);
+        if (scoped != null)
+        {
+            resolvedTargetCache[animation.TargetName] = scoped;
+            return scoped;
+        }
+
+        var resolved = scope.FindName(animation.TargetName);
+        resolvedTargetCache[animation.TargetName] = resolved;
+        return resolved;
+    }
+
+    internal readonly struct LeafAnimationDescriptor
     {
         public LeafAnimationDescriptor(AnimationTimeline animation, TimeSpan parentBeginOffset, float parentSpeedRatio)
         {
@@ -825,6 +897,28 @@ internal sealed class StoryboardInstance
 
         public float ParentSpeedRatio { get; }
     }
+
+    internal sealed class PreparedStoryboardMetadata
+    {
+        private PreparedStoryboardMetadata(List<LeafAnimationDescriptor> lanes)
+        {
+            Lanes = lanes;
+        }
+
+        internal IReadOnlyList<LeafAnimationDescriptor> Lanes { get; }
+
+        internal static PreparedStoryboardMetadata Create(Storyboard storyboard)
+        {
+            var lanes = new List<LeafAnimationDescriptor>();
+            foreach (var descriptor in EnumerateLeafAnimations(storyboard, TimeSpan.Zero, 1f))
+            {
+                lanes.Add(descriptor);
+            }
+
+            return new PreparedStoryboardMetadata(lanes);
+        }
+    }
+
 }
 
 internal sealed class AnimationLaneEntry

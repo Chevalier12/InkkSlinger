@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Diagnostics;
 
 namespace InkkSlinger;
 
@@ -187,6 +188,16 @@ public sealed class EventTrigger : TriggerBase
             BindingFlags.Instance | BindingFlags.NonPublic);
 
         return method?.Invoke(control, new object?[] { sourceName }) as UIElement;
+    }
+
+    private static string NormalizeEventName(string routedEventName)
+    {
+        return routedEventName switch
+        {
+            nameof(UIElement.MouseEnterEvent) => "mouseenter",
+            nameof(UIElement.MouseLeaveEvent) => "mouseleave",
+            _ => routedEventName
+        };
     }
 
     private sealed class EventTriggerState

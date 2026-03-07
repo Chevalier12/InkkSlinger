@@ -170,12 +170,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
             typeof(DocumentViewer),
             new FrameworkPropertyMetadata(false));
 
-    public new static readonly DependencyProperty FontProperty =
-        DependencyProperty.Register(
-            nameof(Font),
-            typeof(SpriteFont),
-            typeof(DocumentViewer),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
 
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(

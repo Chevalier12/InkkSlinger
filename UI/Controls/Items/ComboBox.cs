@@ -33,12 +33,7 @@ public class ComboBox : Selector
                 FrameworkPropertyMetadataOptions.None,
                 coerceValueCallback: static (_, value) => value is float f && f >= 40f ? f : 40f));
 
-    public new static readonly DependencyProperty FontProperty =
-        DependencyProperty.Register(
-            nameof(Font),
-            typeof(SpriteFont),
-            typeof(ComboBox),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
 
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(

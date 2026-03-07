@@ -41,12 +41,7 @@ public class Popup : ContentControl
             typeof(Popup),
             new FrameworkPropertyMetadata("Popup", FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty FontProperty =
-        DependencyProperty.Register(
-            nameof(Font),
-            typeof(SpriteFont),
-            typeof(Popup),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
 
     public static readonly DependencyProperty LeftProperty =
         DependencyProperty.Register(

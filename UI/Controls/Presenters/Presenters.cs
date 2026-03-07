@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -194,16 +195,21 @@ public class ContentPresenter : FrameworkElement
             return;
         }
 
-        if (RefreshPresentedElement())
+        var rebuiltPresentedElement = RefreshPresentedElement();
+        if (rebuiltPresentedElement)
         {
             InvalidateMeasure();
             return;
         }
 
-        if (TryRefreshFallbackLabelStyling())
+        var refreshedFallbackLabel = TryRefreshFallbackLabelStyling(args.Property);
+        if (refreshedFallbackLabel)
         {
-            InvalidateMeasure();
-            InvalidateVisual();
+            if (!IsForegroundProperty(args.Property))
+            {
+                InvalidateMeasure();
+                InvalidateVisual();
+            }
         }
     }
 
@@ -382,14 +388,14 @@ public class ContentPresenter : FrameworkElement
         if (content != null)
         {
             var label = new Label { Text = content.ToString() ?? string.Empty };
-            ApplyFallbackLabelStyling(label);
+            ApplyFallbackLabelStyling(label, changedProperty: null);
             return label;
         }
 
         return null;
     }
 
-    private bool TryRefreshFallbackLabelStyling()
+    private bool TryRefreshFallbackLabelStyling(DependencyProperty? changedProperty = null)
     {
         if (_presentedElement is not Label label)
         {
@@ -407,28 +413,84 @@ public class ContentPresenter : FrameworkElement
             return false;
         }
 
-        ApplyFallbackLabelStyling(label);
+        ApplyFallbackLabelStyling(label, changedProperty);
         return true;
     }
 
-    private void ApplyFallbackLabelStyling(Label label)
+    private void ApplyFallbackLabelStyling(Label label, DependencyProperty? changedProperty)
     {
+        if (IsForegroundProperty(changedProperty))
+        {
+            if (_sourceOwner != null && TryGetOwnerPropertyValue<Color>(_sourceOwner, nameof(Control.Foreground), out var foregroundOnly))
+            {
+                ApplyFallbackLabelAssignment(
+                    label,
+                    "Foreground",
+                    static currentLabel => currentLabel.Foreground,
+                    static (currentLabel, value) => currentLabel.Foreground = value,
+                    foregroundOnly);
+            }
+
+            return;
+        }
+
         if (_sourceOwner is FrameworkElement frameworkElement)
         {
-            label.FontFamily = frameworkElement.FontFamily;
-            label.FontSize = frameworkElement.FontSize;
-            label.FontWeight = frameworkElement.FontWeight;
+            ApplyFallbackLabelAssignment(
+                label,
+                "FontFamily",
+                static currentLabel => currentLabel.FontFamily,
+                static (currentLabel, value) => currentLabel.FontFamily = value,
+                frameworkElement.FontFamily);
+            ApplyFallbackLabelAssignment(
+                label,
+                "FontSize",
+                static currentLabel => currentLabel.FontSize,
+                static (currentLabel, value) => currentLabel.FontSize = value,
+                frameworkElement.FontSize);
+            ApplyFallbackLabelAssignment(
+                label,
+                "FontWeight",
+                static currentLabel => currentLabel.FontWeight,
+                static (currentLabel, value) => currentLabel.FontWeight = value,
+                frameworkElement.FontWeight);
         }
 
         if (_sourceOwner != null && TryGetOwnerPropertyValue<SpriteFont>(_sourceOwner, nameof(Control.Font), out var font))
         {
-            label.Font = font;
+            ApplyFallbackLabelAssignment(
+                label,
+                "Font",
+                static currentLabel => currentLabel.Font,
+                static (currentLabel, value) => currentLabel.Font = value,
+                font);
         }
 
         if (_sourceOwner != null && TryGetOwnerPropertyValue<Color>(_sourceOwner, nameof(Control.Foreground), out var foreground))
         {
-            label.Foreground = foreground;
+            ApplyFallbackLabelAssignment(
+                label,
+                "Foreground",
+                static currentLabel => currentLabel.Foreground,
+                static (currentLabel, value) => currentLabel.Foreground = value,
+                foreground);
         }
+    }
+
+    private static bool IsForegroundProperty(DependencyProperty? property)
+    {
+        return property != null &&
+               string.Equals(property.Name, nameof(Control.Foreground), StringComparison.Ordinal);
+    }
+
+    private void ApplyFallbackLabelAssignment<TValue>(
+        Label label,
+        string propertyName,
+        Func<Label, TValue> getter,
+        Action<Label, TValue> setter,
+        TValue value)
+    {
+        setter(label, value);
     }
 
     private static bool TryGetOwnerPropertyValue<TValue>(DependencyObject owner, string propertyName, out TValue value)

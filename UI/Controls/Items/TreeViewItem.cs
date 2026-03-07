@@ -28,25 +28,7 @@ public class TreeViewItem : ItemsControl
             typeof(TreeViewItem),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty FontProperty =
-        DependencyProperty.Register(
-            nameof(Font),
-            typeof(SpriteFont),
-            typeof(TreeViewItem),
-            new FrameworkPropertyMetadata(
-                null,
-                FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender,
-                propertyChangedCallback: static (dependencyObject, args) =>
-                {
-                    if (dependencyObject is TreeViewItem treeViewItem)
-                    {
-                        treeViewItem.PropagateTypographyToChildren(
-                            args.OldValue as SpriteFont,
-                            args.NewValue as SpriteFont,
-                            null,
-                            null);
-                    }
-                }));
+    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
 
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(

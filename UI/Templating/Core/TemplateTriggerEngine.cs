@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace InkkSlinger;
 
@@ -12,6 +13,10 @@ internal sealed class TemplateTriggerEngine
     private readonly HashSet<DependencyProperty> _conditionProperties = new();
     private readonly Dictionary<(DependencyObject Target, DependencyProperty Property), object?> _activeTriggerValues = new();
     private readonly Dictionary<TriggerBase, bool> _activeTriggerMatches = new();
+    private readonly Dictionary<(DependencyObject Target, DependencyProperty Property), object?> _desiredScratch = new();
+    private readonly Dictionary<TriggerBase, bool> _matchesScratch = new();
+    private readonly Dictionary<string, DependencyObject?> _targetCache = new(StringComparer.Ordinal);
+    private readonly Dictionary<(Setter Setter, DependencyObject Target), object?> _preparedSetterValues = new();
     private EventHandler<DependencyPropertyChangedEventArgs>? _ownerChangeHandler;
     private EventHandler? _resourceScopeHandler;
     private bool _isSubscribed;
@@ -51,10 +56,17 @@ internal sealed class TemplateTriggerEngine
 
         if (_resourceScopeHandler == null)
         {
-            _resourceScopeHandler = (_, _) => Reapply();
+            _resourceScopeHandler = (_, _) =>
+            {
+                _preparedSetterValues.Clear();
+                PrewarmSetterValues();
+                Reapply();
+            };
             _owner.ResourceScopeInvalidated += _resourceScopeHandler;
         }
 
+        PrewarmStoryboardMetadata();
+        PrewarmSetterValues();
         Reapply();
     }
 
@@ -80,6 +92,10 @@ internal sealed class TemplateTriggerEngine
         _attachedTriggers.Clear();
         _conditionProperties.Clear();
         _activeTriggerMatches.Clear();
+        _desiredScratch.Clear();
+        _matchesScratch.Clear();
+        _targetCache.Clear();
+        _preparedSetterValues.Clear();
 
         foreach (var pair in _activeTriggerValues.Keys)
         {
@@ -103,13 +119,13 @@ internal sealed class TemplateTriggerEngine
             do
             {
                 _reapplyPending = false;
-                var desired = new Dictionary<(DependencyObject Target, DependencyProperty Property), object?>();
-                var matches = new Dictionary<TriggerBase, bool>();
+                _desiredScratch.Clear();
+                _matchesScratch.Clear();
 
                 foreach (var trigger in _attachedTriggers)
                 {
                     var isMatch = trigger.IsMatch(_owner);
-                    matches[trigger] = isMatch;
+                    _matchesScratch[trigger] = isMatch;
                     if (!isMatch)
                     {
                         continue;
@@ -118,47 +134,51 @@ internal sealed class TemplateTriggerEngine
                     foreach (var setter in trigger.Setters)
                     {
                         var target = ResolveTarget(setter.TargetName);
-                    if (target == null)
-                    {
-                        continue;
-                    }
+                        if (target == null)
+                        {
+                            continue;
+                        }
 
-                    if (!ResourceReferenceResolver.TryResolve(target, setter.Property, setter.Value, out var resolvedValue))
-                    {
-                        continue;
-                    }
+                        if (_preparedSetterValues.TryGetValue((setter, target), out var preparedValue))
+                        {
+                            _desiredScratch[(target, setter.Property)] = preparedValue;
+                            continue;
+                        }
 
-                    desired[(target, setter.Property)] = resolvedValue;
+                        if (!ResourceReferenceResolver.TryResolve(target, setter.Property, setter.Value, out var resolvedValue))
+                        {
+                            continue;
+                        }
+
+                        _desiredScratch[(target, setter.Property)] = PrepareSetterAssignmentValue(resolvedValue);
+                    }
                 }
-            }
 
                 foreach (var active in _activeTriggerValues)
                 {
-                    if (!desired.ContainsKey(active.Key))
+                    if (!_desiredScratch.ContainsKey(active.Key))
                     {
                         active.Key.Target.ClearTemplateTriggerValue(active.Key.Property);
                     }
                 }
 
-                foreach (var pair in desired)
+                foreach (var pair in _desiredScratch)
                 {
                     if (_activeTriggerValues.TryGetValue(pair.Key, out var current) && Equals(current, pair.Value))
                     {
                         continue;
                     }
 
-                    pair.Key.Target.SetTemplateTriggerValue(
-                        pair.Key.Property,
-                        StyleValueCloneUtility.CloneForAssignment(pair.Value));
+                    pair.Key.Target.SetTemplateTriggerValue(pair.Key.Property, pair.Value);
                 }
 
                 _activeTriggerValues.Clear();
-                foreach (var pair in desired)
+                foreach (var pair in _desiredScratch)
                 {
                     _activeTriggerValues[pair.Key] = pair.Value;
                 }
 
-                ApplyActions(matches);
+                ApplyActions(_matchesScratch);
             }
             while (_reapplyPending);
         }
@@ -206,6 +226,70 @@ internal sealed class TemplateTriggerEngine
         }
     }
 
+    private void PrewarmStoryboardMetadata()
+    {
+        if (_owner is not FrameworkElement scope)
+        {
+            return;
+        }
+
+        var context = new TriggerActionContext(
+            _owner,
+            scope,
+            name => ResolveTarget(name));
+
+        foreach (var trigger in _attachedTriggers)
+        {
+            PrewarmActions(trigger.EnterActions, context);
+            PrewarmActions(trigger.ExitActions, context);
+        }
+    }
+
+    private static void PrewarmActions(IEnumerable<TriggerAction> actions, TriggerActionContext context)
+    {
+        foreach (var action in actions)
+        {
+            if (action is BeginStoryboard beginStoryboard)
+            {
+                beginStoryboard.PrepareMetadata(context);
+                beginStoryboard.WarmResolutionPath(context);
+            }
+        }
+    }
+
+    private void PrewarmSetterValues()
+    {
+        foreach (var trigger in _attachedTriggers)
+        {
+            foreach (var setter in trigger.Setters)
+            {
+                var target = ResolveTarget(setter.TargetName);
+                if (target == null)
+                {
+                    continue;
+                }
+
+                if (!ResourceReferenceResolver.TryResolve(target, setter.Property, setter.Value, out var resolvedValue))
+                {
+                    continue;
+                }
+
+                _preparedSetterValues[(setter, target)] = PrepareSetterAssignmentValue(resolvedValue);
+            }
+        }
+    }
+
+    private static object? PrepareSetterAssignmentValue(object? value)
+    {
+        var prepared = StyleValueCloneUtility.CloneForAssignment(value);
+        if (prepared is Freezable freezable && !freezable.IsFrozen)
+        {
+            freezable.Freeze();
+        }
+
+        return prepared;
+    }
+
     private DependencyObject? ResolveTarget(string targetName)
     {
         if (string.IsNullOrWhiteSpace(targetName))
@@ -213,6 +297,14 @@ internal sealed class TemplateTriggerEngine
             return _owner;
         }
 
-        return _resolveTargetByName(targetName) as DependencyObject;
+        if (_targetCache.TryGetValue(targetName, out var cached))
+        {
+            return cached;
+        }
+
+        var resolved = _resolveTargetByName(targetName) as DependencyObject;
+        _targetCache[targetName] = resolved;
+        return resolved;
     }
+
 }

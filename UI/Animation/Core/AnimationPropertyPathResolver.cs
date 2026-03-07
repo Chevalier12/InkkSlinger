@@ -10,6 +10,12 @@ namespace InkkSlinger;
 
 internal static class AnimationPropertyPathResolver
 {
+    private static readonly object CacheSync = new();
+    private static readonly Dictionary<string, IReadOnlyList<PathSegment>> ParsedSegmentsCache = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, Type> ElementTypeCache = new(StringComparer.Ordinal);
+    private static readonly Dictionary<(Type OwnerType, string PropertyName), DependencyProperty?> DependencyPropertyCache = new();
+    private static readonly Dictionary<(Type CurrentType, string? OwnerTypeName, string PropertyName), PropertyInfo?> PropertyCache = new();
+
     public static AnimationValueSink? Resolve(object root, string propertyPath)
     {
         if (root == null || string.IsNullOrWhiteSpace(propertyPath))
@@ -84,27 +90,56 @@ internal static class AnimationPropertyPathResolver
 
     private static PropertyInfo? ResolveProperty(Type currentType, string? ownerTypeName, string propertyName)
     {
+        var cacheKey = (currentType, ownerTypeName, propertyName);
+        lock (CacheSync)
+        {
+            if (PropertyCache.TryGetValue(cacheKey, out var cached))
+            {
+                return cached;
+            }
+        }
+
         var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy;
+        PropertyInfo? resolved = null;
 
         if (!string.IsNullOrWhiteSpace(ownerTypeName))
         {
             var ownerType = ResolveElementType(ownerTypeName);
             if (ownerType.IsAssignableFrom(currentType))
             {
-                return currentType.GetProperty(propertyName, flags) ?? ownerType.GetProperty(propertyName, flags);
+                resolved = currentType.GetProperty(propertyName, flags) ?? ownerType.GetProperty(propertyName, flags);
             }
         }
 
-        return currentType.GetProperty(propertyName, flags);
+        resolved ??= currentType.GetProperty(propertyName, flags);
+        lock (CacheSync)
+        {
+            PropertyCache[cacheKey] = resolved;
+        }
+
+        return resolved;
     }
 
     private static Type ResolveElementType(string typeName)
     {
+        lock (CacheSync)
+        {
+            if (ElementTypeCache.TryGetValue(typeName, out var cached))
+            {
+                return cached;
+            }
+        }
+
         var type = typeof(UIElement).Assembly
             .GetTypes()
             .FirstOrDefault(t => t.IsPublic && string.Equals(t.Name, typeName, StringComparison.Ordinal));
         if (type != null)
         {
+            lock (CacheSync)
+            {
+                ElementTypeCache[typeName] = type;
+            }
+
             return type;
         }
 
@@ -113,21 +148,45 @@ internal static class AnimationPropertyPathResolver
 
     private static DependencyProperty? ResolveDependencyPropertyOnType(Type ownerType, string propertyName)
     {
+        var cacheKey = (ownerType, propertyName);
+        lock (CacheSync)
+        {
+            if (DependencyPropertyCache.TryGetValue(cacheKey, out var cached))
+            {
+                return cached;
+            }
+        }
+
         var fieldName = propertyName + "Property";
+        DependencyProperty? resolved = null;
         for (var current = ownerType; current != null; current = current.BaseType)
         {
             var field = current.GetField(fieldName, BindingFlags.Public | BindingFlags.Static);
             if (field?.FieldType == typeof(DependencyProperty))
             {
-                return (DependencyProperty?)field.GetValue(null);
+                resolved = (DependencyProperty?)field.GetValue(null);
+                break;
             }
         }
 
-        return null;
+        lock (CacheSync)
+        {
+            DependencyPropertyCache[cacheKey] = resolved;
+        }
+
+        return resolved;
     }
 
     private static IReadOnlyList<PathSegment> ParseSegments(string propertyPath)
     {
+        lock (CacheSync)
+        {
+            if (ParsedSegmentsCache.TryGetValue(propertyPath, out var cached))
+            {
+                return cached;
+            }
+        }
+
         var segments = new List<string>();
         var start = 0;
         var parenDepth = 0;
@@ -170,7 +229,13 @@ internal static class AnimationPropertyPathResolver
             segments.Add(last);
         }
 
-        return segments.Select(ParseSegment).ToArray();
+        var parsed = segments.Select(ParseSegment).ToArray();
+        lock (CacheSync)
+        {
+            ParsedSegmentsCache[propertyPath] = parsed;
+        }
+
+        return parsed;
     }
 
     private static PathSegment ParseSegment(string token)

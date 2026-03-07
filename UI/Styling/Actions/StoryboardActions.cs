@@ -72,6 +72,69 @@ public sealed class BeginStoryboard : TriggerAction
             HandoffBehavior);
     }
 
+    internal void PrepareMetadata(TriggerActionContext context)
+    {
+        var scope = context.Scope ?? context.Target as FrameworkElement;
+        if (scope == null)
+        {
+            return;
+        }
+
+        var storyboard = ResolveStoryboard(scope);
+        if (storyboard == null)
+        {
+            return;
+        }
+
+        AnimationManager.Current.PrepareStoryboardMetadata(storyboard);
+    }
+
+    internal void WarmResolutionPath(TriggerActionContext context)
+    {
+        var scope = context.Scope ?? context.Target as FrameworkElement;
+        if (scope == null)
+        {
+            return;
+        }
+
+        var storyboard = ResolveStoryboard(scope);
+        if (storyboard == null)
+        {
+            return;
+        }
+
+        var resolvedTargetCache = new System.Collections.Generic.Dictionary<string, object?>(StringComparer.Ordinal);
+        var preparedMetadata = AnimationManager.Current.GetOrCreatePreparedStoryboardMetadata(storyboard);
+        foreach (var descriptor in preparedMetadata.Lanes)
+        {
+            object? target;
+            if (string.IsNullOrWhiteSpace(descriptor.Animation.TargetName))
+            {
+                target = scope;
+            }
+            else if (resolvedTargetCache.TryGetValue(descriptor.Animation.TargetName, out var cached))
+            {
+                target = cached;
+            }
+            else
+            {
+                target = context.ResolveByName?.Invoke(descriptor.Animation.TargetName) ??
+                    NameScopeService.FindName(scope, descriptor.Animation.TargetName) ??
+                    scope.FindName(descriptor.Animation.TargetName);
+                resolvedTargetCache[descriptor.Animation.TargetName] = target;
+            }
+
+            if (target == null)
+            {
+                continue;
+            }
+
+            var sink = AnimationPropertyPathResolver.Resolve(target, descriptor.Animation.TargetProperty);
+            _ = sink?.GetValue();
+        }
+    }
+
+
     private Storyboard? ResolveStoryboard(FrameworkElement scope)
     {
         if (Storyboard != null)

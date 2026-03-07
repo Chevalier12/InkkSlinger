@@ -55,6 +55,18 @@ public sealed partial class UiRoot
     private double _lastInputPointerTargetResolveMs;
     private double _lastInputHoverUpdateMs;
     private double _lastInputPointerRouteMs;
+    private double _lastInputPointerMoveDispatchMs;
+    private double _lastInputPointerMoveRoutedEventsMs;
+    private double _lastInputPointerMoveHandlerMs;
+    private double _lastInputPointerMovePreviewEventMs;
+    private double _lastInputPointerMoveBubbleEventMs;
+    private double _lastInputPointerResolveContextMenuCheckMs;
+    private double _lastInputPointerResolveContextMenuOverlayCandidateMs;
+    private double _lastInputPointerResolveContextMenuCachedMenuMs;
+    private double _lastInputPointerResolveHoverReuseCheckMs;
+    private double _lastInputPointerResolveFinalHitTestMs;
+    private double _lastInputToolTipLifecycleMs;
+    private double _lastInputCommandRequeryMs;
     private double _lastInputKeyDispatchMs;
     private double _lastInputTextDispatchMs;
     private double _lastVisualUpdateMs;
