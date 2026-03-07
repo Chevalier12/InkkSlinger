@@ -12,7 +12,7 @@ public class DataGridCell : Control
             typeof(DataGridCell),
             new FrameworkPropertyMetadata(
                 null,
-                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
+                FrameworkPropertyMetadataOptions.AffectsRender,
                 propertyChangedCallback: static (dependencyObject, args) =>
                 {
                     if (dependencyObject is not DataGridCell cell || cell._isSynchronizingContentValue)

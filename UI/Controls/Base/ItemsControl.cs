@@ -272,6 +272,13 @@ public class ItemsControl : Control
     {
     }
 
+    protected virtual void OnItemsResetReconciled()
+    {
+        OnItemsChanged();
+    }
+
+    protected virtual bool ShouldInvalidateMeasureOnItemsResetReconciled => true;
+
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);
@@ -1015,9 +1022,18 @@ public class ItemsControl : Control
         _appliedItemContainerStyles.Clear();
 
         RefreshContainerPreparationFrom(0);
-        OnItemsChanged();
-        (_activeItemsHost as FrameworkElement)?.InvalidateMeasure();
-        InvalidateMeasure();
+        OnItemsResetReconciled();
+        if (ShouldInvalidateMeasureOnItemsResetReconciled)
+        {
+            (_activeItemsHost as FrameworkElement)?.InvalidateMeasure();
+            InvalidateMeasure();
+        }
+        else
+        {
+            (_activeItemsHost as FrameworkElement)?.InvalidateArrange();
+            InvalidateArrange();
+            InvalidateVisual();
+        }
         return true;
     }
 
@@ -1093,13 +1109,35 @@ public class ItemsControl : Control
                 continue;
             }
 
-            if (Equals(entries[i].Item, item))
+            if (ItemsMatchForContainerReuse(entries[i].Item, item))
             {
                 return i;
             }
         }
 
         return -1;
+    }
+
+    private static bool ItemsMatchForContainerReuse(object? left, object? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left == null || right == null)
+        {
+            return false;
+        }
+
+        var leftType = left.GetType();
+        var rightType = right.GetType();
+        if (!leftType.IsValueType && !rightType.IsValueType)
+        {
+            return false;
+        }
+
+        return Equals(left, right);
     }
 
     private static int IndexOfPanelChild(Panel panel, UIElement child)

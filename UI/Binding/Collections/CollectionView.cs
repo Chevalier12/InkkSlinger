@@ -19,6 +19,8 @@ public class CollectionView : ICollectionView
     private int _currentPosition = -1;
     private object? _currentItem;
     private INotifyCollectionChanged? _sourceNotifier;
+    private int _deferRefreshCount;
+    private bool _refreshDeferred;
 
     public CollectionView(IEnumerable source)
     {
@@ -76,7 +78,19 @@ public class CollectionView : ICollectionView
 
     public virtual void Refresh()
     {
+        if (_deferRefreshCount > 0)
+        {
+            _refreshDeferred = true;
+            return;
+        }
+
         RefreshCore();
+    }
+
+    public IDisposable DeferRefresh()
+    {
+        _deferRefreshCount++;
+        return new RefreshDeferral(this);
     }
 
     private void RefreshCore()
@@ -505,6 +519,23 @@ public class CollectionView : ICollectionView
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 
+    private void EndDeferredRefresh()
+    {
+        if (_deferRefreshCount <= 0)
+        {
+            return;
+        }
+
+        _deferRefreshCount--;
+        if (_deferRefreshCount != 0 || !_refreshDeferred)
+        {
+            return;
+        }
+
+        _refreshDeferred = false;
+        RefreshCore();
+    }
+
     private sealed class GroupBucket
     {
         public GroupBucket(object? key)
@@ -515,5 +546,27 @@ public class CollectionView : ICollectionView
         public object? Key { get; }
 
         public List<object?> Items { get; } = [];
+    }
+
+    private sealed class RefreshDeferral : IDisposable
+    {
+        private CollectionView? _owner;
+
+        public RefreshDeferral(CollectionView owner)
+        {
+            _owner = owner;
+        }
+
+        public void Dispose()
+        {
+            var owner = _owner;
+            if (owner == null)
+            {
+                return;
+            }
+
+            _owner = null;
+            owner.EndDeferredRefresh();
+        }
     }
 }

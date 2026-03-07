@@ -164,7 +164,7 @@ public class Panel : FrameworkElement
         clampedNew = Math.Clamp(clampedNew, 0, _children.Count);
         _children.InsertRange(clampedNew, range);
         _zOrderCacheDirty = true;
-        InvalidateMeasure();
+        InvalidateArrange();
         return true;
     }
 

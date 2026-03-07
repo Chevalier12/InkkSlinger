@@ -276,7 +276,6 @@ public sealed partial class UiRoot
         _inputManager.EnqueueTextInput(character);
     }
 
-
     internal void RebuildRenderListForTests()
     {
         RebuildRetainedRenderList();
@@ -391,7 +390,4 @@ public sealed partial class UiRoot
         metrics = default;
         return false;
     }
-
 }
-
-

@@ -1158,7 +1158,6 @@ public sealed partial class UiRoot
         _lastInputRoutedEventCount += 2;
         routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseUpEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseUpEvent, pointerPosition, button, _inputState.CurrentModifiers));
         routedTarget.RaiseRoutedEventInternal(UIElement.MouseUpEvent, new MouseRoutedEventArgs(UIElement.MouseUpEvent, pointerPosition, button, _inputState.CurrentModifiers));
-
         if (_inputState.CapturedPointerElement is DataGrid capturedDataGrid && button == MouseButton.Left)
         {
             _ = capturedDataGrid.HandlePointerUpFromInput(pointerPosition);

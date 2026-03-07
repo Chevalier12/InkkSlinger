@@ -119,6 +119,7 @@ public class DataGrid : ItemsControl
 
     internal int RealizedRowCountForTesting => _rowsPresenter.RowsHost.RealizedChildrenCount;
     internal ScrollViewer ScrollViewerForTesting => _rowsPresenter.ScrollViewer;
+    internal VirtualizingStackPanel RowsHostForTesting => _rowsPresenter.RowsHost;
     internal IReadOnlyList<DataGridRow> RowsForTesting => _rowsPresenter.GetRows(GetItemContainersForPresenter());
     internal bool ColumnHeadersVisibleForTesting => ColumnHeadersVisibleForLayout;
     internal bool RowHeadersVisibleForTesting => RowHeadersVisibleForLayout;
@@ -134,7 +135,7 @@ public class DataGrid : ItemsControl
     internal float EffectiveRowHeightForLayout => GetEffectiveRowHeight();
 
     protected override bool IncludeGeneratedChildrenInVisualTree => false;
-    protected override bool CanReconcileProjectedContainersOnReset => false;
+    protected override bool CanReconcileProjectedContainersOnReset => true;
 
     public override IEnumerable<UIElement> GetVisualChildren()
     {
@@ -171,6 +172,13 @@ public class DataGrid : ItemsControl
         RefreshGridState(refreshColumns: _columns.Count == 0);
     }
 
+    protected override void OnItemsResetReconciled()
+    {
+        RefreshGridState(refreshColumns: false, invalidateMeasure: false);
+    }
+
+    protected override bool ShouldInvalidateMeasureOnItemsResetReconciled => false;
+
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);
@@ -202,7 +210,9 @@ public class DataGrid : ItemsControl
         _cornerHeader.Measure(new Vector2(rowHeaderWidth, headerHeight));
         _headersPresenter.MeasureHeaders(GetDisplayColumns(), headerHeight);
         _rowsPresenter.ScrollViewer.Measure(new Vector2(innerWidth, MathF.Max(0f, innerHeight - headerHeight)));
-        return new Vector2(MathF.Max(rowHeaderWidth + GetColumnsTotalWidth(), _rowsPresenter.ScrollViewer.DesiredSize.X) + (border * 2f), headerHeight + _rowsPresenter.ScrollViewer.DesiredSize.Y + (border * 2f));
+        return new Vector2(
+            MathF.Max(rowHeaderWidth + GetColumnsTotalWidth(), _rowsPresenter.ScrollViewer.DesiredSize.X) + (border * 2f),
+            headerHeight + _rowsPresenter.ScrollViewer.DesiredSize.Y + (border * 2f));
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
@@ -553,16 +563,19 @@ public class DataGrid : ItemsControl
         return Math.Max(1, (int)MathF.Floor(_rowsPresenter.ScrollViewer.ViewportHeight / rowHeight));
     }
 
-    private void RefreshGridState(bool refreshColumns)
+    private void RefreshGridState(bool refreshColumns, bool invalidateMeasure = true)
     {
         if (refreshColumns) { RefreshColumnStates(); } else { SyncColumnStateSortDirectionsFromView(); }
         RefreshRowStates();
         RefreshRowDetailsState();
         SyncSelectionStateFromProperties();
         _headersPresenter.SyncHeaders(this, GetDisplayColumns(), Font, OnColumnHeaderClick);
-        SyncRowsHost();
+        SyncRowsHost(invalidateMeasure: invalidateMeasure);
         SyncObservedItems();
-        InvalidateMeasure();
+        if (invalidateMeasure)
+        {
+            InvalidateMeasure();
+        }
         InvalidateArrange();
         InvalidateVisual();
     }
@@ -659,7 +672,7 @@ public class DataGrid : ItemsControl
         InvalidateVisual();
     }
 
-    private void SyncRowsHost(int startIndex = 0) => _rowsPresenter.SyncRows(this, _state.Rows, GetDisplayColumns(), startIndex);
+    private void SyncRowsHost(int startIndex = 0, bool invalidateMeasure = true) => _rowsPresenter.SyncRows(this, _state.Rows, GetDisplayColumns(), startIndex, invalidateMeasure);
     private IReadOnlyList<DataGridColumnState> GetDisplayColumns() => _state.Columns.OrderBy(static item => item.DisplayIndex).ToArray();
 
     private void UpdateSelectionVisuals()
@@ -690,7 +703,12 @@ public class DataGrid : ItemsControl
         if (displayIndex < 0 || displayIndex >= displayColumns.Count) { return; }
         var columnState = displayColumns[displayIndex];
         if (!columnState.Column.CanUserSort) { return; }
-        var nextSortDirection = columnState.SortDirection switch { DataGridSortDirection.None => DataGridSortDirection.Ascending, DataGridSortDirection.Ascending => DataGridSortDirection.Descending, _ => DataGridSortDirection.None };
+        var nextSortDirection = columnState.SortDirection switch
+        {
+            DataGridSortDirection.None => DataGridSortDirection.Ascending,
+            DataGridSortDirection.Ascending => DataGridSortDirection.Descending,
+            _ => DataGridSortDirection.None
+        };
         ApplySortToItemsSourceView(columnState, nextSortDirection);
         SyncColumnStateSortDirectionsFromView();
         SyncHeaderSortDirections();
@@ -701,11 +719,45 @@ public class DataGrid : ItemsControl
     {
         var view = ItemsSourceView;
         if (view == null) { return; }
-        for (var i = view.SortDescriptions.Count - 1; i >= 0; i--) { view.SortDescriptions.RemoveAt(i); }
-        var bindingPath = columnState.Column.BindingPath ?? string.Empty;
-        if (nextSortDirection == DataGridSortDirection.Ascending) { view.SortDescriptions.Add(new SortDescription(bindingPath, ListSortDirection.Ascending)); }
-        else if (nextSortDirection == DataGridSortDirection.Descending) { view.SortDescriptions.Add(new SortDescription(bindingPath, ListSortDirection.Descending)); }
-        view.Refresh();
+        if (view is CollectionView collectionView)
+        {
+            using (collectionView.DeferRefresh())
+            {
+                for (var i = view.SortDescriptions.Count - 1; i >= 0; i--)
+                {
+                    view.SortDescriptions.RemoveAt(i);
+                }
+
+                var deferredBindingPath = columnState.Column.BindingPath ?? string.Empty;
+                if (nextSortDirection == DataGridSortDirection.Ascending)
+                {
+                    view.SortDescriptions.Add(new SortDescription(deferredBindingPath, ListSortDirection.Ascending));
+                }
+                else if (nextSortDirection == DataGridSortDirection.Descending)
+                {
+                    view.SortDescriptions.Add(new SortDescription(deferredBindingPath, ListSortDirection.Descending));
+                }
+            }
+        }
+        else
+        {
+            for (var i = view.SortDescriptions.Count - 1; i >= 0; i--)
+            {
+                view.SortDescriptions.RemoveAt(i);
+            }
+
+            var fallbackBindingPath = columnState.Column.BindingPath ?? string.Empty;
+            if (nextSortDirection == DataGridSortDirection.Ascending)
+            {
+                view.SortDescriptions.Add(new SortDescription(fallbackBindingPath, ListSortDirection.Ascending));
+            }
+            else if (nextSortDirection == DataGridSortDirection.Descending)
+            {
+                view.SortDescriptions.Add(new SortDescription(fallbackBindingPath, ListSortDirection.Descending));
+            }
+
+            view.Refresh();
+        }
     }
 
     private void SyncColumnStateSortDirectionsFromView()

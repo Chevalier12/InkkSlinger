@@ -148,6 +148,39 @@ public class DataGridCollectionViewTests
     }
 
     [Fact]
+    public void DataGrid_HeaderSort_ReusesExistingRowContainers()
+    {
+        var source = new ObservableCollection<Row>
+        {
+            new(2, "Bravo"),
+            new(1, "Alpha"),
+            new(3, "Charlie")
+        };
+
+        var grid = new DataGrid
+        {
+            ItemsSource = source
+        };
+
+        grid.Measure(new Microsoft.Xna.Framework.Vector2(600, 400));
+        grid.Arrange(new LayoutRect(0, 0, 600, 400));
+
+        var rowsBefore = grid.RowsForTesting.ToArray();
+        var header = Assert.Single(grid.ColumnHeadersForTesting, static item => item.Text == nameof(Row.Name));
+
+        header.RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
+
+        var rowsAfter = grid.RowsForTesting.ToArray();
+        Assert.Equal(rowsBefore.Length, rowsAfter.Length);
+        Assert.Same(rowsBefore[1], rowsAfter[0]);
+        Assert.Same(rowsBefore[0], rowsAfter[1]);
+        Assert.Same(rowsBefore[2], rowsAfter[2]);
+        Assert.Same(source[1], rowsAfter[0].Item);
+        Assert.Same(source[0], rowsAfter[1].Item);
+        Assert.Same(source[2], rowsAfter[2].Item);
+    }
+
+    [Fact]
     public void DataGrid_ItemPropertyChange_UpdatesVisibleCellWithoutRebuildingRow()
     {
         var source = new ObservableCollection<ObservableRow>

@@ -38,7 +38,8 @@ internal sealed class DataGridRowsPresenter
         DataGrid owner,
         IReadOnlyList<DataGridRowState> rows,
         IReadOnlyList<DataGridColumnState> displayColumns,
-        int startIndex)
+        int startIndex,
+        bool invalidateMeasure = true)
     {
         var itemContainers = owner.GetItemContainersForPresenter();
         if (rows.Count == 0 || itemContainers.Count == 0)
@@ -76,8 +77,14 @@ internal sealed class DataGridRowsPresenter
         }
 
         RowsHost.IsVirtualizing = owner.EnableRowVirtualization;
-        RowsHost.InvalidateMeasure();
-        RowsHost.InvalidateArrange();
+        if (invalidateMeasure)
+        {
+            RowsHost.InvalidateMeasure();
+        }
+        else
+        {
+            RowsHost.InvalidateArrange();
+        }
     }
 
     public IReadOnlyList<DataGridRow> GetRows(IReadOnlyList<UIElement> itemContainers)

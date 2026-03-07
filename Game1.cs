@@ -8,7 +8,6 @@ namespace InkkSlinger;
 public class Game1 : Game
 {
     private static readonly bool EnableExperimentalPartialRedraw = true;
-
     private readonly GraphicsDeviceManager _graphics;
     private readonly InkkSlinger.Window _window;
     private SpriteBatch _spriteBatch = null!;
