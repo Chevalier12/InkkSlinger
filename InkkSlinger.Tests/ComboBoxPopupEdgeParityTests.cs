@@ -67,6 +67,24 @@ public sealed class ComboBoxPopupEdgeParityTests
     }
 
     [Fact]
+    public void OutsideClick_AfterClickOpeningDropDown_ShouldCloseDropDown()
+    {
+        var (uiRoot, comboBox) = CreateFixture();
+        var clickPoint = new Vector2(
+            comboBox.LayoutSlot.X + (comboBox.LayoutSlot.Width / 2f),
+            comboBox.LayoutSlot.Y + (comboBox.LayoutSlot.Height / 2f));
+
+        Click(uiRoot, clickPoint);
+        Assert.True(comboBox.IsDropDownOpen);
+        Assert.True(comboBox.IsDropDownPopupOpenForTesting);
+
+        Click(uiRoot, new Vector2(6f, 6f));
+
+        Assert.False(comboBox.IsDropDownOpen);
+        Assert.False(comboBox.IsDropDownPopupOpenForTesting);
+    }
+
+    [Fact]
     public void SelectionFromDropDown_ShouldCloseDropDown_AndPersistSelection()
     {
         var (uiRoot, comboBox) = CreateFixture();

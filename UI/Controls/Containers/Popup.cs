@@ -299,6 +299,7 @@ public class Popup : ContentControl
         _host = host;
         _host.LayoutUpdated += OnHostLayoutUpdated;
         host.AddChild(this);
+        UiRoot.Current?.NotifyOverlayVisualTreeMutation();
         _isOpen = true;
         Activate();
         UpdatePlacement();
@@ -331,6 +332,7 @@ public class Popup : ContentControl
         _isClosePressed = false;
         _isDragging = false;
 
+        UiRoot.Current?.NotifyOverlayVisualTreeMutation();
         _host.RemoveChild(this);
         _host.LayoutUpdated -= OnHostLayoutUpdated;
         _host = null;

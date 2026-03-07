@@ -2376,6 +2376,11 @@ public sealed partial class UiRoot
         _cachedTopOverlayCandidateVersion = -1;
     }
 
+    internal void NotifyOverlayVisualTreeMutation()
+    {
+        InvalidateOverlayCandidateCache();
+    }
+
     private static bool IsElementDescendantOf(UIElement element, UIElement ancestor)
     {
         for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
