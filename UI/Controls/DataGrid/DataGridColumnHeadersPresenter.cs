@@ -14,7 +14,6 @@ internal sealed class DataGridColumnHeadersPresenter
     public void SyncHeaders(
         DataGrid owner,
         IReadOnlyList<DataGridColumnState> displayColumns,
-        SpriteFont? font,
         EventHandler<RoutedSimpleEventArgs> clickHandler)
     {
         if (_headers.Count == displayColumns.Count)
@@ -22,7 +21,7 @@ internal sealed class DataGridColumnHeadersPresenter
             for (var i = 0; i < displayColumns.Count; i++)
             {
                 _headers[i].Owner = owner;
-                _headers[i].BindState(displayColumns[i], font);
+                _headers[i].BindState(displayColumns[i]);
             }
 
             return;
@@ -41,10 +40,9 @@ internal sealed class DataGridColumnHeadersPresenter
         {
             var header = new DataGridColumnHeader
             {
-                Font = font,
                 Owner = owner
             };
-            header.BindState(displayColumns[i], font);
+            header.BindState(displayColumns[i]);
             header.Click += clickHandler;
             header.SetVisualParent(owner);
             header.SetLogicalParent(owner);

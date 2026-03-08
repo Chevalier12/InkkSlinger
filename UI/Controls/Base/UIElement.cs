@@ -468,51 +468,35 @@ public class UIElement : DependencyObject
 
     public virtual void InvalidateMeasure()
     {
-        var totalStart = Stopwatch.GetTimestamp();
         Dispatcher.VerifyAccess();
         if (NeedsMeasure)
         {
             return;
         }
 
-        var phaseStart = Stopwatch.GetTimestamp();
         NeedsMeasure = true;
         _measureInvalidationCount++;
         _layoutVersionStamp++;
         MarkSubtreeDirty();
-
-        phaseStart = Stopwatch.GetTimestamp();
         UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Measure, this);
-
-        phaseStart = Stopwatch.GetTimestamp();
         InvalidateArrange();
-
-        phaseStart = Stopwatch.GetTimestamp();
         GetInvalidationParent()?.InvalidateMeasure();
     }
 
     public virtual void InvalidateArrange()
     {
-        var totalStart = Stopwatch.GetTimestamp();
         Dispatcher.VerifyAccess();
         if (NeedsArrange)
         {
             return;
         }
 
-        var phaseStart = Stopwatch.GetTimestamp();
         NeedsArrange = true;
         _arrangeInvalidationCount++;
         _layoutVersionStamp++;
         MarkSubtreeDirty();
-
-        phaseStart = Stopwatch.GetTimestamp();
         UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Arrange, this);
-
-        phaseStart = Stopwatch.GetTimestamp();
         InvalidateVisual();
-
-        phaseStart = Stopwatch.GetTimestamp();
         GetInvalidationParent()?.InvalidateArrange();
     }
 
@@ -616,23 +600,15 @@ public class UIElement : DependencyObject
 
     internal void SetVisualParent(UIElement? parent)
     {
-        var totalStart = Stopwatch.GetTimestamp();
         if (ReferenceEquals(VisualParent, parent))
         {
             return;
         }
 
-        var phaseStart = Stopwatch.GetTimestamp();
         var oldParent = VisualParent;
         VisualParent = parent;
-
-        phaseStart = Stopwatch.GetTimestamp();
         OnVisualParentChanged(oldParent, parent);
-
-        phaseStart = Stopwatch.GetTimestamp();
         UiRoot.Current?.NotifyVisualStructureChanged(this, oldParent, parent);
-
-        phaseStart = Stopwatch.GetTimestamp();
         NotifyBindingTreeChanged(this);
         _suppressNextLogicalBindingTreeNotify = true;
         _suppressNextLogicalParentChanged = true;
@@ -640,17 +616,13 @@ public class UIElement : DependencyObject
 
     internal void SetLogicalParent(UIElement? parent)
     {
-        var totalStart = Stopwatch.GetTimestamp();
         if (ReferenceEquals(LogicalParent, parent))
         {
             return;
         }
 
-        var phaseStart = Stopwatch.GetTimestamp();
         var oldParent = LogicalParent;
         LogicalParent = parent;
-
-        phaseStart = Stopwatch.GetTimestamp();
         var shouldRunLogicalParentChanged = !(ReferenceEquals(parent, VisualParent) && _suppressNextLogicalParentChanged);
         if (shouldRunLogicalParentChanged)
         {
@@ -659,7 +631,6 @@ public class UIElement : DependencyObject
 
         _suppressNextLogicalParentChanged = false;
 
-        phaseStart = Stopwatch.GetTimestamp();
         var shouldNotifyBindingTree = !ReferenceEquals(parent, VisualParent) && !_suppressNextLogicalBindingTreeNotify;
         if (shouldNotifyBindingTree)
         {
@@ -681,7 +652,6 @@ public class UIElement : DependencyObject
 
     protected virtual void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
-        var phaseStart = Stopwatch.GetTimestamp();
         var inheritableProperties = new[]
         {
             UIElement.IsEnabledProperty,
@@ -690,8 +660,6 @@ public class UIElement : DependencyObject
             FrameworkElement.UseLayoutRoundingProperty
         };
 
-        phaseStart = Stopwatch.GetTimestamp();
-        var propagatedCount = 0;
         foreach (var property in inheritableProperties)
         {
             if (!property.IsApplicableTo(this))
@@ -721,7 +689,6 @@ public class UIElement : DependencyObject
             if (!Equals(oldInheritedValue, newInheritedValue))
             {
                 NotifyInheritedPropertyChanged(property);
-                propagatedCount++;
             }
         }
     }
@@ -790,7 +757,6 @@ public class UIElement : DependencyObject
 
     private static void NotifyBindingTreeChanged(UIElement root)
     {
-        var start = Stopwatch.GetTimestamp();
         var visited = new HashSet<UIElement>();
         NotifyBindingTreeChanged(root, visited);
     }

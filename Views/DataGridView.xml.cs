@@ -8,9 +8,12 @@ public partial class DataGridView : UserControl
     public DataGridView()
     {
         InitializeComponent();
-        if (this.FindName("DemoHost") is ContentControl demoHost)
+        var demoHost = this.FindName("DemoHost") as ContentControl;
+
+        if (demoHost is not null)
         {
-            demoHost.Content = ControlDemoSupport.BuildSampleElement("DataGrid");
+            var sample = ControlDemoSupport.BuildSampleElement("DataGrid");
+            demoHost.Content = sample;
         }
     }
 
@@ -21,7 +24,7 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        ControlDemoSupport.ApplyFontRecursive(this, font);
+        ControlDemoSupport.ApplyCatalogPreviewFont(this, font);
     }
 }
 

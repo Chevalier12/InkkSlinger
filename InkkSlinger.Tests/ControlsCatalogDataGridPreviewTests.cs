@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Xunit;
@@ -72,6 +73,51 @@ public sealed class ControlsCatalogDataGridPreviewTests
             dirtyRegions.Any(region => Intersects(region, rowBounds)));
     }
 
+    [Fact]
+    public void CatalogPreviewFontApplication_ShouldUseInheritedFontForDataGridBranch()
+    {
+        var view = new ControlsCatalogView();
+        var appliedFont = (SpriteFont)RuntimeHelpers.GetUninitializedObject(typeof(SpriteFont));
+        var showControl = typeof(ControlsCatalogView).GetMethod("ShowControl", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(showControl);
+
+        view.SetFont(appliedFont);
+        showControl!.Invoke(view, ["DataGrid"]);
+
+        var uiRoot = new UiRoot(view);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 1280, 820));
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(view);
+        Assert.NotNull(dataGrid);
+        Assert.Same(appliedFont, dataGrid!.Font);
+        Assert.Equal(DependencyPropertyValueSource.Inherited, dataGrid.GetValueSource(Control.FontProperty));
+
+        var scrollViewer = dataGrid.ScrollViewerForTesting;
+        Assert.Same(appliedFont, scrollViewer.Font);
+        Assert.Equal(DependencyPropertyValueSource.Inherited, scrollViewer.GetValueSource(Control.FontProperty));
+        var verticalBar = GetPrivateScrollBar(scrollViewer, "_verticalBar");
+        var horizontalBar = GetPrivateScrollBar(scrollViewer, "_horizontalBar");
+        Assert.Equal(DependencyPropertyValueSource.Default, verticalBar.GetValueSource(UIElement.IsVisibleProperty));
+        Assert.Equal(DependencyPropertyValueSource.Default, horizontalBar.GetValueSource(UIElement.IsVisibleProperty));
+
+        var header = Assert.Single(dataGrid.ColumnHeadersForTesting, static item => item.Text == "Id");
+        Assert.Same(appliedFont, header.Font);
+        Assert.Equal(DependencyPropertyValueSource.Inherited, header.GetValueSource(Control.FontProperty));
+
+        Assert.NotEmpty(dataGrid.RowsForTesting);
+        var firstRow = dataGrid.RowsForTesting[0];
+        Assert.Equal(DependencyPropertyValueSource.Default, firstRow.GetValueSource(FrameworkElement.HeightProperty));
+        var firstCell = firstRow.Cells[0];
+        Assert.Same(appliedFont, firstCell.Font);
+        Assert.Equal(DependencyPropertyValueSource.Inherited, firstCell.GetValueSource(Control.FontProperty));
+
+        var rowHeader = firstRow.RowHeaderForTesting;
+        Assert.Same(appliedFont, rowHeader.Font);
+        Assert.Equal(DependencyPropertyValueSource.Inherited, rowHeader.GetValueSource(Control.FontProperty));
+    }
+
     private static TElement? FindFirstVisualChild<TElement>(UIElement root)
         where TElement : UIElement
     {
@@ -98,5 +144,14 @@ public sealed class ControlsCatalogDataGridPreviewTests
                left.X + left.Width > right.X &&
                left.Y < right.Y + right.Height &&
                left.Y + left.Height > right.Y;
+    }
+
+    private static ScrollBar GetPrivateScrollBar(ScrollViewer viewer, string fieldName)
+    {
+        var field = typeof(ScrollViewer).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        var value = field!.GetValue(viewer);
+        Assert.IsType<ScrollBar>(value);
+        return (ScrollBar)value!;
     }
 }

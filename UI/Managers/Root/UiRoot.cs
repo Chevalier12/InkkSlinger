@@ -177,6 +177,16 @@ public sealed partial class UiRoot
 
     public bool HasPendingRenderInvalidation => _hasRenderInvalidation;
 
+    internal string LastPointerResolvePathForDiagnostics => _lastPointerResolvePath;
+
+    internal double LastPointerTargetResolveMsForDiagnostics => _lastInputPointerTargetResolveMs;
+
+    internal int LastInputHitTestCountForDiagnostics => _lastInputHitTestCount;
+
+    internal int LastInputRoutedEventCountForDiagnostics => _lastInputRoutedEventCount;
+
+    internal int LastInputPointerEventCountForDiagnostics => _lastInputPointerEventCount;
+
     public int LastDirtyRectCount { get; private set; }
 
     public double LastDirtyAreaPercentage { get; private set; }

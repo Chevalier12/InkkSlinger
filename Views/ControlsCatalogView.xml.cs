@@ -35,7 +35,7 @@ public partial class ControlsCatalogView : UserControl
         }
 
         _catalogFont = font;
-        ControlDemoSupport.ApplyFontRecursive(this, font);
+        ControlDemoSupport.ApplyCatalogPreviewFont(this, font);
     }
 
     private void BuildButtons()
@@ -71,9 +71,8 @@ public partial class ControlsCatalogView : UserControl
             HarmonizePreviewChrome(view);
             if (_catalogFont != null)
             {
-                ControlDemoSupport.ApplyFontRecursive(view, _catalogFont);
+                ControlDemoSupport.ApplyCatalogPreviewFont(view, _catalogFont);
             }
-
             _previewHost.Content = view;
         }
     }
@@ -82,9 +81,12 @@ public partial class ControlsCatalogView : UserControl
     {
         var typeName = $"InkkSlinger.{controlName}View";
         var type = typeof(ControlsCatalogView).Assembly.GetType(typeName);
-        if (type != null && Activator.CreateInstance(type) is UserControl view)
+        if (type != null)
         {
-            return view;
+            if (Activator.CreateInstance(type) is UserControl view)
+            {
+                return view;
+            }
         }
 
         return new MissingControlView(controlName);

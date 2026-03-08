@@ -183,6 +183,16 @@ public class DataGridRow : Control
         }
     }
 
+    public override void InvalidateMeasure()
+    {
+        base.InvalidateMeasure();
+    }
+
+    protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
+    {
+        base.OnDependencyPropertyChanged(args);
+    }
+
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var rowHeaderWidth = _rowHeaderLaneCoordinator.ResolveWidth(Owner);

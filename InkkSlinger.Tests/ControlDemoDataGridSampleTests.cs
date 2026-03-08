@@ -51,6 +51,18 @@ public sealed class ControlDemoDataGridSampleTests
     }
 
     [Fact]
+    public void DataGridSample_ShouldPreseedChromePropertiesBeforeAttach()
+    {
+        var element = ControlDemoSupport.BuildSampleElement("DataGrid");
+        var dataGrid = Assert.IsType<DataGrid>(element);
+
+        Assert.Equal(1f, dataGrid.BorderThickness);
+        Assert.Equal(DependencyPropertyValueSource.Local, dataGrid.GetValueSource(DataGrid.BorderThicknessProperty));
+        Assert.Equal(DataGridHeadersVisibility.Column, dataGrid.HeadersVisibility);
+        Assert.Equal(DependencyPropertyValueSource.Local, dataGrid.GetValueSource(DataGrid.HeadersVisibilityProperty));
+    }
+
+    [Fact]
     public void DataGridSample_ClickingColumnHeader_ShouldSortRows()
     {
         var element = ControlDemoSupport.BuildSampleElement("DataGrid");
@@ -206,6 +218,178 @@ public sealed class ControlDemoDataGridSampleTests
         Assert.Equal(contentHeight, firstCell.LayoutSlot.Height, 0.5f);
     }
 
+    [Fact]
+    public void DataGridSample_ScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastRow()
+    {
+        var element = ControlDemoSupport.BuildSampleElement("DataGrid");
+        var dataGrid = Assert.IsType<DataGrid>(element);
+
+        var host = new Canvas
+        {
+            Width = 900f,
+            Height = 500f
+        };
+        host.AddChild(dataGrid);
+        Canvas.SetLeft(dataGrid, 20f);
+        Canvas.SetTop(dataGrid, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 900, 500);
+
+        var scrollViewer = dataGrid.ScrollViewerForTesting;
+        scrollViewer.ScrollToVerticalOffset(10000f);
+        RunLayout(uiRoot, 900, 500);
+
+        var rows = dataGrid.RowsForTesting;
+        Assert.NotEmpty(rows);
+        var lastRow = rows[^1];
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        var lastRowBottom = lastRow.LayoutSlot.Y + lastRow.LayoutSlot.Height;
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset. Offset={scrollViewer.VerticalOffset}, Max={maxVerticalOffset}, Extent={scrollViewer.ExtentHeight}, Viewport={scrollViewer.ViewportHeight}.");
+        Assert.True(
+            MathF.Abs(lastRowBottom - viewportBottom) <= 0.5f,
+            $"Expected last row to align with viewport bottom. LastRowBottom={lastRowBottom}, ViewportBottom={viewportBottom}, Offset={scrollViewer.VerticalOffset}, Extent={scrollViewer.ExtentHeight}, Viewport={scrollViewer.ViewportHeight}.");
+    }
+
+    [Fact]
+    public void DataGridView_ScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastRow()
+    {
+        var view = new DataGridView
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+
+        var host = new Canvas
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+        host.AddChild(view);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1200, 520);
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(view);
+        Assert.NotNull(dataGrid);
+
+        var scrollViewer = dataGrid!.ScrollViewerForTesting;
+        scrollViewer.ScrollToVerticalOffset(10000f);
+        RunLayout(uiRoot, 1200, 520);
+
+        var lastRow = dataGrid.RowsForTesting[^1];
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        var lastRowBottom = lastRow.LayoutSlot.Y + lastRow.LayoutSlot.Height;
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset. Offset={scrollViewer.VerticalOffset}, Max={maxVerticalOffset}, Extent={scrollViewer.ExtentHeight}, Viewport={scrollViewer.ViewportHeight}.");
+        Assert.True(
+            MathF.Abs(lastRowBottom - viewportBottom) <= 0.5f,
+            $"Expected last row to align with viewport bottom. LastRowBottom={lastRowBottom}, ViewportBottom={viewportBottom}, Offset={scrollViewer.VerticalOffset}, Extent={scrollViewer.ExtentHeight}, Viewport={scrollViewer.ViewportHeight}.");
+    }
+
+    [Fact]
+    public void DataGridView_WheelScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastRow()
+    {
+        var view = new DataGridView
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+
+        var host = new Canvas
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+        host.AddChild(view);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1200, 520);
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(view);
+        Assert.NotNull(dataGrid);
+
+        var scrollViewer = dataGrid!.ScrollViewerForTesting;
+        var pointer = new Vector2(
+            scrollViewer.LayoutSlot.X + (scrollViewer.LayoutSlot.Width * 0.5f),
+            scrollViewer.LayoutSlot.Y + (scrollViewer.LayoutSlot.Height * 0.5f));
+
+        for (var i = 0; i < 40; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: i == 0, wheelDelta: -120));
+            RunLayout(uiRoot, 1200, 520);
+        }
+
+        var lastRow = dataGrid.RowsForTesting[^1];
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        var lastRowBottom = lastRow.LayoutSlot.Y + lastRow.LayoutSlot.Height;
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset after wheel scroll. Offset={scrollViewer.VerticalOffset}, Max={maxVerticalOffset}, Extent={scrollViewer.ExtentHeight}, Viewport={scrollViewer.ViewportHeight}.");
+        Assert.True(
+            MathF.Abs(lastRowBottom - viewportBottom) <= 0.5f,
+            $"Expected last row to align with viewport bottom after wheel scroll. LastRowBottom={lastRowBottom}, ViewportBottom={viewportBottom}, Offset={scrollViewer.VerticalOffset}, Extent={scrollViewer.ExtentHeight}, Viewport={scrollViewer.ViewportHeight}.");
+    }
+
+    [Fact]
+    public void DataGridView_DraggingVerticalScrollBarToBottom_ShouldNotLeaveBlankSpaceAfterLastRow()
+    {
+        var view = new DataGridView
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+
+        var host = new Canvas
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+        host.AddChild(view);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1200, 520);
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(view);
+        Assert.NotNull(dataGrid);
+
+        var scrollViewer = dataGrid!.ScrollViewerForTesting;
+        var verticalBar = GetPrivateScrollBar(scrollViewer, "_verticalBar");
+        var thumb = verticalBar.GetThumbRectForInput();
+        var thumbCenter = GetCenter(thumb);
+        var bottomPointer = new Vector2(
+            thumbCenter.X,
+            verticalBar.LayoutSlot.Y + verticalBar.LayoutSlot.Height - 2f);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(thumbCenter, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(thumbCenter, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(bottomPointer, pointerMoved: true));
+        RunLayout(uiRoot, 1200, 520);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(bottomPointer, leftReleased: true));
+        RunLayout(uiRoot, 1200, 520);
+
+        var lastRow = dataGrid.RowsForTesting[^1];
+        var viewportBottom = scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight;
+        var lastRowBottom = lastRow.LayoutSlot.Y + lastRow.LayoutSlot.Height;
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset after scrollbar drag. Offset={scrollViewer.VerticalOffset}, Max={maxVerticalOffset}, Extent={scrollViewer.ExtentHeight}, Viewport={scrollViewer.ViewportHeight}.");
+        Assert.True(
+            MathF.Abs(lastRowBottom - viewportBottom) <= 0.5f,
+            $"Expected last row to align with viewport bottom after scrollbar drag. LastRowBottom={lastRowBottom}, ViewportBottom={viewportBottom}, Offset={scrollViewer.VerticalOffset}, Extent={scrollViewer.ExtentHeight}, Viewport={scrollViewer.ViewportHeight}.");
+    }
+
     private static TElement? FindFirstVisualChild<TElement>(UIElement root)
         where TElement : UIElement
     {
@@ -249,6 +433,7 @@ public sealed class ControlDemoDataGridSampleTests
     private static InputDelta CreatePointerDelta(
         Vector2 pointer,
         bool pointerMoved = false,
+        int wheelDelta = 0,
         bool leftPressed = false,
         bool leftReleased = false)
     {
@@ -260,7 +445,7 @@ public sealed class ControlDemoDataGridSampleTests
             ReleasedKeys = new List<Keys>(),
             TextInput = new List<char>(),
             PointerMoved = pointerMoved,
-            WheelDelta = 0,
+            WheelDelta = wheelDelta,
             LeftPressed = leftPressed,
             LeftReleased = leftReleased,
             RightPressed = false,
@@ -287,5 +472,12 @@ public sealed class ControlDemoDataGridSampleTests
         }
 
         return null;
+    }
+
+    private static ScrollBar GetPrivateScrollBar(ScrollViewer viewer, string fieldName)
+    {
+        var field = typeof(ScrollViewer).GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<ScrollBar>(field!.GetValue(viewer));
     }
 }

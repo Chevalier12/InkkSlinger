@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -622,18 +621,17 @@ public class FrameworkElement : UIElement
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
-        var totalStart = Stopwatch.GetTimestamp();
         base.OnVisualParentChanged(oldParent, newParent);
 
-        var phaseStart = Stopwatch.GetTimestamp();
+        var resourceScopeChanged = HasMaterialResourceScopeChange(oldParent, newParent);
         DetachResourceParent();
         AttachResourceParent(newParent as FrameworkElement);
-        RefreshResourceBindings();
-        UpdateImplicitStyle();
-        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
-        NotifyDescendantResourcesChanged();
-
-        phaseStart = Stopwatch.GetTimestamp();
+        if (resourceScopeChanged)
+        {
+            RefreshResourceBindings();
+            UpdateImplicitStyle();
+            RaiseResourceScopeInvalidated();
+        }
         if (oldParent is FrameworkElement oldFrameworkParent && oldFrameworkParent.IsLoaded && IsLoaded)
         {
             RaiseUnloaded();
@@ -647,7 +645,6 @@ public class FrameworkElement : UIElement
 
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
     {
-        var totalStart = Stopwatch.GetTimestamp();
         base.OnLogicalParentChanged(oldParent, newParent);
 
         if (VisualParent != null)
@@ -655,15 +652,15 @@ public class FrameworkElement : UIElement
             return;
         }
 
-        var phaseStart = Stopwatch.GetTimestamp();
+        var resourceScopeChanged = HasMaterialResourceScopeChange(oldParent, newParent);
         DetachResourceParent();
         AttachResourceParent(newParent as FrameworkElement);
-        RefreshResourceBindings();
-        UpdateImplicitStyle();
-        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
-        NotifyDescendantResourcesChanged();
-
-        phaseStart = Stopwatch.GetTimestamp();
+        if (resourceScopeChanged)
+        {
+            RefreshResourceBindings();
+            UpdateImplicitStyle();
+            RaiseResourceScopeInvalidated();
+        }
         if (oldParent is FrameworkElement oldFrameworkParent && oldFrameworkParent.IsLoaded && IsLoaded)
         {
             RaiseUnloaded();
@@ -799,11 +796,83 @@ public class FrameworkElement : UIElement
         {
             if (child is FrameworkElement frameworkChild)
             {
-                frameworkChild.RefreshResourceBindings();
-                frameworkChild.ResourceScopeInvalidated?.Invoke(frameworkChild, EventArgs.Empty);
+                if (frameworkChild.RequiresDirectResourceScopeRefresh())
+                {
+                    frameworkChild.RefreshResourceBindings();
+                    frameworkChild.RaiseResourceScopeInvalidated();
+                }
+
                 frameworkChild.NotifyDescendantResourcesChanged();
             }
         }
+    }
+
+    private bool RequiresDirectResourceScopeRefresh()
+    {
+        return _dynamicResourceBindings.Count > 0 ||
+               HasResourceScopeInvalidatedSubscribers() ||
+               ShouldRefreshImplicitStyleFromResourceScope();
+    }
+
+    private bool HasResourceScopeInvalidatedSubscribers()
+    {
+        return ResourceScopeInvalidated != null;
+    }
+
+    private void RaiseResourceScopeInvalidated()
+    {
+        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool ShouldRefreshImplicitStyleFromResourceScope()
+    {
+        return !IsControlType() && ImplicitStylePolicy.ShouldApply(Style, _activeImplicitStyle);
+    }
+
+    private static bool HasMaterialResourceScopeChange(UIElement? oldParent, UIElement? newParent)
+    {
+        var oldAncestors = GetEffectiveResourceAncestors(oldParent);
+        var newAncestors = GetEffectiveResourceAncestors(newParent);
+        if (oldAncestors.Count != newAncestors.Count)
+        {
+            return true;
+        }
+
+        for (var index = 0; index < oldAncestors.Count; index++)
+        {
+            if (!ReferenceEquals(oldAncestors[index], newAncestors[index]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static List<FrameworkElement> GetEffectiveResourceAncestors(UIElement? parent)
+    {
+        var ancestors = new List<FrameworkElement>();
+        for (var current = parent; current != null; current = current.VisualParent)
+        {
+            if (current is not FrameworkElement frameworkElement)
+            {
+                continue;
+            }
+
+            if (!HasMaterialResources(frameworkElement.Resources))
+            {
+                continue;
+            }
+
+            ancestors.Add(frameworkElement);
+        }
+
+        return ancestors;
+    }
+
+    private static bool HasMaterialResources(ResourceDictionary resources)
+    {
+        return resources.Count > 0 || resources.MergedDictionaries.Count > 0;
     }
 
     private static float ResolveAlignedSize(

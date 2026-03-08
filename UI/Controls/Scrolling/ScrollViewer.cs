@@ -216,6 +216,11 @@ public class ScrollViewer : ContentControl
         set => SetValue(LineScrollAmountProperty, value);
     }
 
+    public override void InvalidateMeasure()
+    {
+        base.InvalidateMeasure();
+    }
+
     public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
@@ -399,11 +404,10 @@ public class ScrollViewer : ContentControl
             MathF.Max(0f, availableSize.Y - (border * 2f)));
 
         var decision = ResolveBarsAndMeasureContent(contentBounds);
-        ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight);
+        ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight, publishViewportMetrics: false);
         _showHorizontalBar = decision.ShowHorizontalBar;
         _showVerticalBar = decision.ShowVerticalBar;
         _contentViewportRect = decision.ViewportRect;
-
         UpdateScrollBars();
 
         var desiredViewportWidth = float.IsFinite(contentBounds.Width)
@@ -425,7 +429,7 @@ public class ScrollViewer : ContentControl
         var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
         var fullRect = new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, MathF.Max(0f, finalSize.X - (border * 2f)), MathF.Max(0f, finalSize.Y - (border * 2f)));
         var decision = ResolveBarsForArrange(fullRect);
-        ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight);
+        ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight, publishViewportMetrics: true);
         SetOffsets(HorizontalOffset, VerticalOffset);
         _showHorizontalBar = decision.ShowHorizontalBar;
         _showVerticalBar = decision.ShowVerticalBar;
@@ -434,34 +438,23 @@ public class ScrollViewer : ContentControl
 
         if (_showHorizontalBar)
         {
-            SetIfChanged(_horizontalBar, true);
             _horizontalBar.Arrange(new LayoutRect(
                 fullRect.X,
                 fullRect.Y + fullRect.Height - horizontalBarThickness,
                 MathF.Max(0f, fullRect.Width - GetVerticalBarReservation(_showVerticalBar, verticalBarThickness)),
                 horizontalBarThickness));
         }
-        else
-        {
-            SetIfChanged(_horizontalBar, false);
-        }
 
         if (_showVerticalBar)
         {
-            SetIfChanged(_verticalBar, true);
             _verticalBar.Arrange(new LayoutRect(
                 fullRect.X + fullRect.Width - verticalBarThickness,
                 fullRect.Y,
                 verticalBarThickness,
                 MathF.Max(0f, fullRect.Height - GetHorizontalBarReservation(_showHorizontalBar, horizontalBarThickness))));
         }
-        else
-        {
-            SetIfChanged(_verticalBar, false);
-        }
 
         UpdateScrollBars();
-
         return finalSize;
     }
 
@@ -493,6 +486,7 @@ public class ScrollViewer : ContentControl
         var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
         var showHorizontal = HorizontalScrollBarVisibility == ScrollBarVisibility.Visible;
         var showVertical = VerticalScrollBarVisibility == ScrollBarVisibility.Visible;
+        var preferSinglePass = ShouldPreferSinglePassAutoBarMeasure();
 
         for (var i = 0; i < 2; i++)
         {
@@ -509,6 +503,18 @@ public class ScrollViewer : ContentControl
             if (VerticalScrollBarVisibility == ScrollBarVisibility.Auto)
             {
                 showVertical = extentHeight > viewportHeight + 0.01f;
+            }
+
+            if (preferSinglePass)
+            {
+                return (
+                    showHorizontal,
+                    showVertical,
+                    extentWidth,
+                    extentHeight,
+                    viewportWidth,
+                    viewportHeight,
+                    new LayoutRect(bounds.X, bounds.Y, viewportWidth, viewportHeight));
             }
         }
 
@@ -582,17 +588,27 @@ public class ScrollViewer : ContentControl
         extentHeight = (ContentElement as FrameworkElement)?.DesiredSize.Y ?? 0f;
     }
 
-    private void ApplyScrollMetrics(float extentWidth, float extentHeight, float viewportWidth, float viewportHeight)
+    private void ApplyScrollMetrics(
+        float extentWidth,
+        float extentHeight,
+        float viewportWidth,
+        float viewportHeight,
+        bool publishViewportMetrics)
     {
         var previousExtentWidth = ExtentWidth;
         var previousExtentHeight = ExtentHeight;
         var previousViewportWidth = ViewportWidth;
         var previousViewportHeight = ViewportHeight;
 
-        SetIfChanged(ExtentWidthProperty, CoerceNonNegativeFinite(extentWidth, previousExtentWidth));
-        SetIfChanged(ExtentHeightProperty, CoerceNonNegativeFinite(extentHeight, previousExtentHeight));
-        SetIfChanged(ViewportWidthProperty, CoerceViewportMetric(viewportWidth, previousViewportWidth, ExtentWidth));
-        SetIfChanged(ViewportHeightProperty, CoerceViewportMetric(viewportHeight, previousViewportHeight, ExtentHeight));
+        SetIfChanged(ExtentWidthProperty, CoerceNonNegativeFinite(extentWidth, previousExtentWidth), "scrollviewer_extent_width_write_count");
+        SetIfChanged(ExtentHeightProperty, CoerceNonNegativeFinite(extentHeight, previousExtentHeight), "scrollviewer_extent_height_write_count");
+        if (!publishViewportMetrics)
+        {
+            return;
+        }
+
+        SetIfChanged(ViewportWidthProperty, CoerceViewportMetric(viewportWidth, previousViewportWidth, ExtentWidth), "scrollviewer_viewport_width_write_count");
+        SetIfChanged(ViewportHeightProperty, CoerceViewportMetric(viewportHeight, previousViewportHeight, ExtentHeight), "scrollviewer_viewport_height_write_count");
     }
 
     internal bool HandleMouseWheelFromInput(int delta)
@@ -643,10 +659,18 @@ public class ScrollViewer : ContentControl
 
         if ((horizontalDelta > 0.001f || verticalDelta > 0.001f) &&
             !NeedsMeasure &&
-            !NeedsArrange &&
-            !UsesTransformBasedContentScrolling())
+            !NeedsArrange)
         {
-            ArrangeContentForCurrentOffsets();
+            if (ContentElement is VirtualizingStackPanel)
+            {
+                InvalidateMeasure();
+                InvalidateArrange();
+            }
+            else if (!UsesTransformBasedContentScrolling())
+            {
+                ArrangeContentForCurrentOffsets();
+                InvalidateVisual();
+            }
         }
 
         UpdateScrollBarValues();
@@ -695,6 +719,18 @@ public class ScrollViewer : ContentControl
             contentY,
             arrangedWidth,
             arrangedHeight));
+        content.InvalidateVisual();
+    }
+
+    private bool ShouldPreferSinglePassAutoBarMeasure()
+    {
+        if (ContentElement is not VirtualizingStackPanel)
+        {
+            return false;
+        }
+
+        return HorizontalScrollBarVisibility == ScrollBarVisibility.Auto ||
+               VerticalScrollBarVisibility == ScrollBarVisibility.Auto;
     }
 
     private bool UsesTransformBasedContentScrolling()
@@ -719,8 +755,6 @@ public class ScrollViewer : ContentControl
         SetIfChanged(ScrollBar.MaximumProperty, _verticalBar, ExtentHeight);
         SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, HorizontalOffset);
         SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
-        SetIfChanged(_horizontalBar, _showHorizontalBar);
-        SetIfChanged(_verticalBar, _showVerticalBar);
     }
 
     private float ResolveHorizontalBarThicknessForLayout()
@@ -763,7 +797,7 @@ public class ScrollViewer : ContentControl
         SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
     }
 
-    private void SetIfChanged(DependencyProperty property, float value)
+    private void SetIfChanged(DependencyProperty property, float value, string? diagnosticsCounterName = null)
     {
         if (AreClose(GetValue<float>(property), value))
         {
@@ -771,16 +805,6 @@ public class ScrollViewer : ContentControl
         }
 
         SetValue(property, value);
-    }
-
-    private static void SetIfChanged(ScrollBar scrollBar, bool value)
-    {
-        if (scrollBar.IsVisible == value)
-        {
-            return;
-        }
-
-        scrollBar.IsVisible = value;
     }
 
     private static void SetIfChanged(DependencyProperty property, ScrollBar scrollBar, float value)

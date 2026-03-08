@@ -643,6 +643,7 @@ public class VirtualizingStackPanel : Panel
         _maxSecondarySize = measuredSecondaryMax;
     }
 
+
     private bool RangeNeedsMeasure(int first, int last)
     {
         var clampedFirst = Math.Max(0, first);

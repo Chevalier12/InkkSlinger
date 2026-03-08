@@ -7,7 +7,6 @@ internal sealed class DataGridRowHeaderLaneCoordinator
     public void ConfigureHeader(DataGridRowHeader header, DataGrid owner, DataGridRowState rowState, bool isVisible)
     {
         header.Text = (rowState.RowIndex + 1).ToString();
-        header.Font = owner.Font;
         header.IsVisible = isVisible;
     }
 

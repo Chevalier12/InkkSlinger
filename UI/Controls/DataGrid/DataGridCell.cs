@@ -169,7 +169,6 @@ public class DataGridCell : Control
         _rowState = rowState;
         _columnState = columnState;
         ColumnIndex = columnState.DisplayIndex;
-        Font = owner.Font;
         if (GetValueSource(ForegroundProperty) == DependencyPropertyValueSource.Default)
         {
             Foreground = owner.Foreground;
@@ -286,7 +285,6 @@ public class DataGridCell : Control
                 desired.X = System.MathF.Max(desired.X, editorElement.DesiredSize.X);
                 desired.Y = System.MathF.Max(desired.Y, editorElement.DesiredSize.Y);
             }
-
             return desired;
         }
 
@@ -304,7 +302,6 @@ public class DataGridCell : Control
             desired.X = System.MathF.Max(desired.X, inlineEditor.DesiredSize.X);
             desired.Y = System.MathF.Max(desired.Y, inlineEditor.DesiredSize.Y);
         }
-
         return desired;
     }
 
@@ -320,7 +317,6 @@ public class DataGridCell : Control
         {
             editor.Arrange(new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
         }
-
         return arranged;
     }
 

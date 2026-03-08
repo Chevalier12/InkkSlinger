@@ -35,11 +35,10 @@ public class DataGridColumnHeader : Button
 
     internal int ColumnIndex { get; set; }
 
-    internal void BindState(DataGridColumnState columnState, SpriteFont? font)
+    internal void BindState(DataGridColumnState columnState)
     {
         ColumnIndex = columnState.DisplayIndex;
         Text = columnState.HeaderText;
-        Font = font;
         SortDirection = columnState.SortDirection;
     }
 

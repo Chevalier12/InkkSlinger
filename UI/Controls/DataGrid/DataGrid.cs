@@ -66,6 +66,8 @@ public class DataGrid : ItemsControl
     private bool _isResizingColumn;
     private bool _isPotentialReorder;
     private bool _isDraggingColumn;
+    private bool _syncGridChromeDeferredQueued;
+    private bool _pendingDeferredChromeInvalidateMeasure;
     private int _dragColumnDisplayIndex = -1;
     private float _dragStartPointerX;
     private float _resizeStartPointerX;
@@ -137,6 +139,11 @@ public class DataGrid : ItemsControl
     protected override bool IncludeGeneratedChildrenInVisualTree => false;
     protected override bool CanReconcileProjectedContainersOnReset => true;
 
+    public override void InvalidateMeasure()
+    {
+        base.InvalidateMeasure();
+    }
+
     public override IEnumerable<UIElement> GetVisualChildren()
     {
         yield return _cornerHeader;
@@ -157,7 +164,6 @@ public class DataGrid : ItemsControl
     protected override void PrepareContainerForItemOverride(UIElement element, object item, int index)
     {
         base.PrepareContainerForItemOverride(element, item, index);
-        if (element is DataGridRow row) { row.Height = GetEffectiveRowHeight(); }
     }
 
     protected override void OnItemsChanged()
@@ -188,7 +194,7 @@ public class DataGrid : ItemsControl
             args.Property == GridLinesVisibilityProperty || args.Property == HorizontalGridLinesBrushProperty || args.Property == VerticalGridLinesBrushProperty ||
             args.Property == FrozenColumnCountProperty || args.Property == RowDetailsTemplateProperty)
         {
-            SyncGridChrome();
+            RequestDeferredSyncGridChrome();
         }
 
         if (args.Property == SelectionUnitProperty)
@@ -210,9 +216,10 @@ public class DataGrid : ItemsControl
         _cornerHeader.Measure(new Vector2(rowHeaderWidth, headerHeight));
         _headersPresenter.MeasureHeaders(GetDisplayColumns(), headerHeight);
         _rowsPresenter.ScrollViewer.Measure(new Vector2(innerWidth, MathF.Max(0f, innerHeight - headerHeight)));
-        return new Vector2(
+        var desired = new Vector2(
             MathF.Max(rowHeaderWidth + GetColumnsTotalWidth(), _rowsPresenter.ScrollViewer.DesiredSize.X) + (border * 2f),
             headerHeight + _rowsPresenter.ScrollViewer.DesiredSize.Y + (border * 2f));
+        return desired;
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
@@ -569,7 +576,7 @@ public class DataGrid : ItemsControl
         RefreshRowStates();
         RefreshRowDetailsState();
         SyncSelectionStateFromProperties();
-        _headersPresenter.SyncHeaders(this, GetDisplayColumns(), Font, OnColumnHeaderClick);
+        _headersPresenter.SyncHeaders(this, GetDisplayColumns(), OnColumnHeaderClick);
         SyncRowsHost(invalidateMeasure: invalidateMeasure);
         SyncObservedItems();
         if (invalidateMeasure)
@@ -662,14 +669,36 @@ public class DataGrid : ItemsControl
         }
     }
 
-    private void SyncGridChrome()
+    private void SyncGridChrome(bool invalidateMeasure = true)
     {
         _cornerHeader.Font = Font;
-        _headersPresenter.SyncHeaders(this, GetDisplayColumns(), Font, OnColumnHeaderClick);
+        _headersPresenter.SyncHeaders(this, GetDisplayColumns(), OnColumnHeaderClick);
         SyncRowsHost();
-        InvalidateMeasure();
+        if (invalidateMeasure)
+        {
+            InvalidateMeasure();
+        }
         InvalidateArrange();
         InvalidateVisual();
+    }
+
+
+    private void RequestDeferredSyncGridChrome(bool invalidateMeasure = true)
+    {
+        _pendingDeferredChromeInvalidateMeasure |= invalidateMeasure;
+        if (_syncGridChromeDeferredQueued)
+        {
+            return;
+        }
+
+        _syncGridChromeDeferredQueued = true;
+        Dispatcher.EnqueueDeferred(() =>
+        {
+            _syncGridChromeDeferredQueued = false;
+            var applyInvalidateMeasure = _pendingDeferredChromeInvalidateMeasure;
+            _pendingDeferredChromeInvalidateMeasure = false;
+            SyncGridChrome(applyInvalidateMeasure);
+        });
     }
 
     private void SyncRowsHost(int startIndex = 0, bool invalidateMeasure = true) => _rowsPresenter.SyncRows(this, _state.Rows, GetDisplayColumns(), startIndex, invalidateMeasure);
@@ -999,7 +1028,7 @@ public class DataGrid : ItemsControl
         displayColumns.RemoveAt(sourceDisplayIndex);
         displayColumns.Insert(targetDisplayIndex, moved);
         for (var i = 0; i < displayColumns.Count; i++) { displayColumns[i].DisplayIndex = i; displayColumns[i].Column.DisplayIndex = i; }
-        _headersPresenter.SyncHeaders(this, GetDisplayColumns(), Font, OnColumnHeaderClick);
+        _headersPresenter.SyncHeaders(this, GetDisplayColumns(), OnColumnHeaderClick);
         SyncRowsHost();
         InvalidateArrange();
         InvalidateVisual();

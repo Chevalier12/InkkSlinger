@@ -56,7 +56,6 @@ internal sealed class DataGridRowsPresenter
                 continue;
             }
 
-            row.Height = owner.EffectiveRowHeightForLayout;
             row.Configure(
                 owner,
                 rows[i],

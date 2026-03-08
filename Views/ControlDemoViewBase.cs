@@ -118,12 +118,13 @@ internal static class ControlDemoSupport
 
     private static ObservableCollection<DemoRow> CreateSampleDataGridItemsSource()
     {
-        return new ObservableCollection<DemoRow>(
+        var items = new ObservableCollection<DemoRow>(
             SampleDataGridRows.Select(static row => new DemoRow
             {
                 Id = row.Id,
                 Name = row.Name
             }));
+        return items;
     }
 
     internal static UIElement BuildSampleElement(string controlName)
@@ -206,6 +207,40 @@ internal static class ControlDemoSupport
         foreach (var child in element.GetVisualChildren())
         {
             ApplyFontRecursive(child, font);
+        }
+    }
+
+    internal static void ApplyCatalogPreviewFont(UIElement? element, SpriteFont font)
+    {
+        ApplyCatalogPreviewFont(element, font, applyControlFontToCurrentElement: true);
+    }
+
+    private static void ApplyCatalogPreviewFont(UIElement? element, SpriteFont font, bool applyControlFontToCurrentElement)
+    {
+        if (element == null)
+        {
+            return;
+        }
+
+        if (element is Control control)
+        {
+            if (applyControlFontToCurrentElement)
+            {
+                control.Font = font;
+            }
+            else
+            {
+                return;
+            }
+        }
+        else if (element is TextBlock textBlock)
+        {
+            textBlock.Font = font;
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            ApplyCatalogPreviewFont(child, font, applyControlFontToCurrentElement: false);
         }
     }
 
@@ -335,7 +370,11 @@ internal static class ControlDemoSupport
             }
             case "DataGrid":
             {
-                var dg = new DataGrid();
+                var dg = new DataGrid
+                {
+                    BorderThickness = 1f,
+                    HeadersVisibility = DataGridHeadersVisibility.Column
+                };
                 dg.ItemsSource = CreateSampleDataGridItemsSource();
                 return dg;
             }

@@ -57,6 +57,7 @@ public class ScrollViewerViewerOwnedScrollingTests
         var contentYBefore = content.LayoutSlot.Y;
         var arrangeInvalidationsBefore = uiRoot.ArrangeInvalidationCount;
         var measureInvalidationsBefore = uiRoot.MeasureInvalidationCount;
+        uiRoot.ResetDirtyStateForTests();
 
         var handled = viewer.HandleMouseWheelFromInput(-120);
 
@@ -136,6 +137,43 @@ public class ScrollViewerViewerOwnedScrollingTests
         Assert.True(viewer.VerticalOffset > 0f);
         Assert.True(virtualizingPanel.FirstRealizedIndex > initialFirst);
         Assert.True(virtualizingPanel.LastRealizedIndex > initialLast);
+    }
+
+    [Fact]
+    public void VirtualizingStackPanel_WheelScroll_InvalidatesViewerLayoutForRealizationRefresh()
+    {
+        var root = new Panel();
+        var virtualizingPanel = new VirtualizingStackPanel
+        {
+            Orientation = Orientation.Vertical,
+            IsVirtualizing = true,
+            CacheLength = 0.5f,
+            CacheLengthUnit = VirtualizationCacheLengthUnit.Page
+        };
+
+        for (var i = 0; i < 500; i++)
+        {
+            virtualizingPanel.AddChild(new Border { Height = 24f });
+        }
+
+        var viewer = new ScrollViewer
+        {
+            LineScrollAmount = 30f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = virtualizingPanel
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+
+        var handled = viewer.HandleMouseWheelFromInput(-120);
+
+        Assert.True(handled);
+        Assert.True(viewer.VerticalOffset > 0f);
+        Assert.True(viewer.NeedsMeasure);
+        Assert.True(viewer.NeedsArrange);
     }
 
     [Fact]

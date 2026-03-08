@@ -62,7 +62,9 @@ public sealed partial class UiRoot
             return;
         }
 
+        var measureStart = Stopwatch.GetTimestamp();
         _layoutRoot.Measure(new Vector2(viewport.Width, viewport.Height));
+        var arrangeStart = Stopwatch.GetTimestamp();
         _layoutRoot.Arrange(new LayoutRect(0f, 0f, viewport.Width, viewport.Height));
         LayoutPasses = 1;
         _layoutGeneration++;
