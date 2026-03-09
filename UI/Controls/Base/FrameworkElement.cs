@@ -169,6 +169,8 @@ public class FrameworkElement : UIElement
     private bool _isArrangeValid;
     private Vector2 _previousAvailableSize = new(float.NaN, float.NaN);
     private LayoutRect _arrangeRect;
+    private int _measureCallCount;
+    private int _arrangeCallCount;
 
     public FrameworkElement()
     {
@@ -329,6 +331,10 @@ public class FrameworkElement : UIElement
 
     public bool IsLoaded { get; private set; }
 
+    public int MeasureCallCount => _measureCallCount;
+
+    public int ArrangeCallCount => _arrangeCallCount;
+
     internal NameScope? GetLocalNameScope()
     {
         return _nameScope;
@@ -369,6 +375,7 @@ public class FrameworkElement : UIElement
     public void Measure(Vector2 availableSize)
     {
         Dispatcher.VerifyAccess();
+        _measureCallCount++;
         var useLayoutRounding = UseLayoutRounding;
         var effectiveAvailableSize = useLayoutRounding
             ? RoundLayoutSize(availableSize)
@@ -421,6 +428,7 @@ public class FrameworkElement : UIElement
     public void Arrange(LayoutRect finalRect)
     {
         Dispatcher.VerifyAccess();
+        _arrangeCallCount++;
         var useLayoutRounding = UseLayoutRounding;
         var effectiveFinalRect = useLayoutRounding
             ? RoundLayoutRect(finalRect)

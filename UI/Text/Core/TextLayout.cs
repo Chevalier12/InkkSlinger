@@ -11,21 +11,62 @@ public static class TextLayout
     private const int CacheCapacity = 512;
     private static readonly Dictionary<TextLayoutCacheKey, TextLayoutResult> Cache = new();
     private static readonly Queue<TextLayoutCacheKey> CacheOrder = new();
+    private static int _layoutRequestCount;
+    private static int _cacheHitCount;
+    private static int _cacheMissCount;
+    private static int _buildCount;
+    private static int _noWrapBuildCount;
+    private static int _wrappedBuildCount;
+    private static int _totalMeasuredTextLength;
+    private static int _totalProducedLineCount;
+
+    public static TextLayoutMetricsSnapshot GetMetricsSnapshot()
+    {
+        return new TextLayoutMetricsSnapshot(
+            _layoutRequestCount,
+            _cacheHitCount,
+            _cacheMissCount,
+            _buildCount,
+            _noWrapBuildCount,
+            _wrappedBuildCount,
+            _totalMeasuredTextLength,
+            _totalProducedLineCount,
+            Cache.Count);
+    }
+
+    public static void ResetMetricsForTests()
+    {
+        _layoutRequestCount = 0;
+        _cacheHitCount = 0;
+        _cacheMissCount = 0;
+        _buildCount = 0;
+        _noWrapBuildCount = 0;
+        _wrappedBuildCount = 0;
+        _totalMeasuredTextLength = 0;
+        _totalProducedLineCount = 0;
+        Cache.Clear();
+        CacheOrder.Clear();
+    }
 
     public static TextLayoutResult Layout(string? text, SpriteFont? font, float fontSize, float availableWidth, TextWrapping wrapping)
     {
+        _layoutRequestCount++;
         if (string.IsNullOrEmpty(text))
         {
             return TextLayoutResult.Empty;
         }
 
+        _totalMeasuredTextLength += text.Length;
         var key = TextLayoutCacheKey.Create(text, font, fontSize, availableWidth, wrapping);
         if (Cache.TryGetValue(key, out var cached))
         {
+            _cacheHitCount++;
             return cached;
         }
 
+        _cacheMissCount++;
         var result = BuildLayout(text, font, fontSize, availableWidth, wrapping);
+        _totalProducedLineCount += result.Lines.Count;
         AddToCache(key, result);
         return result;
     }
@@ -37,14 +78,17 @@ public static class TextLayout
 
     private static TextLayoutResult BuildLayout(string text, SpriteFont? font, float fontSize, float availableWidth, TextWrapping wrapping)
     {
+        _buildCount++;
         if (wrapping == TextWrapping.NoWrap ||
             float.IsInfinity(availableWidth) ||
             float.IsNaN(availableWidth) ||
             availableWidth <= 0f)
         {
+            _noWrapBuildCount++;
             return BuildNoWrapLayout(text, font, fontSize);
         }
 
+        _wrappedBuildCount++;
         var lines = new List<string>();
         var paragraphs = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         foreach (var paragraph in paragraphs)
@@ -54,6 +98,17 @@ public static class TextLayout
 
         return BuildResult(lines, font, fontSize);
     }
+
+    public readonly record struct TextLayoutMetricsSnapshot(
+        int LayoutRequestCount,
+        int CacheHitCount,
+        int CacheMissCount,
+        int BuildCount,
+        int NoWrapBuildCount,
+        int WrappedBuildCount,
+        int TotalMeasuredTextLength,
+        int TotalProducedLineCount,
+        int CacheEntryCount);
 
     private static TextLayoutResult BuildNoWrapLayout(string text, SpriteFont? font, float fontSize)
     {

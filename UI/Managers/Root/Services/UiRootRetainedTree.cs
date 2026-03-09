@@ -104,6 +104,7 @@ public sealed partial class UiRoot
     private void SynchronizeRetainedRenderList()
     {
         CompactDirtyRenderQueueForSync();
+        _lastRetainedDirtyVisualCount = _dirtyRenderQueue.Count;
 
         if (_renderListNeedsFullRebuild || _retainedRenderList.Count == 0)
         {
@@ -128,6 +129,7 @@ public sealed partial class UiRoot
 
             var forceDeepSync = _dirtyRenderRootsRequireDeepSync.Contains(dirtyVisual);
             UpdateRenderNodeSubtree(dirtyVisual, forceDeepSync);
+            _retainedSubtreeSyncCount++;
             if (_renderListNeedsFullRebuild)
             {
                 RebuildRetainedRenderList();
@@ -187,6 +189,7 @@ public sealed partial class UiRoot
 
     private void RebuildRetainedRenderList()
     {
+        _retainedFullRebuildCount++;
         _retainedRenderList.Clear();
         _renderNodeIndices.Clear();
         _ = BuildRenderSubtree(_visualRoot, traversalOrder: 0, depth: 0, parentNode: null);

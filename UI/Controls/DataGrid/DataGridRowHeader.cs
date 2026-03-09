@@ -67,6 +67,13 @@ public class DataGridRowHeader : Control
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        if (float.IsFinite(availableSize.X) && float.IsFinite(availableSize.Y))
+        {
+            return new Vector2(
+                System.MathF.Max(0f, availableSize.X),
+                System.MathF.Max(0f, availableSize.Y));
+        }
+
         return new Vector2(
             FontStashTextRenderer.MeasureWidth(Font, Text) + 10f,
             FontStashTextRenderer.GetLineHeight(Font) + 8f);

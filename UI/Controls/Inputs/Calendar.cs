@@ -159,8 +159,8 @@ public class Calendar : UserControl
                 }));
 
     private readonly Grid _rootGrid;
-    private readonly Grid _weekDaysGrid;
-    private readonly Grid _daysGrid;
+    private readonly UniformGrid _weekDaysGrid;
+    private readonly UniformGrid _daysGrid;
     private readonly Button _previousMonthButton;
     private readonly Button _nextMonthButton;
     private readonly Label _monthLabel;
@@ -230,13 +230,13 @@ public class Calendar : UserControl
         _rootGrid.AddChild(headerGrid);
         Grid.SetRow(headerGrid, 0);
 
-        _weekDaysGrid = new Grid
+        _weekDaysGrid = new UniformGrid
         {
+            Columns = 7,
             Margin = new Thickness(0f, 0f, 0f, 2f)
         };
         for (var i = 0; i < 7; i++)
         {
-            _weekDaysGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1f, GridUnitType.Star) });
             var label = new Label
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -245,22 +245,16 @@ public class Calendar : UserControl
             };
             _weekDayLabels[i] = label;
             _weekDaysGrid.AddChild(label);
-            Grid.SetColumn(label, i);
         }
 
         _rootGrid.AddChild(_weekDaysGrid);
         Grid.SetRow(_weekDaysGrid, 1);
 
-        _daysGrid = new Grid();
-        for (var i = 0; i < 7; i++)
+        _daysGrid = new UniformGrid
         {
-            _daysGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1f, GridUnitType.Star) });
-        }
-
-        for (var i = 0; i < 6; i++)
-        {
-            _daysGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1f, GridUnitType.Star) });
-        }
+            Rows = 6,
+            Columns = 7
+        };
 
         for (var i = 0; i < _dayButtons.Length; i++)
         {
@@ -275,8 +269,6 @@ public class Calendar : UserControl
             button.Click += (_, _) => OnDayButtonClicked(buttonIndex);
             _dayButtons[i] = button;
             _daysGrid.AddChild(button);
-            Grid.SetRow(button, i / 7);
-            Grid.SetColumn(button, i % 7);
         }
 
         _rootGrid.AddChild(_daysGrid);

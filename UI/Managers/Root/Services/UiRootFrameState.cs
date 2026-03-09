@@ -126,6 +126,7 @@ public sealed partial class UiRoot
 
     internal void NotifyVisualStructureChanged(UIElement element, UIElement? oldParent, UIElement? newParent)
     {
+        _visualStructureChangeCount++;
         if (!IsPartOfVisualTree(element) &&
             !IsPartOfVisualTree(oldParent) &&
             !IsPartOfVisualTree(newParent) &&

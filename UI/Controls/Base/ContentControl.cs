@@ -154,6 +154,20 @@ public class ContentControl : Control
 
     private void UpdateContentElement(object? content)
     {
+        if (_activeContentPresenter == null &&
+            content is UIElement existingElement &&
+            ReferenceEquals(_contentElement, existingElement) &&
+            ReferenceEquals(existingElement.VisualParent, this) &&
+            ReferenceEquals(existingElement.LogicalParent, this))
+        {
+            return;
+        }
+
+        if (_activeContentPresenter == null && content == null && _contentElement == null)
+        {
+            return;
+        }
+
         if (_contentElement != null)
         {
             _contentElement.SetVisualParent(null);

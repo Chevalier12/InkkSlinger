@@ -50,6 +50,15 @@ public class DataGridColumnHeader : Button
             return desired;
         }
 
+        if (Owner != null &&
+            float.IsFinite(availableSize.X) &&
+            float.IsFinite(availableSize.Y))
+        {
+            desired.X = System.MathF.Max(desired.X, System.MathF.Max(0f, availableSize.X));
+            desired.Y = System.MathF.Max(desired.Y, System.MathF.Max(0f, availableSize.Y));
+            return desired;
+        }
+
         var padding = Padding;
         var border = BorderThickness;
         var fontSize = ResolveFontSize();

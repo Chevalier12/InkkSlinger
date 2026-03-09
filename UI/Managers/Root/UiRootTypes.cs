@@ -41,7 +41,26 @@ public readonly record struct UiRootMetricsSnapshot(
     UiRedrawReason LastDrawReasons,
     bool UseRetainedRenderList,
     bool UseDirtyRegionRendering,
-    bool UseConditionalDrawScheduling);
+    bool UseConditionalDrawScheduling,
+    int RetainedRenderNodeCount,
+    int RetainedHighCostNodeCount,
+    int VisualStructureChangeCount,
+    int RetainedFullRebuildCount,
+    int RetainedSubtreeSyncCount,
+    int LastRetainedDirtyVisualCount);
+
+public readonly record struct UiVisualTreeMetricsSnapshot(
+    int VisualCount,
+    int FrameworkElementCount,
+    int HighCostVisualCount,
+    int MaxDepth,
+    long MeasureCallCount,
+    long ArrangeCallCount,
+    long UpdateCallCount,
+    long DrawCallCount,
+    long MeasureInvalidationCount,
+    long ArrangeInvalidationCount,
+    long RenderInvalidationCount);
 
 public readonly record struct UiInputMetricsSnapshot(
     double LastInputPhaseMilliseconds,

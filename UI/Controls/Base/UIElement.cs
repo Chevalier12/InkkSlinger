@@ -24,6 +24,8 @@ public class UIElement : DependencyObject
     private int _renderInvalidationCount;
     private int _renderVersionStamp;
     private int _layoutVersionStamp;
+    private int _updateCallCount;
+    private int _drawCallCount;
     private bool _suppressNextLogicalBindingTreeNotify;
     private bool _suppressNextLogicalParentChanged;
 
@@ -244,6 +246,10 @@ public class UIElement : DependencyObject
 
     public int RenderInvalidationCount => _renderInvalidationCount;
 
+    public int UpdateCallCount => _updateCallCount;
+
+    public int DrawCallCount => _drawCallCount;
+
     internal int RenderVersionStamp => _renderVersionStamp;
 
     internal int LayoutVersionStamp => _layoutVersionStamp;
@@ -305,6 +311,7 @@ public class UIElement : DependencyObject
 
     public virtual void Update(GameTime gameTime)
     {
+        _updateCallCount++;
         foreach (var child in GetVisualChildren())
         {
             child.Update(gameTime);
@@ -317,6 +324,8 @@ public class UIElement : DependencyObject
         {
             return;
         }
+
+        _drawCallCount++;
 
         var hasClip = TryGetClipRect(out var clipRect);
         var hasTransform = TryGetLocalRenderTransform(out var localTransform, out _);
@@ -366,6 +375,7 @@ public class UIElement : DependencyObject
 
     internal void DrawSelf(SpriteBatch spriteBatch)
     {
+        _drawCallCount++;
         OnRender(spriteBatch);
     }
 

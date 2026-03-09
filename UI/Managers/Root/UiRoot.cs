@@ -92,6 +92,10 @@ public sealed partial class UiRoot
     private UiRedrawReason _scheduledDrawReasons;
     private bool _forceAnimationActiveForTests;
     private Color _clearColor = Color.CornflowerBlue;
+    private int _visualStructureChangeCount;
+    private int _retainedFullRebuildCount;
+    private int _retainedSubtreeSyncCount;
+    private int _lastRetainedDirtyVisualCount;
 
     public UiRoot(UIElement visualRoot)
     {
@@ -169,6 +173,14 @@ public sealed partial class UiRoot
 
     public int RetainedRenderNodeCount => _retainedRenderList.Count;
 
+    public int VisualStructureChangeCount => _visualStructureChangeCount;
+
+    public int RetainedFullRebuildCount => _retainedFullRebuildCount;
+
+    public int RetainedSubtreeSyncCount => _retainedSubtreeSyncCount;
+
+    public int LastRetainedDirtyVisualCount => _lastRetainedDirtyVisualCount;
+
     public int DirtyRenderQueueCount => _dirtyRenderQueue.Count;
 
     public bool HasPendingMeasureInvalidation => _hasMeasureInvalidation;
@@ -233,7 +245,36 @@ public sealed partial class UiRoot
             LastDrawReasons,
             UseRetainedRenderList,
             UseDirtyRegionRendering,
-            UseConditionalDrawScheduling);
+            UseConditionalDrawScheduling,
+            RetainedRenderNodeCount,
+            GetRetainedHighCostVisualCount(),
+            _visualStructureChangeCount,
+            _retainedFullRebuildCount,
+            _retainedSubtreeSyncCount,
+            _lastRetainedDirtyVisualCount);
+    }
+
+    public UiVisualTreeMetricsSnapshot GetVisualTreeMetricsSnapshot()
+    {
+        var accumulator = new VisualTreeMetricsAccumulator();
+        AccumulateVisualTreeMetrics(_visualRoot, depth: 0, ref accumulator);
+        return new UiVisualTreeMetricsSnapshot(
+            accumulator.VisualCount,
+            accumulator.FrameworkElementCount,
+            accumulator.HighCostVisualCount,
+            accumulator.MaxDepth,
+            accumulator.MeasureCallCount,
+            accumulator.ArrangeCallCount,
+            accumulator.UpdateCallCount,
+            accumulator.DrawCallCount,
+            accumulator.MeasureInvalidationCount,
+            accumulator.ArrangeInvalidationCount,
+            accumulator.RenderInvalidationCount);
+    }
+
+    public TextLayout.TextLayoutMetricsSnapshot GetTextLayoutMetricsSnapshot()
+    {
+        return TextLayout.GetMetricsSnapshot();
     }
 
     public AutomationMetricsSnapshot GetAutomationMetricsSnapshot()
@@ -399,5 +440,57 @@ public sealed partial class UiRoot
 
         metrics = default;
         return false;
+    }
+
+    private int GetRetainedHighCostVisualCount()
+    {
+        if (_retainedRenderList.Count == 0)
+        {
+            return 0;
+        }
+
+        return _retainedRenderList[0].SubtreeHighCostVisualCount;
+    }
+
+    private static void AccumulateVisualTreeMetrics(UIElement visual, int depth, ref VisualTreeMetricsAccumulator accumulator)
+    {
+        accumulator.VisualCount++;
+        accumulator.MaxDepth = Math.Max(accumulator.MaxDepth, depth);
+        accumulator.UpdateCallCount += visual.UpdateCallCount;
+        accumulator.DrawCallCount += visual.DrawCallCount;
+        accumulator.MeasureInvalidationCount += visual.MeasureInvalidationCount;
+        accumulator.ArrangeInvalidationCount += visual.ArrangeInvalidationCount;
+        accumulator.RenderInvalidationCount += visual.RenderInvalidationCount;
+        if (IsHighCostVisual(visual))
+        {
+            accumulator.HighCostVisualCount++;
+        }
+
+        if (visual is FrameworkElement frameworkElement)
+        {
+            accumulator.FrameworkElementCount++;
+            accumulator.MeasureCallCount += frameworkElement.MeasureCallCount;
+            accumulator.ArrangeCallCount += frameworkElement.ArrangeCallCount;
+        }
+
+        foreach (var child in visual.GetVisualChildren())
+        {
+            AccumulateVisualTreeMetrics(child, depth + 1, ref accumulator);
+        }
+    }
+
+    private struct VisualTreeMetricsAccumulator
+    {
+        public int VisualCount;
+        public int FrameworkElementCount;
+        public int HighCostVisualCount;
+        public int MaxDepth;
+        public long MeasureCallCount;
+        public long ArrangeCallCount;
+        public long UpdateCallCount;
+        public long DrawCallCount;
+        public long MeasureInvalidationCount;
+        public long ArrangeInvalidationCount;
+        public long RenderInvalidationCount;
     }
 }

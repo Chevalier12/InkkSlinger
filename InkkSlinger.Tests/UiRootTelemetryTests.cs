@@ -67,4 +67,51 @@ public class UiRootTelemetryTests
         Assert.Empty(uiRoot.GetDirtyRegionsSnapshotForTests());
         Assert.False(uiRoot.IsFullDirtyForTests());
     }
+
+    [Fact]
+    public void VisualTreeMetricsSnapshot_AggregatesLayoutAndUpdateCounters()
+    {
+        var root = new StackPanel();
+        root.AddChild(new Label { Text = "Header" });
+        root.AddChild(new Border { Child = new Label { Text = "Body" } });
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 800, 600));
+
+        var snapshot = uiRoot.GetVisualTreeMetricsSnapshot();
+
+        Assert.True(snapshot.VisualCount >= 4);
+        Assert.True(snapshot.FrameworkElementCount >= 4);
+        Assert.True(snapshot.HighCostVisualCount >= 2);
+        Assert.True(snapshot.MaxDepth >= 2);
+        Assert.True(snapshot.MeasureCallCount >= 4);
+        Assert.True(snapshot.ArrangeCallCount >= 4);
+        Assert.True(snapshot.UpdateCallCount >= 4);
+        Assert.True(snapshot.MeasureInvalidationCount >= 1);
+    }
+
+    [Fact]
+    public void MetricsSnapshot_TracksRetainedTreeRebuildsAndStructureChanges()
+    {
+        var root = new Panel();
+        var uiRoot = new UiRoot(root);
+
+        var child = new Border();
+        root.AddChild(child);
+
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        child.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var snapshot = uiRoot.GetMetricsSnapshot();
+
+        Assert.True(snapshot.VisualStructureChangeCount >= 1);
+        Assert.True(snapshot.RetainedFullRebuildCount >= 1);
+        Assert.True(snapshot.RetainedSubtreeSyncCount >= 1);
+        Assert.True(snapshot.RetainedRenderNodeCount >= 2);
+        Assert.True(snapshot.LastRetainedDirtyVisualCount >= 1);
+    }
 }

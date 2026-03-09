@@ -293,9 +293,15 @@ public class Grid : Panel
                 continue;
             }
 
-            frameworkChild.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
-
             var cell = NormalizeCell(child, rows.Count, columns.Count);
+            var firstPassAvailable = new Vector2(
+                RequiresAutoMeasurement(columns, cell.Column, cell.ColumnSpan)
+                    ? float.PositiveInfinity
+                    : SumRange(columns, cell.Column, cell.ColumnSpan),
+                RequiresAutoMeasurement(rows, cell.Row, cell.RowSpan)
+                    ? float.PositiveInfinity
+                    : SumRange(rows, cell.Row, cell.RowSpan));
+            frameworkChild.Measure(firstPassAvailable);
             ApplyChildRequirement(columns, cell.Column, cell.ColumnSpan, frameworkChild.DesiredSize.X);
             ApplyChildRequirement(rows, cell.Row, cell.RowSpan, frameworkChild.DesiredSize.Y);
         }
@@ -680,6 +686,20 @@ public class Grid : Panel
         }
 
         return total;
+    }
+
+    private static bool RequiresAutoMeasurement(IReadOnlyList<DefinitionSnapshot> definitions, int start, int span)
+    {
+        var end = Math.Min(definitions.Count, start + span);
+        for (var i = start; i < end; i++)
+        {
+            if (definitions[i].Length.IsAuto)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static float[] ExtractSizes(IReadOnlyList<DefinitionSnapshot> definitions)

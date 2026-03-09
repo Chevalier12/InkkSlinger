@@ -83,6 +83,8 @@ public class DataGridCell : Control
     private DataGridRowState? _rowState;
     private DataGridColumnState? _columnState;
     private UIElement? _editorElement;
+    private Label? _templateContentLabel;
+    private bool _isTemplateTypographyDirty = true;
 
     public object? Content
     {
@@ -189,7 +191,8 @@ public class DataGridCell : Control
         }
 
         Content = _owner.ResolveCellContent(_rowState.Item, _columnState.Column);
-        SyncTemplateContentTypography();
+        _isTemplateTypographyDirty = true;
+        SyncTemplateContentTypographyIfNeeded();
     }
 
     internal void ApplySelectionState(bool isSelected)
@@ -252,7 +255,9 @@ public class DataGridCell : Control
     public override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
-        SyncTemplateContentTypography();
+        _templateContentLabel = ResolveFallbackContentLabel();
+        _isTemplateTypographyDirty = true;
+        SyncTemplateContentTypographyIfNeeded();
     }
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
@@ -265,7 +270,8 @@ public class DataGridCell : Control
             args.Property == FrameworkElement.FontSizeProperty ||
             args.Property == FrameworkElement.FontWeightProperty)
         {
-            SyncTemplateContentTypography();
+            _isTemplateTypographyDirty = true;
+            SyncTemplateContentTypographyIfNeeded();
         }
     }
 
@@ -279,12 +285,28 @@ public class DataGridCell : Control
         var desired = base.MeasureOverride(availableSize);
         if (HasTemplateRoot)
         {
-            SyncTemplateContentTypography();
+            SyncTemplateContentTypographyIfNeeded();
             if (_editorElement is FrameworkElement editorElement)
             {
                 desired.X = System.MathF.Max(desired.X, editorElement.DesiredSize.X);
                 desired.Y = System.MathF.Max(desired.Y, editorElement.DesiredSize.Y);
             }
+            return desired;
+        }
+
+        if (_owner != null &&
+            _columnState != null &&
+            float.IsFinite(availableSize.X) &&
+            float.IsFinite(availableSize.Y))
+        {
+            desired.X = System.MathF.Max(desired.X, System.MathF.Max(0f, availableSize.X));
+            desired.Y = System.MathF.Max(desired.Y, System.MathF.Max(0f, availableSize.Y));
+            if (_editorElement is FrameworkElement fixedSizeEditor)
+            {
+                desired.X = System.MathF.Max(desired.X, fixedSizeEditor.DesiredSize.X);
+                desired.Y = System.MathF.Max(desired.Y, fixedSizeEditor.DesiredSize.Y);
+            }
+
             return desired;
         }
 
@@ -310,7 +332,7 @@ public class DataGridCell : Control
         var arranged = base.ArrangeOverride(finalSize);
         if (HasTemplateRoot)
         {
-            SyncTemplateContentTypography();
+            SyncTemplateContentTypographyIfNeeded();
         }
 
         if (_editorElement is FrameworkElement editor)
@@ -437,23 +459,49 @@ public class DataGridCell : Control
         }
     }
 
-    private void SyncTemplateContentTypography()
+    private void SyncTemplateContentTypographyIfNeeded()
     {
-        if (!TryGetFallbackContentLabel(out var label))
+        if (!_isTemplateTypographyDirty)
         {
             return;
         }
 
-        label.Font = Font;
-        label.Foreground = Foreground;
-        label.FontFamily = FontFamily;
-        label.FontSize = FontSize;
-        label.FontWeight = FontWeight;
+        if (ResolveFallbackContentLabel() is not { } label)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(label.Font, Font))
+        {
+            label.Font = Font;
+        }
+
+        if (label.Foreground != Foreground)
+        {
+            label.Foreground = Foreground;
+        }
+
+        if (!string.Equals(label.FontFamily, FontFamily, System.StringComparison.Ordinal))
+        {
+            label.FontFamily = FontFamily;
+        }
+
+        if (label.FontSize != FontSize)
+        {
+            label.FontSize = FontSize;
+        }
+
+        if (!string.Equals(label.FontWeight, FontWeight, System.StringComparison.Ordinal))
+        {
+            label.FontWeight = FontWeight;
+        }
+
+        _isTemplateTypographyDirty = false;
     }
 
     internal (SpriteFont? Font, Color Foreground, string FontFamily, float FontSize, string FontWeight) GetDisplayedTypography()
     {
-        if (TryGetFallbackContentLabel(out var label))
+        if (ResolveFallbackContentLabel() is { } label)
         {
             return (label.Font, label.Foreground, label.FontFamily, label.FontSize, label.FontWeight);
         }
@@ -461,12 +509,17 @@ public class DataGridCell : Control
         return (Font, Foreground, FontFamily, FontSize, FontWeight);
     }
 
-    private bool TryGetFallbackContentLabel(out Label label)
+    private Label? ResolveFallbackContentLabel()
     {
-        label = null!;
         if (!HasTemplateRoot)
         {
-            return false;
+            _templateContentLabel = null;
+            return null;
+        }
+
+        if (_templateContentLabel != null)
+        {
+            return _templateContentLabel;
         }
 
         foreach (var child in GetVisualChildren())
@@ -487,14 +540,14 @@ public class DataGridCell : Control
                 {
                     if (presented is Label contentLabel)
                     {
-                        label = contentLabel;
-                        return true;
+                        _templateContentLabel = contentLabel;
+                        return contentLabel;
                     }
                 }
             }
         }
 
-        return false;
+        return null;
     }
 }
 

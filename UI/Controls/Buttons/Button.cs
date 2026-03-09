@@ -11,6 +11,13 @@ public class Button : ContentControl
     private bool _isSyncingTemplateContent;
     private bool _isTextMirroringTemplateContent;
     private bool _hasExplicitContentOverride;
+    private bool _hasTextLayoutCache;
+    private int _textLayoutCacheTextVersion = -1;
+    private float _textLayoutCacheWidth = float.NaN;
+    private SpriteFont? _textLayoutCacheFont;
+    private TextWrapping _textLayoutCacheWrapping = TextWrapping.NoWrap;
+    private TextLayout.TextLayoutResult _textLayoutCacheResult = TextLayout.TextLayoutResult.Empty;
+    private int _textVersion;
 
     public static readonly RoutedEvent ClickEvent =
         new(nameof(Click), RoutingStrategy.Bubble);
@@ -168,7 +175,7 @@ public class Button : ContentControl
             var textAvailableWidth = TextWrapping == TextWrapping.NoWrap
                 ? float.PositiveInfinity
                 : innerAvailableWidth;
-            var textSize = TextLayout.Layout(Text, Font, textAvailableWidth, TextWrapping).Size;
+            var textSize = ResolveTextLayout(textAvailableWidth).Size;
             desired.X = System.MathF.Max(desired.X, textSize.X + padding.Horizontal + border);
             desired.Y = System.MathF.Max(desired.Y, textSize.Y + padding.Vertical + border);
             return desired;
@@ -206,6 +213,17 @@ public class Button : ContentControl
             }
 
             return;
+        }
+
+        if (args.Property == TextProperty)
+        {
+            _textVersion++;
+            InvalidateTextLayoutCache();
+        }
+        else if (args.Property == FontProperty ||
+                 args.Property == TextWrappingProperty)
+        {
+            InvalidateTextLayoutCache();
         }
 
         if (args.Property == TextProperty || args.Property == TemplateProperty)
@@ -264,7 +282,7 @@ public class Button : ContentControl
         var availableWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : maxTextWidth;
-        var layout = TextLayout.Layout(Text, Font, availableWidth, TextWrapping);
+        var layout = ResolveTextLayout(availableWidth);
         var textX = left + ((maxTextWidth - layout.Size.X) / 2f);
         var textY = top + ((maxTextHeight - layout.Size.Y) / 2f);
 
@@ -326,6 +344,53 @@ public class Button : ContentControl
         {
             _isSyncingTemplateContent = false;
         }
+    }
+
+    private TextLayout.TextLayoutResult ResolveTextLayout(float availableWidth)
+    {
+        if (_hasTextLayoutCache &&
+            _textLayoutCacheTextVersion == _textVersion &&
+            ReferenceEquals(_textLayoutCacheFont, Font) &&
+            _textLayoutCacheWrapping == TextWrapping &&
+            WidthMatches(_textLayoutCacheWidth, availableWidth))
+        {
+            return _textLayoutCacheResult;
+        }
+
+        var result = TextLayout.Layout(Text, Font, availableWidth, TextWrapping);
+        _textLayoutCacheTextVersion = _textVersion;
+        _textLayoutCacheWidth = availableWidth;
+        _textLayoutCacheFont = Font;
+        _textLayoutCacheWrapping = TextWrapping;
+        _textLayoutCacheResult = result;
+        _hasTextLayoutCache = true;
+        return result;
+    }
+
+    private void InvalidateTextLayoutCache()
+    {
+        _hasTextLayoutCache = false;
+        _textLayoutCacheTextVersion = -1;
+        _textLayoutCacheWidth = float.NaN;
+        _textLayoutCacheFont = null;
+        _textLayoutCacheWrapping = TextWrapping.NoWrap;
+        _textLayoutCacheResult = TextLayout.TextLayoutResult.Empty;
+    }
+
+    private static bool WidthMatches(float cached, float current)
+    {
+        if (float.IsNaN(cached) && float.IsNaN(current))
+        {
+            return true;
+        }
+
+        if (float.IsInfinity(cached) || float.IsInfinity(current))
+        {
+            return float.IsPositiveInfinity(cached) == float.IsPositiveInfinity(current) &&
+                   float.IsNegativeInfinity(cached) == float.IsNegativeInfinity(current);
+        }
+
+        return MathF.Abs(cached - current) < 0.01f;
     }
 
     private static Style BuildDefaultButtonStyle()

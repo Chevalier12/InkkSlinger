@@ -86,4 +86,26 @@ public class TextPipelineParityTests
         Assert.True(dirtyRegions[0].Width <= 12f);
         Assert.True(dirtyRegions[0].Height <= 32f);
     }
+
+    [Fact]
+    public void TextLayout_GlobalMetrics_TrackCacheHitsMissesAndBuildModes()
+    {
+        TextLayout.ResetMetricsForTests();
+
+        _ = TextLayout.Layout("alpha beta", font: null, 200f, TextWrapping.NoWrap);
+        _ = TextLayout.Layout("alpha beta", font: null, 200f, TextWrapping.NoWrap);
+        _ = TextLayout.Layout("alpha beta gamma delta", font: null, 40f, TextWrapping.Wrap);
+
+        var snapshot = TextLayout.GetMetricsSnapshot();
+
+        Assert.Equal(3, snapshot.LayoutRequestCount);
+        Assert.Equal(1, snapshot.CacheHitCount);
+        Assert.Equal(2, snapshot.CacheMissCount);
+        Assert.Equal(2, snapshot.BuildCount);
+        Assert.Equal(1, snapshot.NoWrapBuildCount);
+        Assert.Equal(1, snapshot.WrappedBuildCount);
+        Assert.True(snapshot.TotalMeasuredTextLength > 0);
+        Assert.True(snapshot.TotalProducedLineCount >= 2);
+        Assert.True(snapshot.CacheEntryCount >= 2);
+    }
 }
