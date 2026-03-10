@@ -1,30 +1,36 @@
 # UI Folder Map
 
-Generated: 2026-03-07 (full filesystem refresh)
+Generated: 2026-03-10 (full filesystem refresh)
 
 ```text
 UI/
-  Animation/
-    Core/
+  Animation
+    Core
       AnimationManager.cs
       AnimationPropertyPathResolver.cs
-    Easing/
+    Easing
       Easing.cs
-    KeyFrames/
+    KeyFrames
       KeyFrames.cs
       KeyFrameTiming.cs
       KeySpline.cs
       ObjectKeyFrames.cs
-    Timelines/
+    Timelines
       AnimationTimeline.cs
       Storyboard.cs
       Timeline.cs
-    Types/
+    Types
       AnimationPrimitives.cs
       Int32Animations.cs
       PointThicknessAnimations.cs
-  Binding/
-    Collections/
+  Automation
+    AutomationManager.cs
+    AutomationPeer.cs
+    AutomationPeerFactory.cs
+    AutomationProperties.cs
+    AutomationTypes.cs
+  Binding
+    Collections
       CollectionView.cs
       CollectionViewFactory.cs
       CollectionViewGroup.cs
@@ -34,14 +40,14 @@ UI/
       ListCollectionView.cs
       PropertyGroupDescription.cs
       SortDescription.cs
-    Commands/
+    Commands
       RelayCommand.cs
-    Converters/
+    Converters
       DelimitedMultiValueConverter.cs
       IdentityValueConverter.cs
       IMultiValueConverter.cs
       IValueConverter.cs
-    Core/
+    Core
       Binding.cs
       BindingBase.cs
       BindingExpression.cs
@@ -53,18 +59,19 @@ UI/
       MultiBindingExpression.cs
       PriorityBinding.cs
       PriorityBindingExpression.cs
-    Types/
+    Types
       BindingEnums.cs
-    Validation/
+    Validation
       UpdateSourceExceptionFilterCallback.cs
       Validation.cs
       ValidationError.cs
       ValidationResult.cs
       ValidationRule.cs
-  Commanding/
+  Commanding
     CanExecuteRoutedEventArgs.cs
     CommandBinding.cs
     CommandManager.cs
+    CommandSourceExecution.cs
     CommandTargetResolver.cs
     EditingCommands.cs
     ExecutedRoutedEventArgs.cs
@@ -72,8 +79,8 @@ UI/
     NavigationCommands.cs
     RoutedCommand.cs
     RoutedUICommand.cs
-  Controls/
-    Adorners/
+  Controls
+    Adorners
       Adorner.cs
       AdornerDecorator.cs
       AdornerLayer.cs
@@ -81,7 +88,7 @@ UI/
       AnchoredAdorner.cs
       HandleKinds.cs
       HandlesAdornerBase.cs
-    Base/
+    Base
       ContentControl.cs
       Control.cs
       Decorator.cs
@@ -90,14 +97,14 @@ UI/
       Panel.cs
       Selector.cs
       UIElement.cs
-    Buttons/
+    Buttons
       Button.cs
       CheckBox.cs
       RadioButton.cs
       RepeatButton.cs
       Thumb.cs
       ToggleButton.cs
-    Containers/
+    Containers
       DocumentViewer.cs
       ExpandDirection.cs
       Expander.cs
@@ -121,7 +128,7 @@ UI/
       Viewbox.cs
       Window.cs
       WindowThemeBinding.cs
-    DataGrid/
+    DataGrid
       DataGrid.cs
       DataGridCell.cs
       DataGridColumn.cs
@@ -135,10 +142,7 @@ UI/
       DataGridRowHeaderLaneCoordinator.cs
       DataGridRowsPresenter.cs
       DataGridState.cs
-    Inputs/
-      Core/
-      Diagnostics/
-      Rendering/
+    Inputs
       Calendar.cs
       CalendarDateRange.cs
       CalendarSelectionMode.cs
@@ -154,7 +158,7 @@ UI/
       RichTextBoxPerformanceTracker.cs
       Slider.cs
       TextBox.cs
-    Items/
+    Items
       ComboBox.cs
       ComboBoxItem.cs
       ContextMenu.cs
@@ -169,7 +173,7 @@ UI/
       TabItem.cs
       TreeView.cs
       TreeViewItem.cs
-    Panels/
+    Panels
       Canvas.cs
       DockPanel.cs
       Grid.cs
@@ -179,11 +183,11 @@ UI/
       UniformGrid.cs
       VirtualizingStackPanel.cs
       WrapPanel.cs
-    Presenters/
+    Presenters
       GridViewRowPresenter.cs
       GroupItem.cs
       Presenters.cs
-    Primitives/
+    Primitives
       AccessText.cs
       Border.cs
       Image.cs
@@ -193,18 +197,18 @@ UI/
       Separator.cs
       Shape.cs
       TextBlock.cs
-    Scrolling/
+    Scrolling
       IScrollTransformContent.cs
       ScrollBar.cs
       ScrollBarVisibility.cs
       ScrollViewer.cs
       VirtualizationEnums.cs
-    Selection/
+    Selection
       SelectionMode.cs
       SelectionModel.cs
       SelectionModelChangedEventArgs.cs
-  Core/
-    DependencyProperties/
+  Core
+    DependencyProperties
       DependencyObject.cs
       DependencyProperty.cs
       DependencyPropertyChangedEventArgs.cs
@@ -213,17 +217,19 @@ UI/
       FrameworkPropertyMetadata.cs
       FrameworkPropertyMetadataOptions.cs
       PropertyCallbacks.cs
-    Naming/
+    Naming
       NameScope.cs
       NameScopeService.cs
-    Threading/
+    Threading
       Dispatcher.cs
-    Types/
-  Diagnostics/
+    Freezable.cs
+  Diagnostics
+    CatalogDatagridOpenLag
+    DatagridSortClickLag
     XamlDiagnostic.cs
     XamlDiagnosticCode.cs
-  Events/
-    Args/
+  Events
+    Args
       FocusChangedRoutedEventArgs.cs
       HyperlinkNavigateRoutedEventArgs.cs
       KeyRoutedEventArgs.cs
@@ -233,29 +239,29 @@ UI/
       RoutedSimpleEventArgs.cs
       SelectionChangedEventArgs.cs
       TextInputRoutedEventArgs.cs
-    Core/
+    Core
       EventManager.cs
       RoutedEvent.cs
       RoutedEventArgs.cs
-    Types/
+    Types
       RoutingStrategy.cs
-  Geometry/
-    Core/
+  Geometry
+    Core
       Geometry.cs
       Transform.cs
-    Parsing/
+    Parsing
       PathMarkupParser.cs
-  Input/
-    Core/
+  Input
+    Core
       AccessKeyService.cs
       FocusManager.cs
       InputGestureService.cs
       InputManager.cs
-    State/
+    State
       InputDelta.cs
       InputDispatchState.cs
       InputSnapshot.cs
-    Types/
+    Types
       InputBinding.cs
       KeyBinding.cs
       KeyGesture.cs
@@ -263,8 +269,8 @@ UI/
       MouseBinding.cs
       MouseButton.cs
       MouseGesture.cs
-  Layout/
-    Types/
+  Layout
+    Types
       Alignment.cs
       Dock.cs
       LayoutRect.cs
@@ -273,12 +279,12 @@ UI/
       StretchDirection.cs
       Thickness.cs
       Visibility.cs
-  Managers/
-    Layout/
+  Managers
+    Layout
       FrameworkElementExtensions.cs
       LayoutManager.cs
-    Root/
-      Services/
+    Root
+      Services
         UiRootDirtyRegionOps.cs
         UiRootDraw.cs
         UiRootFrameState.cs
@@ -287,33 +293,32 @@ UI/
         UiRootRetainedTree.cs
       UiRoot.cs
       UiRootTypes.cs
-    Tree/
+    Tree
       VisualTreeHelper.cs
-  Rendering/
-    Cache/
-    Core/
+  Rendering
+    Core
       UiDrawing.cs
-    DirtyRegions/
+    DirtyRegions
       DirtyRegionTracker.cs
       IRenderDirtyBoundsHintProvider.cs
-    Text/
+    Text
       FontStashTextRenderer.cs
-  Resources/
-    Core/
+  Resources
+    Core
       ResourceDictionary.cs
       ResourceReferenceExpressions.cs
       ResourceResolver.cs
       UiApplication.cs
-    Types/
+    Types
       Brush.cs
       ResourceDictionaryChangedEventArgs.cs
       SolidColorBrush.cs
-  Styling/
-    Actions/
+  Styling
+    Actions
       SetValueAction.cs
       StoryboardActions.cs
       TriggerAction.cs
-    Core/
+    Core
       EventSetter.cs
       ImplicitStylePolicy.cs
       Setter.cs
@@ -321,9 +326,9 @@ UI/
       Style.cs
       StyleValueCloneUtility.cs
       VisualStates.cs
-    Effects/
+    Effects
       Effects.cs
-    Triggers/
+    Triggers
       Condition.cs
       DataTrigger.cs
       EventTrigger.cs
@@ -332,41 +337,56 @@ UI/
       Trigger.cs
       TriggerBase.cs
     GroupStyle.cs
-  Templating/
-    Core/
+  Templating
+    Core
       ControlTemplate.cs
       TemplateBinding.cs
       TemplateTriggerEngine.cs
-    Data/
+    Data
       DataTemplate.cs
       DataTemplateResolver.cs
       DataTemplateSelector.cs
-    Types/
+    Types
       TemplatePartAttribute.cs
-  Text/
-    Core/
+  Text
+    Core
       AccessTextParser.cs
       TextLayout.cs
-    Documents/
-      Operations/
+    Documents
+      Operations
         DocumentOperations.cs
       DocumentEditing.cs
       DocumentModel.cs
       DocumentPointers.cs
       FlowDocumentSerialization.cs
-    Editing/
+    Editing
       TextClipboard.cs
       TextEditingBuffer.cs
       TextSelection.cs
-    Layout/
+    Layout
       DocumentLayoutEngine.cs
-    Types/
+    Types
       TextWrapping.cs
-    Viewing/
+    Viewing
       DocumentPageMap.cs
       DocumentViewerInteractionState.cs
       DocumentViewportController.cs
-  Xaml/
-    Core/
+  Xaml
+    Core
+      XamlLoader.Attributes.cs
+      XamlLoader.Bindings.cs
       XamlLoader.cs
+      XamlLoader.Diagnostics.cs
+      XamlLoader.Document.cs
+      XamlLoader.Elements.cs
+      XamlLoader.MarkupExtensions.cs
+      XamlLoader.Resources.cs
+      XamlLoader.RichText.cs
+      XamlLoader.Session.cs
+      XamlLoader.StylesTemplates.cs
+      XamlLoader.Types.cs
+      XamlLoader.Values.cs
+      XamlLoadSession.cs
+      XamlObjectFactory.cs
+      XamlTypeResolver.cs
 ```

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using Xunit;
@@ -103,6 +104,204 @@ public sealed class XamlLoaderOptimizationTests
         }
     }
 
+    [Fact]
+    public void LoadFromString_Repeatedly_WithTemplateBinding_PreservesTemplateValues()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="CornflowerBlue"
+             Padding="9,4,3,2">
+  <UserControl.Template>
+    <ControlTemplate TargetType="{x:Type UserControl}">
+      <Border x:Name="Chrome"
+              Background="{TemplateBinding Background}"
+              Padding="{TemplateBinding Padding}">
+        <ContentPresenter />
+      </Border>
+    </ControlTemplate>
+  </UserControl.Template>
+  <Border x:Name="Payload" Width="20" Height="10" />
+</UserControl>
+""";
+
+        for (var i = 0; i < 20; i++)
+        {
+            var root = Assert.IsType<UserControl>(XamlLoader.LoadFromString(xaml));
+            Assert.True(root.ApplyTemplate());
+
+            var chrome = Assert.IsType<Border>(Assert.Single(root.GetVisualChildren()));
+            Assert.Equal(new Microsoft.Xna.Framework.Color(100, 149, 237), chrome.Background);
+            Assert.Equal(new Thickness(9f, 4f, 3f, 2f), chrome.Padding);
+        }
+    }
+
+    [Fact]
+    public void LoadFromString_Repeatedly_WithNamedColorThicknessAndTransform_PreservesConvertedValues()
+    {
+        const string xaml = """
+<Border xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Name="Probe"
+        Background="CornflowerBlue"
+        Padding="21,3,4,9"
+        RenderTransform="matrix(1,0,0,1,5,6)" />
+""";
+
+        for (var i = 0; i < 20; i++)
+        {
+            var border = Assert.IsType<Border>(XamlLoader.LoadFromString(xaml));
+            Assert.Equal(new Microsoft.Xna.Framework.Color(100, 149, 237), border.Background);
+            Assert.Equal(new Thickness(21f, 3f, 4f, 9f), border.Padding);
+
+            var transform = Assert.IsType<MatrixTransform>(border.RenderTransform);
+            Assert.Equal(5f, transform.Matrix.M41);
+            Assert.Equal(6f, transform.Matrix.M42);
+        }
+    }
+
+    [Fact]
+    public void LoadFromString_Repeatedly_WithTemplatePropertyElement_WrapperStillBuildsTemplate()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <Style x:Key="ProbeStyle" TargetType="{x:Type Button}">
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type Button}">
+            <Border x:Name="Chrome" Background="{TemplateBinding Background}">
+              <Border.Effect>
+                <DropShadowEffect Color="#FF8C00" ShadowDepth="3" BlurRadius="12" Opacity="0.5" />
+              </Border.Effect>
+              <ContentPresenter />
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
+  <Button x:Name="Probe" Style="{StaticResource ProbeStyle}" Background="CornflowerBlue" />
+</UserControl>
+""";
+
+        for (var i = 0; i < 10; i++)
+        {
+            var root = Assert.IsType<UserControl>(XamlLoader.LoadFromString(xaml));
+            var probe = Assert.IsType<Button>(root.FindName("Probe"));
+
+            Assert.True(probe.ApplyTemplate());
+            var chrome = Assert.IsType<Border>(Assert.Single(probe.GetVisualChildren()));
+            Assert.IsType<DropShadowEffect>(chrome.Effect);
+        }
+    }
+
+    [Fact]
+    public void LoadFromFile_Repeatedly_WithMergedResourceDictionary_PreservesRelativeSourceResolution()
+    {
+        var tempRoot = CreateTempDirectory();
+        try
+        {
+            var initialMisses = GetDocumentCacheMissCounts();
+            var themePath = Path.Combine(tempRoot, "ButtonTheme.xaml");
+            File.WriteAllText(
+                themePath,
+                """
+<ResourceDictionary xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Style x:Key="ThemeButtonStyle" TargetType="{x:Type Button}">
+    <Setter Property="Padding" Value="8,6,4,2" />
+  </Style>
+</ResourceDictionary>
+""");
+
+            var hostPath = Path.Combine(tempRoot, "Host.xaml");
+            File.WriteAllText(
+                hostPath,
+                """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="ButtonTheme.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+  <Button x:Name="Probe" Style="{StaticResource ThemeButtonStyle}" />
+</UserControl>
+""");
+
+            for (var i = 0; i < 10; i++)
+            {
+                var root = Assert.IsType<UserControl>(XamlLoader.LoadFromFile(hostPath));
+                var probe = Assert.IsType<Button>(root.FindName("Probe"));
+                Assert.Equal(new Thickness(8f, 6f, 4f, 2f), probe.Padding);
+            }
+
+            var finalMisses = GetDocumentCacheMissCounts();
+            Assert.True(finalMisses.FileMisses - initialMisses.FileMisses <= 2);
+        }
+        finally
+        {
+            TryDeleteDirectory(tempRoot);
+        }
+    }
+
+    [Fact]
+    public void LoadFromString_Repeatedly_ReusesParsedDocumentCache()
+    {
+        const string xaml = """
+<Border xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="CornflowerBlue"
+        Padding="4" />
+""";
+
+        var before = GetDocumentCacheMissCounts();
+        for (var i = 0; i < 5; i++)
+        {
+            _ = Assert.IsType<Border>(XamlLoader.LoadFromString(xaml));
+        }
+
+        var after = GetDocumentCacheMissCounts();
+        Assert.True(after.StringMisses - before.StringMisses <= 1);
+    }
+
+    [Fact]
+    public void LoadFromFile_WhenSourceChanges_InvalidatesCachedDocument()
+    {
+        var tempRoot = CreateTempDirectory();
+        try
+        {
+            var viewPath = Path.Combine(tempRoot, "View.xaml");
+            File.WriteAllText(
+                viewPath,
+                """
+<Border xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Padding="4" />
+""");
+
+            var before = GetDocumentCacheMissCounts();
+            _ = Assert.IsType<Border>(XamlLoader.LoadFromFile(viewPath));
+            var middle = GetDocumentCacheMissCounts();
+
+            System.Threading.Thread.Sleep(1100);
+            File.WriteAllText(
+                viewPath,
+                """
+<Border xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Padding="8" />
+""");
+
+            var reloaded = Assert.IsType<Border>(XamlLoader.LoadFromFile(viewPath));
+            var after = GetDocumentCacheMissCounts();
+
+            Assert.Equal(new Thickness(8f), reloaded.Padding);
+            Assert.True(middle.FileMisses - before.FileMisses >= 1);
+            Assert.True(after.FileMisses - middle.FileMisses >= 1);
+        }
+        finally
+        {
+            TryDeleteDirectory(tempRoot);
+        }
+    }
+
     private static void InvokeButtonClick(Button button)
     {
         var onClick = typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -129,5 +328,47 @@ public sealed class XamlLoaderOptimizationTests
         {
             ClickCount++;
         }
+    }
+
+    private static string CreateTempDirectory()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "InkkSlinger.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch
+        {
+            // Best-effort cleanup for temp artifacts.
+        }
+    }
+
+    private static (int StringMisses, int FileMisses) GetDocumentCacheMissCounts()
+    {
+        var method = typeof(XamlLoader).GetMethod(
+            "GetDocumentCacheMissCounts",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var result = method.Invoke(null, null);
+        Assert.NotNull(result);
+
+        var stringMissesField = result.GetType().GetField("Item1");
+        var fileMissesField = result.GetType().GetField("Item2");
+        Assert.NotNull(stringMissesField);
+        Assert.NotNull(fileMissesField);
+
+        return (
+            (int)stringMissesField.GetValue(result)!,
+            (int)fileMissesField.GetValue(result)!);
     }
 }

@@ -138,6 +138,12 @@ public static partial class XamlLoader
             return;
         }
 
+        if (CurrentDiagnosticSinks.Count == 1)
+        {
+            CurrentDiagnosticSinks.Peek()(diagnostic);
+            return;
+        }
+
         var sinks = CurrentDiagnosticSinks.ToArray();
         foreach (var sink in sinks)
         {

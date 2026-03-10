@@ -17,6 +17,12 @@ public static partial class XamlLoader
         set => XamlLoadSession.Current.ConstructionScopes = value;
     }
 
+    private static FrameworkElement? CurrentConstructionRootScope
+    {
+        get => XamlLoadSession.Current.ConstructionRootScope;
+        set => XamlLoadSession.Current.ConstructionRootScope = value;
+    }
+
     private static Stack<string>? CurrentXamlBaseDirectories
     {
         get => XamlLoadSession.Current.XamlBaseDirectories;
@@ -27,6 +33,12 @@ public static partial class XamlLoader
     {
         get => XamlLoadSession.Current.ResourceDictionarySourcePaths;
         set => XamlLoadSession.Current.ResourceDictionarySourcePaths = value;
+    }
+
+    private static Stack<XamlResourceBuildContext>? CurrentResourceBuildContexts
+    {
+        get => XamlLoadSession.Current.ResourceBuildContexts;
+        set => XamlLoadSession.Current.ResourceBuildContexts = value;
     }
 
     private static Stack<Action<XamlDiagnostic>>? CurrentDiagnosticSinks

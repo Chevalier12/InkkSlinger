@@ -14,9 +14,13 @@ internal sealed class XamlLoadSession
 
     public Stack<FrameworkElement>? ConstructionScopes { get; set; }
 
+    public FrameworkElement? ConstructionRootScope { get; set; }
+
     public Stack<string>? XamlBaseDirectories { get; set; }
 
     public Stack<string>? ResourceDictionarySourcePaths { get; set; }
+
+    public Stack<XamlResourceBuildContext>? ResourceBuildContexts { get; set; }
 
     public Stack<Action<XamlDiagnostic>>? DiagnosticSinks { get; set; }
 
