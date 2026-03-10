@@ -47,9 +47,9 @@ public sealed class MediaElementTests
     public void XamlLoader_CanInstantiate_MediaElement()
     {
         const string xaml = """
-                            <MediaElement xmlns=\"urn:inkkslinger-ui\"
-                                          Source=\"https://example.com/demo.mp4\"
-                                          LoadedBehavior=\"Manual\" />
+                            <MediaElement xmlns="urn:inkkslinger-ui"
+                                          Source="https://example.com/demo.mp4"
+                                          LoadedBehavior="Manual" />
                             """;
 
         var root = (MediaElement)XamlLoader.LoadFromString(xaml);
