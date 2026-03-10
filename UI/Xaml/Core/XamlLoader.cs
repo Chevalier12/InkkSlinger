@@ -5,214 +5,25 @@ using System.IO;
 using System.Collections;
 using System.Linq;
 using System.Reflection;
-using System.Diagnostics;
 using System.Xml;
 using System.Xml.Linq;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
-public static class XamlLoader
+public static partial class XamlLoader
 {
     private static readonly XNamespace XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly Assembly UiAssembly = typeof(UIElement).Assembly;
-    private static readonly Dictionary<string, Type> TypeByName = BuildTypeMap();
+    internal static readonly IReadOnlyDictionary<string, Type> TypeByName = BuildTypeMap();
     private static readonly object DefaultApplicationResourceCacheLock = new();
     private static ResourceDictionary? DefaultApplicationResourceCache;
     private static bool HasAttemptedDefaultApplicationResourceLoad;
-    [ThreadStatic]
-    private static FrameworkElement? CurrentLoadRootScope;
-    [ThreadStatic]
-    private static Stack<FrameworkElement>? CurrentConstructionScopes;
-    [ThreadStatic]
-    private static Stack<string>? CurrentXamlBaseDirectories;
-    [ThreadStatic]
-    private static Stack<string>? CurrentResourceDictionarySourcePaths;
-    [ThreadStatic]
-    private static Stack<Action<XamlDiagnostic>>? CurrentDiagnosticSinks;
-    [ThreadStatic]
-    private static Stack<List<Action>>? CurrentDeferredFinalizeActions;
-
-    public static UIElement LoadFromFile(string path, object? codeBehind = null)
-    {
-        var fileReadStart = Stopwatch.GetTimestamp();
-        var xaml = File.ReadAllText(path);
-
-        var loadStart = Stopwatch.GetTimestamp();
-        var baseDirectory = Path.GetDirectoryName(Path.GetFullPath(path));
-        UIElement root = null!;
-        RunWithinXamlBaseDirectory(baseDirectory, () =>
-        {
-            root = LoadFromString(xaml, codeBehind);
-        });
-        return root;
-    }
-
-    public static UIElement LoadFromString(string xaml, object? codeBehind = null)
-    {
-        var parseStart = Stopwatch.GetTimestamp();
-        XDocument document;
-        try
-        {
-            document = XDocument.Parse(xaml, LoadOptions.SetLineInfo);
-        }
-        catch (Exception ex)
-        {
-            throw CreateXamlException("Failed to parse XAML document.", null, ex);
-        }
-
-        if (document.Root == null)
-        {
-            throw CreateXamlException("XAML document has no root element.", document);
-        }
-
-        var loadStart = Stopwatch.GetTimestamp();
-        var rootElement = document.Root;
-        var rootType = ResolveElementType(rootElement.Name.LocalName);
-        if (Activator.CreateInstance(rootType) is not UIElement uiRoot)
-        {
-            throw CreateXamlException($"Type '{rootType.Name}' is not a UIElement.", rootElement);
-        }
-
-        var previousRootScope = CurrentLoadRootScope;
-        try
-        {
-            var rootScope = uiRoot as FrameworkElement;
-            CurrentLoadRootScope = rootScope;
-            RunWithinDeferredFinalizeActions(() =>
-            {
-                RunWithinConstructionScope(rootScope, () =>
-                {
-                    ApplyAttributes(uiRoot, rootElement, codeBehind, rootScope);
-                    ApplyChildren(uiRoot, rootElement, codeBehind, rootScope);
-                });
-            });
-            return uiRoot;
-        }
-        finally
-        {
-            CurrentLoadRootScope = previousRootScope;
-        }
-    }
-
-    public static void LoadInto(UserControl target, string path, object? codeBehind = null)
-    {
-        EnsureDefaultApplicationResourcesInScope(target);
-
-        var fileReadStart = Stopwatch.GetTimestamp();
-        var xaml = File.ReadAllText(path);
-        var baseDirectory = Path.GetDirectoryName(Path.GetFullPath(path));
-        RunWithinXamlBaseDirectory(baseDirectory, () =>
-        {
-            LoadIntoFromString(target, xaml, codeBehind);
-        });
-    }
-
-    public static void LoadIntoCompiled(UserControl target, string path, object? codeBehind = null, string? ownerTypeName = null)
-    {
-        try
-        {
-            LoadInto(target, path, codeBehind);
-        }
-        catch (InvalidOperationException ex) when (!string.IsNullOrWhiteSpace(ownerTypeName))
-        {
-            throw new InvalidOperationException(
-                $"Failed to initialize compiled view '{ownerTypeName}' from '{path}'. {ex.Message}",
-                ex);
-        }
-    }
-
-    public static void LoadApplicationResourcesFromFile(string path, bool clearExisting = false)
-    {
-        var xaml = File.ReadAllText(path);
-        var baseDirectory = Path.GetDirectoryName(Path.GetFullPath(path));
-        RunWithinXamlBaseDirectory(baseDirectory, () =>
-        {
-            LoadApplicationResourcesFromString(xaml, clearExisting);
-        });
-    }
-
-    public static void LoadApplicationResourcesFromString(string xaml, bool clearExisting = false)
-    {
-        XDocument document;
-        try
-        {
-            document = XDocument.Parse(xaml, LoadOptions.SetLineInfo);
-        }
-        catch (Exception ex)
-        {
-            throw CreateXamlException("Failed to parse application XML document.", null, ex);
-        }
-
-        if (document.Root == null)
-        {
-            throw CreateXamlException("Application XML document has no root element.", document);
-        }
-
-        var loadedResources = ParseApplicationResourcesDocument(document.Root);
-        var appResources = UiApplication.Current.Resources;
-        if (clearExisting)
-        {
-            appResources.Clear();
-            foreach (var merged in appResources.MergedDictionaries.ToList())
-            {
-                appResources.RemoveMergedDictionary(merged);
-            }
-        }
-
-        MergeResourceDictionaryContents(appResources, loadedResources);
-    }
-
-    public static void LoadIntoFromString(UserControl target, string xaml, object? codeBehind = null)
-    {
-        var parseStart = Stopwatch.GetTimestamp();
-        XDocument document;
-        try
-        {
-            document = XDocument.Parse(xaml, LoadOptions.SetLineInfo);
-        }
-        catch (Exception ex)
-        {
-            throw CreateXamlException("Failed to parse XAML document.", null, ex);
-        }
-
-        if (document.Root == null)
-        {
-            throw CreateXamlException("XAML document has no root element.", document);
-        }
-
-        var loadStart = Stopwatch.GetTimestamp();
-        var root = document.Root;
-        var rootType = ResolveElementType(root.Name.LocalName);
-        if (!typeof(UserControl).IsAssignableFrom(rootType))
-        {
-            throw CreateXamlException("LoadInto expects a UserControl root element.", root);
-        }
-
-        var previousRootScope = CurrentLoadRootScope;
-        CurrentLoadRootScope = target;
-        try
-        {
-            RunWithinDeferredFinalizeActions(() =>
-            {
-                RunWithinConstructionScope(target, () =>
-                {
-                    ApplyAttributes(target, root, codeBehind, target);
-                    target.Content = null;
-                    ApplyChildren(target, root, codeBehind, target);
-                });
-            });
-        }
-        finally
-        {
-            CurrentLoadRootScope = previousRootScope;
-        }
-    }
 
     private static UIElement BuildElement(XElement element, object? codeBehind, FrameworkElement? resourceScope)
     {
         var type = ResolveElementType(element.Name.LocalName);
-        if (Activator.CreateInstance(type) is not UIElement uiElement)
+        if (XamlObjectFactory.CreateInstance(type) is not UIElement uiElement)
         {
             throw CreateXamlException($"Type '{type.Name}' is not a UIElement.", element);
         }
@@ -227,24 +38,19 @@ public static class XamlLoader
 
     private static void ApplyChildren(UIElement parent, XElement parentElement, object? codeBehind, FrameworkElement? resourceScope)
     {
-        var childElements = parentElement.Elements().ToList();
-        if (childElements.Count == 0)
-        {
-            return;
-        }
-
-        var visualChildren = new List<XElement>(childElements.Count);
-        foreach (var childElement in childElements)
+        List<XElement>? visualChildren = null;
+        foreach (var childElement in parentElement.Elements())
         {
             if (TryApplyPropertyElement(parent, childElement, codeBehind, resourceScope))
             {
                 continue;
             }
 
+            visualChildren ??= new List<XElement>();
             visualChildren.Add(childElement);
         }
 
-        if (visualChildren.Count == 0)
+        if (visualChildren == null || visualChildren.Count == 0)
         {
             return;
         }
@@ -347,9 +153,7 @@ public static class XamlLoader
             return false;
         }
 
-        var property = targetType.GetProperty(
-            propertyName,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+        var property = XamlTypeResolver.GetWritableProperty(targetType, propertyName);
 
         if (property == null)
         {
@@ -1769,14 +1573,6 @@ public static class XamlLoader
         }
     }
 
-    public static IDisposable PushDiagnosticSink(Action<XamlDiagnostic> sink)
-    {
-        ArgumentNullException.ThrowIfNull(sink);
-        CurrentDiagnosticSinks ??= new Stack<Action<XamlDiagnostic>>();
-        CurrentDiagnosticSinks.Push(sink);
-        return new DiagnosticSinkScope(sink);
-    }
-
     private readonly record struct TemplateBindingRegistration(
         string TargetName,
         DependencyProperty TargetProperty,
@@ -3122,14 +2918,14 @@ public static class XamlLoader
         }
 
         var codeBehindType = codeBehind.GetType();
-        var field = codeBehindType.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var field = XamlTypeResolver.GetInstanceField(codeBehindType, name);
         if (field != null && field.FieldType.IsInstanceOfType(target))
         {
             field.SetValue(codeBehind, target);
             return;
         }
 
-        var property = codeBehindType.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var property = XamlTypeResolver.GetInstanceProperty(codeBehindType, name);
         if (property != null &&
             property.CanWrite &&
             property.PropertyType.IsInstanceOfType(target))
@@ -3150,7 +2946,7 @@ public static class XamlLoader
 
     private static bool TryAttachEventHandler(object target, string eventName, string handlerName, object? codeBehind)
     {
-        var eventInfo = target.GetType().GetEvent(eventName, BindingFlags.Instance | BindingFlags.Public);
+        var eventInfo = XamlTypeResolver.GetEvent(target.GetType(), eventName);
         if (eventInfo == null)
         {
             return false;
@@ -3171,9 +2967,7 @@ public static class XamlLoader
 
     private static MethodInfo ResolveCodeBehindHandlerMethod(object codeBehind, string handlerName)
     {
-        var method = codeBehind.GetType().GetMethod(
-            handlerName,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var method = XamlTypeResolver.GetInstanceMethod(codeBehind.GetType(), handlerName);
 
         if (method == null)
         {
@@ -3225,9 +3019,7 @@ public static class XamlLoader
         FrameworkElement? resourceScope,
         XObject? location = null)
     {
-        var property = target.GetType().GetProperty(
-            propertyName,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+        var property = XamlTypeResolver.GetWritableProperty(target.GetType(), propertyName);
 
         if (property == null || !property.CanWrite)
         {
@@ -4047,20 +3839,7 @@ public static class XamlLoader
 
     private static DependencyProperty? ResolveDependencyProperty(Type targetType, string propertyName)
     {
-        var fieldName = propertyName + "Property";
-        var current = targetType;
-        while (current != null)
-        {
-            var field = current.GetField(fieldName, BindingFlags.Public | BindingFlags.Static);
-            if (field?.FieldType == typeof(DependencyProperty))
-            {
-                return (DependencyProperty?)field.GetValue(null);
-            }
-
-            current = current.BaseType;
-        }
-
-        return null;
+        return XamlTypeResolver.ResolveDependencyProperty(targetType, propertyName);
     }
 
     private static void ApplyAttachedProperty(
@@ -4094,20 +3873,7 @@ public static class XamlLoader
             return;
         }
 
-        var setter = ownerType.GetMethod(
-            $"Set{propertyName}",
-            BindingFlags.Public | BindingFlags.Static)
-            ?? ownerType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .FirstOrDefault(m =>
-                {
-                    if (m.Name != $"Set{propertyName}")
-                    {
-                        return false;
-                    }
-
-                    var parameters = m.GetParameters();
-                    return parameters.Length == 2 && parameters[0].ParameterType.IsAssignableFrom(target.GetType());
-                });
+        var setter = XamlTypeResolver.ResolveAttachedSetterForTarget(ownerType, target.GetType(), propertyName);
 
         if (setter == null)
         {
@@ -4254,21 +4020,8 @@ public static class XamlLoader
                 code: XamlDiagnosticCode.UnknownElement);
         }
 
-        var field = ownerType.GetField(
-            memberName,
-            BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
-        if (field != null)
+        if (XamlTypeResolver.TryResolveStaticMember(ownerType, memberName, out resolved))
         {
-            resolved = field.GetValue(null)!;
-            return true;
-        }
-
-        var property = ownerType.GetProperty(
-            memberName,
-            BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
-        if (property != null && property.CanRead && property.GetIndexParameters().Length == 0)
-        {
-            resolved = property.GetValue(null)!;
             return true;
         }
 
@@ -4806,25 +4559,7 @@ public static class XamlLoader
         string propertyName,
         Type valueType)
     {
-        var setterName = $"Set{propertyName}";
-        var ownerSetter = ownerType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .FirstOrDefault(m => IsCompatibleAttachedSetter(m, setterName, targetType, valueType));
-        if (ownerSetter != null)
-        {
-            return ownerSetter;
-        }
-
-        foreach (var candidateType in TypeByName.Values)
-        {
-            var method = candidateType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .FirstOrDefault(m => IsCompatibleAttachedSetter(m, setterName, targetType, valueType));
-            if (method != null)
-            {
-                return method;
-            }
-        }
-
-        return null;
+        return XamlTypeResolver.ResolveAttachedSetter(ownerType, targetType, propertyName, valueType);
     }
 
     private static bool IsCompatibleAttachedSetter(MethodInfo method, string setterName, Type targetType, Type valueType)
@@ -5159,42 +4894,10 @@ public static class XamlLoader
 
     private static object CreateObjectInstance(Type type, XObject? location)
     {
-        try
+        var instance = XamlObjectFactory.CreateInstance(type);
+        if (instance != null)
         {
-            var instance = Activator.CreateInstance(type);
-            if (instance != null)
-            {
-                return instance;
-            }
-        }
-        catch (MissingMethodException)
-        {
-            // Fall back to optional-parameter constructors below.
-        }
-
-        var constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
-        foreach (var constructor in constructors)
-        {
-            var parameters = constructor.GetParameters();
-            var allOptional = true;
-            var arguments = new object?[parameters.Length];
-            for (var i = 0; i < parameters.Length; i++)
-            {
-                if (!parameters[i].IsOptional)
-                {
-                    allOptional = false;
-                    break;
-                }
-
-                arguments[i] = Type.Missing;
-            }
-
-            if (!allOptional)
-            {
-                continue;
-            }
-
-            return constructor.Invoke(arguments);
+            return instance;
         }
 
         throw CreateXamlException($"Could not create instance of '{type.Name}'.", location);
@@ -5611,176 +5314,5 @@ public static class XamlLoader
         }
 
         public string Name { get; }
-    }
-
-    private sealed class DiagnosticSinkScope : IDisposable
-    {
-        private readonly Action<XamlDiagnostic> _sink;
-        private bool _disposed;
-
-        public DiagnosticSinkScope(Action<XamlDiagnostic> sink)
-        {
-            _sink = sink;
-        }
-
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            if (CurrentDiagnosticSinks == null || CurrentDiagnosticSinks.Count == 0)
-            {
-                return;
-            }
-
-            if (ReferenceEquals(CurrentDiagnosticSinks.Peek(), _sink))
-            {
-                CurrentDiagnosticSinks.Pop();
-            }
-            else
-            {
-                var preserved = new Stack<Action<XamlDiagnostic>>();
-                var removed = false;
-                while (CurrentDiagnosticSinks.Count > 0)
-                {
-                    var current = CurrentDiagnosticSinks.Pop();
-                    if (!removed && ReferenceEquals(current, _sink))
-                    {
-                        removed = true;
-                        continue;
-                    }
-
-                    preserved.Push(current);
-                }
-
-                while (preserved.Count > 0)
-                {
-                    CurrentDiagnosticSinks.Push(preserved.Pop());
-                }
-            }
-
-            if (CurrentDiagnosticSinks.Count == 0)
-            {
-                CurrentDiagnosticSinks = null;
-            }
-        }
-    }
-
-    private static InvalidOperationException CreateXamlException(
-        string message,
-        XObject? location = null,
-        Exception? inner = null,
-        XamlDiagnosticCode code = XamlDiagnosticCode.GeneralFailure,
-        string? propertyName = null,
-        string? hint = null,
-        string? elementName = null)
-    {
-        var diagnostic = BuildDiagnostic(message, location, code, propertyName, hint, elementName);
-        EmitDiagnostic(diagnostic);
-
-        var fullMessage = message + FormatLineInfo(location) + FormatDiagnosticContext(diagnostic);
-        return inner == null
-            ? new InvalidOperationException(fullMessage)
-            : new InvalidOperationException(fullMessage, inner);
-    }
-
-    private static XamlDiagnostic BuildDiagnostic(
-        string message,
-        XObject? location,
-        XamlDiagnosticCode code,
-        string? propertyName,
-        string? hint,
-        string? elementName)
-    {
-        var resolvedElementName = elementName;
-        var resolvedPropertyName = propertyName;
-        if (location is XAttribute attribute)
-        {
-            resolvedElementName ??= attribute.Parent?.Name.LocalName;
-            resolvedPropertyName ??= attribute.Name.LocalName;
-        }
-        else if (location is XElement element)
-        {
-            resolvedElementName ??= element.Name.LocalName;
-        }
-        else if (location is XNode node)
-        {
-            resolvedElementName ??= node.Parent?.Name.LocalName;
-        }
-
-        int? line = null;
-        int? position = null;
-        if (location is IXmlLineInfo lineInfo && lineInfo.HasLineInfo())
-        {
-            line = lineInfo.LineNumber;
-            position = lineInfo.LinePosition;
-        }
-
-        return new XamlDiagnostic(
-            code,
-            message,
-            resolvedElementName,
-            resolvedPropertyName,
-            line,
-            position,
-            hint);
-    }
-
-    private static void EmitDiagnostic(XamlDiagnostic diagnostic)
-    {
-        if (CurrentDiagnosticSinks == null || CurrentDiagnosticSinks.Count == 0)
-        {
-            return;
-        }
-
-        var sinks = CurrentDiagnosticSinks.ToArray();
-        foreach (var sink in sinks)
-        {
-            sink(diagnostic);
-        }
-    }
-
-    private static string FormatLineInfo(XObject? location)
-    {
-        if (location is not IXmlLineInfo lineInfo || !lineInfo.HasLineInfo())
-        {
-            return string.Empty;
-        }
-
-        return $" (Line {lineInfo.LineNumber}, Position {lineInfo.LinePosition})";
-    }
-
-    private static string FormatDiagnosticContext(XamlDiagnostic diagnostic)
-    {
-        var parts = new List<string> { $"Code={diagnostic.Code}" };
-        if (!string.IsNullOrWhiteSpace(diagnostic.ElementName))
-        {
-            parts.Add($"Element={diagnostic.ElementName}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(diagnostic.PropertyName))
-        {
-            parts.Add($"Property={diagnostic.PropertyName}");
-        }
-
-        if (diagnostic.Line.HasValue)
-        {
-            parts.Add($"Line={diagnostic.Line.Value}");
-        }
-
-        if (diagnostic.Position.HasValue)
-        {
-            parts.Add($"Position={diagnostic.Position.Value}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(diagnostic.Hint))
-        {
-            parts.Add($"Hint={diagnostic.Hint}");
-        }
-
-        return $" [Diagnostic: {string.Join(", ", parts)}]";
     }
 }

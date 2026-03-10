@@ -1,0 +1,43 @@
+using System;
+using System.Collections.Generic;
+
+namespace InkkSlinger;
+
+public static partial class XamlLoader
+{
+    private static FrameworkElement? CurrentLoadRootScope
+    {
+        get => XamlLoadSession.Current.LoadRootScope;
+        set => XamlLoadSession.Current.LoadRootScope = value;
+    }
+
+    private static Stack<FrameworkElement>? CurrentConstructionScopes
+    {
+        get => XamlLoadSession.Current.ConstructionScopes;
+        set => XamlLoadSession.Current.ConstructionScopes = value;
+    }
+
+    private static Stack<string>? CurrentXamlBaseDirectories
+    {
+        get => XamlLoadSession.Current.XamlBaseDirectories;
+        set => XamlLoadSession.Current.XamlBaseDirectories = value;
+    }
+
+    private static Stack<string>? CurrentResourceDictionarySourcePaths
+    {
+        get => XamlLoadSession.Current.ResourceDictionarySourcePaths;
+        set => XamlLoadSession.Current.ResourceDictionarySourcePaths = value;
+    }
+
+    private static Stack<Action<XamlDiagnostic>>? CurrentDiagnosticSinks
+    {
+        get => XamlLoadSession.Current.DiagnosticSinks;
+        set => XamlLoadSession.Current.DiagnosticSinks = value;
+    }
+
+    private static Stack<List<Action>>? CurrentDeferredFinalizeActions
+    {
+        get => XamlLoadSession.Current.DeferredFinalizeActions;
+        set => XamlLoadSession.Current.DeferredFinalizeActions = value;
+    }
+}
