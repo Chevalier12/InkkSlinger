@@ -15,6 +15,7 @@ public class Button : ContentControl
     private int _textLayoutCacheTextVersion = -1;
     private float _textLayoutCacheWidth = float.NaN;
     private SpriteFont? _textLayoutCacheFont;
+    private float _textLayoutCacheFontSize = float.NaN;
     private TextWrapping _textLayoutCacheWrapping = TextWrapping.NoWrap;
     private TextLayout.TextLayoutResult _textLayoutCacheResult = TextLayout.TextLayoutResult.Empty;
     private int _textVersion;
@@ -221,6 +222,7 @@ public class Button : ContentControl
             InvalidateTextLayoutCache();
         }
         else if (args.Property == FontProperty ||
+                 args.Property == FontSizeProperty ||
                  args.Property == TextWrappingProperty)
         {
             InvalidateTextLayoutCache();
@@ -286,7 +288,7 @@ public class Button : ContentControl
         var textX = left + ((maxTextWidth - layout.Size.X) / 2f);
         var textY = top + ((maxTextHeight - layout.Size.Y) / 2f);
 
-        var lineSpacing = FontStashTextRenderer.GetLineHeight(Font);
+        var lineSpacing = FontStashTextRenderer.GetLineHeight(Font, FontSize);
         for (var i = 0; i < layout.Lines.Count; i++)
         {
             var line = layout.Lines[i];
@@ -295,10 +297,10 @@ public class Button : ContentControl
                 continue;
             }
 
-            var lineWidth = FontStashTextRenderer.MeasureWidth(Font, line);
+            var lineWidth = FontStashTextRenderer.MeasureWidth(Font, line, FontSize);
             var lineX = textX + ((layout.Size.X - lineWidth) / 2f);
             var linePosition = new Vector2(lineX, textY + (i * lineSpacing));
-            FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, Foreground * Opacity);
+            FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, Foreground * Opacity, FontSize);
         }
     }
 
@@ -351,16 +353,18 @@ public class Button : ContentControl
         if (_hasTextLayoutCache &&
             _textLayoutCacheTextVersion == _textVersion &&
             ReferenceEquals(_textLayoutCacheFont, Font) &&
+            WidthMatches(_textLayoutCacheFontSize, FontSize) &&
             _textLayoutCacheWrapping == TextWrapping &&
             WidthMatches(_textLayoutCacheWidth, availableWidth))
         {
             return _textLayoutCacheResult;
         }
 
-        var result = TextLayout.Layout(Text, Font, availableWidth, TextWrapping);
+        var result = TextLayout.Layout(Text, Font, FontSize, availableWidth, TextWrapping);
         _textLayoutCacheTextVersion = _textVersion;
         _textLayoutCacheWidth = availableWidth;
         _textLayoutCacheFont = Font;
+        _textLayoutCacheFontSize = FontSize;
         _textLayoutCacheWrapping = TextWrapping;
         _textLayoutCacheResult = result;
         _hasTextLayoutCache = true;
@@ -373,6 +377,7 @@ public class Button : ContentControl
         _textLayoutCacheTextVersion = -1;
         _textLayoutCacheWidth = float.NaN;
         _textLayoutCacheFont = null;
+        _textLayoutCacheFontSize = float.NaN;
         _textLayoutCacheWrapping = TextWrapping.NoWrap;
         _textLayoutCacheResult = TextLayout.TextLayoutResult.Empty;
     }

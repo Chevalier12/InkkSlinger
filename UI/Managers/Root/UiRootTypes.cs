@@ -78,3 +78,14 @@ public readonly record struct UiInputMetricsSnapshot(
     int KeyEventCount,
     int TextEventCount,
     int PointerEventCount);
+
+internal readonly record struct UiRenderTelemetrySnapshot(
+    int SpriteBatchRestartCount,
+    int ClipPushCount,
+    int RetainedNodesVisited,
+    int RetainedNodesDrawn,
+    int DirtyRegionThresholdFallbackCount,
+    int ShapeCacheHitCount,
+    int ShapeCacheMissCount,
+    int TextLayoutCacheHitCount,
+    int TextLayoutCacheMissCount);

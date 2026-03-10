@@ -254,6 +254,7 @@ public sealed class DocumentLayoutResult
 public readonly record struct DocumentLayoutSettings(
     float AvailableWidth,
     SpriteFont? Font,
+    float FontSize,
     TextWrapping Wrapping,
     Color Foreground,
     float LineHeight,
@@ -351,7 +352,7 @@ public sealed class DocumentLayoutEngine
             var itemIndex = 0;
             foreach (var item in list.Items)
             {
-                var marker = list.IsOrdered ? $"{itemIndex + 1}." : "•";
+                var marker = list.IsOrdered ? $"{itemIndex + 1}." : "\u2022";
                 var itemPath = $"{path}/ListItem[{itemIndex}]";
                 var firstParagraph = true;
                 var blockIndex = 0;
@@ -487,7 +488,9 @@ public sealed class DocumentLayoutEngine
         {
             var marker = string.IsNullOrWhiteSpace(markerText) ? string.Empty : markerText.TrimEnd() + " ";
             var markerX = baseX + (listDepth * _settings.ListIndent);
-            var markerWidth = marker.Length == 0 ? 0f : FontStashTextRenderer.MeasureWidth(_settings.Font, marker);
+            var markerWidth = marker.Length == 0
+                ? 0f
+                : FontStashTextRenderer.MeasureWidth(_settings.Font, marker, _settings.FontSize);
             var textStartX = markerX + (markerWidth > 0f ? markerWidth + _settings.ListMarkerGap : 0f);
 
             var segments = new List<StyledChar>();
@@ -505,7 +508,7 @@ public sealed class DocumentLayoutEngine
 
             var layoutLines = plainText.Length == 0
                 ? new[] { string.Empty }
-                : TextLayout.Layout(plainText, _settings.Font, width, _settings.Wrapping).Lines;
+                : TextLayout.Layout(plainText, _settings.Font, _settings.FontSize, width, _settings.Wrapping).Lines;
             var y = fixedY ?? _cursorY;
             var blockTop = y;
             var blockBottom = y;
@@ -525,8 +528,18 @@ public sealed class DocumentLayoutEngine
 
                 var globalLineStart = _offset + scanIndex;
                 var lineY = y + (lineIndex * _settings.LineHeight);
-                var lineRuns = BuildLineRuns(segments, scanIndex, lineText.Length, textStartX, lineY, globalLineStart, isTableCell, _settings.LineHeight, _settings.Font);
-                var prefixWidths = BuildPrefixWidths(segments, scanIndex, lineText.Length, _settings.Font);
+                var lineRuns = BuildLineRuns(
+                    segments,
+                    scanIndex,
+                    lineText.Length,
+                    textStartX,
+                    lineY,
+                    globalLineStart,
+                    isTableCell,
+                    _settings.LineHeight,
+                    _settings.Font,
+                    _settings.FontSize);
+                var prefixWidths = BuildPrefixWidths(segments, scanIndex, lineText.Length, _settings.Font, _settings.FontSize);
                 var lineWidth = prefixWidths[prefixWidths.Length - 1];
                 var lineBounds = new LayoutRect(textStartX, lineY, Math.Max(lineWidth, markerWidth), _settings.LineHeight);
                 for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
@@ -618,7 +631,8 @@ public sealed class DocumentLayoutEngine
             int globalStartOffset,
             bool isTableCell,
             float lineHeight,
-            SpriteFont? font)
+            SpriteFont? font,
+            float fontSize)
         {
             var runs = new List<DocumentLayoutRun>();
             if (length <= 0)
@@ -639,7 +653,7 @@ public sealed class DocumentLayoutEngine
                 }
 
                 var text = BuildText(chars, chunkStart, index - chunkStart);
-                var width = FontStashTextRenderer.MeasureWidth(font, text, style.IsBold);
+                var width = FontStashTextRenderer.MeasureWidth(font, text, fontSize, style.IsBold);
                 var run = new DocumentLayoutRun
                 {
                     Text = text,
@@ -657,7 +671,7 @@ public sealed class DocumentLayoutEngine
             return runs;
         }
 
-        private static float[] BuildPrefixWidths(IReadOnlyList<StyledChar> chars, int start, int length, SpriteFont? font)
+        private static float[] BuildPrefixWidths(IReadOnlyList<StyledChar> chars, int start, int length, SpriteFont? font, float fontSize)
         {
             var widths = new float[length + 1];
             widths[0] = 0f;
@@ -666,7 +680,7 @@ public sealed class DocumentLayoutEngine
             {
                 var ch = chars[start + i];
                 var value = ch.Character == '\0' ? " " : ch.Character.ToString();
-                current += FontStashTextRenderer.MeasureWidth(font, value, ch.Style.IsBold);
+                current += FontStashTextRenderer.MeasureWidth(font, value, fontSize, ch.Style.IsBold);
                 widths[i + 1] = current;
             }
 
@@ -978,7 +992,7 @@ public sealed class DocumentLayoutEngine
             foreach (var paragraph in FlowDocumentPlainTextExtensions.EnumerateParagraphs(cell))
             {
                 var text = FlowDocumentPlainText.GetInlineText(paragraph.Inlines);
-                maxWidth = Math.Max(maxWidth, FontStashTextRenderer.MeasureWidth(_settings.Font, text));
+                maxWidth = Math.Max(maxWidth, FontStashTextRenderer.MeasureWidth(_settings.Font, text, _settings.FontSize));
             }
 
             return maxWidth;
@@ -991,7 +1005,7 @@ public sealed class DocumentLayoutEngine
             foreach (var paragraph in FlowDocumentPlainTextExtensions.EnumerateParagraphs(cell))
             {
                 var text = FlowDocumentPlainText.GetInlineText(paragraph.Inlines);
-                var layout = TextLayout.Layout(text, _settings.Font, width, _settings.Wrapping);
+                var layout = TextLayout.Layout(text, _settings.Font, _settings.FontSize, width, _settings.Wrapping);
                 total += Math.Max(_settings.LineHeight, layout.Lines.Count * _settings.LineHeight);
                 any = true;
             }

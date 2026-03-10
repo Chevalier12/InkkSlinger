@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -89,14 +90,7 @@ public static class TextLayout
         }
 
         _wrappedBuildCount++;
-        var lines = new List<string>();
-        var paragraphs = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
-        foreach (var paragraph in paragraphs)
-        {
-            LayoutParagraph(paragraph, font, fontSize, availableWidth, lines);
-        }
-
-        return BuildResult(lines, font, fontSize);
+        return BuildWrappedLayout(text, font, fontSize, availableWidth);
     }
 
     public readonly record struct TextLayoutMetricsSnapshot(
@@ -112,114 +106,211 @@ public static class TextLayout
 
     private static TextLayoutResult BuildNoWrapLayout(string text, SpriteFont? font, float fontSize)
     {
-        var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
-        var measured = new Vector2(
-            FontStashTextRenderer.MeasureWidth(font, text, fontSize),
-            lines.Length * FontStashTextRenderer.GetLineHeight(font, fontSize));
-        return new TextLayoutResult(lines, measured);
+        var lines = new List<string>();
+        var widths = new List<float>();
+        var index = 0;
+        while (TryReadLogicalLine(text, ref index, out var start, out var length))
+        {
+            var line = length == 0 ? string.Empty : text.Substring(start, length);
+            lines.Add(line);
+            widths.Add(line.Length == 0 ? 0f : FontStashTextRenderer.MeasureWidth(font, line, fontSize));
+        }
+
+        return BuildResult(lines, widths, font, fontSize);
     }
 
-    private static void LayoutParagraph(string paragraph, SpriteFont? font, float fontSize, float availableWidth, IList<string> lines)
+    private static TextLayoutResult BuildWrappedLayout(string text, SpriteFont? font, float fontSize, float availableWidth)
     {
-        if (paragraph.Length == 0)
+        var lines = new List<string>();
+        var widths = new List<float>();
+        var index = 0;
+        while (TryReadLogicalLine(text, ref index, out var start, out var length))
+        {
+            LayoutParagraph(text, start, length, font, fontSize, availableWidth, lines, widths);
+        }
+
+        return BuildResult(lines, widths, font, fontSize);
+    }
+
+    private static void LayoutParagraph(
+        string text,
+        int start,
+        int length,
+        SpriteFont? font,
+        float fontSize,
+        float availableWidth,
+        IList<string> lines,
+        IList<float> widths)
+    {
+        if (length == 0)
         {
             lines.Add(string.Empty);
+            widths.Add(0f);
             return;
         }
 
         var initialLineCount = lines.Count;
-        var line = string.Empty;
-        var index = 0;
-        while (index < paragraph.Length)
+        var builder = new StringBuilder(length);
+        var lineWidth = 0f;
+        var index = start;
+        var end = start + length;
+        while (index < end)
         {
-            var token = ReadToken(paragraph, ref index);
-            if (token.Length == 0)
+            var tokenStart = index;
+            var tokenIsWhitespace = char.IsWhiteSpace(text[index]);
+            index++;
+            while (index < end && char.IsWhiteSpace(text[index]) == tokenIsWhitespace)
+            {
+                index++;
+            }
+
+            var tokenLength = index - tokenStart;
+            if (tokenLength == 0)
             {
                 continue;
             }
 
-            var candidate = line + token;
-            var candidateWidth = FontStashTextRenderer.MeasureWidth(font, candidate, fontSize);
-            if (candidateWidth <= availableWidth)
+            var tokenWidth = MeasureSegment(text, tokenStart, tokenLength, font, fontSize);
+            if ((lineWidth + tokenWidth) <= availableWidth)
             {
-                line = candidate;
+                builder.Append(text, tokenStart, tokenLength);
+                lineWidth += tokenWidth;
                 continue;
             }
 
-            if (!string.IsNullOrEmpty(line))
+            if (builder.Length > 0)
             {
-                lines.Add(line);
-                line = string.Empty;
-                index -= token.Length;
+                lines.Add(builder.ToString());
+                widths.Add(lineWidth);
+                builder.Clear();
+                lineWidth = 0f;
+                index = tokenStart;
                 continue;
             }
 
-            BreakLongToken(token, font, fontSize, availableWidth, lines);
+            BreakLongToken(text, tokenStart, tokenLength, font, fontSize, availableWidth, lines, widths);
         }
 
-        if (line.Length > 0 || lines.Count == initialLineCount)
+        if (builder.Length > 0 || lines.Count == initialLineCount)
         {
-            lines.Add(line);
+            lines.Add(builder.ToString());
+            widths.Add(lineWidth);
         }
     }
 
-    private static void BreakLongToken(string token, SpriteFont? font, float fontSize, float availableWidth, IList<string> lines)
+    private static void BreakLongToken(
+        string text,
+        int start,
+        int length,
+        SpriteFont? font,
+        float fontSize,
+        float availableWidth,
+        IList<string> lines,
+        IList<float> widths)
     {
-        var start = 0;
-        while (start < token.Length)
+        var remainingStart = start;
+        var remainingLength = length;
+        while (remainingLength > 0)
         {
-            var length = 1;
-            var fitLength = 0;
-            while (start + length <= token.Length)
-            {
-                var segment = token.Substring(start, length);
-                var width = FontStashTextRenderer.MeasureWidth(font, segment, fontSize);
-                if (width <= availableWidth)
-                {
-                    fitLength = length;
-                    length++;
-                    continue;
-                }
-
-                break;
-            }
-
-            if (fitLength == 0)
+            var fitLength = FindLongestFittingSegmentLength(
+                text,
+                remainingStart,
+                remainingLength,
+                font,
+                fontSize,
+                availableWidth);
+            if (fitLength <= 0)
             {
                 fitLength = 1;
             }
 
-            lines.Add(token.Substring(start, fitLength));
-            start += fitLength;
+            var line = text.Substring(remainingStart, fitLength);
+            lines.Add(line);
+            widths.Add(line.Length == 0 ? 0f : FontStashTextRenderer.MeasureWidth(font, line, fontSize));
+            remainingStart += fitLength;
+            remainingLength -= fitLength;
         }
     }
 
-    private static string ReadToken(string text, ref int index)
+    private static int FindLongestFittingSegmentLength(
+        string text,
+        int start,
+        int maxLength,
+        SpriteFont? font,
+        float fontSize,
+        float availableWidth)
     {
-        var start = index;
-        var isWhitespace = char.IsWhiteSpace(text[index]);
-        while (index < text.Length && char.IsWhiteSpace(text[index]) == isWhitespace)
+        var low = 1;
+        var high = maxLength;
+        var best = 0;
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            var width = MeasureSegment(text, start, mid, font, fontSize);
+            if (width <= availableWidth)
+            {
+                best = mid;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return best;
+    }
+
+    private static float MeasureSegment(string text, int start, int length, SpriteFont? font, float fontSize)
+    {
+        if (length <= 0)
+        {
+            return 0f;
+        }
+
+        if (start == 0 && length == text.Length)
+        {
+            return FontStashTextRenderer.MeasureWidth(font, text, fontSize);
+        }
+
+        return FontStashTextRenderer.MeasureWidth(font, text.Substring(start, length), fontSize);
+    }
+
+    private static bool TryReadLogicalLine(string text, ref int index, out int start, out int length)
+    {
+        if (index > text.Length)
+        {
+            start = 0;
+            length = 0;
+            return false;
+        }
+
+        start = index;
+        while (index < text.Length && text[index] != '\r' && text[index] != '\n')
         {
             index++;
         }
 
-        return text[start..index];
-    }
-
-    private static bool IsWhitespaceToken(string token)
-    {
-        for (var i = 0; i < token.Length; i++)
+        length = index - start;
+        if (index >= text.Length)
         {
-            if (!char.IsWhiteSpace(token[i]))
-            {
-                return false;
-            }
+            index = text.Length + 1;
+            return true;
+        }
+
+        if (text[index] == '\r' && index + 1 < text.Length && text[index + 1] == '\n')
+        {
+            index += 2;
+        }
+        else
+        {
+            index++;
         }
 
         return true;
     }
 
-    private static TextLayoutResult BuildResult(IReadOnlyList<string> lines, SpriteFont? font, float fontSize)
+    private static TextLayoutResult BuildResult(IReadOnlyList<string> lines, IReadOnlyList<float> widths, SpriteFont? font, float fontSize)
     {
         if (lines.Count == 0)
         {
@@ -227,17 +318,16 @@ public static class TextLayout
         }
 
         float maxWidth = 0f;
-        for (var i = 0; i < lines.Count; i++)
+        for (var i = 0; i < widths.Count; i++)
         {
-            var width = lines[i].Length == 0 ? 0f : FontStashTextRenderer.MeasureWidth(font, lines[i], fontSize);
-            if (width > maxWidth)
+            if (widths[i] > maxWidth)
             {
-                maxWidth = width;
+                maxWidth = widths[i];
             }
         }
 
         var size = new Vector2(maxWidth, lines.Count * FontStashTextRenderer.GetLineHeight(font, fontSize));
-        return new TextLayoutResult(lines, size);
+        return new TextLayoutResult(lines, widths, size);
     }
 
     private static void AddToCache(TextLayoutCacheKey key, TextLayoutResult result)
@@ -254,15 +344,18 @@ public static class TextLayout
 
     public readonly struct TextLayoutResult
     {
-        public static readonly TextLayoutResult Empty = new(Array.Empty<string>(), Vector2.Zero);
+        public static readonly TextLayoutResult Empty = new(Array.Empty<string>(), Array.Empty<float>(), Vector2.Zero);
 
-        public TextLayoutResult(IReadOnlyList<string> lines, Vector2 size)
+        public TextLayoutResult(IReadOnlyList<string> lines, IReadOnlyList<float> lineWidths, Vector2 size)
         {
             Lines = lines;
+            LineWidths = lineWidths;
             Size = size;
         }
 
         public IReadOnlyList<string> Lines { get; }
+
+        internal IReadOnlyList<float> LineWidths { get; }
 
         public Vector2 Size { get; }
     }
@@ -290,7 +383,7 @@ public static class TextLayout
 
         public static TextLayoutCacheKey Create(string text, SpriteFont? font, float fontSize, float width, TextWrapping wrapping)
         {
-            return new TextLayoutCacheKey(text, font, QuantizeWidth(fontSize), QuantizeWidth(width), wrapping);
+            return new TextLayoutCacheKey(text, font, QuantizeValue(fontSize), QuantizeValue(width), wrapping);
         }
 
         public bool Equals(TextLayoutCacheKey other)
@@ -317,19 +410,19 @@ public static class TextLayout
                 (int)Wrapping);
         }
 
-        private static int QuantizeWidth(float width)
+        private static int QuantizeValue(float value)
         {
-            if (float.IsInfinity(width))
+            if (float.IsInfinity(value))
             {
                 return int.MaxValue;
             }
 
-            if (float.IsNaN(width))
+            if (float.IsNaN(value))
             {
                 return int.MinValue;
             }
 
-            return (int)MathF.Round(width * 100f);
+            return (int)MathF.Round(value * 100f);
         }
     }
 }

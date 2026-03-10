@@ -8,7 +8,7 @@ namespace InkkSlinger.Tests;
 public class DirtyRegionTrackingTests
 {
     [Fact]
-    public void RenderInvalidation_TracksUnionOfOldAndNewBounds()
+    public void RenderInvalidation_WithDisjointOldAndNewBounds_TracksBothRegions()
     {
         var root = new Panel();
         var child = new Border();
@@ -26,11 +26,11 @@ public class DirtyRegionTrackingTests
         uiRoot.SynchronizeRetainedRenderListForTests();
 
         var regions = uiRoot.GetDirtyRegionsSnapshotForTests();
-        Assert.Single(regions);
+        Assert.Equal(2, regions.Count);
         Assert.Equal(10f, regions[0].X);
-        Assert.Equal(10f, regions[0].Y);
-        Assert.Equal(70f, regions[0].Width);
-        Assert.Equal(20f, regions[0].Height);
+        Assert.Equal(20f, regions[0].Width);
+        Assert.Equal(60f, regions[1].X);
+        Assert.Equal(20f, regions[1].Width);
     }
 
     [Fact]
@@ -153,5 +153,30 @@ public class DirtyRegionTrackingTests
 
         Assert.True(uiRoot.IsFullDirtyForTests());
         Assert.Equal(1, uiRoot.FullRedrawFallbackCount);
+    }
+
+    [Fact]
+    public void RenderInvalidation_WithTouchingOldAndNewBounds_TracksUnionEnvelope()
+    {
+        var root = new Panel();
+        var child = new Border();
+        root.AddChild(child);
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 200f, 200f));
+        child.SetLayoutSlot(new LayoutRect(10f, 10f, 20f, 20f));
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 200f, 200f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        child.SetLayoutSlot(new LayoutRect(30f, 10f, 20f, 20f));
+        child.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var regions = uiRoot.GetDirtyRegionsSnapshotForTests();
+        Assert.Single(regions);
+        Assert.Equal(10f, regions[0].X);
+        Assert.Equal(40f, regions[0].Width);
+        Assert.Equal(20f, regions[0].Height);
     }
 }

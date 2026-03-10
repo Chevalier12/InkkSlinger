@@ -113,6 +113,29 @@ public sealed class RichTextLayoutTests
     }
 
     [Fact]
+    public void CaretGeometry_UsesConfiguredFontSizeForPrefixWidths()
+    {
+        const string Text = "asdsafasd";
+
+        var document = new FlowDocument();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run(Text));
+        document.Blocks.Add(paragraph);
+
+        const float fontSize = 10f;
+        var layout = Layout(document, 800f, fontSize);
+        var line = Assert.Single(layout.Lines);
+
+        Assert.True(layout.TryGetCaretPosition(Text.Length, out var caret));
+
+        var expectedWidth = FontStashTextRenderer.MeasureWidth(null, Text, fontSize);
+        var measuredWidth = caret.X - line.TextStartX;
+        Assert.True(
+            MathF.Abs(measuredWidth - expectedWidth) <= 0.01f,
+            $"Expected caret width to match configured font size measurement. caretWidth={measuredWidth:0.###}, expected={expectedWidth:0.###}, fontSize={fontSize:0.###}");
+    }
+
+    [Fact]
     public void SelectionRects_SpanMultipleLinesAndRuns()
     {
         var document = new FlowDocument();
@@ -204,15 +227,16 @@ public sealed class RichTextLayoutTests
         return item;
     }
 
-    private static DocumentLayoutResult Layout(FlowDocument document, float width)
+    private static DocumentLayoutResult Layout(FlowDocument document, float width, float fontSize = 16f)
     {
         var engine = new DocumentLayoutEngine();
         var settings = new DocumentLayoutSettings(
             AvailableWidth: width,
             Font: null,
+            FontSize: fontSize,
             Wrapping: TextWrapping.Wrap,
             Foreground: Color.White,
-            LineHeight: Math.Max(1f, FontStashTextRenderer.GetLineHeight(null)),
+            LineHeight: Math.Max(1f, FontStashTextRenderer.GetLineHeight(null, fontSize)),
             ListIndent: 16f,
             ListMarkerGap: 4f,
             TableCellPadding: 4f,

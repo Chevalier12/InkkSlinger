@@ -47,7 +47,7 @@ public sealed class TextBoxFontFallbackTests
         textBox.Arrange(new LayoutRect(0f, 0f, 260f, 48f));
         textBox.SetFocusedFromInput(true);
 
-        var textWidth = FontStashTextRenderer.MeasureWidth(null, textBox.Text);
+        var textWidth = FontStashTextRenderer.MeasureWidth(null, textBox.Text, textBox.FontSize);
         var clickPoint = new Vector2(
             textBox.LayoutSlot.X + textBox.Padding.Left + textBox.BorderThickness + textWidth + 1f,
             textBox.LayoutSlot.Y + textBox.Padding.Top + 2f);

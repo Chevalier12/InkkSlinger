@@ -226,8 +226,8 @@ public class TreeViewItem : ItemsControl
         if (!string.IsNullOrEmpty(Header))
         {
             var textX = LayoutSlot.X + padding.Left + (HasChildItems() ? 16f : 6f);
-            var textY = LayoutSlot.Y + ((rowHeight - FontStashTextRenderer.GetLineHeight(Font)) / 2f);
-            FontStashTextRenderer.DrawString(spriteBatch, Font, Header, new Vector2(textX, textY), Foreground * Opacity);
+            var textY = LayoutSlot.Y + ((rowHeight - FontStashTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
+            FontStashTextRenderer.DrawString(spriteBatch, Font, Header, new Vector2(textX, textY), Foreground * Opacity, FontSize);
         }
     }
 
@@ -265,14 +265,14 @@ public class TreeViewItem : ItemsControl
     private float GetRowHeight()
     {
         var padding = Padding;
-        return MathF.Max(18f, FontStashTextRenderer.GetLineHeight(Font) + 4f + padding.Vertical);
+        return MathF.Max(18f, FontStashTextRenderer.GetLineHeight(Font, FontSize) + 4f + padding.Vertical);
     }
 
     private float MeasureHeaderWidth()
     {
         var padding = Padding;
         var textWidth = !string.IsNullOrEmpty(Header)
-            ? FontStashTextRenderer.MeasureWidth(Font, Header)
+            ? FontStashTextRenderer.MeasureWidth(Font, Header, FontSize)
             : 0f;
         return padding.Horizontal + (HasChildItems() ? 20f : 10f) + textWidth;
     }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -47,56 +46,28 @@ public class Panel : FrameworkElement
 
     public virtual void AddChild(UIElement child)
     {
-        var diagnosticsStart = Stopwatch.GetTimestamp();
-        var phaseStart = diagnosticsStart;
-        var exists = _children.Contains(child);
-        if (exists)
+        if (_children.Contains(child))
         {
             return;
         }
 
-        phaseStart = Stopwatch.GetTimestamp();
-        _children.Add(child);
-
-        phaseStart = Stopwatch.GetTimestamp();
-        child.DependencyPropertyChanged += OnChildDependencyPropertyChanged;
-        child.SetVisualParent(this);
-        child.SetLogicalParent(this);
-
-        phaseStart = Stopwatch.GetTimestamp();
-        _zOrderCacheDirty = true;
-        InvalidateMeasure();
+        ValidateChildOwnership(child);
+        AttachChild(_children.Count, child);
     }
 
     public virtual void InsertChild(int index, UIElement child)
     {
-        var diagnosticsStart = Stopwatch.GetTimestamp();
-        var phaseStart = diagnosticsStart;
-        var exists = _children.Contains(child);
-        if (exists)
+        if (_children.Contains(child))
         {
             return;
         }
 
-        phaseStart = Stopwatch.GetTimestamp();
-        var clamped = Math.Clamp(index, 0, _children.Count);
-
-        phaseStart = Stopwatch.GetTimestamp();
-        _children.Insert(clamped, child);
-
-        phaseStart = Stopwatch.GetTimestamp();
-        child.DependencyPropertyChanged += OnChildDependencyPropertyChanged;
-        child.SetVisualParent(this);
-        child.SetLogicalParent(this);
-
-        phaseStart = Stopwatch.GetTimestamp();
-        _zOrderCacheDirty = true;
-        InvalidateMeasure();
+        ValidateChildOwnership(child);
+        AttachChild(index, child);
     }
 
     public virtual bool RemoveChild(UIElement child)
     {
-        var diagnosticsStart = Stopwatch.GetTimestamp();
         if (!_children.Remove(child))
         {
             return false;
@@ -112,7 +83,6 @@ public class Panel : FrameworkElement
 
     public virtual bool RemoveChildAt(int index)
     {
-        var diagnosticsStart = Stopwatch.GetTimestamp();
         if (index < 0 || index >= _children.Count)
         {
             return false;
@@ -130,7 +100,6 @@ public class Panel : FrameworkElement
 
     public virtual bool MoveChildRange(int oldIndex, int count, int newIndex)
     {
-        var diagnosticsStart = Stopwatch.GetTimestamp();
         if (count <= 0 || _children.Count == 0)
         {
             return false;
@@ -147,24 +116,24 @@ public class Panel : FrameworkElement
             return false;
         }
 
-        var clampedNew = Math.Clamp(newIndex, 0, _children.Count - 1);
-        if (clampedNew == oldIndex)
+        var clampedNew = Math.Clamp(newIndex, 0, _children.Count);
+        if (actualCount == 1 && clampedNew == oldIndex)
         {
             return true;
         }
 
         var range = _children.GetRange(oldIndex, actualCount);
         _children.RemoveRange(oldIndex, actualCount);
+        clampedNew = Math.Clamp(clampedNew, 0, _children.Count);
 
-        if (clampedNew > oldIndex)
+        if (clampedNew == oldIndex)
         {
-            clampedNew = Math.Max(0, clampedNew - actualCount);
+            _children.InsertRange(oldIndex, range);
+            return true;
         }
 
-        clampedNew = Math.Clamp(clampedNew, 0, _children.Count);
         _children.InsertRange(clampedNew, range);
-        _zOrderCacheDirty = true;
-        InvalidateArrange();
+        NotifyVisualChildOrderChanged(invalidateMeasure: true);
         return true;
     }
 
@@ -269,8 +238,7 @@ public class Panel : FrameworkElement
     {
         if (ReferenceEquals(args.Property, ZIndexProperty))
         {
-            _zOrderCacheDirty = true;
-            InvalidateArrange();
+            NotifyVisualChildOrderChanged(invalidateMeasure: false);
         }
     }
 
@@ -283,13 +251,21 @@ public class Panel : FrameworkElement
 
         _zOrderedChildrenCache.Clear();
         _zOrderedChildrenCache.AddRange(_children);
-        _childOrderLookup.Clear();
-        for (var i = 0; i < _children.Count; i++)
+        if (!IsZOrderCacheAlreadySorted())
         {
-            _childOrderLookup[_children[i]] = i;
+            _childOrderLookup.Clear();
+            for (var i = 0; i < _children.Count; i++)
+            {
+                _childOrderLookup[_children[i]] = i;
+            }
+
+            _zOrderedChildrenCache.Sort(CompareChildrenByZIndex);
+        }
+        else
+        {
+            _childOrderLookup.Clear();
         }
 
-        _zOrderedChildrenCache.Sort(CompareChildrenByZIndex);
         _zOrderCacheDirty = false;
         return _zOrderedChildrenCache;
     }
@@ -320,5 +296,60 @@ public class Panel : FrameworkElement
         }
 
         return null;
+    }
+
+    private void ValidateChildOwnership(UIElement child)
+    {
+        if ((child.VisualParent != null && !ReferenceEquals(child.VisualParent, this)) ||
+            (child.LogicalParent != null && !ReferenceEquals(child.LogicalParent, this)))
+        {
+            throw new InvalidOperationException("UIElement already has a parent.");
+        }
+    }
+
+    private void AttachChild(int index, UIElement child)
+    {
+        _children.Insert(Math.Clamp(index, 0, _children.Count), child);
+        child.DependencyPropertyChanged += OnChildDependencyPropertyChanged;
+        child.SetVisualParent(this);
+        child.SetLogicalParent(this);
+        NotifyVisualChildOrderChanged(invalidateMeasure: true);
+    }
+
+    private void NotifyVisualChildOrderChanged(bool invalidateMeasure)
+    {
+        _zOrderCacheDirty = true;
+        if (invalidateMeasure)
+        {
+            InvalidateMeasure();
+        }
+        else
+        {
+            InvalidateArrange();
+        }
+
+        UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
+    }
+
+    private bool IsZOrderCacheAlreadySorted()
+    {
+        if (_zOrderedChildrenCache.Count <= 1)
+        {
+            return true;
+        }
+
+        var previousZIndex = GetZIndex(_zOrderedChildrenCache[0]);
+        for (var i = 1; i < _zOrderedChildrenCache.Count; i++)
+        {
+            var currentZIndex = GetZIndex(_zOrderedChildrenCache[i]);
+            if (currentZIndex < previousZIndex)
+            {
+                return false;
+            }
+
+            previousZIndex = currentZIndex;
+        }
+
+        return true;
     }
 }

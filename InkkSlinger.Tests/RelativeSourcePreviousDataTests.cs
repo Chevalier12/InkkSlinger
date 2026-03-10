@@ -99,6 +99,42 @@ public sealed class RelativeSourcePreviousDataTests
         Assert.Equal("A", GetText(itemsControl, 2));
     }
 
+    [Fact]
+    public void PreviousData_ReevaluatesAfterForwardMove()
+    {
+        var itemsControl = CreateDirectItemsProbe();
+        itemsControl.Items.Add(new Row { Name = "A" });
+        itemsControl.Items.Add(new Row { Name = "B" });
+        itemsControl.Items.Add(new Row { Name = "C" });
+
+        itemsControl.Items.Move(0, 1);
+
+        Assert.Equal("<none>", GetText(itemsControl, 0));
+        Assert.Equal("B", GetText(itemsControl, 1));
+        Assert.Equal("A", GetText(itemsControl, 2));
+    }
+
+    [Fact]
+    public void ForwardMove_WithActivePanelHost_KeepsHostedChildrenAndContainersInSync()
+    {
+        var itemsControl = CreateDirectItemsProbe();
+        itemsControl.Items.Add(new Row { Name = "A" });
+        itemsControl.Items.Add(new Row { Name = "B" });
+        itemsControl.Items.Add(new Row { Name = "C" });
+
+        var host = new StackPanel();
+        itemsControl.AttachHost(host);
+
+        itemsControl.Items.Move(0, 1);
+
+        Assert.Equal("B", itemsControl.GetItemNameAt(0));
+        Assert.Equal("A", itemsControl.GetItemNameAt(1));
+        Assert.Equal("C", itemsControl.GetItemNameAt(2));
+        Assert.Same(itemsControl.RealizedContainers[0], host.Children[0]);
+        Assert.Same(itemsControl.RealizedContainers[1], host.Children[1]);
+        Assert.Same(itemsControl.RealizedContainers[2], host.Children[2]);
+    }
+
     private static ProbeItemsControl CreateDirectItemsProbe()
     {
         return new ProbeItemsControl
@@ -129,6 +165,16 @@ public sealed class RelativeSourcePreviousDataTests
     private sealed class ProbeItemsControl : ItemsControl
     {
         public IReadOnlyList<UIElement> RealizedContainers => ItemContainers;
+
+        public void AttachHost(Panel host)
+        {
+            AttachItemsHost(host);
+        }
+
+        public string GetItemNameAt(int index)
+        {
+            return Assert.IsType<Row>(ItemFromContainer(ItemContainers[index])).Name;
+        }
     }
 
     private sealed class Row

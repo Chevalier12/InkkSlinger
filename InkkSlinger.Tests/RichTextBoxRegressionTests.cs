@@ -73,8 +73,8 @@ public sealed class RichTextBoxRegressionTests
         var editor = CreateEditor(320f, 90f, "alpha beta gamma");
         var textLeft = 1f + 8f;
         var textTop = 1f + 5f;
-        var from = new Vector2(textLeft + FontStashTextRenderer.MeasureWidth(null, "alpha"), textTop + 2f);
-        var to = new Vector2(textLeft + FontStashTextRenderer.MeasureWidth(null, "alpha beta"), textTop + 2f);
+        var from = new Vector2(textLeft + FontStashTextRenderer.MeasureWidth(null, "alpha", editor.FontSize), textTop + 2f);
+        var to = new Vector2(textLeft + FontStashTextRenderer.MeasureWidth(null, "alpha beta", editor.FontSize), textTop + 2f);
 
         Assert.True(editor.HandlePointerDownFromInput(from, extendSelection: false));
         Assert.True(editor.HandlePointerMoveFromInput(to));

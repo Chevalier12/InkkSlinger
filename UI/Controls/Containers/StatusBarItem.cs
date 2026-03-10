@@ -105,8 +105,8 @@ public class StatusBarItem : ContentControl
 
         if (ContentElement == null && Content is string text)
         {
-            var width = FontStashTextRenderer.MeasureWidth(Font, text);
-            var height = FontStashTextRenderer.GetLineHeight(Font);
+            var width = FontStashTextRenderer.MeasureWidth(Font, text, FontSize);
+            var height = FontStashTextRenderer.GetLineHeight(Font, FontSize);
             contentDesired = new Vector2(MathF.Max(contentDesired.X, width), MathF.Max(contentDesired.Y, height));
         }
 
@@ -149,8 +149,8 @@ public class StatusBarItem : ContentControl
         {
             var padding = Padding;
             var textX = LayoutSlot.X + BorderThickness + padding.Left;
-            var textY = LayoutSlot.Y + ((LayoutSlot.Height - FontStashTextRenderer.GetLineHeight(Font)) / 2f);
-            FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), Foreground * Opacity);
+            var textY = LayoutSlot.Y + ((LayoutSlot.Height - FontStashTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
+            FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), Foreground * Opacity, FontSize);
         }
     }
 }

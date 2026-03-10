@@ -1,3 +1,5 @@
+using System;
+using System.Buffers;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -10,6 +12,10 @@ internal static class UiDrawing
     private static readonly Dictionary<GraphicsDevice, Stack<Rectangle>> ClipStacks = new();
     private static readonly Dictionary<GraphicsDevice, Stack<Matrix>> TransformStacks = new();
     private static readonly Dictionary<GraphicsDevice, SpriteBatchState> ActiveBatchStates = new();
+    private static readonly Dictionary<GraphicsDevice, float[]> PolygonIntersectionBuffers = new();
+    private static readonly Dictionary<CircleCacheKey, Vector2[]> CirclePointTemplates = new();
+    private static int _frameClipPushCount;
+    private static int _frameSpriteBatchRestartCount;
 
     private readonly record struct SpriteBatchState(
         SpriteSortMode SortMode,
@@ -35,6 +41,19 @@ internal static class UiDrawing
         ActiveBatchStates.Remove(graphicsDevice);
     }
 
+    internal static void ResetFrameTelemetry()
+    {
+        _frameClipPushCount = 0;
+        _frameSpriteBatchRestartCount = 0;
+    }
+
+    internal static (int ClipPushCount, int SpriteBatchRestartCount) ConsumeFrameTelemetry()
+    {
+        var snapshot = (_frameClipPushCount, _frameSpriteBatchRestartCount);
+        ResetFrameTelemetry();
+        return snapshot;
+    }
+
     private static void FlushAndRestartBatch(SpriteBatch spriteBatch)
     {
         var graphicsDevice = spriteBatch.GraphicsDevice;
@@ -43,6 +62,7 @@ internal static class UiDrawing
             return;
         }
 
+        _frameSpriteBatchRestartCount++;
         spriteBatch.End();
         spriteBatch.Begin(
             state.SortMode,
@@ -84,6 +104,11 @@ internal static class UiDrawing
     {
         var transform = GetCurrentTransform(spriteBatch.GraphicsDevice);
         return Vector2.Transform(point, transform);
+    }
+
+    internal static LayoutRect TransformRectBounds(SpriteBatch spriteBatch, LayoutRect rect)
+    {
+        return TransformRect(spriteBatch.GraphicsDevice, rect);
     }
 
     public static float GetScaleX(SpriteBatch spriteBatch)
@@ -172,21 +197,15 @@ internal static class UiDrawing
             return;
         }
 
-        var minY = (int)System.MathF.Floor(center.Y - radius);
-        var maxY = (int)System.MathF.Ceiling(center.Y + radius);
-        for (var y = minY; y <= maxY; y++)
+        var points = GetCirclePoints(radius);
+        PushTransform(spriteBatch, Matrix.CreateTranslation(center.X, center.Y, 0f));
+        try
         {
-            var dy = y - center.Y;
-            var span = radius * radius - (dy * dy);
-            if (span < 0f)
-            {
-                continue;
-            }
-
-            var dx = System.MathF.Sqrt(span);
-            var minX = center.X - dx;
-            var maxX = center.X + dx;
-            DrawFilledRect(spriteBatch, new LayoutRect(minX, y, (maxX - minX) + 1f, 1f), color, opacity);
+            DrawFilledPolygon(spriteBatch, points, color, opacity);
+        }
+        finally
+        {
+            PopTransform(spriteBatch);
         }
     }
 
@@ -203,32 +222,15 @@ internal static class UiDrawing
             return;
         }
 
-        var innerRadius = System.MathF.Max(0f, radius - thickness);
-        var minY = (int)System.MathF.Floor(center.Y - radius);
-        var maxY = (int)System.MathF.Ceiling(center.Y + radius);
-        for (var y = minY; y <= maxY; y++)
+        var points = GetCirclePoints(radius);
+        PushTransform(spriteBatch, Matrix.CreateTranslation(center.X, center.Y, 0f));
+        try
         {
-            var dy = y - center.Y;
-            var outerSpan = radius * radius - (dy * dy);
-            if (outerSpan < 0f)
-            {
-                continue;
-            }
-
-            var outerDx = System.MathF.Sqrt(outerSpan);
-            var innerSpan = innerRadius * innerRadius - (dy * dy);
-            var innerDx = innerSpan > 0f ? System.MathF.Sqrt(innerSpan) : 0f;
-
-            DrawFilledRect(
-                spriteBatch,
-                new LayoutRect(center.X - outerDx, y, System.MathF.Max(0f, outerDx - innerDx), 1f),
-                color,
-                opacity);
-            DrawFilledRect(
-                spriteBatch,
-                new LayoutRect(center.X + innerDx, y, System.MathF.Max(0f, outerDx - innerDx), 1f),
-                color,
-                opacity);
+            DrawPolyline(spriteBatch, points, closed: true, thickness, color, opacity);
+        }
+        finally
+        {
+            PopTransform(spriteBatch);
         }
     }
 
@@ -316,9 +318,10 @@ internal static class UiDrawing
 
         var scanMin = (int)System.MathF.Floor(minY);
         var scanMax = (int)System.MathF.Ceiling(maxY);
+        var intersectionBuffer = GetPolygonIntersectionBuffer(spriteBatch.GraphicsDevice, transformed.Length);
         for (var y = scanMin; y <= scanMax; y++)
         {
-            var intersections = new List<float>();
+            var intersectionCount = 0;
             for (var i = 0; i < transformed.Length; i++)
             {
                 var a = transformed[i];
@@ -336,19 +339,24 @@ internal static class UiDrawing
                 }
 
                 var t = (y - a.Y) / (b.Y - a.Y);
-                intersections.Add(a.X + (t * (b.X - a.X)));
+                if (intersectionCount == intersectionBuffer.Length)
+                {
+                    intersectionBuffer = GrowPolygonIntersectionBuffer(spriteBatch.GraphicsDevice, intersectionBuffer.Length * 2);
+                }
+
+                intersectionBuffer[intersectionCount++] = a.X + (t * (b.X - a.X));
             }
 
-            if (intersections.Count < 2)
+            if (intersectionCount < 2)
             {
                 continue;
             }
 
-            intersections.Sort();
-            for (var i = 0; i + 1 < intersections.Count; i += 2)
+            Array.Sort(intersectionBuffer, 0, intersectionCount);
+            for (var i = 0; i + 1 < intersectionCount; i += 2)
             {
-                var start = intersections[i];
-                var end = intersections[i + 1];
+                var start = intersectionBuffer[i];
+                var end = intersectionBuffer[i + 1];
                 if (end <= start)
                 {
                     continue;
@@ -401,8 +409,12 @@ internal static class UiDrawing
         }
 
         stack.Push(clip);
-        FlushAndRestartBatch(spriteBatch);
-        graphicsDevice.ScissorRectangle = clip;
+        _frameClipPushCount++;
+        if (graphicsDevice.ScissorRectangle != clip)
+        {
+            FlushAndRestartBatch(spriteBatch);
+            graphicsDevice.ScissorRectangle = clip;
+        }
     }
 
     public static void PopClip(SpriteBatch spriteBatch)
@@ -414,10 +426,14 @@ internal static class UiDrawing
             stack.Pop();
         }
 
-        FlushAndRestartBatch(spriteBatch);
-        graphicsDevice.ScissorRectangle = stack.Count > 0
+        var nextClip = stack.Count > 0
             ? stack.Peek()
             : GetViewportRectangle(graphicsDevice);
+        if (graphicsDevice.ScissorRectangle != nextClip)
+        {
+            FlushAndRestartBatch(spriteBatch);
+            graphicsDevice.ScissorRectangle = nextClip;
+        }
     }
 
     private static Stack<Rectangle> GetClipStack(GraphicsDevice graphicsDevice)
@@ -449,6 +465,54 @@ internal static class UiDrawing
         var stack = GetTransformStack(graphicsDevice);
         return stack.Count == 0 ? Matrix.Identity : stack.Peek();
     }
+
+    private static float[] GetPolygonIntersectionBuffer(GraphicsDevice graphicsDevice, int requiredSize)
+    {
+        if (PolygonIntersectionBuffers.TryGetValue(graphicsDevice, out var buffer) && buffer.Length >= requiredSize)
+        {
+            return buffer;
+        }
+
+        return GrowPolygonIntersectionBuffer(graphicsDevice, Math.Max(requiredSize, 16));
+    }
+
+    private static float[] GrowPolygonIntersectionBuffer(GraphicsDevice graphicsDevice, int requiredSize)
+    {
+        var newBuffer = ArrayPool<float>.Shared.Rent(requiredSize);
+        if (PolygonIntersectionBuffers.TryGetValue(graphicsDevice, out var existing))
+        {
+            ArrayPool<float>.Shared.Return(existing, clearArray: false);
+        }
+
+        PolygonIntersectionBuffers[graphicsDevice] = newBuffer;
+        return newBuffer;
+    }
+
+    private static IReadOnlyList<Vector2> GetCirclePoints(float radius)
+    {
+        var segmentCount = Math.Clamp((int)MathF.Ceiling(radius * 1.5f), 12, 48);
+        var radiusBucket = Math.Clamp((int)MathF.Round(radius * 100f), 1, 8192);
+        var key = new CircleCacheKey(radiusBucket, segmentCount);
+        if (CirclePointTemplates.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var bucketedRadius = radiusBucket / 100f;
+        var points = new Vector2[segmentCount];
+        for (var i = 0; i < segmentCount; i++)
+        {
+            var angle = (MathF.PI * 2f * i) / segmentCount;
+            points[i] = new Vector2(
+                MathF.Cos(angle) * bucketedRadius,
+                MathF.Sin(angle) * bucketedRadius);
+        }
+
+        CirclePointTemplates[key] = points;
+        return points;
+    }
+
+    private readonly record struct CircleCacheKey(int RadiusBucket, int SegmentCount);
 
     private static LayoutRect TransformRect(GraphicsDevice graphicsDevice, LayoutRect rect)
     {

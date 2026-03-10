@@ -419,7 +419,7 @@ public class Popup : ContentControl
         }
 
         var minTitleWidth = Font != null && !string.IsNullOrWhiteSpace(Title)
-            ? TextLayout.Layout(Title, Font, float.PositiveInfinity, TextWrapping.NoWrap).Size.X + 96f
+            ? TextLayout.Layout(Title, Font, FontSize, float.PositiveInfinity, TextWrapping.NoWrap).Size.X + 96f
             : 120f;
 
         var desiredWidth = MathF.Max(minTitleWidth, measured.X + chromeHorizontal);
@@ -497,16 +497,16 @@ public class Popup : ContentControl
             if (Font != null)
             {
                 var text = "X";
-                var closeLayout = TextLayout.Layout(text, Font, float.PositiveInfinity, TextWrapping.NoWrap);
+                var closeLayout = TextLayout.Layout(text, Font, FontSize, float.PositiveInfinity, TextWrapping.NoWrap);
                 var textX = closeRect.X + ((closeRect.Width - closeLayout.Size.X) / 2f);
                 var textY = closeRect.Y + ((closeRect.Height - closeLayout.Size.Y) / 2f);
-                FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), CloseButtonForeground * Opacity);
+                FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), CloseButtonForeground * Opacity, FontSize);
             }
         }
 
         if (Font != null && !string.IsNullOrWhiteSpace(Title))
         {
-            var titleLayout = TextLayout.Layout(Title, Font, MathF.Max(0f, slot.Width - 72f), TextWrapping.WrapWithOverflow);
+            var titleLayout = TextLayout.Layout(Title, Font, FontSize, MathF.Max(0f, slot.Width - 72f), TextWrapping.WrapWithOverflow);
             var textPosition = new Vector2(slot.X + 10f, slot.Y + MathF.Max(4f, (TitleBarHeight - titleLayout.Size.Y) / 2f));
             for (var i = 0; i < titleLayout.Lines.Count; i++)
             {
@@ -516,8 +516,8 @@ public class Popup : ContentControl
                     continue;
                 }
 
-                var linePosition = new Vector2(textPosition.X, textPosition.Y + (i * FontStashTextRenderer.GetLineHeight(Font)));
-                FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, TitleForeground * Opacity);
+                var linePosition = new Vector2(textPosition.X, textPosition.Y + (i * FontStashTextRenderer.GetLineHeight(Font, FontSize)));
+                FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, TitleForeground * Opacity, FontSize);
             }
         }
     }

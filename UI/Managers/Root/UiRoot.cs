@@ -24,6 +24,10 @@ public sealed partial class UiRoot
     private readonly Queue<UIElement> _dirtyRenderQueue = new();
     private readonly HashSet<UIElement> _dirtyRenderSet = new();
     private readonly HashSet<UIElement> _dirtyRenderRootsRequireDeepSync = new();
+    private readonly List<UIElement> _lastSynchronizedDirtyRenderRoots = new();
+    private readonly List<UIElement> _dirtyRenderCompactionBuffer = new();
+    private readonly List<UIElement> _dirtyRenderCoalescedBuffer = new();
+    private readonly List<RenderNode> _activeRetainedDrawPath = new();
     private readonly List<UiUpdatePhase> _lastUpdatePhaseOrder = new(5);
     private readonly DirtyRegionTracker _dirtyRegions = new();
     private readonly InputManager _inputManager = new();
@@ -96,6 +100,12 @@ public sealed partial class UiRoot
     private int _retainedFullRebuildCount;
     private int _retainedSubtreeSyncCount;
     private int _lastRetainedDirtyVisualCount;
+    private bool _lastRetainedSyncUsedFullRebuild;
+    private int _lastRetainedNodesVisited;
+    private int _lastRetainedNodesDrawn;
+    private int _lastRetainedClipPushCount;
+    private int _lastSpriteBatchRestartCount;
+    private int _dirtyRegionThresholdFallbackCount;
 
     public UiRoot(UIElement visualRoot)
     {
@@ -254,6 +264,25 @@ public sealed partial class UiRoot
             _lastRetainedDirtyVisualCount);
     }
 
+    internal UiRenderTelemetrySnapshot GetRenderTelemetrySnapshotForTests()
+    {
+        return new UiRenderTelemetrySnapshot(
+            _lastSpriteBatchRestartCount,
+            _lastRetainedClipPushCount,
+            _lastRetainedNodesVisited,
+            _lastRetainedNodesDrawn,
+            _dirtyRegionThresholdFallbackCount,
+            Shape.GetRenderCacheHitCountForTests(),
+            Shape.GetRenderCacheMissCountForTests(),
+            TextLayout.GetMetricsSnapshot().CacheHitCount,
+            TextLayout.GetMetricsSnapshot().CacheMissCount);
+    }
+
+    internal bool WouldUsePartialDirtyRedrawForTests()
+    {
+        return ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, _dirtyRegions.GetDirtyAreaCoverage());
+    }
+
     public UiVisualTreeMetricsSnapshot GetVisualTreeMetricsSnapshot()
     {
         var accumulator = new VisualTreeMetricsAccumulator();
@@ -372,6 +401,7 @@ public sealed partial class UiRoot
     {
         _dirtyRegions.Clear();
         ClearDirtyRenderQueue();
+        ResetRetainedSyncTrackingState();
     }
 
     internal void SynchronizeRetainedRenderListForTests()
@@ -412,6 +442,25 @@ public sealed partial class UiRoot
         _hasCaretBlinkInvalidation = false;
         _mustDrawNextFrame = false;
         _scheduledDrawReasons = UiRedrawReason.None;
+        ResetRetainedSyncTrackingState();
+    }
+
+    internal void ApplyRenderInvalidationCleanupForTests()
+    {
+        ApplyRenderInvalidationCleanupAfterDraw();
+    }
+
+    internal IReadOnlyList<UIElement> GetRetainedDrawOrderForClipForTests(LayoutRect clipRect)
+    {
+        var visuals = new List<UIElement>();
+        AppendRetainedDrawOrderForClip(clipRect, visuals);
+        return visuals;
+    }
+
+    internal (int NodesVisited, int NodesDrawn, int LocalClipPushCount) GetRetainedTraversalMetricsForClipForTests(LayoutRect clipRect)
+    {
+        var metrics = TraverseRetainedNodesWithinClip(spriteBatch: null, clipRect);
+        return (metrics.NodesVisited, metrics.NodesDrawn, metrics.ClipPushCount);
     }
 
     internal void SetAnimationActiveForTests(bool isActive)

@@ -97,7 +97,7 @@ public sealed class RetainedRenderSyncRegressionTests
     }
 
     [Fact]
-    public void ShallowSyncReject_RenderStateChangedByTransform_TracksDirtyUnionEnvelope()
+    public void ShallowSyncReject_RenderStateChangedByTransform_TracksDisjointDirtyRegions()
     {
         var root = new Panel();
         root.SetLayoutSlot(new LayoutRect(0f, 0f, 240f, 120f));
@@ -114,9 +114,11 @@ public sealed class RetainedRenderSyncRegressionTests
         uiRoot.SynchronizeRetainedRenderListForTests();
 
         var regions = uiRoot.GetDirtyRegionsSnapshotForTests();
-        Assert.Single(regions);
+        Assert.Equal(2, regions.Count);
         Assert.Equal(10f, regions[0].X);
-        Assert.Equal(70f, regions[0].Width);
+        Assert.Equal(20f, regions[0].Width);
+        Assert.Equal(60f, regions[1].X);
+        Assert.Equal(20f, regions[1].Width);
         Assert.Equal(uiRoot.RetainedRenderNodeCount, uiRoot.GetRetainedNodeSubtreeEndIndexForTests(root));
     }
 
@@ -288,5 +290,108 @@ public sealed class RetainedRenderSyncRegressionTests
 
         _ = uiRoot.GetRetainedNodeSubtreeEndIndexForTests(second);
         Assert.Equal(uiRoot.RetainedRenderNodeCount, uiRoot.GetRetainedNodeSubtreeEndIndexForTests(root));
+    }
+
+    [Fact]
+    public void RetainedDrawOrderForClip_FullDrawSkipsOffViewportSubtrees()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 200f, 200f));
+
+        var visible = new Border();
+        visible.SetLayoutSlot(new LayoutRect(10f, 10f, 20f, 20f));
+        var offscreenParent = new Panel();
+        offscreenParent.SetLayoutSlot(new LayoutRect(260f, 10f, 40f, 40f));
+        var offscreenChild = new Border();
+        offscreenChild.SetLayoutSlot(new LayoutRect(265f, 15f, 10f, 10f));
+        offscreenParent.AddChild(offscreenChild);
+
+        root.AddChild(visible);
+        root.AddChild(offscreenParent);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+
+        var order = uiRoot.GetRetainedDrawOrderForClipForTests(new LayoutRect(0f, 0f, 200f, 200f));
+
+        Assert.Collection(
+            order,
+            visual => Assert.Same(root, visual),
+            visual => Assert.Same(visible, visual));
+    }
+
+    [Fact]
+    public void RetainedDrawOrderForClip_NodeWithoutBoundsSnapshotIsKeptConservative()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 200f, 200f));
+        var child = new Border();
+        child.SetLayoutSlot(new LayoutRect(20f, 20f, 0f, 0f));
+        root.AddChild(child);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+
+        var order = uiRoot.GetRetainedDrawOrderForClipForTests(new LayoutRect(0f, 0f, 40f, 40f));
+
+        Assert.Collection(
+            order,
+            visual => Assert.Same(root, visual),
+            visual => Assert.Same(child, visual));
+    }
+
+    [Fact]
+    public void IncrementalCleanup_ClearsProcessedDirtyRootsAndAncestors()
+    {
+        var root = new Panel();
+        var left = new Border();
+        var right = new Border();
+        root.AddChild(left);
+        root.AddChild(right);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        left.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.ApplyRenderInvalidationCleanupForTests();
+
+        Assert.False(left.NeedsRender);
+        Assert.False(left.SubtreeDirty);
+        Assert.False(root.SubtreeDirty);
+        Assert.False(root.NeedsRender);
+        Assert.False(right.NeedsRender);
+        Assert.False(right.SubtreeDirty);
+    }
+
+    [Fact]
+    public void IncrementalCleanup_DoesNotClearUnprocessedDirtySibling()
+    {
+        var root = new Panel();
+        var left = new Border();
+        var right = new Border();
+        root.AddChild(left);
+        root.AddChild(right);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        left.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        right.InvalidateVisual();
+
+        uiRoot.ApplyRenderInvalidationCleanupForTests();
+
+        Assert.False(left.NeedsRender);
+        Assert.False(left.SubtreeDirty);
+        Assert.True(right.NeedsRender);
+        Assert.True(right.SubtreeDirty);
+        Assert.True(root.SubtreeDirty);
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -21,6 +22,8 @@ public abstract class Effect : Freezable
 
 public sealed class DropShadowEffect : Effect
 {
+    private static readonly Dictionary<ShadowTextureCacheKey, Texture2D> ShadowTextures = new();
+
     private Color _color = Color.Black;
     private float _shadowDepth;
     private float _blurRadius;
@@ -128,20 +131,133 @@ public sealed class DropShadowEffect : Effect
             return;
         }
 
-        var maxInflation = MathF.Min(blur, 32f);
-        var steps = Math.Clamp((int)MathF.Ceiling(maxInflation), 1, 32);
-        var stepOpacity = effectiveOpacity / (steps + 1f);
-        for (var i = steps; i >= 1; i--)
+        var blurSize = Math.Clamp((int)MathF.Ceiling(MathF.Min(blur, 32f)), 1, 32);
+        DrawBlurSlices(spriteBatch, shadowRect, blurSize, Color, effectiveOpacity);
+        UiDrawing.DrawFilledRect(spriteBatch, shadowRect, Color, effectiveOpacity);
+    }
+
+    private static void DrawBlurSlices(
+        SpriteBatch spriteBatch,
+        LayoutRect shadowRect,
+        int blurSize,
+        Color color,
+        float opacity)
+    {
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        var topRect = new LayoutRect(shadowRect.X, shadowRect.Y - blurSize, shadowRect.Width, blurSize);
+        var bottomRect = new LayoutRect(shadowRect.X, shadowRect.Y + shadowRect.Height, shadowRect.Width, blurSize);
+        var leftRect = new LayoutRect(shadowRect.X - blurSize, shadowRect.Y, blurSize, shadowRect.Height);
+        var rightRect = new LayoutRect(shadowRect.X + shadowRect.Width, shadowRect.Y, blurSize, shadowRect.Height);
+        var topLeftRect = new LayoutRect(shadowRect.X - blurSize, shadowRect.Y - blurSize, blurSize, blurSize);
+        var topRightRect = new LayoutRect(shadowRect.X + shadowRect.Width, shadowRect.Y - blurSize, blurSize, blurSize);
+        var bottomLeftRect = new LayoutRect(shadowRect.X - blurSize, shadowRect.Y + shadowRect.Height, blurSize, blurSize);
+        var bottomRightRect = new LayoutRect(shadowRect.X + shadowRect.Width, shadowRect.Y + shadowRect.Height, blurSize, blurSize);
+
+        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopEdge), topRect, color: color, opacity: opacity);
+        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomEdge), bottomRect, color: color, opacity: opacity);
+        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.LeftEdge), leftRect, color: color, opacity: opacity);
+        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.RightEdge), rightRect, color: color, opacity: opacity);
+        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopLeftCorner), topLeftRect, color: color, opacity: opacity);
+        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopRightCorner), topRightRect, color: color, opacity: opacity);
+        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomLeftCorner), bottomLeftRect, color: color, opacity: opacity);
+        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomRightCorner), bottomRightRect, color: color, opacity: opacity);
+    }
+
+    private static Texture2D GetShadowTexture(GraphicsDevice graphicsDevice, int blurSize, ShadowTextureKind kind)
+    {
+        var key = new ShadowTextureCacheKey(graphicsDevice, blurSize, kind);
+        if (ShadowTextures.TryGetValue(key, out var cached))
         {
-            var inflation = i;
-            var ringRect = new LayoutRect(
-                shadowRect.X - inflation,
-                shadowRect.Y - inflation,
-                shadowRect.Width + (inflation * 2f),
-                shadowRect.Height + (inflation * 2f));
-            UiDrawing.DrawFilledRect(spriteBatch, ringRect, Color, stepOpacity);
+            return cached;
         }
 
-        UiDrawing.DrawFilledRect(spriteBatch, shadowRect, Color, effectiveOpacity);
+        var texture = kind switch
+        {
+            ShadowTextureKind.TopEdge => CreateVerticalGradientTexture(graphicsDevice, blurSize, nearOpaqueAtEnd: true),
+            ShadowTextureKind.BottomEdge => CreateVerticalGradientTexture(graphicsDevice, blurSize, nearOpaqueAtEnd: false),
+            ShadowTextureKind.LeftEdge => CreateHorizontalGradientTexture(graphicsDevice, blurSize, nearOpaqueAtEnd: true),
+            ShadowTextureKind.RightEdge => CreateHorizontalGradientTexture(graphicsDevice, blurSize, nearOpaqueAtEnd: false),
+            ShadowTextureKind.TopLeftCorner => CreateCornerGradientTexture(graphicsDevice, blurSize, nearRectXAtEnd: true, nearRectYAtEnd: true),
+            ShadowTextureKind.TopRightCorner => CreateCornerGradientTexture(graphicsDevice, blurSize, nearRectXAtEnd: false, nearRectYAtEnd: true),
+            ShadowTextureKind.BottomLeftCorner => CreateCornerGradientTexture(graphicsDevice, blurSize, nearRectXAtEnd: true, nearRectYAtEnd: false),
+            ShadowTextureKind.BottomRightCorner => CreateCornerGradientTexture(graphicsDevice, blurSize, nearRectXAtEnd: false, nearRectYAtEnd: false),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
+        ShadowTextures[key] = texture;
+        return texture;
+    }
+
+    private static Texture2D CreateVerticalGradientTexture(GraphicsDevice graphicsDevice, int blurSize, bool nearOpaqueAtEnd)
+    {
+        var texture = new Texture2D(graphicsDevice, 1, blurSize);
+        var pixels = new Color[blurSize];
+        for (var y = 0; y < blurSize; y++)
+        {
+            var alpha = nearOpaqueAtEnd
+                ? (y + 1f) / blurSize
+                : (blurSize - y) / (float)blurSize;
+            pixels[y] = Color.White * alpha;
+        }
+
+        texture.SetData(pixels);
+        return texture;
+    }
+
+    private static Texture2D CreateHorizontalGradientTexture(GraphicsDevice graphicsDevice, int blurSize, bool nearOpaqueAtEnd)
+    {
+        var texture = new Texture2D(graphicsDevice, blurSize, 1);
+        var pixels = new Color[blurSize];
+        for (var x = 0; x < blurSize; x++)
+        {
+            var alpha = nearOpaqueAtEnd
+                ? (x + 1f) / blurSize
+                : (blurSize - x) / (float)blurSize;
+            pixels[x] = Color.White * alpha;
+        }
+
+        texture.SetData(pixels);
+        return texture;
+    }
+
+    private static Texture2D CreateCornerGradientTexture(
+        GraphicsDevice graphicsDevice,
+        int blurSize,
+        bool nearRectXAtEnd,
+        bool nearRectYAtEnd)
+    {
+        var texture = new Texture2D(graphicsDevice, blurSize, blurSize);
+        var pixels = new Color[blurSize * blurSize];
+        var maxIndex = Math.Max(1, blurSize - 1);
+        for (var y = 0; y < blurSize; y++)
+        {
+            var normalizedY = nearRectYAtEnd
+                ? (maxIndex - y) / (float)maxIndex
+                : y / (float)maxIndex;
+            for (var x = 0; x < blurSize; x++)
+            {
+                var normalizedX = nearRectXAtEnd
+                    ? (maxIndex - x) / (float)maxIndex
+                    : x / (float)maxIndex;
+                var alpha = 1f - Math.Clamp(MathF.Max(normalizedX, normalizedY), 0f, 1f);
+                pixels[(y * blurSize) + x] = Color.White * alpha;
+            }
+        }
+
+        texture.SetData(pixels);
+        return texture;
+    }
+
+    private readonly record struct ShadowTextureCacheKey(GraphicsDevice GraphicsDevice, int BlurSize, ShadowTextureKind Kind);
+
+    private enum ShadowTextureKind
+    {
+        TopEdge,
+        BottomEdge,
+        LeftEdge,
+        RightEdge,
+        TopLeftCorner,
+        TopRightCorner,
+        BottomLeftCorner,
+        BottomRightCorner
     }
 }

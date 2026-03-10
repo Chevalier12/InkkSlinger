@@ -52,6 +52,16 @@ public class TextPipelineParityTests
         textBlock.PrimeLayoutCacheForTests(120f);
         var textChangedSnapshot = textBlock.GetPerformanceSnapshot();
         Assert.True(textChangedSnapshot.LayoutCacheMissCount > widthChangedSnapshot.LayoutCacheMissCount);
+
+        textBlock.FontSize = 22f;
+        textBlock.PrimeLayoutCacheForTests(120f);
+        var fontSizeChangedSnapshot = textBlock.GetPerformanceSnapshot();
+        Assert.True(fontSizeChangedSnapshot.LayoutCacheMissCount > textChangedSnapshot.LayoutCacheMissCount);
+
+        textBlock.TextWrapping = TextWrapping.NoWrap;
+        textBlock.PrimeLayoutCacheForTests(float.PositiveInfinity);
+        var wrappingChangedSnapshot = textBlock.GetPerformanceSnapshot();
+        Assert.True(wrappingChangedSnapshot.LayoutCacheMissCount > fontSizeChangedSnapshot.LayoutCacheMissCount);
     }
 
     [Fact]

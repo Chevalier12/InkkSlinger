@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -50,45 +49,45 @@ public sealed partial class UiRoot
             return;
         }
 
-        var drained = new List<UIElement>(_dirtyRenderQueue.Count);
+        _dirtyRenderCompactionBuffer.Clear();
         while (_dirtyRenderQueue.TryDequeue(out var visual))
         {
-            drained.Add(visual);
+            _dirtyRenderCompactionBuffer.Add(visual);
         }
 
         _dirtyRenderSet.Clear();
 
-        var coalesced = new List<UIElement>(drained.Count);
-        for (var i = 0; i < drained.Count; i++)
+        _dirtyRenderCoalescedBuffer.Clear();
+        for (var i = 0; i < _dirtyRenderCompactionBuffer.Count; i++)
         {
-            var candidate = drained[i];
+            var candidate = _dirtyRenderCompactionBuffer[i];
             if (!IsPartOfVisualTree(candidate))
             {
                 continue;
             }
 
-            var existingAncestor = FindAncestorIn(candidate, coalesced);
+            var existingAncestor = FindAncestorIn(candidate, _dirtyRenderCoalescedBuffer);
             if (existingAncestor != null)
             {
                 _dirtyRenderRootsRequireDeepSync.Add(existingAncestor);
                 continue;
             }
 
-            for (var keptIndex = coalesced.Count - 1; keptIndex >= 0; keptIndex--)
+            for (var keptIndex = _dirtyRenderCoalescedBuffer.Count - 1; keptIndex >= 0; keptIndex--)
             {
-                if (IsDescendantOf(coalesced[keptIndex], candidate))
+                if (IsDescendantOf(_dirtyRenderCoalescedBuffer[keptIndex], candidate))
                 {
-                    coalesced.RemoveAt(keptIndex);
+                    _dirtyRenderCoalescedBuffer.RemoveAt(keptIndex);
                     _dirtyRenderRootsRequireDeepSync.Add(candidate);
                 }
             }
 
-            coalesced.Add(candidate);
+            _dirtyRenderCoalescedBuffer.Add(candidate);
         }
 
-        for (var i = 0; i < coalesced.Count; i++)
+        for (var i = 0; i < _dirtyRenderCoalescedBuffer.Count; i++)
         {
-            var visual = coalesced[i];
+            var visual = _dirtyRenderCoalescedBuffer[i];
             _dirtyRenderSet.Add(visual);
             _dirtyRenderQueue.Enqueue(visual);
         }
@@ -101,13 +100,21 @@ public sealed partial class UiRoot
         _dirtyRenderRootsRequireDeepSync.Clear();
     }
 
+    private void ResetRetainedSyncTrackingState()
+    {
+        _lastSynchronizedDirtyRenderRoots.Clear();
+        _lastRetainedSyncUsedFullRebuild = false;
+    }
+
     private void SynchronizeRetainedRenderList()
     {
+        ResetRetainedSyncTrackingState();
         CompactDirtyRenderQueueForSync();
         _lastRetainedDirtyVisualCount = _dirtyRenderQueue.Count;
 
         if (_renderListNeedsFullRebuild || _retainedRenderList.Count == 0)
         {
+            _lastRetainedSyncUsedFullRebuild = true;
             RebuildRetainedRenderList();
             return;
         }
@@ -117,12 +124,10 @@ public sealed partial class UiRoot
             return;
         }
 
-        var processedRoots = new List<UIElement>(Math.Min(_dirtyRenderQueue.Count, 16));
-
         while (_dirtyRenderQueue.TryDequeue(out var dirtyVisual))
         {
             _dirtyRenderSet.Remove(dirtyVisual);
-            if (IsDescendantOfAny(dirtyVisual, processedRoots))
+            if (IsDescendantOfAny(dirtyVisual, _lastSynchronizedDirtyRenderRoots))
             {
                 continue;
             }
@@ -132,11 +137,13 @@ public sealed partial class UiRoot
             _retainedSubtreeSyncCount++;
             if (_renderListNeedsFullRebuild)
             {
+                _lastRetainedSyncUsedFullRebuild = true;
+                _lastSynchronizedDirtyRenderRoots.Clear();
                 RebuildRetainedRenderList();
                 return;
             }
 
-            processedRoots.Add(dirtyVisual);
+            _lastSynchronizedDirtyRenderRoots.Add(dirtyVisual);
         }
     }
 
@@ -190,8 +197,19 @@ public sealed partial class UiRoot
     private void RebuildRetainedRenderList()
     {
         _retainedFullRebuildCount++;
+        var previousCount = _retainedRenderList.Count;
         _retainedRenderList.Clear();
+        if (previousCount > 0 && _retainedRenderList.Capacity < previousCount)
+        {
+            _retainedRenderList.Capacity = previousCount;
+        }
+
         _renderNodeIndices.Clear();
+        if (previousCount > 0)
+        {
+            _renderNodeIndices.EnsureCapacity(previousCount);
+        }
+
         _ = BuildRenderSubtree(_visualRoot, traversalOrder: 0, depth: 0, parentNode: null);
         _renderListNeedsFullRebuild = false;
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
@@ -442,43 +460,39 @@ public sealed partial class UiRoot
         int subtreeEndIndexExclusive,
         RenderNode? parentNode)
     {
-        var hasBounds = TryComputeBoundsFromParentState(visual, parentNode, out var bounds, out var hasTransformFromThisToRoot, out var transformFromThisToRoot);
-        var steps = parentNode.HasValue
-            ? CaptureRenderStateStepsFromParent(
-                parentNode.Value,
-                visual,
-                out var hasTransformState,
-                out var hasClipState,
-                out var localRenderStateStartIndex,
-                out var renderStateSignature,
-                out var ancestorRenderStateSignature,
-                out var localRenderStateSignature)
-            : CaptureRenderStateSteps(
-                visual,
-                out hasTransformState,
-                out hasClipState,
-                out localRenderStateStartIndex,
-                out renderStateSignature,
-                out ancestorRenderStateSignature,
-                out localRenderStateSignature);
+        var hasBounds = TryComputeBoundsFromParentState(
+            visual,
+            parentNode,
+            out var bounds,
+            out var hasTransformFromThisToRoot,
+            out var transformFromThisToRoot);
+        CaptureLocalRenderState(
+            visual,
+            out var hasLocalClip,
+            out var localClipRect,
+            out var hasLocalTransform,
+            out var localTransform,
+            out var localRenderStateSignature);
+        var parentRenderSignature = parentNode?.RenderStateSignature ?? 17;
+        var renderStateSignature = MixHash(parentRenderSignature, localRenderStateSignature);
         var isEffectivelyVisible = parentNode.HasValue
             ? parentNode.Value.IsEffectivelyVisible && visual.IsVisible
             : IsEffectivelyVisible(visual);
-        var node = new RenderNode(
+
+        return new RenderNode(
             visual,
             traversalOrder,
             depth,
             bounds,
             hasBounds,
-            steps,
-            localRenderStateStartIndex,
+            hasLocalClip,
+            localClipRect,
+            hasLocalTransform,
+            localTransform,
             renderStateSignature,
-            ancestorRenderStateSignature,
             localRenderStateSignature,
             hasTransformFromThisToRoot,
             transformFromThisToRoot,
-            hasTransformState,
-            hasClipState,
             isEffectivelyVisible,
             subtreeEndIndexExclusive,
             hasBounds,
@@ -487,7 +501,6 @@ public sealed partial class UiRoot
             IsHighCostVisual(visual) ? 1 : 0,
             MixHash(17, visual.RenderVersionStamp),
             MixHash(17, visual.LayoutVersionStamp));
-        return node;
     }
 
     private static bool TryComputeBoundsFromParentState(
@@ -560,158 +573,31 @@ public sealed partial class UiRoot
         return bounds.Width > 0f && bounds.Height > 0f;
     }
 
-    private static RenderStateStep[] CaptureRenderStateSteps(
+    private static void CaptureLocalRenderState(
         UIElement visual,
-        out bool hasTransformState,
-        out bool hasClipState,
-        out int localRenderStateStartIndex,
-        out int renderStateSignature,
-        out int ancestorRenderStateSignature,
+        out bool hasLocalClip,
+        out LayoutRect localClipRect,
+        out bool hasLocalTransform,
+        out Matrix localTransform,
         out int localRenderStateSignature)
     {
-        hasTransformState = false;
-        hasClipState = false;
-        localRenderStateStartIndex = 0;
-        ancestorRenderStateSignature = 17;
+        hasLocalClip = visual.TryGetLocalClipSnapshot(out localClipRect);
+        hasLocalTransform = visual.TryGetLocalRenderTransformSnapshot(out localTransform);
         localRenderStateSignature = 17;
-
-        var depth = 0;
-        for (var current = visual; current != null; current = current.VisualParent)
-        {
-            depth++;
-        }
-
-        var pathStates = ArrayPool<LocalRenderStateInfo>.Shared.Rent(depth);
-        try
-        {
-            var stepCount = 0;
-            var pathIndex = depth - 1;
-            for (var current = visual; current != null; current = current.VisualParent)
-            {
-                var hasClip = current.TryGetLocalClipSnapshot(out var clipRect);
-                var hasTransform = current.TryGetLocalRenderTransformSnapshot(out var transform);
-                if (hasClip)
-                {
-                    hasClipState = true;
-                    stepCount++;
-                }
-
-                if (hasTransform)
-                {
-                    hasTransformState = true;
-                    stepCount++;
-                }
-
-                pathStates[pathIndex] = new LocalRenderStateInfo(hasClip, clipRect, hasTransform, transform);
-                pathIndex--;
-            }
-
-            var steps = new RenderStateStep[stepCount];
-            var stepIndex = 0;
-            var hash = 17;
-            for (var i = 0; i < depth; i++)
-            {
-                var isLocalState = i == depth - 1;
-                if (i == depth - 1)
-                {
-                    localRenderStateStartIndex = stepIndex;
-                    ancestorRenderStateSignature = hash;
-                }
-
-                var state = pathStates[i];
-                if (state.HasClip)
-                {
-                    var step = RenderStateStep.ForClip(state.ClipRect);
-                    steps[stepIndex++] = step;
-                    hash = MixHash(hash, (int)step.Kind);
-                    hash = MixHash(hash, BitConverter.SingleToInt32Bits(step.ClipRect.X));
-                    hash = MixHash(hash, BitConverter.SingleToInt32Bits(step.ClipRect.Y));
-                    hash = MixHash(hash, BitConverter.SingleToInt32Bits(step.ClipRect.Width));
-                    hash = MixHash(hash, BitConverter.SingleToInt32Bits(step.ClipRect.Height));
-                    if (isLocalState)
-                    {
-                        localRenderStateSignature = MixClipStepHash(localRenderStateSignature, step.ClipRect);
-                    }
-                }
-
-                if (state.HasTransform)
-                {
-                    var step = RenderStateStep.ForTransform(state.Transform);
-                    steps[stepIndex++] = step;
-                    hash = MixHash(hash, (int)step.Kind);
-                    hash = MixHash(hash, step.Transform.GetHashCode());
-                    if (isLocalState)
-                    {
-                        localRenderStateSignature = MixTransformStepHash(localRenderStateSignature, step.Transform);
-                    }
-                }
-            }
-
-            renderStateSignature = hash;
-            return steps;
-        }
-        finally
-        {
-            ArrayPool<LocalRenderStateInfo>.Shared.Return(pathStates, clearArray: false);
-        }
-    }
-
-    private static RenderStateStep[] CaptureRenderStateStepsFromParent(
-        RenderNode parentNode,
-        UIElement visual,
-        out bool hasTransformState,
-        out bool hasClipState,
-        out int localRenderStateStartIndex,
-        out int renderStateSignature,
-        out int ancestorRenderStateSignature,
-        out int localRenderStateSignature)
-    {
-        var hasLocalClip = visual.TryGetLocalClipSnapshot(out var localClipRect);
-        var hasLocalTransform = visual.TryGetLocalRenderTransformSnapshot(out var localTransform);
-        localRenderStateSignature = 17;
-        var localStepCount = 0;
         if (hasLocalClip)
         {
-            localStepCount++;
             localRenderStateSignature = MixClipStepHash(localRenderStateSignature, localClipRect);
         }
 
         if (hasLocalTransform)
         {
-            localStepCount++;
             localRenderStateSignature = MixTransformStepHash(localRenderStateSignature, localTransform);
         }
-
-        var parentSteps = parentNode.RenderStateSteps;
-        var parentStepCount = parentSteps.Length;
-        var steps = new RenderStateStep[parentStepCount + localStepCount];
-        if (parentStepCount > 0)
-        {
-            Array.Copy(parentSteps, steps, parentStepCount);
-        }
-
-        var nextStepIndex = parentStepCount;
-        if (hasLocalClip)
-        {
-            steps[nextStepIndex++] = RenderStateStep.ForClip(localClipRect);
-        }
-
-        if (hasLocalTransform)
-        {
-            steps[nextStepIndex] = RenderStateStep.ForTransform(localTransform);
-        }
-
-        ancestorRenderStateSignature = parentNode.RenderStateSignature;
-        localRenderStateStartIndex = parentStepCount;
-        renderStateSignature = MixHash(ancestorRenderStateSignature, localRenderStateSignature);
-        hasTransformState = parentNode.HasTransformState || hasLocalTransform;
-        hasClipState = parentNode.HasClipState || hasLocalClip;
-        return steps;
     }
 
     private static int MixClipStepHash(int hash, LayoutRect clipRect)
     {
-        hash = MixHash(hash, (int)RenderStateStepKind.Clip);
+        hash = MixHash(hash, 1);
         hash = MixHash(hash, BitConverter.SingleToInt32Bits(clipRect.X));
         hash = MixHash(hash, BitConverter.SingleToInt32Bits(clipRect.Y));
         hash = MixHash(hash, BitConverter.SingleToInt32Bits(clipRect.Width));
@@ -721,7 +607,7 @@ public sealed partial class UiRoot
 
     private static int MixTransformStepHash(int hash, Matrix transform)
     {
-        hash = MixHash(hash, (int)RenderStateStepKind.Transform);
+        hash = MixHash(hash, 2);
         hash = MixHash(hash, transform.GetHashCode());
         return hash;
     }
@@ -822,15 +708,14 @@ public sealed partial class UiRoot
             int depth,
             LayoutRect boundsSnapshot,
             bool hasBoundsSnapshot,
-            RenderStateStep[] renderStateSteps,
-            int localRenderStateStartIndex,
+            bool hasLocalClip,
+            LayoutRect localClipRect,
+            bool hasLocalTransform,
+            Matrix localTransform,
             int renderStateSignature,
-            int ancestorRenderStateSignature,
             int localRenderStateSignature,
             bool hasTransformFromThisToRoot,
             Matrix transformFromThisToRoot,
-            bool hasTransformState,
-            bool hasClipState,
             bool isEffectivelyVisible,
             int subtreeEndIndexExclusive,
             bool hasSubtreeBoundsSnapshot,
@@ -845,15 +730,14 @@ public sealed partial class UiRoot
             Depth = depth;
             BoundsSnapshot = boundsSnapshot;
             HasBoundsSnapshot = hasBoundsSnapshot;
-            RenderStateSteps = renderStateSteps;
-            LocalRenderStateStartIndex = localRenderStateStartIndex;
+            HasLocalClip = hasLocalClip;
+            LocalClipRect = localClipRect;
+            HasLocalTransform = hasLocalTransform;
+            LocalTransform = localTransform;
             RenderStateSignature = renderStateSignature;
-            AncestorRenderStateSignature = ancestorRenderStateSignature;
             LocalRenderStateSignature = localRenderStateSignature;
             HasTransformFromThisToRoot = hasTransformFromThisToRoot;
             TransformFromThisToRoot = transformFromThisToRoot;
-            HasTransformState = hasTransformState;
-            HasClipState = hasClipState;
             IsEffectivelyVisible = isEffectivelyVisible;
             SubtreeEndIndexExclusive = subtreeEndIndexExclusive;
             HasSubtreeBoundsSnapshot = hasSubtreeBoundsSnapshot;
@@ -874,23 +758,21 @@ public sealed partial class UiRoot
 
         public bool HasBoundsSnapshot { get; }
 
-        public RenderStateStep[] RenderStateSteps { get; }
+        public bool HasLocalClip { get; }
 
-        public int LocalRenderStateStartIndex { get; }
+        public LayoutRect LocalClipRect { get; }
+
+        public bool HasLocalTransform { get; }
+
+        public Matrix LocalTransform { get; }
 
         public int RenderStateSignature { get; }
-
-        public int AncestorRenderStateSignature { get; }
 
         public int LocalRenderStateSignature { get; }
 
         public bool HasTransformFromThisToRoot { get; }
 
         public Matrix TransformFromThisToRoot { get; }
-
-        public bool HasTransformState { get; }
-
-        public bool HasClipState { get; }
 
         public bool IsEffectivelyVisible { get; }
 
@@ -923,15 +805,14 @@ public sealed partial class UiRoot
                 Depth,
                 BoundsSnapshot,
                 HasBoundsSnapshot,
-                RenderStateSteps,
-                LocalRenderStateStartIndex,
+                HasLocalClip,
+                LocalClipRect,
+                HasLocalTransform,
+                LocalTransform,
                 RenderStateSignature,
-                AncestorRenderStateSignature,
                 LocalRenderStateSignature,
                 HasTransformFromThisToRoot,
                 TransformFromThisToRoot,
-                HasTransformState,
-                HasClipState,
                 IsEffectivelyVisible,
                 subtreeEndIndexExclusive,
                 hasSubtreeBoundsSnapshot,
@@ -943,25 +824,6 @@ public sealed partial class UiRoot
         }
     }
 
-    private readonly struct LocalRenderStateInfo
-    {
-        public LocalRenderStateInfo(bool hasClip, LayoutRect clipRect, bool hasTransform, Matrix transform)
-        {
-            HasClip = hasClip;
-            ClipRect = clipRect;
-            HasTransform = hasTransform;
-            Transform = transform;
-        }
-
-        public bool HasClip { get; }
-
-        public LayoutRect ClipRect { get; }
-
-        public bool HasTransform { get; }
-
-        public Matrix Transform { get; }
-    }
-
     private readonly record struct SubtreeMetadata(
         bool HasBoundsSnapshot,
         LayoutRect BoundsSnapshot,
@@ -969,39 +831,4 @@ public sealed partial class UiRoot
         int HighCostVisualCount,
         int RenderVersionStamp,
         int LayoutVersionStamp);
-
-    private enum RenderStateStepKind
-    {
-        Clip,
-        Transform
-    }
-
-    private readonly struct RenderStateStep
-    {
-        private RenderStateStep(
-            RenderStateStepKind kind,
-            LayoutRect clipRect,
-            Matrix transform)
-        {
-            Kind = kind;
-            ClipRect = clipRect;
-            Transform = transform;
-        }
-
-        public RenderStateStepKind Kind { get; }
-
-        public LayoutRect ClipRect { get; }
-
-        public Matrix Transform { get; }
-
-        public static RenderStateStep ForClip(LayoutRect clipRect)
-        {
-            return new RenderStateStep(RenderStateStepKind.Clip, clipRect, Matrix.Identity);
-        }
-
-        public static RenderStateStep ForTransform(Matrix transform)
-        {
-            return new RenderStateStep(RenderStateStepKind.Transform, default, transform);
-        }
-    }
 }

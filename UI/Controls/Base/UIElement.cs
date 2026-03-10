@@ -1051,17 +1051,22 @@ public class UIElement : DependencyObject
         NeedsArrange = false;
     }
 
-    internal void ClearRenderInvalidationRecursive()
+    internal void ClearRenderInvalidationShallow()
     {
         NeedsRender = false;
         SubtreeDirty = false;
+    }
+
+    internal void ClearRenderInvalidationRecursive()
+    {
+        ClearRenderInvalidationShallow();
         foreach (var child in GetVisualChildren())
         {
             child.ClearRenderInvalidationRecursive();
         }
     }
 
-    private UIElement? GetInvalidationParent()
+    internal UIElement? GetInvalidationParent()
     {
         return VisualParent ?? LogicalParent;
     }

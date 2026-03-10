@@ -213,7 +213,7 @@ public class RadioButton : ToggleButton
         var textAvailableWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : maxTextWidth;
-        return TextLayout.Layout(Text, Font, textAvailableWidth, TextWrapping).Size;
+        return TextLayout.Layout(Text, Font, FontSize, textAvailableWidth, TextWrapping).Size;
     }
 
     private void DrawText(SpriteBatch spriteBatch, LayoutRect slot, float glyphSize)
@@ -239,11 +239,11 @@ public class RadioButton : ToggleButton
         var textAvailableWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : maxTextWidth;
-        var layout = TextLayout.Layout(Text, Font, textAvailableWidth, TextWrapping);
+        var layout = TextLayout.Layout(Text, Font, FontSize, textAvailableWidth, TextWrapping);
 
         var textY = top + ((maxTextHeight - layout.Size.Y) / 2f);
         var foreground = (IsEnabled ? Foreground : new Color(170, 170, 170)) * Opacity;
-        var lineSpacing = FontStashTextRenderer.GetLineHeight(Font);
+        var lineSpacing = FontStashTextRenderer.GetLineHeight(Font, FontSize);
 
         for (var i = 0; i < layout.Lines.Count; i++)
         {
@@ -254,7 +254,7 @@ public class RadioButton : ToggleButton
             }
 
             var linePosition = new Vector2(left, textY + (i * lineSpacing));
-            FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, foreground);
+            FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, foreground, FontSize);
         }
     }
 }

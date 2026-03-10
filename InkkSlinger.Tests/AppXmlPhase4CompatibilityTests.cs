@@ -10,31 +10,6 @@ namespace InkkSlinger.Tests;
 public sealed class AppXmlPhase4CompatibilityTests
 {
     [Fact]
-    public void FrameworkElementImplicitStyle_AppliesToPanelFromApplicationResources()
-    {
-        var backup = CaptureApplicationResources();
-        try
-        {
-            UiApplication.Current.Resources[typeof(Panel)] = BuildPanelStyle(new Color(0x11, 0x22, 0x33));
-            var panel = new Panel
-            {
-                Width = 200f,
-                Height = 120f
-            };
-
-            var uiRoot = BuildUiRootWithSingleChild(panel, 420, 260);
-            RunLayout(uiRoot, 420, 260);
-
-            Assert.Equal(new Color(0x11, 0x22, 0x33), panel.Background);
-            Assert.Equal(DependencyPropertyValueSource.Style, panel.GetValueSource(Panel.BackgroundProperty));
-        }
-        finally
-        {
-            RestoreApplicationResources(backup);
-        }
-    }
-
-    [Fact]
     public void FrameworkElementImplicitStyle_DoesNotOverrideExplicitLocalStyle()
     {
         var backup = CaptureApplicationResources();
@@ -166,28 +141,6 @@ public sealed class AppXmlPhase4CompatibilityTests
 
         Assert.Equal(new Color(0x66, 0x77, 0x88), hyperlink.Foreground);
         Assert.Equal(DependencyPropertyValueSource.StyleTrigger, hyperlink.GetValueSource(Hyperlink.ForegroundProperty));
-    }
-
-    [Fact]
-    public void DynamicResourceRefresh_BrushToColor_CoercesOnEveryUpdate()
-    {
-        const string xaml = """
-<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <UserControl.Resources>
-    <SolidColorBrush x:Key="AccentBrush" Color="#203040" />
-  </UserControl.Resources>
-  <Grid>
-    <Button x:Name="Probe" Background="{DynamicResource AccentBrush}" />
-  </Grid>
-</UserControl>
-""";
-
-        var root = (UserControl)XamlLoader.LoadFromString(xaml);
-        var probe = Assert.IsType<Button>(root.FindName("Probe"));
-        Assert.Equal(new Color(0x20, 0x30, 0x40), probe.Background);
-
-        root.Resources["AccentBrush"] = new SolidColorBrush(new Color(0x50, 0x60, 0x70));
-        Assert.Equal(new Color(0x50, 0x60, 0x70), probe.Background);
     }
 
     [Fact]

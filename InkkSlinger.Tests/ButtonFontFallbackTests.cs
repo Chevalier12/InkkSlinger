@@ -19,7 +19,7 @@ public class ButtonFontFallbackTests
         button.Measure(new Vector2(300f, 120f));
 
         var minimumWithoutText = button.Padding.Vertical + (button.BorderThickness * 2f);
-        var expectedWithText = minimumWithoutText + FontStashTextRenderer.GetLineHeight(null);
+        var expectedWithText = minimumWithoutText + FontStashTextRenderer.GetLineHeight(null, button.FontSize);
 
         Assert.True(button.DesiredSize.Y >= expectedWithText - 0.01f);
     }

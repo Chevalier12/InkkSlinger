@@ -643,18 +643,13 @@ public class ItemsControl : Control
 
         var count = e.OldItems.Count;
         var oldIndex = Math.Clamp(e.OldStartingIndex, 0, _generatedChildren.Count - 1);
-        var newIndex = Math.Clamp(e.NewStartingIndex, 0, _generatedChildren.Count - 1);
         var movedCount = Math.Min(count, _generatedChildren.Count - oldIndex);
         var movedEntries = _generatedChildren.GetRange(oldIndex, movedCount);
         var movedContainers = _itemContainers.GetRange(oldIndex, movedCount);
 
         _generatedChildren.RemoveRange(oldIndex, movedEntries.Count);
         _itemContainers.RemoveRange(oldIndex, movedContainers.Count);
-
-        if (newIndex > oldIndex)
-        {
-            newIndex = Math.Max(0, newIndex - movedEntries.Count);
-        }
+        var newIndex = Math.Clamp(e.NewStartingIndex, 0, _generatedChildren.Count);
 
         _generatedChildren.InsertRange(newIndex, movedEntries);
         _itemContainers.InsertRange(newIndex, movedContainers);

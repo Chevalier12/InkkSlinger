@@ -207,7 +207,8 @@ public class ComboBox : Selector
 
         if (args.Property == ItemContainerStyleProperty ||
             args.Property == ForegroundProperty ||
-            args.Property == FontProperty)
+            args.Property == FontProperty ||
+            args.Property == FontSizeProperty)
         {
             RefreshDropDownItems();
         }
@@ -221,10 +222,10 @@ public class ComboBox : Selector
 
         var text = GetDisplayText(SelectedItem);
         var textWidth = 0f;
-        var textHeight = FontStashTextRenderer.GetLineHeight(Font);
+        var textHeight = FontStashTextRenderer.GetLineHeight(Font, FontSize);
         if (!string.IsNullOrEmpty(text))
         {
-            textWidth = FontStashTextRenderer.MeasureWidth(Font, text);
+            textWidth = FontStashTextRenderer.MeasureWidth(Font, text, FontSize);
         }
 
         desired.X = MathF.Max(desired.X, padding.Horizontal + border + textWidth + 20f);
@@ -258,8 +259,8 @@ public class ComboBox : Selector
         }
 
         var textX = slot.X + Padding.Left + BorderThickness;
-        var textY = slot.Y + ((slot.Height - FontStashTextRenderer.GetLineHeight(Font)) / 2f);
-        FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), Foreground * Opacity);
+        var textY = slot.Y + ((slot.Height - FontStashTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
+        FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), Foreground * Opacity, FontSize);
     }
 
 

@@ -75,8 +75,8 @@ public class DataGridRowHeader : Control
         }
 
         return new Vector2(
-            FontStashTextRenderer.MeasureWidth(Font, Text) + 10f,
-            FontStashTextRenderer.GetLineHeight(Font) + 8f);
+            FontStashTextRenderer.MeasureWidth(Font, Text, FontSize) + 10f,
+            FontStashTextRenderer.GetLineHeight(Font, FontSize) + 8f);
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -90,8 +90,8 @@ public class DataGridRowHeader : Control
         }
 
         var x = LayoutSlot.X + 4f;
-        var y = LayoutSlot.Y + ((LayoutSlot.Height - FontStashTextRenderer.GetLineHeight(Font)) / 2f);
-        FontStashTextRenderer.DrawString(spriteBatch, Font, Text, new Vector2(x, y), Foreground * Opacity);
+        var y = LayoutSlot.Y + ((LayoutSlot.Height - FontStashTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
+        FontStashTextRenderer.DrawString(spriteBatch, Font, Text, new Vector2(x, y), Foreground * Opacity, FontSize);
     }
 }
 

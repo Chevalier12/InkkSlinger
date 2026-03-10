@@ -126,6 +126,7 @@ public class TextBlock : FrameworkElement
         var layout = ResolveLayout(renderWidth);
 
         var lineSpacing = FontStashTextRenderer.GetLineHeight(Font, FontSize);
+        var currentClip = spriteBatch.GraphicsDevice.ScissorRectangle;
         for (var i = 0; i < layout.Lines.Count; i++)
         {
             var line = layout.Lines[i];
@@ -135,6 +136,22 @@ public class TextBlock : FrameworkElement
             }
 
             var position = new Vector2(LayoutSlot.X, LayoutSlot.Y + (i * lineSpacing));
+            var lineWidth = i < layout.LineWidths.Count
+                ? layout.LineWidths[i]
+                : FontStashTextRenderer.MeasureWidth(Font, line, FontSize);
+            var transformedBounds = UiDrawing.TransformRectBounds(
+                spriteBatch,
+                new LayoutRect(position.X, position.Y, lineWidth, lineSpacing));
+            if (transformedBounds.Y + transformedBounds.Height < currentClip.Y)
+            {
+                continue;
+            }
+
+            if (transformedBounds.Y > currentClip.Bottom)
+            {
+                break;
+            }
+
             FontStashTextRenderer.DrawString(spriteBatch, Font, line, position, Foreground * Opacity, FontSize);
         }
 

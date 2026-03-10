@@ -300,7 +300,7 @@ public class GroupBox : ContentControl
         if (_headerElement == null && Header is string text && !string.IsNullOrWhiteSpace(text))
         {
             var textY = LayoutSlot.Y;
-            FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(_headerRect.X, textY), Foreground * Opacity);
+            FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(_headerRect.X, textY), Foreground * Opacity, FontSize);
         }
     }
 
@@ -324,7 +324,9 @@ public class GroupBox : ContentControl
 
         if (Header is string text && !string.IsNullOrWhiteSpace(text))
         {
-            return new Vector2(FontStashTextRenderer.MeasureWidth(Font, text), FontStashTextRenderer.GetLineHeight(Font));
+            return new Vector2(
+                FontStashTextRenderer.MeasureWidth(Font, text, FontSize),
+                FontStashTextRenderer.GetLineHeight(Font, FontSize));
         }
 
         return Vector2.Zero;

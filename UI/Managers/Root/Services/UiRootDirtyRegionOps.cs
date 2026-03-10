@@ -1,11 +1,15 @@
 using System;
 using System.Collections.Generic;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
 public sealed partial class UiRoot
 {
+    private const double DirtyRegionCoverageFallbackThreshold = 0.20d;
+    private const int DirtyRegionCountFallbackThreshold = 4;
+
     private void DrawRetainedRenderListWithDirtyRegions(SpriteBatch spriteBatch)
     {
         LastDirtyRectCount = _dirtyRegions.IsFullFrameDirty ? 1 : _dirtyRegions.RegionCount;
@@ -17,22 +21,24 @@ public sealed partial class UiRoot
             return;
         }
 
+        if (!ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, LastDirtyAreaPercentage))
+        {
+            _dirtyRegionThresholdFallbackCount++;
+            DrawRetainedRenderList(spriteBatch);
+            return;
+        }
+
         DrawRetainedRenderListForDirtyRegions(spriteBatch, _dirtyRegions.Regions);
         LastDrawUsedPartialRedraw = true;
     }
 
     private void DrawRetainedRenderList(SpriteBatch spriteBatch)
     {
-        for (var i = 0; i < _retainedRenderList.Count; i++)
-        {
-            var node = _retainedRenderList[i];
-            if (!node.IsEffectivelyVisible)
-            {
-                continue;
-            }
-
-            DrawRetainedNode(spriteBatch, node);
-        }
+        var metrics = TraverseRetainedNodesWithinClip(
+            spriteBatch,
+            ToLayoutRect(spriteBatch.GraphicsDevice.ScissorRectangle));
+        _lastRetainedNodesVisited += metrics.NodesVisited;
+        _lastRetainedNodesDrawn += metrics.NodesDrawn;
     }
 
     private void DrawRetainedRenderListForDirtyRegions(SpriteBatch spriteBatch, IReadOnlyList<LayoutRect> regions)
@@ -44,21 +50,9 @@ public sealed partial class UiRoot
             try
             {
                 UiDrawing.DrawFilledRect(spriteBatch, dirtyRegion, _clearColor);
-                for (var nodeIndex = 0; nodeIndex < _retainedRenderList.Count; nodeIndex++)
-                {
-                    var node = _retainedRenderList[nodeIndex];
-                    if (!node.IsEffectivelyVisible)
-                    {
-                        continue;
-                    }
-
-                    if (node.HasSubtreeBoundsSnapshot && !Intersects(node.SubtreeBoundsSnapshot, dirtyRegion))
-                    {
-                        continue;
-                    }
-
-                    DrawRetainedNode(spriteBatch, node);
-                }
+                var metrics = TraverseRetainedNodesWithinClip(spriteBatch, dirtyRegion);
+                _lastRetainedNodesVisited += metrics.NodesVisited;
+                _lastRetainedNodesDrawn += metrics.NodesDrawn;
             }
             finally
             {
@@ -67,41 +61,115 @@ public sealed partial class UiRoot
         }
     }
 
-    private void DrawRetainedNode(SpriteBatch spriteBatch, RenderNode node)
+    private RenderTraversalMetrics TraverseRetainedNodesWithinClip(SpriteBatch? spriteBatch, LayoutRect clipRect, List<UIElement>? visuals = null)
     {
-        var pushedClipCount = 0;
-        var pushedTransformCount = 0;
-        var steps = node.RenderStateSteps;
-        for (var i = 0; i < steps.Length; i++)
-        {
-            var step = steps[i];
-            if (step.Kind == RenderStateStepKind.Clip)
-            {
-                UiDrawing.PushClip(spriteBatch, step.ClipRect);
-                pushedClipCount++;
-                continue;
-            }
-
-            UiDrawing.PushTransform(spriteBatch, step.Transform);
-            pushedTransformCount++;
-        }
+        var visited = 0;
+        var drawn = 0;
+        var clipPushCount = 0;
+        _activeRetainedDrawPath.Clear();
 
         try
         {
-            node.Visual.DrawSelf(spriteBatch);
+            for (var nodeIndex = 0; nodeIndex < _retainedRenderList.Count; nodeIndex++)
+            {
+                visited++;
+                var node = _retainedRenderList[nodeIndex];
+                if (!node.IsEffectivelyVisible)
+                {
+                    nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
+                    continue;
+                }
+
+                if (node.HasSubtreeBoundsSnapshot && !Intersects(node.SubtreeBoundsSnapshot, clipRect))
+                {
+                    nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
+                    continue;
+                }
+
+                if (spriteBatch != null)
+                {
+                    SyncRetainedDrawState(spriteBatch, node, ref clipPushCount);
+                    node.Visual.DrawSelf(spriteBatch);
+                }
+                else if (node.HasLocalClip)
+                {
+                    clipPushCount++;
+                }
+
+                visuals?.Add(node.Visual);
+                drawn++;
+            }
         }
         finally
         {
-            for (var i = 0; i < pushedTransformCount; i++)
+            if (spriteBatch != null)
             {
-                UiDrawing.PopTransform(spriteBatch);
-            }
-
-            for (var i = 0; i < pushedClipCount; i++)
-            {
-                UiDrawing.PopClip(spriteBatch);
+                ResetRetainedDrawState(spriteBatch);
             }
         }
+
+        return new RenderTraversalMetrics(visited, drawn, clipPushCount);
+    }
+
+    private void AppendRetainedDrawOrderForClip(LayoutRect clipRect, List<UIElement> visuals)
+    {
+        _ = TraverseRetainedNodesWithinClip(spriteBatch: null, clipRect, visuals);
+    }
+
+    private void SyncRetainedDrawState(SpriteBatch spriteBatch, RenderNode node, ref int clipPushCount)
+    {
+        while (_activeRetainedDrawPath.Count > node.Depth)
+        {
+            PopRetainedDrawNodeState(spriteBatch, _activeRetainedDrawPath[^1]);
+            _activeRetainedDrawPath.RemoveAt(_activeRetainedDrawPath.Count - 1);
+        }
+
+        ApplyRetainedDrawNodeState(spriteBatch, node, ref clipPushCount);
+        _activeRetainedDrawPath.Add(node);
+    }
+
+    private void ResetRetainedDrawState(SpriteBatch spriteBatch)
+    {
+        for (var i = _activeRetainedDrawPath.Count - 1; i >= 0; i--)
+        {
+            PopRetainedDrawNodeState(spriteBatch, _activeRetainedDrawPath[i]);
+        }
+
+        _activeRetainedDrawPath.Clear();
+    }
+
+    private static void ApplyRetainedDrawNodeState(SpriteBatch spriteBatch, RenderNode node, ref int clipPushCount)
+    {
+        if (node.HasLocalClip)
+        {
+            UiDrawing.PushClip(spriteBatch, node.LocalClipRect);
+            clipPushCount++;
+        }
+
+        if (node.HasLocalTransform)
+        {
+            UiDrawing.PushTransform(spriteBatch, node.LocalTransform);
+        }
+    }
+
+    private static void PopRetainedDrawNodeState(SpriteBatch spriteBatch, RenderNode node)
+    {
+        if (node.HasLocalTransform)
+        {
+            UiDrawing.PopTransform(spriteBatch);
+        }
+
+        if (node.HasLocalClip)
+        {
+            UiDrawing.PopClip(spriteBatch);
+        }
+    }
+
+    private static bool ShouldUsePartialDirtyRedraw(int regionCount, double coverage)
+    {
+        return regionCount > 0 &&
+               regionCount <= DirtyRegionCountFallbackThreshold &&
+               coverage <= DirtyRegionCoverageFallbackThreshold;
     }
 
     private void TrackDirtyBoundsForVisual(UIElement? visual)
@@ -152,7 +220,20 @@ public sealed partial class UiRoot
     {
         if (hasOldBounds && hasNewBounds)
         {
-            _dirtyRegions.AddDirtyRegion(Union(oldBounds, newBounds));
+            if (AreRectsEqual(oldBounds, newBounds))
+            {
+                _dirtyRegions.AddDirtyRegion(oldBounds);
+                return;
+            }
+
+            if (IntersectsOrTouches(oldBounds, newBounds))
+            {
+                _dirtyRegions.AddDirtyRegion(Union(oldBounds, newBounds));
+                return;
+            }
+
+            _dirtyRegions.AddDirtyRegion(oldBounds);
+            _dirtyRegions.AddDirtyRegion(newBounds);
             return;
         }
 
@@ -179,6 +260,14 @@ public sealed partial class UiRoot
                left.Y + left.Height > right.Y;
     }
 
+    private static bool IntersectsOrTouches(LayoutRect left, LayoutRect right)
+    {
+        return left.X <= right.X + right.Width &&
+               left.X + left.Width >= right.X &&
+               left.Y <= right.Y + right.Height &&
+               left.Y + left.Height >= right.Y;
+    }
+
     private static LayoutRect Union(LayoutRect left, LayoutRect right)
     {
         var x = MathF.Min(left.X, right.X);
@@ -196,4 +285,14 @@ public sealed partial class UiRoot
                MathF.Abs(left.Width - right.Width) <= epsilon &&
                MathF.Abs(left.Height - right.Height) <= epsilon;
     }
+
+    private static LayoutRect ToLayoutRect(Rectangle rectangle)
+    {
+        return new LayoutRect(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
+    }
+
+    private readonly record struct RenderTraversalMetrics(
+        int NodesVisited,
+        int NodesDrawn,
+        int ClipPushCount);
 }

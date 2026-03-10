@@ -51,7 +51,7 @@ public sealed class DirtyBoundsEdgeRegressionTests
     }
 
     [Fact]
-    public void TransformMovement_TracksUnionOfOldAndNewBounds()
+    public void TransformMovement_WithDisjointBounds_TracksOldAndNewRegionsSeparately()
     {
         var root = new Panel();
         root.SetLayoutSlot(new LayoutRect(0f, 0f, 240f, 120f));
@@ -68,11 +68,11 @@ public sealed class DirtyBoundsEdgeRegressionTests
         uiRoot.SynchronizeRetainedRenderListForTests();
 
         var regions = uiRoot.GetDirtyRegionsSnapshotForTests();
-        Assert.Single(regions);
+        Assert.Equal(2, regions.Count);
         Assert.Equal(10f, regions[0].X);
-        Assert.Equal(10f, regions[0].Y);
-        Assert.Equal(70f, regions[0].Width);
-        Assert.Equal(20f, regions[0].Height);
+        Assert.Equal(20f, regions[0].Width);
+        Assert.Equal(60f, regions[1].X);
+        Assert.Equal(20f, regions[1].Width);
     }
 
     [Fact]

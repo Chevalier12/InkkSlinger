@@ -7,6 +7,16 @@ namespace InkkSlinger;
 
 public abstract class Shape : FrameworkElement
 {
+    private static int _renderCacheHitCount;
+    private static int _renderCacheMissCount;
+
+    private Geometry? _cachedGeometry;
+    private IReadOnlyList<GeometryFigure> _cachedTransformedFigures = Array.Empty<GeometryFigure>();
+    private int _cachedRenderVersion = -1;
+    private int _cachedLayoutVersion = -1;
+    private LayoutRect _cachedLayoutSlot;
+    private Stretch _cachedStretch;
+
     static Shape()
     {
         var baseMetadata = UIElement.VisibilityProperty.GetMetadata(typeof(UIElement));
@@ -110,13 +120,12 @@ public abstract class Shape : FrameworkElement
             return;
         }
 
-        var figures = geometry.GetFlattenedFigures();
-        if (figures.Count == 0)
+        var transformed = ResolveTransformedFigures(geometry);
+        if (transformed.Count == 0)
         {
             return;
         }
 
-        var transformed = TransformFiguresToLayout(figures, LayoutSlot, Stretch);
         foreach (var figure in transformed)
         {
             if (figure.IsClosed && Fill.A > 0 && figure.Points.Count >= 3)
@@ -129,6 +138,58 @@ public abstract class Shape : FrameworkElement
                 UiDrawing.DrawPolyline(spriteBatch, figure.Points, figure.IsClosed, StrokeThickness, Stroke, Opacity);
             }
         }
+    }
+
+    internal static int GetRenderCacheHitCountForTests()
+    {
+        return _renderCacheHitCount;
+    }
+
+    internal static int GetRenderCacheMissCountForTests()
+    {
+        return _renderCacheMissCount;
+    }
+
+    internal static void ResetRenderCacheMetricsForTests()
+    {
+        _renderCacheHitCount = 0;
+        _renderCacheMissCount = 0;
+    }
+
+    internal void PrimeRenderCacheForTests()
+    {
+        var geometry = DefiningGeometry;
+        if (geometry == null)
+        {
+            return;
+        }
+
+        _ = ResolveTransformedFigures(geometry);
+    }
+
+    private IReadOnlyList<GeometryFigure> ResolveTransformedFigures(Geometry geometry)
+    {
+        if (_cachedRenderVersion == RenderVersionStamp &&
+            _cachedLayoutVersion == LayoutVersionStamp &&
+            ReferenceEquals(_cachedGeometry, geometry) &&
+            _cachedStretch == Stretch &&
+            AreRectsEqual(_cachedLayoutSlot, LayoutSlot))
+        {
+            _renderCacheHitCount++;
+            return _cachedTransformedFigures;
+        }
+
+        _renderCacheMissCount++;
+        var figures = geometry.GetFlattenedFigures();
+        _cachedGeometry = geometry;
+        _cachedLayoutSlot = LayoutSlot;
+        _cachedStretch = Stretch;
+        _cachedRenderVersion = RenderVersionStamp;
+        _cachedLayoutVersion = LayoutVersionStamp;
+        _cachedTransformedFigures = figures.Count == 0
+            ? Array.Empty<GeometryFigure>()
+            : TransformFiguresToLayout(figures, LayoutSlot, Stretch);
+        return _cachedTransformedFigures;
     }
 
     private static IReadOnlyList<GeometryFigure> TransformFiguresToLayout(
@@ -211,6 +272,15 @@ public abstract class Shape : FrameworkElement
 
         return new LayoutRect(minX, minY, maxX - minX, maxY - minY);
     }
+
+    private static bool AreRectsEqual(LayoutRect left, LayoutRect right)
+    {
+        const float epsilon = 0.0001f;
+        return MathF.Abs(left.X - right.X) <= epsilon &&
+               MathF.Abs(left.Y - right.Y) <= epsilon &&
+               MathF.Abs(left.Width - right.Width) <= epsilon &&
+               MathF.Abs(left.Height - right.Height) <= epsilon;
+    }
 }
 
 public class RectangleShape : Shape
@@ -265,6 +335,11 @@ public class RectangleShape : Shape
 
 public class EllipseShape : Shape
 {
+    private Vector2[] _cachedPoints = Array.Empty<Vector2>();
+    private LayoutRect _cachedPointSlot;
+    private int _cachedPointRenderVersion = -1;
+    private int _cachedPointLayoutVersion = -1;
+
     protected override Geometry? DefiningGeometry => null;
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -278,15 +353,7 @@ public class EllipseShape : Shape
             return;
         }
 
-        const int segments = 48;
-        var points = new Vector2[segments];
-        for (var i = 0; i < segments; i++)
-        {
-            var angle = (MathF.PI * 2f * i) / segments;
-            points[i] = new Vector2(
-                center.X + (MathF.Cos(angle) * rx),
-                center.Y + (MathF.Sin(angle) * ry));
-        }
+        var points = ResolveEllipsePoints(center, rx, ry, slot);
 
         if (Fill.A > 0)
         {
@@ -297,6 +364,43 @@ public class EllipseShape : Shape
         {
             UiDrawing.DrawPolyline(spriteBatch, points, closed: true, StrokeThickness, Stroke, Opacity);
         }
+    }
+
+    private IReadOnlyList<Vector2> ResolveEllipsePoints(Vector2 center, float radiusX, float radiusY, LayoutRect slot)
+    {
+        if (_cachedPointRenderVersion == RenderVersionStamp &&
+            _cachedPointLayoutVersion == LayoutVersionStamp &&
+            AreClose(_cachedPointSlot.X, slot.X) &&
+            AreClose(_cachedPointSlot.Y, slot.Y) &&
+            AreClose(_cachedPointSlot.Width, slot.Width) &&
+            AreClose(_cachedPointSlot.Height, slot.Height))
+        {
+            return _cachedPoints;
+        }
+
+        const int segments = 48;
+        if (_cachedPoints.Length != segments)
+        {
+            _cachedPoints = new Vector2[segments];
+        }
+
+        for (var i = 0; i < segments; i++)
+        {
+            var angle = (MathF.PI * 2f * i) / segments;
+            _cachedPoints[i] = new Vector2(
+                center.X + (MathF.Cos(angle) * radiusX),
+                center.Y + (MathF.Sin(angle) * radiusY));
+        }
+
+        _cachedPointSlot = slot;
+        _cachedPointRenderVersion = RenderVersionStamp;
+        _cachedPointLayoutVersion = LayoutVersionStamp;
+        return _cachedPoints;
+    }
+
+    private static bool AreClose(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.01f;
     }
 }
 

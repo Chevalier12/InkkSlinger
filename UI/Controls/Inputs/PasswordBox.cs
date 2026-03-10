@@ -937,6 +937,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         base.OnDependencyPropertyChanged(args);
 
         if (ReferenceEquals(args.Property, FontProperty) ||
+            ReferenceEquals(args.Property, FontSizeProperty) ||
             ReferenceEquals(args.Property, TextWrappingProperty) ||
             ReferenceEquals(args.Property, PaddingProperty) ||
             ReferenceEquals(args.Property, BorderThicknessProperty) ||
@@ -944,6 +945,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             ReferenceEquals(args.Property, RevealPasswordProperty))
         {
             if (ReferenceEquals(args.Property, FontProperty) ||
+                ReferenceEquals(args.Property, FontSizeProperty) ||
                 ReferenceEquals(args.Property, PasswordCharProperty) ||
                 ReferenceEquals(args.Property, RevealPasswordProperty))
             {
@@ -1303,7 +1305,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             return width;
         }
 
-        width = FontStashTextRenderer.MeasureWidth(Font, ch.ToString());
+        width = FontStashTextRenderer.MeasureWidth(Font, ch.ToString(), FontSize);
         _glyphWidthCache[ch] = width;
         return width;
     }
@@ -1320,7 +1322,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             text = MaskText(text);
         }
 
-        FontStashTextRenderer.DrawString(spriteBatch, Font, text, position, color);
+        FontStashTextRenderer.DrawString(spriteBatch, Font, text, position, color, FontSize);
     }
 
     private string MaskText(string text)
@@ -3124,7 +3126,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
                         }
 
                         prefixBuilder.Append(ch);
-                        widths[i + 1] = FontStashTextRenderer.MeasureWidth(Font, prefixBuilder.ToString());
+                        widths[i + 1] = FontStashTextRenderer.MeasureWidth(Font, prefixBuilder.ToString(), FontSize);
                     }
                 }
                 else
@@ -3141,7 +3143,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
                     for (var i = 0; i < lineText.Length; i++)
                     {
                         prefixBuilder.Append(lineText[i]);
-                        widths[i + 1] = FontStashTextRenderer.MeasureWidth(Font, prefixBuilder.ToString());
+                        widths[i + 1] = FontStashTextRenderer.MeasureWidth(Font, prefixBuilder.ToString(), FontSize);
                     }
                 }
             }
@@ -3355,7 +3357,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private float GetLineHeight()
     {
-        return FontStashTextRenderer.GetLineHeight(Font);
+        return FontStashTextRenderer.GetLineHeight(Font, FontSize);
     }
 
     private float GetTextRenderTopInset()

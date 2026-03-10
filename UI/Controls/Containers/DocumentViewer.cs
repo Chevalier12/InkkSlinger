@@ -1074,7 +1074,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
             Font is null ? 0 : RuntimeHelpers.GetHashCode(Font),
             (int)TextWrapping,
             (int)MathF.Round(normalizedWidth * 100f));
-        var lineHeight = Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font));
+        var lineHeight = Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font, FontSize));
         var key = new DocumentViewportLayoutCache.CacheKey(
             signature,
             normalizedWidth,
@@ -1091,6 +1091,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
         var settings = new DocumentLayoutSettings(
             AvailableWidth: normalizedWidth,
             Font: Font,
+            FontSize: FontSize,
             Wrapping: TextWrapping,
             Foreground: Foreground,
             LineHeight: lineHeight,
@@ -1362,7 +1363,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
 
         var caretX = caretPos.X * ZoomScale;
         var caretY = caretPos.Y * ZoomScale;
-        var lineHeight = FontStashTextRenderer.GetLineHeight(Font) * ZoomScale;
+        var lineHeight = FontStashTextRenderer.GetLineHeight(Font, FontSize) * ZoomScale;
 
         if (caretX < _horizontalOffset)
         {
@@ -1426,7 +1427,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
 
         var x = textRect.X + (caretPosition.X * ZoomScale) - _horizontalOffset;
         var y = textRect.Y + (caretPosition.Y * ZoomScale) - _verticalOffset;
-        var height = FontStashTextRenderer.GetLineHeight(Font) * ZoomScale;
+        var height = FontStashTextRenderer.GetLineHeight(Font, FontSize) * ZoomScale;
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(x, y, 1f, Math.Max(1f, height)), CaretBrush * Opacity);
     }
 
@@ -1554,7 +1555,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
     {
         if (FontStashTextRenderer.IsEnabled)
         {
-            var fontSize = Math.Max(8f, FontStashTextRenderer.GetLineHeight(Font) * ZoomScale);
+            var fontSize = Math.Max(8f, FontStashTextRenderer.GetLineHeight(Font, FontSize) * ZoomScale);
             FontStashTextRenderer.DrawString(spriteBatch, text, position, color, fontSize);
             if (bold)
             {

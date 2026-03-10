@@ -318,8 +318,8 @@ public class Expander : ContentControl
         }
 
         var text = Header?.ToString() ?? string.Empty;
-        var textWidth = FontStashTextRenderer.MeasureWidth(Font, text);
-        var textHeight = FontStashTextRenderer.GetLineHeight(Font);
+        var textWidth = FontStashTextRenderer.MeasureWidth(Font, text, FontSize);
+        var textHeight = FontStashTextRenderer.GetLineHeight(Font, FontSize);
         return new Vector2(
             textWidth + padding.Horizontal + 16f,
             MathF.Max(16f, textHeight) + padding.Vertical);
@@ -433,7 +433,8 @@ public class Expander : ContentControl
             Font,
             text,
             new Vector2(textX, textY),
-            Foreground * Opacity);
+            Foreground * Opacity,
+            FontSize);
     }
 
     private void DrawChevron(SpriteBatch spriteBatch, LayoutRect headerRect)

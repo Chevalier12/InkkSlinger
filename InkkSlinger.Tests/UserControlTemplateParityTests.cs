@@ -245,6 +245,16 @@ public sealed class UserControlTemplateParityTests
 
     private static UiRoot BuildUiRootWithSingleChild(FrameworkElement element, int width, int height, float x, float y)
     {
+        if (element.VisualParent is Panel existingPanel)
+        {
+            _ = existingPanel.RemoveChild(element);
+        }
+        else
+        {
+            element.SetVisualParent(null);
+            element.SetLogicalParent(null);
+        }
+
         var host = new Canvas
         {
             Width = width,

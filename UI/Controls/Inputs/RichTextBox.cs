@@ -1489,7 +1489,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var textRect = GetTextRect();
         var layout = BuildOrGetLayout(textRect.Width);
         var previous = _verticalOffset;
-        _verticalOffset -= MathF.Sign(delta) * (FontStashTextRenderer.GetLineHeight(Font) * 3f);
+        _verticalOffset -= MathF.Sign(delta) * (FontStashTextRenderer.GetLineHeight(Font, FontSize) * 3f);
         ClampScrollOffsets(layout, textRect);
         if (Math.Abs(previous - _verticalOffset) > 0.01f)
         {
@@ -1640,7 +1640,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 continue;
             }
 
-            FontStashTextRenderer.DrawString(spriteBatch, Font, run.Text, position, color * Opacity, run.Style.IsBold);
+            FontStashTextRenderer.DrawString(spriteBatch, Font, run.Text, position, color * Opacity, FontSize, run.Style.IsBold);
 
             if (run.Style.IsUnderline)
             {
@@ -3157,7 +3157,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             return;
         }
 
-        var lineHeight = Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font));
+        var lineHeight = Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font, FontSize));
         var caretRect = new LayoutRect(textRect.X + caret.X - _horizontalOffset, textRect.Y + caret.Y - _verticalOffset, 1f, lineHeight);
         UiDrawing.DrawFilledRect(
             spriteBatch,
@@ -3186,7 +3186,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         var line = ResolveLineForOffset(layout, _caretIndex);
         var caretRect = layout.TryGetCaretPosition(_caretIndex, out var caret)
-            ? new LayoutRect(textRect.X + caret.X - _horizontalOffset, textRect.Y + caret.Y - _verticalOffset, 1f, Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font)))
+            ? new LayoutRect(textRect.X + caret.X - _horizontalOffset, textRect.Y + caret.Y - _verticalOffset, 1f, Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font, FontSize)))
             : default;
         _perfTracker.RecordSelectionGeometry(Stopwatch.GetElapsedTime(selectionStartTicks).TotalMilliseconds);
     }
@@ -4003,7 +4003,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             Font is null ? 0 : RuntimeHelpers.GetHashCode(Font),
             (int)TextWrapping,
             (int)MathF.Round(normalizedWidth * 100f));
-        var lineHeight = Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font));
+        var lineHeight = Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font, FontSize));
         var key = new DocumentViewportLayoutCache.CacheKey(
             signature,
             normalizedWidth,
@@ -4022,6 +4022,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var settings = new DocumentLayoutSettings(
             AvailableWidth: normalizedWidth,
             Font: Font,
+            FontSize: FontSize,
             Wrapping: TextWrapping,
             Foreground: Foreground,
             LineHeight: lineHeight,
