@@ -60,6 +60,7 @@ public static class AutomationPeerFactory
             ToolTip => AutomationControlType.ToolTip,
             TextBlock => AutomationControlType.Text,
             Image => AutomationControlType.Image,
+            MediaElement => AutomationControlType.Pane,
             Border => AutomationControlType.Pane,
             Panel => AutomationControlType.Pane,
             _ => AutomationControlType.Custom
