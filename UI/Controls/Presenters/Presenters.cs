@@ -78,6 +78,21 @@ public class ContentPresenter : FrameworkElement
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return _presentedElement != null ? 1 : 0;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if (index == 0 && _presentedElement != null)
+        {
+            return _presentedElement;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         if (_presentedElement != null)
@@ -656,6 +671,24 @@ public class ItemsPresenter : FrameworkElement
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        EnsureOwner();
+        return _itemsOwner?.GetItemContainersForPresenter().Count ?? 0;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        EnsureOwner();
+        var items = _itemsOwner?.GetItemContainersForPresenter();
+        if (items != null && (uint)index < (uint)items.Count)
+        {
+            return items[index];
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         if (_itemsOwner == null)
@@ -879,6 +912,27 @@ public class HeaderedItemsControl : ItemsControl
         {
             yield return _headerElement;
         }
+    }
+
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return base.GetVisualChildCountForTraversal() + (_headerElement != null ? 1 : 0);
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        var baseCount = base.GetVisualChildCountForTraversal();
+        if (index < baseCount)
+        {
+            return base.GetVisualChildAtForTraversal(index);
+        }
+
+        if (index == baseCount && _headerElement != null)
+        {
+            return _headerElement;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
     }
 
     public override IEnumerable<UIElement> GetLogicalChildren()

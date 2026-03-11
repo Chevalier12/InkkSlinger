@@ -153,6 +153,32 @@ public class DataGrid : ItemsControl
         yield return _rowsPresenter.ScrollViewer;
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return _headersPresenter.Headers.Count + 2;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if (index == 0)
+        {
+            return _cornerHeader;
+        }
+
+        if (index == _headersPresenter.Headers.Count + 1)
+        {
+            return _rowsPresenter.ScrollViewer;
+        }
+
+        var headerIndex = index - 1;
+        if ((uint)headerIndex < (uint)_headersPresenter.Headers.Count)
+        {
+            return _headersPresenter.Headers[headerIndex];
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         yield return _cornerHeader;

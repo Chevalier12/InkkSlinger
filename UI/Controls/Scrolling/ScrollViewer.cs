@@ -267,6 +267,40 @@ public class ScrollViewer : ContentControl
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return base.GetVisualChildCountForTraversal() +
+               (_showHorizontalBar ? 1 : 0) +
+               (_showVerticalBar ? 1 : 0);
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        var baseCount = base.GetVisualChildCountForTraversal();
+        if (index < baseCount)
+        {
+            return base.GetVisualChildAtForTraversal(index);
+        }
+
+        var extraIndex = index - baseCount;
+        if (_showHorizontalBar)
+        {
+            if (extraIndex == 0)
+            {
+                return _horizontalBar;
+            }
+
+            extraIndex--;
+        }
+
+        if (_showVerticalBar && extraIndex == 0)
+        {
+            return _verticalBar;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         foreach (var child in base.GetLogicalChildren())

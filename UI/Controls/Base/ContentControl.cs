@@ -62,6 +62,27 @@ public class ContentControl : Control
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return base.GetVisualChildCountForTraversal() + (_contentElement != null ? 1 : 0);
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        var baseCount = base.GetVisualChildCountForTraversal();
+        if (index < baseCount)
+        {
+            return base.GetVisualChildAtForTraversal(index);
+        }
+
+        if (index == baseCount && _contentElement != null)
+        {
+            return _contentElement;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         foreach (var element in base.GetLogicalChildren())

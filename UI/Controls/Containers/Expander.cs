@@ -220,6 +220,57 @@ public class Expander : ContentControl
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        var count = 0;
+        var baseCount = base.GetVisualChildCountForTraversal();
+        for (var i = 0; i < baseCount; i++)
+        {
+            var child = base.GetVisualChildAtForTraversal(i);
+            if (!IsExpanded && ContentElement != null && ReferenceEquals(child, ContentElement))
+            {
+                continue;
+            }
+
+            count++;
+        }
+
+        if (_headerElement != null && !ReferenceEquals(_headerElement, ContentElement))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        var traversalIndex = 0;
+        var baseCount = base.GetVisualChildCountForTraversal();
+        for (var i = 0; i < baseCount; i++)
+        {
+            var child = base.GetVisualChildAtForTraversal(i);
+            if (!IsExpanded && ContentElement != null && ReferenceEquals(child, ContentElement))
+            {
+                continue;
+            }
+
+            if (traversalIndex == index)
+            {
+                return child;
+            }
+
+            traversalIndex++;
+        }
+
+        if (_headerElement != null && !ReferenceEquals(_headerElement, ContentElement) && traversalIndex == index)
+        {
+            return _headerElement;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         foreach (var element in base.GetLogicalChildren())

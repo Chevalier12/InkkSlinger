@@ -177,6 +177,40 @@ public class ItemsControl : Control
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        var count = base.GetVisualChildCountForTraversal();
+        if (!IncludeGeneratedChildrenInVisualTree)
+        {
+            return count;
+        }
+
+        return count + GetItemContainersForPresenter().Count;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        var baseCount = base.GetVisualChildCountForTraversal();
+        if (index < baseCount)
+        {
+            return base.GetVisualChildAtForTraversal(index);
+        }
+
+        if (!IncludeGeneratedChildrenInVisualTree)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+
+        var source = GetItemContainersForPresenter();
+        var projectedIndex = index - baseCount;
+        if ((uint)projectedIndex < (uint)source.Count)
+        {
+            return source[projectedIndex];
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         foreach (var element in base.GetLogicalChildren())

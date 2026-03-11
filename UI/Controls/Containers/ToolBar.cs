@@ -157,6 +157,27 @@ public class ToolBar : ItemsControl
         yield return _overflowPanel;
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return base.GetVisualChildCountForTraversal() + 2;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        var baseCount = base.GetVisualChildCountForTraversal();
+        if (index < baseCount)
+        {
+            return base.GetVisualChildAtForTraversal(index);
+        }
+
+        return (index - baseCount) switch
+        {
+            0 => _overflowButton,
+            1 => _overflowPanel,
+            _ => throw new ArgumentOutOfRangeException(nameof(index))
+        };
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         foreach (var child in base.GetLogicalChildren())

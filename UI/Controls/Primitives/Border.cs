@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -106,6 +107,21 @@ public class Border : FrameworkElement
         {
             yield return _child;
         }
+    }
+
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return _child != null ? 1 : 0;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if (index == 0 && _child != null)
+        {
+            return _child;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
     }
 
     public override IEnumerable<UIElement> GetLogicalChildren()

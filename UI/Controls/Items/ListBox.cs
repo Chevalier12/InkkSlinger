@@ -146,6 +146,27 @@ public class ListBox : Selector
         yield return _scrollViewer;
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return base.GetVisualChildCountForTraversal() + 1;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        var baseCount = base.GetVisualChildCountForTraversal();
+        if (index < baseCount)
+        {
+            return base.GetVisualChildAtForTraversal(index);
+        }
+
+        if (index == baseCount)
+        {
+            return _scrollViewer;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         foreach (var element in base.GetLogicalChildren())

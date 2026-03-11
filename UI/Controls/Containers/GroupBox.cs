@@ -165,6 +165,28 @@ public class GroupBox : ContentControl
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return base.GetVisualChildCountForTraversal() +
+               (_headerElement != null && !ReferenceEquals(_headerElement, ContentElement) ? 1 : 0);
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        var baseCount = base.GetVisualChildCountForTraversal();
+        if (index < baseCount)
+        {
+            return base.GetVisualChildAtForTraversal(index);
+        }
+
+        if (index == baseCount && _headerElement != null && !ReferenceEquals(_headerElement, ContentElement))
+        {
+            return _headerElement;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         foreach (var child in base.GetLogicalChildren())

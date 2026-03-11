@@ -121,6 +121,56 @@ public class UserControl : ContentControl
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        if (!HasTemplateAssigned())
+        {
+            return base.GetVisualChildCountForTraversal();
+        }
+
+        var count = 0;
+        var baseCount = base.GetVisualChildCountForTraversal();
+        for (var i = 0; i < baseCount; i++)
+        {
+            if (ReferenceEquals(base.GetVisualChildAtForTraversal(i), ContentElement))
+            {
+                continue;
+            }
+
+            count++;
+        }
+
+        return count;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if (!HasTemplateAssigned())
+        {
+            return base.GetVisualChildAtForTraversal(index);
+        }
+
+        var traversalIndex = 0;
+        var baseCount = base.GetVisualChildCountForTraversal();
+        for (var i = 0; i < baseCount; i++)
+        {
+            var child = base.GetVisualChildAtForTraversal(i);
+            if (ReferenceEquals(child, ContentElement))
+            {
+                continue;
+            }
+
+            if (traversalIndex == index)
+            {
+                return child;
+            }
+
+            traversalIndex++;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         if (!HasTemplateAssigned())

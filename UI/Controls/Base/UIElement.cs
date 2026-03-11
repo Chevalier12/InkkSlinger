@@ -259,6 +259,16 @@ public class UIElement : DependencyObject
         yield break;
     }
 
+    internal virtual int GetVisualChildCountForTraversal()
+    {
+        return -1;
+    }
+
+    internal virtual UIElement GetVisualChildAtForTraversal(int index)
+    {
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     internal virtual IEnumerable<UIElement> GetRetainedRenderChildren()
     {
         return GetVisualChildren();

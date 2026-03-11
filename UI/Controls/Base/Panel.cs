@@ -145,6 +145,21 @@ public class Panel : FrameworkElement
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return _children.Count;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if ((uint)index < (uint)_children.Count)
+        {
+            return _children[index];
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         foreach (var child in _children)

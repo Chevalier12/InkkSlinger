@@ -28,6 +28,33 @@ public class AdornerDecorator : Decorator
         yield return _adornerLayer;
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return (Child != null ? 1 : 0) + 1;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if (Child != null)
+        {
+            if (index == 0)
+            {
+                return Child;
+            }
+
+            if (index == 1)
+            {
+                return _adornerLayer;
+            }
+        }
+        else if (index == 0)
+        {
+            return _adornerLayer;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         if (Child != null)

@@ -233,6 +233,21 @@ public class Control : FrameworkElement, ICommandSource
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return _templateRoot != null ? 1 : 0;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if (index == 0 && _templateRoot != null)
+        {
+            return _templateRoot;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public virtual void OnApplyTemplate()
     {
     }

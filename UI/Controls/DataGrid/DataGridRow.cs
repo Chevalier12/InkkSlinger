@@ -83,6 +83,32 @@ public class DataGridRow : Control
         yield return _detailsPresenter;
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return _cells.Count + 2;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if (index == 0)
+        {
+            return _rowHeader;
+        }
+
+        if (index == _cells.Count + 1)
+        {
+            return _detailsPresenter;
+        }
+
+        var cellIndex = index - 1;
+        if ((uint)cellIndex < (uint)_cells.Count)
+        {
+            return _cells[cellIndex];
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         yield return _rowHeader;

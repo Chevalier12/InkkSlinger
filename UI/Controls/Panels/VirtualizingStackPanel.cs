@@ -187,6 +187,41 @@ public class VirtualizingStackPanel : Panel
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        if (!_isVirtualizationActive || FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex)
+        {
+            return Children.Count;
+        }
+
+        var first = Math.Max(0, FirstRealizedIndex);
+        var last = Math.Min(Children.Count - 1, LastRealizedIndex);
+        return Math.Max(0, last - first + 1);
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if (!_isVirtualizationActive || FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex)
+        {
+            if ((uint)index < (uint)Children.Count)
+            {
+                return Children[index];
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+
+        var first = Math.Max(0, FirstRealizedIndex);
+        var last = Math.Min(Children.Count - 1, LastRealizedIndex);
+        var count = Math.Max(0, last - first + 1);
+        if ((uint)index < (uint)count)
+        {
+            return Children[first + index];
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         if (!_isVirtualizationActive || FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex)

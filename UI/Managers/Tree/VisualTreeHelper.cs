@@ -12,6 +12,8 @@ public static class VisualTreeHelper
     private static readonly bool EnableHitTestTrace = false;
     private static int _itemsPresenterNeighborProbeCount;
     private static int _itemsPresenterFullFallbackCount;
+    private static int _legacyEnumerableFallbackCount;
+    private static int _monotonicPanelFastPathCount;
     private static readonly ConditionalWeakTable<Panel, PanelMonotonicCacheEntry> PanelMonotonicCache = new();
     public static UIElement? HitTest(UIElement root, Vector2 position)
     {
@@ -224,7 +226,7 @@ public static class VisualTreeHelper
             var candidate = (int)(relativeY / averageHeight);
             candidate = Math.Clamp(candidate, 0, itemContainers.Count - 1);
 
-            candidate = FindCandidateIndexByY(itemContainers, probeY, candidate);
+            candidate = FindCandidateIndexByY(itemContainers, probeY, candidate, isMonotonicByY: true);
             candidate = RefineIndexByLayoutSlot(itemContainers, probeY, candidate);
 
             var hit = HitTestCore(
@@ -253,7 +255,6 @@ public static class VisualTreeHelper
 
             // Fallback: probe nearest neighbors around the predicted index and prune by Y-range when possible.
             var scanned = 0;
-            var monotonicByY = IsMonotonicByY(itemContainers);
             var searchLeft = true;
             var searchRight = true;
             var left = candidate - 1;
@@ -262,8 +263,7 @@ public static class VisualTreeHelper
             {
                 if (searchLeft && left >= 0)
                 {
-                    if (monotonicByY &&
-                        TryGetVerticalRange(itemContainers[left], out _, out var leftBottom) &&
+                    if (TryGetVerticalRange(itemContainers[left], out _, out var leftBottom) &&
                         probeY > leftBottom)
                     {
                         searchLeft = false;
@@ -307,8 +307,7 @@ public static class VisualTreeHelper
 
                 if (searchRight && right < itemContainers.Count)
                 {
-                    if (monotonicByY &&
-                        TryGetVerticalRange(itemContainers[right], out var rightTop, out _) &&
+                    if (TryGetVerticalRange(itemContainers[right], out var rightTop, out _) &&
                         probeY < rightTop)
                     {
                         searchRight = false;
@@ -356,13 +355,38 @@ public static class VisualTreeHelper
                 }
             }
 
-            for (var i = 0; i < itemContainers.Count; i++)
+            for (var i = 0; i <= left; i++)
             {
-                if (i == candidate)
+                _itemsPresenterFullFallbackCount++;
+                scanned++;
+                hit = HitTestCore(
+                    itemContainers[i],
+                    position,
+                    nextHorizontalOffset,
+                    nextVerticalOffset,
+                    collector,
+                    depth + 1,
+                    nextAncestorTransformToRoot,
+                    hasNextAncestorTransformToRoot,
+                    currentRootToThisInverse,
+                    hasCurrentRootToThisInverse,
+                    hasClipInChain);
+                if (hit != null)
                 {
-                    continue;
-                }
+                    if (EnableHitTestTrace)
+                    {
+                        var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                        Console.WriteLine(
+                            $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                            $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=full-fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
+                    }
 
+                    return hit;
+                }
+            }
+
+            for (var i = right; i < itemContainers.Count; i++)
+            {
                 _itemsPresenterFullFallbackCount++;
                 scanned++;
                 hit = HitTestCore(
@@ -401,79 +425,161 @@ public static class VisualTreeHelper
             return root;
         }
 
-        var childBuffer = ListPool<UIElement>.Rent();
-        try
-        {
-            var minZ = int.MaxValue;
-            var maxZ = int.MinValue;
-
-            foreach (var child in root.GetVisualChildren())
+            var traversalChildCount = root.GetVisualChildCountForTraversal();
+            if (traversalChildCount >= 0)
             {
-                childBuffer.Add(child);
-                var z = Panel.GetZIndex(child);
-                minZ = Math.Min(minZ, z);
-                maxZ = Math.Max(maxZ, z);
-            }
-
-            if (childBuffer.Count == 0)
-            {
-                return root;
-            }
-
-        if (minZ != maxZ)
-        {
-            // Only sort when ZIndex differs. Most trees have all-zero ZIndex and sorting becomes the dominant cost.
-            childBuffer.Sort(static (a, b) => Panel.GetZIndex(b).CompareTo(Panel.GetZIndex(a)));
-            for (var i = 0; i < childBuffer.Count; i++)
-            {
-                var hit = HitTestCore(
-                    childBuffer[i],
-                    position,
-                    nextHorizontalOffset,
-                    nextVerticalOffset,
-                    collector,
-                    depth + 1,
-                    nextAncestorTransformToRoot,
-                    hasNextAncestorTransformToRoot,
-                    currentRootToThisInverse,
-                    hasCurrentRootToThisInverse,
-                    hasClipInChain);
-                if (hit != null)
+                if (traversalChildCount == 0)
                 {
-                    return hit;
+                    return root;
+                }
+
+                var minZ = int.MaxValue;
+                var maxZ = int.MinValue;
+                for (var i = 0; i < traversalChildCount; i++)
+                {
+                    var child = root.GetVisualChildAtForTraversal(i);
+                    var z = Panel.GetZIndex(child);
+                    minZ = Math.Min(minZ, z);
+                    maxZ = Math.Max(maxZ, z);
+                }
+
+                if (minZ != maxZ)
+                {
+                    var orderedIndices = ListPool<TraversalIndexEntry>.Rent();
+                    try
+                    {
+                        for (var i = 0; i < traversalChildCount; i++)
+                        {
+                            orderedIndices.Add(new TraversalIndexEntry(i, Panel.GetZIndex(root.GetVisualChildAtForTraversal(i))));
+                        }
+
+                        orderedIndices.Sort(static (left, right) => CompareTraversalEntries(left, right));
+                        for (var i = 0; i < orderedIndices.Count; i++)
+                        {
+                            var hit = HitTestCore(
+                                root.GetVisualChildAtForTraversal(orderedIndices[i].Index),
+                                position,
+                                nextHorizontalOffset,
+                                nextVerticalOffset,
+                                collector,
+                                depth + 1,
+                                nextAncestorTransformToRoot,
+                                hasNextAncestorTransformToRoot,
+                                currentRootToThisInverse,
+                                hasCurrentRootToThisInverse,
+                                hasClipInChain);
+                            if (hit != null)
+                            {
+                                return hit;
+                            }
+                        }
+
+                        return root;
+                    }
+                    finally
+                    {
+                        ListPool<TraversalIndexEntry>.Return(orderedIndices);
+                    }
+                }
+
+                // Common case: no ZIndex variance. Iterate in reverse draw order so later children win.
+                for (var i = traversalChildCount - 1; i >= 0; i--)
+                {
+                    var hit = HitTestCore(
+                        root.GetVisualChildAtForTraversal(i),
+                        position,
+                        nextHorizontalOffset,
+                        nextVerticalOffset,
+                        collector,
+                        depth + 1,
+                        nextAncestorTransformToRoot,
+                        hasNextAncestorTransformToRoot,
+                        currentRootToThisInverse,
+                        hasCurrentRootToThisInverse,
+                        hasClipInChain);
+                    if (hit != null)
+                    {
+                        return hit;
                     }
                 }
 
                 return root;
             }
 
-            // Common case: no ZIndex variance. Iterate in reverse draw order so later children win.
-            for (var i = childBuffer.Count - 1; i >= 0; i--)
+            _legacyEnumerableFallbackCount++;
+            var childBuffer = ListPool<UIElement>.Rent();
+            try
             {
-                var hit = HitTestCore(
-                    childBuffer[i],
-                    position,
-                    nextHorizontalOffset,
-                    nextVerticalOffset,
-                    collector,
-                    depth + 1,
-                    nextAncestorTransformToRoot,
-                    hasNextAncestorTransformToRoot,
-                    currentRootToThisInverse,
-                    hasCurrentRootToThisInverse,
-                    hasClipInChain);
-                if (hit != null)
+                var minZ = int.MaxValue;
+                var maxZ = int.MinValue;
+
+                foreach (var child in root.GetVisualChildren())
                 {
-                    return hit;
+                    childBuffer.Add(child);
+                    var z = Panel.GetZIndex(child);
+                    minZ = Math.Min(minZ, z);
+                    maxZ = Math.Max(maxZ, z);
+                }
+
+                if (childBuffer.Count == 0)
+                {
+                    return root;
+                }
+
+                if (minZ != maxZ)
+                {
+                    // Only sort when ZIndex differs. Most trees have all-zero ZIndex and sorting becomes the dominant cost.
+                    childBuffer.Sort(static (left, right) => CompareVisualChildrenByZIndex(left, right));
+                    for (var i = 0; i < childBuffer.Count; i++)
+                    {
+                        var hit = HitTestCore(
+                            childBuffer[i],
+                            position,
+                            nextHorizontalOffset,
+                            nextVerticalOffset,
+                            collector,
+                            depth + 1,
+                            nextAncestorTransformToRoot,
+                            hasNextAncestorTransformToRoot,
+                            currentRootToThisInverse,
+                            hasCurrentRootToThisInverse,
+                            hasClipInChain);
+                        if (hit != null)
+                        {
+                            return hit;
+                        }
+                    }
+
+                    return root;
+                }
+
+                // Common case: no ZIndex variance. Iterate in reverse draw order so later children win.
+                for (var i = childBuffer.Count - 1; i >= 0; i--)
+                {
+                    var hit = HitTestCore(
+                        childBuffer[i],
+                        position,
+                        nextHorizontalOffset,
+                        nextVerticalOffset,
+                        collector,
+                        depth + 1,
+                        nextAncestorTransformToRoot,
+                        hasNextAncestorTransformToRoot,
+                        currentRootToThisInverse,
+                        hasCurrentRootToThisInverse,
+                        hasClipInChain);
+                    if (hit != null)
+                    {
+                        return hit;
+                    }
                 }
             }
-        }
-        finally
-        {
-            ListPool<UIElement>.Return(childBuffer);
-        }
+            finally
+            {
+                ListPool<UIElement>.Return(childBuffer);
+            }
 
-        return root;
+            return root;
         }
         finally
         {
@@ -497,7 +603,7 @@ public static class VisualTreeHelper
         out UIElement? hit)
     {
         hit = null;
-        if (children.Count == 0 || !CanUseMonotonicVerticalPanelFastPath(children))
+        if (children.Count == 0)
         {
             return false;
         }
@@ -508,6 +614,7 @@ public static class VisualTreeHelper
             return false;
         }
 
+        _monotonicPanelFastPathCount++;
         var probeY = position.Y + accumulatedVerticalOffset;
         var averageHeight = EstimateAverageItemHeight(children);
         if (!IsFinitePositive(averageHeight))
@@ -711,47 +818,6 @@ public static class VisualTreeHelper
         return candidate;
     }
 
-    private static int FindCandidateIndexByY(IReadOnlyList<UIElement> containers, float y, int guess)
-    {
-        if (containers.Count == 0)
-        {
-            return 0;
-        }
-
-        guess = Math.Clamp(guess, 0, containers.Count - 1);
-        if (!IsMonotonicByY(containers))
-        {
-            return guess;
-        }
-
-        var low = 0;
-        var high = containers.Count - 1;
-        while (low <= high)
-        {
-            var middle = low + ((high - low) / 2);
-            if (!TryGetVerticalRange(containers[middle], out var top, out var bottom))
-            {
-                return guess;
-            }
-
-            if (y < top)
-            {
-                high = middle - 1;
-                continue;
-            }
-
-            if (y > bottom)
-            {
-                low = middle + 1;
-                continue;
-            }
-
-            return middle;
-        }
-
-        return Math.Clamp(low, 0, containers.Count - 1);
-    }
-
     private static int FindCandidateIndexByY(IReadOnlyList<UIElement> containers, float y, int guess, bool isMonotonicByY)
     {
         if (containers.Count == 0)
@@ -809,20 +875,6 @@ public static class VisualTreeHelper
         return isMonotonic;
     }
 
-    private static bool CanUseMonotonicVerticalPanelFastPath(IReadOnlyList<UIElement> children)
-    {
-        for (var i = 0; i < children.Count; i++)
-        {
-            var child = children[i];
-            if (child.TryGetLocalClipSnapshot(out _))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private static bool IsMonotonicByY(IReadOnlyList<UIElement> containers)
     {
         var lastTop = float.NegativeInfinity;
@@ -857,6 +909,28 @@ public static class VisualTreeHelper
         top = 0f;
         bottom = 0f;
         return false;
+    }
+
+    private static int CompareTraversalEntries(TraversalIndexEntry left, TraversalIndexEntry right)
+    {
+        var zIndexComparison = right.ZIndex.CompareTo(left.ZIndex);
+        if (zIndexComparison != 0)
+        {
+            return zIndexComparison;
+        }
+
+        return right.Index.CompareTo(left.Index);
+    }
+
+    private static int CompareVisualChildrenByZIndex(UIElement left, UIElement right)
+    {
+        var zIndexComparison = Panel.GetZIndex(right).CompareTo(Panel.GetZIndex(left));
+        if (zIndexComparison != 0)
+        {
+            return zIndexComparison;
+        }
+
+        return 0;
     }
 
     private static LayoutRect TransformRect(LayoutRect rect, Matrix transform)
@@ -918,10 +992,21 @@ public static class VisualTreeHelper
         return (_itemsPresenterNeighborProbeCount, _itemsPresenterFullFallbackCount);
     }
 
+    internal static HitTestInstrumentationSnapshot GetInstrumentationSnapshotForTests()
+    {
+        return new HitTestInstrumentationSnapshot(
+            _itemsPresenterNeighborProbeCount,
+            _itemsPresenterFullFallbackCount,
+            _legacyEnumerableFallbackCount,
+            _monotonicPanelFastPathCount);
+    }
+
     internal static void ResetInstrumentationForTests()
     {
         _itemsPresenterNeighborProbeCount = 0;
         _itemsPresenterFullFallbackCount = 0;
+        _legacyEnumerableFallbackCount = 0;
+        _monotonicPanelFastPathCount = 0;
     }
 
     private static class ListPool<T>
@@ -962,7 +1047,15 @@ public static class VisualTreeHelper
         public int ChildCount;
         public bool IsMonotonic;
     }
+
+    private readonly record struct TraversalIndexEntry(int Index, int ZIndex);
 }
+
+internal readonly record struct HitTestInstrumentationSnapshot(
+    int ItemsPresenterNeighborProbes,
+    int ItemsPresenterFullFallbackScans,
+    int LegacyEnumerableFallbacks,
+    int MonotonicPanelFastPathCount);
 
 public readonly record struct HitTestMetrics(
     int NodesVisited,

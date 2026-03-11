@@ -38,6 +38,32 @@ public abstract class HandlesAdornerBase : AnchoredAdorner
         }
     }
 
+    internal override int GetVisualChildCountForTraversal()
+    {
+        return _thumbs.Count;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if ((uint)index >= (uint)_thumbs.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+
+        var currentIndex = 0;
+        foreach (var thumb in _thumbs.Values)
+        {
+            if (currentIndex == index)
+            {
+                return thumb;
+            }
+
+            currentIndex++;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
         foreach (var thumb in _thumbs.Values)
