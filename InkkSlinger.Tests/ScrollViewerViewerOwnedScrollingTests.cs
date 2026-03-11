@@ -322,6 +322,7 @@ public class ScrollViewerViewerOwnedScrollingTests
         Assert.True(handled);
         Assert.True(viewer.VerticalOffset > 0f);
         Assert.True(AreClose(contentYBefore, content.LayoutSlot.Y));
+        Assert.True(content.NeedsRender);
         Assert.Equal(arrangeInvalidationsBefore, uiRoot.ArrangeInvalidationCount);
         Assert.Equal(measureInvalidationsBefore, uiRoot.MeasureInvalidationCount);
     }

@@ -391,9 +391,21 @@ internal static class UiDrawing
 
     public static void PushClip(SpriteBatch spriteBatch, LayoutRect rect)
     {
+        PushClipCore(spriteBatch, rect, transformRect: true);
+    }
+
+    internal static void PushAbsoluteClip(SpriteBatch spriteBatch, LayoutRect rect)
+    {
+        PushClipCore(spriteBatch, rect, transformRect: false);
+    }
+
+    private static void PushClipCore(SpriteBatch spriteBatch, LayoutRect rect, bool transformRect)
+    {
         var graphicsDevice = spriteBatch.GraphicsDevice;
         var stack = GetClipStack(graphicsDevice);
-        var clip = ToRectangle(TransformRect(graphicsDevice, rect));
+        var clip = transformRect
+            ? ToRectangle(TransformRect(graphicsDevice, rect))
+            : ToRectangle(rect);
         if (stack.Count > 0)
         {
             clip = Rectangle.Intersect(stack.Peek(), clip);

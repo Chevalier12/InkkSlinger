@@ -17,6 +17,12 @@ public sealed partial class UiRoot
         LastRenderSchedulingPhaseMs = 0d;
         LastDeferredOperationCount = 0;
         LayoutPasses = 0;
+        _lastFrameUpdateParticipantCount = 0;
+        _lastDirtyRootCountAfterCoalescing = 0;
+        _lastRetainedTraversalCount = 0;
+        _lastMenuScopeBuildCount = 0;
+        _lastOverlayRegistryScanCount = 0;
+        _lastOverlayRegistryHitCount = 0;
     }
 
     private double ExecuteUpdatePhase(UiUpdatePhase phase, Action action)
@@ -68,6 +74,7 @@ public sealed partial class UiRoot
         _layoutRoot.Arrange(new LayoutRect(0f, 0f, viewport.Width, viewport.Height));
         LayoutPasses = 1;
         _layoutGeneration++;
+        BumpPointerResolveStateVersion();
         RefreshPointerTargetsAfterLayoutMutation();
         _hasCompletedInitialLayout = true;
         LayoutExecutedFrameCount++;
@@ -86,6 +93,7 @@ public sealed partial class UiRoot
             return;
         }
 
+        EnsureVisualIndexCurrent();
         SynchronizeRetainedRenderList();
     }
 }

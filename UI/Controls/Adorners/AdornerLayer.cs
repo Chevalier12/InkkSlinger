@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
-public class AdornerLayer : Panel
+public class AdornerLayer : Panel, IUiRootUpdateParticipant
 {
     private readonly Dictionary<UIElement, List<Adorner>> _adornersByElement = new();
     private readonly Dictionary<UIElement, EventHandler<DependencyPropertyChangedEventArgs>> _propertyHandlers = new();
@@ -183,9 +183,23 @@ public class AdornerLayer : Panel
 
     public override void Update(GameTime gameTime)
     {
+        UpdateAdornersForFrame();
+        base.Update(gameTime);
+    }
+
+    bool IUiRootUpdateParticipant.IsFrameUpdateActive => Children.Count > 0;
+
+    void IUiRootUpdateParticipant.UpdateFromUiRoot(GameTime gameTime)
+    {
+        _ = gameTime;
+        RecordUpdateCallFromUiRoot();
+        UpdateAdornersForFrame();
+    }
+
+    private void UpdateAdornersForFrame()
+    {
         PruneDetachedAdorners();
         ArrangeAdorners(forceArrange: false);
-        base.Update(gameTime);
     }
 
     protected override bool TryGetClipRect(out LayoutRect clipRect)

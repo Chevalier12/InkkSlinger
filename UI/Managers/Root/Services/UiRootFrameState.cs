@@ -94,16 +94,22 @@ public sealed partial class UiRoot
                 _hasMeasureInvalidation = true;
                 _mustDrawNextFrame = true;
                 MeasureInvalidationCount++;
+                _renderStateVersion++;
+                BumpPointerResolveStateVersion();
                 break;
             case UiInvalidationType.Arrange:
                 _hasArrangeInvalidation = true;
                 _mustDrawNextFrame = true;
                 ArrangeInvalidationCount++;
+                _renderStateVersion++;
+                BumpPointerResolveStateVersion();
                 break;
             case UiInvalidationType.Render:
                 _hasRenderInvalidation = true;
                 _mustDrawNextFrame = true;
                 RenderInvalidationCount++;
+                _renderStateVersion++;
+                BumpPointerResolveStateVersion();
                 if (source is TextBox textBox && textBox.IsFocused)
                 {
                     _hasCaretBlinkInvalidation = true;
@@ -127,6 +133,10 @@ public sealed partial class UiRoot
     internal void NotifyVisualStructureChanged(UIElement element, UIElement? oldParent, UIElement? newParent)
     {
         _visualStructureChangeCount++;
+        _visualStructureVersion++;
+        MarkVisualIndexDirty();
+        InvalidateOverlayCandidateCache();
+        BumpPointerResolveStateVersion();
         if (!IsPartOfVisualTree(element) &&
             !IsPartOfVisualTree(oldParent) &&
             !IsPartOfVisualTree(newParent) &&

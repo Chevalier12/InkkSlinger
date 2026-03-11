@@ -277,6 +277,7 @@ public sealed class ComboBoxPopupEdgeParityTests
         RunLayout(uiRoot);
         Assert.False(comboBox.IsDropDownOpen);
         Assert.Equal(0, comboBox.SelectedIndex);
+        Assert.IsType<Button>(VisualTreeHelper.HitTest(host, firstItemPoint));
 
         // Clicking the same coordinates again should now hit the underlying button.
         Click(uiRoot, firstItemPoint);

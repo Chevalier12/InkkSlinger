@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
-public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputControl
+public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputControl, IUiRootUpdateParticipant
 {
     private static readonly Lazy<Style> DefaultTextBoxStyle = new(BuildDefaultTextBoxStyle);
 
@@ -641,6 +641,19 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
+        UpdateTextBoxState(gameTime);
+    }
+
+    bool IUiRootUpdateParticipant.IsFrameUpdateActive => _hasPendingEnsureCaretVisible || _hasPendingTextSync || (IsEnabled && IsFocused);
+
+    void IUiRootUpdateParticipant.UpdateFromUiRoot(GameTime gameTime)
+    {
+        RecordUpdateCallFromUiRoot();
+        UpdateTextBoxState(gameTime);
+    }
+
+    private void UpdateTextBoxState(GameTime gameTime)
+    {
         _secondsSinceLastTextMutation += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
         if (_hasPendingEnsureCaretVisible)

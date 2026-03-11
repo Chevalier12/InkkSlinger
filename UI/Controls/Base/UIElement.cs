@@ -318,6 +318,11 @@ public class UIElement : DependencyObject
         }
     }
 
+    internal void RecordUpdateCallFromUiRoot()
+    {
+        _updateCallCount++;
+    }
+
     public void Draw(SpriteBatch spriteBatch)
     {
         if (!IsVisible)

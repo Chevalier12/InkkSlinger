@@ -55,6 +55,8 @@ public sealed class ControlsCatalogCalendarPerformanceTests
         var afterCalendarTreeMetrics = uiRoot.GetVisualTreeMetricsSnapshot();
         var afterCalendarInvalidations = SnapshotInvalidations(host);
         var calendarTextLayoutMetrics = uiRoot.GetTextLayoutMetricsSnapshot();
+        var calendarRootDelta = CaptureRootMetricsDelta(beforeCalendarRootMetrics, afterCalendarRootMetrics);
+        var calendarTreeDelta = CaptureVisualTreeMetricsDelta(beforeCalendarTreeMetrics, afterCalendarTreeMetrics);
 
         ClickCatalogButton(uiRoot, view, "Button");
         var betweenMetrics = CaptureFrameMetrics(uiRoot, host, 1400, 900, 64);
@@ -66,6 +68,8 @@ public sealed class ControlsCatalogCalendarPerformanceTests
         var afterWarmCalendarRootMetrics = uiRoot.GetMetricsSnapshot();
         var afterWarmCalendarTreeMetrics = uiRoot.GetVisualTreeMetricsSnapshot();
         var warmCalendarTextLayoutMetrics = uiRoot.GetTextLayoutMetricsSnapshot();
+        var warmCalendarRootDelta = CaptureRootMetricsDelta(beforeWarmCalendarRootMetrics, afterWarmCalendarRootMetrics);
+        var warmCalendarTreeDelta = CaptureVisualTreeMetricsDelta(beforeWarmCalendarTreeMetrics, afterWarmCalendarTreeMetrics);
 
         var calendar = FindFirstVisualChild<Calendar>(view);
         Assert.NotNull(calendar);
@@ -98,13 +102,25 @@ public sealed class ControlsCatalogCalendarPerformanceTests
             _output.WriteLine(line);
         }
 
-        Assert.True(buttonMetrics.LastLayoutPhaseMs < 80d);
-        Assert.True(calendarMetrics.LastLayoutPhaseMs < 160d);
-        Assert.True(calendarMetrics.LastUpdateMs < 180d);
-        Assert.True(warmCalendarClickMetrics.ReleaseDispatchMs < 30d);
-        Assert.True(warmCalendarMetrics.LastLayoutPhaseMs < 60d);
-        Assert.True(warmCalendarMetrics.LastUpdateMs < 70d);
+        Assert.Equal(0, buttonMetrics.FrameUpdateParticipantCount);
+        Assert.Equal(0, calendarMetrics.FrameUpdateParticipantCount);
+        Assert.Equal(0, betweenMetrics.FrameUpdateParticipantCount);
+        Assert.Equal(0, warmCalendarMetrics.FrameUpdateParticipantCount);
+        Assert.True(calendarTreeDelta.VisualCount >= 40);
+        Assert.True(calendarTreeDelta.FrameworkElementCount >= 40);
+        Assert.True(calendarTreeDelta.MeasureCallCount >= 40);
+        Assert.True(calendarTreeDelta.ArrangeCallCount >= 40);
+        Assert.Equal(0, calendarTreeDelta.UpdateCallCount);
+        Assert.True(warmCalendarTreeDelta.VisualCount >= 40);
+        Assert.True(warmCalendarTreeDelta.FrameworkElementCount >= 40);
+        Assert.Equal(0, warmCalendarTreeDelta.UpdateCallCount);
+        Assert.True(warmCalendarTreeDelta.MeasureCallCount <= calendarTreeDelta.MeasureCallCount);
+        Assert.True(warmCalendarTreeDelta.ArrangeCallCount <= calendarTreeDelta.ArrangeCallCount);
+        Assert.True(warmCalendarRootDelta.RetainedFullRebuildCount <= calendarRootDelta.RetainedFullRebuildCount);
+        Assert.True(warmCalendarRootDelta.VisualStructureChanges <= calendarRootDelta.VisualStructureChanges);
+        Assert.True(warmCalendarClickMetrics.ReleaseHitTestCount <= calendarClickMetrics.ReleaseHitTestCount + 1);
         Assert.True(warmCalendarTextLayoutMetrics.LayoutRequestCount < 80);
+        Assert.True(warmCalendarTextLayoutMetrics.LayoutRequestCount <= calendarTextLayoutMetrics.LayoutRequestCount);
     }
 
     private static InputInteractionMetrics ClickCatalogButton(UiRoot uiRoot, ControlsCatalogView view, string buttonText)
@@ -205,6 +221,7 @@ public sealed class ControlsCatalogCalendarPerformanceTests
     private static PerformanceFrameMetrics CaptureFrameMetrics(UiRoot uiRoot, UIElement host, int width, int height, int elapsedMs)
     {
         RunLayout(uiRoot, width, height, elapsedMs);
+        var perfMetrics = uiRoot.GetPerformanceTelemetrySnapshotForTests();
         return new PerformanceFrameMetrics(
             uiRoot.LastUpdateMs,
             uiRoot.LastBindingPhaseMs,
@@ -216,7 +233,32 @@ public sealed class ControlsCatalogCalendarPerformanceTests
             uiRoot.ArrangeInvalidationCount,
             uiRoot.RenderInvalidationCount,
             EnumerateVisualTree(host).Count(),
-            EnumerateVisualTree(host).OfType<Button>().Count());
+            EnumerateVisualTree(host).OfType<Button>().Count(),
+            perfMetrics.FrameUpdateParticipantCount,
+            perfMetrics.VisualIndexVersion);
+    }
+
+    private static RootMetricsDelta CaptureRootMetricsDelta(UiRootMetricsSnapshot before, UiRootMetricsSnapshot after)
+    {
+        return new RootMetricsDelta(
+            after.RetainedRenderNodeCount - before.RetainedRenderNodeCount,
+            after.VisualStructureChangeCount - before.VisualStructureChangeCount,
+            after.RetainedFullRebuildCount - before.RetainedFullRebuildCount,
+            after.RetainedSubtreeSyncCount - before.RetainedSubtreeSyncCount,
+            after.LastRetainedDirtyVisualCount - before.LastRetainedDirtyVisualCount);
+    }
+
+    private static VisualTreeMetricsDelta CaptureVisualTreeMetricsDelta(UiVisualTreeMetricsSnapshot before, UiVisualTreeMetricsSnapshot after)
+    {
+        return new VisualTreeMetricsDelta(
+            after.VisualCount - before.VisualCount,
+            after.FrameworkElementCount - before.FrameworkElementCount,
+            after.MeasureCallCount - before.MeasureCallCount,
+            after.ArrangeCallCount - before.ArrangeCallCount,
+            after.UpdateCallCount - before.UpdateCallCount,
+            after.MeasureInvalidationCount - before.MeasureInvalidationCount,
+            after.ArrangeInvalidationCount - before.ArrangeInvalidationCount,
+            after.RenderInvalidationCount - before.RenderInvalidationCount);
     }
 
     private static IReadOnlyList<string> DescribeTopMeasureInvalidations(UIElement root, int count)
@@ -322,7 +364,9 @@ public sealed class ControlsCatalogCalendarPerformanceTests
         int ArrangeInvalidationCount,
         int RenderInvalidationCount,
         int VisualCount,
-        int ButtonCount)
+        int ButtonCount,
+        int FrameUpdateParticipantCount,
+        int VisualIndexVersion)
     {
         public override string ToString()
         {
@@ -340,7 +384,9 @@ public sealed class ControlsCatalogCalendarPerformanceTests
                     $"arrangeInvalidations={ArrangeInvalidationCount}",
                     $"renderInvalidations={RenderInvalidationCount}",
                     $"visuals={VisualCount}",
-                    $"buttons={ButtonCount}"
+                    $"buttons={ButtonCount}",
+                    $"frameUpdaters={FrameUpdateParticipantCount}",
+                    $"visualIndexVersion={VisualIndexVersion}"
                 });
         }
     }
@@ -405,5 +451,22 @@ public sealed class ControlsCatalogCalendarPerformanceTests
                 $"renderInvalidations={after.RenderInvalidationCount - before.RenderInvalidationCount}"
             });
     }
+
+    private readonly record struct RootMetricsDelta(
+        int RetainedNodes,
+        int VisualStructureChanges,
+        int RetainedFullRebuildCount,
+        int RetainedSubtreeSyncCount,
+        int LastRetainedDirtyVisualCount);
+
+    private readonly record struct VisualTreeMetricsDelta(
+        int VisualCount,
+        int FrameworkElementCount,
+        long MeasureCallCount,
+        long ArrangeCallCount,
+        long UpdateCallCount,
+        long MeasureInvalidationCount,
+        long ArrangeInvalidationCount,
+        long RenderInvalidationCount);
 
 }

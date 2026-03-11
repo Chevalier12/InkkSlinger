@@ -9,7 +9,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
-public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHintProvider, IHyperlinkHoverHost
+public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHintProvider, IHyperlinkHoverHost, IUiRootUpdateParticipant
 {
     public static readonly RoutedEvent DocumentChangedEvent = new(nameof(DocumentChanged), RoutingStrategy.Bubble);
     public static readonly RoutedEvent HyperlinkNavigateEvent = new(nameof(HyperlinkNavigate), RoutingStrategy.Bubble);
@@ -835,6 +835,19 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
+        UpdateDocumentViewerState(gameTime);
+    }
+
+    bool IUiRootUpdateParticipant.IsFrameUpdateActive => IsFocused;
+
+    void IUiRootUpdateParticipant.UpdateFromUiRoot(GameTime gameTime)
+    {
+        RecordUpdateCallFromUiRoot();
+        UpdateDocumentViewerState(gameTime);
+    }
+
+    private void UpdateDocumentViewerState(GameTime gameTime)
+    {
         if (!IsFocused)
         {
             return;

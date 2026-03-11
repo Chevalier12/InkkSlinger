@@ -10,7 +10,7 @@ using System.Collections.Immutable;
 
 namespace InkkSlinger;
 
-public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintProvider, IHyperlinkHoverHost
+public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintProvider, IHyperlinkHoverHost, IUiRootUpdateParticipant
 {
     public static readonly RoutedEvent DocumentChangedEvent =
         new(nameof(DocumentChanged), RoutingStrategy.Bubble);
@@ -1596,6 +1596,19 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
+        UpdateRichTextState(gameTime);
+    }
+
+    bool IUiRootUpdateParticipant.IsFrameUpdateActive => IsFocused;
+
+    void IUiRootUpdateParticipant.UpdateFromUiRoot(GameTime gameTime)
+    {
+        RecordUpdateCallFromUiRoot();
+        UpdateRichTextState(gameTime);
+    }
+
+    private void UpdateRichTextState(GameTime gameTime)
+    {
         if (!IsFocused)
         {
             return;

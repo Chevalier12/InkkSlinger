@@ -19,12 +19,15 @@ public sealed partial class UiRoot
 
     private readonly UIElement _visualRoot;
     private readonly FrameworkElement? _layoutRoot;
+    private readonly UiRootVisualIndex _visualIndex = new();
     private readonly List<RenderNode> _retainedRenderList = new();
     private readonly Dictionary<UIElement, int> _renderNodeIndices = new();
     private readonly Queue<UIElement> _dirtyRenderQueue = new();
     private readonly HashSet<UIElement> _dirtyRenderSet = new();
     private readonly HashSet<UIElement> _dirtyRenderRootsRequireDeepSync = new();
+    private readonly List<DirtyRenderWorkItem> _dirtyRenderWorkItems = new();
     private readonly List<UIElement> _lastSynchronizedDirtyRenderRoots = new();
+    private readonly List<DirtyRenderSpan> _lastSynchronizedDirtyRenderSpans = new();
     private readonly List<UIElement> _dirtyRenderCompactionBuffer = new();
     private readonly List<UIElement> _dirtyRenderCoalescedBuffer = new();
     private readonly List<RenderNode> _activeRetainedDrawPath = new();
@@ -96,6 +99,10 @@ public sealed partial class UiRoot
     private UiRedrawReason _scheduledDrawReasons;
     private bool _forceAnimationActiveForTests;
     private Color _clearColor = Color.CornflowerBlue;
+    private int _visualStructureVersion;
+    private int _renderStateVersion;
+    private int _inputCacheVersion;
+    private int _pointerResolveStateVersion;
     private int _visualStructureChangeCount;
     private int _retainedFullRebuildCount;
     private int _retainedSubtreeSyncCount;
@@ -104,8 +111,16 @@ public sealed partial class UiRoot
     private int _lastRetainedNodesVisited;
     private int _lastRetainedNodesDrawn;
     private int _lastRetainedClipPushCount;
+    private int _lastRetainedTraversalCount;
     private int _lastSpriteBatchRestartCount;
     private int _dirtyRegionThresholdFallbackCount;
+    private int _lastFrameUpdateParticipantCount;
+    private int _lastDirtyRootCountAfterCoalescing;
+    private int _lastMenuScopeBuildCount;
+    private int _lastOverlayRegistryScanCount;
+    private int _lastOverlayRegistryHitCount;
+    private KeyboardMenuScope _activeKeyboardMenuScope;
+    private bool _hasActiveKeyboardMenuScope;
 
     public UiRoot(UIElement visualRoot)
     {
@@ -116,6 +131,7 @@ public sealed partial class UiRoot
         UseDirtyRegionRendering = EnableDirtyRegionRenderingByDefault;
         UseConditionalDrawScheduling = EnableConditionalDrawByDefault;
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
+        EnsureVisualIndexCurrent();
         Current = this;
     }
 
@@ -271,11 +287,25 @@ public sealed partial class UiRoot
             _lastRetainedClipPushCount,
             _lastRetainedNodesVisited,
             _lastRetainedNodesDrawn,
+            _lastRetainedTraversalCount,
+            _lastDirtyRootCountAfterCoalescing,
             _dirtyRegionThresholdFallbackCount,
             Shape.GetRenderCacheHitCountForTests(),
             Shape.GetRenderCacheMissCountForTests(),
             TextLayout.GetMetricsSnapshot().CacheHitCount,
             TextLayout.GetMetricsSnapshot().CacheMissCount);
+    }
+
+    internal UiRootPerformanceTelemetrySnapshot GetPerformanceTelemetrySnapshotForTests()
+    {
+        return new UiRootPerformanceTelemetrySnapshot(
+            _lastFrameUpdateParticipantCount,
+            _lastDirtyRootCountAfterCoalescing,
+            _lastRetainedTraversalCount,
+            _lastMenuScopeBuildCount,
+            _lastOverlayRegistryScanCount,
+            _lastOverlayRegistryHitCount,
+            _visualIndex.Version);
     }
 
     internal bool WouldUsePartialDirtyRedrawForTests()
@@ -499,6 +529,22 @@ public sealed partial class UiRoot
         }
 
         return _retainedRenderList[0].SubtreeHighCostVisualCount;
+    }
+
+    private void EnsureVisualIndexCurrent()
+    {
+        _visualIndex.EnsureCurrent(_visualRoot);
+    }
+
+    private void MarkVisualIndexDirty()
+    {
+        _visualIndex.MarkDirty();
+    }
+
+    private void BumpPointerResolveStateVersion()
+    {
+        _pointerResolveStateVersion++;
+        _inputCacheVersion++;
     }
 
     private static void AccumulateVisualTreeMetrics(UIElement visual, int depth, ref VisualTreeMetricsAccumulator accumulator)

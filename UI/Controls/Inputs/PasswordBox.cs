@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
-public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputControl
+public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputControl, IUiRootUpdateParticipant
 {
     private static readonly Lazy<Style> DefaultPasswordBoxStyle = new(BuildDefaultPasswordBoxStyle);
 
@@ -692,6 +692,19 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
+        UpdatePasswordBoxState(gameTime);
+    }
+
+    bool IUiRootUpdateParticipant.IsFrameUpdateActive => _hasPendingEnsureCaretVisible || _hasPendingTextSync || (IsEnabled && IsFocused);
+
+    void IUiRootUpdateParticipant.UpdateFromUiRoot(GameTime gameTime)
+    {
+        RecordUpdateCallFromUiRoot();
+        UpdatePasswordBoxState(gameTime);
+    }
+
+    private void UpdatePasswordBoxState(GameTime gameTime)
+    {
         _secondsSinceLastTextMutation += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
         if (_hasPendingEnsureCaretVisible)

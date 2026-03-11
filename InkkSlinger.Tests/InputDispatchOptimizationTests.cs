@@ -333,6 +333,39 @@ public class InputDispatchOptimizationTests
         Assert.Equal(secondIndex, listBox.SelectedIndex);
     }
 
+    [Fact]
+    public void KeyDispatch_BuildsKeyboardMenuScopeOncePerEvent()
+    {
+        var root = new Panel();
+        var menu = new Menu();
+        menu.Items.Add(new MenuItem { Header = "_File" });
+        root.AddChild(menu);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 400, 240, 16);
+
+        var delta = new InputDelta
+        {
+            Previous = new InputSnapshot(default(KeyboardState), default(MouseState), Vector2.Zero),
+            Current = new InputSnapshot(default(KeyboardState), default(MouseState), Vector2.Zero),
+            PressedKeys = new List<Keys> { Keys.F10 },
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char>(),
+            PointerMoved = false,
+            WheelDelta = 0,
+            LeftPressed = false,
+            LeftReleased = false,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
+
+        uiRoot.RunInputDeltaForTests(delta);
+
+        Assert.Equal(1, uiRoot.GetPerformanceTelemetrySnapshotForTests().MenuScopeBuildCount);
+    }
+
     private static InputDelta CreateDelta(
         bool pointerMoved,
         Vector2 position,

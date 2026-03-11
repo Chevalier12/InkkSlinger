@@ -293,6 +293,7 @@ public class ContextMenu : ItemsControl
         if (!IsOpen)
         {
             IsOpen = true;
+            UiRoot.Current?.NotifyOverlayVisualTreeMutation();
             Opened?.Invoke(this, EventArgs.Empty);
         }
 
@@ -353,6 +354,7 @@ public class ContextMenu : ItemsControl
         _host = null;
         _pendingFocusRestore = _focusBeforeOpen;
         _focusBeforeOpen = null;
+        UiRoot.Current?.NotifyOverlayVisualTreeMutation();
         Closed?.Invoke(this, EventArgs.Empty);
     }
 

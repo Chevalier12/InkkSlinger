@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
-public class ProgressBar : Control
+public class ProgressBar : Control, IUiRootUpdateParticipant
 {
     public static readonly DependencyProperty OrientationProperty =
         DependencyProperty.Register(
@@ -202,7 +202,19 @@ public class ProgressBar : Control
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
+        UpdateIndeterminateState(gameTime);
+    }
 
+    bool IUiRootUpdateParticipant.IsFrameUpdateActive => IsIndeterminate;
+
+    void IUiRootUpdateParticipant.UpdateFromUiRoot(GameTime gameTime)
+    {
+        RecordUpdateCallFromUiRoot();
+        UpdateIndeterminateState(gameTime);
+    }
+
+    private void UpdateIndeterminateState(GameTime gameTime)
+    {
         if (!IsIndeterminate)
         {
             return;

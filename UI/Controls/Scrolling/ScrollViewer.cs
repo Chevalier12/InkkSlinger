@@ -666,7 +666,14 @@ public class ScrollViewer : ContentControl
                 InvalidateMeasure();
                 InvalidateArrange();
             }
-            else if (!UsesTransformBasedContentScrolling())
+            else if (UsesTransformBasedContentScrolling())
+            {
+                if (ContentElement is UIElement contentElement)
+                {
+                    contentElement.InvalidateVisual();
+                }
+            }
+            else
             {
                 ArrangeContentForCurrentOffsets();
                 InvalidateVisual();

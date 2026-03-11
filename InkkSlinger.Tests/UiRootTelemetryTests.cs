@@ -73,6 +73,7 @@ public class UiRootTelemetryTests
     {
         var root = new StackPanel();
         root.AddChild(new Label { Text = "Header" });
+        root.AddChild(new ProgressBar { IsIndeterminate = true });
         root.AddChild(new Border { Child = new Label { Text = "Body" } });
 
         var uiRoot = new UiRoot(root);
@@ -88,8 +89,55 @@ public class UiRootTelemetryTests
         Assert.True(snapshot.MaxDepth >= 2);
         Assert.True(snapshot.MeasureCallCount >= 4);
         Assert.True(snapshot.ArrangeCallCount >= 4);
-        Assert.True(snapshot.UpdateCallCount >= 4);
+        Assert.Equal(1, snapshot.UpdateCallCount);
         Assert.True(snapshot.MeasureInvalidationCount >= 1);
+
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.Equal(1, perfSnapshot.FrameUpdateParticipantCount);
+    }
+
+    [Fact]
+    public void PassiveVisualTree_UpdatePhase_DoesNotWalkNonParticipantVisuals()
+    {
+        var root = new StackPanel();
+        root.AddChild(new Label { Text = "Header" });
+        root.AddChild(new Border { Child = new Label { Text = "Body" } });
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 800, 600));
+
+        var snapshot = uiRoot.GetVisualTreeMetricsSnapshot();
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+
+        Assert.Equal(0, snapshot.UpdateCallCount);
+        Assert.Equal(0, perfSnapshot.FrameUpdateParticipantCount);
+    }
+
+    [Fact]
+    public void FrameUpdateParticipants_TrackVisualAttachAndDetach()
+    {
+        var root = new Panel();
+        var progressBar = new ProgressBar
+        {
+            IsIndeterminate = true
+        };
+        root.AddChild(progressBar);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 320, 180));
+        Assert.Equal(1, uiRoot.GetPerformanceTelemetrySnapshotForTests().FrameUpdateParticipantCount);
+
+        root.RemoveChild(progressBar);
+        progressBar.IsIndeterminate = false;
+
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(32), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 320, 180));
+        Assert.Equal(0, uiRoot.GetPerformanceTelemetrySnapshotForTests().FrameUpdateParticipantCount);
     }
 
     [Fact]

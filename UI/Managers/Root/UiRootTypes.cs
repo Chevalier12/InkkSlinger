@@ -84,8 +84,19 @@ internal readonly record struct UiRenderTelemetrySnapshot(
     int ClipPushCount,
     int RetainedNodesVisited,
     int RetainedNodesDrawn,
+    int RetainedTraversalCount,
+    int DirtyRootCount,
     int DirtyRegionThresholdFallbackCount,
     int ShapeCacheHitCount,
     int ShapeCacheMissCount,
     int TextLayoutCacheHitCount,
     int TextLayoutCacheMissCount);
+
+internal readonly record struct UiRootPerformanceTelemetrySnapshot(
+    int FrameUpdateParticipantCount,
+    int DirtyRootCount,
+    int RetainedTraversalCount,
+    int MenuScopeBuildCount,
+    int OverlayRegistryScanCount,
+    int OverlayRegistryHitCount,
+    int VisualIndexVersion);

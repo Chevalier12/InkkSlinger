@@ -37,6 +37,7 @@ public sealed partial class UiRoot
         var metrics = TraverseRetainedNodesWithinClip(
             spriteBatch,
             ToLayoutRect(spriteBatch.GraphicsDevice.ScissorRectangle));
+        _lastRetainedTraversalCount++;
         _lastRetainedNodesVisited += metrics.NodesVisited;
         _lastRetainedNodesDrawn += metrics.NodesDrawn;
     }
@@ -46,19 +47,82 @@ public sealed partial class UiRoot
         for (var regionIndex = 0; regionIndex < regions.Count; regionIndex++)
         {
             var dirtyRegion = regions[regionIndex];
-            UiDrawing.PushClip(spriteBatch, dirtyRegion);
+            UiDrawing.PushAbsoluteClip(spriteBatch, dirtyRegion);
             try
             {
                 UiDrawing.DrawFilledRect(spriteBatch, dirtyRegion, _clearColor);
-                var metrics = TraverseRetainedNodesWithinClip(spriteBatch, dirtyRegion);
-                _lastRetainedNodesVisited += metrics.NodesVisited;
-                _lastRetainedNodesDrawn += metrics.NodesDrawn;
             }
             finally
             {
                 UiDrawing.PopClip(spriteBatch);
             }
         }
+
+        var metrics = TraverseRetainedNodesWithinDirtyRegions(spriteBatch, regions);
+        _lastRetainedTraversalCount++;
+        _lastRetainedNodesVisited += metrics.NodesVisited;
+        _lastRetainedNodesDrawn += metrics.NodesDrawn;
+    }
+
+    private RenderTraversalMetrics TraverseRetainedNodesWithinDirtyRegions(SpriteBatch spriteBatch, IReadOnlyList<LayoutRect> regions)
+    {
+        var visited = 0;
+        var drawn = 0;
+        var clipPushCount = 0;
+        _activeRetainedDrawPath.Clear();
+
+        try
+        {
+            for (var nodeIndex = 0; nodeIndex < _retainedRenderList.Count; nodeIndex++)
+            {
+                visited++;
+                var node = _retainedRenderList[nodeIndex];
+                if (!node.IsEffectivelyVisible)
+                {
+                    nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
+                    continue;
+                }
+
+                if (node.HasSubtreeBoundsSnapshot && !IntersectsAny(node.SubtreeBoundsSnapshot, regions))
+                {
+                    nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
+                    continue;
+                }
+
+                SyncRetainedDrawState(spriteBatch, node, ref clipPushCount);
+                var rendered = false;
+                for (var regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+                {
+                    var dirtyRegion = regions[regionIndex];
+                    if (node.HasBoundsSnapshot && !Intersects(node.BoundsSnapshot, dirtyRegion))
+                    {
+                        continue;
+                    }
+
+                    UiDrawing.PushAbsoluteClip(spriteBatch, dirtyRegion);
+                    try
+                    {
+                        node.Visual.DrawSelf(spriteBatch);
+                        rendered = true;
+                    }
+                    finally
+                    {
+                        UiDrawing.PopClip(spriteBatch);
+                    }
+                }
+
+                if (rendered)
+                {
+                    drawn++;
+                }
+            }
+        }
+        finally
+        {
+            ResetRetainedDrawState(spriteBatch);
+        }
+
+        return new RenderTraversalMetrics(visited, drawn, clipPushCount);
     }
 
     private RenderTraversalMetrics TraverseRetainedNodesWithinClip(SpriteBatch? spriteBatch, LayoutRect clipRect, List<UIElement>? visuals = null)
@@ -258,6 +322,19 @@ public sealed partial class UiRoot
                left.X + left.Width > right.X &&
                left.Y < right.Y + right.Height &&
                left.Y + left.Height > right.Y;
+    }
+
+    private static bool IntersectsAny(LayoutRect bounds, IReadOnlyList<LayoutRect> regions)
+    {
+        for (var i = 0; i < regions.Count; i++)
+        {
+            if (Intersects(bounds, regions[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IntersectsOrTouches(LayoutRect left, LayoutRect right)

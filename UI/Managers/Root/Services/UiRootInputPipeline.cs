@@ -108,7 +108,7 @@ public sealed partial class UiRoot
         _lastInputDispatchMs = Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
 
         var updateStart = Stopwatch.GetTimestamp();
-        _visualRoot.Update(gameTime);
+        RunFrameUpdateParticipants(gameTime);
         _lastVisualUpdateMs = Stopwatch.GetElapsedTime(updateStart).TotalMilliseconds;
     }
 
@@ -581,15 +581,7 @@ public sealed partial class UiRoot
 
     private int GetPointerResolveStateStamp()
     {
-        return HashCode.Combine(
-            _layoutGeneration,
-            LayoutPasses,
-            MeasureInvalidationCount,
-            ArrangeInvalidationCount,
-            RenderInvalidationCount,
-            _visualRoot.MeasureInvalidationCount,
-            _visualRoot.ArrangeInvalidationCount,
-            _visualRoot.RenderInvalidationCount);
+        return _pointerResolveStateVersion;
     }
 
     private void UpdateHover(UIElement? hovered)
@@ -1381,6 +1373,7 @@ public sealed partial class UiRoot
         _hasLastClickUpPointerPosition = false;
         _cachedWheelTextInputTarget = null;
         _cachedWheelScrollViewerTarget = null;
+        BumpPointerResolveStateVersion();
     }
 
     private void RefreshHoverAfterWheelContentMutation(Vector2 pointerPosition, UIElement? mutationRoot = null)
@@ -1497,33 +1490,28 @@ public sealed partial class UiRoot
 
     private bool TryFindWheelCapableTargetAtPointer(Vector2 pointerPosition, out UIElement? target)
     {
+        EnsureVisualIndexCurrent();
         var bestDepth = -1;
-        UIElement? bestTarget = null;
-        FindWheelCapableTargetAtPointer(_visualRoot, pointerPosition, depth: 0, ref bestDepth, ref bestTarget);
-        target = bestTarget;
-        return target != null;
-    }
-
-    private static void FindWheelCapableTargetAtPointer(
-        UIElement element,
-        Vector2 pointerPosition,
-        int depth,
-        ref int bestDepth,
-        ref UIElement? bestTarget)
-    {
-        if (element is ITextInputControl or ScrollViewer)
+        var bestPreorder = -1;
+        target = null;
+        var candidates = _visualIndex.WheelCapableVisuals;
+        for (var i = 0; i < candidates.Count; i++)
         {
-            if (element.HitTest(pointerPosition) && depth >= bestDepth)
+            var candidate = candidates[i];
+            if (!_visualIndex.TryGetNode(candidate, out var node) || !candidate.HitTest(pointerPosition))
             {
-                bestDepth = depth;
-                bestTarget = element;
+                continue;
+            }
+
+            if (node.Depth > bestDepth || (node.Depth == bestDepth && node.PreorderIndex > bestPreorder))
+            {
+                bestDepth = node.Depth;
+                bestPreorder = node.PreorderIndex;
+                target = candidate;
             }
         }
 
-        foreach (var child in element.GetVisualChildren())
-        {
-            FindWheelCapableTargetAtPointer(child, pointerPosition, depth + 1, ref bestDepth, ref bestTarget);
-        }
+        return target != null;
     }
 
     private void RefreshCachedWheelTargets(UIElement? hovered)
@@ -1560,11 +1548,8 @@ public sealed partial class UiRoot
     {
         target = null;
         detail = "no-candidate";
-        var rootChildren = new List<UIElement>(8);
-        foreach (var child in _visualRoot.GetVisualChildren())
-        {
-            rootChildren.Add(child);
-        }
+        EnsureVisualIndexCurrent();
+        var rootChildren = _visualIndex.TopLevelVisuals;
 
         if (rootChildren.Count == 0)
         {
@@ -1588,6 +1573,18 @@ public sealed partial class UiRoot
             {
                 detail = $"childIndex={i}; child={candidate.GetType().Name}; result=null";
                 continue;
+            }
+
+            if (!IsElementConnectedToVisualRoot(hit))
+            {
+                detail = $"childIndex={i}; child={candidate.GetType().Name}; result={hit.GetType().Name}; connected=false";
+                continue;
+            }
+
+            if (TryResolveClickTargetFromCandidate(hit, pointerPosition, out var clickTarget) &&
+                clickTarget != null)
+            {
+                hit = clickTarget;
             }
 
             target = hit;
@@ -1673,17 +1670,8 @@ public sealed partial class UiRoot
 
     private bool HasMultipleTopLevelVisualChildren()
     {
-        var count = 0;
-        foreach (var _ in _visualRoot.GetVisualChildren())
-        {
-            count++;
-            if (count > 1)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        EnsureVisualIndexCurrent();
+        return _visualIndex.TopLevelVisuals.Count > 1;
     }
 
     private bool IsBroadClickAnchor(UIElement anchor)
@@ -1836,7 +1824,9 @@ public sealed partial class UiRoot
 
     private bool IsElementConnectedToVisualRoot(UIElement element)
     {
-        return ReferenceEquals(element.GetVisualRoot(), _visualRoot);
+        EnsureVisualIndexCurrent();
+        return _visualIndex.TryGetNode(element, out _) &&
+               ReferenceEquals(element.GetVisualRoot(), _visualRoot);
     }
 
     private bool TryResolveItemsHostContainerTarget(
@@ -2186,8 +2176,13 @@ public sealed partial class UiRoot
     private void DispatchKeyDown(Keys key, ModifierKeys modifiers)
     {
         var target = _inputState.FocusedElement ?? _visualRoot;
-        var dispatchStart = Stopwatch.GetTimestamp(); try
+        var dispatchStart = Stopwatch.GetTimestamp();
+        var previousScope = _activeKeyboardMenuScope;
+        var hadActiveScope = _hasActiveKeyboardMenuScope;
+        try
         {
+            _activeKeyboardMenuScope = BuildKeyboardMenuScope();
+            _hasActiveKeyboardMenuScope = true;
             _lastInputKeyEventCount++;
             _lastInputRoutedEventCount += 2; var previewArgs = new KeyRoutedEventArgs(UIElement.PreviewKeyDownEvent, key, modifiers);
             target.RaiseRoutedEventInternal(UIElement.PreviewKeyDownEvent, previewArgs);
@@ -2275,7 +2270,10 @@ public sealed partial class UiRoot
             _ = InputGestureService.Execute(key, modifiers, _inputState.FocusedElement, _visualRoot);
         }
         finally
-        { }
+        {
+            _activeKeyboardMenuScope = previousScope;
+            _hasActiveKeyboardMenuScope = hadActiveScope;
+        }
     }
 
     private void DispatchKeyUp(Keys key, ModifierKeys modifiers)
@@ -2343,21 +2341,68 @@ public sealed partial class UiRoot
             return _hasCachedTopOverlayCandidate;
         }
 
+        EnsureVisualIndexCurrent();
+        _lastOverlayRegistryScanCount++;
         var hasCandidate = false;
         var bestDepth = int.MinValue;
         var bestZIndex = int.MinValue;
         var bestOrder = int.MinValue;
-        var traversalOrder = 0;
         var currentCandidate = default(OverlayCandidate);
-        CollectOverlayCandidate(
-            _visualRoot,
-            depth: 0,
-            ref traversalOrder,
-            ref hasCandidate,
-            ref bestDepth,
-            ref bestZIndex,
-            ref bestOrder,
-            ref currentCandidate);
+        var overlays = _visualIndex.OverlayVisuals;
+        for (var i = 0; i < overlays.Count; i++)
+        {
+            var overlay = overlays[i];
+            if (!_visualIndex.TryGetNode(overlay, out var node))
+            {
+                continue;
+            }
+
+            var zIndex = Panel.GetZIndex(overlay);
+            var isOverlay = false;
+            var closeOnOutsidePointerDown = false;
+            var closeOnEscape = false;
+            switch (overlay)
+            {
+                case Popup popup when popup.IsOpen:
+                    isOverlay = true;
+                    closeOnOutsidePointerDown = popup.DismissOnOutsideClick;
+                    closeOnEscape = popup.CanClose;
+                    break;
+                case ContextMenu contextMenu when contextMenu.IsOpen:
+                    isOverlay = true;
+                    closeOnOutsidePointerDown = !contextMenu.StaysOpen;
+                    closeOnEscape = true;
+                    break;
+            }
+
+            if (!isOverlay)
+            {
+                continue;
+            }
+
+            var overlayCandidate = new OverlayCandidate(overlay, closeOnOutsidePointerDown, closeOnEscape);
+            if (IsBetterOverlayCandidate(
+                    node.Depth,
+                    zIndex,
+                    node.PreorderIndex,
+                    hasCandidate,
+                    bestDepth,
+                    bestZIndex,
+                    bestOrder))
+            {
+                hasCandidate = true;
+                bestDepth = node.Depth;
+                bestZIndex = zIndex;
+                bestOrder = node.PreorderIndex;
+                currentCandidate = overlayCandidate;
+            }
+        }
+
+        if (hasCandidate)
+        {
+            _lastOverlayRegistryHitCount++;
+        }
+
         _cachedTopOverlayCandidateVersion = _overlayCandidateVersion;
         _cachedTopOverlayCandidate = currentCandidate;
         _cachedTopOverlayCandidateHasValue = true;
@@ -2377,7 +2422,41 @@ public sealed partial class UiRoot
 
     internal void NotifyOverlayVisualTreeMutation()
     {
+        InvalidateOverlayInteractionCaches(clearOverlayOwnedHover: true);
+    }
+
+    private void InvalidateOverlayInteractionCaches(bool clearOverlayOwnedHover = false)
+    {
         InvalidateOverlayCandidateCache();
+        RefreshPointerTargetsAfterLayoutMutation();
+        if (clearOverlayOwnedHover)
+        {
+            ClearHoverStateIfOverlayOwned();
+        }
+    }
+
+    private void ClearHoverStateIfOverlayOwned()
+    {
+        var hovered = _inputState.HoveredElement;
+        if (!IsOverlayOwnedElement(hovered))
+        {
+            return;
+        }
+
+        UpdateHover(null);
+    }
+
+    private static bool IsOverlayOwnedElement(UIElement? element)
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is Popup or ContextMenu)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsElementDescendantOf(UIElement element, UIElement ancestor)
@@ -2409,63 +2488,9 @@ public sealed partial class UiRoot
                 return OverlayDismissResult.None;
         }
 
-        InvalidateOverlayCandidateCache();
+        InvalidateOverlayInteractionCaches(clearOverlayOwnedHover: true);
 
         return new OverlayDismissResult(Dismissed: true, Consumed: consumePointerClick);
-    }
-
-    private static void CollectOverlayCandidate(
-        UIElement element,
-        int depth,
-        ref int traversalOrder,
-        ref bool hasCandidate,
-        ref int bestDepth,
-        ref int bestZIndex,
-        ref int bestOrder,
-        ref OverlayCandidate bestCandidate)
-    {
-        var currentOrder = traversalOrder++;
-        var zIndex = Panel.GetZIndex(element);
-        var isOverlay = false;
-        var closeOnOutsidePointerDown = false;
-        var closeOnEscape = false;
-        switch (element)
-        {
-            case Popup popup when popup.IsOpen:
-                isOverlay = true;
-                closeOnOutsidePointerDown = popup.DismissOnOutsideClick;
-                closeOnEscape = popup.CanClose;
-                break;
-            case ContextMenu contextMenu when contextMenu.IsOpen:
-                isOverlay = true;
-                closeOnOutsidePointerDown = !contextMenu.StaysOpen;
-                closeOnEscape = true;
-                break;
-        }
-
-        var overlayCandidate = new OverlayCandidate(element, closeOnOutsidePointerDown, closeOnEscape);
-        if (isOverlay &&
-            IsBetterOverlayCandidate(depth, zIndex, currentOrder, hasCandidate, bestDepth, bestZIndex, bestOrder))
-        {
-            hasCandidate = true;
-            bestDepth = depth;
-            bestZIndex = zIndex;
-            bestOrder = currentOrder;
-            bestCandidate = overlayCandidate;
-        }
-
-        foreach (var child in element.GetVisualChildren())
-        {
-            CollectOverlayCandidate(
-                child,
-                depth + 1,
-                ref traversalOrder,
-                ref hasCandidate,
-                ref bestDepth,
-                ref bestZIndex,
-                ref bestOrder,
-                ref bestCandidate);
-        }
     }
 
     private static bool IsBetterOverlayCandidate(
@@ -2565,8 +2590,10 @@ public sealed partial class UiRoot
 
     private bool TryHandleMenuAccessKey(char accessKey)
     {
-        foreach (var menu in EnumerateMenusForKeyboardScope())
+        var menus = EnumerateMenusForKeyboardScope();
+        for (var i = 0; i < menus.Count; i++)
         {
+            var menu = menus[i];
             if (!menu.TryHandleAccessKeyFromInput(accessKey, _inputState.FocusedElement))
             {
                 continue;
@@ -2581,8 +2608,10 @@ public sealed partial class UiRoot
 
     private bool TryFindMenuInMenuMode(out Menu menu)
     {
-        foreach (var candidate in EnumerateMenusForKeyboardScope())
+        var menus = EnumerateMenusForKeyboardScope();
+        for (var i = 0; i < menus.Count; i++)
         {
+            var candidate = menus[i];
             if (!candidate.IsMenuMode)
             {
                 continue;
@@ -2598,9 +2627,10 @@ public sealed partial class UiRoot
 
     private bool TryResolveScopedMenuForKeyboard(out Menu menu)
     {
-        foreach (var candidate in EnumerateMenusForKeyboardScope())
+        var menus = EnumerateMenusForKeyboardScope();
+        if (menus.Count > 0)
         {
-            menu = candidate;
+            menu = menus[0];
             return true;
         }
 
@@ -2610,11 +2640,22 @@ public sealed partial class UiRoot
 
     private IReadOnlyList<Menu> EnumerateMenusForKeyboardScope()
     {
-        var allMenus = new List<Menu>();
-        CollectVisualsOfType(_visualRoot, allMenus);
+        if (_hasActiveKeyboardMenuScope)
+        {
+            return _activeKeyboardMenuScope.Menus;
+        }
+
+        return BuildKeyboardMenuScope().Menus;
+    }
+
+    private KeyboardMenuScope BuildKeyboardMenuScope()
+    {
+        EnsureVisualIndexCurrent();
+        _lastMenuScopeBuildCount++;
+        var allMenus = _visualIndex.Menus;
         if (allMenus.Count == 0)
         {
-            return allMenus;
+            return new KeyboardMenuScope(Array.Empty<Menu>());
         }
 
         var prioritized = new List<Menu>(allMenus.Count);
@@ -2638,7 +2679,7 @@ public sealed partial class UiRoot
             AddUniqueMenu(prioritized, allMenus[i]);
         }
 
-        return prioritized;
+        return new KeyboardMenuScope(prioritized);
     }
 
     private bool TryFindAnyMenuInMenuMode(IReadOnlyList<Menu> menus, out Menu menu)
@@ -2768,7 +2809,7 @@ public sealed partial class UiRoot
         CloseAllOpenContextMenus();
         contextMenu.OpenAtPointer(host, pointerPosition, target);
         _lastKnownOpenContextMenu = contextMenu;
-        InvalidateOverlayCandidateCache();
+        InvalidateOverlayInteractionCaches();
         if (contextMenu.TryHitTestMenuItem(pointerPosition, out var hoveredItem))
         {
             contextMenu.HandlePointerMoveFromInput(hoveredItem);
@@ -2800,7 +2841,7 @@ public sealed partial class UiRoot
         CloseAllOpenContextMenus();
         contextMenu.OpenAt(host, slot.X, slot.Y + slot.Height, target);
         _lastKnownOpenContextMenu = contextMenu;
-        InvalidateOverlayCandidateCache();
+        InvalidateOverlayInteractionCaches();
         return true;
     }
 
@@ -2832,13 +2873,39 @@ public sealed partial class UiRoot
         }
 
         var overlayCandidateStart = Stopwatch.GetTimestamp();
-        if (TryGetTopOverlayCandidate(out var candidate) &&
-            candidate.Element is ContextMenu openContextMenu &&
-            openContextMenu.IsOpen)
+        EnsureVisualIndexCurrent();
+        _lastOverlayRegistryScanCount++;
+        var contextMenus = _visualIndex.ContextMenus;
+        var found = false;
+        var bestDepth = int.MinValue;
+        var bestZIndex = int.MinValue;
+        var bestOrder = int.MinValue;
+        ContextMenu? bestMenu = null;
+        for (var i = 0; i < contextMenus.Count; i++)
         {
+            var candidateMenu = contextMenus[i];
+            if (!candidateMenu.IsOpen || !_visualIndex.TryGetNode(candidateMenu, out var node))
+            {
+                continue;
+            }
+
+            var zIndex = Panel.GetZIndex(candidateMenu);
+            if (!found || IsBetterOverlayCandidate(node.Depth, zIndex, node.PreorderIndex, found, bestDepth, bestZIndex, bestOrder))
+            {
+                found = true;
+                bestDepth = node.Depth;
+                bestZIndex = zIndex;
+                bestOrder = node.PreorderIndex;
+                bestMenu = candidateMenu;
+            }
+        }
+
+        if (bestMenu != null)
+        {
+            _lastOverlayRegistryHitCount++;
             _lastInputPointerResolveContextMenuOverlayCandidateMs += Stopwatch.GetElapsedTime(overlayCandidateStart).TotalMilliseconds;
-            _lastKnownOpenContextMenu = openContextMenu;
-            contextMenu = openContextMenu;
+            _lastKnownOpenContextMenu = bestMenu;
+            contextMenu = bestMenu;
             return true;
         }
 
@@ -2849,22 +2916,18 @@ public sealed partial class UiRoot
 
     private void CloseAllOpenContextMenus()
     {
-        CloseOpenContextMenusRecursive(_visualRoot);
+        EnsureVisualIndexCurrent();
+        var contextMenus = _visualIndex.ContextMenus;
+        for (var i = 0; i < contextMenus.Count; i++)
+        {
+            if (contextMenus[i].IsOpen)
+            {
+                contextMenus[i].Close();
+            }
+        }
+
         _lastKnownOpenContextMenu = null;
-        InvalidateOverlayCandidateCache();
-    }
-
-    private static void CloseOpenContextMenusRecursive(UIElement element)
-    {
-        if (element is ContextMenu contextMenu && contextMenu.IsOpen)
-        {
-            contextMenu.Close();
-        }
-
-        foreach (var child in element.GetVisualChildren())
-        {
-            CloseOpenContextMenusRecursive(child);
-        }
+        InvalidateOverlayInteractionCaches(clearOverlayOwnedHover: true);
     }
 
     private static ContextMenu? FindContextMenuForElement(UIElement start)
@@ -3033,5 +3096,7 @@ public sealed partial class UiRoot
             CollectVisualsOfType(child, results);
         }
     }
+
+    private readonly record struct KeyboardMenuScope(IReadOnlyList<Menu> Menus);
 
 }

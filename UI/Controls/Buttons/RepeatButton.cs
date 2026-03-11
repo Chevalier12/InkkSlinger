@@ -2,7 +2,7 @@ using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
-public class RepeatButton : Button
+public class RepeatButton : Button, IUiRootUpdateParticipant
 {
     public static readonly DependencyProperty RepeatDelayProperty =
         DependencyProperty.Register(
@@ -40,7 +40,19 @@ public class RepeatButton : Button
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
+        UpdateRepeatState(gameTime);
+    }
 
+    bool IUiRootUpdateParticipant.IsFrameUpdateActive => IsEnabled && IsPressed;
+
+    void IUiRootUpdateParticipant.UpdateFromUiRoot(GameTime gameTime)
+    {
+        RecordUpdateCallFromUiRoot();
+        UpdateRepeatState(gameTime);
+    }
+
+    private void UpdateRepeatState(GameTime gameTime)
+    {
         var isHeld = IsEnabled && IsPressed;
         if (!isHeld)
         {

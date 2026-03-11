@@ -299,10 +299,10 @@ public class Popup : ContentControl
         _host = host;
         _host.LayoutUpdated += OnHostLayoutUpdated;
         host.AddChild(this);
-        UiRoot.Current?.NotifyOverlayVisualTreeMutation();
         _isOpen = true;
         Activate();
         UpdatePlacement();
+        UiRoot.Current?.NotifyOverlayVisualTreeMutation();
         Opened?.Invoke(this, EventArgs.Empty);
     }
 
@@ -331,14 +331,13 @@ public class Popup : ContentControl
         _isCloseHovered = false;
         _isClosePressed = false;
         _isDragging = false;
-
-        UiRoot.Current?.NotifyOverlayVisualTreeMutation();
         _host.RemoveChild(this);
         _host.LayoutUpdated -= OnHostLayoutUpdated;
         _host = null;
         _isOpen = false;
         _pendingFocusRestore = _focusBeforeOpen;
         _focusBeforeOpen = null;
+        UiRoot.Current?.NotifyOverlayVisualTreeMutation();
 
         Closed?.Invoke(this, EventArgs.Empty);
     }

@@ -24,6 +24,7 @@ public sealed partial class UiRoot
         _lastRetainedNodesVisited = 0;
         _lastRetainedNodesDrawn = 0;
         _lastRetainedClipPushCount = 0;
+        _lastRetainedTraversalCount = 0;
         _lastSpriteBatchRestartCount = 0;
         UiDrawing.ResetFrameTelemetry();
 
@@ -135,15 +136,17 @@ public sealed partial class UiRoot
 
         for (var i = 0; i < _lastSynchronizedDirtyRenderRoots.Count; i++)
         {
-            ClearRenderInvalidationAncestorChain(_lastSynchronizedDirtyRenderRoots[i].GetInvalidationParent());
+            ClearRenderInvalidationAncestorChain(
+                _lastSynchronizedDirtyRenderRoots[i].GetInvalidationParent(),
+                _lastSynchronizedDirtyRenderRoots[i]);
         }
     }
 
-    private void ClearRenderInvalidationAncestorChain(UIElement? visual)
+    private void ClearRenderInvalidationAncestorChain(UIElement? visual, UIElement sourceDirtyRoot)
     {
         for (var current = visual; current != null; current = current.GetInvalidationParent())
         {
-            if (HasPendingDirtyVisualInSubtree(current))
+            if (HasPendingDirtyVisualInSubtree(current, sourceDirtyRoot))
             {
                 continue;
             }
@@ -152,8 +155,31 @@ public sealed partial class UiRoot
         }
     }
 
-    private bool HasPendingDirtyVisualInSubtree(UIElement subtreeRoot)
+    private bool HasPendingDirtyVisualInSubtree(UIElement subtreeRoot, UIElement sourceDirtyRoot)
     {
+        if (!_renderNodeIndices.TryGetValue(subtreeRoot, out var subtreeRootIndex))
+        {
+            return false;
+        }
+
+        var subtreeEnd = _retainedRenderList[subtreeRootIndex].SubtreeEndIndexExclusive;
+        var excludedIndex = _renderNodeIndices.TryGetValue(sourceDirtyRoot, out var sourceDirtyRootIndex)
+            ? sourceDirtyRootIndex
+            : -1;
+        for (var i = 0; i < _lastSynchronizedDirtyRenderSpans.Count; i++)
+        {
+            var span = _lastSynchronizedDirtyRenderSpans[i];
+            if (span.StartIndex == excludedIndex)
+            {
+                continue;
+            }
+
+            if (span.StartIndex >= subtreeRootIndex && span.StartIndex < subtreeEnd)
+            {
+                return true;
+            }
+        }
+
         if (_dirtyRenderSet.Count == 0)
         {
             return false;
@@ -161,7 +187,14 @@ public sealed partial class UiRoot
 
         foreach (var dirtyVisual in _dirtyRenderSet)
         {
-            if (ReferenceEquals(dirtyVisual, subtreeRoot) || IsDescendantOf(dirtyVisual, subtreeRoot))
+            if (ReferenceEquals(dirtyVisual, sourceDirtyRoot))
+            {
+                continue;
+            }
+
+            if (_renderNodeIndices.TryGetValue(dirtyVisual, out var dirtyRenderNodeIndex) &&
+                dirtyRenderNodeIndex >= subtreeRootIndex &&
+                dirtyRenderNodeIndex < subtreeEnd)
             {
                 return true;
             }
