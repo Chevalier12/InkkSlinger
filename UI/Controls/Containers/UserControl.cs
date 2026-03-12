@@ -209,9 +209,19 @@ public class UserControl : ContentControl
             return Vector2.Zero;
         }
 
-        var measured = base.MeasureOverride(availableSize);
         var chrome = GetChromeThickness();
-        return new Vector2(measured.X + chrome.Horizontal, measured.Y + chrome.Vertical);
+        if (ContentElement is not FrameworkElement content)
+        {
+            return new Vector2(chrome.Horizontal, chrome.Vertical);
+        }
+
+        var contentAvailableSize = new Vector2(
+            MathF.Max(0f, availableSize.X - chrome.Horizontal),
+            MathF.Max(0f, availableSize.Y - chrome.Vertical));
+        content.Measure(contentAvailableSize);
+        return new Vector2(
+            content.DesiredSize.X + chrome.Horizontal,
+            content.DesiredSize.Y + chrome.Vertical);
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
@@ -227,9 +237,6 @@ public class UserControl : ContentControl
 
             return finalSize;
         }
-
-        // Intentional compatibility path: base arranges content first; we then re-arrange with UserControl chrome offsets.
-        base.ArrangeOverride(finalSize);
 
         if (ContentElement is FrameworkElement content)
         {

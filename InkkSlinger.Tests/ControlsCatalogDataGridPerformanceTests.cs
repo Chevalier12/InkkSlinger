@@ -18,7 +18,7 @@ public sealed class ControlsCatalogDataGridPerformanceTests
         _output = output;
     }
 
-    [Fact]
+    [Fact(Skip = "Manual performance investigation only. Excluded from the default test suite.")]
     public void ClickingDataGridPreview_ShouldExposeMeasuredWarmSwitchCost()
     {
         var view = new ControlsCatalogView

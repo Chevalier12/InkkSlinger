@@ -331,6 +331,15 @@ public sealed partial class UiRoot
             accumulator.RenderInvalidationCount);
     }
 
+    internal UiVisualTreeWorkMetricsSnapshot GetVisualTreeWorkMetricsSnapshotForTests()
+    {
+        var accumulator = new VisualTreeMetricsAccumulator();
+        AccumulateVisualTreeMetrics(_visualRoot, depth: 0, ref accumulator);
+        return new UiVisualTreeWorkMetricsSnapshot(
+            accumulator.MeasureWorkCount,
+            accumulator.ArrangeWorkCount);
+    }
+
     public TextLayout.TextLayoutMetricsSnapshot GetTextLayoutMetricsSnapshot()
     {
         return TextLayout.GetMetricsSnapshot();
@@ -566,6 +575,8 @@ public sealed partial class UiRoot
             accumulator.FrameworkElementCount++;
             accumulator.MeasureCallCount += frameworkElement.MeasureCallCount;
             accumulator.ArrangeCallCount += frameworkElement.ArrangeCallCount;
+            accumulator.MeasureWorkCount += frameworkElement.MeasureWorkCount;
+            accumulator.ArrangeWorkCount += frameworkElement.ArrangeWorkCount;
         }
 
         foreach (var child in visual.GetVisualChildren())
@@ -582,6 +593,8 @@ public sealed partial class UiRoot
         public int MaxDepth;
         public long MeasureCallCount;
         public long ArrangeCallCount;
+        public long MeasureWorkCount;
+        public long ArrangeWorkCount;
         public long UpdateCallCount;
         public long DrawCallCount;
         public long MeasureInvalidationCount;

@@ -82,6 +82,7 @@ public class UiRootTelemetryTests
             new Viewport(0, 0, 800, 600));
 
         var snapshot = uiRoot.GetVisualTreeMetricsSnapshot();
+        var workSnapshot = uiRoot.GetVisualTreeWorkMetricsSnapshotForTests();
 
         Assert.True(snapshot.VisualCount >= 4);
         Assert.True(snapshot.FrameworkElementCount >= 4);
@@ -89,6 +90,10 @@ public class UiRootTelemetryTests
         Assert.True(snapshot.MaxDepth >= 2);
         Assert.True(snapshot.MeasureCallCount >= 4);
         Assert.True(snapshot.ArrangeCallCount >= 4);
+        Assert.True(workSnapshot.MeasureWorkCount >= 4);
+        Assert.True(workSnapshot.ArrangeWorkCount >= 4);
+        Assert.True(workSnapshot.MeasureWorkCount <= snapshot.MeasureCallCount);
+        Assert.True(workSnapshot.ArrangeWorkCount <= snapshot.ArrangeCallCount);
         Assert.Equal(1, snapshot.UpdateCallCount);
         Assert.True(snapshot.MeasureInvalidationCount >= 1);
 

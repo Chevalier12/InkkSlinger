@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -8,16 +9,25 @@ namespace InkkSlinger;
 public class Button : ContentControl
 {
     private static readonly System.Lazy<Style> DefaultButtonStyle = new(BuildDefaultButtonStyle);
+    private static int _renderLineWidthFallbackCount;
+    private static long _measureOverrideElapsedTicks;
+    private static long _renderElapsedTicks;
+    private static long _resolveTextLayoutElapsedTicks;
     private bool _isSyncingTemplateContent;
     private bool _isTextMirroringTemplateContent;
     private bool _hasExplicitContentOverride;
     private bool _hasTextLayoutCache;
+    private bool _hasIntrinsicNoWrapMeasureCache;
     private int _textLayoutCacheTextVersion = -1;
+    private int _intrinsicNoWrapMeasureTextVersion = -1;
     private float _textLayoutCacheWidth = float.NaN;
     private SpriteFont? _textLayoutCacheFont;
+    private SpriteFont? _intrinsicNoWrapMeasureFont;
     private float _textLayoutCacheFontSize = float.NaN;
+    private float _intrinsicNoWrapMeasureFontSize = float.NaN;
     private TextWrapping _textLayoutCacheWrapping = TextWrapping.NoWrap;
     private TextLayout.TextLayoutResult _textLayoutCacheResult = TextLayout.TextLayoutResult.Empty;
+    private Vector2 _intrinsicNoWrapMeasureSize = Vector2.Zero;
     private int _textVersion;
 
     public static readonly RoutedEvent ClickEvent =
@@ -166,6 +176,14 @@ public class Button : ContentControl
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var start = Stopwatch.GetTimestamp();
+        try
+        {
+        if (CanUsePlainTextMeasureFastPath())
+        {
+            return MeasurePlainTextButton(availableSize);
+        }
+
         var desired = base.MeasureOverride(availableSize);
         var padding = Padding;
         var border = BorderThickness * 2f;
@@ -185,6 +203,18 @@ public class Button : ContentControl
         desired.X = System.MathF.Max(desired.X, padding.Horizontal + border);
         desired.Y = System.MathF.Max(desired.Y, padding.Vertical + border);
         return desired;
+        }
+        finally
+        {
+            _measureOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
+    }
+
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        _ = previousAvailableSize;
+        _ = nextAvailableSize;
+        return CanUseIntrinsicNoWrapTextMeasure() && CanUsePlainTextMeasureFastPath();
     }
 
 
@@ -220,12 +250,14 @@ public class Button : ContentControl
         {
             _textVersion++;
             InvalidateTextLayoutCache();
+            InvalidateIntrinsicNoWrapMeasureCache();
         }
         else if (args.Property == FontProperty ||
                  args.Property == FontSizeProperty ||
                  args.Property == TextWrappingProperty)
         {
             InvalidateTextLayoutCache();
+            InvalidateIntrinsicNoWrapMeasureCache();
         }
 
         if (args.Property == TextProperty || args.Property == TemplateProperty)
@@ -236,6 +268,9 @@ public class Button : ContentControl
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        var start = Stopwatch.GetTimestamp();
+        try
+        {
         base.OnRender(spriteBatch);
 
         if (HasTemplateRoot)
@@ -297,10 +332,15 @@ public class Button : ContentControl
                 continue;
             }
 
-            var lineWidth = FontStashTextRenderer.MeasureWidth(Font, line, FontSize);
+            var lineWidth = ResolveRenderedLineWidth(layout, i, line, Font, FontSize);
             var lineX = textX + ((layout.Size.X - lineWidth) / 2f);
             var linePosition = new Vector2(lineX, textY + (i * lineSpacing));
             FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, Foreground * Opacity, FontSize);
+        }
+        }
+        finally
+        {
+            _renderElapsedTicks += Stopwatch.GetTimestamp() - start;
         }
     }
 
@@ -350,6 +390,9 @@ public class Button : ContentControl
 
     private TextLayout.TextLayoutResult ResolveTextLayout(float availableWidth)
     {
+        var start = Stopwatch.GetTimestamp();
+        try
+        {
         if (_hasTextLayoutCache &&
             _textLayoutCacheTextVersion == _textVersion &&
             ReferenceEquals(_textLayoutCacheFont, Font) &&
@@ -369,6 +412,11 @@ public class Button : ContentControl
         _textLayoutCacheResult = result;
         _hasTextLayoutCache = true;
         return result;
+        }
+        finally
+        {
+            _resolveTextLayoutElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
     }
 
     private void InvalidateTextLayoutCache()
@@ -380,6 +428,118 @@ public class Button : ContentControl
         _textLayoutCacheFontSize = float.NaN;
         _textLayoutCacheWrapping = TextWrapping.NoWrap;
         _textLayoutCacheResult = TextLayout.TextLayoutResult.Empty;
+    }
+
+    private void InvalidateIntrinsicNoWrapMeasureCache()
+    {
+        _hasIntrinsicNoWrapMeasureCache = false;
+        _intrinsicNoWrapMeasureTextVersion = -1;
+        _intrinsicNoWrapMeasureFont = null;
+        _intrinsicNoWrapMeasureFontSize = float.NaN;
+        _intrinsicNoWrapMeasureSize = Vector2.Zero;
+    }
+
+    private bool CanUsePlainTextMeasureFastPath()
+    {
+        return Template == null &&
+               !HasTemplateRoot &&
+               ContentElement == null &&
+               Content == null &&
+               ContentTemplate == null &&
+               ContentTemplateSelector == null;
+    }
+
+    private Vector2 MeasurePlainTextButton(Vector2 availableSize)
+    {
+        var padding = Padding;
+        var border = BorderThickness * 2f;
+        var desired = new Vector2(padding.Horizontal + border, padding.Vertical + border);
+        if (string.IsNullOrEmpty(Text))
+        {
+            return desired;
+        }
+
+        var innerAvailableWidth = MathF.Max(0f, availableSize.X - padding.Horizontal - border);
+        var textSize = CanUseIntrinsicNoWrapTextMeasure()
+            ? ResolveIntrinsicNoWrapTextSize()
+            : ResolveTextLayout(innerAvailableWidth).Size;
+        desired.X = MathF.Max(desired.X, textSize.X + padding.Horizontal + border);
+        desired.Y = MathF.Max(desired.Y, textSize.Y + padding.Vertical + border);
+        return desired;
+    }
+
+    internal bool HasAvailableIndependentDesiredSizeForUniformGrid()
+    {
+        return TextWrapping == TextWrapping.NoWrap && CanUsePlainTextMeasureFastPath();
+    }
+
+    private bool CanUseIntrinsicNoWrapTextMeasure()
+    {
+        return TextWrapping == TextWrapping.NoWrap &&
+               !string.IsNullOrEmpty(Text) &&
+               Text.IndexOfAny(['\r', '\n']) < 0;
+    }
+
+    private Vector2 ResolveIntrinsicNoWrapTextSize()
+    {
+        if (_hasIntrinsicNoWrapMeasureCache &&
+            _intrinsicNoWrapMeasureTextVersion == _textVersion &&
+            ReferenceEquals(_intrinsicNoWrapMeasureFont, Font) &&
+            WidthMatches(_intrinsicNoWrapMeasureFontSize, FontSize))
+        {
+            return _intrinsicNoWrapMeasureSize;
+        }
+
+        var size = new Vector2(
+            FontStashTextRenderer.MeasureWidth(Font, Text, FontSize),
+            FontStashTextRenderer.GetLineHeight(Font, FontSize));
+        _intrinsicNoWrapMeasureTextVersion = _textVersion;
+        _intrinsicNoWrapMeasureFont = Font;
+        _intrinsicNoWrapMeasureFontSize = FontSize;
+        _intrinsicNoWrapMeasureSize = size;
+        _hasIntrinsicNoWrapMeasureCache = true;
+        return size;
+    }
+
+    internal static float ResolveRenderedLineWidth(
+        TextLayout.TextLayoutResult layout,
+        int lineIndex,
+        string line,
+        SpriteFont? font,
+        float fontSize)
+    {
+        if (lineIndex < layout.LineWidths.Count)
+        {
+            return layout.LineWidths[lineIndex];
+        }
+
+        _renderLineWidthFallbackCount++;
+        return FontStashTextRenderer.MeasureWidth(font, line, fontSize);
+    }
+
+    internal static int GetRenderLineWidthFallbackCountForTests()
+    {
+        return _renderLineWidthFallbackCount;
+    }
+
+    internal static void ResetRenderLineWidthFallbackCountForTests()
+    {
+        _renderLineWidthFallbackCount = 0;
+    }
+
+    internal static ButtonTimingSnapshot GetTimingSnapshotForTests()
+    {
+        return new ButtonTimingSnapshot(
+            _measureOverrideElapsedTicks,
+            _renderElapsedTicks,
+            _resolveTextLayoutElapsedTicks);
+    }
+
+    internal static void ResetTimingForTests()
+    {
+        _measureOverrideElapsedTicks = 0;
+        _renderElapsedTicks = 0;
+        _resolveTextLayoutElapsedTicks = 0;
     }
 
     private static bool WidthMatches(float cached, float current)
@@ -455,5 +615,10 @@ public class Button : ContentControl
         OnClick();
     }
 }
+
+internal readonly record struct ButtonTimingSnapshot(
+    long MeasureOverrideElapsedTicks,
+    long RenderElapsedTicks,
+    long ResolveTextLayoutElapsedTicks);
 
 

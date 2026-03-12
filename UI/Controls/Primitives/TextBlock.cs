@@ -37,11 +37,15 @@ public class TextBlock : FrameworkElement
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
     private bool _hasLayoutCache;
+    private bool _hasIntrinsicNoWrapMeasureCache;
     private int _layoutCacheTextVersion = -1;
+    private int _intrinsicNoWrapMeasureTextVersion = -1;
     private float _layoutCacheWidth = float.NaN;
     private SpriteFont? _layoutCacheFont;
+    private SpriteFont? _intrinsicNoWrapMeasureFont;
     private TextWrapping _layoutCacheWrapping = TextWrapping.NoWrap;
     private TextLayout.TextLayoutResult _layoutCacheResult = TextLayout.TextLayoutResult.Empty;
+    private Vector2 _intrinsicNoWrapMeasureSize = Vector2.Zero;
     private int _textVersion;
     private int _layoutCacheHitCount;
     private int _layoutCacheMissCount;
@@ -50,6 +54,7 @@ public class TextBlock : FrameworkElement
     private long _renderMaxTicks;
     private long _renderLastTicks;
     private float _layoutCacheFontSize = float.NaN;
+    private float _intrinsicNoWrapMeasureFontSize = float.NaN;
 
     public string Text
     {
@@ -101,13 +106,30 @@ public class TextBlock : FrameworkElement
         _ = ResolveLayout(width);
     }
 
+    internal bool HasAvailableIndependentDesiredSizeForUniformGrid()
+    {
+        return TextWrapping == TextWrapping.NoWrap;
+    }
+
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        if (CanUseIntrinsicNoWrapTextMeasure())
+        {
+            return ResolveIntrinsicNoWrapTextSize();
+        }
+
         var availableWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : availableSize.X;
 
         return ResolveLayout(availableWidth).Size;
+    }
+
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        _ = previousAvailableSize;
+        _ = nextAvailableSize;
+        return TextWrapping == TextWrapping.NoWrap;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -170,6 +192,7 @@ public class TextBlock : FrameworkElement
         {
             _textVersion++;
             InvalidateLayoutCache();
+            InvalidateIntrinsicNoWrapMeasureCache();
             return;
         }
 
@@ -178,7 +201,36 @@ public class TextBlock : FrameworkElement
             ReferenceEquals(args.Property, FontSizeProperty))
         {
             InvalidateLayoutCache();
+            InvalidateIntrinsicNoWrapMeasureCache();
         }
+    }
+
+    private bool CanUseIntrinsicNoWrapTextMeasure()
+    {
+        return TextWrapping == TextWrapping.NoWrap &&
+               !string.IsNullOrEmpty(Text) &&
+               Text.IndexOfAny(['\r', '\n']) < 0;
+    }
+
+    private Vector2 ResolveIntrinsicNoWrapTextSize()
+    {
+        if (_hasIntrinsicNoWrapMeasureCache &&
+            _intrinsicNoWrapMeasureTextVersion == _textVersion &&
+            ReferenceEquals(_intrinsicNoWrapMeasureFont, Font) &&
+            WidthMatches(_intrinsicNoWrapMeasureFontSize, FontSize))
+        {
+            return _intrinsicNoWrapMeasureSize;
+        }
+
+        var size = new Vector2(
+            FontStashTextRenderer.MeasureWidth(Font, Text, FontSize),
+            FontStashTextRenderer.GetLineHeight(Font, FontSize));
+        _intrinsicNoWrapMeasureTextVersion = _textVersion;
+        _intrinsicNoWrapMeasureFont = Font;
+        _intrinsicNoWrapMeasureFontSize = FontSize;
+        _intrinsicNoWrapMeasureSize = size;
+        _hasIntrinsicNoWrapMeasureCache = true;
+        return size;
     }
 
     private TextLayout.TextLayoutResult ResolveLayout(float width)
@@ -215,6 +267,15 @@ public class TextBlock : FrameworkElement
         _layoutCacheFont = null;
         _layoutCacheFontSize = float.NaN;
         _layoutCacheResult = TextLayout.TextLayoutResult.Empty;
+    }
+
+    private void InvalidateIntrinsicNoWrapMeasureCache()
+    {
+        _hasIntrinsicNoWrapMeasureCache = false;
+        _intrinsicNoWrapMeasureTextVersion = -1;
+        _intrinsicNoWrapMeasureFont = null;
+        _intrinsicNoWrapMeasureFontSize = float.NaN;
+        _intrinsicNoWrapMeasureSize = Vector2.Zero;
     }
 
     private static bool WidthMatches(float cached, float current)

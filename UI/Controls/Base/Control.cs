@@ -9,6 +9,7 @@ namespace InkkSlinger;
 
 public class Control : FrameworkElement, ICommandSource
 {
+    private static int _measureTemplateApplyAttemptCount;
     public static readonly DependencyProperty DefaultStyleKeyProperty =
         DependencyProperty.Register(nameof(DefaultStyleKey), typeof(System.Type), typeof(Control), new FrameworkPropertyMetadata(null));
 
@@ -296,6 +297,12 @@ public class Control : FrameworkElement, ICommandSource
     {
         if (_templateRoot == null)
         {
+            if (Template == null)
+            {
+                return Vector2.Zero;
+            }
+
+            _measureTemplateApplyAttemptCount++;
             ApplyTemplate();
         }
 
@@ -719,16 +726,13 @@ public class Control : FrameworkElement, ICommandSource
             return;
         }
 
-        var fallbackStyle = GetFallbackStyle();
-        Style? resourceStyle = null;
-        if (DefaultStyleKey != null &&
-            TryFindResource(DefaultStyleKey, out var resource) &&
-            resource is Style style)
+        var targetStyle = ResolveImplicitStyleTarget();
+        if (ReferenceEquals(targetStyle, _activeImplicitStyle) &&
+            ReferenceEquals(Style, targetStyle))
         {
-            resourceStyle = style;
+            return;
         }
 
-        var targetStyle = resourceStyle ?? fallbackStyle;
         if (targetStyle == null)
         {
             if (ImplicitStylePolicy.CanClearImplicit(Style, _activeImplicitStyle))
@@ -771,11 +775,46 @@ public class Control : FrameworkElement, ICommandSource
 
     private void RefreshResourceScopeSubscriptions()
     {
-        ClearResourceScopeSubscriptions();
-
+        var nextAncestors = new List<FrameworkElement>();
         var visited = new HashSet<FrameworkElement>();
-        AddAncestorScopeSubscriptions(VisualParent, visited);
-        AddAncestorScopeSubscriptions(LogicalParent, visited);
+        CollectAncestorScopeSubscriptions(VisualParent, visited, nextAncestors);
+        CollectAncestorScopeSubscriptions(LogicalParent, visited, nextAncestors);
+
+        if (nextAncestors.Count == 0)
+        {
+            ClearResourceScopeSubscriptions();
+            return;
+        }
+
+        var remainingExistingAncestors = new HashSet<FrameworkElement>(_styleResourceAncestors);
+        for (var i = 0; i < nextAncestors.Count; i++)
+        {
+            var ancestor = nextAncestors[i];
+            if (remainingExistingAncestors.Remove(ancestor))
+            {
+                continue;
+            }
+
+            ancestor.Resources.Changed += OnResourceScopeChanged;
+            _styleResourceAncestors.Add(ancestor);
+        }
+
+        if (remainingExistingAncestors.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = _styleResourceAncestors.Count - 1; i >= 0; i--)
+        {
+            var ancestor = _styleResourceAncestors[i];
+            if (!remainingExistingAncestors.Contains(ancestor))
+            {
+                continue;
+            }
+
+            ancestor.Resources.Changed -= OnResourceScopeChanged;
+            _styleResourceAncestors.RemoveAt(i);
+        }
     }
 
     private void ClearResourceScopeSubscriptions()
@@ -793,7 +832,23 @@ public class Control : FrameworkElement, ICommandSource
         return ShouldApplyImplicitStyle();
     }
 
-    private void AddAncestorScopeSubscriptions(UIElement? start, ISet<FrameworkElement> visited)
+    private Style? ResolveImplicitStyleTarget()
+    {
+        Style? resourceStyle = null;
+        if (DefaultStyleKey != null &&
+            TryFindResource(DefaultStyleKey, out var resource) &&
+            resource is Style style)
+        {
+            resourceStyle = style;
+        }
+
+        return resourceStyle ?? GetFallbackStyle();
+    }
+
+    private void CollectAncestorScopeSubscriptions(
+        UIElement? start,
+        ISet<FrameworkElement> visited,
+        ICollection<FrameworkElement> ancestors)
     {
         for (var current = start; current != null; current = current.VisualParent ?? current.LogicalParent)
         {
@@ -802,8 +857,17 @@ public class Control : FrameworkElement, ICommandSource
                 continue;
             }
 
-            framework.Resources.Changed += OnResourceScopeChanged;
-            _styleResourceAncestors.Add(framework);
+            ancestors.Add(framework);
         }
+    }
+
+    internal static int GetMeasureTemplateApplyAttemptCountForTests()
+    {
+        return _measureTemplateApplyAttemptCount;
+    }
+
+    internal static void ResetMeasureTemplateApplyAttemptCountForTests()
+    {
+        _measureTemplateApplyAttemptCount = 0;
     }
 }

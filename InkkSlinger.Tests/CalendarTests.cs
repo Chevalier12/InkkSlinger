@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -73,6 +74,20 @@ public sealed class CalendarTests
     }
 
     [Fact]
+    public void Measure_DoesNotForceInitialCalendarRefresh()
+    {
+        var calendar = new Calendar
+        {
+            Width = 280f,
+            Height = 260f
+        };
+
+        calendar.Measure(new Vector2(280f, 260f));
+
+        Assert.Equal(0, calendar.CalendarViewRefreshCountForTesting);
+    }
+
+    [Fact]
     public void DisplayDateStart_PreventsNavigationBeforeStart()
     {
         var (uiRoot, calendar) = CreateFixture();
@@ -142,6 +157,37 @@ public sealed class CalendarTests
         Assert.Equal(4, calendar.DisplayDate.Month);
     }
 
+    [Fact]
+    public void CalendarView_XamlInitialization_CoalescesInitialCalendarRefresh()
+    {
+        var view = new CalendarView
+        {
+            Width = 600f,
+            Height = 420f
+        };
+
+        var calendar = FindFirstVisualChild<Calendar>(view);
+        Assert.NotNull(calendar);
+        Assert.Equal(0, calendar!.CalendarViewRefreshCountForTesting);
+
+        var host = new Canvas
+        {
+            Width = 600f,
+            Height = 420f
+        };
+        host.AddChild(view);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        Assert.Equal(1, calendar.CalendarViewRefreshCountForTesting);
+        Assert.Equal(DayOfWeek.Monday, calendar.FirstDayOfWeek);
+        Assert.Equal(CalendarSelectionMode.SingleRange, calendar.SelectionMode);
+
+        var shortestDayNames = CultureInfo.CurrentCulture.DateTimeFormat.ShortestDayNames;
+        Assert.Equal(shortestDayNames[(int)DayOfWeek.Monday], calendar.WeekDayLabelsForTesting[0].Text);
+    }
+
     private static (UiRoot UiRoot, Calendar Calendar) CreateFixture()
     {
         var host = new Canvas
@@ -168,6 +214,26 @@ public sealed class CalendarTests
     {
         var slot = element.LayoutSlot;
         return new Vector2(slot.X + (slot.Width / 2f), slot.Y + (slot.Height / 2f));
+    }
+
+    private static TElement? FindFirstVisualChild<TElement>(UIElement root)
+        where TElement : UIElement
+    {
+        if (root is TElement match)
+        {
+            return match;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindFirstVisualChild<TElement>(child);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private static void Click(UiRoot uiRoot, Vector2 pointer)

@@ -58,7 +58,7 @@ public partial class ControlsCatalogView : UserControl
         }
     }
 
-    private void ShowControl(string controlName)
+    internal void ShowControl(string controlName)
     {
         if (_selectedControlLabel != null)
         {
@@ -79,17 +79,7 @@ public partial class ControlsCatalogView : UserControl
 
     private static UserControl CreateView(string controlName)
     {
-        var typeName = $"InkkSlinger.{controlName}View";
-        var type = typeof(ControlsCatalogView).Assembly.GetType(typeName);
-        if (type != null)
-        {
-            if (Activator.CreateInstance(type) is UserControl view)
-            {
-                return view;
-            }
-        }
-
-        return new MissingControlView(controlName);
+        return ControlViews.CreateCatalogView(controlName);
     }
 
     private static string GetDisplayName(string controlName)

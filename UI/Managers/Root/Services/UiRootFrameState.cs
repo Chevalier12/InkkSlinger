@@ -88,6 +88,11 @@ public sealed partial class UiRoot
 
     internal void NotifyInvalidation(UiInvalidationType invalidationType, UIElement? source = null)
     {
+        if (source != null && !IsPartOfVisualTree(source))
+        {
+            return;
+        }
+
         switch (invalidationType)
         {
             case UiInvalidationType.Measure:
@@ -132,11 +137,6 @@ public sealed partial class UiRoot
 
     internal void NotifyVisualStructureChanged(UIElement element, UIElement? oldParent, UIElement? newParent)
     {
-        _visualStructureChangeCount++;
-        _visualStructureVersion++;
-        MarkVisualIndexDirty();
-        InvalidateOverlayCandidateCache();
-        BumpPointerResolveStateVersion();
         if (!IsPartOfVisualTree(element) &&
             !IsPartOfVisualTree(oldParent) &&
             !IsPartOfVisualTree(newParent) &&
@@ -145,6 +145,11 @@ public sealed partial class UiRoot
             return;
         }
 
+        _visualStructureChangeCount++;
+        _visualStructureVersion++;
+        MarkVisualIndexDirty();
+        InvalidateOverlayCandidateCache();
+        BumpPointerResolveStateVersion();
         _renderListNeedsFullRebuild = true;
         _mustDrawNextFrame = true;
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);

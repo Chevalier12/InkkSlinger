@@ -62,6 +62,10 @@ public readonly record struct UiVisualTreeMetricsSnapshot(
     long ArrangeInvalidationCount,
     long RenderInvalidationCount);
 
+internal readonly record struct UiVisualTreeWorkMetricsSnapshot(
+    long MeasureWorkCount,
+    long ArrangeWorkCount);
+
 public readonly record struct UiInputMetricsSnapshot(
     double LastInputPhaseMilliseconds,
     double LastInputCaptureMilliseconds,

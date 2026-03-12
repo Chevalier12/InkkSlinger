@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Microsoft.Xna.Framework;
@@ -89,6 +90,104 @@ public static class ControlViews
         "WrapPanel",
         "Window",
     };
+
+    private static readonly IReadOnlyDictionary<string, Func<UserControl>> CatalogViewFactories =
+        new Dictionary<string, Func<UserControl>>(StringComparer.Ordinal)
+        {
+            ["AccessText"] = static () => new AccessTextView(),
+            ["Border"] = static () => new BorderView(),
+            ["Button"] = static () => new ButtonView(),
+            ["Calendar"] = static () => new CalendarView(),
+            ["Canvas"] = static () => new CanvasView(),
+            ["CatchMe"] = static () => new CatchMeView(),
+            ["CheckBox"] = static () => new CheckBoxView(),
+            ["ComboBox"] = static () => new ComboBoxView(),
+            ["ComboBoxItem"] = static () => new ComboBoxItemView(),
+            ["ContentControl"] = static () => new ContentControlView(),
+            ["ContentPresenter"] = static () => new ContentPresenterView(),
+            ["ContextMenu"] = static () => new ContextMenuView(),
+            ["Control"] = static () => new ControlView(),
+            ["DataGrid"] = static () => new DataGridView(),
+            ["DataGridCell"] = static () => new DataGridCellView(),
+            ["DataGridColumnHeader"] = static () => new DataGridColumnHeaderView(),
+            ["DataGridDetailsPresenter"] = static () => new DataGridDetailsPresenterView(),
+            ["DataGridRow"] = static () => new DataGridRowView(),
+            ["DataGridRowHeader"] = static () => new DataGridRowHeaderView(),
+            ["DatePicker"] = static () => new DatePickerView(),
+            ["Decorator"] = static () => new DecoratorView(),
+            ["DockPanel"] = static () => new DockPanelView(),
+            ["DocumentViewer"] = static () => new DocumentViewerView(),
+            ["Expander"] = static () => new ExpanderView(),
+            ["Frame"] = static () => new FrameView(),
+            ["Grid"] = static () => new GridView(),
+            ["GridSplitter"] = static () => new GridSplitterView(),
+            ["GroupBox"] = static () => new GroupBoxView(),
+            ["GroupItem"] = static () => new GroupItemView(),
+            ["HeaderedContentControl"] = static () => new HeaderedContentControlView(),
+            ["HeaderedItemsControl"] = static () => new HeaderedItemsControlView(),
+            ["Image"] = static () => new ImageView(),
+            ["InkCanvas"] = static () => new InkCanvasView(),
+            ["InkPresenter"] = static () => new InkPresenterView(),
+            ["ItemsControl"] = static () => new ItemsControlView(),
+            ["Label"] = static () => new LabelView(),
+            ["ListBox"] = static () => new ListBoxView(),
+            ["ListBoxItem"] = static () => new ListBoxItemView(),
+            ["ListView"] = static () => new ListViewView(),
+            ["ListViewItem"] = static () => new ListViewItemView(),
+            ["MediaElement"] = static () => new MediaElementView(),
+            ["Menu"] = static () => new MenuView(),
+            ["MenuItem"] = static () => new MenuItemView(),
+            ["Page"] = static () => new PageView(),
+            ["Panel"] = static () => new PanelView(),
+            ["PasswordBox"] = static () => new PasswordBoxView(),
+            ["Popup"] = static () => new PopupView(),
+            ["ProgressBar"] = static () => new ProgressBarView(),
+            ["RadioButton"] = static () => new RadioButtonView(),
+            ["RepeatButton"] = static () => new RepeatButtonView(),
+            ["ResizeGrip"] = static () => new ResizeGripView(),
+            ["RichTextBox"] = static () => new RichTextBoxView(),
+            ["ScrollBar"] = static () => new ScrollBarView(),
+            ["ScrollViewer"] = static () => new ScrollViewerView(),
+            ["Separator"] = static () => new SeparatorView(),
+            ["Slider"] = static () => new SliderView(),
+            ["StackPanel"] = static () => new StackPanelView(),
+            ["StatusBar"] = static () => new StatusBarView(),
+            ["StatusBarItem"] = static () => new StatusBarItemView(),
+            ["TabControl"] = static () => new TabControlView(),
+            ["TabItem"] = static () => new TabItemView(),
+            ["TextBlock"] = static () => new TextBlockView(),
+            ["TextBox"] = static () => new TextBoxView(),
+            ["Thumb"] = static () => new ThumbView(),
+            ["ToggleButton"] = static () => new ToggleButtonView(),
+            ["ToolBar"] = static () => new ToolBarView(),
+            ["ToolBarOverflowPanel"] = static () => new ToolBarOverflowPanelView(),
+            ["ToolBarPanel"] = static () => new ToolBarPanelView(),
+            ["ToolBarTray"] = static () => new ToolBarTrayView(),
+            ["ToolTip"] = static () => new ToolTipView(),
+            ["TreeView"] = static () => new TreeViewView(),
+            ["TreeViewItem"] = static () => new TreeViewItemView(),
+            ["UniformGrid"] = static () => new UniformGridView(),
+            ["UserControl"] = static () => new UserControlView(),
+            ["Viewbox"] = static () => new ViewboxView(),
+            ["VirtualizingStackPanel"] = static () => new VirtualizingStackPanelView(),
+            ["WrapPanel"] = static () => new WrapPanelView(),
+            ["Window"] = static () => new WindowView(),
+        };
+
+    internal static UserControl CreateCatalogView(string controlName)
+    {
+        if (CatalogViewFactories.TryGetValue(controlName, out var factory))
+        {
+            return factory();
+        }
+
+        return new MissingControlView(controlName);
+    }
+
+    internal static bool HasCatalogView(string controlName)
+    {
+        return CatalogViewFactories.ContainsKey(controlName);
+    }
 }
 
 internal static class ControlDemoSupport
@@ -116,6 +215,84 @@ internal static class ControlDemoSupport
         new() { Id = 12, Name = "Lima" },
     };
 
+    private static readonly IReadOnlyDictionary<string, Func<UIElement>> DefaultSampleFactories =
+        new Dictionary<string, Func<UIElement>>(StringComparer.Ordinal)
+        {
+            ["AccessText"] = static () => new AccessText(),
+            ["Border"] = static () => new Border(),
+            ["Button"] = static () => new Button(),
+            ["Calendar"] = static () => new Calendar(),
+            ["Canvas"] = static () => new Canvas(),
+            ["CheckBox"] = static () => new CheckBox(),
+            ["ComboBox"] = static () => new ComboBox(),
+            ["ComboBoxItem"] = static () => new ComboBoxItem(),
+            ["ContentControl"] = static () => new ContentControl(),
+            ["ContentPresenter"] = static () => new ContentPresenter(),
+            ["ContextMenu"] = static () => new ContextMenu(),
+            ["Control"] = static () => new Control(),
+            ["DataGrid"] = static () => new DataGrid(),
+            ["DataGridCell"] = static () => new DataGridCell(),
+            ["DataGridColumnHeader"] = static () => new DataGridColumnHeader(),
+            ["DataGridDetailsPresenter"] = static () => new DataGridDetailsPresenter(),
+            ["DataGridRow"] = static () => new DataGridRow(),
+            ["DataGridRowHeader"] = static () => new DataGridRowHeader(),
+            ["DatePicker"] = static () => new DatePicker(),
+            ["Decorator"] = static () => new Decorator(),
+            ["DockPanel"] = static () => new DockPanel(),
+            ["DocumentViewer"] = static () => new DocumentViewer(),
+            ["Expander"] = static () => new Expander(),
+            ["Frame"] = static () => new Frame(),
+            ["Grid"] = static () => new Grid(),
+            ["GridSplitter"] = static () => new GridSplitter(),
+            ["GroupBox"] = static () => new GroupBox(),
+            ["GroupItem"] = static () => new GroupItem(),
+            ["HeaderedContentControl"] = static () => new HeaderedContentControl(),
+            ["HeaderedItemsControl"] = static () => new HeaderedItemsControl(),
+            ["Image"] = static () => new Image(),
+            ["ItemsControl"] = static () => new ItemsControl(),
+            ["Label"] = static () => new Label(),
+            ["ListBox"] = static () => new ListBox(),
+            ["ListBoxItem"] = static () => new ListBoxItem(),
+            ["ListView"] = static () => new ListView(),
+            ["ListViewItem"] = static () => new ListViewItem(),
+            ["Menu"] = static () => new Menu(),
+            ["MenuItem"] = static () => new MenuItem(),
+            ["Page"] = static () => new Page(),
+            ["Panel"] = static () => new Panel(),
+            ["PasswordBox"] = static () => new PasswordBox(),
+            ["Popup"] = static () => new Popup(),
+            ["ProgressBar"] = static () => new ProgressBar(),
+            ["RadioButton"] = static () => new RadioButton(),
+            ["RepeatButton"] = static () => new RepeatButton(),
+            ["ResizeGrip"] = static () => new ResizeGrip(),
+            ["RichTextBox"] = static () => new RichTextBox(),
+            ["ScrollBar"] = static () => new ScrollBar(),
+            ["ScrollViewer"] = static () => new ScrollViewer(),
+            ["Separator"] = static () => new Separator(),
+            ["Slider"] = static () => new Slider(),
+            ["StackPanel"] = static () => new StackPanel(),
+            ["StatusBar"] = static () => new StatusBar(),
+            ["StatusBarItem"] = static () => new StatusBarItem(),
+            ["TabControl"] = static () => new TabControl(),
+            ["TabItem"] = static () => new TabItem(),
+            ["TextBlock"] = static () => new TextBlock(),
+            ["TextBox"] = static () => new TextBox(),
+            ["Thumb"] = static () => new Thumb(),
+            ["ToggleButton"] = static () => new ToggleButton(),
+            ["ToolBar"] = static () => new ToolBar(),
+            ["ToolBarOverflowPanel"] = static () => new ToolBarOverflowPanel(),
+            ["ToolBarPanel"] = static () => new ToolBarPanel(),
+            ["ToolBarTray"] = static () => new ToolBarTray(),
+            ["ToolTip"] = static () => new ToolTip(),
+            ["TreeView"] = static () => new TreeView(),
+            ["TreeViewItem"] = static () => new TreeViewItem(),
+            ["UniformGrid"] = static () => new UniformGrid(),
+            ["UserControl"] = static () => new UserControl(),
+            ["Viewbox"] = static () => new Viewbox(),
+            ["VirtualizingStackPanel"] = static () => new VirtualizingStackPanel(),
+            ["WrapPanel"] = static () => new WrapPanel(),
+        };
+
     private static ObservableCollection<DemoRow> CreateSampleDataGridItemsSource()
     {
         var items = new ObservableCollection<DemoRow>(
@@ -129,33 +306,15 @@ internal static class ControlDemoSupport
 
     internal static UIElement BuildSampleElement(string controlName)
     {
-        var sample = TryBuildKnownSample(controlName);
-        if (sample != null)
-        {
-            return EnsureSampleFilled(controlName, sample);
-        }
-
-        var controlType = ResolveType(controlName);
-        if (controlType == null || !typeof(UIElement).IsAssignableFrom(controlType))
-        {
-            return BuildInfoLabel($"{controlName} is not implemented as a UIElement in this framework.");
-        }
-
-        var ctor = controlType.GetConstructor(Type.EmptyTypes);
-        if (ctor == null)
-        {
-            return BuildInfoLabel($"{controlName} exists but has no parameterless constructor.");
-        }
-
         try
         {
-            var element = ctor.Invoke(null) as UIElement;
-            if (element == null)
+            var sample = TryBuildKnownSample(controlName) ?? TryBuildDefaultSample(controlName);
+            if (sample == null)
             {
-                return BuildInfoLabel($"Could not create {controlName}.");
+                return BuildInfoLabel($"{controlName} is not implemented as a UIElement in this framework.");
             }
 
-            return EnsureSampleFilled(controlName, element);
+            return EnsureSampleFilled(controlName, sample);
         }
         catch (Exception ex)
         {
@@ -507,6 +666,13 @@ internal static class ControlDemoSupport
         }
     }
 
+    private static UIElement? TryBuildDefaultSample(string controlName)
+    {
+        return DefaultSampleFactories.TryGetValue(controlName, out var factory)
+            ? factory()
+            : null;
+    }
+
     private static UIElement EnsureSampleFilled(string controlName, UIElement element)
     {
         if (element is FrameworkElement frameworkElement)
@@ -806,12 +972,6 @@ internal static class ControlDemoSupport
                thickness.Top == 0f &&
                thickness.Right == 0f &&
                thickness.Bottom == 0f;
-    }
-
-    private static Type? ResolveType(string controlName)
-    {
-        var asm = typeof(UIElement).Assembly;
-        return asm.GetTypes().FirstOrDefault(t => t.Name == controlName && t.Namespace == "InkkSlinger");
     }
 
     private static Label BuildInfoLabel(string text)

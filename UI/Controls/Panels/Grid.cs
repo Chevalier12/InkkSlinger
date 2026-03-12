@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -179,6 +180,8 @@ public sealed class RowDefinition
 
 public class Grid : Panel
 {
+    private static long _measureOverrideElapsedTicks;
+    private static long _arrangeOverrideElapsedTicks;
     public static readonly DependencyProperty RowProperty =
         DependencyProperty.RegisterAttached(
             "Row",
@@ -225,8 +228,18 @@ public class Grid : Panel
 
     private readonly ObservableCollection<ColumnDefinition> _columnDefinitions = new();
     private readonly ObservableCollection<RowDefinition> _rowDefinitions = new();
+    private readonly List<DefinitionSnapshot> _measureColumns = new();
+    private readonly List<DefinitionSnapshot> _measureRows = new();
+    private readonly List<DefinitionSnapshot> _arrangeColumns = new();
+    private readonly List<DefinitionSnapshot> _arrangeRows = new();
     private float[] _measuredColumnSizes = Array.Empty<float>();
     private float[] _measuredRowSizes = Array.Empty<float>();
+    private float[] _columnOffsets = Array.Empty<float>();
+    private float[] _rowOffsets = Array.Empty<float>();
+    private ChildLayoutMetadata[] _childLayoutMetadataCache = Array.Empty<ChildLayoutMetadata>();
+    private FirstPassMeasureRecord[] _firstPassMeasureRecords = Array.Empty<FirstPassMeasureRecord>();
+    private CachedChildMeasureState[] _cachedChildMeasureStates = Array.Empty<CachedChildMeasureState>();
+    private bool _childLayoutMetadataDirty = true;
 
     public Grid()
     {
@@ -278,68 +291,111 @@ public class Grid : Panel
         element.SetValue(ColumnSpanProperty, value);
     }
 
+    public override void AddChild(UIElement child)
+    {
+        InvalidateChildLayoutMetadataCache();
+        base.AddChild(child);
+    }
+
+    public override void InsertChild(int index, UIElement child)
+    {
+        InvalidateChildLayoutMetadataCache();
+        base.InsertChild(index, child);
+    }
+
+    public override bool RemoveChild(UIElement child)
+    {
+        InvalidateChildLayoutMetadataCache();
+        return base.RemoveChild(child);
+    }
+
+    public override bool RemoveChildAt(int index)
+    {
+        InvalidateChildLayoutMetadataCache();
+        return base.RemoveChildAt(index);
+    }
+
+    public override bool MoveChildRange(int oldIndex, int count, int newIndex)
+    {
+        InvalidateChildLayoutMetadataCache();
+        return base.MoveChildRange(oldIndex, count, newIndex);
+    }
+
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        var columns = BuildColumns();
-        var rows = BuildRows();
+        var start = Stopwatch.GetTimestamp();
+        try
+        {
+        var columns = PrepareColumnSnapshots(_measureColumns);
+        var rows = PrepareRowSnapshots(_measureRows);
+        var childLayoutMetadata = PrepareChildLayoutMetadata(rows, columns);
 
         ResolveDefinitionSizes(columns, availableSize.X);
         ResolveDefinitionSizes(rows, availableSize.Y);
+        EnsureChildMeasureRecordCapacity(childLayoutMetadata.Length);
 
-        foreach (var child in Children)
+        for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
         {
-            if (child is not FrameworkElement frameworkChild)
-            {
-                continue;
-            }
+            ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
+            var firstPassAvailable = ResolveFirstPassAvailableSize(metadata, rows, columns);
+            var desiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, firstPassAvailable);
 
-            var cell = NormalizeCell(child, rows.Count, columns.Count);
-            var firstPassAvailable = new Vector2(
-                RequiresAutoMeasurement(columns, cell.Column, cell.ColumnSpan)
-                    ? float.PositiveInfinity
-                    : SumRange(columns, cell.Column, cell.ColumnSpan),
-                RequiresAutoMeasurement(rows, cell.Row, cell.RowSpan)
-                    ? float.PositiveInfinity
-                    : SumRange(rows, cell.Row, cell.RowSpan));
-            frameworkChild.Measure(firstPassAvailable);
-            ApplyChildRequirement(columns, cell.Column, cell.ColumnSpan, frameworkChild.DesiredSize.X);
-            ApplyChildRequirement(rows, cell.Row, cell.RowSpan, frameworkChild.DesiredSize.Y);
+            _firstPassMeasureRecords[childMeasureIndex] = new FirstPassMeasureRecord(
+                metadata.Cell,
+                firstPassAvailable,
+                desiredSize,
+                metadata.HasAutoWidth,
+                metadata.HasAutoHeight,
+                metadata.HasExplicitWidth,
+                metadata.HasExplicitHeight,
+                float.IsPositiveInfinity(firstPassAvailable.X),
+                float.IsPositiveInfinity(firstPassAvailable.Y));
+
+            ApplyChildRequirement(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan, desiredSize.X);
+            ApplyChildRequirement(rows, metadata.Cell.Row, metadata.Cell.RowSpan, desiredSize.Y);
         }
 
         FinalizeDefinitionSizes(columns, availableSize.X);
         FinalizeDefinitionSizes(rows, availableSize.Y);
 
-        foreach (var child in Children)
+        for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
         {
-            if (child is not FrameworkElement frameworkChild)
-            {
-                continue;
-            }
-
-            var cell = NormalizeCell(child, rows.Count, columns.Count);
+            ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
             var childAvailable = new Vector2(
-                SumRange(columns, cell.Column, cell.ColumnSpan),
-                SumRange(rows, cell.Row, cell.RowSpan));
-            frameworkChild.Measure(childAvailable);
+                SumRange(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan),
+                SumRange(rows, metadata.Cell.Row, metadata.Cell.RowSpan));
+
+            if (ShouldReMeasureChild(_firstPassMeasureRecords[childMeasureIndex], childAvailable))
+            {
+                MeasureChildOrReuseCachedState(childMeasureIndex, metadata, childAvailable);
+            }
         }
 
-        _measuredColumnSizes = ExtractSizes(columns);
-        _measuredRowSizes = ExtractSizes(rows);
+        CopySizesToBuffer(columns, ref _measuredColumnSizes);
+        CopySizesToBuffer(rows, ref _measuredRowSizes);
 
         return new Vector2(SumSizes(columns), SumSizes(rows));
+        }
+        finally
+        {
+            _measureOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
-        var columns = BuildColumns();
-        var rows = BuildRows();
+        var start = Stopwatch.GetTimestamp();
+        try
+        {
+        var columns = PrepareColumnSnapshots(_arrangeColumns);
+        var rows = PrepareRowSnapshots(_arrangeRows);
 
         ResolveDefinitionSizes(columns, finalSize.X, _measuredColumnSizes);
         ResolveDefinitionSizes(rows, finalSize.Y, _measuredRowSizes);
         SyncActualDefinitionSizes(columns, rows);
 
-        var columnOffsets = BuildOffsets(columns, LayoutSlot.X);
-        var rowOffsets = BuildOffsets(rows, LayoutSlot.Y);
+        FillOffsets(columns, LayoutSlot.X, ref _columnOffsets);
+        FillOffsets(rows, LayoutSlot.Y, ref _rowOffsets);
 
         foreach (var child in Children)
         {
@@ -349,14 +405,19 @@ public class Grid : Panel
             }
 
             var cell = NormalizeCell(child, rows.Count, columns.Count);
-            var x = columnOffsets[cell.Column];
-            var y = rowOffsets[cell.Row];
+            var x = _columnOffsets[cell.Column];
+            var y = _rowOffsets[cell.Row];
             var width = SumRange(columns, cell.Column, cell.ColumnSpan);
             var height = SumRange(rows, cell.Row, cell.RowSpan);
             frameworkChild.Arrange(new LayoutRect(x, y, width, height));
         }
 
         return finalSize;
+        }
+        finally
+        {
+            _arrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
     }
 
     private void SyncActualDefinitionSizes(
@@ -385,6 +446,7 @@ public class Grid : Panel
             return;
         }
 
+        grid.InvalidateChildLayoutMetadataCache();
         grid.InvalidateMeasure();
     }
 
@@ -406,6 +468,7 @@ public class Grid : Panel
             }
         }
 
+        InvalidateChildLayoutMetadataCache();
         InvalidateMeasure();
     }
 
@@ -427,46 +490,50 @@ public class Grid : Panel
             }
         }
 
+        InvalidateChildLayoutMetadataCache();
         InvalidateMeasure();
     }
 
     private void OnDefinitionChanged(object? sender, EventArgs e)
     {
+        InvalidateChildLayoutMetadataCache();
         InvalidateMeasure();
     }
 
-    private List<DefinitionSnapshot> BuildColumns()
+    private List<DefinitionSnapshot> PrepareColumnSnapshots(List<DefinitionSnapshot> target)
     {
-        var columns = new List<DefinitionSnapshot>();
+        PrepareDefinitionSnapshots(target, _columnDefinitions.Count);
         if (_columnDefinitions.Count == 0)
         {
-            columns.Add(new DefinitionSnapshot(GridLength.Star, 0f, float.PositiveInfinity));
-            return columns;
+            target[0].Reset(GridLength.Star, 0f, float.PositiveInfinity);
+            return target;
         }
 
-        foreach (var definition in _columnDefinitions)
+        for (var i = 0; i < _columnDefinitions.Count; i++)
         {
-            columns.Add(new DefinitionSnapshot(definition.Width, definition.MinWidth, definition.MaxWidth));
+            var definition = _columnDefinitions[i];
+            target[i].Reset(definition.Width, definition.MinWidth, definition.MaxWidth);
         }
 
-        return columns;
+        return target;
     }
 
-    private List<DefinitionSnapshot> BuildRows()
+    private List<DefinitionSnapshot> PrepareRowSnapshots(List<DefinitionSnapshot> target)
     {
-        var rows = new List<DefinitionSnapshot>();
+        PrepareDefinitionSnapshots(target, _rowDefinitions.Count);
         if (_rowDefinitions.Count == 0)
         {
-            rows.Add(new DefinitionSnapshot(GridLength.Star, 0f, float.PositiveInfinity));
-            return rows;
+            target[0].Reset(GridLength.Star, 0f, float.PositiveInfinity);
+            return target;
         }
 
-        foreach (var definition in _rowDefinitions)
+        for (var i = 0; i < _rowDefinitions.Count; i++)
         {
-            rows.Add(new DefinitionSnapshot(definition.Height, definition.MinHeight, definition.MaxHeight));
+            var definition = _rowDefinitions[i];
+            target[i].Reset(definition.Height, definition.MinHeight, definition.MaxHeight);
         }
 
-        return rows;
+        return target;
     }
 
     private static void ResolveDefinitionSizes(
@@ -550,33 +617,57 @@ public class Grid : Panel
             return;
         }
 
-        var autoTargets = new List<int>();
-        var nonPixelTargets = new List<int>();
+        var autoTargetCount = 0;
+        var nonPixelTargetCount = 0;
         for (var i = start; i < end; i++)
         {
             if (!definitions[i].Length.IsPixel)
             {
-                nonPixelTargets.Add(i);
+                nonPixelTargetCount++;
             }
 
             if (definitions[i].Length.IsAuto)
             {
-                autoTargets.Add(i);
+                autoTargetCount++;
             }
         }
 
-        var targets = autoTargets.Count > 0 ? autoTargets : nonPixelTargets;
-        if (targets.Count == 0)
+        if (autoTargetCount > 0)
         {
-            targets.Add(end - 1);
+            var addPerTarget = extra / autoTargetCount;
+            for (var i = start; i < end; i++)
+            {
+                var definition = definitions[i];
+                if (!definition.Length.IsAuto)
+                {
+                    continue;
+                }
+
+                definition.Size = Clamp(definition.Size + addPerTarget, definition.Min, definition.Max);
+            }
+
+            return;
         }
 
-        var addPerTarget = extra / targets.Count;
-        foreach (var index in targets)
+        if (nonPixelTargetCount > 0)
         {
-            var definition = definitions[index];
-            definition.Size = Clamp(definition.Size + addPerTarget, definition.Min, definition.Max);
+            var addPerTarget = extra / nonPixelTargetCount;
+            for (var i = start; i < end; i++)
+            {
+                var definition = definitions[i];
+                if (definition.Length.IsPixel)
+                {
+                    continue;
+                }
+
+                definition.Size = Clamp(definition.Size + addPerTarget, definition.Min, definition.Max);
+            }
+
+            return;
         }
+
+        var fallback = definitions[end - 1];
+        fallback.Size = Clamp(fallback.Size + extra, fallback.Min, fallback.Max);
     }
 
     private static void FinalizeDefinitionSizes(IReadOnlyList<DefinitionSnapshot> definitions, float available)
@@ -652,17 +743,19 @@ public class Grid : Panel
         return overflow - shrinkTarget;
     }
 
-    private static float[] BuildOffsets(IReadOnlyList<DefinitionSnapshot> definitions, float origin)
+    private static void FillOffsets(IReadOnlyList<DefinitionSnapshot> definitions, float origin, ref float[] offsets)
     {
-        var offsets = new float[definitions.Count];
+        if (offsets.Length != definitions.Count)
+        {
+            offsets = new float[definitions.Count];
+        }
+
         var current = origin;
         for (var i = 0; i < definitions.Count; i++)
         {
             offsets[i] = current;
             current += definitions[i].Size;
         }
-
-        return offsets;
     }
 
     private static float SumSizes(IReadOnlyList<DefinitionSnapshot> definitions)
@@ -702,15 +795,298 @@ public class Grid : Panel
         return false;
     }
 
-    private static float[] ExtractSizes(IReadOnlyList<DefinitionSnapshot> definitions)
+    private static void CopySizesToBuffer(IReadOnlyList<DefinitionSnapshot> definitions, ref float[] buffer)
     {
-        var result = new float[definitions.Count];
-        for (var i = 0; i < definitions.Count; i++)
+        if (buffer.Length != definitions.Count)
         {
-            result[i] = definitions[i].Size;
+            buffer = new float[definitions.Count];
         }
 
-        return result;
+        for (var i = 0; i < definitions.Count; i++)
+        {
+            buffer[i] = definitions[i].Size;
+        }
+    }
+
+    private void EnsureChildMeasureRecordCapacity(int capacity)
+    {
+        if (_firstPassMeasureRecords.Length >= capacity)
+        {
+            if (_cachedChildMeasureStates.Length >= capacity)
+            {
+                return;
+            }
+        }
+
+        if (_firstPassMeasureRecords.Length < capacity)
+        {
+            _firstPassMeasureRecords = new FirstPassMeasureRecord[capacity];
+        }
+
+        if (_cachedChildMeasureStates.Length < capacity)
+        {
+            _cachedChildMeasureStates = new CachedChildMeasureState[capacity];
+        }
+    }
+
+    private ChildLayoutMetadata[] PrepareChildLayoutMetadata(
+        IReadOnlyList<DefinitionSnapshot> rows,
+        IReadOnlyList<DefinitionSnapshot> columns)
+    {
+        var frameworkChildCount = CountFrameworkChildren();
+        if (_childLayoutMetadataCache.Length != frameworkChildCount)
+        {
+            _childLayoutMetadataCache = new ChildLayoutMetadata[frameworkChildCount];
+            _childLayoutMetadataDirty = true;
+        }
+
+        var metadataIndex = 0;
+        foreach (var child in Children)
+        {
+            if (child is not FrameworkElement frameworkChild)
+            {
+                continue;
+            }
+
+            ref var metadata = ref _childLayoutMetadataCache[metadataIndex];
+            if (_childLayoutMetadataDirty || !ReferenceEquals(metadata.Child, frameworkChild))
+            {
+                var cell = NormalizeCell(child, rows.Count, columns.Count);
+                metadata = new ChildLayoutMetadata(
+                    frameworkChild,
+                    cell,
+                    HasAutoDefinition(columns, cell.Column, cell.ColumnSpan),
+                    HasAutoDefinition(rows, cell.Row, cell.RowSpan),
+                    HasExplicitSize(frameworkChild.Width),
+                    HasExplicitSize(frameworkChild.Height));
+            }
+            else
+            {
+                metadata = metadata with
+                {
+                    HasExplicitWidth = HasExplicitSize(frameworkChild.Width),
+                    HasExplicitHeight = HasExplicitSize(frameworkChild.Height)
+                };
+            }
+
+            metadataIndex++;
+        }
+
+        _childLayoutMetadataDirty = false;
+        return _childLayoutMetadataCache;
+    }
+
+    private static Vector2 ResolveFirstPassAvailableSize(
+        in ChildLayoutMetadata metadata,
+        IReadOnlyList<DefinitionSnapshot> rows,
+        IReadOnlyList<DefinitionSnapshot> columns)
+    {
+        var width = SumRange(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan);
+        if (metadata.HasAutoWidth)
+        {
+            width = metadata.HasExplicitWidth
+                ? ResolveExplicitMeasureAvailable(metadata.Child.Width, metadata.Child.Margin.Horizontal)
+                : float.PositiveInfinity;
+        }
+
+        var height = SumRange(rows, metadata.Cell.Row, metadata.Cell.RowSpan);
+        if (metadata.HasAutoHeight)
+        {
+            height = metadata.HasExplicitHeight
+                ? ResolveExplicitMeasureAvailable(metadata.Child.Height, metadata.Child.Margin.Vertical)
+                : float.PositiveInfinity;
+        }
+
+        return new Vector2(width, height);
+    }
+
+    private static float ResolveExplicitMeasureAvailable(float explicitSize, float margin)
+    {
+        if (float.IsNaN(explicitSize))
+        {
+            return float.PositiveInfinity;
+        }
+
+        return MathF.Max(0f, explicitSize + margin);
+    }
+
+    private static bool ShouldReMeasureChild(in FirstPassMeasureRecord firstPassRecord, Vector2 finalAvailableSize)
+    {
+        if (AreSizesClose(firstPassRecord.AvailableSize, finalAvailableSize))
+        {
+            return false;
+        }
+
+        var widthRequiresRemeasure = ShouldReMeasureAxis(
+            firstPassRecord.AvailableSize.X,
+            finalAvailableSize.X,
+            firstPassRecord.DesiredSize.X,
+            firstPassRecord.HasExplicitWidth,
+            firstPassRecord.WidthWasUnconstrained);
+
+        if (widthRequiresRemeasure)
+        {
+            return true;
+        }
+
+        return ShouldReMeasureAxis(
+            firstPassRecord.AvailableSize.Y,
+            finalAvailableSize.Y,
+            firstPassRecord.DesiredSize.Y,
+            firstPassRecord.HasExplicitHeight,
+            firstPassRecord.HeightWasUnconstrained);
+    }
+
+    private static bool ShouldReMeasureAxis(
+        float firstAvailable,
+        float finalAvailable,
+        float desired,
+        bool hasExplicitSize,
+        bool firstPassWasUnconstrained)
+    {
+        if (hasExplicitSize || AreFloatsClose(firstAvailable, finalAvailable))
+        {
+            return false;
+        }
+
+        if (firstPassWasUnconstrained)
+        {
+            return finalAvailable + 0.01f < desired;
+        }
+
+        if (desired < firstAvailable - 0.01f && finalAvailable + 0.01f >= desired)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private int CountFrameworkChildren()
+    {
+        var count = 0;
+        foreach (var child in Children)
+        {
+            if (child is FrameworkElement)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static bool HasAutoDefinition(IReadOnlyList<DefinitionSnapshot> definitions, int start, int span)
+    {
+        var end = Math.Min(definitions.Count, start + span);
+        for (var i = start; i < end; i++)
+        {
+            if (definitions[i].Length.IsAuto)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasExplicitSize(float value)
+    {
+        return !float.IsNaN(value);
+    }
+
+    private void InvalidateChildLayoutMetadataCache()
+    {
+        _childLayoutMetadataDirty = true;
+    }
+
+    private Vector2 MeasureChildOrReuseCachedState(
+        int childMeasureIndex,
+        in ChildLayoutMetadata metadata,
+        Vector2 availableSize)
+    {
+        if (!metadata.Child.NeedsMeasure &&
+            childMeasureIndex >= 0 &&
+            childMeasureIndex < _cachedChildMeasureStates.Length &&
+            CanReuseCachedMeasure(_cachedChildMeasureStates[childMeasureIndex], metadata.Child, availableSize))
+        {
+            return _cachedChildMeasureStates[childMeasureIndex].DesiredSize;
+        }
+
+        metadata.Child.Measure(availableSize);
+        if (childMeasureIndex >= 0 && childMeasureIndex < _cachedChildMeasureStates.Length)
+        {
+            _cachedChildMeasureStates[childMeasureIndex] = new CachedChildMeasureState(
+                metadata.Child,
+                availableSize,
+                metadata.Child.DesiredSize,
+                metadata.HasExplicitWidth,
+                metadata.HasExplicitHeight,
+                float.IsPositiveInfinity(availableSize.X),
+                float.IsPositiveInfinity(availableSize.Y),
+                true);
+        }
+
+        return metadata.Child.DesiredSize;
+    }
+
+    private static bool CanReuseCachedMeasure(
+        in CachedChildMeasureState cachedState,
+        FrameworkElement child,
+        Vector2 availableSize)
+    {
+        if (!cachedState.IsValid || !ReferenceEquals(cachedState.Child, child))
+        {
+            return false;
+        }
+
+        return !ShouldReMeasureAxis(
+                   cachedState.AvailableSize.X,
+                   availableSize.X,
+                   cachedState.DesiredSize.X,
+                   cachedState.HasExplicitWidth,
+                   cachedState.WidthWasUnconstrained)
+               && !ShouldReMeasureAxis(
+                   cachedState.AvailableSize.Y,
+                   availableSize.Y,
+                   cachedState.DesiredSize.Y,
+                   cachedState.HasExplicitHeight,
+                   cachedState.HeightWasUnconstrained);
+    }
+
+    private static bool AreSizesClose(Vector2 first, Vector2 second)
+    {
+        return AreFloatsClose(first.X, second.X) && AreFloatsClose(first.Y, second.Y);
+    }
+
+    private static bool AreFloatsClose(float first, float second)
+    {
+        if (float.IsNaN(first) || float.IsNaN(second))
+        {
+            return float.IsNaN(first) && float.IsNaN(second);
+        }
+
+        if (float.IsInfinity(first) || float.IsInfinity(second))
+        {
+            return float.IsPositiveInfinity(first) == float.IsPositiveInfinity(second) &&
+                   float.IsNegativeInfinity(first) == float.IsNegativeInfinity(second);
+        }
+
+        return MathF.Abs(first - second) < 0.01f;
+    }
+
+    private static void PrepareDefinitionSnapshots(List<DefinitionSnapshot> target, int definitionCount)
+    {
+        var requiredCount = definitionCount == 0 ? 1 : definitionCount;
+        while (target.Count < requiredCount)
+        {
+            target.Add(new DefinitionSnapshot(GridLength.Star, 0f, float.PositiveInfinity));
+        }
+
+        if (target.Count > requiredCount)
+        {
+            target.RemoveRange(requiredCount, target.Count - requiredCount);
+        }
     }
 
     private static CellInfo NormalizeCell(UIElement child, int rowCount, int columnCount)
@@ -797,18 +1173,24 @@ public class Grid : Panel
     {
         public DefinitionSnapshot(GridLength length, float min, float max)
         {
+            Reset(length, min, max);
+        }
+
+        public GridLength Length { get; private set; }
+
+        public float Min { get; private set; }
+
+        public float Max { get; private set; }
+
+        public float Size { get; set; }
+
+        public void Reset(GridLength length, float min, float max)
+        {
             Length = length;
             Min = min;
             Max = max;
+            Size = 0f;
         }
-
-        public GridLength Length { get; }
-
-        public float Min { get; }
-
-        public float Max { get; }
-
-        public float Size { get; set; }
     }
 
     private readonly struct CellInfo
@@ -829,4 +1211,48 @@ public class Grid : Panel
 
         public int ColumnSpan { get; }
     }
+
+    private readonly record struct ChildLayoutMetadata(
+        FrameworkElement Child,
+        CellInfo Cell,
+        bool HasAutoWidth,
+        bool HasAutoHeight,
+        bool HasExplicitWidth,
+        bool HasExplicitHeight);
+
+    private readonly record struct FirstPassMeasureRecord(
+        CellInfo Cell,
+        Vector2 AvailableSize,
+        Vector2 DesiredSize,
+        bool HasAutoWidth,
+        bool HasAutoHeight,
+        bool HasExplicitWidth,
+        bool HasExplicitHeight,
+        bool WidthWasUnconstrained,
+        bool HeightWasUnconstrained);
+
+    private readonly record struct CachedChildMeasureState(
+        FrameworkElement Child,
+        Vector2 AvailableSize,
+        Vector2 DesiredSize,
+        bool HasExplicitWidth,
+        bool HasExplicitHeight,
+        bool WidthWasUnconstrained,
+        bool HeightWasUnconstrained,
+        bool IsValid);
+
+    internal static GridTimingSnapshot GetTimingSnapshotForTests()
+    {
+        return new GridTimingSnapshot(_measureOverrideElapsedTicks, _arrangeOverrideElapsedTicks);
+    }
+
+    internal static void ResetTimingForTests()
+    {
+        _measureOverrideElapsedTicks = 0;
+        _arrangeOverrideElapsedTicks = 0;
+    }
 }
+
+internal readonly record struct GridTimingSnapshot(
+    long MeasureOverrideElapsedTicks,
+    long ArrangeOverrideElapsedTicks);

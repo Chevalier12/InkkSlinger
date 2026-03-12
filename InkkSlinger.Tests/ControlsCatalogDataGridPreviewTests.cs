@@ -14,9 +14,7 @@ public sealed class ControlsCatalogDataGridPreviewTests
     public void SelectingDataGridPreview_ShouldPopulateRetainedRows()
     {
         var view = new ControlsCatalogView();
-        var showControl = typeof(ControlsCatalogView).GetMethod("ShowControl", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(showControl);
-        showControl!.Invoke(view, ["DataGrid"]);
+        view.ShowControl("DataGrid");
 
         var uiRoot = new UiRoot(view);
         uiRoot.Update(
@@ -46,8 +44,6 @@ public sealed class ControlsCatalogDataGridPreviewTests
     public void SwitchingPreviewToDataGrid_ShouldDirtyRowRegion()
     {
         var view = new ControlsCatalogView();
-        var showControl = typeof(ControlsCatalogView).GetMethod("ShowControl", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(showControl);
 
         var uiRoot = new UiRoot(view);
         uiRoot.Update(
@@ -56,7 +52,7 @@ public sealed class ControlsCatalogDataGridPreviewTests
         uiRoot.CompleteDrawStateForTests();
         uiRoot.ResetDirtyStateForTests();
 
-        showControl!.Invoke(view, ["DataGrid"]);
+        view.ShowControl("DataGrid");
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(32), TimeSpan.FromMilliseconds(16)),
             new Viewport(0, 0, 1280, 820));
@@ -78,11 +74,9 @@ public sealed class ControlsCatalogDataGridPreviewTests
     {
         var view = new ControlsCatalogView();
         var appliedFont = (SpriteFont)RuntimeHelpers.GetUninitializedObject(typeof(SpriteFont));
-        var showControl = typeof(ControlsCatalogView).GetMethod("ShowControl", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(showControl);
 
         view.SetFont(appliedFont);
-        showControl!.Invoke(view, ["DataGrid"]);
+        view.ShowControl("DataGrid");
 
         var uiRoot = new UiRoot(view);
         uiRoot.Update(

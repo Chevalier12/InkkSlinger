@@ -1,11 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
 public class FrameworkElement : UIElement
 {
+    [ThreadStatic]
+    private static List<long>? _activeMeasureChildTickStack;
+
     private readonly Dictionary<DependencyProperty, object> _dynamicResourceBindings = new();
     private FrameworkElement? _resourceParent;
     private NameScope? _nameScope;
@@ -171,6 +175,11 @@ public class FrameworkElement : UIElement
     private LayoutRect _arrangeRect;
     private int _measureCallCount;
     private int _arrangeCallCount;
+    private int _measureWorkCount;
+    private int _arrangeWorkCount;
+    private long _measureElapsedTicks;
+    private long _measureExclusiveElapsedTicks;
+    private long _arrangeElapsedTicks;
 
     public FrameworkElement()
     {
@@ -335,6 +344,16 @@ public class FrameworkElement : UIElement
 
     public int ArrangeCallCount => _arrangeCallCount;
 
+    internal int MeasureWorkCount => _measureWorkCount;
+
+    internal int ArrangeWorkCount => _arrangeWorkCount;
+
+    internal long MeasureElapsedTicksForTests => _measureElapsedTicks;
+
+    internal long MeasureExclusiveElapsedTicksForTests => _measureExclusiveElapsedTicks;
+
+    internal long ArrangeElapsedTicksForTests => _arrangeElapsedTicks;
+
     internal NameScope? GetLocalNameScope()
     {
         return _nameScope;
@@ -383,6 +402,7 @@ public class FrameworkElement : UIElement
 
         if (!IsVisible)
         {
+            _measureWorkCount++;
             DesiredSize = new Vector2(
                 0f,
                 0f);
@@ -397,32 +417,61 @@ public class FrameworkElement : UIElement
             return;
         }
 
+        if (_isMeasureValid &&
+            CanReuseMeasureForAvailableSizeChange(_previousAvailableSize, effectiveAvailableSize))
+        {
+            _previousAvailableSize = effectiveAvailableSize;
+            return;
+        }
+
+        _measureWorkCount++;
         _previousAvailableSize = effectiveAvailableSize;
+        var measureStart = Stopwatch.GetTimestamp();
+        var measureChildTickStack = _activeMeasureChildTickStack ??= new List<long>();
+        measureChildTickStack.Add(0L);
 
-        var margin = Margin;
-        var innerAvailable = new Vector2(
-            MathF.Max(0f, effectiveAvailableSize.X - margin.Horizontal),
-            MathF.Max(0f, effectiveAvailableSize.Y - margin.Vertical));
-
-        var measured = MeasureOverride(innerAvailable);
-        measured = ApplyExplicitConstraints(measured);
-        if (useLayoutRounding)
+        try
         {
-            measured = RoundLayoutSize(measured);
-        }
+            var margin = Margin;
+            var innerAvailable = new Vector2(
+                MathF.Max(0f, effectiveAvailableSize.X - margin.Horizontal),
+                MathF.Max(0f, effectiveAvailableSize.Y - margin.Vertical));
 
-        var desired = new Vector2(
-            measured.X + margin.Horizontal,
-            measured.Y + margin.Vertical);
-        if (useLayoutRounding)
+            var measured = MeasureOverride(innerAvailable);
+            measured = ApplyExplicitConstraints(measured);
+            if (useLayoutRounding)
+            {
+                measured = RoundLayoutSize(measured);
+            }
+
+            var desired = new Vector2(
+                measured.X + margin.Horizontal,
+                measured.Y + margin.Vertical);
+            if (useLayoutRounding)
+            {
+                desired = RoundLayoutSize(desired);
+            }
+
+            DesiredSize = desired;
+
+            _isMeasureValid = true;
+            ClearMeasureInvalidation();
+        }
+        finally
         {
-            desired = RoundLayoutSize(desired);
+            var totalMeasureTicks = Stopwatch.GetTimestamp() - measureStart;
+            var lastIndex = measureChildTickStack.Count - 1;
+            var childMeasureTicks = measureChildTickStack[lastIndex];
+            measureChildTickStack.RemoveAt(lastIndex);
+
+            _measureElapsedTicks += totalMeasureTicks;
+            _measureExclusiveElapsedTicks += Math.Max(0L, totalMeasureTicks - childMeasureTicks);
+
+            if (measureChildTickStack.Count > 0)
+            {
+                measureChildTickStack[^1] += totalMeasureTicks;
+            }
         }
-
-        DesiredSize = desired;
-
-        _isMeasureValid = true;
-        ClearMeasureInvalidation();
     }
 
     public void Arrange(LayoutRect finalRect)
@@ -441,7 +490,9 @@ public class FrameworkElement : UIElement
             return;
         }
 
+        _arrangeWorkCount++;
         _arrangeRect = effectiveFinalRect;
+        var arrangeStart = Stopwatch.GetTimestamp();
 
         if (!IsVisible)
         {
@@ -449,6 +500,7 @@ public class FrameworkElement : UIElement
             RenderSize = Vector2.Zero;
             _isArrangeValid = true;
             ClearArrangeInvalidation();
+            _arrangeElapsedTicks += Stopwatch.GetTimestamp() - arrangeStart;
             return;
         }
 
@@ -500,6 +552,7 @@ public class FrameworkElement : UIElement
         _isArrangeValid = true;
         ClearArrangeInvalidation();
         LayoutUpdated?.Invoke(this, EventArgs.Empty);
+        _arrangeElapsedTicks += Stopwatch.GetTimestamp() - arrangeStart;
     }
 
     public override void InvalidateMeasure()
@@ -588,6 +641,13 @@ public class FrameworkElement : UIElement
     protected virtual Vector2 MeasureOverride(Vector2 availableSize)
     {
         return Vector2.Zero;
+    }
+
+    protected virtual bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        _ = previousAvailableSize;
+        _ = nextAvailableSize;
+        return false;
     }
 
     protected virtual Vector2 ArrangeOverride(Vector2 finalSize)

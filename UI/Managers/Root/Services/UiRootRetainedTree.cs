@@ -28,9 +28,13 @@ public sealed partial class UiRoot
             return false;
         }
 
+        if (!ReferenceEquals(element.GetVisualRoot(), _visualRoot))
+        {
+            return false;
+        }
+
         EnsureVisualIndexCurrent();
-        return _visualIndex.TryGetNode(element, out _) &&
-               ReferenceEquals(element.GetVisualRoot(), _visualRoot);
+        return _visualIndex.TryGetNode(element, out _);
     }
 
     private void EnqueueDirtyRenderNode(UIElement visual)

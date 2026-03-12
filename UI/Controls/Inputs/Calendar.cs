@@ -81,7 +81,7 @@ public class Calendar : UserControl
                 {
                     if (dependencyObject is Calendar calendar)
                     {
-                        calendar.UpdateCalendarView();
+                        calendar.RequestCalendarRefresh();
                     }
                 },
                 coerceValueCallback: static (dependencyObject, value) =>
@@ -154,7 +154,7 @@ public class Calendar : UserControl
                 {
                     if (dependencyObject is Calendar calendar)
                     {
-                        calendar.UpdateCalendarView();
+                        calendar.RequestCalendarRefresh();
                     }
                 }));
 
@@ -175,6 +175,10 @@ public class Calendar : UserControl
     private DateTime? _lastActiveDate;
     private ModifierKeys _clickModifiers;
     private bool _isSynchronizingSelectedDate;
+    private bool _hasPendingCalendarRefresh = true;
+    private bool _hasCompletedInitialCalendarRefresh;
+    private bool _hasDeferredInitialCalendarRefreshQueued;
+    private int _calendarViewRefreshCount;
 
     public Calendar()
     {
@@ -277,7 +281,6 @@ public class Calendar : UserControl
         Content = _rootGrid;
 
         AddHandler<KeyRoutedEventArgs>(UIElement.KeyDownEvent, OnKeyDown, handledEventsToo: true);
-        UpdateCalendarView();
     }
 
     public event EventHandler<SelectionChangedEventArgs> SelectedDateChanged
@@ -330,14 +333,40 @@ public class Calendar : UserControl
         set => SetValue(FirstDayOfWeekProperty, value);
     }
 
-    protected internal IReadOnlyList<Button> DayButtonsForTesting => _dayButtons;
-    protected internal string MonthLabelTextForTesting => _monthLabel.Text;
-    protected internal IReadOnlyList<Label> WeekDayLabelsForTesting => _weekDayLabels;
+    protected internal IReadOnlyList<Button> DayButtonsForTesting
+    {
+        get
+        {
+            EnsureCalendarViewCurrent();
+            return _dayButtons;
+        }
+    }
+
+    protected internal string MonthLabelTextForTesting
+    {
+        get
+        {
+            EnsureCalendarViewCurrent();
+            return _monthLabel.Text;
+        }
+    }
+
+    protected internal IReadOnlyList<Label> WeekDayLabelsForTesting
+    {
+        get
+        {
+            EnsureCalendarViewCurrent();
+            return _weekDayLabels;
+        }
+    }
+
+    protected internal int CalendarViewRefreshCountForTesting => _calendarViewRefreshCount;
     protected internal Button PreviousMonthButtonForTesting => _previousMonthButton;
     protected internal Button NextMonthButtonForTesting => _nextMonthButton;
 
     protected internal bool TryGetDayButtonIndexForDateForTesting(DateTime date, out int index)
     {
+        EnsureCalendarViewCurrent();
         var normalized = date.Date;
         for (var i = 0; i < _dayButtonDates.Length; i++)
         {
@@ -444,7 +473,7 @@ public class Calendar : UserControl
 
         if (_selectedRanges.Count == 0)
         {
-            UpdateCalendarView();
+            RequestCalendarRefresh();
             return;
         }
 
@@ -488,7 +517,7 @@ public class Calendar : UserControl
             return;
         }
 
-        UpdateCalendarView();
+        RequestCalendarRefresh();
     }
 
     private void OnDisplayRangeChanged()
@@ -514,7 +543,7 @@ public class Calendar : UserControl
             return;
         }
 
-        UpdateCalendarView();
+        RequestCalendarRefresh();
     }
 
     private void NavigateMonth(int monthDelta)
@@ -652,7 +681,7 @@ public class Calendar : UserControl
             return;
         }
 
-        UpdateCalendarView();
+        RequestCalendarRefresh();
     }
 
     private void SelectSingleDate(DateTime date)
@@ -781,7 +810,7 @@ public class Calendar : UserControl
             }
         }
 
-        UpdateCalendarView();
+        RequestCalendarRefresh();
 
         if (!AreDateListsEqual(previousSelectedDates, _selectedDates))
         {
@@ -821,16 +850,40 @@ public class Calendar : UserControl
         return _selectedDates[^1];
     }
 
+    private void RequestCalendarRefresh()
+    {
+        _hasPendingCalendarRefresh = true;
+        if (_hasCompletedInitialCalendarRefresh)
+        {
+            UpdateCalendarView();
+            return;
+        }
+
+        QueueInitialCalendarRefreshIfNeeded();
+    }
+
+    private void EnsureCalendarViewCurrent()
+    {
+        if (_hasPendingCalendarRefresh)
+        {
+            UpdateCalendarView();
+        }
+    }
+
     private void UpdateCalendarView()
     {
+        _hasPendingCalendarRefresh = false;
+        _hasCompletedInitialCalendarRefresh = true;
+        _calendarViewRefreshCount++;
+
         var displayMonth = NormalizeToMonthStart(DisplayDate);
-        _monthLabel.Text = displayMonth.ToString("Y", CultureInfo.CurrentCulture);
+        SetLabelTextIfChanged(_monthLabel, displayMonth.ToString("Y", CultureInfo.CurrentCulture));
 
         var shortestDayNames = CultureInfo.CurrentCulture.DateTimeFormat.ShortestDayNames;
         for (var i = 0; i < _weekDayLabels.Length; i++)
         {
             var index = (((int)FirstDayOfWeek + i) % 7 + 7) % 7;
-            _weekDayLabels[i].Text = shortestDayNames[index];
+            SetLabelTextIfChanged(_weekDayLabels[i], shortestDayNames[index]);
         }
 
         var offsetFromFirstDay = ((int)displayMonth.DayOfWeek - (int)FirstDayOfWeek + 7) % 7;
@@ -843,7 +896,7 @@ public class Calendar : UserControl
             _dayButtonDates[i] = date;
 
             var button = _dayButtons[i];
-            button.Text = date.Day.ToString(CultureInfo.InvariantCulture);
+            SetButtonTextIfChanged(button, date.Day.ToString(CultureInfo.InvariantCulture));
 
             var inDisplayMonth = date.Month == displayMonth.Month && date.Year == displayMonth.Year;
             var isPrimarySelected = _lastActiveDate.HasValue && _lastActiveDate.Value.Date == date;
@@ -851,14 +904,102 @@ public class Calendar : UserControl
             var isToday = date == today;
             var isEnabled = IsDateSelectable(date);
 
-            button.IsEnabled = isEnabled;
-            button.Background = ResolveDayButtonBackground(inDisplayMonth, isSelectedInRange, isPrimarySelected, isToday);
-            button.Foreground = ResolveDayButtonForeground(inDisplayMonth, isEnabled, isSelectedInRange, isPrimarySelected);
-            button.BorderBrush = ResolveDayButtonBorderBrush(isSelectedInRange, isPrimarySelected, isToday);
+            SetButtonEnabledIfChanged(button, isEnabled);
+            SetButtonBackgroundIfChanged(button, ResolveDayButtonBackground(inDisplayMonth, isSelectedInRange, isPrimarySelected, isToday));
+            SetButtonForegroundIfChanged(button, ResolveDayButtonForeground(inDisplayMonth, isEnabled, isSelectedInRange, isPrimarySelected));
+            SetButtonBorderBrushIfChanged(button, ResolveDayButtonBorderBrush(isSelectedInRange, isPrimarySelected, isToday));
         }
 
-        _previousMonthButton.IsEnabled = CanDisplayMonth(displayMonth.AddMonths(-1));
-        _nextMonthButton.IsEnabled = CanDisplayMonth(displayMonth.AddMonths(1));
+        SetButtonEnabledIfChanged(_previousMonthButton, CanDisplayMonth(displayMonth.AddMonths(-1)));
+        SetButtonEnabledIfChanged(_nextMonthButton, CanDisplayMonth(displayMonth.AddMonths(1)));
+    }
+
+    protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
+    {
+        base.OnVisualParentChanged(oldParent, newParent);
+
+        if (newParent != null)
+        {
+            QueueInitialCalendarRefreshIfNeeded();
+        }
+    }
+
+    protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
+    {
+        base.OnLogicalParentChanged(oldParent, newParent);
+
+        if (VisualParent == null && newParent != null)
+        {
+            QueueInitialCalendarRefreshIfNeeded();
+        }
+    }
+
+    private void QueueInitialCalendarRefreshIfNeeded()
+    {
+        if (_hasCompletedInitialCalendarRefresh ||
+            !_hasPendingCalendarRefresh ||
+            _hasDeferredInitialCalendarRefreshQueued)
+        {
+            return;
+        }
+
+        _hasDeferredInitialCalendarRefreshQueued = true;
+        Dispatcher.EnqueueDeferred(() =>
+        {
+            _hasDeferredInitialCalendarRefreshQueued = false;
+            if (_hasPendingCalendarRefresh && !_hasCompletedInitialCalendarRefresh)
+            {
+                UpdateCalendarView();
+            }
+        });
+    }
+
+    private static void SetLabelTextIfChanged(Label label, string text)
+    {
+        if (!string.Equals(label.Text, text, StringComparison.Ordinal))
+        {
+            label.Text = text;
+        }
+    }
+
+    private static void SetButtonTextIfChanged(Button button, string text)
+    {
+        if (!string.Equals(button.Text, text, StringComparison.Ordinal))
+        {
+            button.Text = text;
+        }
+    }
+
+    private static void SetButtonEnabledIfChanged(Button button, bool isEnabled)
+    {
+        if (button.IsEnabled != isEnabled)
+        {
+            button.IsEnabled = isEnabled;
+        }
+    }
+
+    private static void SetButtonBackgroundIfChanged(Button button, Color background)
+    {
+        if (button.Background != background)
+        {
+            button.Background = background;
+        }
+    }
+
+    private static void SetButtonForegroundIfChanged(Button button, Color foreground)
+    {
+        if (button.Foreground != foreground)
+        {
+            button.Foreground = foreground;
+        }
+    }
+
+    private static void SetButtonBorderBrushIfChanged(Button button, Color borderBrush)
+    {
+        if (button.BorderBrush != borderBrush)
+        {
+            button.BorderBrush = borderBrush;
+        }
     }
 
     private static Color ResolveDayButtonBackground(bool inDisplayMonth, bool isSelectedInRange, bool isPrimarySelected, bool isToday)

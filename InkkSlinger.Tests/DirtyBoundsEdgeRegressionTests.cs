@@ -18,7 +18,7 @@ public sealed class DirtyBoundsEdgeRegressionTests
     }
 
     [Fact]
-    public void RenderInvalidation_FromDetachedSource_EscalatesToFullFrameDirty()
+    public void RenderInvalidation_FromDetachedSource_IsIgnoredByLiveRoot()
     {
         var uiRoot = new UiRoot(new Panel());
         uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 200f, 200f));
@@ -26,7 +26,53 @@ public sealed class DirtyBoundsEdgeRegressionTests
 
         uiRoot.NotifyInvalidation(UiInvalidationType.Render, new Border());
 
-        Assert.True(uiRoot.IsFullDirtyForTests());
+        Assert.False(uiRoot.IsFullDirtyForTests());
+        Assert.Empty(uiRoot.GetDirtyRegionsSnapshotForTests());
+        Assert.Equal(0, uiRoot.RenderInvalidationCount);
+    }
+
+    [Fact]
+    public void DetachedElementInvalidations_DoNotMutateLiveRootState()
+    {
+        var root = new Panel();
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 200f, 200f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+
+        var detached = new Border();
+        detached.InvalidateMeasure();
+        detached.InvalidateArrange();
+        detached.InvalidateVisual();
+
+        Assert.False(uiRoot.IsFullDirtyForTests());
+        Assert.Empty(uiRoot.GetDirtyRegionsSnapshotForTests());
+        Assert.Equal(0, uiRoot.MeasureInvalidationCount);
+        Assert.Equal(0, uiRoot.ArrangeInvalidationCount);
+        Assert.Equal(0, uiRoot.RenderInvalidationCount);
+    }
+
+    [Fact]
+    public void AttachedElementInvalidations_StillMutateLiveRootState()
+    {
+        var root = new Panel();
+        var child = new Border();
+        root.AddChild(child);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 200f, 200f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+
+        child.InvalidateMeasure();
+
+        Assert.True(uiRoot.MeasureInvalidationCount > 0);
+        Assert.True(uiRoot.ArrangeInvalidationCount > 0);
+        Assert.True(uiRoot.RenderInvalidationCount > 0);
     }
 
     [Fact]
@@ -121,6 +167,38 @@ public sealed class DirtyBoundsEdgeRegressionTests
 
         Assert.False(uiRoot.IsRenderListFullRebuildPendingForTests());
         Assert.False(uiRoot.IsFullDirtyForTests());
+    }
+
+    [Fact]
+    public void ConstructingDetachedSubtree_DoesNotMutateLiveVisualStructureMetrics()
+    {
+        var root = new Panel();
+        root.AddChild(new Border());
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+
+        var beforeMetrics = uiRoot.GetMetricsSnapshot();
+        var beforePerf = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+
+        var detachedRoot = new StackPanel();
+        for (var i = 0; i < 8; i++)
+        {
+            var row = new StackPanel();
+            row.AddChild(new Label { Text = $"Label {i}" });
+            row.AddChild(new Button { Text = $"Button {i}" });
+            detachedRoot.AddChild(row);
+        }
+
+        var afterMetrics = uiRoot.GetMetricsSnapshot();
+        var afterPerf = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+
+        Assert.Equal(beforeMetrics.VisualStructureChangeCount, afterMetrics.VisualStructureChangeCount);
+        Assert.Equal(beforePerf.VisualIndexVersion, afterPerf.VisualIndexVersion);
+        Assert.False(uiRoot.IsRenderListFullRebuildPendingForTests());
     }
 
     [Fact]

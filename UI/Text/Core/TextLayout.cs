@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Xna.Framework;
@@ -20,6 +21,8 @@ public static class TextLayout
     private static int _wrappedBuildCount;
     private static int _totalMeasuredTextLength;
     private static int _totalProducedLineCount;
+    private static long _layoutElapsedTicks;
+    private static long _buildElapsedTicks;
 
     public static TextLayoutMetricsSnapshot GetMetricsSnapshot()
     {
@@ -32,7 +35,9 @@ public static class TextLayout
             _wrappedBuildCount,
             _totalMeasuredTextLength,
             _totalProducedLineCount,
-            Cache.Count);
+            Cache.Count,
+            _layoutElapsedTicks,
+            _buildElapsedTicks);
     }
 
     public static void ResetMetricsForTests()
@@ -45,12 +50,17 @@ public static class TextLayout
         _wrappedBuildCount = 0;
         _totalMeasuredTextLength = 0;
         _totalProducedLineCount = 0;
+        _layoutElapsedTicks = 0;
+        _buildElapsedTicks = 0;
         Cache.Clear();
         CacheOrder.Clear();
     }
 
     public static TextLayoutResult Layout(string? text, SpriteFont? font, float fontSize, float availableWidth, TextWrapping wrapping)
     {
+        var start = Stopwatch.GetTimestamp();
+        try
+        {
         _layoutRequestCount++;
         if (string.IsNullOrEmpty(text))
         {
@@ -70,6 +80,11 @@ public static class TextLayout
         _totalProducedLineCount += result.Lines.Count;
         AddToCache(key, result);
         return result;
+        }
+        finally
+        {
+            _layoutElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
     }
 
     public static TextLayoutResult Layout(string? text, SpriteFont? font, float availableWidth, TextWrapping wrapping)
@@ -79,6 +94,9 @@ public static class TextLayout
 
     private static TextLayoutResult BuildLayout(string text, SpriteFont? font, float fontSize, float availableWidth, TextWrapping wrapping)
     {
+        var start = Stopwatch.GetTimestamp();
+        try
+        {
         _buildCount++;
         if (wrapping == TextWrapping.NoWrap ||
             float.IsInfinity(availableWidth) ||
@@ -91,6 +109,11 @@ public static class TextLayout
 
         _wrappedBuildCount++;
         return BuildWrappedLayout(text, font, fontSize, availableWidth);
+        }
+        finally
+        {
+            _buildElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
     }
 
     public readonly record struct TextLayoutMetricsSnapshot(
@@ -102,7 +125,9 @@ public static class TextLayout
         int WrappedBuildCount,
         int TotalMeasuredTextLength,
         int TotalProducedLineCount,
-        int CacheEntryCount);
+        int CacheEntryCount,
+        long LayoutElapsedTicks,
+        long BuildElapsedTicks);
 
     private static TextLayoutResult BuildNoWrapLayout(string text, SpriteFont? font, float fontSize)
     {
