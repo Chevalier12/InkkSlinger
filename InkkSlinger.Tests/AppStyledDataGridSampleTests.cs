@@ -171,7 +171,7 @@ public sealed class AppStyledDataGridSampleTests
 
     private static bool IsScalableTextRendererEnabled()
     {
-        var rendererType = typeof(DataGridView).Assembly.GetType("InkkSlinger.FontStashTextRenderer");
+        var rendererType = typeof(DataGridView).Assembly.GetType("InkkSlinger.UiTextRenderer");
         var property = rendererType?.GetProperty("IsEnabled", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
         return property?.GetValue(null) as bool? == true;
     }

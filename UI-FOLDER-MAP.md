@@ -302,7 +302,7 @@ UI/
       DirtyRegionTracker.cs
       IRenderDirtyBoundsHintProvider.cs
     Text
-      FontStashTextRenderer.cs
+      UiTextRenderer.cs
   Resources
     Core
       ResourceDictionary.cs

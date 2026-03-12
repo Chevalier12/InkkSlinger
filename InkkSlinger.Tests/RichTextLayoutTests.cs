@@ -128,7 +128,7 @@ public sealed class RichTextLayoutTests
 
         Assert.True(layout.TryGetCaretPosition(Text.Length, out var caret));
 
-        var expectedWidth = FontStashTextRenderer.MeasureWidth(null, Text, fontSize);
+        var expectedWidth = UiTextRenderer.MeasureWidth(null, Text, fontSize);
         var measuredWidth = caret.X - line.TextStartX;
         Assert.True(
             MathF.Abs(measuredWidth - expectedWidth) <= 0.01f,
@@ -170,7 +170,7 @@ public sealed class RichTextLayoutTests
         var line = Assert.Single(layout.Lines);
         var boldRun = Assert.Single(line.Runs, static r => r.Style.IsBold && r.Text == "Ctrl+Enter");
         var nextRun = line.Runs.First(static r => !r.Style.IsBold && r.Text.Contains(" click", StringComparison.Ordinal));
-        var boldMeasuredWidth = FontStashTextRenderer.MeasureWidth(null, boldRun.Text, bold: true);
+        var boldMeasuredWidth = UiTextRenderer.MeasureWidth(null, boldRun.Text, bold: true);
         var boldMeasuredEndX = boldRun.Bounds.X + boldMeasuredWidth;
 
         Assert.True(
@@ -236,7 +236,7 @@ public sealed class RichTextLayoutTests
             FontSize: fontSize,
             Wrapping: TextWrapping.Wrap,
             Foreground: Color.White,
-            LineHeight: Math.Max(1f, FontStashTextRenderer.GetLineHeight(null, fontSize)),
+            LineHeight: Math.Max(1f, UiTextRenderer.GetLineHeight(null, fontSize)),
             ListIndent: 16f,
             ListMarkerGap: 4f,
             TableCellPadding: 4f,

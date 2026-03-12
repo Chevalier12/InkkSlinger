@@ -369,8 +369,8 @@ public class Expander : ContentControl
         }
 
         var text = Header?.ToString() ?? string.Empty;
-        var textWidth = FontStashTextRenderer.MeasureWidth(Font, text, FontSize);
-        var textHeight = FontStashTextRenderer.GetLineHeight(Font, FontSize);
+        var textWidth = UiTextRenderer.MeasureWidth(Font, text, FontSize);
+        var textHeight = UiTextRenderer.GetLineHeight(Font, FontSize);
         return new Vector2(
             textWidth + padding.Horizontal + 16f,
             MathF.Max(16f, textHeight) + padding.Vertical);
@@ -479,7 +479,7 @@ public class Expander : ContentControl
         var padding = HeaderPadding;
         var textX = headerRect.X + padding.Left + 14f;
         var textY = headerRect.Y + padding.Top;
-        FontStashTextRenderer.DrawString(
+        UiTextRenderer.DrawString(
             spriteBatch,
             Font,
             text,

@@ -64,6 +64,7 @@ public class Game1 : Game
         try
         {
             var font = Content.Load<SpriteFont>("UIFont");
+            UiTextRenderer.SetDefaultFont(font);
             _catalogView?.SetFont(font);
         }
         catch

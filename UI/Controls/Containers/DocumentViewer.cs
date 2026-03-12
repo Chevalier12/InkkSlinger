@@ -1087,7 +1087,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
             Font is null ? 0 : RuntimeHelpers.GetHashCode(Font),
             (int)TextWrapping,
             (int)MathF.Round(normalizedWidth * 100f));
-        var lineHeight = Math.Max(1f, FontStashTextRenderer.GetLineHeight(Font, FontSize));
+        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(Font, FontSize));
         var key = new DocumentViewportLayoutCache.CacheKey(
             signature,
             normalizedWidth,
@@ -1376,7 +1376,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
 
         var caretX = caretPos.X * ZoomScale;
         var caretY = caretPos.Y * ZoomScale;
-        var lineHeight = FontStashTextRenderer.GetLineHeight(Font, FontSize) * ZoomScale;
+        var lineHeight = UiTextRenderer.GetLineHeight(Font, FontSize) * ZoomScale;
 
         if (caretX < _horizontalOffset)
         {
@@ -1440,7 +1440,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
 
         var x = textRect.X + (caretPosition.X * ZoomScale) - _horizontalOffset;
         var y = textRect.Y + (caretPosition.Y * ZoomScale) - _verticalOffset;
-        var height = FontStashTextRenderer.GetLineHeight(Font, FontSize) * ZoomScale;
+        var height = UiTextRenderer.GetLineHeight(Font, FontSize) * ZoomScale;
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(x, y, 1f, Math.Max(1f, height)), CaretBrush * Opacity);
     }
 
@@ -1566,19 +1566,20 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
 
     private void DrawRunString(SpriteBatch spriteBatch, string text, Vector2 position, Color color, bool bold)
     {
-        if (FontStashTextRenderer.IsEnabled)
+        var resolvedFont = UiTextRenderer.ResolveFont(Font);
+        if (UiTextRenderer.IsEnabled)
         {
-            var fontSize = Math.Max(8f, FontStashTextRenderer.GetLineHeight(Font, FontSize) * ZoomScale);
-            FontStashTextRenderer.DrawString(spriteBatch, text, position, color, fontSize);
+            var fontSize = Math.Max(8f, UiTextRenderer.GetLineHeight(resolvedFont, FontSize) * ZoomScale);
+            UiTextRenderer.DrawString(spriteBatch, text, position, color, fontSize);
             if (bold)
             {
-                FontStashTextRenderer.DrawString(spriteBatch, text, position, color * 0.45f, fontSize);
+                UiTextRenderer.DrawString(spriteBatch, text, position, color * 0.45f, fontSize);
             }
 
             return;
         }
 
-        if (Font == null)
+        if (resolvedFont == null)
         {
             return;
         }
@@ -1597,7 +1598,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
         }
 
         spriteBatch.DrawString(
-            Font,
+            resolvedFont,
             text,
             transformedPosition,
             color,
@@ -1613,7 +1614,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
         }
 
         spriteBatch.DrawString(
-            Font,
+            resolvedFont,
             text,
             transformedPosition,
             color * 0.45f,

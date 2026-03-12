@@ -45,6 +45,7 @@ public sealed class ControlsCatalogCalendarHotspotTests
         Grid.ResetTimingForTests();
         UniformGrid.ResetTimingForTests();
         TextLayout.ResetMetricsForTests();
+        UiTextRenderer.ResetTimingForTests();
 
         var beforeElementTimings = SnapshotElementTimings(host);
         ClickCatalogButton(uiRoot, view, "Calendar");
@@ -86,6 +87,7 @@ public sealed class ControlsCatalogCalendarHotspotTests
         var gridTiming = Grid.GetTimingSnapshotForTests();
         var uniformGridTiming = UniformGrid.GetTimingSnapshotForTests();
         var textLayoutMetrics = TextLayout.GetMetricsSnapshot();
+        var fontTiming = UiTextRenderer.GetTimingSnapshotForTests();
         var uniformGridFrameworkExclusiveTicks = typeHotspots
             .Where(static hotspot => hotspot.TypeName == nameof(UniformGrid))
             .Select(static hotspot => hotspot.MeasureExclusiveElapsedTicks)
@@ -102,7 +104,12 @@ public sealed class ControlsCatalogCalendarHotspotTests
             $"subsystem timing: Button.Measure={buttonTiming.MeasureOverrideElapsedTicks}, Button.TextLayout={buttonTiming.ResolveTextLayoutElapsedTicks}, " +
             $"Grid.Measure={gridTiming.MeasureOverrideElapsedTicks}, UniformGrid.Measure={uniformGridTiming.MeasureOverrideElapsedTicks}, " +
             $"TextLayout.Layout={textLayoutMetrics.LayoutElapsedTicks}, TextLayout.Build={textLayoutMetrics.BuildElapsedTicks}, " +
-            $"TextLayout.BuildCount={textLayoutMetrics.BuildCount}, TextLayout.CacheMisses={textLayoutMetrics.CacheMissCount}");
+            $"TextLayout.BuildCount={textLayoutMetrics.BuildCount}, TextLayout.CacheMisses={textLayoutMetrics.CacheMissCount}, " +
+            $"Font.MeasureWidth={fontTiming.MeasureWidthElapsedTicks}, Font.MeasureWidthCalls={fontTiming.MeasureWidthCallCount}, " +
+            $"Font.GetLineHeight={fontTiming.GetLineHeightElapsedTicks}, Font.GetLineHeightCalls={fontTiming.GetLineHeightCallCount}, " +
+            $"Font.TryGetFont={fontTiming.TryGetFontElapsedTicks}, Font.TryGetFontCalls={fontTiming.TryGetFontCallCount}, " +
+            $"Font.CacheHits={fontTiming.FontCacheHitCount}, Font.CacheMisses={fontTiming.FontCacheMissCount}, " +
+            $"Font.EnsureInitialized={fontTiming.EnsureInitializedElapsedTicks}, Font.EnsureInitializedCalls={fontTiming.EnsureInitializedCallCount}");
         _output.WriteLine(
             $"uniformGrid measure phases: cache={uniformGridTiming.MeasureChildrenCacheElapsedTicks}, dimensions={uniformGridTiming.MeasureDimensionResolutionElapsedTicks}, " +
             $"aggregateCheck={uniformGridTiming.MeasureAggregateCheckElapsedTicks}, childLoop={uniformGridTiming.MeasureChildLoopElapsedTicks}, " +

@@ -98,8 +98,8 @@ public sealed class ButtonPerformanceRegressionTests
         button.Measure(new Vector2(300f, 120f));
 
         var expected = new Vector2(
-            FontStashTextRenderer.MeasureWidth(button.Font, button.Text, button.FontSize) + button.Padding.Horizontal + (button.BorderThickness * 2f),
-            FontStashTextRenderer.GetLineHeight(button.Font, button.FontSize) + button.Padding.Vertical + (button.BorderThickness * 2f));
+            UiTextRenderer.MeasureWidth(button.Font, button.Text, button.FontSize) + button.Padding.Horizontal + (button.BorderThickness * 2f),
+            UiTextRenderer.GetLineHeight(button.Font, button.FontSize) + button.Padding.Vertical + (button.BorderThickness * 2f));
 
         AssertClose(expected, button.DesiredSize);
         Assert.Equal(0, TextLayout.GetMetricsSnapshot().BuildCount);
@@ -165,6 +165,108 @@ public sealed class ButtonPerformanceRegressionTests
         Assert.Equal(1, Button.GetRenderLineWidthFallbackCountForTests());
     }
 
+    [Fact]
+    public void PrepareTextRenderPlan_WithText_UsesTextLayoutAndFontMetrics()
+    {
+        TextLayout.ResetMetricsForTests();
+        UiTextRenderer.ResetTimingForTests();
+        Button.ResetTimingForTests();
+
+        var button = new Button
+        {
+            Text = "31",
+            Width = 32f,
+            Height = 24f,
+            Padding = new Thickness(0f),
+            BorderThickness = 0f
+        };
+
+        var plan = button.PrepareTextRenderPlanForTests(new LayoutRect(0f, 0f, 32f, 24f));
+        var buttonTiming = Button.GetTimingSnapshotForTests();
+        var textMetrics = TextLayout.GetMetricsSnapshot();
+        var fontTiming = UiTextRenderer.GetTimingSnapshotForTests();
+
+        Assert.True(plan.HasValue);
+        Assert.Single(plan.Value.LineDraws);
+        Assert.True(buttonTiming.RenderTextPreparationElapsedTicks > 0);
+        Assert.Equal(1, buttonTiming.RenderTextPreparationCallCount);
+        Assert.True(textMetrics.BuildCount > 0);
+        Assert.True(fontTiming.MeasureWidthCallCount > 0);
+        Assert.True(fontTiming.GetLineHeightCallCount > 0);
+    }
+
+    [Fact]
+    public void PrepareTextRenderPlan_WithoutText_SkipsTextLayoutAndFontMetrics()
+    {
+        TextLayout.ResetMetricsForTests();
+        UiTextRenderer.ResetTimingForTests();
+        Button.ResetTimingForTests();
+
+        var button = new Button
+        {
+            Text = string.Empty,
+            Width = 32f,
+            Height = 24f,
+            Padding = new Thickness(0f),
+            BorderThickness = 0f
+        };
+
+        var plan = button.PrepareTextRenderPlanForTests(new LayoutRect(0f, 0f, 32f, 24f));
+        var buttonTiming = Button.GetTimingSnapshotForTests();
+        var textMetrics = TextLayout.GetMetricsSnapshot();
+        var fontTiming = UiTextRenderer.GetTimingSnapshotForTests();
+
+        Assert.False(plan.HasValue);
+        Assert.Equal(0, buttonTiming.RenderTextPreparationCallCount);
+        Assert.Equal(0, textMetrics.BuildCount);
+        Assert.Equal(0, fontTiming.MeasureWidthCallCount);
+        Assert.Equal(0, fontTiming.GetLineHeightCallCount);
+    }
+
+    [Fact]
+    public void PrepareTextRenderPlans_ForFortyTwoButtons_TextVsNoText_ShowsPreparationCostGap()
+    {
+        var withText = MeasureRenderPreparation(buttonCount: 42, includeText: true);
+        var withoutText = MeasureRenderPreparation(buttonCount: 42, includeText: false);
+
+        Assert.Equal(42, withText.RenderTextPreparationCallCount);
+        Assert.Equal(0, withoutText.RenderTextPreparationCallCount);
+        Assert.True(withText.TextLayoutBuildCount > withoutText.TextLayoutBuildCount);
+        Assert.True(withText.FontMeasureWidthCallCount > withoutText.FontMeasureWidthCallCount);
+        Assert.True(withText.RenderTextPreparationElapsedTicks > withoutText.RenderTextPreparationElapsedTicks);
+    }
+
+    private static RenderPreparationMetrics MeasureRenderPreparation(int buttonCount, bool includeText)
+    {
+        TextLayout.ResetMetricsForTests();
+        UiTextRenderer.ResetTimingForTests();
+        Button.ResetTimingForTests();
+
+        for (var i = 0; i < buttonCount; i++)
+        {
+            var button = new Button
+            {
+                Text = includeText ? (i + 1).ToString() : string.Empty,
+                Width = 32f,
+                Height = 24f,
+                Padding = new Thickness(0f),
+                BorderThickness = 0f
+            };
+
+            _ = button.PrepareTextRenderPlanForTests(new LayoutRect(0f, 0f, 32f, 24f));
+        }
+
+        var buttonTiming = Button.GetTimingSnapshotForTests();
+        var textMetrics = TextLayout.GetMetricsSnapshot();
+        var fontTiming = UiTextRenderer.GetTimingSnapshotForTests();
+        return new RenderPreparationMetrics(
+            buttonTiming.RenderTextPreparationElapsedTicks,
+            buttonTiming.RenderTextPreparationCallCount,
+            textMetrics.BuildCount,
+            fontTiming.MeasureWidthCallCount,
+            fontTiming.GetLineHeightCallCount);
+    }
+
     private static void AssertClose(Vector2 expected, Vector2 actual)
     {
         Assert.InRange(actual.X, expected.X - 0.01f, expected.X + 0.01f);
@@ -189,4 +291,11 @@ public sealed class ButtonPerformanceRegressionTests
             return finalSize;
         }
     }
+
+    private readonly record struct RenderPreparationMetrics(
+        long RenderTextPreparationElapsedTicks,
+        int RenderTextPreparationCallCount,
+        int TextLayoutBuildCount,
+        int FontMeasureWidthCallCount,
+        int FontGetLineHeightCallCount);
 }

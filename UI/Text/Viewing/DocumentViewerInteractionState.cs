@@ -90,6 +90,6 @@ internal sealed class DocumentViewerInteractionState
 
     public static float ResolveLineScrollAmount(SpriteFont? font)
     {
-        return MathF.Max(16f, FontStashTextRenderer.GetLineHeight(font) * 3f);
+        return MathF.Max(16f, UiTextRenderer.GetLineHeight(font) * 3f);
     }
 }

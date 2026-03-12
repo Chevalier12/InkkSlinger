@@ -295,7 +295,8 @@ public class TabControl : Selector
                 : header.Item.BorderBrush;
             UiDrawing.DrawRectStroke(spriteBatch, header.Rect, 1f, borderBrush, Opacity);
 
-            if (Font == null)
+            var font = UiTextRenderer.ResolveFont(Font);
+            if (font == null)
             {
                 continue;
             }
@@ -311,10 +312,10 @@ public class TabControl : Selector
                 ? Foreground
                 : header.Item.Foreground;
 
-            var textWidth = FontStashTextRenderer.MeasureWidth(Font, text, FontSize);
+            var textWidth = UiTextRenderer.MeasureWidth(font, text, FontSize);
             var x = header.Rect.X + ((header.Rect.Width - textWidth) / 2f);
-            var y = header.Rect.Y + ((header.Rect.Height - FontStashTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
-            FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(x, y), textColor * Opacity, FontSize);
+            var y = header.Rect.Y + ((header.Rect.Height - UiTextRenderer.GetLineHeight(font, FontSize)) / 2f);
+            UiTextRenderer.DrawString(spriteBatch, font, text, new Vector2(x, y), textColor * Opacity, FontSize);
         }
 
         var border = BorderThickness;
@@ -344,7 +345,7 @@ public class TabControl : Selector
     private float GetHeaderHeight()
     {
         var padding = HeaderPadding;
-        var textHeight = FontStashTextRenderer.GetLineHeight(Font, FontSize);
+        var textHeight = UiTextRenderer.GetLineHeight(Font, FontSize);
         return padding.Vertical + textHeight;
     }
 
@@ -354,7 +355,7 @@ public class TabControl : Selector
         var textWidth = 26f;
         if (Font != null && !string.IsNullOrEmpty(item.Header))
         {
-            textWidth = FontStashTextRenderer.MeasureWidth(Font, item.Header, FontSize);
+            textWidth = UiTextRenderer.MeasureWidth(Font, item.Header, FontSize);
         }
 
         return MathF.Max(36f, padding.Horizontal + textWidth);

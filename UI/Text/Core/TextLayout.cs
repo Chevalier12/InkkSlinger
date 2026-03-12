@@ -61,6 +61,7 @@ public static class TextLayout
         var start = Stopwatch.GetTimestamp();
         try
         {
+        font = UiTextRenderer.ResolveFont(font);
         _layoutRequestCount++;
         if (string.IsNullOrEmpty(text))
         {
@@ -89,7 +90,7 @@ public static class TextLayout
 
     public static TextLayoutResult Layout(string? text, SpriteFont? font, float availableWidth, TextWrapping wrapping)
     {
-        return Layout(text, font, FontStashTextRenderer.GetLineHeight(font), availableWidth, wrapping);
+        return Layout(text, font, UiTextRenderer.GetLineHeight(font), availableWidth, wrapping);
     }
 
     private static TextLayoutResult BuildLayout(string text, SpriteFont? font, float fontSize, float availableWidth, TextWrapping wrapping)
@@ -138,7 +139,7 @@ public static class TextLayout
         {
             var line = length == 0 ? string.Empty : text.Substring(start, length);
             lines.Add(line);
-            widths.Add(line.Length == 0 ? 0f : FontStashTextRenderer.MeasureWidth(font, line, fontSize));
+            widths.Add(line.Length == 0 ? 0f : UiTextRenderer.MeasureWidth(font, line, fontSize));
         }
 
         return BuildResult(lines, widths, font, fontSize);
@@ -251,7 +252,7 @@ public static class TextLayout
 
             var line = text.Substring(remainingStart, fitLength);
             lines.Add(line);
-            widths.Add(line.Length == 0 ? 0f : FontStashTextRenderer.MeasureWidth(font, line, fontSize));
+            widths.Add(line.Length == 0 ? 0f : UiTextRenderer.MeasureWidth(font, line, fontSize));
             remainingStart += fitLength;
             remainingLength -= fitLength;
         }
@@ -295,10 +296,10 @@ public static class TextLayout
 
         if (start == 0 && length == text.Length)
         {
-            return FontStashTextRenderer.MeasureWidth(font, text, fontSize);
+            return UiTextRenderer.MeasureWidth(font, text, fontSize);
         }
 
-        return FontStashTextRenderer.MeasureWidth(font, text.Substring(start, length), fontSize);
+        return UiTextRenderer.MeasureWidth(font, text.Substring(start, length), fontSize);
     }
 
     private static bool TryReadLogicalLine(string text, ref int index, out int start, out int length)
@@ -351,7 +352,7 @@ public static class TextLayout
             }
         }
 
-        var size = new Vector2(maxWidth, lines.Count * FontStashTextRenderer.GetLineHeight(font, fontSize));
+        var size = new Vector2(maxWidth, lines.Count * UiTextRenderer.GetLineHeight(font, fontSize));
         return new TextLayoutResult(lines, widths, size);
     }
 

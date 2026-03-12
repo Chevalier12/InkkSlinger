@@ -315,8 +315,8 @@ public class DataGridCell : Control
         var border = BorderThickness;
         var chromeWidth = padding.Left + padding.Right + border.Left + border.Right;
         var chromeHeight = padding.Top + padding.Bottom + border.Top + border.Bottom;
-        var width = FontStashTextRenderer.MeasureWidth(Font, text, FontSize) + chromeWidth;
-        var height = FontStashTextRenderer.GetLineHeight(Font, FontSize) + chromeHeight;
+        var width = UiTextRenderer.MeasureWidth(Font, text, FontSize) + chromeWidth;
+        var height = UiTextRenderer.GetLineHeight(Font, FontSize) + chromeHeight;
         desired.X = System.MathF.Max(desired.X, width);
         desired.Y = System.MathF.Max(desired.Y, height);
         if (_editorElement is FrameworkElement inlineEditor)
@@ -432,10 +432,10 @@ public class DataGridCell : Control
         var top = LayoutSlot.Y + borderThickness.Top + padding.Top;
         var bottom = LayoutSlot.Y + LayoutSlot.Height - borderThickness.Bottom - padding.Bottom;
         var contentHeight = System.MathF.Max(0f, bottom - top);
-        var lineHeight = FontStashTextRenderer.GetLineHeight(Font, FontSize);
+        var lineHeight = UiTextRenderer.GetLineHeight(Font, FontSize);
         var x = left;
         var y = top + ((contentHeight - lineHeight) / 2f);
-        FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(x, y), Foreground * Opacity, FontSize);
+        UiTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(x, y), Foreground * Opacity, FontSize);
     }
 
     private void SyncAliasValue(DependencyProperty? sourceProperty, DependencyProperty? targetProperty, object? value)

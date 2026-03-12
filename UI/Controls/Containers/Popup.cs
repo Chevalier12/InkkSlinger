@@ -499,7 +499,7 @@ public class Popup : ContentControl
                 var closeLayout = TextLayout.Layout(text, Font, FontSize, float.PositiveInfinity, TextWrapping.NoWrap);
                 var textX = closeRect.X + ((closeRect.Width - closeLayout.Size.X) / 2f);
                 var textY = closeRect.Y + ((closeRect.Height - closeLayout.Size.Y) / 2f);
-                FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), CloseButtonForeground * Opacity, FontSize);
+                UiTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), CloseButtonForeground * Opacity, FontSize);
             }
         }
 
@@ -515,8 +515,8 @@ public class Popup : ContentControl
                     continue;
                 }
 
-                var linePosition = new Vector2(textPosition.X, textPosition.Y + (i * FontStashTextRenderer.GetLineHeight(Font, FontSize)));
-                FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, TitleForeground * Opacity, FontSize);
+                var linePosition = new Vector2(textPosition.X, textPosition.Y + (i * UiTextRenderer.GetLineHeight(Font, FontSize)));
+                UiTextRenderer.DrawString(spriteBatch, Font, line, linePosition, TitleForeground * Opacity, FontSize);
             }
         }
     }

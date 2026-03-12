@@ -52,7 +52,7 @@ public sealed class AccessText : TextBlock
             ? float.PositiveInfinity
             : RenderSize.X;
         var layout = TextLayout.Layout(DisplayText, Font, FontSize, renderWidth, TextWrapping);
-        var lineSpacing = FontStashTextRenderer.GetLineHeight(Font, FontSize);
+        var lineSpacing = UiTextRenderer.GetLineHeight(Font, FontSize);
         for (var i = 0; i < layout.Lines.Count; i++)
         {
             var line = layout.Lines[i];
@@ -62,7 +62,7 @@ public sealed class AccessText : TextBlock
             }
 
             var position = new Vector2(LayoutSlot.X, LayoutSlot.Y + (i * lineSpacing));
-            FontStashTextRenderer.DrawString(spriteBatch, Font, line, position, Foreground * Opacity, FontSize);
+            UiTextRenderer.DrawString(spriteBatch, Font, line, position, Foreground * Opacity, FontSize);
         }
 
         if (AccessKeyDisplayIndex < 0 || AccessKey == null)
@@ -83,8 +83,8 @@ public sealed class AccessText : TextBlock
 
         var prefix = keyLine[..columnIndex];
         var glyph = keyLine[columnIndex].ToString();
-        var prefixWidth = FontStashTextRenderer.MeasureWidth(Font, prefix, FontSize);
-        var glyphWidth = MathF.Max(1f, FontStashTextRenderer.MeasureWidth(Font, glyph, FontSize));
+        var prefixWidth = UiTextRenderer.MeasureWidth(Font, prefix, FontSize);
+        var glyphWidth = MathF.Max(1f, UiTextRenderer.MeasureWidth(Font, glyph, FontSize));
         var lineY = LayoutSlot.Y + (lineIndex * lineSpacing);
         var underlineY = lineY + lineSpacing - 2f;
         var underlineRect = new LayoutRect(LayoutSlot.X + prefixWidth, underlineY, glyphWidth, 1f);

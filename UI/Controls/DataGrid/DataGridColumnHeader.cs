@@ -65,11 +65,11 @@ public class DataGridColumnHeader : Button
         var text = Text ?? string.Empty;
         var textWidth = string.IsNullOrEmpty(text)
             ? 0f
-            : FontStashTextRenderer.MeasureWidth(text, fontSize);
+            : UiTextRenderer.MeasureWidth(Font, text, fontSize);
         var glyphWidth = SortDirection == DataGridSortDirection.None
             ? 0f
-            : FontStashTextRenderer.MeasureWidth("^", fontSize) + 6f;
-        var textHeight = fontSize;
+            : UiTextRenderer.MeasureWidth(Font, "^", fontSize) + 6f;
+        var textHeight = UiTextRenderer.GetLineHeight(Font, fontSize);
 
         desired.X = System.MathF.Max(desired.X, textWidth + glyphWidth + padding.Horizontal + border.Horizontal);
         desired.Y = System.MathF.Max(desired.Y, System.MathF.Max(16f, textHeight) + padding.Vertical + border.Vertical);
@@ -117,13 +117,13 @@ public class DataGridColumnHeader : Button
             : (SortDirection == DataGridSortDirection.Ascending ? "^" : "v");
         var glyphWidth = string.IsNullOrEmpty(glyph)
             ? 0f
-            : FontStashTextRenderer.MeasureWidth(glyph, fontSize);
+            : UiTextRenderer.MeasureWidth(Font, glyph, fontSize);
 
         var textLeft = slot.X + border.Left + padding.Left;
         var textRight = slot.X + slot.Width - border.Right - padding.Right - (glyphWidth > 0f ? glyphWidth + 6f : 0f);
         if (!string.IsNullOrEmpty(text) && textRight > textLeft)
         {
-            var lineHeight = fontSize;
+            var lineHeight = UiTextRenderer.GetLineHeight(Font, fontSize);
             var textY = slot.Y + ((slot.Height - lineHeight) / 2f);
             var textColor = Foreground * Opacity;
             DrawHeaderString(spriteBatch, text, new Vector2(textLeft, textY), textColor, fontSize);
@@ -141,22 +141,22 @@ public class DataGridColumnHeader : Button
 
         var glyph = SortDirection == DataGridSortDirection.Ascending ? "^" : "v";
         var fontSize = ResolveFontSize();
-        var width = FontStashTextRenderer.MeasureWidth(glyph, fontSize);
+        var width = UiTextRenderer.MeasureWidth(Font, glyph, fontSize);
         var x = LayoutSlot.X + LayoutSlot.Width - BorderThickness.Right - Padding.Right - width;
-        var y = LayoutSlot.Y + ((LayoutSlot.Height - fontSize) / 2f);
+        var y = LayoutSlot.Y + ((LayoutSlot.Height - UiTextRenderer.GetLineHeight(Font, fontSize)) / 2f);
         var color = Foreground * Opacity;
         DrawHeaderString(spriteBatch, glyph, new Vector2(x, y), color, fontSize);
     }
 
     private void DrawHeaderString(SpriteBatch spriteBatch, string text, Vector2 position, Color color, float fontSize)
     {
-        FontStashTextRenderer.DrawString(spriteBatch, text, position, color, fontSize);
+        UiTextRenderer.DrawString(spriteBatch, Font, text, position, color, fontSize);
 
         var weight = FontWeight ?? string.Empty;
         if (string.Equals(weight, "Bold", System.StringComparison.OrdinalIgnoreCase) ||
             string.Equals(weight, "SemiBold", System.StringComparison.OrdinalIgnoreCase))
         {
-            FontStashTextRenderer.DrawString(spriteBatch, text, new Vector2(position.X + 0.75f, position.Y), color * 0.5f, fontSize);
+            UiTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(position.X + 0.75f, position.Y), color * 0.5f, fontSize);
         }
     }
 

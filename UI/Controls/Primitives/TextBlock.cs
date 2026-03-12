@@ -113,7 +113,12 @@ public class TextBlock : FrameworkElement
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        if (CanUseIntrinsicNoWrapTextMeasure())
+        if (string.IsNullOrEmpty(Text))
+        {
+            return Vector2.Zero;
+        }
+
+        if (CanUseIntrinsicMeasure(availableSize.X))
         {
             return ResolveIntrinsicNoWrapTextSize();
         }
@@ -127,9 +132,24 @@ public class TextBlock : FrameworkElement
 
     protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
-        _ = previousAvailableSize;
-        _ = nextAvailableSize;
-        return TextWrapping == TextWrapping.NoWrap;
+        if (string.IsNullOrEmpty(Text))
+        {
+            return true;
+        }
+
+        if (TextWrapping == TextWrapping.NoWrap)
+        {
+            return true;
+        }
+
+        if (Text.IndexOfAny(['\r', '\n']) >= 0)
+        {
+            return false;
+        }
+
+        var intrinsicSize = ResolveIntrinsicNoWrapTextSize();
+        return previousAvailableSize.X >= intrinsicSize.X &&
+               nextAvailableSize.X >= intrinsicSize.X;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -146,8 +166,7 @@ public class TextBlock : FrameworkElement
             ? float.PositiveInfinity
             : RenderSize.X;
         var layout = ResolveLayout(renderWidth);
-
-        var lineSpacing = FontStashTextRenderer.GetLineHeight(Font, FontSize);
+        var lineSpacing = UiTextRenderer.GetLineHeight(Font, FontSize);
         var currentClip = spriteBatch.GraphicsDevice.ScissorRectangle;
         for (var i = 0; i < layout.Lines.Count; i++)
         {
@@ -160,7 +179,7 @@ public class TextBlock : FrameworkElement
             var position = new Vector2(LayoutSlot.X, LayoutSlot.Y + (i * lineSpacing));
             var lineWidth = i < layout.LineWidths.Count
                 ? layout.LineWidths[i]
-                : FontStashTextRenderer.MeasureWidth(Font, line, FontSize);
+                : UiTextRenderer.MeasureWidth(Font, line, FontSize);
             var transformedBounds = UiDrawing.TransformRectBounds(
                 spriteBatch,
                 new LayoutRect(position.X, position.Y, lineWidth, lineSpacing));
@@ -174,7 +193,7 @@ public class TextBlock : FrameworkElement
                 break;
             }
 
-            FontStashTextRenderer.DrawString(spriteBatch, Font, line, position, Foreground * Opacity, FontSize);
+            UiTextRenderer.DrawString(spriteBatch, Font, line, position, Foreground * Opacity, FontSize);
         }
 
         var renderTicks = Stopwatch.GetTimestamp() - renderStart;
@@ -212,6 +231,23 @@ public class TextBlock : FrameworkElement
                Text.IndexOfAny(['\r', '\n']) < 0;
     }
 
+    private bool CanUseIntrinsicMeasure(float availableWidth)
+    {
+        if (!CanUseIntrinsicNoWrapTextMeasure())
+        {
+            if (TextWrapping == TextWrapping.NoWrap ||
+                string.IsNullOrEmpty(Text) ||
+                Text.IndexOfAny(['\r', '\n']) >= 0)
+            {
+                return false;
+            }
+
+            return availableWidth >= ResolveIntrinsicNoWrapTextSize().X;
+        }
+
+        return true;
+    }
+
     private Vector2 ResolveIntrinsicNoWrapTextSize()
     {
         if (_hasIntrinsicNoWrapMeasureCache &&
@@ -223,8 +259,8 @@ public class TextBlock : FrameworkElement
         }
 
         var size = new Vector2(
-            FontStashTextRenderer.MeasureWidth(Font, Text, FontSize),
-            FontStashTextRenderer.GetLineHeight(Font, FontSize));
+            UiTextRenderer.MeasureWidth(Font, Text, FontSize),
+            UiTextRenderer.GetLineHeight(Font, FontSize));
         _intrinsicNoWrapMeasureTextVersion = _textVersion;
         _intrinsicNoWrapMeasureFont = Font;
         _intrinsicNoWrapMeasureFontSize = FontSize;

@@ -476,14 +476,14 @@ public class MenuItem : ItemsControl
         var padding = Padding;
         var textX = LayoutSlot.X + padding.Left;
         var textY = LayoutSlot.Y + ((LayoutSlot.Height - GetLineHeight()) / 2f);
-        FontStashTextRenderer.DrawString(spriteBatch, Font, GetDisplayHeaderText(), new Vector2(textX, textY), Foreground * Opacity, FontSize);
+        UiTextRenderer.DrawString(spriteBatch, Font, GetDisplayHeaderText(), new Vector2(textX, textY), Foreground * Opacity, FontSize);
 
         var gestureText = GetEffectiveInputGestureText();
         if (!string.IsNullOrWhiteSpace(gestureText) && !IsTopLevelItem())
         {
             var gestureWidth = MeasureTextWidth(gestureText);
             var gestureX = LayoutSlot.X + LayoutSlot.Width - padding.Right - gestureWidth - (HasChildItems ? 12f : 0f);
-            FontStashTextRenderer.DrawString(spriteBatch, Font, gestureText, new Vector2(gestureX, textY), Foreground * Opacity, FontSize);
+            UiTextRenderer.DrawString(spriteBatch, Font, gestureText, new Vector2(gestureX, textY), Foreground * Opacity, FontSize);
         }
 
         if (HasChildItems && !IsTopLevelItem())
@@ -744,19 +744,14 @@ public class MenuItem : ItemsControl
             return 0f;
         }
 
-        if (Font == null && !FontStashTextRenderer.IsEnabled)
-        {
-            return text.Length * 8f;
-        }
-
-        return FontStashTextRenderer.MeasureWidth(Font, text, FontSize);
+        return UiTextRenderer.MeasureWidth(Font, text, FontSize);
     }
 
     private float GetLineHeight()
     {
-        return Font == null && !FontStashTextRenderer.IsEnabled
+        return !UiTextRenderer.HasRenderableFont(Font)
             ? MathF.Max(8f, FontSize)
-            : FontStashTextRenderer.GetLineHeight(Font, FontSize);
+            : UiTextRenderer.GetLineHeight(Font, FontSize);
     }
 
     private void DrawSubmenuArrow(SpriteBatch spriteBatch, Vector2 center)

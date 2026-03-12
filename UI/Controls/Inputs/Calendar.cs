@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
@@ -178,6 +179,8 @@ public class Calendar : UserControl
     private bool _hasPendingCalendarRefresh = true;
     private bool _hasCompletedInitialCalendarRefresh;
     private bool _hasDeferredInitialCalendarRefreshQueued;
+    private bool _pendingManualRenderDiagnostics;
+    private bool _manualRenderDiagnosticsLogged;
     private int _calendarViewRefreshCount;
 
     public Calendar()
@@ -875,6 +878,10 @@ public class Calendar : UserControl
         _hasPendingCalendarRefresh = false;
         _hasCompletedInitialCalendarRefresh = true;
         _calendarViewRefreshCount++;
+        if (!_manualRenderDiagnosticsLogged && _calendarViewRefreshCount == 1)
+        {
+            _pendingManualRenderDiagnostics = true;
+        }
 
         var displayMonth = NormalizeToMonthStart(DisplayDate);
         SetLabelTextIfChanged(_monthLabel, displayMonth.ToString("Y", CultureInfo.CurrentCulture));
@@ -976,6 +983,94 @@ public class Calendar : UserControl
         {
             button.IsEnabled = isEnabled;
         }
+    }
+
+    protected override bool ShouldAutoDrawVisualChildren => false;
+
+    protected override void OnRender(SpriteBatch spriteBatch)
+    {
+        base.OnRender(spriteBatch);
+
+        if (ContentElement is not UIElement content)
+        {
+            return;
+        }
+
+        if (!_pendingManualRenderDiagnostics)
+        {
+            content.Draw(spriteBatch);
+            return;
+        }
+
+        Button.ResetTimingForTests();
+        UiTextRenderer.ResetTimingForTests();
+        TextLayout.ResetMetricsForTests();
+
+        var beforeDayButtonDrawCalls = SumDrawCalls(_dayButtons);
+        var beforeWeekDayLabelDrawCalls = SumDrawCalls(_weekDayLabels);
+        var beforeMonthLabelDrawCalls = _monthLabel.DrawCallCount;
+        var beforePreviousButtonDrawCalls = _previousMonthButton.DrawCallCount;
+        var beforeNextButtonDrawCalls = _nextMonthButton.DrawCallCount;
+
+        content.Draw(spriteBatch);
+
+        var buttonTiming = Button.GetTimingSnapshotForTests();
+        var fontTiming = UiTextRenderer.GetTimingSnapshotForTests();
+        var textLayoutMetrics = TextLayout.GetMetricsSnapshot();
+        var dayButtonDrawCalls = SumDrawCalls(_dayButtons) - beforeDayButtonDrawCalls;
+        var weekDayLabelDrawCalls = SumDrawCalls(_weekDayLabels) - beforeWeekDayLabelDrawCalls;
+        var monthLabelDrawCalls = _monthLabel.DrawCallCount - beforeMonthLabelDrawCalls;
+        var previousButtonDrawCalls = _previousMonthButton.DrawCallCount - beforePreviousButtonDrawCalls;
+        var nextButtonDrawCalls = _nextMonthButton.DrawCallCount - beforeNextButtonDrawCalls;
+        var nonEmptyDayButtonCount = 0;
+        for (var i = 0; i < _dayButtons.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(_dayButtons[i].Text))
+            {
+                nonEmptyDayButtonCount++;
+            }
+        }
+
+        Console.WriteLine("[CalendarManualDiagnostics] begin");
+        Console.WriteLine(
+            $"[CalendarManualDiagnostics] refreshCount={_calendarViewRefreshCount}, nonEmptyDayButtons={nonEmptyDayButtonCount}, " +
+            $"dayButtonDrawCalls={dayButtonDrawCalls}, weekDayLabelDrawCalls={weekDayLabelDrawCalls}, monthLabelDrawCalls={monthLabelDrawCalls}, " +
+            $"navButtonDrawCalls={previousButtonDrawCalls + nextButtonDrawCalls}");
+        Console.WriteLine(
+            $"[CalendarManualDiagnostics] button render: total={buttonTiming.RenderElapsedTicks}, chrome={buttonTiming.RenderChromeElapsedTicks}, " +
+            $"textPrep={buttonTiming.RenderTextPreparationElapsedTicks}, textPrepCalls={buttonTiming.RenderTextPreparationCallCount}, " +
+            $"textDispatch={buttonTiming.RenderTextDrawDispatchElapsedTicks}, textDispatchCalls={buttonTiming.RenderTextDrawDispatchCallCount}, " +
+            $"measure={buttonTiming.MeasureOverrideElapsedTicks}, resolveTextLayout={buttonTiming.ResolveTextLayoutElapsedTicks}");
+        Console.WriteLine(
+            $"[CalendarManualDiagnostics] font draw: spriteFontDraw={fontTiming.SpriteFontDrawStringElapsedTicks}, spriteFontDrawCalls={fontTiming.SpriteFontDrawStringCallCount}, " +
+            $"spriteFontEnabledPathCalls={fontTiming.SpriteFontDrawStringEnabledPathCount}, spriteFontFallbackPathCalls={fontTiming.SpriteFontDrawStringFallbackPathCount}, " +
+            $"rendererDraw={fontTiming.RendererDrawStringElapsedTicks}, rendererDrawCalls={fontTiming.RendererDrawStringCallCount}");
+        Console.WriteLine(
+            $"[CalendarManualDiagnostics] font measure: measureWidth={fontTiming.MeasureWidthElapsedTicks}, measureWidthCalls={fontTiming.MeasureWidthCallCount}, " +
+            $"getLineHeight={fontTiming.GetLineHeightElapsedTicks}, getLineHeightCalls={fontTiming.GetLineHeightCallCount}, " +
+            $"tryGetFont={fontTiming.TryGetFontElapsedTicks}, tryGetFontCalls={fontTiming.TryGetFontCallCount}, " +
+            $"fontCacheHits={fontTiming.FontCacheHitCount}, fontCacheMisses={fontTiming.FontCacheMissCount}, " +
+            $"ensureInitialized={fontTiming.EnsureInitializedElapsedTicks}, ensureInitializedCalls={fontTiming.EnsureInitializedCallCount}");
+        Console.WriteLine(
+            $"[CalendarManualDiagnostics] text layout: layout={textLayoutMetrics.LayoutElapsedTicks}, build={textLayoutMetrics.BuildElapsedTicks}, " +
+            $"buildCount={textLayoutMetrics.BuildCount}, noWrapBuildCount={textLayoutMetrics.NoWrapBuildCount}, " +
+            $"wrappedBuildCount={textLayoutMetrics.WrappedBuildCount}, cacheMisses={textLayoutMetrics.CacheMissCount}");
+        Console.WriteLine("[CalendarManualDiagnostics] end");
+
+        _pendingManualRenderDiagnostics = false;
+        _manualRenderDiagnosticsLogged = true;
+    }
+
+    private static int SumDrawCalls<TElement>(IReadOnlyList<TElement> elements)
+        where TElement : UIElement
+    {
+        var total = 0;
+        for (var i = 0; i < elements.Count; i++)
+        {
+            total += elements[i].DrawCallCount;
+        }
+
+        return total;
     }
 
     private static void SetButtonBackgroundIfChanged(Button button, Color background)

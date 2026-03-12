@@ -19,19 +19,14 @@ public class ButtonFontFallbackTests
         button.Measure(new Vector2(300f, 120f));
 
         var minimumWithoutText = button.Padding.Vertical + (button.BorderThickness * 2f);
-        var expectedWithText = minimumWithoutText + FontStashTextRenderer.GetLineHeight(null, button.FontSize);
+        var expectedWithText = minimumWithoutText + UiTextRenderer.GetLineHeight(null, button.FontSize);
 
         Assert.True(button.DesiredSize.Y >= expectedWithText - 0.01f);
     }
 
     [Fact]
-    public void Measure_WhenFontStashEnabled_AndFontNull_ExpandsWidthForText()
+    public void Measure_WithNullFont_ExpandsWidthForText()
     {
-        if (!FontStashTextRenderer.IsEnabled)
-        {
-            return;
-        }
-
         var button = new Button
         {
             Text = "Toggle Fullscreen",

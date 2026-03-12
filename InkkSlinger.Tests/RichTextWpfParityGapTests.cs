@@ -108,7 +108,7 @@ public sealed class RichTextWpfParityGapTests
         var textLeft = 1f + 8f;
         var textTop = 1f + 5f;
         var pointAtEndOfFirstLine = new Microsoft.Xna.Framework.Vector2(
-            textLeft + FontStashTextRenderer.MeasureWidth(null, "first", editor.FontSize),
+            textLeft + UiTextRenderer.MeasureWidth(null, "first", editor.FontSize),
             textTop + 2f);
 
         Assert.True(editor.HandlePointerDownFromInput(pointAtEndOfFirstLine, extendSelection: false));
@@ -161,7 +161,7 @@ public sealed class RichTextWpfParityGapTests
         var textLeft = 1f + 8f;
         var textTop = 1f + 5f;
         var pointAtEndOfFirstLine = new Microsoft.Xna.Framework.Vector2(
-            textLeft + FontStashTextRenderer.MeasureWidth(null, "test", editor.FontSize),
+            textLeft + UiTextRenderer.MeasureWidth(null, "test", editor.FontSize),
             textTop + 2f);
 
         Assert.True(editor.HandlePointerDownFromInput(pointAtEndOfFirstLine, extendSelection: false));
@@ -179,7 +179,7 @@ public sealed class RichTextWpfParityGapTests
         var textLeft = 1f + 8f;
         var textTop = 1f + 5f;
         var pointAtEndOfFirstLine = new Microsoft.Xna.Framework.Vector2(
-            textLeft + FontStashTextRenderer.MeasureWidth(null, "test", editor.FontSize),
+            textLeft + UiTextRenderer.MeasureWidth(null, "test", editor.FontSize),
             textTop + 2f);
 
         Assert.True(editor.HandlePointerDownFromInput(pointAtEndOfFirstLine, extendSelection: false));
@@ -1401,8 +1401,8 @@ public sealed class RichTextWpfParityGapTests
         var editor = CreateEditor("ab");
         SetSelection(editor, start: 2, length: 0);
 
-        Assert.True(editor.HandleTextCompositionFromInput("あい"));
-        Assert.Equal("abあい", DocumentEditing.GetText(editor.Document));
+        Assert.True(editor.HandleTextCompositionFromInput("\u3042\u3044"));
+        Assert.Equal("ab\u3042\u3044", DocumentEditing.GetText(editor.Document));
 
         Assert.True(editor.HandleKeyDownFromInput(Keys.Z, ModifierKeys.Control));
         Assert.Equal("ab", DocumentEditing.GetText(editor.Document));

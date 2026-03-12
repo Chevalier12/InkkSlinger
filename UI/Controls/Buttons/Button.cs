@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -13,6 +14,11 @@ public class Button : ContentControl
     private static long _measureOverrideElapsedTicks;
     private static long _renderElapsedTicks;
     private static long _resolveTextLayoutElapsedTicks;
+    private static long _renderChromeElapsedTicks;
+    private static long _renderTextPreparationElapsedTicks;
+    private static long _renderTextDrawDispatchElapsedTicks;
+    private static int _renderTextPreparationCallCount;
+    private static int _renderTextDrawDispatchCallCount;
     private bool _isSyncingTemplateContent;
     private bool _isTextMirroringTemplateContent;
     private bool _hasExplicitContentOverride;
@@ -271,72 +277,22 @@ public class Button : ContentControl
         var start = Stopwatch.GetTimestamp();
         try
         {
-        base.OnRender(spriteBatch);
+            base.OnRender(spriteBatch);
 
-        if (HasTemplateRoot)
-        {
-            return;
-        }
-
-        var slot = LayoutSlot;
-        UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
-
-        if (BorderThickness > 0f)
-        {
-            var thickness = BorderThickness;
-            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(slot.X, slot.Y, slot.Width, thickness), BorderBrush, Opacity);
-            UiDrawing.DrawFilledRect(
-                spriteBatch,
-                new LayoutRect(slot.X, slot.Y + slot.Height - thickness, slot.Width, thickness),
-                BorderBrush,
-                Opacity);
-            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(slot.X, slot.Y, thickness, slot.Height), BorderBrush, Opacity);
-            UiDrawing.DrawFilledRect(
-                spriteBatch,
-                new LayoutRect(slot.X + slot.Width - thickness, slot.Y, thickness, slot.Height),
-                BorderBrush,
-                Opacity);
-        }
-
-        if (string.IsNullOrEmpty(Text))
-        {
-            return;
-        }
-
-        var padding = Padding;
-        var left = slot.X + padding.Left + BorderThickness;
-        var right = slot.X + slot.Width - padding.Right - BorderThickness;
-        var top = slot.Y + padding.Top + BorderThickness;
-        var bottom = slot.Y + slot.Height - padding.Bottom - BorderThickness;
-
-        var maxTextWidth = System.MathF.Max(0f, right - left);
-        var maxTextHeight = System.MathF.Max(0f, bottom - top);
-        if (maxTextWidth <= 0f || maxTextHeight <= 0f)
-        {
-            return;
-        }
-
-        var availableWidth = TextWrapping == TextWrapping.NoWrap
-            ? float.PositiveInfinity
-            : maxTextWidth;
-        var layout = ResolveTextLayout(availableWidth);
-        var textX = left + ((maxTextWidth - layout.Size.X) / 2f);
-        var textY = top + ((maxTextHeight - layout.Size.Y) / 2f);
-
-        var lineSpacing = FontStashTextRenderer.GetLineHeight(Font, FontSize);
-        for (var i = 0; i < layout.Lines.Count; i++)
-        {
-            var line = layout.Lines[i];
-            if (line.Length == 0)
+            if (HasTemplateRoot)
             {
-                continue;
+                return;
             }
 
-            var lineWidth = ResolveRenderedLineWidth(layout, i, line, Font, FontSize);
-            var lineX = textX + ((layout.Size.X - lineWidth) / 2f);
-            var linePosition = new Vector2(lineX, textY + (i * lineSpacing));
-            FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, Foreground * Opacity, FontSize);
-        }
+            RenderChrome(spriteBatch, LayoutSlot);
+
+            var renderPlan = PrepareTextRenderPlan(LayoutSlot);
+            if (!renderPlan.HasValue)
+            {
+                return;
+            }
+
+            DrawTextRenderPlan(spriteBatch, renderPlan.Value);
         }
         finally
         {
@@ -491,14 +447,130 @@ public class Button : ContentControl
         }
 
         var size = new Vector2(
-            FontStashTextRenderer.MeasureWidth(Font, Text, FontSize),
-            FontStashTextRenderer.GetLineHeight(Font, FontSize));
+            UiTextRenderer.MeasureWidth(Font, Text, FontSize),
+            UiTextRenderer.GetLineHeight(Font, FontSize));
         _intrinsicNoWrapMeasureTextVersion = _textVersion;
         _intrinsicNoWrapMeasureFont = Font;
         _intrinsicNoWrapMeasureFontSize = FontSize;
         _intrinsicNoWrapMeasureSize = size;
         _hasIntrinsicNoWrapMeasureCache = true;
         return size;
+    }
+
+    private void RenderChrome(SpriteBatch spriteBatch, LayoutRect slot)
+    {
+        var start = Stopwatch.GetTimestamp();
+        try
+        {
+            UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
+
+            if (BorderThickness <= 0f)
+            {
+                return;
+            }
+
+            var thickness = BorderThickness;
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(slot.X, slot.Y, slot.Width, thickness), BorderBrush, Opacity);
+            UiDrawing.DrawFilledRect(
+                spriteBatch,
+                new LayoutRect(slot.X, slot.Y + slot.Height - thickness, slot.Width, thickness),
+                BorderBrush,
+                Opacity);
+            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(slot.X, slot.Y, thickness, slot.Height), BorderBrush, Opacity);
+            UiDrawing.DrawFilledRect(
+                spriteBatch,
+                new LayoutRect(slot.X + slot.Width - thickness, slot.Y, thickness, slot.Height),
+                BorderBrush,
+                Opacity);
+        }
+        finally
+        {
+            _renderChromeElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
+    }
+
+    private void DrawTextRenderPlan(SpriteBatch spriteBatch, ButtonTextRenderPlan renderPlan)
+    {
+        var start = Stopwatch.GetTimestamp();
+        try
+        {
+            for (var i = 0; i < renderPlan.LineDraws.Count; i++)
+            {
+                var lineDraw = renderPlan.LineDraws[i];
+                UiTextRenderer.DrawString(spriteBatch, Font, lineDraw.Text, lineDraw.Position, Foreground * Opacity, FontSize);
+                _renderTextDrawDispatchCallCount++;
+            }
+        }
+        finally
+        {
+            _renderTextDrawDispatchElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
+    }
+
+    private ButtonTextRenderPlan? PrepareTextRenderPlan(LayoutRect slot)
+    {
+        var start = Stopwatch.GetTimestamp();
+        try
+        {
+            if (string.IsNullOrEmpty(Text))
+            {
+                return null;
+            }
+
+            var padding = Padding;
+            var left = slot.X + padding.Left + BorderThickness;
+            var right = slot.X + slot.Width - padding.Right - BorderThickness;
+            var top = slot.Y + padding.Top + BorderThickness;
+            var bottom = slot.Y + slot.Height - padding.Bottom - BorderThickness;
+
+            var maxTextWidth = MathF.Max(0f, right - left);
+            var maxTextHeight = MathF.Max(0f, bottom - top);
+            if (maxTextWidth <= 0f || maxTextHeight <= 0f)
+            {
+                return null;
+            }
+
+            var availableWidth = TextWrapping == TextWrapping.NoWrap
+                ? float.PositiveInfinity
+                : maxTextWidth;
+            var layout = ResolveTextLayout(availableWidth);
+            var textX = left + ((maxTextWidth - layout.Size.X) / 2f);
+            var textY = top + ((maxTextHeight - layout.Size.Y) / 2f);
+            var lineSpacing = UiTextRenderer.GetLineHeight(Font, FontSize);
+            var lineDraws = new ButtonTextLineDraw[layout.Lines.Count];
+            var lineDrawCount = 0;
+
+            for (var i = 0; i < layout.Lines.Count; i++)
+            {
+                var line = layout.Lines[i];
+                if (line.Length == 0)
+                {
+                    continue;
+                }
+
+                var lineWidth = ResolveRenderedLineWidth(layout, i, line, Font, FontSize);
+                var lineX = textX + ((layout.Size.X - lineWidth) / 2f);
+                var linePosition = new Vector2(lineX, textY + (i * lineSpacing));
+                lineDraws[lineDrawCount++] = new ButtonTextLineDraw(line, linePosition);
+            }
+
+            _renderTextPreparationCallCount++;
+            return new ButtonTextRenderPlan(
+                layout,
+                lineSpacing,
+                lineDrawCount == lineDraws.Length
+                    ? lineDraws
+                    : lineDraws.AsSpan(0, lineDrawCount).ToArray());
+        }
+        finally
+        {
+            _renderTextPreparationElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
+    }
+
+    internal ButtonTextRenderPlan? PrepareTextRenderPlanForTests(LayoutRect slot)
+    {
+        return PrepareTextRenderPlan(slot);
     }
 
     internal static float ResolveRenderedLineWidth(
@@ -514,7 +586,7 @@ public class Button : ContentControl
         }
 
         _renderLineWidthFallbackCount++;
-        return FontStashTextRenderer.MeasureWidth(font, line, fontSize);
+        return UiTextRenderer.MeasureWidth(font, line, fontSize);
     }
 
     internal static int GetRenderLineWidthFallbackCountForTests()
@@ -532,7 +604,12 @@ public class Button : ContentControl
         return new ButtonTimingSnapshot(
             _measureOverrideElapsedTicks,
             _renderElapsedTicks,
-            _resolveTextLayoutElapsedTicks);
+            _resolveTextLayoutElapsedTicks,
+            _renderChromeElapsedTicks,
+            _renderTextPreparationElapsedTicks,
+            _renderTextDrawDispatchElapsedTicks,
+            _renderTextPreparationCallCount,
+            _renderTextDrawDispatchCallCount);
     }
 
     internal static void ResetTimingForTests()
@@ -540,6 +617,11 @@ public class Button : ContentControl
         _measureOverrideElapsedTicks = 0;
         _renderElapsedTicks = 0;
         _resolveTextLayoutElapsedTicks = 0;
+        _renderChromeElapsedTicks = 0;
+        _renderTextPreparationElapsedTicks = 0;
+        _renderTextDrawDispatchElapsedTicks = 0;
+        _renderTextPreparationCallCount = 0;
+        _renderTextDrawDispatchCallCount = 0;
     }
 
     private static bool WidthMatches(float cached, float current)
@@ -619,6 +701,20 @@ public class Button : ContentControl
 internal readonly record struct ButtonTimingSnapshot(
     long MeasureOverrideElapsedTicks,
     long RenderElapsedTicks,
-    long ResolveTextLayoutElapsedTicks);
+    long ResolveTextLayoutElapsedTicks,
+    long RenderChromeElapsedTicks,
+    long RenderTextPreparationElapsedTicks,
+    long RenderTextDrawDispatchElapsedTicks,
+    int RenderTextPreparationCallCount,
+    int RenderTextDrawDispatchCallCount);
+
+internal readonly record struct ButtonTextRenderPlan(
+    TextLayout.TextLayoutResult Layout,
+    float LineSpacing,
+    IReadOnlyList<ButtonTextLineDraw> LineDraws);
+
+internal readonly record struct ButtonTextLineDraw(
+    string Text,
+    Vector2 Position);
 
 

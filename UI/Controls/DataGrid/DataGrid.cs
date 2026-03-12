@@ -888,8 +888,8 @@ public class DataGrid : ItemsControl
         }
     }
 
-    private float GetEffectiveRowHeight() => MathF.Max(RowHeight, FontStashTextRenderer.GetLineHeight(Font, FontSize) + 8f);
-    private float GetEffectiveColumnHeaderHeight() => MathF.Max(ColumnHeaderHeight, FontStashTextRenderer.GetLineHeight(Font, FontSize) + 10f);
+    private float GetEffectiveRowHeight() => MathF.Max(RowHeight, UiTextRenderer.GetLineHeight(Font, FontSize) + 8f);
+    private float GetEffectiveColumnHeaderHeight() => MathF.Max(ColumnHeaderHeight, UiTextRenderer.GetLineHeight(Font, FontSize) + 10f);
 
     private float GetColumnsTotalWidth()
     {

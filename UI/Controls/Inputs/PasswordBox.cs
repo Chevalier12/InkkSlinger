@@ -786,7 +786,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
         }
 
-        if (Font == null)
+        if (!UiTextRenderer.HasRenderableFont(Font))
         {
             if (!hasTemplateRoot && BorderThickness > 0f)
             {
@@ -1279,7 +1279,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private int GetTextIndexFromPoint(Vector2 point)
     {
-        if (Font == null || _editor.Length == 0)
+        if (!UiTextRenderer.HasRenderableFont(Font) || _editor.Length == 0)
         {
             return 0;
         }
@@ -1303,7 +1303,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private float MeasureCharacterWidth(char ch)
     {
-        if (Font == null && !FontStashTextRenderer.IsEnabled)
+        if (!UiTextRenderer.HasRenderableFont(Font))
         {
             return 0f;
         }
@@ -1318,7 +1318,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             return width;
         }
 
-        width = FontStashTextRenderer.MeasureWidth(Font, ch.ToString(), FontSize);
+        width = UiTextRenderer.MeasureWidth(Font, ch.ToString(), FontSize);
         _glyphWidthCache[ch] = width;
         return width;
     }
@@ -1335,7 +1335,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             text = MaskText(text);
         }
 
-        FontStashTextRenderer.DrawString(spriteBatch, Font, text, position, color, FontSize);
+        UiTextRenderer.DrawString(spriteBatch, Font, text, position, color, FontSize);
     }
 
     private string MaskText(string text)
@@ -2189,7 +2189,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         _hasVirtualWrapCache = true;
         _virtualWrapCacheTextVersion = _textVersion;
         _virtualWrapCacheWidth = contentWidth;
-        _virtualWrapCacheFont = Font;
+        _virtualWrapCacheFont = UiTextRenderer.ResolveFont(Font);
         _virtualWrapText.SetText(_editor.Text);
         _virtualWrapCheckpoints.Clear();
         _virtualWrapLineCache.Clear();
@@ -2222,7 +2222,8 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             return false;
         }
 
-        if (Font == null || _virtualWrapCacheFont == null || !ReferenceEquals(_virtualWrapCacheFont, Font))
+        var currentFont = UiTextRenderer.ResolveFont(Font);
+        if (currentFont == null || _virtualWrapCacheFont == null || !ReferenceEquals(_virtualWrapCacheFont, currentFont))
         {
             return false;
         }
@@ -2919,7 +2920,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         _perfLayoutCacheMissCount++;
         _perfFullLayoutBuildCount++;
 
-        if (Font == null)
+        if (!UiTextRenderer.HasRenderableFont(Font))
         {
             var noFontLayout = new LayoutResult(BuildRawLinesWithoutWrapping(text), 0f);
             UpdateLayoutCache(contentWidth, noFontLayout);
@@ -3139,7 +3140,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
                         }
 
                         prefixBuilder.Append(ch);
-                        widths[i + 1] = FontStashTextRenderer.MeasureWidth(Font, prefixBuilder.ToString(), FontSize);
+                        widths[i + 1] = UiTextRenderer.MeasureWidth(Font, prefixBuilder.ToString(), FontSize);
                     }
                 }
                 else
@@ -3156,7 +3157,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
                     for (var i = 0; i < lineText.Length; i++)
                     {
                         prefixBuilder.Append(lineText[i]);
-                        widths[i + 1] = FontStashTextRenderer.MeasureWidth(Font, prefixBuilder.ToString(), FontSize);
+                        widths[i + 1] = UiTextRenderer.MeasureWidth(Font, prefixBuilder.ToString(), FontSize);
                     }
                 }
             }
@@ -3370,12 +3371,12 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private float GetLineHeight()
     {
-        return FontStashTextRenderer.GetLineHeight(Font, FontSize);
+        return UiTextRenderer.GetLineHeight(Font, FontSize);
     }
 
     private float GetTextRenderTopInset()
     {
-        if (!FontStashTextRenderer.IsEnabled)
+        if (!UiTextRenderer.IsEnabled)
         {
             return 0f;
         }
@@ -3387,7 +3388,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private LayoutRect GetTextRenderClipRect(LayoutRect viewportRect)
     {
-        var verticalBleed = FontStashTextRenderer.IsEnabled
+        var verticalBleed = UiTextRenderer.IsEnabled
             ? MathF.Ceiling(GetMeasuredGlyphVerticalOverflow() + 1f)
             : 0f;
         var top = MathF.Max(LayoutSlot.Y, viewportRect.Y - verticalBleed);
@@ -3408,7 +3409,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private float GetMeasuredGlyphHeight()
     {
-        var measured = FontStashTextRenderer.MeasureHeight(Font, "Ag");
+        var measured = UiTextRenderer.MeasureHeight(Font, "Ag");
         return measured > 0f ? measured : GetLineHeight();
     }
 

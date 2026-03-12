@@ -490,7 +490,7 @@ public sealed class DocumentLayoutEngine
             var markerX = baseX + (listDepth * _settings.ListIndent);
             var markerWidth = marker.Length == 0
                 ? 0f
-                : FontStashTextRenderer.MeasureWidth(_settings.Font, marker, _settings.FontSize);
+                : UiTextRenderer.MeasureWidth(_settings.Font, marker, _settings.FontSize);
             var textStartX = markerX + (markerWidth > 0f ? markerWidth + _settings.ListMarkerGap : 0f);
 
             var segments = new List<StyledChar>();
@@ -653,7 +653,7 @@ public sealed class DocumentLayoutEngine
                 }
 
                 var text = BuildText(chars, chunkStart, index - chunkStart);
-                var width = FontStashTextRenderer.MeasureWidth(font, text, fontSize, style.IsBold);
+                var width = UiTextRenderer.MeasureWidth(font, text, fontSize, style.IsBold);
                 var run = new DocumentLayoutRun
                 {
                     Text = text,
@@ -680,7 +680,7 @@ public sealed class DocumentLayoutEngine
             {
                 var ch = chars[start + i];
                 var value = ch.Character == '\0' ? " " : ch.Character.ToString();
-                current += FontStashTextRenderer.MeasureWidth(font, value, fontSize, ch.Style.IsBold);
+                current += UiTextRenderer.MeasureWidth(font, value, fontSize, ch.Style.IsBold);
                 widths[i + 1] = current;
             }
 
@@ -992,7 +992,7 @@ public sealed class DocumentLayoutEngine
             foreach (var paragraph in FlowDocumentPlainTextExtensions.EnumerateParagraphs(cell))
             {
                 var text = FlowDocumentPlainText.GetInlineText(paragraph.Inlines);
-                maxWidth = Math.Max(maxWidth, FontStashTextRenderer.MeasureWidth(_settings.Font, text, _settings.FontSize));
+                maxWidth = Math.Max(maxWidth, UiTextRenderer.MeasureWidth(_settings.Font, text, _settings.FontSize));
             }
 
             return maxWidth;

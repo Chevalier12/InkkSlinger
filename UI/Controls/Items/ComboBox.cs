@@ -222,10 +222,10 @@ public class ComboBox : Selector
 
         var text = GetDisplayText(SelectedItem);
         var textWidth = 0f;
-        var textHeight = FontStashTextRenderer.GetLineHeight(Font, FontSize);
+        var textHeight = UiTextRenderer.GetLineHeight(Font, FontSize);
         if (!string.IsNullOrEmpty(text))
         {
-            textWidth = FontStashTextRenderer.MeasureWidth(Font, text, FontSize);
+            textWidth = UiTextRenderer.MeasureWidth(Font, text, FontSize);
         }
 
         desired.X = MathF.Max(desired.X, padding.Horizontal + border + textWidth + 20f);
@@ -259,8 +259,8 @@ public class ComboBox : Selector
         }
 
         var textX = slot.X + Padding.Left + BorderThickness;
-        var textY = slot.Y + ((slot.Height - FontStashTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
-        FontStashTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), Foreground * Opacity, FontSize);
+        var textY = slot.Y + ((slot.Height - UiTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
+        UiTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), Foreground * Opacity, FontSize);
     }
 
 

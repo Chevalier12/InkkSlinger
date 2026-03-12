@@ -1237,7 +1237,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
     private float MeasureCharacterWidth(char ch)
     {
-        if (Font == null && !FontStashTextRenderer.IsEnabled)
+        if (!UiTextRenderer.HasRenderableFont(Font))
         {
             return 0f;
         }
@@ -1247,7 +1247,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             return width;
         }
 
-        width = FontStashTextRenderer.MeasureWidth(Font, ch.ToString(), FontSize);
+        width = UiTextRenderer.MeasureWidth(Font, ch.ToString(), FontSize);
         _glyphWidthCache[ch] = width;
         return width;
     }
@@ -1259,7 +1259,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             return;
         }
 
-        FontStashTextRenderer.DrawString(spriteBatch, Font, text, position, color, FontSize);
+        UiTextRenderer.DrawString(spriteBatch, Font, text, position, color, FontSize);
     }
 
     private bool CanUseVisibleTextBatchPath(int firstVisibleLine, int lastVisibleLine)
@@ -2113,7 +2113,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
         _hasVirtualWrapCache = true;
         _virtualWrapCacheTextVersion = _textVersion;
         _virtualWrapCacheWidth = contentWidth;
-        _virtualWrapCacheFont = Font;
+        _virtualWrapCacheFont = UiTextRenderer.ResolveFont(Font);
         _virtualWrapText.SetText(_editor.Text);
         _virtualWrapCheckpoints.Clear();
         _virtualWrapLineCache.Clear();
@@ -2146,7 +2146,8 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
             return false;
         }
 
-        if (Font == null || _virtualWrapCacheFont == null || !ReferenceEquals(_virtualWrapCacheFont, Font))
+        var currentFont = UiTextRenderer.ResolveFont(Font);
+        if (currentFont == null || _virtualWrapCacheFont == null || !ReferenceEquals(_virtualWrapCacheFont, currentFont))
         {
             return false;
         }
@@ -3248,12 +3249,12 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
     private float GetLineHeight()
     {
-        return FontStashTextRenderer.GetLineHeight(Font, FontSize);
+        return UiTextRenderer.GetLineHeight(Font, FontSize);
     }
 
     private float GetTextRenderTopInset()
     {
-        if (!FontStashTextRenderer.IsEnabled)
+        if (!UiTextRenderer.IsEnabled)
         {
             return 0f;
         }
@@ -3265,7 +3266,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
     private LayoutRect GetTextRenderClipRect(LayoutRect viewportRect)
     {
-        var verticalBleed = FontStashTextRenderer.IsEnabled
+        var verticalBleed = UiTextRenderer.IsEnabled
             ? MathF.Ceiling(GetMeasuredGlyphVerticalOverflow() + 1f)
             : 0f;
         var top = MathF.Max(LayoutSlot.Y, viewportRect.Y - verticalBleed);
@@ -3286,7 +3287,7 @@ public class TextBox : Control, IRenderDirtyBoundsHintProvider, ITextInputContro
 
     private float GetMeasuredGlyphHeight()
     {
-        var measured = FontStashTextRenderer.MeasureHeight(Font, "Ag", FontSize);
+        var measured = UiTextRenderer.MeasureHeight(Font, "Ag", FontSize);
         return measured > 0f ? measured : GetLineHeight();
     }
 

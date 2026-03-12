@@ -204,7 +204,13 @@ public class RadioButton : ToggleButton
 
     private Vector2 MeasureText(float availableWidth, float glyphSize)
     {
-        if (Font == null || string.IsNullOrEmpty(Text))
+        if (string.IsNullOrEmpty(Text))
+        {
+            return Vector2.Zero;
+        }
+
+        var font = UiTextRenderer.ResolveFont(Font);
+        if (font == null)
         {
             return Vector2.Zero;
         }
@@ -213,12 +219,18 @@ public class RadioButton : ToggleButton
         var textAvailableWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : maxTextWidth;
-        return TextLayout.Layout(Text, Font, FontSize, textAvailableWidth, TextWrapping).Size;
+        return TextLayout.Layout(Text, font, FontSize, textAvailableWidth, TextWrapping).Size;
     }
 
     private void DrawText(SpriteBatch spriteBatch, LayoutRect slot, float glyphSize)
     {
-        if (Font == null || string.IsNullOrEmpty(Text))
+        if (string.IsNullOrEmpty(Text))
+        {
+            return;
+        }
+
+        var font = UiTextRenderer.ResolveFont(Font);
+        if (font == null)
         {
             return;
         }
@@ -239,11 +251,11 @@ public class RadioButton : ToggleButton
         var textAvailableWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : maxTextWidth;
-        var layout = TextLayout.Layout(Text, Font, FontSize, textAvailableWidth, TextWrapping);
+        var layout = TextLayout.Layout(Text, font, FontSize, textAvailableWidth, TextWrapping);
 
         var textY = top + ((maxTextHeight - layout.Size.Y) / 2f);
         var foreground = (IsEnabled ? Foreground : new Color(170, 170, 170)) * Opacity;
-        var lineSpacing = FontStashTextRenderer.GetLineHeight(Font, FontSize);
+        var lineSpacing = UiTextRenderer.GetLineHeight(font, FontSize);
 
         for (var i = 0; i < layout.Lines.Count; i++)
         {
@@ -254,7 +266,7 @@ public class RadioButton : ToggleButton
             }
 
             var linePosition = new Vector2(left, textY + (i * lineSpacing));
-            FontStashTextRenderer.DrawString(spriteBatch, Font, line, linePosition, foreground, FontSize);
+            UiTextRenderer.DrawString(spriteBatch, font, line, linePosition, foreground, FontSize);
         }
     }
 }
