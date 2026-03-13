@@ -1,6 +1,5 @@
 using System;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
@@ -22,16 +21,6 @@ public partial class CatchMeView : UserControl
         {
             _runner.AddHandler<MouseRoutedEventArgs>(UIElement.MouseEnterEvent, OnRunnerMouseEnter);
         }
-    }
-
-    public void SetFont(SpriteFont? font)
-    {
-        if (font == null)
-        {
-            return;
-        }
-
-        ControlDemoSupport.ApplyFontRecursive(this, font);
     }
 
     private void OnRunnerMouseEnter(object? sender, MouseRoutedEventArgs args)
@@ -143,4 +132,6 @@ public partial class CatchMeView : UserControl
         return new Vector2(MathF.Cos(angle), MathF.Sin(angle));
     }
 }
+
+
 

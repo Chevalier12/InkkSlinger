@@ -107,9 +107,7 @@ public sealed class ControlsCatalogCalendarHotspotTests
             $"TextLayout.BuildCount={textLayoutMetrics.BuildCount}, TextLayout.CacheMisses={textLayoutMetrics.CacheMissCount}, " +
             $"Font.MeasureWidth={fontTiming.MeasureWidthElapsedTicks}, Font.MeasureWidthCalls={fontTiming.MeasureWidthCallCount}, " +
             $"Font.GetLineHeight={fontTiming.GetLineHeightElapsedTicks}, Font.GetLineHeightCalls={fontTiming.GetLineHeightCallCount}, " +
-            $"Font.TryGetFont={fontTiming.TryGetFontElapsedTicks}, Font.TryGetFontCalls={fontTiming.TryGetFontCallCount}, " +
-            $"Font.CacheHits={fontTiming.FontCacheHitCount}, Font.CacheMisses={fontTiming.FontCacheMissCount}, " +
-            $"Font.EnsureInitialized={fontTiming.EnsureInitializedElapsedTicks}, Font.EnsureInitializedCalls={fontTiming.EnsureInitializedCallCount}");
+            $"Font.Draw={fontTiming.DrawStringElapsedTicks}, Font.DrawCalls={fontTiming.DrawStringCallCount}");
         _output.WriteLine(
             $"uniformGrid measure phases: cache={uniformGridTiming.MeasureChildrenCacheElapsedTicks}, dimensions={uniformGridTiming.MeasureDimensionResolutionElapsedTicks}, " +
             $"aggregateCheck={uniformGridTiming.MeasureAggregateCheckElapsedTicks}, childLoop={uniformGridTiming.MeasureChildLoopElapsedTicks}, " +

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
@@ -319,87 +318,6 @@ internal static class ControlDemoSupport
         catch (Exception ex)
         {
             return BuildInfoLabel($"Failed to create {controlName}: {ex.GetType().Name}");
-        }
-    }
-
-    internal static void ApplyFontRecursive(UIElement? element, SpriteFont font)
-    {
-        if (element == null)
-        {
-            return;
-        }
-
-        switch (element)
-        {
-            case Label label:
-                label.Font = font;
-                break;
-            case AccessText accessText:
-                accessText.Font = font;
-                break;
-            case TextBlock textBlock:
-                textBlock.Font = font;
-                break;
-            case Button button:
-                button.Font = font;
-                break;
-            case TextBox textBox:
-                textBox.Font = font;
-                break;
-            case ComboBox comboBox:
-                comboBox.Font = font;
-                break;
-            case ListView listView:
-                listView.Font = font;
-                break;
-            case ListBox listBox:
-                listBox.Font = font;
-                break;
-            case DataGrid dataGrid:
-                dataGrid.Font = font;
-                break;
-            case PasswordBox passwordBox:
-                passwordBox.Font = font;
-                break;
-        }
-
-        foreach (var child in element.GetVisualChildren())
-        {
-            ApplyFontRecursive(child, font);
-        }
-    }
-
-    internal static void ApplyCatalogPreviewFont(UIElement? element, SpriteFont font)
-    {
-        ApplyCatalogPreviewFont(element, font, applyControlFontToCurrentElement: true);
-    }
-
-    private static void ApplyCatalogPreviewFont(UIElement? element, SpriteFont font, bool applyControlFontToCurrentElement)
-    {
-        if (element == null)
-        {
-            return;
-        }
-
-        if (element is Control control)
-        {
-            if (applyControlFontToCurrentElement)
-            {
-                control.Font = font;
-            }
-            else
-            {
-                return;
-            }
-        }
-        else if (element is TextBlock textBlock)
-        {
-            textBlock.Font = font;
-        }
-
-        foreach (var child in element.GetVisualChildren())
-        {
-            ApplyCatalogPreviewFont(child, font, applyControlFontToCurrentElement: false);
         }
     }
 

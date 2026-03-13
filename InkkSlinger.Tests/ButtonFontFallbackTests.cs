@@ -6,12 +6,11 @@ namespace InkkSlinger.Tests;
 public class ButtonFontFallbackTests
 {
     [Fact]
-    public void Measure_WithNullFont_StillIncludesTextLineHeight()
+    public void Measure_WithoutExplicitTypography_StillIncludesTextLineHeight()
     {
         var button = new Button
         {
             Text = "Open Popup",
-            Font = null,
             Padding = new Thickness(10f, 6f, 10f, 6f),
             BorderThickness = 1f
         };
@@ -19,18 +18,17 @@ public class ButtonFontFallbackTests
         button.Measure(new Vector2(300f, 120f));
 
         var minimumWithoutText = button.Padding.Vertical + (button.BorderThickness * 2f);
-        var expectedWithText = minimumWithoutText + UiTextRenderer.GetLineHeight(null, button.FontSize);
+        var expectedWithText = minimumWithoutText + UiTextRenderer.GetLineHeight(button, button.FontSize);
 
         Assert.True(button.DesiredSize.Y >= expectedWithText - 0.01f);
     }
 
     [Fact]
-    public void Measure_WithNullFont_ExpandsWidthForText()
+    public void Measure_WithoutExplicitTypography_ExpandsWidthForText()
     {
         var button = new Button
         {
             Text = "Toggle Fullscreen",
-            Font = null,
             Padding = new Thickness(10f, 6f, 10f, 6f),
             BorderThickness = 1f
         };

@@ -101,10 +101,11 @@ public class TextPipelineParityTests
     public void TextLayout_GlobalMetrics_TrackCacheHitsMissesAndBuildModes()
     {
         TextLayout.ResetMetricsForTests();
+        var typography = new UiTypography("Segoe UI", 12f, "Normal", "Normal");
 
-        _ = TextLayout.Layout("alpha beta", font: null, 200f, TextWrapping.NoWrap);
-        _ = TextLayout.Layout("alpha beta", font: null, 200f, TextWrapping.NoWrap);
-        _ = TextLayout.Layout("alpha beta gamma delta", font: null, 40f, TextWrapping.Wrap);
+        _ = TextLayout.Layout("alpha beta", typography, 200f, TextWrapping.NoWrap);
+        _ = TextLayout.Layout("alpha beta", typography, 200f, TextWrapping.NoWrap);
+        _ = TextLayout.Layout("alpha beta gamma delta", typography, 40f, TextWrapping.Wrap);
 
         var snapshot = TextLayout.GetMetricsSnapshot();
 

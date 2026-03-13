@@ -1,6 +1,4 @@
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using Microsoft.Xna.Framework.Graphics;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -8,27 +6,36 @@ namespace InkkSlinger.Tests;
 public class ListViewLabFontReloadRegressionTests
 {
     [Fact]
-    public void ListView_ReloadLikeMutation_RecreatedLabelsPreserveListFont()
+    public void ListView_ReloadLikeMutation_RecreatedLabelsPreserveListTypography()
     {
-        var listView = new ListView();
-        var appliedFont = (SpriteFont)RuntimeHelpers.GetUninitializedObject(typeof(SpriteFont));
-        listView.Font = appliedFont;
+        var listView = new ListView
+        {
+            FontFamily = "Segoe UI",
+            FontSize = 18f,
+            FontWeight = "SemiBold",
+            FontStyle = "Italic"
+        };
         AddSeedItems(listView, count: 6);
 
         var beforeReloadLabels = CollectDescendantLabels(listView);
 
         Assert.NotEmpty(beforeReloadLabels);
-        Assert.All(beforeReloadLabels, label => Assert.Same(appliedFont, label.Font));
+        Assert.All(beforeReloadLabels, label => AssertTypography(label, listView));
 
-        // Mirrors ListViewLab.PopulateItems() behavior used by "Reload Items":
-        // clear existing items, add new string items, and let ListView generate new containers.
         listView.Items.Clear();
         AddSeedItems(listView, count: 6);
         var afterReloadLabels = CollectDescendantLabels(listView);
 
         Assert.NotEmpty(afterReloadLabels);
-        Assert.DoesNotContain(afterReloadLabels, label => label.Font is null);
-        Assert.All(afterReloadLabels, label => Assert.Same(appliedFont, label.Font));
+        Assert.All(afterReloadLabels, label => AssertTypography(label, listView));
+    }
+
+    private static void AssertTypography(Label label, ListView listView)
+    {
+        Assert.Equal(listView.FontFamily, label.FontFamily);
+        Assert.Equal(listView.FontSize, label.FontSize);
+        Assert.Equal(listView.FontWeight, label.FontWeight);
+        Assert.Equal(listView.FontStyle, label.FontStyle);
     }
 
     private static void AddSeedItems(ListView listView, int count)

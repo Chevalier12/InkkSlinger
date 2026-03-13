@@ -132,6 +132,13 @@ public class FrameworkElement : UIElement
             typeof(FrameworkElement),
             new FrameworkPropertyMetadata("Normal", FrameworkPropertyMetadataOptions.Inherits));
 
+    public static readonly DependencyProperty FontStyleProperty =
+        DependencyProperty.Register(
+            nameof(FontStyle),
+            typeof(string),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata("Normal", FrameworkPropertyMetadataOptions.Inherits));
+
     public static readonly DependencyProperty CursorProperty =
         DependencyProperty.Register(
             nameof(Cursor),
@@ -290,6 +297,12 @@ public class FrameworkElement : UIElement
     {
         get => GetValue<string>(FontWeightProperty) ?? "Normal";
         set => SetValue(FontWeightProperty, value);
+    }
+
+    public string FontStyle
+    {
+        get => GetValue<string>(FontStyleProperty) ?? "Normal";
+        set => SetValue(FontStyleProperty, value);
     }
 
     public string Cursor

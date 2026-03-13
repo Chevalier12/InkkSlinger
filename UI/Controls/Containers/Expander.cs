@@ -57,8 +57,6 @@ public class Expander : ContentControl
                 ExpandDirection.Down,
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
@@ -152,12 +150,6 @@ public class Expander : ContentControl
     {
         get => GetValue<ExpandDirection>(ExpandDirectionProperty);
         set => SetValue(ExpandDirectionProperty, value);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public new Color Foreground
@@ -369,8 +361,8 @@ public class Expander : ContentControl
         }
 
         var text = Header?.ToString() ?? string.Empty;
-        var textWidth = UiTextRenderer.MeasureWidth(Font, text, FontSize);
-        var textHeight = UiTextRenderer.GetLineHeight(Font, FontSize);
+        var textWidth = UiTextRenderer.MeasureWidth(this, text, FontSize);
+        var textHeight = UiTextRenderer.GetLineHeight(this, FontSize);
         return new Vector2(
             textWidth + padding.Horizontal + 16f,
             MathF.Max(16f, textHeight) + padding.Vertical);
@@ -481,7 +473,7 @@ public class Expander : ContentControl
         var textY = headerRect.Y + padding.Top;
         UiTextRenderer.DrawString(
             spriteBatch,
-            Font,
+            this,
             text,
             new Vector2(textX, textY),
             Foreground * Opacity,
@@ -575,4 +567,5 @@ public class Expander : ContentControl
         return true;
     }
 }
+
 

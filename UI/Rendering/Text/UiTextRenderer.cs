@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -7,284 +9,148 @@ namespace InkkSlinger;
 
 internal static class UiTextRenderer
 {
-    private static SpriteFont? _defaultFont;
+    private const int MetricsCacheCapacity = 4096;
+    private const int LineHeightCacheCapacity = 256;
+    private static readonly object SyncRoot = new();
+    private static readonly HashSet<string> PrewarmedGlyphBuckets = new(StringComparer.Ordinal);
+    private static readonly Dictionary<GraphicsDevice, UiGlyphAtlas> GrayscaleAtlases = new();
+    private static readonly Dictionary<GraphicsDevice, UiGlyphAtlas> LcdAtlases = new();
+    private static readonly Dictionary<UiGlyphKey, UiGlyphEntry> GlyphCache = new();
+    private static readonly Dictionary<UiTypography, UiResolvedTypeface> TypefaceCache = new();
+    private static readonly Dictionary<UiTextMetricsCacheKey, UiTextMetrics> MetricsCache = new();
+    private static readonly Queue<UiTextMetricsCacheKey> MetricsCacheOrder = new();
+    private static readonly Dictionary<UiLineHeightCacheKey, float> LineHeightCache = new();
+    private static readonly Queue<UiLineHeightCacheKey> LineHeightCacheOrder = new();
+    private static IUiFontCatalog _fontCatalog = CreateDefaultFontCatalog();
+    private static IUiFontRasterizer _rasterizer = CreateDefaultRasterizer();
+    private static UiTypography _defaultTypography = new("Segoe UI", 12f, "Normal", "Normal");
     private static long _measureWidthElapsedTicks;
     private static long _getLineHeightElapsedTicks;
-    private static long _tryGetFontElapsedTicks;
-    private static long _ensureInitializedElapsedTicks;
-    private static long _rendererDrawStringElapsedTicks;
-    private static long _spriteFontDrawStringElapsedTicks;
+    private static long _drawStringElapsedTicks;
     private static int _measureWidthCallCount;
     private static int _getLineHeightCallCount;
-    private static int _tryGetFontCallCount;
-    private static int _ensureInitializedCallCount;
-    private static int _rendererDrawStringCallCount;
-    private static int _spriteFontDrawStringCallCount;
-    private static int _spriteFontDrawStringEnabledPathCount;
-    private static int _spriteFontDrawStringFallbackPathCount;
-    private static int _fontCacheHitCount;
-    private static int _fontCacheMissCount;
+    private static int _drawStringCallCount;
+    private static int _typefaceCacheHitCount;
+    private static int _typefaceCacheMissCount;
+    private static int _metricsCacheHitCount;
+    private static int _metricsCacheMissCount;
+    private static int _lineHeightCacheHitCount;
+    private static int _lineHeightCacheMissCount;
 
-    public static bool IsEnabled => false;
-
-    public static void SetDefaultFont(SpriteFont? font)
+    public static void SetDefaultTypography(string family, float size = 12f, string weight = "Normal", string style = "Normal")
     {
-        _defaultFont = font;
-        if (font != null)
+        _defaultTypography = new UiTypography(
+            UiTypography.NormalizeFamily(family),
+            MathF.Max(1f, size),
+            UiTypography.NormalizeWeight(weight),
+            UiTypography.NormalizeStyle(style));
+    }
+
+    internal static void ConfigureRuntimeServicesForTests(IUiFontCatalog? fontCatalog = null, IUiFontRasterizer? rasterizer = null)
+    {
+        lock (SyncRoot)
         {
-            UiApplication.Current.Resources["DefaultFont"] = font;
-        }
-        else if (UiApplication.Current.Resources.ContainsKey("DefaultFont"))
-        {
-            UiApplication.Current.Resources.Remove("DefaultFont");
+            DisposeAtlasesNoLock();
+            GlyphCache.Clear();
+            TypefaceCache.Clear();
+            MetricsCache.Clear();
+            MetricsCacheOrder.Clear();
+            LineHeightCache.Clear();
+            LineHeightCacheOrder.Clear();
+            PrewarmedGlyphBuckets.Clear();
+
+            var nextCatalog = fontCatalog ?? CreateDefaultFontCatalog();
+            var nextRasterizer = rasterizer ?? CreateDefaultRasterizer();
+            if (!ReferenceEquals(_rasterizer, nextRasterizer))
+            {
+                _rasterizer.Dispose();
+            }
+
+            _fontCatalog = nextCatalog;
+            _rasterizer = nextRasterizer;
         }
     }
 
-    internal static SpriteFont? ResolveFont(SpriteFont? spriteFont)
+    internal static void PrewarmDefaultGlyphs(GraphicsDevice graphicsDevice)
     {
-        if (spriteFont != null)
-        {
-            return spriteFont;
-        }
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
 
-        if (_defaultFont != null)
+        var presets = new[]
         {
-            return _defaultFont;
-        }
+            _defaultTypography with { Size = 12f, Weight = "Normal", Style = "Normal" },
+            _defaultTypography with { Size = 15f, Weight = "SemiBold", Style = "Normal" },
+            _defaultTypography with { Size = 16f, Weight = "SemiBold", Style = "Normal" }
+        };
 
-        if (UiApplication.Current.Resources.TryGetValue("DefaultFont", out var resource) &&
-            resource is SpriteFont defaultFont)
+        foreach (var typography in presets)
         {
-            _defaultFont = defaultFont;
-            return defaultFont;
+            PrewarmTypographyBucket(graphicsDevice, typography, UiTextAntialiasMode.Grayscale);
         }
-
-        return null;
     }
 
-    internal static bool HasRenderableFont(SpriteFont? spriteFont)
+    public static UiTypography ResolveTypography(FrameworkElement element)
     {
-        return ResolveFont(spriteFont) != null;
+        ArgumentNullException.ThrowIfNull(element);
+        var typography = UiTypography.FromElement(element);
+        if (string.IsNullOrWhiteSpace(element.FontFamily))
+        {
+            typography = typography with { Family = _defaultTypography.Family };
+        }
+
+        return typography;
+    }
+
+    public static UiTypography ResolveTypography(FrameworkElement element, float fontSize, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        return (ResolveTypography(element) with { Size = MathF.Max(1f, fontSize) }).Apply(styleOverride);
     }
 
     public static void DrawString(
         SpriteBatch spriteBatch,
+        FrameworkElement element,
         string text,
         Vector2 position,
         Color color,
-        float fontSize)
+        bool opaqueBackground = false,
+        UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
     {
-        var start = Stopwatch.GetTimestamp();
-        try
-        {
-            _rendererDrawStringCallCount++;
-            _spriteFontDrawStringFallbackPathCount++;
-        }
-        finally
-        {
-            _rendererDrawStringElapsedTicks += Stopwatch.GetTimestamp() - start;
-        }
+        DrawString(spriteBatch, ResolveTypography(element), text, position, color, opaqueBackground, styleOverride);
     }
 
     public static void DrawString(
         SpriteBatch spriteBatch,
-        SpriteFont? spriteFont,
-        string text,
-        Vector2 position,
-        Color color)
-    {
-        DrawString(spriteBatch, spriteFont, text, position, color, GetRenderFontSize(spriteFont));
-    }
-
-    public static void DrawString(
-        SpriteBatch spriteBatch,
-        SpriteFont? spriteFont,
-        string text,
-        Vector2 position,
-        Color color,
-        float fontSize)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return;
-        }
-
-        var start = Stopwatch.GetTimestamp();
-        try
-        {
-            _spriteFontDrawStringCallCount++;
-            _spriteFontDrawStringFallbackPathCount++;
-            DrawSpriteFontString(spriteBatch, ResolveFont(spriteFont), text, position, color, fontSize);
-        }
-        finally
-        {
-            _spriteFontDrawStringElapsedTicks += Stopwatch.GetTimestamp() - start;
-        }
-    }
-
-    public static void DrawString(
-        SpriteBatch spriteBatch,
-        SpriteFont? spriteFont,
-        string text,
-        Vector2 position,
-        Color color,
-        bool bold)
-    {
-        DrawString(spriteBatch, spriteFont, text, position, color, GetRenderFontSize(spriteFont), bold);
-    }
-
-    public static void DrawString(
-        SpriteBatch spriteBatch,
-        SpriteFont? spriteFont,
+        FrameworkElement element,
         string text,
         Vector2 position,
         Color color,
         float fontSize,
-        bool bold)
+        bool opaqueBackground = false,
+        UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
     {
-        if (string.IsNullOrEmpty(text))
-        {
-            return;
-        }
-
-        var start = Stopwatch.GetTimestamp();
-        try
-        {
-            _spriteFontDrawStringCallCount++;
-            _spriteFontDrawStringFallbackPathCount++;
-            DrawSpriteFontString(spriteBatch, ResolveFont(spriteFont), text, position, color, fontSize);
-            if (bold)
-            {
-                DrawSpriteFontString(spriteBatch, ResolveFont(spriteFont), text, position, color * 0.45f, fontSize);
-            }
-        }
-        finally
-        {
-            _spriteFontDrawStringElapsedTicks += Stopwatch.GetTimestamp() - start;
-        }
+        DrawString(spriteBatch, ResolveTypography(element, fontSize, styleOverride), text, position, color, opaqueBackground);
     }
 
-    public static float MeasureWidth(string text, float fontSize)
-    {
-        var start = Stopwatch.GetTimestamp();
-        _measureWidthCallCount++;
-        try
-        {
-            return string.IsNullOrEmpty(text)
-                ? 0f
-                : text.Length * MathF.Max(1f, MathF.Max(8f, fontSize) * 0.5f);
-        }
-        finally
-        {
-            _measureWidthElapsedTicks += Stopwatch.GetTimestamp() - start;
-        }
-    }
-
-    public static float MeasureWidth(SpriteFont? spriteFont, string text)
-    {
-        return MeasureWidth(spriteFont, text, GetRenderFontSize(spriteFont));
-    }
-
-    public static float MeasureWidth(SpriteFont? spriteFont, string text, float fontSize)
-    {
-        var start = Stopwatch.GetTimestamp();
-        _measureWidthCallCount++;
-        try
-        {
-            spriteFont = ResolveFont(spriteFont);
-            if (string.IsNullOrEmpty(text))
-            {
-                return 0f;
-            }
-
-            if (TryMeasureSpriteFontString(spriteFont, text, out var measuredSize))
-            {
-                return measuredSize.X * GetSpriteFontScale(spriteFont!, fontSize);
-            }
-
-            return text.Length * MathF.Max(1f, ResolveRenderFontSize(spriteFont, fontSize) * 0.5f);
-        }
-        finally
-        {
-            _measureWidthElapsedTicks += Stopwatch.GetTimestamp() - start;
-        }
-    }
-
-    public static float MeasureWidth(SpriteFont? spriteFont, string text, bool bold)
-    {
-        return MeasureWidth(spriteFont, text);
-    }
-
-    public static float MeasureWidth(SpriteFont? spriteFont, string text, float fontSize, bool bold)
-    {
-        return MeasureWidth(spriteFont, text, fontSize);
-    }
-
-    public static float MeasureHeight(SpriteFont? spriteFont, string text)
-    {
-        return MeasureHeight(spriteFont, text, GetRenderFontSize(spriteFont));
-    }
-
-    public static float MeasureHeight(SpriteFont? spriteFont, string text, float fontSize)
-    {
-        spriteFont = ResolveFont(spriteFont);
-        if (string.IsNullOrEmpty(text))
-        {
-            return 0f;
-        }
-
-        if (TryMeasureSpriteFontString(spriteFont, text, out var measuredSize))
-        {
-            return measuredSize.Y * GetSpriteFontScale(spriteFont!, fontSize);
-        }
-
-        return ResolveRenderFontSize(spriteFont, fontSize);
-    }
-
-    public static float GetLineHeight(SpriteFont? spriteFont)
-    {
-        return GetLineHeight(spriteFont, GetRenderFontSize(spriteFont));
-    }
-
-    public static float GetLineHeight(SpriteFont? spriteFont, float fontSize)
-    {
-        var start = Stopwatch.GetTimestamp();
-        _getLineHeightCallCount++;
-        try
-        {
-            spriteFont = ResolveFont(spriteFont);
-            if (spriteFont != null && spriteFont.LineSpacing > 0)
-            {
-                return spriteFont.LineSpacing * GetSpriteFontScale(spriteFont, fontSize);
-            }
-
-            return ResolveRenderFontSize(spriteFont, fontSize);
-        }
-        finally
-        {
-            _getLineHeightElapsedTicks += Stopwatch.GetTimestamp() - start;
-        }
-    }
-
-    private static void DrawSpriteFontString(
+    public static void DrawString(
         SpriteBatch spriteBatch,
-        SpriteFont? spriteFont,
+        UiTypography typography,
         string text,
         Vector2 position,
         Color color,
-        float fontSize)
+        bool opaqueBackground = false,
+        UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
     {
-        if (spriteFont == null)
+        if (string.IsNullOrEmpty(text))
         {
             return;
         }
 
+        var start = Stopwatch.GetTimestamp();
         try
         {
-            var transformedPosition = UiDrawing.TransformPoint(spriteBatch, position);
+            _drawStringCallCount++;
+
             var scaleX = MathF.Abs(UiDrawing.GetScaleX(spriteBatch));
             var scaleY = MathF.Abs(UiDrawing.GetScaleY(spriteBatch));
-            var fontScale = GetSpriteFontScale(spriteFont, fontSize);
             if (scaleX <= 0f)
             {
                 scaleX = 1f;
@@ -295,76 +161,130 @@ internal static class UiTextRenderer
                 scaleY = 1f;
             }
 
-            spriteBatch.DrawString(
-                spriteFont,
-                text,
-                transformedPosition,
-                color,
-                0f,
-                Vector2.Zero,
-                new Vector2(scaleX * fontScale, scaleY * fontScale),
-                SpriteEffects.None,
-                0f);
-        }
-        catch (NullReferenceException)
-        {
-        }
-        catch (ArgumentException)
-        {
-        }
-    }
+            var transformedPosition = UiDrawing.TransformPoint(spriteBatch, position);
+            // LCD/subpixel glyph masks are invalid in this pipeline because text is rendered into
+            // an intermediate alpha-blended render target instead of directly onto the final surface.
+            // Grayscale masks are the only correct mode until there is a real final-surface compositor.
+            _ = opaqueBackground;
+            var mode = UiTextAntialiasMode.Grayscale;
+            var effectiveTypography = typography.Apply(styleOverride);
+            var typeface = ResolveTypefaceCached(effectiveTypography);
+            var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size * scaleY));
+            var scaledTypography = effectiveTypography with { Size = effectiveTypography.Size * scaleY };
 
-    private static bool TryMeasureSpriteFontString(SpriteFont? spriteFont, string text, out Vector2 measuredSize)
-    {
-        if (spriteFont != null)
-        {
-            try
+            var currentX = transformedPosition.X;
+            var baselineY = transformedPosition.Y + GetLineHeight(scaledTypography);
+            uint previousGlyphIndex = 0;
+            foreach (var rune in text.EnumerateRunes())
             {
-                measuredSize = spriteFont.MeasureString(text);
-                return true;
-            }
-            catch (NullReferenceException)
-            {
-            }
-            catch (ArgumentException)
-            {
+                var glyph = ResolveGlyph(spriteBatch.GraphicsDevice, typeface, pixelSize, rune.Value, mode);
+                DrawGlyph(spriteBatch, glyph, currentX, baselineY, color);
+                currentX += glyph.AdvanceX;
+                _ = previousGlyphIndex;
             }
         }
-
-        measuredSize = Vector2.Zero;
-        return false;
+        finally
+        {
+            _drawStringElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
     }
 
-    private static float GetRenderFontSize(SpriteFont? spriteFont)
+    public static float MeasureWidth(FrameworkElement element, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
     {
-        if (spriteFont == null)
-        {
-            return 16f;
-        }
-
-        return MathF.Max(8f, spriteFont.LineSpacing - 2f);
+        return MeasureWidth(ResolveTypography(element), text, styleOverride);
     }
 
-    private static float ResolveRenderFontSize(SpriteFont? spriteFont, float requestedFontSize)
+    public static float MeasureWidth(FrameworkElement element, string text, float fontSize, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
     {
-        var baseFontSize = GetRenderFontSize(spriteFont);
-        if (requestedFontSize <= 0f)
-        {
-            return baseFontSize;
-        }
-
-        return MathF.Max(8f, requestedFontSize);
+        return MeasureWidth(ResolveTypography(element, fontSize), text, styleOverride);
     }
 
-    private static float GetSpriteFontScale(SpriteFont spriteFont, float requestedFontSize)
+    public static float MeasureWidth(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
     {
-        var effectiveFontSize = ResolveRenderFontSize(spriteFont, requestedFontSize);
-        if (spriteFont.LineSpacing <= 0f)
+        var start = Stopwatch.GetTimestamp();
+        _measureWidthCallCount++;
+        try
         {
-            return 1f;
-        }
+            if (string.IsNullOrEmpty(text))
+            {
+                return 0f;
+            }
 
-        return effectiveFontSize / spriteFont.LineSpacing;
+            var effectiveTypography = typography.Apply(styleOverride);
+            return GetTextMetrics(effectiveTypography, text, styleOverride).Width;
+        }
+        finally
+        {
+            _measureWidthElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
+    }
+
+    public static float MeasureWidth(string text, float fontSize)
+    {
+        return MeasureWidth(_defaultTypography with { Size = fontSize }, text);
+    }
+
+    public static float MeasureHeight(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        var effectiveTypography = typography.Apply(styleOverride);
+        return GetTextMetrics(effectiveTypography, text, styleOverride).Height;
+    }
+
+    public static float MeasureHeight(FrameworkElement element, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        return MeasureHeight(ResolveTypography(element), text, styleOverride);
+    }
+
+    public static float MeasureHeight(FrameworkElement element, string text, float fontSize, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        return MeasureHeight(ResolveTypography(element, fontSize), text, styleOverride);
+    }
+
+    public static float MeasureHeight(string text, float fontSize, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        return MeasureHeight(_defaultTypography with { Size = fontSize }, text, styleOverride);
+    }
+
+    public static float GetLineHeight(FrameworkElement element, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        return GetLineHeight(ResolveTypography(element), styleOverride);
+    }
+
+    public static float GetLineHeight(FrameworkElement element, float fontSize, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        return GetLineHeight(ResolveTypography(element, fontSize), styleOverride);
+    }
+
+    public static float GetLineHeight(UiTypography typography, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        var start = Stopwatch.GetTimestamp();
+        _getLineHeightCallCount++;
+        try
+        {
+            var effectiveTypography = typography.Apply(styleOverride);
+            var cacheKey = new UiLineHeightCacheKey(effectiveTypography);
+            lock (SyncRoot)
+            {
+                if (LineHeightCache.TryGetValue(cacheKey, out var cached))
+                {
+                    _lineHeightCacheHitCount++;
+                    return cached;
+                }
+            }
+
+            _lineHeightCacheMissCount++;
+            var lineHeight = GetTextMetrics(effectiveTypography, "Ag", styleOverride).LineHeight;
+            lock (SyncRoot)
+            {
+                AddLineHeightCacheEntryNoLock(cacheKey, lineHeight);
+            }
+
+            return lineHeight;
+        }
+        finally
+        {
+            _getLineHeightElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
     }
 
     internal static UiTextRendererTimingSnapshot GetTimingSnapshotForTests()
@@ -374,38 +294,205 @@ internal static class UiTextRenderer
             _measureWidthCallCount,
             _getLineHeightElapsedTicks,
             _getLineHeightCallCount,
-            _tryGetFontElapsedTicks,
-            _tryGetFontCallCount,
-            _ensureInitializedElapsedTicks,
-            _ensureInitializedCallCount,
-            _rendererDrawStringElapsedTicks,
-            _rendererDrawStringCallCount,
-            _spriteFontDrawStringElapsedTicks,
-            _spriteFontDrawStringCallCount,
-            _spriteFontDrawStringEnabledPathCount,
-            _spriteFontDrawStringFallbackPathCount,
-            _fontCacheHitCount,
-            _fontCacheMissCount);
+            _drawStringElapsedTicks,
+            _drawStringCallCount,
+            _typefaceCacheHitCount,
+            _typefaceCacheMissCount,
+            _metricsCacheHitCount,
+            _metricsCacheMissCount,
+            _lineHeightCacheHitCount,
+            _lineHeightCacheMissCount);
     }
 
     internal static void ResetTimingForTests()
     {
         _measureWidthElapsedTicks = 0;
-        _getLineHeightElapsedTicks = 0;
-        _tryGetFontElapsedTicks = 0;
-        _ensureInitializedElapsedTicks = 0;
-        _rendererDrawStringElapsedTicks = 0;
-        _spriteFontDrawStringElapsedTicks = 0;
         _measureWidthCallCount = 0;
+        _getLineHeightElapsedTicks = 0;
         _getLineHeightCallCount = 0;
-        _tryGetFontCallCount = 0;
-        _ensureInitializedCallCount = 0;
-        _rendererDrawStringCallCount = 0;
-        _spriteFontDrawStringCallCount = 0;
-        _spriteFontDrawStringEnabledPathCount = 0;
-        _spriteFontDrawStringFallbackPathCount = 0;
-        _fontCacheHitCount = 0;
-        _fontCacheMissCount = 0;
+        _drawStringElapsedTicks = 0;
+        _drawStringCallCount = 0;
+        _typefaceCacheHitCount = 0;
+        _typefaceCacheMissCount = 0;
+        _metricsCacheHitCount = 0;
+        _metricsCacheMissCount = 0;
+        _lineHeightCacheHitCount = 0;
+        _lineHeightCacheMissCount = 0;
+    }
+
+    private static UiResolvedTypeface ResolveTypefaceCached(UiTypography typography)
+    {
+        lock (SyncRoot)
+        {
+            if (TypefaceCache.TryGetValue(typography, out var cached))
+            {
+                _typefaceCacheHitCount++;
+                return cached;
+            }
+        }
+
+        _typefaceCacheMissCount++;
+        var resolved = _fontCatalog.Resolve(typography);
+        lock (SyncRoot)
+        {
+            TypefaceCache[typography] = resolved;
+        }
+
+        return resolved;
+    }
+
+    private static UiTextMetrics GetTextMetrics(UiTypography typography, string text, UiTextStyleOverride styleOverride)
+    {
+        var cacheKey = new UiTextMetricsCacheKey(typography, text);
+        lock (SyncRoot)
+        {
+            if (MetricsCache.TryGetValue(cacheKey, out var cached))
+            {
+                _metricsCacheHitCount++;
+                return cached;
+            }
+        }
+
+        _metricsCacheMissCount++;
+        var typeface = ResolveTypefaceCached(typography);
+        var measured = _rasterizer.Measure(typeface, typography.Size, text, styleOverride);
+        lock (SyncRoot)
+        {
+            AddMetricsCacheEntryNoLock(cacheKey, measured);
+        }
+
+        return measured;
+    }
+
+    private static void AddMetricsCacheEntryNoLock(UiTextMetricsCacheKey key, UiTextMetrics metrics)
+    {
+        if (MetricsCache.ContainsKey(key))
+        {
+            return;
+        }
+
+        if (MetricsCache.Count >= MetricsCacheCapacity)
+        {
+            var evicted = MetricsCacheOrder.Dequeue();
+            MetricsCache.Remove(evicted);
+        }
+
+        MetricsCache[key] = metrics;
+        MetricsCacheOrder.Enqueue(key);
+    }
+
+    private static void AddLineHeightCacheEntryNoLock(UiLineHeightCacheKey key, float lineHeight)
+    {
+        if (LineHeightCache.ContainsKey(key))
+        {
+            return;
+        }
+
+        if (LineHeightCache.Count >= LineHeightCacheCapacity)
+        {
+            var evicted = LineHeightCacheOrder.Dequeue();
+            LineHeightCache.Remove(evicted);
+        }
+
+        LineHeightCache[key] = lineHeight;
+        LineHeightCacheOrder.Enqueue(key);
+    }
+
+    private static IUiFontCatalog CreateDefaultFontCatalog()
+    {
+        return new WindowsInstalledFontCatalog();
+    }
+
+    private static IUiFontRasterizer CreateDefaultRasterizer()
+    {
+        return new FreeTypeFontRasterizer();
+    }
+
+    private static void PrewarmTypographyBucket(GraphicsDevice graphicsDevice, UiTypography typography, UiTextAntialiasMode mode)
+    {
+        var key = $"{RuntimeHelpers.GetHashCode(graphicsDevice)}|{typography.Family}|{typography.Size:0.###}|{typography.Weight}|{typography.Style}|{mode}";
+
+        lock (SyncRoot)
+        {
+            if (!PrewarmedGlyphBuckets.Add(key))
+            {
+                return;
+            }
+        }
+
+        var typeface = _fontCatalog.Resolve(typography);
+        var pixelSize = Math.Max(1, (int)MathF.Round(typography.Size));
+        for (var codePoint = 0x20; codePoint <= 0x7E; codePoint++)
+        {
+            _ = ResolveGlyph(graphicsDevice, typeface, pixelSize, codePoint, mode);
+        }
+    }
+
+    private static UiGlyphEntry ResolveGlyph(
+        GraphicsDevice graphicsDevice,
+        UiResolvedTypeface typeface,
+        int pixelSize,
+        int codePoint,
+        UiTextAntialiasMode mode)
+    {
+        var key = new UiGlyphKey(typeface.FontPath, pixelSize, codePoint, mode);
+        lock (SyncRoot)
+        {
+            if (GlyphCache.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+
+            var rasterized = _rasterizer.Rasterize(typeface, pixelSize, codePoint, mode);
+            var atlas = GetAtlas(graphicsDevice, mode);
+            var created = atlas.AddGlyph(rasterized);
+            GlyphCache[key] = created;
+            return created;
+        }
+    }
+
+    private static UiGlyphAtlas GetAtlas(GraphicsDevice graphicsDevice, UiTextAntialiasMode mode)
+    {
+        var store = mode == UiTextAntialiasMode.Lcd ? LcdAtlases : GrayscaleAtlases;
+        if (store.TryGetValue(graphicsDevice, out var atlas))
+        {
+            return atlas;
+        }
+
+        atlas = new UiGlyphAtlas(graphicsDevice);
+        store.Add(graphicsDevice, atlas);
+        return atlas;
+    }
+
+    private static void DisposeAtlasesNoLock()
+    {
+        foreach (var atlas in GrayscaleAtlases.Values)
+        {
+            atlas.Dispose();
+        }
+
+        foreach (var atlas in LcdAtlases.Values)
+        {
+            atlas.Dispose();
+        }
+
+        GrayscaleAtlases.Clear();
+        LcdAtlases.Clear();
+    }
+
+    private static void DrawGlyph(SpriteBatch spriteBatch, UiGlyphEntry glyph, float penX, float baselineY, Color color)
+    {
+        var destination = new Rectangle(
+            (int)MathF.Round(penX + glyph.BearingX),
+            (int)MathF.Round(baselineY - glyph.BearingY),
+            glyph.SourceRect.Width,
+            glyph.SourceRect.Height);
+        if (destination.Width <= 0 || destination.Height <= 0)
+        {
+            return;
+        }
+
+        spriteBatch.Draw(glyph.Texture, destination, glyph.SourceRect, color);
     }
 }
 
@@ -414,15 +501,18 @@ internal readonly record struct UiTextRendererTimingSnapshot(
     int MeasureWidthCallCount,
     long GetLineHeightElapsedTicks,
     int GetLineHeightCallCount,
-    long TryGetFontElapsedTicks,
-    int TryGetFontCallCount,
-    long EnsureInitializedElapsedTicks,
-    int EnsureInitializedCallCount,
-    long RendererDrawStringElapsedTicks,
-    int RendererDrawStringCallCount,
-    long SpriteFontDrawStringElapsedTicks,
-    int SpriteFontDrawStringCallCount,
-    int SpriteFontDrawStringEnabledPathCount,
-    int SpriteFontDrawStringFallbackPathCount,
-    int FontCacheHitCount,
-    int FontCacheMissCount);
+    long DrawStringElapsedTicks,
+    int DrawStringCallCount,
+    int TypefaceCacheHitCount,
+    int TypefaceCacheMissCount,
+    int MetricsCacheHitCount,
+    int MetricsCacheMissCount,
+    int LineHeightCacheHitCount,
+    int LineHeightCacheMissCount);
+
+internal readonly record struct UiTextMetricsCacheKey(
+    UiTypography Typography,
+    string Text);
+
+internal readonly record struct UiLineHeightCacheKey(
+    UiTypography Typography);

@@ -93,28 +93,16 @@ public class CheckBox : ToggleButton
             return Vector2.Zero;
         }
 
-        var font = UiTextRenderer.ResolveFont(Font);
-        if (font == null)
-        {
-            return Vector2.Zero;
-        }
-
         var maxTextWidth = MathF.Max(0f, availableWidth - Padding.Horizontal - glyphSize - GetGlyphSpacing());
         var textAvailableWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : maxTextWidth;
-        return TextLayout.Layout(Text, font, FontSize, textAvailableWidth, TextWrapping).Size;
+        return TextLayout.LayoutForElement(Text, this, FontSize, textAvailableWidth, TextWrapping).Size;
     }
 
     private void DrawText(SpriteBatch spriteBatch, LayoutRect slot, float glyphSize)
     {
         if (string.IsNullOrEmpty(Text))
-        {
-            return;
-        }
-
-        var font = UiTextRenderer.ResolveFont(Font);
-        if (font == null)
         {
             return;
         }
@@ -135,11 +123,11 @@ public class CheckBox : ToggleButton
         var textAvailableWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : maxTextWidth;
-        var layout = TextLayout.Layout(Text, font, FontSize, textAvailableWidth, TextWrapping);
+        var layout = TextLayout.LayoutForElement(Text, this, FontSize, textAvailableWidth, TextWrapping);
 
         var textY = top + ((maxTextHeight - layout.Size.Y) / 2f);
         var foreground = (IsEnabled ? Foreground : new Color(170, 170, 170)) * Opacity;
-        var lineSpacing = UiTextRenderer.GetLineHeight(font, FontSize);
+        var lineSpacing = UiTextRenderer.GetLineHeight(this, FontSize);
 
         for (var i = 0; i < layout.Lines.Count; i++)
         {
@@ -150,7 +138,7 @@ public class CheckBox : ToggleButton
             }
 
             var linePosition = new Vector2(left, textY + (i * lineSpacing));
-            UiTextRenderer.DrawString(spriteBatch, font, line, linePosition, foreground, FontSize);
+            UiTextRenderer.DrawString(spriteBatch, this, line, linePosition, foreground, FontSize, opaqueBackground: true);
         }
     }
 

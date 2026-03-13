@@ -1,6 +1,5 @@
 using System;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
@@ -29,16 +28,6 @@ public partial class FrameView : UserControl
                 "Home",
                 "Frame keeps object-based journal history. Use Navigate/Back/Forward to inspect live behavior."),
             "Initialized with Home page.");
-    }
-
-    public void SetFont(SpriteFont? font)
-    {
-        if (font == null)
-        {
-            return;
-        }
-
-        ControlDemoSupport.ApplyFontRecursive(this, font);
     }
 
     private UIElement BuildDemoSurface()
@@ -302,4 +291,6 @@ public partial class FrameView : UserControl
         _serviceStateLabel!.Text = "Current page service: n/a (content is not Page)";
     }
 }
+
+
 

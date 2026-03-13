@@ -69,17 +69,19 @@ public sealed class AppStyledDataGridSampleTests
             var border = Assert.IsType<Border>(Assert.Single(firstCell.GetVisualChildren()));
             var presenter = Assert.IsType<ContentPresenter>(Assert.Single(border.GetVisualChildren()));
             var label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-            var expectedFont = label.Font;
             var expectedFontFamily = label.FontFamily;
             var expectedFontSize = label.FontSize;
+            var expectedFontWeight = label.FontWeight;
+            var expectedFontStyle = label.FontStyle;
             var expectedForeground = label.Foreground;
 
             PressKey(uiRoot, Keys.F2);
 
             var editor = Assert.IsType<TextBox>(firstCell.EditingElement);
-            Assert.Same(expectedFont, editor.Font);
             Assert.Equal(expectedFontFamily, editor.FontFamily);
             Assert.Equal(expectedFontSize, editor.FontSize);
+            Assert.Equal(expectedFontWeight, editor.FontWeight);
+            Assert.Equal(expectedFontStyle, editor.FontStyle);
             Assert.Equal(expectedForeground, editor.Foreground);
         }
         finally
@@ -91,11 +93,6 @@ public sealed class AppStyledDataGridSampleTests
     [Fact]
     public void AppStyledDataGridSample_ColumnHeaderFontSize_AffectsHeaderHeight()
     {
-        if (!IsScalableTextRendererEnabled())
-        {
-            return;
-        }
-
         var smaller = new DataGridColumnHeader
         {
             Text = "Name",
@@ -168,13 +165,6 @@ public sealed class AppStyledDataGridSampleTests
     }
 
     private static Vector2 Center(LayoutRect rect) => new(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
-
-    private static bool IsScalableTextRendererEnabled()
-    {
-        var rendererType = typeof(DataGridView).Assembly.GetType("InkkSlinger.UiTextRenderer");
-        var property = rendererType?.GetProperty("IsEnabled", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-        return property?.GetValue(null) as bool? == true;
-    }
 
     private static void RestoreApplicationResources(Dictionary<object, object> snapshot)
     {

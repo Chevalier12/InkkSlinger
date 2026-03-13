@@ -46,7 +46,10 @@ public class DataGridColumn
         var editor = new TextBox
         {
             Text = owner.ResolveCellContent(item, this)?.ToString() ?? string.Empty,
-            Font = owner.Font,
+            FontFamily = owner.FontFamily,
+            FontSize = owner.FontSize,
+            FontWeight = owner.FontWeight,
+            FontStyle = owner.FontStyle,
             Foreground = owner.Foreground,
             DataContext = item
         };

@@ -5,25 +5,50 @@ namespace InkkSlinger.Tests;
 public sealed class FontDependencyPropertyIdentityTests
 {
     [Fact]
-    public void ControlDerivedTypes_ReuseBaseFontDependencyPropertyIdentity()
+    public void ControlDerivedTypes_InheritFrameworkTypographyProperties()
     {
-        Assert.Same(Control.FontProperty, Button.FontProperty);
-        Assert.Same(Control.FontProperty, TextBox.FontProperty);
-        Assert.Same(Control.FontProperty, PasswordBox.FontProperty);
-        Assert.Same(Control.FontProperty, RichTextBox.FontProperty);
-        Assert.Same(Control.FontProperty, ComboBox.FontProperty);
-        Assert.Same(Control.FontProperty, MenuItem.FontProperty);
-        Assert.Same(Control.FontProperty, TabControl.FontProperty);
-        Assert.Same(Control.FontProperty, Popup.FontProperty);
-        Assert.Same(Control.FontProperty, GroupBox.FontProperty);
-        Assert.Same(Control.FontProperty, Expander.FontProperty);
-        Assert.Same(Control.FontProperty, StatusBarItem.FontProperty);
-        Assert.Same(Control.FontProperty, DocumentViewer.FontProperty);
-        Assert.Same(Control.FontProperty, DataGrid.FontProperty);
-        Assert.Same(Control.FontProperty, DataGridCell.FontProperty);
-        Assert.Same(Control.FontProperty, DataGridRowHeader.FontProperty);
-        Assert.Same(Control.FontProperty, TreeView.FontProperty);
-        Assert.Same(Control.FontProperty, TreeViewItem.FontProperty);
+        var host = new StackPanel
+        {
+            FontFamily = "Segoe UI",
+            FontSize = 18f,
+            FontWeight = "SemiBold",
+            FontStyle = "Italic"
+        };
+
+        var descendants = new FrameworkElement[]
+        {
+            new Button(),
+            new TextBox(),
+            new PasswordBox(),
+            new RichTextBox(),
+            new ComboBox(),
+            new MenuItem(),
+            new TabControl(),
+            new Popup(),
+            new GroupBox(),
+            new Expander(),
+            new StatusBarItem(),
+            new DocumentViewer(),
+            new DataGrid(),
+            new DataGridCell(),
+            new DataGridRowHeader(),
+            new TreeView(),
+            new TreeViewItem()
+        };
+
+        foreach (var descendant in descendants)
+        {
+            host.AddChild(descendant);
+
+            Assert.Equal("Segoe UI", descendant.FontFamily);
+            Assert.Equal(18f, descendant.FontSize);
+            Assert.Equal("SemiBold", descendant.FontWeight);
+            Assert.Equal("Italic", descendant.FontStyle);
+            Assert.Equal(DependencyPropertyValueSource.Inherited, descendant.GetValueSource(FrameworkElement.FontFamilyProperty));
+            Assert.Equal(DependencyPropertyValueSource.Inherited, descendant.GetValueSource(FrameworkElement.FontSizeProperty));
+            Assert.Equal(DependencyPropertyValueSource.Inherited, descendant.GetValueSource(FrameworkElement.FontWeightProperty));
+            Assert.Equal(DependencyPropertyValueSource.Inherited, descendant.GetValueSource(FrameworkElement.FontStyleProperty));
+        }
     }
 
     [Fact]
@@ -32,5 +57,6 @@ public sealed class FontDependencyPropertyIdentityTests
         Assert.NotSame(FrameworkElement.FontFamilyProperty, Window.FontFamilyProperty);
         Assert.NotSame(FrameworkElement.FontSizeProperty, Window.FontSizeProperty);
         Assert.NotSame(FrameworkElement.FontWeightProperty, Window.FontWeightProperty);
+        Assert.NotSame(FrameworkElement.FontStyleProperty, Window.FontStyleProperty);
     }
 }

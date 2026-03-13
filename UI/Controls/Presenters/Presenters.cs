@@ -308,7 +308,7 @@ public class ContentPresenter : FrameworkElement
         if (string.Equals(property.Name, nameof(FrameworkElement.FontFamily), StringComparison.Ordinal) ||
             string.Equals(property.Name, nameof(FrameworkElement.FontSize), StringComparison.Ordinal) ||
             string.Equals(property.Name, nameof(FrameworkElement.FontWeight), StringComparison.Ordinal) ||
-            string.Equals(property.Name, nameof(Control.Font), StringComparison.Ordinal) ||
+            string.Equals(property.Name, nameof(FrameworkElement.FontStyle), StringComparison.Ordinal) ||
             string.Equals(property.Name, nameof(Control.Foreground), StringComparison.Ordinal))
         {
             return true;
@@ -469,16 +469,12 @@ public class ContentPresenter : FrameworkElement
                 static currentLabel => currentLabel.FontWeight,
                 static (currentLabel, value) => currentLabel.FontWeight = value,
                 frameworkElement.FontWeight);
-        }
-
-        if (_sourceOwner != null && TryGetOwnerPropertyValue<SpriteFont>(_sourceOwner, nameof(Control.Font), out var font))
-        {
             ApplyFallbackLabelAssignment(
                 label,
-                "Font",
-                static currentLabel => currentLabel.Font,
-                static (currentLabel, value) => currentLabel.Font = value,
-                font);
+                "FontStyle",
+                static currentLabel => currentLabel.FontStyle,
+                static (currentLabel, value) => currentLabel.FontStyle = value,
+                frameworkElement.FontStyle);
         }
 
         if (_sourceOwner != null && TryGetOwnerPropertyValue<Color>(_sourceOwner, nameof(Control.Foreground), out var foreground))

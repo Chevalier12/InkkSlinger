@@ -234,7 +234,7 @@ public partial class RichTextBox
                 Length = 0,
                 Text = string.Empty,
                 TextStartX = 0f,
-                Bounds = new LayoutRect(0f, 0f, 0f, UiTextRenderer.GetLineHeight(Font, FontSize)),
+                Bounds = new LayoutRect(0f, 0f, 0f, UiTextRenderer.GetLineHeight(this, FontSize)),
                 Runs = Array.Empty<DocumentLayoutRun>(),
                 PrefixWidths = [0f]
             };
@@ -268,7 +268,7 @@ public partial class RichTextBox
             return;
         }
 
-        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(Font, FontSize));
+        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize));
         var changed = false;
         var visibleX = caret.X - _horizontalOffset;
         if (visibleX < 0f)

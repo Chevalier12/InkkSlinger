@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -188,6 +189,30 @@ public sealed class CalendarTests
         Assert.Equal(shortestDayNames[(int)DayOfWeek.Monday], calendar.WeekDayLabelsForTesting[0].Text);
     }
 
+    [Fact]
+    public void CalendarDayButtons_WithAppButtonStyle_KeepDayTextOnTemplatedButtons()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var (uiRoot, calendar) = CreateFixture();
+            calendar.DisplayDate = new DateTime(2026, 3, 1);
+            RunLayout(uiRoot);
+
+            var dayButton = Assert.IsType<CalendarDayButton>(calendar.DayButtonsForTesting[0]);
+            Assert.True(dayButton.ApplyTemplate());
+            Assert.NotEmpty(dayButton.GetVisualChildren());
+            Assert.NotEmpty(dayButton.DayText);
+            Assert.Equal(string.Empty, dayButton.Text);
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
     private static (UiRoot UiRoot, Calendar Calendar) CreateFixture()
     {
         var host = new Canvas
@@ -289,4 +314,49 @@ public sealed class CalendarTests
             new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
             new Viewport(0, 0, 600, 420));
     }
+
+    private static void LoadRootAppResources()
+    {
+        var appPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "App.xml"));
+        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
+        XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+    }
+
+    private static ResourceSnapshot CaptureApplicationResources()
+    {
+        var resources = UiApplication.Current.Resources;
+        return new ResourceSnapshot(
+            resources.ToList(),
+            resources.MergedDictionaries.ToList());
+    }
+
+    private static void RestoreApplicationResources(ResourceSnapshot snapshot)
+    {
+        var resources = UiApplication.Current.Resources;
+        resources.Clear();
+        foreach (var merged in resources.MergedDictionaries.ToList())
+        {
+            resources.RemoveMergedDictionary(merged);
+        }
+
+        foreach (var pair in snapshot.Entries)
+        {
+            resources[pair.Key] = pair.Value;
+        }
+
+        foreach (var merged in snapshot.MergedDictionaries)
+        {
+            resources.AddMergedDictionary(merged);
+        }
+    }
+
+    private sealed record ResourceSnapshot(
+        List<KeyValuePair<object, object>> Entries,
+        List<ResourceDictionary> MergedDictionaries);
 }

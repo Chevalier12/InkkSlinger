@@ -75,6 +75,5 @@ public class ComboBoxItem : ListBoxItem
         }
 
         _generatedLabel.Foreground = Foreground;
-        _generatedLabel.Font = Font;
     }
 }

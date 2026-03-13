@@ -1,6 +1,5 @@
 using System;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
@@ -24,16 +23,6 @@ public partial class PageView : UserControl
         }
 
         InitializePages();
-    }
-
-    public void SetFont(SpriteFont? font)
-    {
-        if (font == null)
-        {
-            return;
-        }
-
-        ControlDemoSupport.ApplyFontRecursive(this, font);
     }
 
     private UIElement BuildDemoSurface()
@@ -308,4 +297,6 @@ public partial class PageView : UserControl
         }
     }
 }
+
+
 

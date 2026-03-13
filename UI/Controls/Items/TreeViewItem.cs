@@ -28,8 +28,6 @@ public class TreeViewItem : ItemsControl
             typeof(TreeViewItem),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
@@ -45,8 +43,6 @@ public class TreeViewItem : ItemsControl
                         args.NewValue is Color newColor)
                     {
                         treeViewItem.PropagateTypographyToChildren(
-                            null,
-                            null,
                             oldColor,
                             newColor);
                     }
@@ -84,12 +80,6 @@ public class TreeViewItem : ItemsControl
     {
         get => GetValue<bool>(IsSelectedProperty);
         set => SetValue(IsSelectedProperty, value);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public new Color Foreground
@@ -144,7 +134,7 @@ public class TreeViewItem : ItemsControl
             return;
         }
 
-        ApplyTypographyToItem(treeViewItem, null, Font, null, Foreground);
+        ApplyTypographyToItem(treeViewItem, null, Foreground);
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
@@ -226,8 +216,8 @@ public class TreeViewItem : ItemsControl
         if (!string.IsNullOrEmpty(Header))
         {
             var textX = LayoutSlot.X + padding.Left + (HasChildItems() ? 16f : 6f);
-            var textY = LayoutSlot.Y + ((rowHeight - UiTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
-            UiTextRenderer.DrawString(spriteBatch, Font, Header, new Vector2(textX, textY), Foreground * Opacity, FontSize);
+            var textY = LayoutSlot.Y + ((rowHeight - UiTextRenderer.GetLineHeight(this, FontSize)) / 2f);
+            UiTextRenderer.DrawString(spriteBatch, this, Header, new Vector2(textX, textY), Foreground * Opacity, FontSize, opaqueBackground: true);
         }
     }
 
@@ -265,66 +255,45 @@ public class TreeViewItem : ItemsControl
     private float GetRowHeight()
     {
         var padding = Padding;
-        return MathF.Max(18f, UiTextRenderer.GetLineHeight(Font, FontSize) + 4f + padding.Vertical);
+        return MathF.Max(18f, UiTextRenderer.GetLineHeight(this, FontSize) + 4f + padding.Vertical);
     }
 
     private float MeasureHeaderWidth()
     {
         var padding = Padding;
         var textWidth = !string.IsNullOrEmpty(Header)
-            ? UiTextRenderer.MeasureWidth(Font, Header, FontSize)
+            ? UiTextRenderer.MeasureWidth(this, Header, FontSize)
             : 0f;
         return padding.Horizontal + (HasChildItems() ? 20f : 10f) + textWidth;
     }
 
     private void PropagateTypographyToChildren(
-        SpriteFont? oldFont,
-        SpriteFont? newFont,
         Color? oldForeground,
         Color? newForeground)
     {
         foreach (var child in GetChildTreeItems())
         {
-            ApplyTypographyRecursive(child, oldFont, newFont, oldForeground, newForeground);
+            ApplyTypographyRecursive(child, oldForeground, newForeground);
         }
     }
 
     private static void ApplyTypographyRecursive(
         TreeViewItem item,
-        SpriteFont? oldFont,
-        SpriteFont? newFont,
         Color? oldForeground,
         Color? newForeground)
     {
-        ApplyTypographyToItem(item, oldFont, newFont, oldForeground, newForeground);
+        ApplyTypographyToItem(item, oldForeground, newForeground);
         foreach (var child in item.GetChildTreeItems())
         {
-            ApplyTypographyRecursive(child, oldFont, newFont, oldForeground, newForeground);
+            ApplyTypographyRecursive(child, oldForeground, newForeground);
         }
     }
 
     private static void ApplyTypographyToItem(
         TreeViewItem item,
-        SpriteFont? oldFont,
-        SpriteFont? newFont,
         Color? oldForeground,
         Color? newForeground)
     {
-        if (newFont != null || oldFont != null)
-        {
-            if (!item.HasLocalValue(FontProperty) || Equals(item.Font, oldFont))
-            {
-                if (newFont != null)
-                {
-                    item.Font = newFont;
-                }
-                else
-                {
-                    item.ClearValue(FontProperty);
-                }
-            }
-        }
-
         if (newForeground.HasValue && oldForeground.HasValue)
         {
             if (!item.HasLocalValue(ForegroundProperty) || item.Foreground == oldForeground.Value)
@@ -334,4 +303,5 @@ public class TreeViewItem : ItemsControl
         }
     }
 }
+
 

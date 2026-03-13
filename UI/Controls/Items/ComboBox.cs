@@ -33,8 +33,6 @@ public class ComboBox : Selector
                 FrameworkPropertyMetadataOptions.None,
                 coerceValueCallback: static (_, value) => value is float f && f >= 40f ? f : 40f));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
@@ -93,12 +91,6 @@ public class ComboBox : Selector
     {
         get => GetValue<float>(MaxDropDownHeightProperty);
         set => SetValue(MaxDropDownHeightProperty, value);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public new Color Foreground
@@ -207,8 +199,10 @@ public class ComboBox : Selector
 
         if (args.Property == ItemContainerStyleProperty ||
             args.Property == ForegroundProperty ||
-            args.Property == FontProperty ||
-            args.Property == FontSizeProperty)
+            args.Property == FontSizeProperty ||
+            args.Property == FontFamilyProperty ||
+            args.Property == FontWeightProperty ||
+            args.Property == FontStyleProperty)
         {
             RefreshDropDownItems();
         }
@@ -222,10 +216,10 @@ public class ComboBox : Selector
 
         var text = GetDisplayText(SelectedItem);
         var textWidth = 0f;
-        var textHeight = UiTextRenderer.GetLineHeight(Font, FontSize);
+        var textHeight = UiTextRenderer.GetLineHeight(this, FontSize);
         if (!string.IsNullOrEmpty(text))
         {
-            textWidth = UiTextRenderer.MeasureWidth(Font, text, FontSize);
+            textWidth = UiTextRenderer.MeasureWidth(this, text, FontSize);
         }
 
         desired.X = MathF.Max(desired.X, padding.Horizontal + border + textWidth + 20f);
@@ -259,8 +253,8 @@ public class ComboBox : Selector
         }
 
         var textX = slot.X + Padding.Left + BorderThickness;
-        var textY = slot.Y + ((slot.Height - UiTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
-        UiTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), Foreground * Opacity, FontSize);
+        var textY = slot.Y + ((slot.Height - UiTextRenderer.GetLineHeight(this, FontSize)) / 2f);
+        UiTextRenderer.DrawString(spriteBatch, this, text, new Vector2(textX, textY), Foreground * Opacity, FontSize, opaqueBackground: true);
     }
 
 
@@ -502,10 +496,26 @@ public class ComboBox : Selector
             container.Foreground = Foreground;
         }
 
-        if (container.GetValueSource(Control.FontProperty) == DependencyPropertyValueSource.Default)
+        if (container.GetValueSource(FrameworkElement.FontFamilyProperty) == DependencyPropertyValueSource.Default)
         {
-            container.Font = Font;
+            container.FontFamily = FontFamily;
+        }
+
+        if (container.GetValueSource(FrameworkElement.FontSizeProperty) == DependencyPropertyValueSource.Default)
+        {
+            container.FontSize = FontSize;
+        }
+
+        if (container.GetValueSource(FrameworkElement.FontWeightProperty) == DependencyPropertyValueSource.Default)
+        {
+            container.FontWeight = FontWeight;
+        }
+
+        if (container.GetValueSource(FrameworkElement.FontStyleProperty) == DependencyPropertyValueSource.Default)
+        {
+            container.FontStyle = FontStyle;
         }
     }
 }
+
 

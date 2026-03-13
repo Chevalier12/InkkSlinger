@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
@@ -19,15 +18,6 @@ public class Control : FrameworkElement, ICommandSource
             typeof(ControlTemplate),
             typeof(Control),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
-
-    public static readonly DependencyProperty FontProperty =
-        DependencyProperty.Register(
-            nameof(Font),
-            typeof(SpriteFont),
-            typeof(Control),
-            new FrameworkPropertyMetadata(
-                null,
-                FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
     // Parse-first compatibility shims for theme styles targeting controls that do not
     // define these dependency properties yet.
@@ -140,12 +130,6 @@ public class Control : FrameworkElement, ICommandSource
     {
         get => GetValue<ControlTemplate>(TemplateProperty);
         set => SetValue(TemplateProperty, value);
-    }
-
-    public SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public Color Background

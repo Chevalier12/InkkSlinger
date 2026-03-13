@@ -15,7 +15,6 @@ namespace InkkSlinger;
 
 public class DataGrid : ItemsControl
 {
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
     public new static readonly DependencyProperty ForegroundProperty = DependencyProperty.Register(nameof(Foreground), typeof(Color), typeof(DataGrid), new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
     public new static readonly DependencyProperty BackgroundProperty = DependencyProperty.Register(nameof(Background), typeof(Color), typeof(DataGrid), new FrameworkPropertyMetadata(new Color(20, 30, 45), FrameworkPropertyMetadataOptions.AffectsRender));
     public new static readonly DependencyProperty BorderBrushProperty = DependencyProperty.Register(nameof(BorderBrush), typeof(Color), typeof(DataGrid), new FrameworkPropertyMetadata(new Color(69, 99, 132), FrameworkPropertyMetadataOptions.AffectsRender));
@@ -95,7 +94,6 @@ public class DataGrid : ItemsControl
     public event EventHandler<DataGridRowEditEndingEventArgs>? RowEditEnding;
 
     public ObservableCollection<DataGridColumn> Columns => _columns;
-    public new SpriteFont? Font { get => GetValue<SpriteFont>(FontProperty); set => SetValue(FontProperty, value); }
     public new Color Foreground { get => GetValue<Color>(ForegroundProperty); set => SetValue(ForegroundProperty, value); }
     public new Color Background { get => GetValue<Color>(BackgroundProperty); set => SetValue(BackgroundProperty, value); }
     public new Color BorderBrush { get => GetValue<Color>(BorderBrushProperty); set => SetValue(BorderBrushProperty, value); }
@@ -216,8 +214,10 @@ public class DataGrid : ItemsControl
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);
-        if (args.Property == FontProperty ||
-            args.Property == FontSizeProperty ||
+        if (args.Property == FontSizeProperty ||
+            args.Property == FontFamilyProperty ||
+            args.Property == FontWeightProperty ||
+            args.Property == FontStyleProperty ||
             args.Property == RowHeightProperty ||
             args.Property == ShowRowHeadersProperty ||
             args.Property == RowHeaderWidthProperty ||
@@ -253,7 +253,6 @@ public class DataGrid : ItemsControl
         var innerHeight = MathF.Max(0f, availableSize.Y - (border * 2f));
         var rowHeaderWidth = RowHeadersVisibleForLayout ? RowHeaderWidth : 0f;
         var headerHeight = ColumnHeadersVisibleForLayout ? GetEffectiveColumnHeaderHeight() : 0f;
-        _cornerHeader.Font = Font;
         _cornerHeader.Measure(new Vector2(rowHeaderWidth, headerHeight));
         _headersPresenter.MeasureHeaders(GetDisplayColumns(), headerHeight);
         _rowsPresenter.ScrollViewer.Measure(new Vector2(innerWidth, MathF.Max(0f, innerHeight - headerHeight)));
@@ -442,10 +441,10 @@ public class DataGrid : ItemsControl
         if (editorElement is TextBox textBox)
         {
             var displayedTypography = cell.GetDisplayedTypography();
-            textBox.Font = displayedTypography.Font;
             textBox.FontSize = displayedTypography.FontSize;
             textBox.FontFamily = displayedTypography.FontFamily;
             textBox.FontWeight = displayedTypography.FontWeight;
+            textBox.FontStyle = displayedTypography.FontStyle;
             textBox.Foreground = displayedTypography.Foreground;
             textBox.SetFocusedFromInput(_isFocusedFromInput);
         }
@@ -724,7 +723,6 @@ public class DataGrid : ItemsControl
 
     private void SyncGridChrome(bool invalidateMeasure = true)
     {
-        _cornerHeader.Font = Font;
         _headersPresenter.SyncHeaders(this, GetDisplayColumns(), OnColumnHeaderClick);
         SyncRowsHost(invalidateMeasure: invalidateMeasure);
         if (invalidateMeasure)
@@ -888,8 +886,8 @@ public class DataGrid : ItemsControl
         }
     }
 
-    private float GetEffectiveRowHeight() => MathF.Max(RowHeight, UiTextRenderer.GetLineHeight(Font, FontSize) + 8f);
-    private float GetEffectiveColumnHeaderHeight() => MathF.Max(ColumnHeaderHeight, UiTextRenderer.GetLineHeight(Font, FontSize) + 10f);
+    private float GetEffectiveRowHeight() => MathF.Max(RowHeight, UiTextRenderer.GetLineHeight(this, FontSize) + 8f);
+    private float GetEffectiveColumnHeaderHeight() => MathF.Max(ColumnHeaderHeight, UiTextRenderer.GetLineHeight(this, FontSize) + 10f);
 
     private float GetColumnsTotalWidth()
     {
@@ -1273,3 +1271,4 @@ public class DataGrid : ItemsControl
         }
     }
 }
+

@@ -38,7 +38,7 @@ public sealed class AccessText : TextBlock
             ? float.PositiveInfinity
             : availableSize.X;
 
-        return TextLayout.Layout(DisplayText, Font, FontSize, availableWidth, TextWrapping).Size;
+        return TextLayout.LayoutForElement(DisplayText, this, FontSize, availableWidth, TextWrapping).Size;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -51,8 +51,8 @@ public sealed class AccessText : TextBlock
         var renderWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : RenderSize.X;
-        var layout = TextLayout.Layout(DisplayText, Font, FontSize, renderWidth, TextWrapping);
-        var lineSpacing = UiTextRenderer.GetLineHeight(Font, FontSize);
+        var layout = TextLayout.LayoutForElement(DisplayText, this, FontSize, renderWidth, TextWrapping);
+        var lineSpacing = UiTextRenderer.GetLineHeight(this, FontSize);
         for (var i = 0; i < layout.Lines.Count; i++)
         {
             var line = layout.Lines[i];
@@ -62,7 +62,7 @@ public sealed class AccessText : TextBlock
             }
 
             var position = new Vector2(LayoutSlot.X, LayoutSlot.Y + (i * lineSpacing));
-            UiTextRenderer.DrawString(spriteBatch, Font, line, position, Foreground * Opacity, FontSize);
+            UiTextRenderer.DrawString(spriteBatch, this, line, position, Foreground * Opacity, FontSize);
         }
 
         if (AccessKeyDisplayIndex < 0 || AccessKey == null)
@@ -83,8 +83,8 @@ public sealed class AccessText : TextBlock
 
         var prefix = keyLine[..columnIndex];
         var glyph = keyLine[columnIndex].ToString();
-        var prefixWidth = UiTextRenderer.MeasureWidth(Font, prefix, FontSize);
-        var glyphWidth = MathF.Max(1f, UiTextRenderer.MeasureWidth(Font, glyph, FontSize));
+        var prefixWidth = UiTextRenderer.MeasureWidth(this, prefix, FontSize);
+        var glyphWidth = MathF.Max(1f, UiTextRenderer.MeasureWidth(this, glyph, FontSize));
         var lineY = LayoutSlot.Y + (lineIndex * lineSpacing);
         var underlineY = lineY + lineSpacing - 2f;
         var underlineRect = new LayoutRect(LayoutSlot.X + prefixWidth, underlineY, glyphWidth, 1f);

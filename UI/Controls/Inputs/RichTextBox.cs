@@ -34,8 +34,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 },
                 coerceValueCallback: static (_, value) => value as FlowDocument ?? CreateDefaultDocument()));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
@@ -181,12 +179,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         get => GetValue<FlowDocument>(DocumentProperty) ?? CreateDefaultDocument();
         set => SetValue(DocumentProperty, value);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public new Color Foreground
@@ -1489,7 +1481,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var textRect = GetTextRect();
         var layout = BuildOrGetLayout(textRect.Width);
         var previous = _verticalOffset;
-        _verticalOffset -= MathF.Sign(delta) * (UiTextRenderer.GetLineHeight(Font, FontSize) * 3f);
+        _verticalOffset -= MathF.Sign(delta) * (UiTextRenderer.GetLineHeight(this, FontSize) * 3f);
         ClampScrollOffsets(layout, textRect);
         if (Math.Abs(previous - _verticalOffset) > 0.01f)
         {
@@ -1653,7 +1645,15 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 continue;
             }
 
-            UiTextRenderer.DrawString(spriteBatch, Font, run.Text, position, color * Opacity, FontSize, run.Style.IsBold);
+            UiTextRenderer.DrawString(
+                spriteBatch,
+                this,
+                run.Text,
+                position,
+                color * Opacity,
+                FontSize,
+                opaqueBackground: false,
+                styleOverride: ToStyleOverride(run.Style));
 
             if (run.Style.IsUnderline)
             {
@@ -3170,7 +3170,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             return;
         }
 
-        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(Font, FontSize));
+        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize));
         var caretRect = new LayoutRect(textRect.X + caret.X - _horizontalOffset, textRect.Y + caret.Y - _verticalOffset, 1f, lineHeight);
         UiDrawing.DrawFilledRect(
             spriteBatch,
@@ -3199,7 +3199,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         var line = ResolveLineForOffset(layout, _caretIndex);
         var caretRect = layout.TryGetCaretPosition(_caretIndex, out var caret)
-            ? new LayoutRect(textRect.X + caret.X - _horizontalOffset, textRect.Y + caret.Y - _verticalOffset, 1f, Math.Max(1f, UiTextRenderer.GetLineHeight(Font, FontSize)))
+            ? new LayoutRect(textRect.X + caret.X - _horizontalOffset, textRect.Y + caret.Y - _verticalOffset, 1f, Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize)))
             : default;
         _perfTracker.RecordSelectionGeometry(Stopwatch.GetElapsedTime(selectionStartTicks).TotalMilliseconds);
     }
@@ -4010,18 +4010,19 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             ? float.PositiveInfinity
             : availableWidth;
         var text = GetText();
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
         var signature = HashCode.Combine(
             RuntimeHelpers.GetHashCode(Document),
             StringComparer.Ordinal.GetHashCode(text),
-            Font is null ? 0 : RuntimeHelpers.GetHashCode(Font),
+            typography,
             (int)TextWrapping,
             (int)MathF.Round(normalizedWidth * 100f));
-        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(Font, FontSize));
+        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(typography));
         var key = new DocumentViewportLayoutCache.CacheKey(
             signature,
             normalizedWidth,
             TextWrapping,
-            Font is null ? 0 : RuntimeHelpers.GetHashCode(Font),
+            typography.GetHashCode(),
             lineHeight,
             Foreground);
         if (_layoutCache.TryGet(key, out var cached))
@@ -4034,8 +4035,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var buildStart = Stopwatch.GetTimestamp();
         var settings = new DocumentLayoutSettings(
             AvailableWidth: normalizedWidth,
-            Font: Font,
-            FontSize: FontSize,
+            Typography: typography,
             Wrapping: TextWrapping,
             Foreground: Foreground,
             LineHeight: lineHeight,
@@ -4063,6 +4063,22 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
 
         return Foreground;
+    }
+
+    private static UiTextStyleOverride ToStyleOverride(DocumentLayoutStyle style)
+    {
+        var value = UiTextStyleOverride.None;
+        if (style.IsBold)
+        {
+            value |= UiTextStyleOverride.Bold;
+        }
+
+        if (style.IsItalic)
+        {
+            value |= UiTextStyleOverride.Italic;
+        }
+
+        return value;
     }
 
 
@@ -4182,5 +4198,6 @@ public readonly record struct RichTextBoxPerformanceSnapshot(
     int RedoDepth,
     int UndoOperationCount,
     int RedoOperationCount);
+
 
 

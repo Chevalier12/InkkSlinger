@@ -7,7 +7,6 @@ namespace InkkSlinger;
 
 public class TabControl : Selector
 {
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
 
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
@@ -74,12 +73,6 @@ public class TabControl : Selector
     public TabControl()
     {
         AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnMouseDownSelectTab);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public new Color Foreground
@@ -295,12 +288,6 @@ public class TabControl : Selector
                 : header.Item.BorderBrush;
             UiDrawing.DrawRectStroke(spriteBatch, header.Rect, 1f, borderBrush, Opacity);
 
-            var font = UiTextRenderer.ResolveFont(Font);
-            if (font == null)
-            {
-                continue;
-            }
-
             var text = header.Item.Header;
             if (string.IsNullOrEmpty(text))
             {
@@ -312,10 +299,10 @@ public class TabControl : Selector
                 ? Foreground
                 : header.Item.Foreground;
 
-            var textWidth = UiTextRenderer.MeasureWidth(font, text, FontSize);
+            var textWidth = UiTextRenderer.MeasureWidth(this, text, FontSize);
             var x = header.Rect.X + ((header.Rect.Width - textWidth) / 2f);
-            var y = header.Rect.Y + ((header.Rect.Height - UiTextRenderer.GetLineHeight(font, FontSize)) / 2f);
-            UiTextRenderer.DrawString(spriteBatch, font, text, new Vector2(x, y), textColor * Opacity, FontSize);
+            var y = header.Rect.Y + ((header.Rect.Height - UiTextRenderer.GetLineHeight(this, FontSize)) / 2f);
+            UiTextRenderer.DrawString(spriteBatch, this, text, new Vector2(x, y), textColor * Opacity, FontSize, opaqueBackground: true);
         }
 
         var border = BorderThickness;
@@ -345,7 +332,7 @@ public class TabControl : Selector
     private float GetHeaderHeight()
     {
         var padding = HeaderPadding;
-        var textHeight = UiTextRenderer.GetLineHeight(Font, FontSize);
+        var textHeight = UiTextRenderer.GetLineHeight(this, FontSize);
         return padding.Vertical + textHeight;
     }
 
@@ -353,9 +340,9 @@ public class TabControl : Selector
     {
         var padding = HeaderPadding;
         var textWidth = 26f;
-        if (Font != null && !string.IsNullOrEmpty(item.Header))
+        if (!string.IsNullOrEmpty(item.Header))
         {
-            textWidth = UiTextRenderer.MeasureWidth(Font, item.Header, FontSize);
+            textWidth = UiTextRenderer.MeasureWidth(this, item.Header, FontSize);
         }
 
         return MathF.Max(36f, padding.Horizontal + textWidth);
@@ -363,8 +350,8 @@ public class TabControl : Selector
 
     private static bool Contains(LayoutRect rect, Vector2 point)
     {
-        return point.X >= rect.X && point.X <= rect.X + rect.Width &&
-               point.Y >= rect.Y && point.Y <= rect.Y + rect.Height;
+        return point.X >= rect.X && point.X < rect.X + rect.Width &&
+               point.Y >= rect.Y && point.Y < rect.Y + rect.Height;
     }
 
     private void OnMouseDownSelectTab(object? sender, MouseRoutedEventArgs args)
@@ -413,4 +400,5 @@ public class TabControl : Selector
         public TabItem Item { get; }
     }
 }
+
 

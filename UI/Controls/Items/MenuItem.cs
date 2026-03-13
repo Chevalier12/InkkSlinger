@@ -24,8 +24,6 @@ public class MenuItem : ItemsControl
             typeof(MenuItem),
             new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
@@ -139,12 +137,6 @@ public class MenuItem : ItemsControl
     {
         get => GetValue<string>(InputGestureTextProperty) ?? string.Empty;
         set => SetValue(InputGestureTextProperty, value);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public new Color Foreground
@@ -476,14 +468,14 @@ public class MenuItem : ItemsControl
         var padding = Padding;
         var textX = LayoutSlot.X + padding.Left;
         var textY = LayoutSlot.Y + ((LayoutSlot.Height - GetLineHeight()) / 2f);
-        UiTextRenderer.DrawString(spriteBatch, Font, GetDisplayHeaderText(), new Vector2(textX, textY), Foreground * Opacity, FontSize);
+        UiTextRenderer.DrawString(spriteBatch, this, GetDisplayHeaderText(), new Vector2(textX, textY), Foreground * Opacity, FontSize, opaqueBackground: true);
 
         var gestureText = GetEffectiveInputGestureText();
         if (!string.IsNullOrWhiteSpace(gestureText) && !IsTopLevelItem())
         {
             var gestureWidth = MeasureTextWidth(gestureText);
             var gestureX = LayoutSlot.X + LayoutSlot.Width - padding.Right - gestureWidth - (HasChildItems ? 12f : 0f);
-            UiTextRenderer.DrawString(spriteBatch, Font, gestureText, new Vector2(gestureX, textY), Foreground * Opacity, FontSize);
+            UiTextRenderer.DrawString(spriteBatch, this, gestureText, new Vector2(gestureX, textY), Foreground * Opacity, FontSize, opaqueBackground: true);
         }
 
         if (HasChildItems && !IsTopLevelItem())
@@ -744,14 +736,12 @@ public class MenuItem : ItemsControl
             return 0f;
         }
 
-        return UiTextRenderer.MeasureWidth(Font, text, FontSize);
+        return UiTextRenderer.MeasureWidth(this, text, FontSize);
     }
 
     private float GetLineHeight()
     {
-        return !UiTextRenderer.HasRenderableFont(Font)
-            ? MathF.Max(8f, FontSize)
-            : UiTextRenderer.GetLineHeight(Font, FontSize);
+        return UiTextRenderer.GetLineHeight(this, FontSize);
     }
 
     private void DrawSubmenuArrow(SpriteBatch spriteBatch, Vector2 center)
@@ -1185,4 +1175,5 @@ public class MenuItem : ItemsControl
         return MenuAccessText.StripAccessMarkers(header);
     }
 }
+
 

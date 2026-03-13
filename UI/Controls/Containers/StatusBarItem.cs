@@ -13,8 +13,6 @@ public class StatusBarItem : ContentControl
             typeof(StatusBarItem),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
@@ -61,12 +59,6 @@ public class StatusBarItem : ContentControl
         set => SetValue(ForegroundProperty, value);
     }
 
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
-    }
-
     public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
@@ -105,8 +97,8 @@ public class StatusBarItem : ContentControl
 
         if (ContentElement == null && Content is string text)
         {
-            var width = UiTextRenderer.MeasureWidth(Font, text, FontSize);
-            var height = UiTextRenderer.GetLineHeight(Font, FontSize);
+            var width = UiTextRenderer.MeasureWidth(this, text, FontSize);
+            var height = UiTextRenderer.GetLineHeight(this, FontSize);
             contentDesired = new Vector2(MathF.Max(contentDesired.X, width), MathF.Max(contentDesired.Y, height));
         }
 
@@ -149,9 +141,10 @@ public class StatusBarItem : ContentControl
         {
             var padding = Padding;
             var textX = LayoutSlot.X + BorderThickness + padding.Left;
-            var textY = LayoutSlot.Y + ((LayoutSlot.Height - UiTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
-            UiTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), Foreground * Opacity, FontSize);
+            var textY = LayoutSlot.Y + ((LayoutSlot.Height - UiTextRenderer.GetLineHeight(this, FontSize)) / 2f);
+            UiTextRenderer.DrawString(spriteBatch, this, text, new Vector2(textX, textY), Foreground * Opacity, FontSize);
         }
     }
 }
+
 

@@ -37,8 +37,6 @@ public class GroupBox : ContentControl
             typeof(GroupBox),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
@@ -108,12 +106,6 @@ public class GroupBox : ContentControl
     {
         get => GetValue<DataTemplateSelector>(HeaderTemplateSelectorProperty);
         set => SetValue(HeaderTemplateSelectorProperty, value);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public new Color Foreground
@@ -322,7 +314,7 @@ public class GroupBox : ContentControl
         if (_headerElement == null && Header is string text && !string.IsNullOrWhiteSpace(text))
         {
             var textY = LayoutSlot.Y;
-            UiTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(_headerRect.X, textY), Foreground * Opacity, FontSize);
+            UiTextRenderer.DrawString(spriteBatch, this, text, new Vector2(_headerRect.X, textY), Foreground * Opacity, FontSize);
         }
     }
 
@@ -347,8 +339,8 @@ public class GroupBox : ContentControl
         if (Header is string text && !string.IsNullOrWhiteSpace(text))
         {
             return new Vector2(
-                UiTextRenderer.MeasureWidth(Font, text, FontSize),
-                UiTextRenderer.GetLineHeight(Font, FontSize));
+                UiTextRenderer.MeasureWidth(this, text, FontSize),
+                UiTextRenderer.GetLineHeight(this, FontSize));
         }
 
         return Vector2.Zero;
@@ -388,4 +380,5 @@ public class GroupBox : ContentControl
         }
     }
 }
+
 

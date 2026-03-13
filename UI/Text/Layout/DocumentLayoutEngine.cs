@@ -253,8 +253,7 @@ public sealed class DocumentLayoutResult
 
 public readonly record struct DocumentLayoutSettings(
     float AvailableWidth,
-    SpriteFont? Font,
-    float FontSize,
+    UiTypography Typography,
     TextWrapping Wrapping,
     Color Foreground,
     float LineHeight,
@@ -490,7 +489,7 @@ public sealed class DocumentLayoutEngine
             var markerX = baseX + (listDepth * _settings.ListIndent);
             var markerWidth = marker.Length == 0
                 ? 0f
-                : UiTextRenderer.MeasureWidth(_settings.Font, marker, _settings.FontSize);
+                : UiTextRenderer.MeasureWidth(_settings.Typography, marker);
             var textStartX = markerX + (markerWidth > 0f ? markerWidth + _settings.ListMarkerGap : 0f);
 
             var segments = new List<StyledChar>();
@@ -508,7 +507,7 @@ public sealed class DocumentLayoutEngine
 
             var layoutLines = plainText.Length == 0
                 ? new[] { string.Empty }
-                : TextLayout.Layout(plainText, _settings.Font, _settings.FontSize, width, _settings.Wrapping).Lines;
+                : TextLayout.Layout(plainText, _settings.Typography, width, _settings.Wrapping).Lines;
             var y = fixedY ?? _cursorY;
             var blockTop = y;
             var blockBottom = y;
@@ -537,9 +536,8 @@ public sealed class DocumentLayoutEngine
                     globalLineStart,
                     isTableCell,
                     _settings.LineHeight,
-                    _settings.Font,
-                    _settings.FontSize);
-                var prefixWidths = BuildPrefixWidths(segments, scanIndex, lineText.Length, _settings.Font, _settings.FontSize);
+                    _settings.Typography);
+                var prefixWidths = BuildPrefixWidths(segments, scanIndex, lineText.Length, _settings.Typography);
                 var lineWidth = prefixWidths[prefixWidths.Length - 1];
                 var lineBounds = new LayoutRect(textStartX, lineY, Math.Max(lineWidth, markerWidth), _settings.LineHeight);
                 for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
@@ -631,8 +629,7 @@ public sealed class DocumentLayoutEngine
             int globalStartOffset,
             bool isTableCell,
             float lineHeight,
-            SpriteFont? font,
-            float fontSize)
+            UiTypography typography)
         {
             var runs = new List<DocumentLayoutRun>();
             if (length <= 0)
@@ -653,7 +650,7 @@ public sealed class DocumentLayoutEngine
                 }
 
                 var text = BuildText(chars, chunkStart, index - chunkStart);
-                var width = UiTextRenderer.MeasureWidth(font, text, fontSize, style.IsBold);
+                var width = UiTextRenderer.MeasureWidth(typography, text, ToStyleOverride(style));
                 var run = new DocumentLayoutRun
                 {
                     Text = text,
@@ -671,17 +668,39 @@ public sealed class DocumentLayoutEngine
             return runs;
         }
 
-        private static float[] BuildPrefixWidths(IReadOnlyList<StyledChar> chars, int start, int length, SpriteFont? font, float fontSize)
+        private static float[] BuildPrefixWidths(IReadOnlyList<StyledChar> chars, int start, int length, UiTypography typography)
         {
             var widths = new float[length + 1];
             widths[0] = 0f;
             var current = 0f;
-            for (var i = 0; i < length; i++)
+            var index = 0;
+            while (index < length)
             {
-                var ch = chars[start + i];
-                var value = ch.Character == '\0' ? " " : ch.Character.ToString();
-                current += UiTextRenderer.MeasureWidth(font, value, fontSize, ch.Style.IsBold);
-                widths[i + 1] = current;
+                var style = chars[start + index].Style;
+                var chunkStart = index;
+                while (index < length && chars[start + index].Style.Equals(style))
+                {
+                    index++;
+                }
+
+                var chunkLength = index - chunkStart;
+                var builder = new char[chunkLength];
+                for (var i = 0; i < chunkLength; i++)
+                {
+                    var value = chars[start + chunkStart + i].Character;
+                    builder[i] = value == '\0' ? ' ' : value;
+                }
+
+                var styleOverride = ToStyleOverride(style);
+                for (var i = 0; i < chunkLength; i++)
+                {
+                    widths[chunkStart + i + 1] = current + UiTextRenderer.MeasureWidth(
+                        typography,
+                        new string(builder, 0, i + 1),
+                        styleOverride);
+                }
+
+                current += UiTextRenderer.MeasureWidth(typography, new string(builder), styleOverride);
             }
 
             return widths;
@@ -820,6 +839,22 @@ public sealed class DocumentLayoutEngine
             }
 
             return false;
+        }
+
+        private static UiTextStyleOverride ToStyleOverride(DocumentLayoutStyle style)
+        {
+            var value = UiTextStyleOverride.None;
+            if (style.IsBold)
+            {
+                value |= UiTextStyleOverride.Bold;
+            }
+
+            if (style.IsItalic)
+            {
+                value |= UiTextStyleOverride.Italic;
+            }
+
+            return value;
         }
 
         private static List<TableCellPlacement> BuildTablePlacements(Table table)
@@ -992,7 +1027,7 @@ public sealed class DocumentLayoutEngine
             foreach (var paragraph in FlowDocumentPlainTextExtensions.EnumerateParagraphs(cell))
             {
                 var text = FlowDocumentPlainText.GetInlineText(paragraph.Inlines);
-                maxWidth = Math.Max(maxWidth, UiTextRenderer.MeasureWidth(_settings.Font, text, _settings.FontSize));
+                maxWidth = Math.Max(maxWidth, UiTextRenderer.MeasureWidth(_settings.Typography, text));
             }
 
             return maxWidth;
@@ -1005,7 +1040,7 @@ public sealed class DocumentLayoutEngine
             foreach (var paragraph in FlowDocumentPlainTextExtensions.EnumerateParagraphs(cell))
             {
                 var text = FlowDocumentPlainText.GetInlineText(paragraph.Inlines);
-                var layout = TextLayout.Layout(text, _settings.Font, _settings.FontSize, width, _settings.Wrapping);
+                var layout = TextLayout.Layout(text, _settings.Typography, width, _settings.Wrapping);
                 total += Math.Max(_settings.LineHeight, layout.Lines.Count * _settings.LineHeight);
                 any = true;
             }

@@ -1,5 +1,4 @@
 using System;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
@@ -23,11 +22,7 @@ public partial class PaintShellView : UserControl
             canvasAdornerRoot.AdornerLayer.AddAdorner(new SelectionAdorner(selectedShape));
         }
     }
-
-    public void SetFont(SpriteFont? font)
-    {
-        _ = font;
-    }
 }
+
 
 

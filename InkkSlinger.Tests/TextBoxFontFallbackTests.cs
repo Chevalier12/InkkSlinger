@@ -6,12 +6,11 @@ namespace InkkSlinger.Tests;
 public sealed class TextBoxFontFallbackTests
 {
     [Fact]
-    public void Measure_WithNullFont_ExpandsWidthForText()
+    public void Measure_WithoutExplicitTypography_ExpandsWidthForText()
     {
         var textBox = new TextBox
         {
             Text = "TextBox fallback text",
-            Font = null,
             TextWrapping = TextWrapping.NoWrap
         };
 
@@ -22,12 +21,11 @@ public sealed class TextBoxFontFallbackTests
     }
 
     [Fact]
-    public void ClickingNearTextEnd_WithNullFont_ShouldInsertAtEnd()
+    public void ClickingNearTextEnd_WithoutExplicitTypography_ShouldInsertAtEnd()
     {
         var textBox = new TextBox
         {
             Text = "hello",
-            Font = null,
             TextWrapping = TextWrapping.NoWrap,
             Width = 260f,
             Height = 48f
@@ -37,7 +35,7 @@ public sealed class TextBoxFontFallbackTests
         textBox.Arrange(new LayoutRect(0f, 0f, 260f, 48f));
         textBox.SetFocusedFromInput(true);
 
-        var textWidth = UiTextRenderer.MeasureWidth(null, textBox.Text, textBox.FontSize);
+        var textWidth = UiTextRenderer.MeasureWidth(textBox.Text, textBox.FontSize);
         var clickPoint = new Vector2(
             textBox.LayoutSlot.X + textBox.Padding.Left + textBox.BorderThickness + textWidth + 1f,
             textBox.LayoutSlot.Y + textBox.Padding.Top + 2f);

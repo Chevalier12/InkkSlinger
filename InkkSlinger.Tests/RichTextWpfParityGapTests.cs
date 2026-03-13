@@ -108,7 +108,7 @@ public sealed class RichTextWpfParityGapTests
         var textLeft = 1f + 8f;
         var textTop = 1f + 5f;
         var pointAtEndOfFirstLine = new Microsoft.Xna.Framework.Vector2(
-            textLeft + UiTextRenderer.MeasureWidth(null, "first", editor.FontSize),
+            textLeft + UiTextRenderer.MeasureWidth("first", editor.FontSize),
             textTop + 2f);
 
         Assert.True(editor.HandlePointerDownFromInput(pointAtEndOfFirstLine, extendSelection: false));
@@ -161,7 +161,7 @@ public sealed class RichTextWpfParityGapTests
         var textLeft = 1f + 8f;
         var textTop = 1f + 5f;
         var pointAtEndOfFirstLine = new Microsoft.Xna.Framework.Vector2(
-            textLeft + UiTextRenderer.MeasureWidth(null, "test", editor.FontSize),
+            textLeft + UiTextRenderer.MeasureWidth("test", editor.FontSize),
             textTop + 2f);
 
         Assert.True(editor.HandlePointerDownFromInput(pointAtEndOfFirstLine, extendSelection: false));
@@ -179,7 +179,7 @@ public sealed class RichTextWpfParityGapTests
         var textLeft = 1f + 8f;
         var textTop = 1f + 5f;
         var pointAtEndOfFirstLine = new Microsoft.Xna.Framework.Vector2(
-            textLeft + UiTextRenderer.MeasureWidth(null, "test", editor.FontSize),
+            textLeft + UiTextRenderer.MeasureWidth("test", editor.FontSize),
             textTop + 2f);
 
         Assert.True(editor.HandlePointerDownFromInput(pointAtEndOfFirstLine, extendSelection: false));

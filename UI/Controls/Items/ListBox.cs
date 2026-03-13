@@ -210,21 +210,14 @@ public class ListBox : Selector
 
             if (listBoxItem.Content is Label label)
             {
-                // Fast-path for the common text item template to avoid a full visual-tree walk.
-                if (Font != null)
-                {
-                    label.Font = Font;
-                }
-                else
-                {
-                    label.ClearValue(Label.FontProperty);
-                }
-
+                // Fast-path for the common text item template.
+                label.FontFamily = FontFamily;
+                label.FontSize = FontSize;
+                label.FontWeight = FontWeight;
+                label.FontStyle = FontStyle;
                 return;
             }
         }
-
-        ApplyFontToElementTree(element, oldFont: null, newFont: Font);
     }
 
     protected override void OnSelectionChanged(SelectionChangedEventArgs args)
@@ -258,12 +251,6 @@ public class ListBox : Selector
         else if (args.Property == LineScrollAmountProperty && args.NewValue is float amount)
         {
             _scrollViewer.LineScrollAmount = amount;
-        }
-        else if (args.Property == Control.FontProperty)
-        {
-            PropagateFontToRealizedContainers(
-                args.OldValue as SpriteFont,
-                args.NewValue as SpriteFont);
         }
     }
 
@@ -353,66 +340,6 @@ public class ListBox : Selector
         if (itemBottom > viewportBottom)
         {
             _scrollViewer.ScrollToVerticalOffset(itemBottom - viewportHeight);
-        }
-    }
-
-    private void PropagateFontToRealizedContainers(SpriteFont? oldFont, SpriteFont? newFont)
-    {
-        for (var i = 0; i < ItemContainers.Count; i++)
-        {
-            ApplyFontToElementTree(ItemContainers[i], oldFont, newFont);
-        }
-    }
-
-    private static void ApplyFontToElementTree(UIElement? element, SpriteFont? oldFont, SpriteFont? newFont)
-    {
-        if (element == null || (oldFont == null && newFont == null))
-        {
-            return;
-        }
-
-        if (element is TextBlock textBlock)
-        {
-            TryApplyTextBlockFont(textBlock, oldFont, newFont);
-        }
-        else if (element is Button button)
-        {
-            TryApplyButtonFont(button, oldFont, newFont);
-        }
-
-        foreach (var child in element.GetVisualChildren())
-        {
-            ApplyFontToElementTree(child, oldFont, newFont);
-        }
-    }
-
-    private static void TryApplyTextBlockFont(TextBlock textBlock, SpriteFont? oldFont, SpriteFont? newFont)
-    {
-        if (!textBlock.HasLocalValue(TextBlock.FontProperty) || Equals(textBlock.Font, oldFont))
-        {
-            if (newFont != null)
-            {
-                textBlock.Font = newFont;
-            }
-            else
-            {
-                textBlock.ClearValue(TextBlock.FontProperty);
-            }
-        }
-    }
-
-    private static void TryApplyButtonFont(Button button, SpriteFont? oldFont, SpriteFont? newFont)
-    {
-        if (!button.HasLocalValue(Button.FontProperty) || Equals(button.Font, oldFont))
-        {
-            if (newFont != null)
-            {
-                button.Font = newFont;
-            }
-            else
-            {
-                button.ClearValue(Button.FontProperty);
-            }
         }
     }
 

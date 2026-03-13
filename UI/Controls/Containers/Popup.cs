@@ -41,8 +41,6 @@ public class Popup : ContentControl
             typeof(Popup),
             new FrameworkPropertyMetadata("Popup", FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public static readonly DependencyProperty LeftProperty =
         DependencyProperty.Register(
             nameof(Left),
@@ -161,12 +159,6 @@ public class Popup : ContentControl
     {
         get => GetValue<string>(TitleProperty) ?? string.Empty;
         set => SetValue(TitleProperty, value);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public float Left
@@ -417,8 +409,8 @@ public class Popup : ContentControl
             measured = content.DesiredSize;
         }
 
-        var minTitleWidth = Font != null && !string.IsNullOrWhiteSpace(Title)
-            ? TextLayout.Layout(Title, Font, FontSize, float.PositiveInfinity, TextWrapping.NoWrap).Size.X + 96f
+        var minTitleWidth = !string.IsNullOrWhiteSpace(Title)
+            ? TextLayout.Layout(Title, UiTextRenderer.ResolveTypography(this, FontSize), FontSize, float.PositiveInfinity, TextWrapping.NoWrap).Size.X + 96f
             : 120f;
 
         var desiredWidth = MathF.Max(minTitleWidth, measured.X + chromeHorizontal);
@@ -493,19 +485,16 @@ public class Popup : ContentControl
                 : CloseButtonBackground;
             UiDrawing.DrawFilledRect(spriteBatch, closeRect, closeColor, Opacity);
 
-            if (Font != null)
-            {
-                var text = "X";
-                var closeLayout = TextLayout.Layout(text, Font, FontSize, float.PositiveInfinity, TextWrapping.NoWrap);
-                var textX = closeRect.X + ((closeRect.Width - closeLayout.Size.X) / 2f);
-                var textY = closeRect.Y + ((closeRect.Height - closeLayout.Size.Y) / 2f);
-                UiTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(textX, textY), CloseButtonForeground * Opacity, FontSize);
-            }
+            var text = "X";
+            var closeLayout = TextLayout.Layout(text, UiTextRenderer.ResolveTypography(this, FontSize), FontSize, float.PositiveInfinity, TextWrapping.NoWrap);
+            var textX = closeRect.X + ((closeRect.Width - closeLayout.Size.X) / 2f);
+            var textY = closeRect.Y + ((closeRect.Height - closeLayout.Size.Y) / 2f);
+            UiTextRenderer.DrawString(spriteBatch, this, text, new Vector2(textX, textY), CloseButtonForeground * Opacity, FontSize);
         }
 
-        if (Font != null && !string.IsNullOrWhiteSpace(Title))
+        if (!string.IsNullOrWhiteSpace(Title))
         {
-            var titleLayout = TextLayout.Layout(Title, Font, FontSize, MathF.Max(0f, slot.Width - 72f), TextWrapping.WrapWithOverflow);
+            var titleLayout = TextLayout.Layout(Title, UiTextRenderer.ResolveTypography(this, FontSize), FontSize, MathF.Max(0f, slot.Width - 72f), TextWrapping.WrapWithOverflow);
             var textPosition = new Vector2(slot.X + 10f, slot.Y + MathF.Max(4f, (TitleBarHeight - titleLayout.Size.Y) / 2f));
             for (var i = 0; i < titleLayout.Lines.Count; i++)
             {
@@ -515,8 +504,8 @@ public class Popup : ContentControl
                     continue;
                 }
 
-                var linePosition = new Vector2(textPosition.X, textPosition.Y + (i * UiTextRenderer.GetLineHeight(Font, FontSize)));
-                UiTextRenderer.DrawString(spriteBatch, Font, line, linePosition, TitleForeground * Opacity, FontSize);
+                var linePosition = new Vector2(textPosition.X, textPosition.Y + (i * UiTextRenderer.GetLineHeight(this, FontSize)));
+                UiTextRenderer.DrawString(spriteBatch, this, line, linePosition, TitleForeground * Opacity, FontSize);
             }
         }
     }
@@ -893,4 +882,5 @@ public class Popup : ContentControl
         return false;
     }
 }
+
 

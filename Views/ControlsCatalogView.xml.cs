@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
@@ -10,7 +9,6 @@ public partial class ControlsCatalogView : UserControl
     private StackPanel? _controlButtonsHost;
     private Label? _selectedControlLabel;
     private ContentControl? _previewHost;
-    private SpriteFont? _catalogFont;
 
     public ControlsCatalogView()
     {
@@ -25,17 +23,6 @@ public partial class ControlsCatalogView : UserControl
         {
             ShowControl(ControlViews.All[0]);
         }
-    }
-
-    public void SetFont(SpriteFont? font)
-    {
-        if (font == null)
-        {
-            return;
-        }
-
-        _catalogFont = font;
-        ControlDemoSupport.ApplyCatalogPreviewFont(this, font);
     }
 
     private void BuildButtons()
@@ -69,10 +56,6 @@ public partial class ControlsCatalogView : UserControl
         {
             var view = CreateView(controlName);
             HarmonizePreviewChrome(view);
-            if (_catalogFont != null)
-            {
-                ControlDemoSupport.ApplyCatalogPreviewFont(view, _catalogFont);
-            }
             _previewHost.Content = view;
         }
     }
@@ -174,4 +157,5 @@ public sealed class MissingControlView : UserControl
         };
     }
 }
+
 

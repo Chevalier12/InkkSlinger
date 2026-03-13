@@ -182,6 +182,8 @@ public class Calendar : UserControl
     private bool _pendingManualRenderDiagnostics;
     private bool _manualRenderDiagnosticsLogged;
     private int _calendarViewRefreshCount;
+    private CalendarRefreshDiagnostics _lastRefreshDiagnostics;
+    private CalendarRefreshDiagnostics _totalRefreshDiagnostics;
 
     public Calendar()
     {
@@ -266,7 +268,7 @@ public class Calendar : UserControl
         for (var i = 0; i < _dayButtons.Length; i++)
         {
             var buttonIndex = i;
-            var button = new Button
+            var button = new CalendarDayButton
             {
                 Margin = new Thickness(1f),
                 Padding = new Thickness(0f),
@@ -382,6 +384,15 @@ public class Calendar : UserControl
 
         index = -1;
         return false;
+    }
+
+    internal void SetAllDayButtonTextForTests(string text)
+    {
+        EnsureCalendarViewCurrent();
+        for (var i = 0; i < _dayButtons.Length; i++)
+        {
+            SetButtonTextIfChanged(_dayButtons[i], text);
+        }
     }
 
     public void SetSelectedDates(IEnumerable<DateTime> dates)
@@ -884,13 +895,28 @@ public class Calendar : UserControl
         }
 
         var displayMonth = NormalizeToMonthStart(DisplayDate);
-        SetLabelTextIfChanged(_monthLabel, displayMonth.ToString("Y", CultureInfo.CurrentCulture));
+        var monthLabelTextChangeCount = 0;
+        var weekDayLabelTextChangeCount = 0;
+        var dayButtonTextChangeCount = 0;
+        var dayButtonEnabledChangeCount = 0;
+        var dayButtonBackgroundChangeCount = 0;
+        var dayButtonForegroundChangeCount = 0;
+        var dayButtonBorderBrushChangeCount = 0;
+        var navigationEnabledChangeCount = 0;
+
+        if (SetLabelTextIfChanged(_monthLabel, displayMonth.ToString("Y", CultureInfo.CurrentCulture)))
+        {
+            monthLabelTextChangeCount++;
+        }
 
         var shortestDayNames = CultureInfo.CurrentCulture.DateTimeFormat.ShortestDayNames;
         for (var i = 0; i < _weekDayLabels.Length; i++)
         {
             var index = (((int)FirstDayOfWeek + i) % 7 + 7) % 7;
-            SetLabelTextIfChanged(_weekDayLabels[i], shortestDayNames[index]);
+            if (SetLabelTextIfChanged(_weekDayLabels[i], shortestDayNames[index]))
+            {
+                weekDayLabelTextChangeCount++;
+            }
         }
 
         var offsetFromFirstDay = ((int)displayMonth.DayOfWeek - (int)FirstDayOfWeek + 7) % 7;
@@ -903,7 +929,10 @@ public class Calendar : UserControl
             _dayButtonDates[i] = date;
 
             var button = _dayButtons[i];
-            SetButtonTextIfChanged(button, date.Day.ToString(CultureInfo.InvariantCulture));
+            if (SetButtonTextIfChanged(button, date.Day.ToString(CultureInfo.InvariantCulture)))
+            {
+                dayButtonTextChangeCount++;
+            }
 
             var inDisplayMonth = date.Month == displayMonth.Month && date.Year == displayMonth.Year;
             var isPrimarySelected = _lastActiveDate.HasValue && _lastActiveDate.Value.Date == date;
@@ -911,14 +940,47 @@ public class Calendar : UserControl
             var isToday = date == today;
             var isEnabled = IsDateSelectable(date);
 
-            SetButtonEnabledIfChanged(button, isEnabled);
-            SetButtonBackgroundIfChanged(button, ResolveDayButtonBackground(inDisplayMonth, isSelectedInRange, isPrimarySelected, isToday));
-            SetButtonForegroundIfChanged(button, ResolveDayButtonForeground(inDisplayMonth, isEnabled, isSelectedInRange, isPrimarySelected));
-            SetButtonBorderBrushIfChanged(button, ResolveDayButtonBorderBrush(isSelectedInRange, isPrimarySelected, isToday));
+            if (SetButtonEnabledIfChanged(button, isEnabled))
+            {
+                dayButtonEnabledChangeCount++;
+            }
+
+            if (SetButtonBackgroundIfChanged(button, ResolveDayButtonBackground(inDisplayMonth, isSelectedInRange, isPrimarySelected, isToday)))
+            {
+                dayButtonBackgroundChangeCount++;
+            }
+
+            if (SetButtonForegroundIfChanged(button, ResolveDayButtonForeground(inDisplayMonth, isEnabled, isSelectedInRange, isPrimarySelected)))
+            {
+                dayButtonForegroundChangeCount++;
+            }
+
+            if (SetButtonBorderBrushIfChanged(button, ResolveDayButtonBorderBrush(isSelectedInRange, isPrimarySelected, isToday)))
+            {
+                dayButtonBorderBrushChangeCount++;
+            }
         }
 
-        SetButtonEnabledIfChanged(_previousMonthButton, CanDisplayMonth(displayMonth.AddMonths(-1)));
-        SetButtonEnabledIfChanged(_nextMonthButton, CanDisplayMonth(displayMonth.AddMonths(1)));
+        if (SetButtonEnabledIfChanged(_previousMonthButton, CanDisplayMonth(displayMonth.AddMonths(-1))))
+        {
+            navigationEnabledChangeCount++;
+        }
+
+        if (SetButtonEnabledIfChanged(_nextMonthButton, CanDisplayMonth(displayMonth.AddMonths(1))))
+        {
+            navigationEnabledChangeCount++;
+        }
+
+        _lastRefreshDiagnostics = new CalendarRefreshDiagnostics(
+            dayButtonTextChangeCount,
+            dayButtonEnabledChangeCount,
+            dayButtonBackgroundChangeCount,
+            dayButtonForegroundChangeCount,
+            dayButtonBorderBrushChangeCount,
+            weekDayLabelTextChangeCount,
+            monthLabelTextChangeCount,
+            navigationEnabledChangeCount);
+        _totalRefreshDiagnostics = _totalRefreshDiagnostics.Add(_lastRefreshDiagnostics);
     }
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
@@ -961,28 +1023,48 @@ public class Calendar : UserControl
         });
     }
 
-    private static void SetLabelTextIfChanged(Label label, string text)
+    private static bool SetLabelTextIfChanged(Label label, string text)
     {
-        if (!string.Equals(label.Text, text, StringComparison.Ordinal))
+        if (string.Equals(label.Text, text, StringComparison.Ordinal))
         {
-            label.Text = text;
+            return false;
         }
+
+        label.Text = text;
+        return true;
     }
 
-    private static void SetButtonTextIfChanged(Button button, string text)
+    private static bool SetButtonTextIfChanged(Button button, string text)
     {
-        if (!string.Equals(button.Text, text, StringComparison.Ordinal))
+        if (button is CalendarDayButton calendarDayButton)
         {
-            button.Text = text;
+            if (string.Equals(calendarDayButton.DayText, text, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            calendarDayButton.DayText = text;
+            return true;
         }
+
+        if (string.Equals(button.Text, text, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        button.Text = text;
+        return true;
     }
 
-    private static void SetButtonEnabledIfChanged(Button button, bool isEnabled)
+    private static bool SetButtonEnabledIfChanged(Button button, bool isEnabled)
     {
-        if (button.IsEnabled != isEnabled)
+        if (button.IsEnabled == isEnabled)
         {
-            button.IsEnabled = isEnabled;
+            return false;
         }
+
+        button.IsEnabled = isEnabled;
+        return true;
     }
 
     protected override bool ShouldAutoDrawVisualChildren => false;
@@ -1042,15 +1124,12 @@ public class Calendar : UserControl
             $"textDispatch={buttonTiming.RenderTextDrawDispatchElapsedTicks}, textDispatchCalls={buttonTiming.RenderTextDrawDispatchCallCount}, " +
             $"measure={buttonTiming.MeasureOverrideElapsedTicks}, resolveTextLayout={buttonTiming.ResolveTextLayoutElapsedTicks}");
         Console.WriteLine(
-            $"[CalendarManualDiagnostics] font draw: spriteFontDraw={fontTiming.SpriteFontDrawStringElapsedTicks}, spriteFontDrawCalls={fontTiming.SpriteFontDrawStringCallCount}, " +
-            $"spriteFontEnabledPathCalls={fontTiming.SpriteFontDrawStringEnabledPathCount}, spriteFontFallbackPathCalls={fontTiming.SpriteFontDrawStringFallbackPathCount}, " +
-            $"rendererDraw={fontTiming.RendererDrawStringElapsedTicks}, rendererDrawCalls={fontTiming.RendererDrawStringCallCount}");
+            $"[CalendarManualDiagnostics] font draw: drawTicks={fontTiming.DrawStringElapsedTicks}, drawCalls={fontTiming.DrawStringCallCount}, " +
+            $"measureWidth={fontTiming.MeasureWidthElapsedTicks}, measureWidthCalls={fontTiming.MeasureWidthCallCount}, " +
+            $"getLineHeight={fontTiming.GetLineHeightElapsedTicks}, getLineHeightCalls={fontTiming.GetLineHeightCallCount}");
         Console.WriteLine(
             $"[CalendarManualDiagnostics] font measure: measureWidth={fontTiming.MeasureWidthElapsedTicks}, measureWidthCalls={fontTiming.MeasureWidthCallCount}, " +
-            $"getLineHeight={fontTiming.GetLineHeightElapsedTicks}, getLineHeightCalls={fontTiming.GetLineHeightCallCount}, " +
-            $"tryGetFont={fontTiming.TryGetFontElapsedTicks}, tryGetFontCalls={fontTiming.TryGetFontCallCount}, " +
-            $"fontCacheHits={fontTiming.FontCacheHitCount}, fontCacheMisses={fontTiming.FontCacheMissCount}, " +
-            $"ensureInitialized={fontTiming.EnsureInitializedElapsedTicks}, ensureInitializedCalls={fontTiming.EnsureInitializedCallCount}");
+            $"getLineHeight={fontTiming.GetLineHeightElapsedTicks}, getLineHeightCalls={fontTiming.GetLineHeightCallCount}");
         Console.WriteLine(
             $"[CalendarManualDiagnostics] text layout: layout={textLayoutMetrics.LayoutElapsedTicks}, build={textLayoutMetrics.BuildElapsedTicks}, " +
             $"buildCount={textLayoutMetrics.BuildCount}, noWrapBuildCount={textLayoutMetrics.NoWrapBuildCount}, " +
@@ -1073,28 +1152,51 @@ public class Calendar : UserControl
         return total;
     }
 
-    private static void SetButtonBackgroundIfChanged(Button button, Color background)
+    private static bool SetButtonBackgroundIfChanged(Button button, Color background)
     {
-        if (button.Background != background)
+        if (button.Background == background)
         {
-            button.Background = background;
+            return false;
         }
+
+        button.Background = background;
+        return true;
     }
 
-    private static void SetButtonForegroundIfChanged(Button button, Color foreground)
+    private static bool SetButtonForegroundIfChanged(Button button, Color foreground)
     {
-        if (button.Foreground != foreground)
+        if (button.Foreground == foreground)
         {
-            button.Foreground = foreground;
+            return false;
         }
+
+        button.Foreground = foreground;
+        return true;
     }
 
-    private static void SetButtonBorderBrushIfChanged(Button button, Color borderBrush)
+    private static bool SetButtonBorderBrushIfChanged(Button button, Color borderBrush)
     {
-        if (button.BorderBrush != borderBrush)
+        if (button.BorderBrush == borderBrush)
         {
-            button.BorderBrush = borderBrush;
+            return false;
         }
+
+        button.BorderBrush = borderBrush;
+        return true;
+    }
+
+    internal CalendarDiagnosticsSnapshot GetDiagnosticsSnapshotForTests()
+    {
+        return new CalendarDiagnosticsSnapshot(
+            _calendarViewRefreshCount,
+            _lastRefreshDiagnostics,
+            _totalRefreshDiagnostics);
+    }
+
+    internal void ResetDiagnosticsForTests()
+    {
+        _lastRefreshDiagnostics = default;
+        _totalRefreshDiagnostics = default;
     }
 
     private static Color ResolveDayButtonBackground(bool inDisplayMonth, bool isSelectedInRange, bool isPrimarySelected, bool isToday)
@@ -1496,5 +1598,37 @@ public class Calendar : UserControl
     {
         var normalized = date.Date;
         return new DateTime(normalized.Year, normalized.Month, 1);
+    }
+}
+
+internal readonly record struct CalendarDiagnosticsSnapshot(
+    int RefreshCount,
+    CalendarRefreshDiagnostics LastRefresh,
+    CalendarRefreshDiagnostics Total)
+{
+    public static readonly CalendarDiagnosticsSnapshot Empty = new(0, default, default);
+}
+
+internal readonly record struct CalendarRefreshDiagnostics(
+    int DayButtonTextChangeCount,
+    int DayButtonEnabledChangeCount,
+    int DayButtonBackgroundChangeCount,
+    int DayButtonForegroundChangeCount,
+    int DayButtonBorderBrushChangeCount,
+    int WeekDayLabelTextChangeCount,
+    int MonthLabelTextChangeCount,
+    int NavigationEnabledChangeCount)
+{
+    public CalendarRefreshDiagnostics Add(CalendarRefreshDiagnostics other)
+    {
+        return new CalendarRefreshDiagnostics(
+            DayButtonTextChangeCount + other.DayButtonTextChangeCount,
+            DayButtonEnabledChangeCount + other.DayButtonEnabledChangeCount,
+            DayButtonBackgroundChangeCount + other.DayButtonBackgroundChangeCount,
+            DayButtonForegroundChangeCount + other.DayButtonForegroundChangeCount,
+            DayButtonBorderBrushChangeCount + other.DayButtonBorderBrushChangeCount,
+            WeekDayLabelTextChangeCount + other.WeekDayLabelTextChangeCount,
+            MonthLabelTextChangeCount + other.MonthLabelTextChangeCount,
+            NavigationEnabledChangeCount + other.NavigationEnabledChangeCount);
     }
 }

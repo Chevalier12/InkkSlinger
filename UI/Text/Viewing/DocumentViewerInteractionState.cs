@@ -88,8 +88,8 @@ internal sealed class DocumentViewerInteractionState
         return (start, Math.Max(0, end - start));
     }
 
-    public static float ResolveLineScrollAmount(SpriteFont? font)
+    public static float ResolveLineScrollAmount(FrameworkElement element)
     {
-        return MathF.Max(16f, UiTextRenderer.GetLineHeight(font) * 3f);
+        return MathF.Max(16f, UiTextRenderer.GetLineHeight(element) * 3f);
     }
 }

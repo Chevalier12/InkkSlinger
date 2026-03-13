@@ -41,8 +41,6 @@ public class TreeView : ItemsControl
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float f && f >= 0f ? f : 0f));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
@@ -58,8 +56,6 @@ public class TreeView : ItemsControl
                         args.NewValue is Color newColor)
                     {
                         treeView.PropagateTypographyFromTree(
-                            null,
-                            null,
                             oldColor,
                             newColor);
                     }
@@ -107,12 +103,6 @@ public class TreeView : ItemsControl
         set => SetValue(BorderThicknessProperty, value);
     }
 
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
-    }
-
     public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
@@ -149,7 +139,7 @@ public class TreeView : ItemsControl
 
         if (element is TreeViewItem treeViewItem)
         {
-            ApplyTypographyToItem(treeViewItem, null, Font, null, Foreground);
+            ApplyTypographyToItem(treeViewItem, null, Foreground);
         }
     }
 
@@ -322,8 +312,6 @@ public class TreeView : ItemsControl
     }
 
     private void PropagateTypographyFromTree(
-        SpriteFont? oldFont,
-        SpriteFont? newFont,
         Color? oldForeground,
         Color? newForeground)
     {
@@ -334,46 +322,27 @@ public class TreeView : ItemsControl
                 continue;
             }
 
-            ApplyTypographyRecursive(item, oldFont, newFont, oldForeground, newForeground);
+            ApplyTypographyRecursive(item, oldForeground, newForeground);
         }
     }
 
     private static void ApplyTypographyRecursive(
         TreeViewItem item,
-        SpriteFont? oldFont,
-        SpriteFont? newFont,
         Color? oldForeground,
         Color? newForeground)
     {
-        ApplyTypographyToItem(item, oldFont, newFont, oldForeground, newForeground);
+        ApplyTypographyToItem(item, oldForeground, newForeground);
         foreach (var child in item.GetChildTreeItems())
         {
-            ApplyTypographyRecursive(child, oldFont, newFont, oldForeground, newForeground);
+            ApplyTypographyRecursive(child, oldForeground, newForeground);
         }
     }
 
     private static void ApplyTypographyToItem(
         TreeViewItem item,
-        SpriteFont? oldFont,
-        SpriteFont? newFont,
         Color? oldForeground,
         Color? newForeground)
     {
-        if (newFont != null || oldFont != null)
-        {
-            if (!item.HasLocalValue(TreeViewItem.FontProperty) || Equals(item.Font, oldFont))
-            {
-                if (newFont != null)
-                {
-                    item.Font = newFont;
-                }
-                else
-                {
-                    item.ClearValue(TreeViewItem.FontProperty);
-                }
-            }
-        }
-
         if (newForeground.HasValue && oldForeground.HasValue)
         {
             if (!item.HasLocalValue(TreeViewItem.ForegroundProperty) || item.Foreground == oldForeground.Value)
@@ -383,4 +352,5 @@ public class TreeView : ItemsControl
         }
     }
 }
+
 

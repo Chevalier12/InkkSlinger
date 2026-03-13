@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Xunit;
@@ -70,12 +69,15 @@ public sealed class ControlsCatalogDataGridPreviewTests
     }
 
     [Fact]
-    public void CatalogPreviewFontApplication_ShouldUseInheritedFontForDataGridBranch()
+    public void CatalogPreviewTypographyApplication_ShouldUseInheritedTypographyForDataGridBranch()
     {
-        var view = new ControlsCatalogView();
-        var appliedFont = (SpriteFont)RuntimeHelpers.GetUninitializedObject(typeof(SpriteFont));
-
-        view.SetFont(appliedFont);
+        var view = new ControlsCatalogView
+        {
+            FontFamily = "Segoe UI",
+            FontSize = 17f,
+            FontWeight = "SemiBold",
+            FontStyle = "Italic"
+        };
         view.ShowControl("DataGrid");
 
         var uiRoot = new UiRoot(view);
@@ -85,31 +87,42 @@ public sealed class ControlsCatalogDataGridPreviewTests
 
         var dataGrid = FindFirstVisualChild<DataGrid>(view);
         Assert.NotNull(dataGrid);
-        Assert.Same(appliedFont, dataGrid!.Font);
-        Assert.Equal(DependencyPropertyValueSource.Inherited, dataGrid.GetValueSource(Control.FontProperty));
+        AssertTypography(dataGrid!, view);
+        Assert.Equal(DependencyPropertyValueSource.Inherited, dataGrid.GetValueSource(FrameworkElement.FontFamilyProperty));
+        Assert.Equal(DependencyPropertyValueSource.Inherited, dataGrid.GetValueSource(FrameworkElement.FontSizeProperty));
+        Assert.Equal(DependencyPropertyValueSource.Inherited, dataGrid.GetValueSource(FrameworkElement.FontWeightProperty));
+        Assert.Equal(DependencyPropertyValueSource.Inherited, dataGrid.GetValueSource(FrameworkElement.FontStyleProperty));
 
         var scrollViewer = dataGrid.ScrollViewerForTesting;
-        Assert.Same(appliedFont, scrollViewer.Font);
-        Assert.Equal(DependencyPropertyValueSource.Inherited, scrollViewer.GetValueSource(Control.FontProperty));
+        AssertTypography(scrollViewer, view);
+        Assert.Equal(DependencyPropertyValueSource.Inherited, scrollViewer.GetValueSource(FrameworkElement.FontFamilyProperty));
         var verticalBar = GetPrivateScrollBar(scrollViewer, "_verticalBar");
         var horizontalBar = GetPrivateScrollBar(scrollViewer, "_horizontalBar");
         Assert.Equal(DependencyPropertyValueSource.Default, verticalBar.GetValueSource(UIElement.IsVisibleProperty));
         Assert.Equal(DependencyPropertyValueSource.Default, horizontalBar.GetValueSource(UIElement.IsVisibleProperty));
 
         var header = Assert.Single(dataGrid.ColumnHeadersForTesting, static item => item.Text == "Id");
-        Assert.Same(appliedFont, header.Font);
-        Assert.Equal(DependencyPropertyValueSource.Inherited, header.GetValueSource(Control.FontProperty));
+        AssertTypography(header, view);
+        Assert.Equal(DependencyPropertyValueSource.Inherited, header.GetValueSource(FrameworkElement.FontFamilyProperty));
 
         Assert.NotEmpty(dataGrid.RowsForTesting);
         var firstRow = dataGrid.RowsForTesting[0];
         Assert.Equal(DependencyPropertyValueSource.Default, firstRow.GetValueSource(FrameworkElement.HeightProperty));
         var firstCell = firstRow.Cells[0];
-        Assert.Same(appliedFont, firstCell.Font);
-        Assert.Equal(DependencyPropertyValueSource.Inherited, firstCell.GetValueSource(Control.FontProperty));
+        AssertTypography(firstCell, view);
+        Assert.Equal(DependencyPropertyValueSource.Inherited, firstCell.GetValueSource(FrameworkElement.FontFamilyProperty));
 
         var rowHeader = firstRow.RowHeaderForTesting;
-        Assert.Same(appliedFont, rowHeader.Font);
-        Assert.Equal(DependencyPropertyValueSource.Inherited, rowHeader.GetValueSource(Control.FontProperty));
+        AssertTypography(rowHeader, view);
+        Assert.Equal(DependencyPropertyValueSource.Inherited, rowHeader.GetValueSource(FrameworkElement.FontFamilyProperty));
+    }
+
+    private static void AssertTypography(FrameworkElement element, FrameworkElement expected)
+    {
+        Assert.Equal(expected.FontFamily, element.FontFamily);
+        Assert.Equal(expected.FontSize, element.FontSize);
+        Assert.Equal(expected.FontWeight, element.FontWeight);
+        Assert.Equal(expected.FontStyle, element.FontStyle);
     }
 
     private static TElement? FindFirstVisualChild<TElement>(UIElement root)

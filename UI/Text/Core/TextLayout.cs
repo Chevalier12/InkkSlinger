@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
@@ -56,31 +55,35 @@ public static class TextLayout
         CacheOrder.Clear();
     }
 
-    public static TextLayoutResult Layout(string? text, SpriteFont? font, float fontSize, float availableWidth, TextWrapping wrapping)
+    internal static TextLayoutResult Layout(string? text, UiTypography typography, float availableWidth, TextWrapping wrapping)
+    {
+        return Layout(text, typography, typography.Size, availableWidth, wrapping);
+    }
+
+    internal static TextLayoutResult Layout(string? text, UiTypography typography, float fontSize, float availableWidth, TextWrapping wrapping)
     {
         var start = Stopwatch.GetTimestamp();
         try
         {
-        font = UiTextRenderer.ResolveFont(font);
-        _layoutRequestCount++;
-        if (string.IsNullOrEmpty(text))
-        {
-            return TextLayoutResult.Empty;
-        }
+            _layoutRequestCount++;
+            if (string.IsNullOrEmpty(text))
+            {
+                return TextLayoutResult.Empty;
+            }
 
-        _totalMeasuredTextLength += text.Length;
-        var key = TextLayoutCacheKey.Create(text, font, fontSize, availableWidth, wrapping);
-        if (Cache.TryGetValue(key, out var cached))
-        {
-            _cacheHitCount++;
-            return cached;
-        }
+            _totalMeasuredTextLength += text.Length;
+            var key = TextLayoutCacheKey.Create(text, typography, fontSize, availableWidth, wrapping);
+            if (Cache.TryGetValue(key, out var cached))
+            {
+                _cacheHitCount++;
+                return cached;
+            }
 
-        _cacheMissCount++;
-        var result = BuildLayout(text, font, fontSize, availableWidth, wrapping);
-        _totalProducedLineCount += result.Lines.Count;
-        AddToCache(key, result);
-        return result;
+            _cacheMissCount++;
+            var result = BuildLayout(text, typography, fontSize, availableWidth, wrapping);
+            _totalProducedLineCount += result.Lines.Count;
+            AddToCache(key, result);
+            return result;
         }
         finally
         {
@@ -88,28 +91,33 @@ public static class TextLayout
         }
     }
 
-    public static TextLayoutResult Layout(string? text, SpriteFont? font, float availableWidth, TextWrapping wrapping)
+    public static TextLayoutResult LayoutForElement(string? text, FrameworkElement element, float availableWidth, TextWrapping wrapping)
     {
-        return Layout(text, font, UiTextRenderer.GetLineHeight(font), availableWidth, wrapping);
+        return Layout(text, UiTextRenderer.ResolveTypography(element), availableWidth, wrapping);
     }
 
-    private static TextLayoutResult BuildLayout(string text, SpriteFont? font, float fontSize, float availableWidth, TextWrapping wrapping)
+    internal static TextLayoutResult LayoutForElement(string? text, FrameworkElement element, float fontSize, float availableWidth, TextWrapping wrapping)
+    {
+        return Layout(text, UiTextRenderer.ResolveTypography(element, fontSize), fontSize, availableWidth, wrapping);
+    }
+
+    private static TextLayoutResult BuildLayout(string text, UiTypography typography, float fontSize, float availableWidth, TextWrapping wrapping)
     {
         var start = Stopwatch.GetTimestamp();
         try
         {
-        _buildCount++;
-        if (wrapping == TextWrapping.NoWrap ||
-            float.IsInfinity(availableWidth) ||
-            float.IsNaN(availableWidth) ||
-            availableWidth <= 0f)
-        {
-            _noWrapBuildCount++;
-            return BuildNoWrapLayout(text, font, fontSize);
-        }
+            _buildCount++;
+            if (wrapping == TextWrapping.NoWrap ||
+                float.IsInfinity(availableWidth) ||
+                float.IsNaN(availableWidth) ||
+                availableWidth <= 0f)
+            {
+                _noWrapBuildCount++;
+                return BuildNoWrapLayout(text, typography, fontSize);
+            }
 
-        _wrappedBuildCount++;
-        return BuildWrappedLayout(text, font, fontSize, availableWidth);
+            _wrappedBuildCount++;
+            return BuildWrappedLayout(text, typography, fontSize, availableWidth);
         }
         finally
         {
@@ -130,7 +138,7 @@ public static class TextLayout
         long LayoutElapsedTicks,
         long BuildElapsedTicks);
 
-    private static TextLayoutResult BuildNoWrapLayout(string text, SpriteFont? font, float fontSize)
+    private static TextLayoutResult BuildNoWrapLayout(string text, UiTypography typography, float fontSize)
     {
         var lines = new List<string>();
         var widths = new List<float>();
@@ -139,30 +147,30 @@ public static class TextLayout
         {
             var line = length == 0 ? string.Empty : text.Substring(start, length);
             lines.Add(line);
-            widths.Add(line.Length == 0 ? 0f : UiTextRenderer.MeasureWidth(font, line, fontSize));
+            widths.Add(line.Length == 0 ? 0f : UiTextRenderer.MeasureWidth(typography with { Size = fontSize }, line));
         }
 
-        return BuildResult(lines, widths, font, fontSize);
+        return BuildResult(lines, widths, typography, fontSize);
     }
 
-    private static TextLayoutResult BuildWrappedLayout(string text, SpriteFont? font, float fontSize, float availableWidth)
+    private static TextLayoutResult BuildWrappedLayout(string text, UiTypography typography, float fontSize, float availableWidth)
     {
         var lines = new List<string>();
         var widths = new List<float>();
         var index = 0;
         while (TryReadLogicalLine(text, ref index, out var start, out var length))
         {
-            LayoutParagraph(text, start, length, font, fontSize, availableWidth, lines, widths);
+            LayoutParagraph(text, start, length, typography, fontSize, availableWidth, lines, widths);
         }
 
-        return BuildResult(lines, widths, font, fontSize);
+        return BuildResult(lines, widths, typography, fontSize);
     }
 
     private static void LayoutParagraph(
         string text,
         int start,
         int length,
-        SpriteFont? font,
+        UiTypography typography,
         float fontSize,
         float availableWidth,
         IList<string> lines,
@@ -196,7 +204,7 @@ public static class TextLayout
                 continue;
             }
 
-            var tokenWidth = MeasureSegment(text, tokenStart, tokenLength, font, fontSize);
+            var tokenWidth = MeasureSegment(text, tokenStart, tokenLength, typography, fontSize);
             if ((lineWidth + tokenWidth) <= availableWidth)
             {
                 builder.Append(text, tokenStart, tokenLength);
@@ -214,7 +222,7 @@ public static class TextLayout
                 continue;
             }
 
-            BreakLongToken(text, tokenStart, tokenLength, font, fontSize, availableWidth, lines, widths);
+            BreakLongToken(text, tokenStart, tokenLength, typography, fontSize, availableWidth, lines, widths);
         }
 
         if (builder.Length > 0 || lines.Count == initialLineCount)
@@ -228,7 +236,7 @@ public static class TextLayout
         string text,
         int start,
         int length,
-        SpriteFont? font,
+        UiTypography typography,
         float fontSize,
         float availableWidth,
         IList<string> lines,
@@ -238,13 +246,7 @@ public static class TextLayout
         var remainingLength = length;
         while (remainingLength > 0)
         {
-            var fitLength = FindLongestFittingSegmentLength(
-                text,
-                remainingStart,
-                remainingLength,
-                font,
-                fontSize,
-                availableWidth);
+            var fitLength = FindLongestFittingSegmentLength(text, remainingStart, remainingLength, typography, fontSize, availableWidth);
             if (fitLength <= 0)
             {
                 fitLength = 1;
@@ -252,7 +254,7 @@ public static class TextLayout
 
             var line = text.Substring(remainingStart, fitLength);
             lines.Add(line);
-            widths.Add(line.Length == 0 ? 0f : UiTextRenderer.MeasureWidth(font, line, fontSize));
+            widths.Add(line.Length == 0 ? 0f : UiTextRenderer.MeasureWidth(typography with { Size = fontSize }, line));
             remainingStart += fitLength;
             remainingLength -= fitLength;
         }
@@ -262,7 +264,7 @@ public static class TextLayout
         string text,
         int start,
         int maxLength,
-        SpriteFont? font,
+        UiTypography typography,
         float fontSize,
         float availableWidth)
     {
@@ -272,7 +274,7 @@ public static class TextLayout
         while (low <= high)
         {
             var mid = low + ((high - low) / 2);
-            var width = MeasureSegment(text, start, mid, font, fontSize);
+            var width = MeasureSegment(text, start, mid, typography, fontSize);
             if (width <= availableWidth)
             {
                 best = mid;
@@ -287,7 +289,7 @@ public static class TextLayout
         return best;
     }
 
-    private static float MeasureSegment(string text, int start, int length, SpriteFont? font, float fontSize)
+    private static float MeasureSegment(string text, int start, int length, UiTypography typography, float fontSize)
     {
         if (length <= 0)
         {
@@ -296,10 +298,10 @@ public static class TextLayout
 
         if (start == 0 && length == text.Length)
         {
-            return UiTextRenderer.MeasureWidth(font, text, fontSize);
+            return UiTextRenderer.MeasureWidth(typography with { Size = fontSize }, text);
         }
 
-        return UiTextRenderer.MeasureWidth(font, text.Substring(start, length), fontSize);
+        return UiTextRenderer.MeasureWidth(typography with { Size = fontSize }, text.Substring(start, length));
     }
 
     private static bool TryReadLogicalLine(string text, ref int index, out int start, out int length)
@@ -336,7 +338,7 @@ public static class TextLayout
         return true;
     }
 
-    private static TextLayoutResult BuildResult(IReadOnlyList<string> lines, IReadOnlyList<float> widths, SpriteFont? font, float fontSize)
+    private static TextLayoutResult BuildResult(IReadOnlyList<string> lines, IReadOnlyList<float> widths, UiTypography typography, float fontSize)
     {
         if (lines.Count == 0)
         {
@@ -352,7 +354,7 @@ public static class TextLayout
             }
         }
 
-        var size = new Vector2(maxWidth, lines.Count * UiTextRenderer.GetLineHeight(font, fontSize));
+        var size = new Vector2(maxWidth, lines.Count * UiTextRenderer.GetLineHeight(typography with { Size = fontSize }));
         return new TextLayoutResult(lines, widths, size);
     }
 
@@ -388,10 +390,10 @@ public static class TextLayout
 
     private readonly struct TextLayoutCacheKey : IEquatable<TextLayoutCacheKey>
     {
-        private TextLayoutCacheKey(string text, SpriteFont? font, int fontSizeBucket, int widthBucket, TextWrapping wrapping)
+        private TextLayoutCacheKey(string text, UiTypography typography, int fontSizeBucket, int widthBucket, TextWrapping wrapping)
         {
             Text = text;
-            Font = font;
+            Typography = typography;
             FontSizeBucket = fontSizeBucket;
             WidthBucket = widthBucket;
             Wrapping = wrapping;
@@ -399,7 +401,7 @@ public static class TextLayout
 
         private string Text { get; }
 
-        private SpriteFont? Font { get; }
+        private UiTypography Typography { get; }
 
         private int FontSizeBucket { get; }
 
@@ -407,9 +409,9 @@ public static class TextLayout
 
         private TextWrapping Wrapping { get; }
 
-        public static TextLayoutCacheKey Create(string text, SpriteFont? font, float fontSize, float width, TextWrapping wrapping)
+        public static TextLayoutCacheKey Create(string text, UiTypography typography, float fontSize, float width, TextWrapping wrapping)
         {
-            return new TextLayoutCacheKey(text, font, QuantizeValue(fontSize), QuantizeValue(width), wrapping);
+            return new TextLayoutCacheKey(text, typography with { Size = fontSize }, QuantizeValue(fontSize), QuantizeValue(width), wrapping);
         }
 
         public bool Equals(TextLayoutCacheKey other)
@@ -417,7 +419,7 @@ public static class TextLayout
             return FontSizeBucket == other.FontSizeBucket &&
                    WidthBucket == other.WidthBucket &&
                    Wrapping == other.Wrapping &&
-                   ReferenceEquals(Font, other.Font) &&
+                   Typography.Equals(other.Typography) &&
                    string.Equals(Text, other.Text, StringComparison.Ordinal);
         }
 
@@ -430,7 +432,7 @@ public static class TextLayout
         {
             return HashCode.Combine(
                 StringComparer.Ordinal.GetHashCode(Text),
-                Font is null ? 0 : RuntimeHelpers.GetHashCode(Font),
+                Typography,
                 FontSizeBucket,
                 WidthBucket,
                 (int)Wrapping);

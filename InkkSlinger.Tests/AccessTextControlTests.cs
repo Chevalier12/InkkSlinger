@@ -70,7 +70,7 @@ public sealed class AccessTextControlTests
     [Fact]
     public void WrappedLayout_LinesDoNotContainLineTerminators()
     {
-        var layout = TextLayout.Layout("Save line one\nSave line two", font: null, availableWidth: 48f, TextWrapping.Wrap);
+        var layout = TextLayout.Layout("Save line one\nSave line two", new UiTypography("Segoe UI", 12f, "Normal", "Normal"), 48f, TextWrapping.Wrap);
         Assert.NotEmpty(layout.Lines);
         Assert.DoesNotContain(layout.Lines, static line => line.Contains('\n') || line.Contains('\r'));
     }

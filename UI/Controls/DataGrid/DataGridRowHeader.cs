@@ -33,8 +33,6 @@ public class DataGridRowHeader : Control
             typeof(DataGridRowHeader),
             new FrameworkPropertyMetadata(new Color(57, 80, 111), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public string Text
     {
         get => GetValue<string>(TextProperty) ?? string.Empty;
@@ -59,12 +57,6 @@ public class DataGridRowHeader : Control
         set => SetValue(BorderBrushProperty, value);
     }
 
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
-    }
-
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         if (float.IsFinite(availableSize.X) && float.IsFinite(availableSize.Y))
@@ -75,8 +67,8 @@ public class DataGridRowHeader : Control
         }
 
         return new Vector2(
-            UiTextRenderer.MeasureWidth(Font, Text, FontSize) + 10f,
-            UiTextRenderer.GetLineHeight(Font, FontSize) + 8f);
+            UiTextRenderer.MeasureWidth(this, Text, FontSize) + 10f,
+            UiTextRenderer.GetLineHeight(this, FontSize) + 8f);
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -90,8 +82,9 @@ public class DataGridRowHeader : Control
         }
 
         var x = LayoutSlot.X + 4f;
-        var y = LayoutSlot.Y + ((LayoutSlot.Height - UiTextRenderer.GetLineHeight(Font, FontSize)) / 2f);
-        UiTextRenderer.DrawString(spriteBatch, Font, Text, new Vector2(x, y), Foreground * Opacity, FontSize);
+        var y = LayoutSlot.Y + ((LayoutSlot.Height - UiTextRenderer.GetLineHeight(this, FontSize)) / 2f);
+        UiTextRenderer.DrawString(spriteBatch, this, Text, new Vector2(x, y), Foreground * Opacity, FontSize, opaqueBackground: true);
     }
 }
+
 

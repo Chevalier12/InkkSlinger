@@ -41,7 +41,10 @@ public sealed class TabControlInputTests
         Assert.True(firstTab.IsSelected);
         Assert.False(secondTab.IsSelected);
 
-        var secondHeaderPoint = new Vector2(tabControl.LayoutSlot.X + 40f, tabControl.LayoutSlot.Y + 4f);
+        var firstHeaderWidth = MathF.Max(
+            36f,
+            tabControl.HeaderPadding.Horizontal + UiTextRenderer.MeasureWidth(tabControl, firstTab.Header!, tabControl.FontSize));
+        var secondHeaderPoint = new Vector2(tabControl.LayoutSlot.X + firstHeaderWidth + 4f, tabControl.LayoutSlot.Y + 4f);
         Click(uiRoot, secondHeaderPoint);
         RunLayout(uiRoot);
 

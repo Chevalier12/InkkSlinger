@@ -146,6 +146,13 @@ public sealed class Window : DependencyObject, IDisposable
             typeof(Window),
             new FrameworkPropertyMetadata("Normal"));
 
+    public static readonly DependencyProperty FontStyleProperty =
+        DependencyProperty.Register(
+            nameof(FontStyle),
+            typeof(string),
+            typeof(Window),
+            new FrameworkPropertyMetadata("Normal"));
+
     public static readonly DependencyProperty StyleProperty =
         DependencyProperty.Register(
             nameof(Style),
@@ -295,6 +302,12 @@ public sealed class Window : DependencyObject, IDisposable
     {
         get => GetValue<string>(FontWeightProperty) ?? "Normal";
         set => SetValue(FontWeightProperty, value);
+    }
+
+    public string FontStyle
+    {
+        get => GetValue<string>(FontStyleProperty) ?? "Normal";
+        set => SetValue(FontStyleProperty, value);
     }
 
     public Style? Style

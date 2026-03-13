@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -12,13 +13,6 @@ public class TextBlock : FrameworkElement
             typeof(string),
             typeof(TextBlock),
             new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
-
-    public static readonly DependencyProperty FontProperty =
-        DependencyProperty.Register(
-            nameof(Font),
-            typeof(SpriteFont),
-            typeof(TextBlock),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
@@ -41,8 +35,8 @@ public class TextBlock : FrameworkElement
     private int _layoutCacheTextVersion = -1;
     private int _intrinsicNoWrapMeasureTextVersion = -1;
     private float _layoutCacheWidth = float.NaN;
-    private SpriteFont? _layoutCacheFont;
-    private SpriteFont? _intrinsicNoWrapMeasureFont;
+    private UiTypography? _layoutCacheTypography;
+    private UiTypography? _intrinsicNoWrapMeasureTypography;
     private TextWrapping _layoutCacheWrapping = TextWrapping.NoWrap;
     private TextLayout.TextLayoutResult _layoutCacheResult = TextLayout.TextLayoutResult.Empty;
     private Vector2 _intrinsicNoWrapMeasureSize = Vector2.Zero;
@@ -60,12 +54,6 @@ public class TextBlock : FrameworkElement
     {
         get => GetValue<string>(TextProperty) ?? string.Empty;
         set => SetValue(TextProperty, value);
-    }
-
-    public SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public Color Foreground
@@ -166,7 +154,7 @@ public class TextBlock : FrameworkElement
             ? float.PositiveInfinity
             : RenderSize.X;
         var layout = ResolveLayout(renderWidth);
-        var lineSpacing = UiTextRenderer.GetLineHeight(Font, FontSize);
+        var lineSpacing = UiTextRenderer.GetLineHeight(this, FontSize);
         var currentClip = spriteBatch.GraphicsDevice.ScissorRectangle;
         for (var i = 0; i < layout.Lines.Count; i++)
         {
@@ -179,7 +167,7 @@ public class TextBlock : FrameworkElement
             var position = new Vector2(LayoutSlot.X, LayoutSlot.Y + (i * lineSpacing));
             var lineWidth = i < layout.LineWidths.Count
                 ? layout.LineWidths[i]
-                : UiTextRenderer.MeasureWidth(Font, line, FontSize);
+                : UiTextRenderer.MeasureWidth(this, line, FontSize);
             var transformedBounds = UiDrawing.TransformRectBounds(
                 spriteBatch,
                 new LayoutRect(position.X, position.Y, lineWidth, lineSpacing));
@@ -193,7 +181,7 @@ public class TextBlock : FrameworkElement
                 break;
             }
 
-            UiTextRenderer.DrawString(spriteBatch, Font, line, position, Foreground * Opacity, FontSize);
+            UiTextRenderer.DrawString(spriteBatch, this, line, position, Foreground * Opacity, FontSize);
         }
 
         var renderTicks = Stopwatch.GetTimestamp() - renderStart;
@@ -215,9 +203,11 @@ public class TextBlock : FrameworkElement
             return;
         }
 
-        if (ReferenceEquals(args.Property, FontProperty) ||
-            ReferenceEquals(args.Property, TextWrappingProperty) ||
-            ReferenceEquals(args.Property, FontSizeProperty))
+        if (ReferenceEquals(args.Property, TextWrappingProperty) ||
+            ReferenceEquals(args.Property, FontSizeProperty) ||
+            ReferenceEquals(args.Property, FontFamilyProperty) ||
+            ReferenceEquals(args.Property, FontWeightProperty) ||
+            ReferenceEquals(args.Property, FontStyleProperty))
         {
             InvalidateLayoutCache();
             InvalidateIntrinsicNoWrapMeasureCache();
@@ -250,19 +240,20 @@ public class TextBlock : FrameworkElement
 
     private Vector2 ResolveIntrinsicNoWrapTextSize()
     {
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
         if (_hasIntrinsicNoWrapMeasureCache &&
             _intrinsicNoWrapMeasureTextVersion == _textVersion &&
-            ReferenceEquals(_intrinsicNoWrapMeasureFont, Font) &&
+            Nullable.Equals(_intrinsicNoWrapMeasureTypography, typography) &&
             WidthMatches(_intrinsicNoWrapMeasureFontSize, FontSize))
         {
             return _intrinsicNoWrapMeasureSize;
         }
 
         var size = new Vector2(
-            UiTextRenderer.MeasureWidth(Font, Text, FontSize),
-            UiTextRenderer.GetLineHeight(Font, FontSize));
+            UiTextRenderer.MeasureWidth(typography, Text),
+            UiTextRenderer.GetLineHeight(typography));
         _intrinsicNoWrapMeasureTextVersion = _textVersion;
-        _intrinsicNoWrapMeasureFont = Font;
+        _intrinsicNoWrapMeasureTypography = typography;
         _intrinsicNoWrapMeasureFontSize = FontSize;
         _intrinsicNoWrapMeasureSize = size;
         _hasIntrinsicNoWrapMeasureCache = true;
@@ -271,10 +262,11 @@ public class TextBlock : FrameworkElement
 
     private TextLayout.TextLayoutResult ResolveLayout(float width)
     {
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
         var widthMatches = WidthMatches(_layoutCacheWidth, width);
         if (_hasLayoutCache &&
             _layoutCacheTextVersion == _textVersion &&
-            ReferenceEquals(_layoutCacheFont, Font) &&
+            Nullable.Equals(_layoutCacheTypography, typography) &&
             WidthMatches(_layoutCacheFontSize, FontSize) &&
             _layoutCacheWrapping == TextWrapping &&
             widthMatches)
@@ -284,10 +276,10 @@ public class TextBlock : FrameworkElement
         }
 
         _layoutCacheMissCount++;
-        var result = TextLayout.Layout(Text, Font, FontSize, width, TextWrapping);
+        var result = TextLayout.Layout(Text, typography, FontSize, width, TextWrapping);
         _layoutCacheTextVersion = _textVersion;
         _layoutCacheWidth = width;
-        _layoutCacheFont = Font;
+        _layoutCacheTypography = typography;
         _layoutCacheFontSize = FontSize;
         _layoutCacheWrapping = TextWrapping;
         _layoutCacheResult = result;
@@ -300,7 +292,7 @@ public class TextBlock : FrameworkElement
         _hasLayoutCache = false;
         _layoutCacheTextVersion = -1;
         _layoutCacheWidth = float.NaN;
-        _layoutCacheFont = null;
+        _layoutCacheTypography = null;
         _layoutCacheFontSize = float.NaN;
         _layoutCacheResult = TextLayout.TextLayoutResult.Empty;
     }
@@ -309,7 +301,7 @@ public class TextBlock : FrameworkElement
     {
         _hasIntrinsicNoWrapMeasureCache = false;
         _intrinsicNoWrapMeasureTextVersion = -1;
-        _intrinsicNoWrapMeasureFont = null;
+        _intrinsicNoWrapMeasureTypography = null;
         _intrinsicNoWrapMeasureFontSize = float.NaN;
         _intrinsicNoWrapMeasureSize = Vector2.Zero;
     }

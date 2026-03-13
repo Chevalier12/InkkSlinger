@@ -41,8 +41,6 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
                     return text;
                 }));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
@@ -215,7 +213,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
     private int _layoutCacheTextVersion = -1;
     private float _layoutCacheWidth = float.NaN;
     private TextWrapping _layoutCacheWrapping = TextWrapping.Wrap;
-    private SpriteFont? _layoutCacheFont;
+    private UiTypography? _layoutCacheTypography;
     private LayoutResult _layoutCache;
     private readonly Dictionary<char, float> _glyphWidthCache = new();
     private readonly Dictionary<int, float[]> _linePrefixWidthCache = new();
@@ -231,7 +229,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
     private bool _hasVirtualWrapCache;
     private int _virtualWrapCacheTextVersion = -1;
     private float _virtualWrapCacheWidth = float.NaN;
-    private SpriteFont? _virtualWrapCacheFont;
+    private UiTypography? _virtualWrapCacheTypography;
     private readonly VirtualWrapTextSnapshot _virtualWrapText = new();
     private readonly List<WrappedLineCheckpoint> _virtualWrapCheckpoints = new();
     private readonly Dictionary<int, LayoutLine> _virtualWrapLineCache = new();
@@ -342,12 +340,6 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         }
 
         set => SetValue(PasswordProperty, value);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public new Color Foreground
@@ -744,16 +736,13 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
         var textWidth = 0f;
         var textHeight = GetLineHeight();
-        if (Font != null)
-        {
-            var contentWidth = TextWrapping == TextWrapping.NoWrap
-                ? float.PositiveInfinity
-                : MathF.Max(0f, availableSize.X - padding.Horizontal - border);
-            var layout = BuildLayoutLines(contentWidth);
-            textWidth = layout.MaxLineWidth;
-            var lineHeight = GetLineHeight();
-            textHeight = MathF.Max(lineHeight, GetLineCount(layout) * lineHeight);
-        }
+        var contentWidth = TextWrapping == TextWrapping.NoWrap
+            ? float.PositiveInfinity
+            : MathF.Max(0f, availableSize.X - padding.Horizontal - border);
+        var layout = BuildLayoutLines(contentWidth);
+        textWidth = layout.MaxLineWidth;
+        var lineHeight = GetLineHeight();
+        textHeight = MathF.Max(lineHeight, GetLineCount(layout) * lineHeight);
 
         var minWidth = padding.Horizontal + border + 32f;
         var minHeight = padding.Vertical + border + MathF.Max(textHeight, 14f);
@@ -784,16 +773,6 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         else
         {
             UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
-        }
-
-        if (!UiTextRenderer.HasRenderableFont(Font))
-        {
-            if (!hasTemplateRoot && BorderThickness > 0f)
-            {
-                UiDrawing.DrawRectStroke(spriteBatch, slot, BorderThickness, BorderBrush, Opacity);
-            }
-
-            return;
         }
 
         long viewportTicks;
@@ -949,16 +928,20 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
     {
         base.OnDependencyPropertyChanged(args);
 
-        if (ReferenceEquals(args.Property, FontProperty) ||
-            ReferenceEquals(args.Property, FontSizeProperty) ||
+        if (ReferenceEquals(args.Property, FontSizeProperty) ||
+            ReferenceEquals(args.Property, FontFamilyProperty) ||
+            ReferenceEquals(args.Property, FontWeightProperty) ||
+            ReferenceEquals(args.Property, FontStyleProperty) ||
             ReferenceEquals(args.Property, TextWrappingProperty) ||
             ReferenceEquals(args.Property, PaddingProperty) ||
             ReferenceEquals(args.Property, BorderThicknessProperty) ||
             ReferenceEquals(args.Property, PasswordCharProperty) ||
             ReferenceEquals(args.Property, RevealPasswordProperty))
         {
-            if (ReferenceEquals(args.Property, FontProperty) ||
-                ReferenceEquals(args.Property, FontSizeProperty) ||
+            if (ReferenceEquals(args.Property, FontSizeProperty) ||
+                ReferenceEquals(args.Property, FontFamilyProperty) ||
+                ReferenceEquals(args.Property, FontWeightProperty) ||
+                ReferenceEquals(args.Property, FontStyleProperty) ||
                 ReferenceEquals(args.Property, PasswordCharProperty) ||
                 ReferenceEquals(args.Property, RevealPasswordProperty))
             {
@@ -1008,7 +991,8 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         var previousLayout = _layoutCache;
         var previousLayoutWidth = _layoutCacheWidth;
         var previousLayoutWrapping = _layoutCacheWrapping;
-        var previousLayoutFont = _layoutCacheFont;
+        var previousLayoutTypography = _layoutCacheTypography;
+        var currentTypography = UiTextRenderer.ResolveTypography(this, FontSize);
         var hadPreviousLayout = _hasLayoutCache;
 
         _perfCommitCount++;
@@ -1017,7 +1001,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         var appliedNoWrapEdit = false;
         if (hadPreviousLayout &&
             previousLayoutWrapping == TextWrapping.NoWrap &&
-            ReferenceEquals(previousLayoutFont, Font))
+            Nullable.Equals(previousLayoutTypography, currentTypography))
         {
             _perfIncrementalNoWrapEditAttemptCount++;
             appliedNoWrapEdit = TryApplyIncrementalNoWrapLayoutEdit(editDelta, previousLayout, previousLayoutWidth);
@@ -1279,7 +1263,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private int GetTextIndexFromPoint(Vector2 point)
     {
-        if (!UiTextRenderer.HasRenderableFont(Font) || _editor.Length == 0)
+        if (_editor.Length == 0)
         {
             return 0;
         }
@@ -1303,11 +1287,6 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private float MeasureCharacterWidth(char ch)
     {
-        if (!UiTextRenderer.HasRenderableFont(Font))
-        {
-            return 0f;
-        }
-
         if (!RevealPassword && ch != '\r' && ch != '\n')
         {
             ch = ResolveMaskCharacter();
@@ -1318,7 +1297,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             return width;
         }
 
-        width = UiTextRenderer.MeasureWidth(Font, ch.ToString(), FontSize);
+        width = UiTextRenderer.MeasureWidth(this, ch.ToString(), FontSize);
         _glyphWidthCache[ch] = width;
         return width;
     }
@@ -1335,7 +1314,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             text = MaskText(text);
         }
 
-        UiTextRenderer.DrawString(spriteBatch, Font, text, position, color, FontSize);
+        UiTextRenderer.DrawString(spriteBatch, this, text, position, color, FontSize);
     }
 
     private string MaskText(string text)
@@ -1634,7 +1613,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         _hasLayoutCache = false;
         _layoutCacheTextVersion = -1;
         _layoutCacheWidth = float.NaN;
-        _layoutCacheFont = null;
+        _layoutCacheTypography = null;
         _linePrefixWidthCache.Clear();
         _lineTextCache.Clear();
         InvalidateVisibleTextBatchCache();
@@ -1652,7 +1631,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         _hasLayoutCache = false;
         _layoutCacheTextVersion = -1;
         _layoutCacheWidth = float.NaN;
-        _layoutCacheFont = null;
+        _layoutCacheTypography = null;
     }
 
     private void InvalidateLineCachesFromIndex(int firstLine)
@@ -1703,7 +1682,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         _hasVirtualWrapCache = false;
         _virtualWrapCacheTextVersion = -1;
         _virtualWrapCacheWidth = float.NaN;
-        _virtualWrapCacheFont = null;
+        _virtualWrapCacheTypography = null;
         _virtualWrapText.Clear();
         _virtualWrapCheckpoints.Clear();
         _virtualWrapLineCache.Clear();
@@ -2178,9 +2157,10 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private void EnsureVirtualWrapCache(float contentWidth)
     {
+        var currentTypography = UiTextRenderer.ResolveTypography(this, FontSize);
         if (_hasVirtualWrapCache &&
             _virtualWrapCacheTextVersion == _textVersion &&
-            ReferenceEquals(_virtualWrapCacheFont, Font) &&
+            Nullable.Equals(_virtualWrapCacheTypography, currentTypography) &&
             MathF.Abs(_virtualWrapCacheWidth - contentWidth) < 0.01f)
         {
             return;
@@ -2189,7 +2169,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         _hasVirtualWrapCache = true;
         _virtualWrapCacheTextVersion = _textVersion;
         _virtualWrapCacheWidth = contentWidth;
-        _virtualWrapCacheFont = UiTextRenderer.ResolveFont(Font);
+        _virtualWrapCacheTypography = currentTypography;
         _virtualWrapText.SetText(_editor.Text);
         _virtualWrapCheckpoints.Clear();
         _virtualWrapLineCache.Clear();
@@ -2222,8 +2202,8 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
             return false;
         }
 
-        var currentFont = UiTextRenderer.ResolveFont(Font);
-        if (currentFont == null || _virtualWrapCacheFont == null || !ReferenceEquals(_virtualWrapCacheFont, currentFont))
+        var currentTypography = UiTextRenderer.ResolveTypography(this, FontSize);
+        if (!_virtualWrapCacheTypography.HasValue || !Nullable.Equals(_virtualWrapCacheTypography, currentTypography))
         {
             return false;
         }
@@ -2328,7 +2308,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         _layoutCacheTextVersion = _textVersion;
         _layoutCacheWidth = previousLayoutWidth;
         _layoutCacheWrapping = TextWrapping.NoWrap;
-        _layoutCacheFont = Font;
+        _layoutCacheTypography = UiTextRenderer.ResolveTypography(this, FontSize);
         _hasLayoutCache = true;
         _linePrefixWidthCache.Clear();
         _lineTextCache.Clear();
@@ -2908,7 +2888,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
                            MathF.Abs(_layoutCacheWidth - contentWidth) < 0.01f;
         if (_hasLayoutCache &&
             _layoutCacheTextVersion == _textVersion &&
-            ReferenceEquals(_layoutCacheFont, Font) &&
+            Nullable.Equals(_layoutCacheTypography, UiTextRenderer.ResolveTypography(this, FontSize)) &&
             _layoutCacheWrapping == TextWrapping &&
             widthMatches)
         {
@@ -2919,13 +2899,6 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         var text = _editor.Text;
         _perfLayoutCacheMissCount++;
         _perfFullLayoutBuildCount++;
-
-        if (!UiTextRenderer.HasRenderableFont(Font))
-        {
-            var noFontLayout = new LayoutResult(BuildRawLinesWithoutWrapping(text), 0f);
-            UpdateLayoutCache(contentWidth, noFontLayout);
-            return noFontLayout;
-        }
 
         var lines = new List<LayoutLine>();
         if (text.Length == 0)
@@ -3067,7 +3040,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         _layoutCacheTextVersion = _textVersion;
         _layoutCacheWidth = contentWidth;
         _layoutCacheWrapping = TextWrapping;
-        _layoutCacheFont = Font;
+        _layoutCacheTypography = UiTextRenderer.ResolveTypography(this, FontSize);
         _layoutCache = layout;
         _hasLayoutCache = true;
         _linePrefixWidthCache.Clear();
@@ -3140,7 +3113,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
                         }
 
                         prefixBuilder.Append(ch);
-                        widths[i + 1] = UiTextRenderer.MeasureWidth(Font, prefixBuilder.ToString(), FontSize);
+                        widths[i + 1] = UiTextRenderer.MeasureWidth(this, prefixBuilder.ToString(), FontSize);
                     }
                 }
                 else
@@ -3157,7 +3130,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
                     for (var i = 0; i < lineText.Length; i++)
                     {
                         prefixBuilder.Append(lineText[i]);
-                        widths[i + 1] = UiTextRenderer.MeasureWidth(Font, prefixBuilder.ToString(), FontSize);
+                        widths[i + 1] = UiTextRenderer.MeasureWidth(this, prefixBuilder.ToString(), FontSize);
                     }
                 }
             }
@@ -3371,26 +3344,17 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private float GetLineHeight()
     {
-        return UiTextRenderer.GetLineHeight(Font, FontSize);
+        return UiTextRenderer.GetLineHeight(this, FontSize);
     }
 
     private float GetTextRenderTopInset()
     {
-        if (!UiTextRenderer.IsEnabled)
-        {
-            return 0f;
-        }
-
-        var lineHeight = GetLineHeight();
-        var measuredHeight = GetMeasuredGlyphHeight();
-        return MathF.Floor((lineHeight - measuredHeight) * 0.5f);
+        return 0f;
     }
 
     private LayoutRect GetTextRenderClipRect(LayoutRect viewportRect)
     {
-        var verticalBleed = UiTextRenderer.IsEnabled
-            ? MathF.Ceiling(GetMeasuredGlyphVerticalOverflow() + 1f)
-            : 0f;
+        var verticalBleed = 0f;
         var top = MathF.Max(LayoutSlot.Y, viewportRect.Y - verticalBleed);
         var bottom = MathF.Min(LayoutSlot.Y + LayoutSlot.Height, viewportRect.Y + viewportRect.Height + verticalBleed);
         return new LayoutRect(
@@ -3409,7 +3373,7 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
 
     private float GetMeasuredGlyphHeight()
     {
-        var measured = UiTextRenderer.MeasureHeight(Font, "Ag");
+        var measured = UiTextRenderer.MeasureHeight(this, "Ag", FontSize);
         return measured > 0f ? measured : GetLineHeight();
     }
 
@@ -4136,6 +4100,8 @@ public readonly record struct PasswordBoxPerformanceSnapshot(
     double AverageEnsureCaretMilliseconds,
     double MaxEnsureCaretMilliseconds,
     TextEditingBufferMetrics BufferMetrics);
+
+
 
 
 

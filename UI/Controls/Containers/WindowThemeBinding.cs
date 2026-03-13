@@ -36,7 +36,8 @@ internal sealed class WindowThemeBinding : IDisposable
             args.Property == Window.ForegroundProperty ||
             args.Property == Window.FontFamilyProperty ||
             args.Property == Window.FontSizeProperty ||
-            args.Property == Window.FontWeightProperty)
+            args.Property == Window.FontWeightProperty ||
+            args.Property == Window.FontStyleProperty)
         {
             ApplyWindowThemeToRoot();
         }
@@ -54,6 +55,7 @@ internal sealed class WindowThemeBinding : IDisposable
         _root.FontFamily = _window.FontFamily;
         _root.FontSize = _window.FontSize;
         _root.FontWeight = _window.FontWeight;
+        _root.FontStyle = _window.FontStyle;
     }
 
     private static void ApplyForegroundIfSupported(FrameworkElement target, Color value)

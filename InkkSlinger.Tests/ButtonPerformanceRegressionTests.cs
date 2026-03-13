@@ -33,7 +33,7 @@ public sealed class ButtonPerformanceRegressionTests
 
         button.Measure(new Vector2(300f, 120f));
 
-        var layout = TextLayout.Layout(button.Text, button.Font, button.FontSize, float.PositiveInfinity, TextWrapping.NoWrap);
+        var layout = TextLayout.Layout(button.Text, UiTextRenderer.ResolveTypography(button), button.FontSize, float.PositiveInfinity, TextWrapping.NoWrap);
         var expected = new Vector2(
             layout.Size.X + button.Padding.Horizontal + (button.BorderThickness * 2f),
             layout.Size.Y + button.Padding.Vertical + (button.BorderThickness * 2f));
@@ -75,7 +75,7 @@ public sealed class ButtonPerformanceRegressionTests
         button.Measure(availableSize);
 
         var textWidth = availableSize.X - button.Padding.Horizontal - (button.BorderThickness * 2f);
-        var layout = TextLayout.Layout(button.Text, button.Font, button.FontSize, textWidth, TextWrapping.Wrap);
+        var layout = TextLayout.Layout(button.Text, UiTextRenderer.ResolveTypography(button), button.FontSize, textWidth, TextWrapping.Wrap);
         var expected = new Vector2(
             layout.Size.X + button.Padding.Horizontal + (button.BorderThickness * 2f),
             layout.Size.Y + button.Padding.Vertical + (button.BorderThickness * 2f));
@@ -98,8 +98,8 @@ public sealed class ButtonPerformanceRegressionTests
         button.Measure(new Vector2(300f, 120f));
 
         var expected = new Vector2(
-            UiTextRenderer.MeasureWidth(button.Font, button.Text, button.FontSize) + button.Padding.Horizontal + (button.BorderThickness * 2f),
-            UiTextRenderer.GetLineHeight(button.Font, button.FontSize) + button.Padding.Vertical + (button.BorderThickness * 2f));
+            UiTextRenderer.MeasureWidth(button, button.Text, button.FontSize) + button.Padding.Horizontal + (button.BorderThickness * 2f),
+            UiTextRenderer.GetLineHeight(button, button.FontSize) + button.Padding.Vertical + (button.BorderThickness * 2f));
 
         AssertClose(expected, button.DesiredSize);
         Assert.Equal(0, TextLayout.GetMetricsSnapshot().BuildCount);
@@ -141,11 +141,11 @@ public sealed class ButtonPerformanceRegressionTests
     {
         Button.ResetRenderLineWidthFallbackCountForTests();
 
-        var layout = TextLayout.Layout("Alpha\nBeta", null, 14f, float.PositiveInfinity, TextWrapping.NoWrap);
+        var layout = TextLayout.Layout("Alpha\nBeta", new UiTypography("Segoe UI", 14f, "Normal", "Normal"), 14f, float.PositiveInfinity, TextWrapping.NoWrap);
 
         for (var i = 0; i < layout.Lines.Count; i++)
         {
-            var width = Button.ResolveRenderedLineWidth(layout, i, layout.Lines[i], null, 14f);
+            var width = Button.ResolveRenderedLineWidth(layout, i, layout.Lines[i], 14f);
             Assert.Equal(layout.LineWidths[i], width);
         }
 
@@ -159,7 +159,7 @@ public sealed class ButtonPerformanceRegressionTests
 
         var layout = new TextLayout.TextLayoutResult(new[] { "Fallback" }, System.Array.Empty<float>(), new Vector2(0f, 14f));
 
-        var width = Button.ResolveRenderedLineWidth(layout, 0, "Fallback", null, 14f);
+        var width = Button.ResolveRenderedLineWidth(layout, 0, "Fallback", 14f);
 
         Assert.True(width > 0f);
         Assert.Equal(1, Button.GetRenderLineWidthFallbackCountForTests());

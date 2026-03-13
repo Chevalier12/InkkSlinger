@@ -76,8 +76,6 @@ public class DataGridCell : Control
             typeof(DataGridCell),
             new FrameworkPropertyMetadata(new Color(57, 80, 111), FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     private bool _isSynchronizingContentValue;
     private DataGrid? _owner;
     private DataGridRowState? _rowState;
@@ -126,12 +124,6 @@ public class DataGridCell : Control
     {
         get => GetValue<Color>(BorderBrushProperty);
         set => SetValue(BorderBrushProperty, value);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     internal int ColumnIndex { get; set; }
@@ -264,11 +256,11 @@ public class DataGridCell : Control
     {
         base.OnDependencyPropertyChanged(args);
         if (args.Property == ContentProperty ||
-            args.Property == FontProperty ||
             args.Property == ForegroundProperty ||
             args.Property == FrameworkElement.FontFamilyProperty ||
             args.Property == FrameworkElement.FontSizeProperty ||
-            args.Property == FrameworkElement.FontWeightProperty)
+            args.Property == FrameworkElement.FontWeightProperty ||
+            args.Property == FrameworkElement.FontStyleProperty)
         {
             _isTemplateTypographyDirty = true;
             SyncTemplateContentTypographyIfNeeded();
@@ -315,8 +307,8 @@ public class DataGridCell : Control
         var border = BorderThickness;
         var chromeWidth = padding.Left + padding.Right + border.Left + border.Right;
         var chromeHeight = padding.Top + padding.Bottom + border.Top + border.Bottom;
-        var width = UiTextRenderer.MeasureWidth(Font, text, FontSize) + chromeWidth;
-        var height = UiTextRenderer.GetLineHeight(Font, FontSize) + chromeHeight;
+        var width = UiTextRenderer.MeasureWidth(this, text, FontSize) + chromeWidth;
+        var height = UiTextRenderer.GetLineHeight(this, FontSize) + chromeHeight;
         desired.X = System.MathF.Max(desired.X, width);
         desired.Y = System.MathF.Max(desired.Y, height);
         if (_editorElement is FrameworkElement inlineEditor)
@@ -432,10 +424,10 @@ public class DataGridCell : Control
         var top = LayoutSlot.Y + borderThickness.Top + padding.Top;
         var bottom = LayoutSlot.Y + LayoutSlot.Height - borderThickness.Bottom - padding.Bottom;
         var contentHeight = System.MathF.Max(0f, bottom - top);
-        var lineHeight = UiTextRenderer.GetLineHeight(Font, FontSize);
+        var lineHeight = UiTextRenderer.GetLineHeight(this, FontSize);
         var x = left;
         var y = top + ((contentHeight - lineHeight) / 2f);
-        UiTextRenderer.DrawString(spriteBatch, Font, text, new Vector2(x, y), Foreground * Opacity, FontSize);
+        UiTextRenderer.DrawString(spriteBatch, this, text, new Vector2(x, y), Foreground * Opacity, FontSize, opaqueBackground: true);
     }
 
     private void SyncAliasValue(DependencyProperty? sourceProperty, DependencyProperty? targetProperty, object? value)
@@ -471,42 +463,22 @@ public class DataGridCell : Control
             return;
         }
 
-        if (!ReferenceEquals(label.Font, Font))
-        {
-            label.Font = Font;
-        }
-
         if (label.Foreground != Foreground)
         {
             label.Foreground = Foreground;
         }
 
-        if (!string.Equals(label.FontFamily, FontFamily, System.StringComparison.Ordinal))
-        {
-            label.FontFamily = FontFamily;
-        }
-
-        if (label.FontSize != FontSize)
-        {
-            label.FontSize = FontSize;
-        }
-
-        if (!string.Equals(label.FontWeight, FontWeight, System.StringComparison.Ordinal))
-        {
-            label.FontWeight = FontWeight;
-        }
-
         _isTemplateTypographyDirty = false;
     }
 
-    internal (SpriteFont? Font, Color Foreground, string FontFamily, float FontSize, string FontWeight) GetDisplayedTypography()
+    internal (Color Foreground, string FontFamily, float FontSize, string FontWeight, string FontStyle) GetDisplayedTypography()
     {
         if (ResolveFallbackContentLabel() is { } label)
         {
-            return (label.Font, label.Foreground, label.FontFamily, label.FontSize, label.FontWeight);
+            return (label.Foreground, label.FontFamily, label.FontSize, label.FontWeight, label.FontStyle);
         }
 
-        return (Font, Foreground, FontFamily, FontSize, FontWeight);
+        return (Foreground, FontFamily, FontSize, FontWeight, FontStyle);
     }
 
     private Label? ResolveFallbackContentLabel()
@@ -550,4 +522,5 @@ public class DataGridCell : Control
         return null;
     }
 }
+
 

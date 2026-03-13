@@ -1,5 +1,4 @@
 using System;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
@@ -16,16 +15,8 @@ public partial class DataGridView : UserControl
             demoHost.Content = sample;
         }
     }
-
-    public void SetFont(SpriteFont? font)
-    {
-        if (font == null)
-        {
-            return;
-        }
-
-        ControlDemoSupport.ApplyCatalogPreviewFont(this, font);
-    }
 }
+
+
 
 

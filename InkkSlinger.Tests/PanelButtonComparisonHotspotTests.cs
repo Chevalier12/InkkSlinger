@@ -86,18 +86,14 @@ public sealed class PanelButtonComparisonHotspotTests
             $"buttonMeasureTicks={withTextMetrics.ButtonMeasureTicks}, uniformGridMeasureTicks={withTextMetrics.UniformGridMeasureTicks}, " +
             $"fontMeasureWidthTicks={withTextMetrics.FontMeasureWidthTicks}, fontMeasureWidthCalls={withTextMetrics.FontMeasureWidthCallCount}, " +
             $"fontLineHeightTicks={withTextMetrics.FontGetLineHeightTicks}, fontLineHeightCalls={withTextMetrics.FontGetLineHeightCallCount}, " +
-            $"fontTryGetFontTicks={withTextMetrics.FontTryGetFontTicks}, fontTryGetFontCalls={withTextMetrics.FontTryGetFontCallCount}, " +
-            $"fontCacheHits={withTextMetrics.FontCacheHitCount}, fontCacheMisses={withTextMetrics.FontCacheMissCount}, " +
-            $"fontEnsureInitTicks={withTextMetrics.FontEnsureInitializedTicks}, fontEnsureInitCalls={withTextMetrics.FontEnsureInitializedCallCount}");
+            $"fontDrawTicks={withTextMetrics.FontDrawTicks}, fontDrawCalls={withTextMetrics.FontDrawCallCount}");
         _output.WriteLine(
             $"uniform grid 42 buttons without text: measureWork={withoutTextMetrics.TotalMeasureWork}, arrangeWork={withoutTextMetrics.TotalArrangeWork}, " +
             $"measureTicks={withoutTextMetrics.TotalMeasureTicks}, measureExclusiveTicks={withoutTextMetrics.TotalMeasureExclusiveTicks}, " +
             $"buttonMeasureTicks={withoutTextMetrics.ButtonMeasureTicks}, uniformGridMeasureTicks={withoutTextMetrics.UniformGridMeasureTicks}, " +
             $"fontMeasureWidthTicks={withoutTextMetrics.FontMeasureWidthTicks}, fontMeasureWidthCalls={withoutTextMetrics.FontMeasureWidthCallCount}, " +
             $"fontLineHeightTicks={withoutTextMetrics.FontGetLineHeightTicks}, fontLineHeightCalls={withoutTextMetrics.FontGetLineHeightCallCount}, " +
-            $"fontTryGetFontTicks={withoutTextMetrics.FontTryGetFontTicks}, fontTryGetFontCalls={withoutTextMetrics.FontTryGetFontCallCount}, " +
-            $"fontCacheHits={withoutTextMetrics.FontCacheHitCount}, fontCacheMisses={withoutTextMetrics.FontCacheMissCount}, " +
-            $"fontEnsureInitTicks={withoutTextMetrics.FontEnsureInitializedTicks}, fontEnsureInitCalls={withoutTextMetrics.FontEnsureInitializedCallCount}");
+            $"fontDrawTicks={withoutTextMetrics.FontDrawTicks}, fontDrawCalls={withoutTextMetrics.FontDrawCallCount}");
 
         Assert.True(withTextMetrics.TotalMeasureWork > 0);
         Assert.True(withoutTextMetrics.TotalMeasureWork > 0);
@@ -115,15 +111,13 @@ public sealed class PanelButtonComparisonHotspotTests
             $"buttonMeasureTicks={repeatedTextMetrics.ButtonMeasureTicks}, uniformGridMeasureTicks={repeatedTextMetrics.UniformGridMeasureTicks}, " +
             $"fontMeasureWidthTicks={repeatedTextMetrics.FontMeasureWidthTicks}, fontMeasureWidthCalls={repeatedTextMetrics.FontMeasureWidthCallCount}, " +
             $"fontLineHeightTicks={repeatedTextMetrics.FontGetLineHeightTicks}, fontLineHeightCalls={repeatedTextMetrics.FontGetLineHeightCallCount}, " +
-            $"fontTryGetFontTicks={repeatedTextMetrics.FontTryGetFontTicks}, fontTryGetFontCalls={repeatedTextMetrics.FontTryGetFontCallCount}, " +
-            $"fontCacheHits={repeatedTextMetrics.FontCacheHitCount}, fontCacheMisses={repeatedTextMetrics.FontCacheMissCount}");
+            $"fontDrawTicks={repeatedTextMetrics.FontDrawTicks}, fontDrawCalls={repeatedTextMetrics.FontDrawCallCount}");
         _output.WriteLine(
             $"uniform grid 42 buttons unique text: measureTicks={uniqueTextMetrics.TotalMeasureTicks}, measureExclusiveTicks={uniqueTextMetrics.TotalMeasureExclusiveTicks}, " +
             $"buttonMeasureTicks={uniqueTextMetrics.ButtonMeasureTicks}, uniformGridMeasureTicks={uniqueTextMetrics.UniformGridMeasureTicks}, " +
             $"fontMeasureWidthTicks={uniqueTextMetrics.FontMeasureWidthTicks}, fontMeasureWidthCalls={uniqueTextMetrics.FontMeasureWidthCallCount}, " +
             $"fontLineHeightTicks={uniqueTextMetrics.FontGetLineHeightTicks}, fontLineHeightCalls={uniqueTextMetrics.FontGetLineHeightCallCount}, " +
-            $"fontTryGetFontTicks={uniqueTextMetrics.FontTryGetFontTicks}, fontTryGetFontCalls={uniqueTextMetrics.FontTryGetFontCallCount}, " +
-            $"fontCacheHits={uniqueTextMetrics.FontCacheHitCount}, fontCacheMisses={uniqueTextMetrics.FontCacheMissCount}");
+            $"fontDrawTicks={uniqueTextMetrics.FontDrawTicks}, fontDrawCalls={uniqueTextMetrics.FontDrawCallCount}");
 
         Assert.True(repeatedTextMetrics.TotalMeasureWork > 0);
         Assert.True(uniqueTextMetrics.TotalMeasureWork > 0);
@@ -166,14 +160,10 @@ public sealed class PanelButtonComparisonHotspotTests
             uniformGridTiming.MeasureOverrideElapsedTicks,
             fontTiming.MeasureWidthElapsedTicks,
             fontTiming.GetLineHeightElapsedTicks,
-            fontTiming.TryGetFontElapsedTicks,
-            fontTiming.EnsureInitializedElapsedTicks,
+            fontTiming.DrawStringElapsedTicks,
             fontTiming.MeasureWidthCallCount,
             fontTiming.GetLineHeightCallCount,
-            fontTiming.TryGetFontCallCount,
-            fontTiming.FontCacheHitCount,
-            fontTiming.FontCacheMissCount,
-            fontTiming.EnsureInitializedCallCount);
+            fontTiming.DrawStringCallCount);
     }
 
     private static UniformGrid CreateUniformGridWithButtons()
@@ -337,12 +327,8 @@ public sealed class PanelButtonComparisonHotspotTests
         long UniformGridMeasureTicks,
         long FontMeasureWidthTicks,
         long FontGetLineHeightTicks,
-        long FontTryGetFontTicks,
-        long FontEnsureInitializedTicks,
+        long FontDrawTicks,
         int FontMeasureWidthCallCount,
         int FontGetLineHeightCallCount,
-        int FontTryGetFontCallCount,
-        int FontCacheHitCount,
-        int FontCacheMissCount,
-        int FontEnsureInitializedCallCount);
+        int FontDrawCallCount);
 }

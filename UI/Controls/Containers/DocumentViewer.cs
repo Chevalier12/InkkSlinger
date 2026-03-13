@@ -170,8 +170,6 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
             typeof(DocumentViewer),
             new FrameworkPropertyMetadata(false));
 
-    public new static readonly DependencyProperty FontProperty = Control.FontProperty;
-
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
@@ -394,12 +392,6 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
     {
         get => GetValue<bool>(CanGoToPreviousPageProperty);
         private set => SetValue(CanGoToPreviousPageProperty, value);
-    }
-
-    public new SpriteFont? Font
-    {
-        get => GetValue<SpriteFont>(FontProperty);
-        set => SetValue(FontProperty, value);
     }
 
     public new Color Foreground
@@ -746,7 +738,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
         }
 
         var before = _verticalOffset;
-        _verticalOffset -= MathF.Sign(delta) * DocumentViewerInteractionState.ResolveLineScrollAmount(Font);
+        _verticalOffset -= MathF.Sign(delta) * DocumentViewerInteractionState.ResolveLineScrollAmount(this);
         ClampOffsetsForCurrentLayout();
         if (MathF.Abs(before - _verticalOffset) <= 0.01f)
         {
@@ -909,7 +901,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
             }
 
             var color = ResolveRunColor(run.Style);
-            DrawRunString(spriteBatch, run.Text, position, color * Opacity, run.Style.IsBold);
+            DrawRunString(spriteBatch, run.Text, position, color * Opacity, run.Style);
 
             if (run.Style.IsUnderline)
             {
@@ -1084,15 +1076,16 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
         var signature = HashCode.Combine(
             RuntimeHelpers.GetHashCode(Document),
             StringComparer.Ordinal.GetHashCode(text),
-            Font is null ? 0 : RuntimeHelpers.GetHashCode(Font),
+            UiTextRenderer.ResolveTypography(this, FontSize),
             (int)TextWrapping,
             (int)MathF.Round(normalizedWidth * 100f));
-        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(Font, FontSize));
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
+        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(typography));
         var key = new DocumentViewportLayoutCache.CacheKey(
             signature,
             normalizedWidth,
             TextWrapping,
-            Font is null ? 0 : RuntimeHelpers.GetHashCode(Font),
+            typography.GetHashCode(),
             lineHeight,
             Foreground);
 
@@ -1103,8 +1096,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
 
         var settings = new DocumentLayoutSettings(
             AvailableWidth: normalizedWidth,
-            Font: Font,
-            FontSize: FontSize,
+            Typography: typography,
             Wrapping: TextWrapping,
             Foreground: Foreground,
             LineHeight: lineHeight,
@@ -1376,7 +1368,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
 
         var caretX = caretPos.X * ZoomScale;
         var caretY = caretPos.Y * ZoomScale;
-        var lineHeight = UiTextRenderer.GetLineHeight(Font, FontSize) * ZoomScale;
+        var lineHeight = UiTextRenderer.GetLineHeight(this, FontSize) * ZoomScale;
 
         if (caretX < _horizontalOffset)
         {
@@ -1440,7 +1432,7 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
 
         var x = textRect.X + (caretPosition.X * ZoomScale) - _horizontalOffset;
         var y = textRect.Y + (caretPosition.Y * ZoomScale) - _verticalOffset;
-        var height = UiTextRenderer.GetLineHeight(Font, FontSize) * ZoomScale;
+        var height = UiTextRenderer.GetLineHeight(this, FontSize) * ZoomScale;
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(x, y, 1f, Math.Max(1f, height)), CaretBrush * Opacity);
     }
 
@@ -1564,65 +1556,31 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
         return Foreground;
     }
 
-    private void DrawRunString(SpriteBatch spriteBatch, string text, Vector2 position, Color color, bool bold)
+    private static UiTextStyleOverride ToStyleOverride(DocumentLayoutStyle style)
     {
-        var resolvedFont = UiTextRenderer.ResolveFont(Font);
-        if (UiTextRenderer.IsEnabled)
+        var value = UiTextStyleOverride.None;
+        if (style.IsBold)
         {
-            var fontSize = Math.Max(8f, UiTextRenderer.GetLineHeight(resolvedFont, FontSize) * ZoomScale);
-            UiTextRenderer.DrawString(spriteBatch, text, position, color, fontSize);
-            if (bold)
-            {
-                UiTextRenderer.DrawString(spriteBatch, text, position, color * 0.45f, fontSize);
-            }
-
-            return;
+            value |= UiTextStyleOverride.Bold;
         }
 
-        if (resolvedFont == null)
+        if (style.IsItalic)
         {
-            return;
+            value |= UiTextStyleOverride.Italic;
         }
 
-        var transformedPosition = UiDrawing.TransformPoint(spriteBatch, position);
-        var scaleX = MathF.Abs(UiDrawing.GetScaleX(spriteBatch)) * ZoomScale;
-        var scaleY = MathF.Abs(UiDrawing.GetScaleY(spriteBatch)) * ZoomScale;
-        if (scaleX <= 0f)
-        {
-            scaleX = ZoomScale;
-        }
+        return value;
+    }
 
-        if (scaleY <= 0f)
-        {
-            scaleY = ZoomScale;
-        }
-
-        spriteBatch.DrawString(
-            resolvedFont,
+    private void DrawRunString(SpriteBatch spriteBatch, string text, Vector2 position, Color color, DocumentLayoutStyle style)
+    {
+        UiTextRenderer.DrawString(
+            spriteBatch,
+            UiTextRenderer.ResolveTypography(this, FontSize * ZoomScale, ToStyleOverride(style)),
             text,
-            transformedPosition,
+            position,
             color,
-            0f,
-            Vector2.Zero,
-            new Vector2(scaleX, scaleY),
-            SpriteEffects.None,
-            0f);
-
-        if (!bold)
-        {
-            return;
-        }
-
-        spriteBatch.DrawString(
-            resolvedFont,
-            text,
-            transformedPosition,
-            color * 0.45f,
-            0f,
-            Vector2.Zero,
-            new Vector2(scaleX, scaleY),
-            SpriteEffects.None,
-            0f);
+            opaqueBackground: false);
     }
 
     private LayoutRect GetTextRect()
@@ -1793,3 +1751,4 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
         SetValue(property, value);
     }
 }
+

@@ -15,7 +15,7 @@ public sealed class RichTextInputParityTests
 
         var textLeft = 1f + 8f;
         var textTop = 1f + 5f;
-        var point = new Vector2(textLeft + UiTextRenderer.MeasureWidth(null, "hello wo", editor.FontSize), textTop + 2f);
+        var point = new Vector2(textLeft + UiTextRenderer.MeasureWidth("hello wo", editor.FontSize), textTop + 2f);
 
         editor.HandlePointerDownFromInput(point, extendSelection: false);
         editor.HandlePointerUpFromInput();

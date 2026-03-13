@@ -247,7 +247,8 @@ public sealed class DataGridParityChecklistTests
         var editor = Assert.IsType<TextBox>(cell.EditingElement);
         Assert.Equal(cell.FontSize, editor.FontSize);
         Assert.Equal(cell.FontFamily, editor.FontFamily);
-        Assert.Equal(cell.Font, editor.Font);
+        Assert.Equal(cell.FontWeight, editor.FontWeight);
+        Assert.Equal(cell.FontStyle, editor.FontStyle);
     }
 
     [Fact]
