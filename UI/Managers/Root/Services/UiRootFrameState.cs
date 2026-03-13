@@ -88,7 +88,9 @@ public sealed partial class UiRoot
 
     internal void NotifyInvalidation(UiInvalidationType invalidationType, UIElement? source = null)
     {
-        if (source != null && !IsPartOfVisualTree(source))
+        var effectiveSource = source;
+        if (source != null &&
+            !TryResolveInvalidationSource(source, invalidationType == UiInvalidationType.Render, out effectiveSource))
         {
             return;
         }
@@ -122,17 +124,52 @@ public sealed partial class UiRoot
 
                 if (UseDirtyRegionRendering)
                 {
-                    TrackDirtyBoundsForVisual(source);
+                    TrackDirtyBoundsForVisual(effectiveSource);
                 }
-                if (source != null)
+                if (effectiveSource != null)
                 {
-                    EnqueueDirtyRenderNode(source);
+                    EnqueueDirtyRenderNode(effectiveSource);
                 }
 
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(invalidationType), invalidationType, null);
         }
+    }
+
+    private bool TryResolveInvalidationSource(UIElement source, bool allowRetainedAncestorFallback, out UIElement? effectiveSource)
+    {
+        effectiveSource = null;
+        var connectedToRoot = false;
+
+        for (var current = source; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, _visualRoot))
+            {
+                connectedToRoot = true;
+            }
+
+            if (!IsPartOfVisualTree(current))
+            {
+                continue;
+            }
+
+            if (!allowRetainedAncestorFallback && !ReferenceEquals(current, source))
+            {
+                return false;
+            }
+
+            effectiveSource = current;
+            return true;
+        }
+
+        if (!connectedToRoot)
+        {
+            return false;
+        }
+
+        effectiveSource = allowRetainedAncestorFallback ? _visualRoot : null;
+        return allowRetainedAncestorFallback;
     }
 
     internal void NotifyVisualStructureChanged(UIElement element, UIElement? oldParent, UIElement? newParent)

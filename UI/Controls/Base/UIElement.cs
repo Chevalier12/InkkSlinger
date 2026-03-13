@@ -281,23 +281,22 @@ public class UIElement : DependencyObject
 
     internal virtual bool TryGetRenderBoundsInRootSpace(out LayoutRect bounds)
     {
-        var slot = LayoutSlot;
-        if (slot.Width <= 0f || slot.Height <= 0f)
+        if (!TryGetLocalRenderBounds(out var localBounds))
         {
-            bounds = slot;
+            bounds = localBounds;
             return false;
         }
 
         if (!TryGetTransformFromThisToRoot(out var transform))
         {
-            bounds = slot;
+            bounds = localBounds;
             return true;
         }
 
-        var topLeft = Vector2.Transform(new Vector2(slot.X, slot.Y), transform);
-        var topRight = Vector2.Transform(new Vector2(slot.X + slot.Width, slot.Y), transform);
-        var bottomLeft = Vector2.Transform(new Vector2(slot.X, slot.Y + slot.Height), transform);
-        var bottomRight = Vector2.Transform(new Vector2(slot.X + slot.Width, slot.Y + slot.Height), transform);
+        var topLeft = Vector2.Transform(new Vector2(localBounds.X, localBounds.Y), transform);
+        var topRight = Vector2.Transform(new Vector2(localBounds.X + localBounds.Width, localBounds.Y), transform);
+        var bottomLeft = Vector2.Transform(new Vector2(localBounds.X, localBounds.Y + localBounds.Height), transform);
+        var bottomRight = Vector2.Transform(new Vector2(localBounds.X + localBounds.Width, localBounds.Y + localBounds.Height), transform);
 
         var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
         var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
@@ -306,6 +305,11 @@ public class UIElement : DependencyObject
 
         bounds = new LayoutRect(minX, minY, MathF.Max(0f, maxX - minX), MathF.Max(0f, maxY - minY));
         return bounds.Width > 0f && bounds.Height > 0f;
+    }
+
+    internal bool TryGetLocalRenderBoundsSnapshot(out LayoutRect bounds)
+    {
+        return TryGetLocalRenderBounds(out bounds);
     }
 
     internal UIElement GetVisualRoot()
@@ -391,6 +395,7 @@ public class UIElement : DependencyObject
     internal void DrawSelf(SpriteBatch spriteBatch)
     {
         _drawCallCount++;
+        Effect?.Render(this, spriteBatch, Opacity);
         OnRender(spriteBatch);
     }
 
@@ -1191,6 +1196,19 @@ public class UIElement : DependencyObject
     private static bool IsFinite(float value)
     {
         return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
+
+    private bool TryGetLocalRenderBounds(out LayoutRect bounds)
+    {
+        var slot = LayoutSlot;
+        if (slot.Width <= 0f || slot.Height <= 0f)
+        {
+            bounds = slot;
+            return false;
+        }
+
+        bounds = Effect?.GetRenderBounds(this) ?? slot;
+        return bounds.Width > 0f && bounds.Height > 0f;
     }
 
     private readonly struct RoutedHandlerEntry

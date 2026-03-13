@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -82,5 +84,88 @@ public sealed class EffectPhase2Tests
         effect.Freeze();
 
         Assert.Throws<InvalidOperationException>(() => effect.BlurRadius = 9f);
+    }
+
+    [Fact]
+    public void DropShadowEffect_ExpandsRenderBoundsInRootSpace()
+    {
+        var border = new Border
+        {
+            Width = 40f,
+            Height = 20f,
+            Effect = new DropShadowEffect
+            {
+                Color = Color.Orange,
+                ShadowDepth = 3f,
+                BlurRadius = 12f,
+                Opacity = 0.5f
+            }
+        };
+
+        border.Measure(new Vector2(100f, 100f));
+        border.Arrange(new LayoutRect(10f, 20f, 40f, 20f));
+
+        Assert.True(border.TryGetRenderBoundsInRootSpace(out var bounds));
+        Assert.Equal(-2f, bounds.X, 3);
+        Assert.Equal(11f, bounds.Y, 3);
+        Assert.Equal(64f, bounds.Width, 3);
+        Assert.Equal(44f, bounds.Height, 3);
+    }
+
+    [Fact]
+    public void DrawSelf_RendersEffectBeforeControlContent()
+    {
+        var effect = new ProbeEffect();
+        var visual = new ProbeVisual
+        {
+            Effect = effect
+        };
+
+        visual.DrawSelf(null!);
+
+        Assert.Equal(1, effect.RenderCallCount);
+        Assert.Equal(1, visual.RenderCallCount);
+        Assert.Equal("effect,content", string.Join(',', visual.RenderSteps));
+    }
+
+    private sealed class ProbeVisual : UIElement
+    {
+        public int RenderCallCount { get; private set; }
+
+        public List<string> RenderSteps { get; } = new();
+
+        protected override void OnRender(Microsoft.Xna.Framework.Graphics.SpriteBatch spriteBatch)
+        {
+            RenderCallCount++;
+            RenderSteps.Add("content");
+        }
+    }
+
+    private sealed class ProbeEffect : Effect
+    {
+        public int RenderCallCount { get; private set; }
+
+        protected override Freezable CreateInstanceCore()
+        {
+            return new ProbeEffect();
+        }
+
+        protected override void CloneCore(Freezable source)
+        {
+        }
+
+        internal override void Render(UIElement element, Microsoft.Xna.Framework.Graphics.SpriteBatch spriteBatch, float elementOpacity)
+        {
+            RenderCallCount++;
+            if (element is ProbeVisual probe)
+            {
+                probe.RenderSteps.Add("effect");
+            }
+        }
+
+        internal override LayoutRect GetRenderBounds(UIElement element)
+        {
+            return element.LayoutSlot;
+        }
     }
 }

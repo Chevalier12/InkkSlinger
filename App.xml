@@ -45,7 +45,7 @@
       <!-- ═══════════════════════════════════════════════════════════ -->
       <!-- BUTTON                                                     -->
       <!-- ═══════════════════════════════════════════════════════════ -->
-      <Style TargetType="{x:Type Button}">
+      <Style x:Key="BaseButtonStyle" TargetType="{x:Type Button}">
         <Setter Property="Background" Value="#2A2A2A" />
         <Setter Property="Foreground" Value="#F0F0F0" />
         <Setter Property="BorderBrush" Value="#3F3F3F" />
@@ -143,6 +143,10 @@
           </Setter.Value>
         </Setter>
       </Style>
+
+      <Style TargetType="{x:Type Button}" BasedOn="{StaticResource BaseButtonStyle}" />
+
+      <Style TargetType="{x:Type CalendarDayButton}" BasedOn="{StaticResource BaseButtonStyle}" />
 
       <!-- ═══════════════════════════════════════════════════════════ -->
       <!-- TEXTBOX                                                    -->

@@ -332,7 +332,8 @@ public static partial class XamlLoader
                 return null;
             }
 
-            var built = BuildElement(rootVisual, null, scope ?? resourceScope);
+            var built = RunWithinIsolatedTemplateInstantiationScope(() =>
+                BuildElement(rootVisual, null, scope ?? resourceScope));
             if (built is FrameworkElement elementRoot)
             {
                 elementRoot.DataContext = item;
@@ -397,7 +398,8 @@ public static partial class XamlLoader
         var templateAnalysis = AnalyzeTemplateVisualRoot(templateVisualRoot, targetType, resourceScope);
         var template = new ControlTemplate(owner =>
         {
-            return BuildElement(templateVisualRoot, null, owner);
+            return RunWithinIsolatedTemplateInstantiationScope(() =>
+                BuildElement(templateVisualRoot, null, owner));
         })
         {
             TargetType = targetType

@@ -117,7 +117,7 @@ public class Control : FrameworkElement, ICommandSource
         DefaultStyleKey = GetType();
         Resources.Changed += OnResourceScopeChanged;
         UiApplication.Current.Resources.Changed += OnResourceScopeChanged;
-        _templateTriggerEngine = new TemplateTriggerEngine(this, GetTemplateChild, InvalidateVisual);
+        _templateTriggerEngine = new TemplateTriggerEngine(this, FindTemplateNamedObject, InvalidateVisual);
     }
 
     public Type? DefaultStyleKey
@@ -574,6 +574,49 @@ public class Control : FrameworkElement, ICommandSource
         }
 
         return GetTemplateChild(targetName);
+    }
+
+    internal object? FindTemplateNamedObject(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return this;
+        }
+
+        if (_namedTemplateChildren.TryGetValue(name, out var child))
+        {
+            return child;
+        }
+
+        return FindNamedObjectInTemplateScopes(_templateRoot, name);
+    }
+
+    private static object? FindNamedObjectInTemplateScopes(UIElement? root, string name)
+    {
+        if (root is FrameworkElement frameworkElement)
+        {
+            var scoped = frameworkElement.GetLocalNameScope()?.FindName(name);
+            if (scoped != null)
+            {
+                return scoped;
+            }
+        }
+
+        if (root == null)
+        {
+            return null;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindNamedObjectInTemplateScopes(child, name);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private void ClearTemplateBindings()

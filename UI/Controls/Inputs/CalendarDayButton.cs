@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -23,7 +24,14 @@ public sealed class CalendarDayButton : Button
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
-        base.OnRender(spriteBatch);
+        if (HasTemplateRoot)
+        {
+            DrawTemplateVisualTree(spriteBatch);
+        }
+        else
+        {
+            base.OnRender(spriteBatch);
+        }
 
         if (string.IsNullOrEmpty(DayText))
         {
@@ -49,5 +57,28 @@ public sealed class CalendarDayButton : Button
             left + ((maxTextWidth - textWidth) / 2f),
             top + ((maxTextHeight - lineHeight) / 2f));
         UiTextRenderer.DrawString(spriteBatch, this, DayText, position, Foreground * Opacity, FontSize, opaqueBackground: true);
+    }
+
+    protected override bool ShouldAutoDrawVisualChildren => !HasTemplateRoot;
+
+    internal override IEnumerable<UIElement> GetRetainedRenderChildren()
+    {
+        if (HasTemplateRoot)
+        {
+            yield break;
+        }
+
+        foreach (var child in base.GetRetainedRenderChildren())
+        {
+            yield return child;
+        }
+    }
+
+    private void DrawTemplateVisualTree(SpriteBatch spriteBatch)
+    {
+        foreach (var child in base.GetVisualChildren())
+        {
+            child.Draw(spriteBatch);
+        }
     }
 }

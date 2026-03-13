@@ -7,7 +7,7 @@ namespace InkkSlinger;
 internal sealed class TemplateTriggerEngine
 {
     private readonly Control _owner;
-    private readonly Func<string, UIElement?> _resolveTargetByName;
+    private readonly Func<string, object?> _resolveTargetByName;
     private readonly Action _invalidateOwner;
     private readonly List<TriggerBase> _attachedTriggers = new();
     private readonly HashSet<DependencyProperty> _conditionProperties = new();
@@ -23,7 +23,7 @@ internal sealed class TemplateTriggerEngine
     private bool _isApplying;
     private bool _reapplyPending;
 
-    public TemplateTriggerEngine(Control owner, Func<string, UIElement?> resolveTargetByName, Action invalidateOwner)
+    public TemplateTriggerEngine(Control owner, Func<string, object?> resolveTargetByName, Action invalidateOwner)
     {
         _owner = owner;
         _resolveTargetByName = resolveTargetByName;

@@ -558,10 +558,9 @@ public sealed partial class UiRoot
         out bool hasTransformFromThisToRoot,
         out Matrix transformFromThisToRoot)
     {
-        var slot = visual.LayoutSlot;
-        if (slot.Width <= 0f || slot.Height <= 0f)
+        if (!visual.TryGetLocalRenderBoundsSnapshot(out var localBounds))
         {
-            bounds = slot;
+            bounds = localBounds;
             hasTransformFromThisToRoot = false;
             transformFromThisToRoot = Matrix.Identity;
             return false;
@@ -604,14 +603,14 @@ public sealed partial class UiRoot
 
         if (!hasTransformFromThisToRoot)
         {
-            bounds = slot;
+            bounds = localBounds;
             return true;
         }
 
-        var topLeft = Vector2.Transform(new Vector2(slot.X, slot.Y), transformFromThisToRoot);
-        var topRight = Vector2.Transform(new Vector2(slot.X + slot.Width, slot.Y), transformFromThisToRoot);
-        var bottomLeft = Vector2.Transform(new Vector2(slot.X, slot.Y + slot.Height), transformFromThisToRoot);
-        var bottomRight = Vector2.Transform(new Vector2(slot.X + slot.Width, slot.Y + slot.Height), transformFromThisToRoot);
+        var topLeft = Vector2.Transform(new Vector2(localBounds.X, localBounds.Y), transformFromThisToRoot);
+        var topRight = Vector2.Transform(new Vector2(localBounds.X + localBounds.Width, localBounds.Y), transformFromThisToRoot);
+        var bottomLeft = Vector2.Transform(new Vector2(localBounds.X, localBounds.Y + localBounds.Height), transformFromThisToRoot);
+        var bottomRight = Vector2.Transform(new Vector2(localBounds.X + localBounds.Width, localBounds.Y + localBounds.Height), transformFromThisToRoot);
         var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
         var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
         var maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));

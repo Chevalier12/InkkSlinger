@@ -18,6 +18,8 @@ public abstract class Effect : Freezable
     }
 
     internal abstract void Render(UIElement element, SpriteBatch spriteBatch, float elementOpacity);
+
+    internal abstract LayoutRect GetRenderBounds(UIElement element);
 }
 
 public sealed class DropShadowEffect : Effect
@@ -136,6 +138,35 @@ public sealed class DropShadowEffect : Effect
         UiDrawing.DrawFilledRect(spriteBatch, shadowRect, Color, effectiveOpacity);
     }
 
+    internal override LayoutRect GetRenderBounds(UIElement element)
+    {
+        var slot = element.LayoutSlot;
+        if (slot.Width <= 0f || slot.Height <= 0f)
+        {
+            return slot;
+        }
+
+        var effectiveOpacity = Opacity * element.Opacity;
+        if (effectiveOpacity <= 0f || Color.A == 0)
+        {
+            return slot;
+        }
+
+        var shadowRect = new LayoutRect(slot.X, slot.Y + ShadowDepth, slot.Width, slot.Height);
+        var blur = BlurRadius;
+        if (blur <= 0.001f)
+        {
+            return Union(slot, shadowRect);
+        }
+
+        var expandedShadow = new LayoutRect(
+            shadowRect.X - blur,
+            shadowRect.Y - blur,
+            shadowRect.Width + (blur * 2f),
+            shadowRect.Height + (blur * 2f));
+        return Union(slot, expandedShadow);
+    }
+
     private static void DrawBlurSlices(
         SpriteBatch spriteBatch,
         LayoutRect shadowRect,
@@ -248,6 +279,15 @@ public sealed class DropShadowEffect : Effect
     }
 
     private readonly record struct ShadowTextureCacheKey(GraphicsDevice GraphicsDevice, int BlurSize, ShadowTextureKind Kind);
+
+    private static LayoutRect Union(LayoutRect left, LayoutRect right)
+    {
+        var x = MathF.Min(left.X, right.X);
+        var y = MathF.Min(left.Y, right.Y);
+        var rightEdge = MathF.Max(left.X + left.Width, right.X + right.Width);
+        var bottomEdge = MathF.Max(left.Y + left.Height, right.Y + right.Height);
+        return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
+    }
 
     private enum ShadowTextureKind
     {

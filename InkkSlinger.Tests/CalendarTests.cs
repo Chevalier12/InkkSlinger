@@ -204,8 +204,66 @@ public sealed class CalendarTests
             var dayButton = Assert.IsType<CalendarDayButton>(calendar.DayButtonsForTesting[0]);
             Assert.True(dayButton.ApplyTemplate());
             Assert.NotEmpty(dayButton.GetVisualChildren());
+            Assert.Empty(dayButton.GetRetainedRenderChildren());
             Assert.NotEmpty(dayButton.DayText);
             Assert.Equal(string.Empty, dayButton.Text);
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
+    [Fact]
+    public void CalendarDayButtons_HoverMovesShadowToCurrentDate()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var (uiRoot, calendar) = CreateFixture();
+            calendar.DisplayDate = new DateTime(2026, 3, 1);
+            RunLayout(uiRoot);
+
+            var firstDate = new DateTime(2026, 4, 5);
+            var secondDate = new DateTime(2026, 3, 12);
+            Assert.True(calendar.TryGetDayButtonIndexForDateForTesting(firstDate, out var firstIndex));
+            Assert.True(calendar.TryGetDayButtonIndexForDateForTesting(secondDate, out var secondIndex));
+
+            var firstButton = Assert.IsType<CalendarDayButton>(calendar.DayButtonsForTesting[firstIndex]);
+            var secondButton = Assert.IsType<CalendarDayButton>(calendar.DayButtonsForTesting[secondIndex]);
+            Assert.True(firstButton.ApplyTemplate());
+            Assert.True(secondButton.ApplyTemplate());
+
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(GetCenter(firstButton)));
+            for (var i = 0; i < 12; i++)
+            {
+                RunLayout(uiRoot, 32 + (i * 16));
+            }
+
+            var firstShadow = GetDayButtonShadow(firstButton);
+            var secondShadow = GetDayButtonShadow(secondButton);
+
+            Assert.True(firstButton.IsMouseOver);
+            Assert.False(secondButton.IsMouseOver);
+            Assert.True(firstShadow.BlurRadius > 0f, $"Expected first hovered shadow blur > 0, actual {firstShadow.BlurRadius}.");
+            Assert.True(firstShadow.Opacity > 0f, $"Expected first hovered shadow opacity > 0, actual {firstShadow.Opacity}.");
+            Assert.True(secondShadow.BlurRadius <= 0.001f, $"Expected other shadow blur ~0, actual {secondShadow.BlurRadius}.");
+            Assert.True(secondShadow.Opacity <= 0.001f, $"Expected other shadow opacity ~0, actual {secondShadow.Opacity}.");
+
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(GetCenter(secondButton)));
+            for (var i = 0; i < 12; i++)
+            {
+                RunLayout(uiRoot, 256 + (i * 16));
+            }
+
+            Assert.False(firstButton.IsMouseOver);
+            Assert.True(secondButton.IsMouseOver);
+            Assert.True(firstShadow.BlurRadius <= 0.001f, $"Expected previous shadow blur ~0 after leave, actual {firstShadow.BlurRadius}.");
+            Assert.True(firstShadow.Opacity <= 0.001f, $"Expected previous shadow opacity ~0 after leave, actual {firstShadow.Opacity}.");
+            Assert.True(secondShadow.BlurRadius > 0f, $"Expected current hovered shadow blur > 0, actual {secondShadow.BlurRadius}.");
+            Assert.True(secondShadow.Opacity > 0f, $"Expected current hovered shadow opacity > 0, actual {secondShadow.Opacity}.");
         }
         finally
         {
@@ -308,10 +366,21 @@ public sealed class CalendarTests
         };
     }
 
+    private static DropShadowEffect GetDayButtonShadow(CalendarDayButton button)
+    {
+        var chrome = Assert.IsType<Border>(Assert.Single(button.GetVisualChildren()));
+        return Assert.IsType<DropShadowEffect>(chrome.Effect);
+    }
+
     private static void RunLayout(UiRoot uiRoot)
     {
+        RunLayout(uiRoot, 16);
+    }
+
+    private static void RunLayout(UiRoot uiRoot, int elapsedMs)
+    {
         uiRoot.Update(
-            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(16)),
             new Viewport(0, 0, 600, 420));
     }
 

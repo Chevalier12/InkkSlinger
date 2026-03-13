@@ -52,4 +52,26 @@ public static partial class XamlLoader
         get => XamlLoadSession.Current.DeferredFinalizeActions;
         set => XamlLoadSession.Current.DeferredFinalizeActions = value;
     }
+
+    private static T RunWithinIsolatedTemplateInstantiationScope<T>(Func<T> factory)
+    {
+        var previousLoadRootScope = CurrentLoadRootScope;
+        var previousConstructionScopes = CurrentConstructionScopes;
+        var previousConstructionRootScope = CurrentConstructionRootScope;
+
+        CurrentLoadRootScope = null;
+        CurrentConstructionScopes = null;
+        CurrentConstructionRootScope = null;
+
+        try
+        {
+            return factory();
+        }
+        finally
+        {
+            CurrentLoadRootScope = previousLoadRootScope;
+            CurrentConstructionScopes = previousConstructionScopes;
+            CurrentConstructionRootScope = previousConstructionRootScope;
+        }
+    }
 }

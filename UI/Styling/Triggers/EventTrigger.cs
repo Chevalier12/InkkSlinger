@@ -53,7 +53,21 @@ public sealed class EventTrigger : TriggerBase
                 scope,
                 name =>
                 {
-                    if (scope == null || string.IsNullOrWhiteSpace(name))
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        return null;
+                    }
+
+                    if (target is Control control)
+                    {
+                        var templateTarget = control.FindTemplateNamedObject(name);
+                        if (templateTarget != null)
+                        {
+                            return templateTarget;
+                        }
+                    }
+
+                    if (scope == null)
                     {
                         return null;
                     }
