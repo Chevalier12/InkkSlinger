@@ -60,6 +60,7 @@ public static class ControlViews
         "ProgressBar",
         "RadioButton",
         "RepeatButton",
+        "RenderSurface",
         "ResizeGrip",
         "RichTextBox",
         "ScrollBar",
@@ -143,6 +144,7 @@ public static class ControlViews
             ["ProgressBar"] = static () => new ProgressBarView(),
             ["RadioButton"] = static () => new RadioButtonView(),
             ["RepeatButton"] = static () => new RepeatButtonView(),
+            ["RenderSurface"] = static () => new RenderSurfaceView(),
             ["ResizeGrip"] = static () => new ResizeGripView(),
             ["RichTextBox"] = static () => new RichTextBoxView(),
             ["ScrollBar"] = static () => new ScrollBarView(),
@@ -263,6 +265,7 @@ internal static class ControlDemoSupport
             ["ProgressBar"] = static () => new ProgressBar(),
             ["RadioButton"] = static () => new RadioButton(),
             ["RepeatButton"] = static () => new RepeatButton(),
+            ["RenderSurface"] = static () => new RenderSurface(),
             ["ResizeGrip"] = static () => new ResizeGrip(),
             ["RichTextBox"] = static () => new RichTextBox(),
             ["ScrollBar"] = static () => new ScrollBar(),
@@ -549,6 +552,13 @@ internal static class ControlDemoSupport
                     Maximum = 100f,
                     ViewportSize = 20f,
                     Value = 35f
+                };
+            case "RenderSurface":
+                return new RenderSurface
+                {
+                    Width = 320f,
+                    Height = 224f,
+                    Stretch = Stretch.Uniform
                 };
             case "Page":
                 return new Page

@@ -535,6 +535,8 @@ public class UIElement : DependencyObject
         Dispatcher.VerifyAccess();
         if (NeedsRender)
         {
+            UiRoot.Current?.EnsureRenderInvalidationTracked(this);
+
             return;
         }
 

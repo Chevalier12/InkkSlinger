@@ -86,6 +86,16 @@ public sealed partial class UiRoot
         }
     }
 
+    internal void EnsureRenderInvalidationTracked(UIElement visual)
+    {
+        if (_dirtyRenderSet.Contains(visual))
+        {
+            return;
+        }
+
+        NotifyInvalidation(UiInvalidationType.Render, visual);
+    }
+
     internal void NotifyInvalidation(UiInvalidationType invalidationType, UIElement? source = null)
     {
         var effectiveSource = source;

@@ -126,6 +126,15 @@ public sealed partial class UiRoot
 
         if (_lastSynchronizedDirtyRenderRoots.Count == 0)
         {
+            if (_dirtyRenderSet.Count == 0 && !_hasRenderInvalidation)
+            {
+                // Animation-only redraws can still occur after a previous retained draw left stale
+                // render dirty flags on visuals. With no synchronized dirty roots and no newly
+                // queued invalidations, those flags are stale and must be cleared here so future
+                // InvalidateVisual calls are not short-circuited.
+                _visualRoot.ClearRenderInvalidationRecursive();
+            }
+
             return;
         }
 
