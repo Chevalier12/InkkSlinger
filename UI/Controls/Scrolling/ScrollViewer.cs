@@ -704,7 +704,14 @@ public class ScrollViewer : ContentControl
             {
                 if (ContentElement is UIElement contentElement)
                 {
-                    contentElement.InvalidateVisual();
+                    if (contentElement.NeedsRender)
+                    {
+                        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, contentElement);
+                    }
+                    else
+                    {
+                        contentElement.InvalidateVisual();
+                    }
                 }
             }
             else

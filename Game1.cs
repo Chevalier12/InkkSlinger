@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -8,6 +9,7 @@ namespace InkkSlinger;
 public class Game1 : Game
 {
     private static readonly bool EnableExperimentalPartialRedraw = true;
+    private const int IdleThrottleSleepMilliseconds = 8;
     private readonly GraphicsDeviceManager _graphics;
     private readonly InkkSlinger.Window _window;
     private SpriteBatch _spriteBatch = null!;
@@ -81,9 +83,21 @@ public class Game1 : Game
         if (!_shouldDrawUiThisFrame)
         {
             SuppressDraw();
+            var idleThrottleDelayMilliseconds = GetIdleThrottleDelayMilliseconds(IsActive, _shouldDrawUiThisFrame);
+            if (idleThrottleDelayMilliseconds > 0)
+            {
+                Thread.Sleep(idleThrottleDelayMilliseconds);
+            }
         }
 
         base.Update(gameTime);
+    }
+
+    internal static int GetIdleThrottleDelayMilliseconds(bool isActive, bool shouldDrawUiThisFrame)
+    {
+        return isActive && !shouldDrawUiThisFrame
+            ? IdleThrottleSleepMilliseconds
+            : 0;
     }
 
     protected override void Draw(GameTime gameTime)

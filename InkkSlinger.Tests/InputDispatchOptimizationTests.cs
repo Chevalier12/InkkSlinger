@@ -297,6 +297,27 @@ public class InputDispatchOptimizationTests
     }
 
     [Fact]
+    public void StationaryNoInput_AfterHover_UsesNoInputBypass()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 300f, 200f));
+        var button = new Button();
+        button.SetLayoutSlot(new LayoutRect(20f, 20f, 120f, 40f));
+        root.AddChild(button);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 30f)));
+        Assert.Equal("HitTest", uiRoot.LastPointerResolvePathForDiagnostics);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: new Vector2(30f, 30f)));
+
+        Assert.Equal("NoInputBypass", uiRoot.LastPointerResolvePathForDiagnostics);
+        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+    }
+
+    [Fact]
     public void ListBox_ClickingDifferentItems_UpdatesSelectedIndex()
     {
         var root = new Panel();

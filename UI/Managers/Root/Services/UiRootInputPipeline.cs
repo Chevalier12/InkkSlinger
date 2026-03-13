@@ -172,8 +172,17 @@ public sealed partial class UiRoot
     private void ProcessInputDelta(InputDelta delta)
     {
         _inputState.LastPointerPosition = delta.Current.PointerPosition;
+        _lastPointerResolvePath = "None";
+        _lastPointerResolveHitTestMetrics = null;
         var pointerStart = Stopwatch.GetTimestamp();
         _inputState.CurrentModifiers = GetModifiers(delta.Current.Keyboard);
+        if (delta.IsEmpty)
+        {
+            _lastPointerResolvePath = "NoInputBypass";
+            _lastInputPointerDispatchMs = Stopwatch.GetElapsedTime(pointerStart).TotalMilliseconds;
+            return;
+        }
+
         var clickResolveHitTests = 0;
         var pointerResolveStart = Stopwatch.GetTimestamp();
         var clickHitTestsBeforeResolve = _lastInputHitTestCount;
@@ -304,11 +313,6 @@ public sealed partial class UiRoot
         _lastInputHoverUpdateMs = (double)hoverTicks * 1000d / Stopwatch.Frequency;
         _lastInputPointerRouteMs = (double)pointerRouteTicks * 1000d / Stopwatch.Frequency;
         _lastInputPointerDispatchMs = Stopwatch.GetElapsedTime(pointerStart).TotalMilliseconds;
-
-        if (delta.IsEmpty)
-        {
-            return;
-        }
 
         var keyStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < delta.PressedKeys.Count; i++)

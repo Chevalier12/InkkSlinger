@@ -44,23 +44,11 @@ public sealed class InputManager
         _releasedKeys.Clear();
         _frameText.Clear();
 
-        var currentKeys = _currentKeyboard.GetPressedKeys();
-        var previousKeys = _previousKeyboard.GetPressedKeys();
-        var keyboardUnchanged = currentKeys.Length == previousKeys.Length;
-        if (keyboardUnchanged)
+        var keyboardChanged = !_currentKeyboard.Equals(_previousKeyboard);
+        if (keyboardChanged)
         {
-            for (var i = 0; i < currentKeys.Length; i++)
-            {
-                if (!ContainsKey(previousKeys, currentKeys[i]))
-                {
-                    keyboardUnchanged = false;
-                    break;
-                }
-            }
-        }
-
-        if (!keyboardUnchanged)
-        {
+            var currentKeys = _currentKeyboard.GetPressedKeys();
+            var previousKeys = _previousKeyboard.GetPressedKeys();
             for (var i = 0; i < currentKeys.Length; i++)
             {
                 if (!ContainsKey(previousKeys, currentKeys[i]))

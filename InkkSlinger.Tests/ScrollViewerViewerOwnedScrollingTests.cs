@@ -328,6 +328,47 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
+    public void TransformDefault_RepeatedOffsetChangesBeforeNextFrame_ContinueTrackingRenderInvalidation()
+    {
+        var root = new Panel();
+        var content = CreateTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            LineScrollAmount = 30f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        var renderInvalidationsBefore = uiRoot.RenderInvalidationCount;
+
+        var firstHandled = viewer.HandleMouseWheelFromInput(-120);
+        var renderInvalidationsAfterFirst = uiRoot.RenderInvalidationCount;
+        Assert.True(firstHandled);
+        Assert.True(content.NeedsRender);
+        Assert.True(renderInvalidationsAfterFirst > renderInvalidationsBefore);
+
+        var offsetAfterFirst = viewer.VerticalOffset;
+        var secondHandled = viewer.HandleMouseWheelFromInput(-120);
+        var renderInvalidationsAfterSecond = uiRoot.RenderInvalidationCount;
+        var secondDelta = renderInvalidationsAfterSecond - renderInvalidationsAfterFirst;
+
+        Assert.True(secondHandled);
+        Assert.True(viewer.VerticalOffset > offsetAfterFirst);
+        Assert.True(content.NeedsRender);
+        Assert.True(secondDelta > 0,
+            $"Expected repeated transform-scroll updates to keep contributing render invalidation bookkeeping before the next frame. secondDelta={secondDelta}.");
+        Assert.NotEmpty(uiRoot.GetDirtyRegionsSnapshotForTests());
+    }
+
+    [Fact]
     public void TransformDefault_ClampsOffsetsToExtent()
     {
         var root = new Panel();

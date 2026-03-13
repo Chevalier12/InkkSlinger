@@ -54,6 +54,11 @@ public sealed class AnimationManager
     public void Update(GameTime gameTime)
     {
         _currentTime = gameTime.TotalGameTime;
+        if (_storyboards.Count == 0 && _appliedLanes.Count == 0)
+        {
+            return;
+        }
+
         foreach (var instance in _storyboards)
         {
             instance.Update(_currentTime);
