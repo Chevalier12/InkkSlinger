@@ -7,6 +7,9 @@ namespace InkkSlinger;
 
 public class VirtualizingStackPanel : Panel
 {
+    private uint _childOrderVersion;
+    private uint _lastMeasuredChildOrderVersion;
+    private uint _lastArrangedChildOrderVersion;
     public static readonly DependencyProperty OrientationProperty =
         DependencyProperty.Register(
             nameof(Orientation),
@@ -187,6 +190,59 @@ public class VirtualizingStackPanel : Panel
         }
     }
 
+    public override void AddChild(UIElement child)
+    {
+        var countBefore = Children.Count;
+        base.AddChild(child);
+        if (Children.Count != countBefore)
+        {
+            OnChildOrderChanged();
+        }
+    }
+
+    public override void InsertChild(int index, UIElement child)
+    {
+        var countBefore = Children.Count;
+        base.InsertChild(index, child);
+        if (Children.Count != countBefore)
+        {
+            OnChildOrderChanged();
+        }
+    }
+
+    public override bool RemoveChild(UIElement child)
+    {
+        var removed = base.RemoveChild(child);
+        if (removed)
+        {
+            OnChildOrderChanged();
+        }
+
+        return removed;
+    }
+
+    public override bool RemoveChildAt(int index)
+    {
+        var removed = base.RemoveChildAt(index);
+        if (removed)
+        {
+            OnChildOrderChanged();
+        }
+
+        return removed;
+    }
+
+    public override bool MoveChildRange(int oldIndex, int count, int newIndex)
+    {
+        var moved = base.MoveChildRange(oldIndex, count, newIndex);
+        if (moved)
+        {
+            OnChildOrderChanged();
+        }
+
+        return moved;
+    }
+
     internal override int GetVisualChildCountForTraversal()
     {
         if (!_isVirtualizationActive || FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex)
@@ -272,12 +328,14 @@ public class VirtualizingStackPanel : Panel
         var last = ResolveEndIndex(context.EndOffset, first);
         var canReuseMeasuredRange = first == _lastMeasuredFirst &&
                                     last == _lastMeasuredLast &&
+                                    _lastMeasuredChildOrderVersion == _childOrderVersion &&
                                     !RangeNeedsMeasure(first, last);
         if (!canReuseMeasuredRange)
         {
             MeasureRange(availableSize, first, last);
             _lastMeasuredFirst = first;
             _lastMeasuredLast = last;
+            _lastMeasuredChildOrderVersion = _childOrderVersion;
         }
         SetRealization(first, last);
 
@@ -317,6 +375,7 @@ public class VirtualizingStackPanel : Panel
             var canReuseArrangeRange = _hasArrangedRange &&
                                        first == _lastArrangedFirst &&
                                        last == _lastArrangedLast &&
+                                       _lastArrangedChildOrderVersion == _childOrderVersion &&
                                        AreClose(_lastArrangeSize.X, finalSize.X) &&
                                        AreClose(_lastArrangeSize.Y, finalSize.Y) &&
                                        AreClose(_lastArrangeOrigin.X, currentOrigin.X) &&
@@ -330,6 +389,7 @@ public class VirtualizingStackPanel : Panel
                 _lastArrangedLast = last;
                 _lastArrangeSize = finalSize;
                 _lastArrangeOrigin = currentOrigin;
+                _lastArrangedChildOrderVersion = _childOrderVersion;
             }
         }
         else
@@ -341,6 +401,7 @@ public class VirtualizingStackPanel : Panel
             _lastArrangedLast = Children.Count - 1;
             _lastArrangeSize = finalSize;
             _lastArrangeOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
+            _lastArrangedChildOrderVersion = _childOrderVersion;
         }
 
         UpdateViewportFromFinalSize(finalSize);
@@ -565,6 +626,17 @@ public class VirtualizingStackPanel : Panel
     private static bool IsFinitePositive(float value)
     {
         return !float.IsNaN(value) && !float.IsInfinity(value) && value > 0f;
+    }
+
+    private void OnChildOrderChanged()
+    {
+        _childOrderVersion++;
+        _startOffsetsDirty = true;
+        _lastMeasuredFirst = -1;
+        _lastMeasuredLast = -1;
+        _lastArrangedFirst = -1;
+        _lastArrangedLast = -1;
+        _hasArrangedRange = false;
     }
 
     private bool IsVirtualizationActiveContext(ViewportContext context)

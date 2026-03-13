@@ -151,6 +151,42 @@ public sealed class ControlDemoDataGridSampleTests
     }
 
     [Fact]
+    public void DataGridSample_NameDescendingSort_RepositionsTopVisibleRowWithoutScroll()
+    {
+        var element = ControlDemoSupport.BuildSampleElement("DataGrid");
+        var dataGrid = Assert.IsType<DataGrid>(element);
+
+        var host = new Canvas
+        {
+            Width = 900f,
+            Height = 500f
+        };
+        host.AddChild(dataGrid);
+        Canvas.SetLeft(dataGrid, 20f);
+        Canvas.SetTop(dataGrid, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 900, 500);
+
+        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.Text == "Name");
+        Assert.NotNull(nameHeader);
+
+        Click(uiRoot, GetCenter(nameHeader!.LayoutSlot));
+        RunLayout(uiRoot, 900, 500);
+        Click(uiRoot, GetCenter(nameHeader.LayoutSlot));
+        RunLayout(uiRoot, 900, 500);
+
+        Assert.Equal(DataGridSortDirection.Descending, nameHeader.SortDirection);
+
+        var topVisibleRow = dataGrid.RowsForTesting
+            .OrderBy(static row => row.LayoutSlot.Y)
+            .First();
+
+        Assert.Equal("12", topVisibleRow.Cells[0].Value?.ToString());
+        Assert.Equal("Lima", topVisibleRow.Cells[1].Value?.ToString());
+    }
+
+    [Fact]
     public void DataGridView_FirstHeaderSort_KeepsDemoGridViewportWidthStable()
     {
         var view = new DataGridView();
