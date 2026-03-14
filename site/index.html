@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs</title>
+    <meta
+        name="description"
+        content="Mock GitHub Pages landing page for the InkkSlinger framework."
+    >
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+    >
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div class="page-shell">
+        <div class="aurora aurora-left"></div>
+        <div class="aurora aurora-right"></div>
+
+        <header class="site-header">
+            <a class="brand" href="./index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger</strong>
+                    <span>Docs mock</span>
+                </span>
+            </a>
+            <nav class="site-nav" aria-label="Primary">
+                <a href="#features">Features</a>
+                <a href="#quickstart">Quickstart</a>
+                <a href="#roadmap">Roadmap</a>
+                <a class="nav-cta" href="https://github.com/Chevalier12/InkkSlinger">GitHub</a>
+            </nav>
+        </header>
+
+        <main>
+            <section class="hero">
+                <div class="hero-copy">
+                    <p class="eyebrow">MonoGame UI, WPF mindset</p>
+                    <h1>Framework docs that look like a product, not a folder dump.</h1>
+                    <p class="hero-text">
+                        This is a single-page GitHub Pages mock for InkkSlinger: a WPF-inspired UI framework
+                        built for MonoGame/DesktopGL. It is intentionally lightweight, visually opinionated,
+                        and easy to replace with real documentation later.
+                    </p>
+                    <div class="hero-actions">
+                        <a class="button button-primary" href="#quickstart">Start reading</a>
+                        <a class="button button-secondary" href="https://github.com/Chevalier12/InkkSlinger">View repository</a>
+                    </div>
+                    <ul class="hero-stats" aria-label="Project highlights">
+                        <li>
+                            <strong>74/77</strong>
+                            <span>tracked WPF controls</span>
+                        </li>
+                        <li>
+                            <strong>855</strong>
+                            <span>passing tests in latest full run</span>
+                        </li>
+                        <li>
+                            <strong>XML</strong>
+                            <span>markup with `x:Name` support</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <aside class="hero-panel" aria-label="Example code">
+                    <div class="panel-topbar">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                    <div class="panel-body">
+                        <p class="panel-label">Example surface</p>
+                        <pre><code>&lt;StackPanel Margin="20"&gt;
+    &lt;TextBlock FontSize="28"
+               Text="Hello InkkSlinger" /&gt;
+
+    &lt;Button Width="180"
+            Height="44"
+            Content="Launch demo" /&gt;
+
+    &lt;ListBox ItemsSource="{Binding Samples}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    </div>
+                </aside>
+            </section>
+
+            <section class="feature-strip" aria-label="Highlights">
+                <article>
+                    <p>Composition</p>
+                    <h2>WPF-style layout, templates, triggers, and bindings.</h2>
+                </article>
+                <article>
+                    <p>Runtime</p>
+                    <h2>Deterministic update phases with draw suppression and dirty regions.</h2>
+                </article>
+                <article>
+                    <p>Tooling</p>
+                    <h2>XML schema support plus generated fields from `x:Name`.</h2>
+                </article>
+            </section>
+
+            <section class="content-grid" id="features">
+                <article class="card card-wide">
+                    <p class="section-tag">Why this page works</p>
+                    <h2>Made for GitHub Pages without adding a docs toolchain.</h2>
+                    <p>
+                        The site is just static HTML and CSS, so deployment is fast and maintenance cost is
+                        effectively zero. When you want a real docs system later, this can become the landing
+                        page in front of Docusaurus, VitePress, DocFX, or MkDocs.
+                    </p>
+                </article>
+
+                <article class="card">
+                    <p class="section-tag">Visual direction</p>
+                    <h3>Dark steel + amber accents</h3>
+                    <p>Strong contrast, layered gradients, glass panels, and tighter typography.</p>
+                </article>
+
+                <article class="card">
+                    <p class="section-tag">Deployment</p>
+                    <h3>Workflow included</h3>
+                    <p>The repo now has a GitHub Actions workflow that publishes the `site/` folder.</p>
+                </article>
+
+                <article class="card">
+                    <p class="section-tag">Scalable later</p>
+                    <h3>Replace content in place</h3>
+                    <p>Keep the shell, swap sections for real guides, API docs, and examples as needed.</p>
+                </article>
+            </section>
+
+            <section class="quickstart card" id="quickstart">
+                <div>
+                    <p class="section-tag">Quickstart</p>
+                    <h2>Enough structure to feel like a framework homepage.</h2>
+                    <ol class="steps">
+                        <li>Clone the repo and restore tools.</li>
+                        <li>Build the solution or run the sample host.</li>
+                        <li>Start replacing mock copy with real guides.</li>
+                    </ol>
+                </div>
+                <pre><code>dotnet restore InkkSlinger.sln
+dotnet build InkkSlinger.sln -c Release -v minimal
+dotnet run --project InkkSlinger.csproj</code></pre>
+            </section>
+
+            <section class="roadmap" id="roadmap">
+                <article class="roadmap-card">
+                    <p class="section-tag">Next steps</p>
+                    <h2>Turn the mock into real docs when you care.</h2>
+                    <ul class="roadmap-list">
+                        <li>Add Getting Started, architecture, and controls pages.</li>
+                        <li>Generate API reference if you want XML comments surfaced.</li>
+                        <li>Keep this landing page as the entry point.</li>
+                    </ul>
+                </article>
+                <article class="roadmap-card callout">
+                    <p class="section-tag">Status</p>
+                    <h2>Mock page ready for GitHub Pages.</h2>
+                    <p>
+                        Push this branch and enable Pages to deploy from GitHub Actions. The site will publish
+                        on the next push to <code>master</code> or via manual workflow dispatch.
+                    </p>
+                </article>
+            </section>
+        </main>
+    </div>
+</body>
+</html>
