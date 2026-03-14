@@ -92,10 +92,13 @@
 
 .tree-group-toggle {
     position: relative;
-    border: 0;
+    list-style: none;
     text-align: left;
-    font: inherit;
     cursor: pointer;
+}
+
+.tree-group-toggle::-webkit-details-marker {
+    display: none;
 }
 
 .tree-group-toggle::after {
@@ -107,7 +110,7 @@
     content: "+";
 }
 
-.tree-group-toggle[aria-expanded="true"]::after {
+.tree-group[open] > .tree-group-toggle::after {
     content: "-";
 }
 

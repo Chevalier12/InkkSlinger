@@ -16,7 +16,6 @@
     >
     <link rel="stylesheet" href="../styles.css">
     <link rel="stylesheet" href="./docs.css">
-    <script src="./docs.js" defer></script>
 </head>
 <body class="docs-page">
     <div class="page-shell docs-shell">
@@ -42,36 +41,26 @@
                             <a href="./index.html" class="active">Docs Home</a>
                         </li>
                         <li class="tree-node expanded">
-                            <button
-                                type="button"
-                                class="tree-group-toggle"
-                                data-tree-toggle
-                                aria-controls="tree-getting-started"
-                                aria-expanded="false">
-                                Getting Started
-                            </button>
-                            <ul id="tree-getting-started" hidden>
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">Getting Started</summary>
+                                <ul>
                                 <li><a href="./getting-started.html#wpf-mental-model">How WPF-style UI maps here</a></li>
                                 <li><a href="./getting-started.html#without-viewmodel">Hello World without a ViewModel</a></li>
                                 <li><a href="./getting-started.html#with-viewmodel">Hello World with a ViewModel</a></li>
                                 <li><a href="./getting-started.html#host-it">Hooking the view into MonoGame</a></li>
-                            </ul>
+                                </ul>
+                            </details>
                         </li>
                         <li class="tree-node expanded">
-                            <button
-                                type="button"
-                                class="tree-group-toggle"
-                                data-tree-toggle
-                                aria-controls="tree-rendersurface"
-                                aria-expanded="false">
-                                RenderSurface
-                            </button>
-                            <ul id="tree-rendersurface" hidden>
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">RenderSurface</summary>
+                                <ul>
                                 <li><a href="./rendersurface.html#rendersurface-story">Why it exists</a></li>
                                 <li><a href="./rendersurface.html#rendersurface-modes">The three modes</a></li>
                                 <li><a href="./rendersurface.html#rendersurface-layout">Sizing and layout</a></li>
                                 <li><a href="./rendersurface.html#rendersurface-rules">Rules worth knowing</a></li>
-                            </ul>
+                                </ul>
+                            </details>
                         </li>
                     </ul>
                 </nav>
