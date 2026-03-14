@@ -20,7 +20,7 @@
                 <div class="doc-hero"><p class="eyebrow">WPF Bootcamp</p><h1>Collections and Item Controls</h1><p>Most real applications render lists, menus, trees, grids, and grouped collections. WPF solves that with item controls that generate visuals from data rather than asking you to manually build repeated UI elements.</p><p>This is where collection change notifications, item templates, and selection patterns become essential.</p></div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
-                    <ul><li>Why <code>ObservableCollection&lt;T&gt;</code> matters for live UIs.</li><li>How <code>ItemsControl</code>, <code>ListBox</code>, and related controls generate containers.</li><li>How item templates, selected item state, and collection views fit together.</li></ul>
+                    <ul><li>Why <code>ObservableCollection&lt;T&gt;</code> matters for live UIs.</li><li>How <code>ItemsControl</code>, <code>ListBox</code>, and related controls generate containers.</li><li>How item templates, selected item state, and collection views fit together.</li><li>How to reason clearly about data items, generated containers, and the control that owns the collection.</li></ul>
                     <pre><code class="language-xml">&lt;ListBox ItemsSource="{Binding Documents}"
          SelectedItem="{Binding SelectedDocument}"&gt;
     &lt;ListBox.ItemTemplate&gt;
@@ -29,15 +29,130 @@
         &lt;/DataTemplate&gt;
     &lt;/ListBox.ItemTemplate&gt;
 &lt;/ListBox&gt;</code></pre>
+                    <p>That small example already involves several cooperating systems: a bound collection, generated item containers, a data template, and selected-item synchronization back to the view model.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The mental model in one sentence</h2>
+                    <p>An items control owns a collection-shaped UI problem: it takes a source of items, generates containers, applies templates to each item, and often manages interaction state such as selection and focus.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Data item</h3>
+                            <p>The object from your collection, such as a document, customer, or message view model.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Generated container</h3>
+                            <p>The UI wrapper created by the control, such as <code>ListBoxItem</code>, which carries selection and control-specific behavior.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Why <code>ObservableCollection&lt;T&gt;</code> matters</h2>
+                    <p>A live UI needs to know when items are added or removed from a bound collection. A plain <code>List&lt;T&gt;</code> does not notify the UI about those collection-level changes.</p>
+                    <pre><code class="language-csharp">public ObservableCollection&lt;DocumentViewModel&gt; Documents { get; } =
+    new ObservableCollection&lt;DocumentViewModel&gt;();</code></pre>
+                    <p>When you add or remove items from an observable collection, item controls can refresh automatically. Without that notification, the UI may continue showing stale data until the entire binding is refreshed or reassigned.</p>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical takeaway:</strong> if your list UI is not reacting to inserts or removals, check the collection type before you debug templates or selection behavior.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2><code>ItemsControl</code> is the base pattern</h2>
+                    <p><code>ItemsControl</code> is the fundamental abstraction for showing repeated items from a collection. More specialized controls such as <code>ListBox</code>, <code>ComboBox</code>, and <code>TreeView</code> build on that idea and add richer interaction behavior.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3><code>ItemsControl</code></h3>
+                            <p>Best when you only need repeated rendering and layout, not built-in selection or editing behavior.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3><code>ListBox</code></h3>
+                            <p>Adds selection, keyboard navigation, focus behavior, and item-container state.</p>
+                        </section>
+                    </div>
+                    <p>Choosing the right control matters because the control family, not just the data template, determines what behavior the list supports.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Understand the generated pieces</h2>
                     <p>Your data item is not the same thing as the item container. In a <code>ListBox</code>, each item is wrapped in a <code>ListBoxItem</code>. The container handles selection, focus, and chrome. The item template handles how the data looks.</p>
                     <ul><li>Use the data item for business state.</li><li>Use the container for selection and interaction state.</li><li>Use collection views when you need sorting, grouping, or filtering without mutating the original list.</li></ul>
+                    <pre><code class="language-xml">&lt;ListBox ItemsSource="{Binding Documents}" /&gt;</code></pre>
+                    <p>The control does not simply drop your document objects into the visual tree. It creates a container per item, then uses the template layer to decide how each item's content should appear inside that container.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Item template vs item container style</h2>
+                    <p>This distinction is one of the biggest sources of confusion in list UIs.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Item template</h3>
+                            <p>Controls how the item's data is rendered. This is where you decide what visual tree represents each data object.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Container style</h3>
+                            <p>Controls the generated wrapper's behavior and appearance, such as selection visuals, margins, or focus-related chrome.</p>
+                        </section>
+                    </div>
+                    <pre><code class="language-xml">&lt;ListBox.ItemTemplate&gt;
+    &lt;DataTemplate&gt;
+        &lt;TextBlock Text="{Binding Name}" /&gt;
+    &lt;/DataTemplate&gt;
+&lt;/ListBox.ItemTemplate&gt;</code></pre>
+                    <p>If the problem is "selected rows do not look right", the issue may be in the container style rather than the data template. If the problem is "the wrong fields are shown", the item template is the right place to inspect.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Selection belongs in the control and the view model</h2>
+                    <p>Selection is usually a first-class part of screen state. In MVVM, you normally bind it to the view model rather than reading it imperatively from the view.</p>
+                    <pre><code class="language-xml">&lt;ListBox
+    ItemsSource="{Binding Documents}"
+    SelectedItem="{Binding SelectedDocument}" /&gt;</code></pre>
+                    <p>The control manages the interaction mechanics of selection. The view model owns the durable meaning of which item is currently selected.</p>
+                    <p>This is much cleaner than asking the view for its selected item every time some other action needs it.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Collection views add sorting, grouping, and filtering</h2>
+                    <p>Sometimes you need a different view over the same underlying collection without mutating the original data structure. Collection views provide that layer.</p>
+                    <ul>
+                        <li>Sort items without reordering the original source list permanently.</li>
+                        <li>Filter what the control shows based on UI conditions.</li>
+                        <li>Group items for richer presentation.</li>
+                    </ul>
+                    <p>This lets the view stay responsive and flexible without forcing the view model or model layer to constantly rebuild collections just to satisfy one visual presentation need.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>When to use an <code>ItemsControl</code> vs a panel</h2>
+                    <p>A panel like <code>StackPanel</code> is for explicitly authored children. An items control is for data-driven repetition.</p>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+    &lt;TextBlock Text="File A" /&gt;
+    &lt;TextBlock Text="File B" /&gt;
+&lt;/StackPanel&gt;
+
+&lt;ListBox ItemsSource="{Binding Files}" /&gt;</code></pre>
+                    <p>Those can look superficially similar when rendered, but only the second one is a proper collection UI abstraction. It understands containers, selection, and dynamic collection changes.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>A worked list-screen example</h2>
+                    <pre><code class="language-xml">&lt;ListBox
+    ItemsSource="{Binding Documents}"
+    SelectedItem="{Binding SelectedDocument}"&gt;
+    &lt;ListBox.ItemTemplate&gt;
+        &lt;DataTemplate&gt;
+            &lt;StackPanel&gt;
+                &lt;TextBlock Text="{Binding Name}" /&gt;
+                &lt;TextBlock Text="{Binding ModifiedAt}" /&gt;
+            &lt;/StackPanel&gt;
+        &lt;/DataTemplate&gt;
+    &lt;/ListBox.ItemTemplate&gt;
+&lt;/ListBox&gt;</code></pre>
+                    <ol>
+                        <li>The control binds to a collection of document view models.</li>
+                        <li>For each item, the control generates a <code>ListBoxItem</code> container.</li>
+                        <li>The data template defines the inner visuals for each document.</li>
+                        <li>When the user selects an item, the control updates its container state and the bound <code>SelectedDocument</code> property.</li>
+                        <li>If the collection is observable and a document is added or removed, the list updates without rebuilding the whole screen manually.</li>
+                    </ol>
+                    <p>That is the core pattern for a large portion of WPF applications: data collection, generated containers, templates, and selected-item state all cooperating.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Common mistakes</h2>
-                    <ul><li>Binding to a plain <code>List&lt;T&gt;</code> and expecting the UI to refresh when items are added or removed.</li><li>Styling the data template when the issue is actually on the generated item container.</li><li>Mutating selection state in the view instead of binding it to the view model.</li></ul>
+                    <ul><li>Binding to a plain <code>List&lt;T&gt;</code> and expecting the UI to refresh when items are added or removed.</li><li>Styling the data template when the issue is actually on the generated item container.</li><li>Mutating selection state in the view instead of binding it to the view model.</li><li>Using a panel for data-driven repetition when an items control should own the collection behavior.</li><li>Confusing the data item with the generated container and debugging the wrong layer.</li></ul>
                     <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> The repository includes WPF-style items controls and collection-view infrastructure under `UI/Binding/Collections` and `UI/Controls/Items`. The same collection-notification and item-generation ideas apply directly.</p></div>
                     <p>Next, learn styling and templating so the same data and controls can support multiple visual languages without rewriting behavior.</p>
                 </section>
