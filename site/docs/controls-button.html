@@ -173,8 +173,300 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>Button</h1>
-                    <p>WIP</p>
+                    <p><code>Button</code> is the standard action control in InkkSlinger. It supports a simple text caption out of the box, can participate in templated content, raises a bubbling <code>Click</code> event, and can execute commands through the shared control commanding pipeline.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>Text</code> for ordinary caption buttons. That is the simplest and most direct path when you do not need a custom template.</p>
+                    <pre><code class="language-xml">&lt;Button Text="Save" Width="120" Height="36" /&gt;</code></pre>
+                    <h3>Handle a click in XAML</h3>
+                    <pre><code class="language-xml">&lt;Button Text="Run import"
+        Width="140"
+        Height="40"
+        Click="OnRunImportClick" /&gt;</code></pre>
+                    <pre><code class="language-csharp">namespace InkkSlinger;
+
+public partial class ImportView : UserControl
+{
+    public ImportView()
+    {
+        InitializeComponent();
+    }
+
+    private void OnRunImportClick(object? sender, RoutedSimpleEventArgs args)
+    {
+        // Perform the action here.
+    }
+}</code></pre>
+                    <h3>Bind a command</h3>
+                    <pre><code class="language-xml">&lt;Button Text="Open"
+        Command="{Binding OpenCommand}"
+        CommandParameter="{Binding SelectedFile}" /&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> start with <code>Text</code> and either <code>Click</code> or <code>Command</code>. Move to a custom template only when the button needs a different visual tree.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>When to use Text vs Content</h2>
+                    <p>InkkSlinger's Button supports both a plain text path and a templated content path. The right choice depends on whether you are using the built-in chrome or a <code>ControlTemplate</code>.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Use Text</h3>
+                            <p>Use <code>Text</code> for normal caption buttons. In the non-templated path, Button renders this text directly and centers it inside the padded content area.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Use Content</h3>
+                            <p>Use <code>Content</code> when your template presents arbitrary child content, or when you need to control exactly what appears inside a <code>ContentPresenter</code>.</p>
+                        </article>
+                    </div>
+                    <p>The current contract is:</p>
+                    <ul>
+                        <li>Plain, non-templated buttons render the <code>Text</code> property directly.</li>
+                        <li>Templated buttons with a <code>ContentPresenter</code> mirror <code>Text</code> into the presented content only when <code>Content</code> was not explicitly set.</li>
+                        <li>If you set <code>Content</code> explicitly, that content wins and later <code>Text</code> changes do not override it.</li>
+                        <li>If your template does not include a <code>ContentPresenter</code>, the template controls what appears and Button does not force text into view.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Style x:Key="CaptionButtonStyle" TargetType="{x:Type Button}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type Button}"&gt;
+        &lt;Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                Padding="{TemplateBinding Padding}"&gt;
+          &lt;ContentPresenter HorizontalAlignment="Center"
+                            VerticalAlignment="Center" /&gt;
+        &lt;/Border&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;
+
+&lt;Button Style="{StaticResource CaptionButtonStyle}" Text="Save" /&gt;
+&lt;Button Style="{StaticResource CaptionButtonStyle}" Content="Explicit content" Text="Ignored here" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Input and interaction</h2>
+                    <p>Button exposes the same action surface whether you drive it from pointer input, access keys, or commands. Visual states such as hover and pressed are available for styling and triggers.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Pointer states</h3>
+                            <p><code>IsMouseOver</code> and <code>IsPressed</code> update during pointer interaction. Use them in styles or templates to change color, border, scale, or other visual properties.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Disabled state</h3>
+                            <p><code>IsEnabled="False"</code> prevents activation. The built-in fallback style also changes the chrome so disabled buttons read differently from active ones.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Access keys</h3>
+                            <p>Button enables access-key recognition by default. An <code>AccessText</code> element can target the button by name and invoke it through an Alt-key gesture.</p>
+                        </article>
+                    </div>
+                    <h3>AccessText example</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;AccessText Text="_Save" TargetName="SaveButton" /&gt;
+  &lt;Button x:Name="SaveButton" Text="Save" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>Button also implements the shared command source contract inherited from <code>Control</code>:</p>
+                    <ul>
+                        <li><code>Command</code> specifies the action to execute.</li>
+                        <li><code>CommandParameter</code> passes extra data to the command.</li>
+                        <li><code>CommandTarget</code> selects the target element when you do not want the default target resolution.</li>
+                        <li>If the command reports <code>CanExecute == false</code>, Button becomes disabled automatically until the command can execute again.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Button Text="Open document"
+        Command="{StaticResource OpenCommand}"
+        CommandTarget="{Binding ElementName=EditorSurface}"
+        CommandParameter="{Binding SelectedDocument}" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Styling and templating</h2>
+                    <p>Button is designed to be styled through normal dependency properties, implicit styles, and full templates. Most advanced visuals come from styles and template triggers rather than hard-coded control behavior.</p>
+                    <h3>Style the built-in chrome</h3>
+                    <pre><code class="language-xml">&lt;Button Text="Publish"
+        Background="#1F3B57"
+        Foreground="#F4FAFF"
+        BorderBrush="#3EA6FF"
+        BorderThickness="1"
+        Padding="16,8"
+        Width="160"
+        Height="42" /&gt;</code></pre>
+                    <h3>Apply an implicit style to every Button</h3>
+                    <pre><code class="language-xml">&lt;Application.Resources&gt;
+  &lt;Style TargetType="{x:Type Button}"&gt;
+    &lt;Setter Property="Background" Value="#243140" /&gt;
+    &lt;Setter Property="Foreground" Value="#F5FBFF" /&gt;
+    &lt;Setter Property="BorderBrush" Value="#4FC7C1" /&gt;
+    &lt;Setter Property="BorderThickness" Value="1" /&gt;
+    &lt;Setter Property="Padding" Value="14,8" /&gt;
+  &lt;/Style&gt;
+&lt;/Application.Resources&gt;</code></pre>
+                    <h3>Build a custom template</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="ActionButtonStyle" TargetType="{x:Type Button}"&gt;
+  &lt;Setter Property="Background" Value="#2A2A2A" /&gt;
+  &lt;Setter Property="Foreground" Value="#F0F0F0" /&gt;
+  &lt;Setter Property="BorderBrush" Value="#3F3F3F" /&gt;
+  &lt;Setter Property="BorderThickness" Value="1" /&gt;
+  &lt;Setter Property="Padding" Value="20,10" /&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type Button}"&gt;
+        &lt;Border x:Name="Chrome"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                Padding="{TemplateBinding Padding}"&gt;
+          &lt;ContentPresenter HorizontalAlignment="Center"
+                            VerticalAlignment="Center" /&gt;
+        &lt;/Border&gt;
+        &lt;ControlTemplate.Triggers&gt;
+          &lt;Trigger Property="IsMouseOver" Value="True"&gt;
+            &lt;Setter TargetName="Chrome" Property="Background" Value="#333333" /&gt;
+            &lt;Setter TargetName="Chrome" Property="BorderBrush" Value="#FF8C00" /&gt;
+            &lt;Setter Property="Foreground" Value="#FFA940" /&gt;
+          &lt;/Trigger&gt;
+          &lt;Trigger Property="IsPressed" Value="True"&gt;
+            &lt;Setter TargetName="Chrome" Property="Background" Value="#1C1C1C" /&gt;
+          &lt;/Trigger&gt;
+        &lt;/ControlTemplate.Triggers&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                    <p>Template bindings are the safest way to flow owner properties such as <code>Background</code>, <code>BorderBrush</code>, <code>BorderThickness</code>, and <code>Padding</code> into your custom visual tree.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout and text behavior</h2>
+                    <p>The non-templated Button path is intentionally simple. It draws button chrome, then centers the current text layout inside the inner content area after subtracting padding and border thickness.</p>
+                    <ul>
+                        <li><code>Padding</code> and <code>BorderThickness</code> both contribute to desired size.</li>
+                        <li><code>TextWrapping</code> controls whether the text stays on one line or wraps to the available width.</li>
+                        <li>With <code>TextWrapping="NoWrap"</code>, Button prefers its intrinsic text width plus chrome.</li>
+                        <li>With wrapped text, Button measures against the remaining inner width after padding and border are applied.</li>
+                        <li>If <code>Text</code> is empty, the button still occupies the space required by its padding and border.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;StackPanel Width="240"&gt;
+  &lt;Button Text="Single line caption"
+          Margin="0,0,0,8" /&gt;
+
+  &lt;Button Text="This caption is long enough to wrap when the available width is constrained."
+          TextWrapping="Wrap"
+          Padding="12,10" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Properties and event reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Text and action</h3>
+                            <p><code>Text</code>: plain caption text for the built-in render path, and the source of mirrored content for templated buttons that have not set explicit <code>Content</code>.</p>
+                            <p><code>TextWrapping</code>: controls whether text is measured and rendered as a single line or wrapped lines.</p>
+                            <p><code>Click</code>: bubbling routed event raised when the button is invoked.</p>
+                            <p><code>Command</code>, <code>CommandParameter</code>, <code>CommandTarget</code>: inherited from <code>Control</code> and used for command execution.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Visuals and state</h3>
+                            <p><code>Background</code>, <code>Foreground</code>, <code>BorderBrush</code>, <code>BorderThickness</code>, <code>Padding</code>: primary styling properties for built-in and templated visuals.</p>
+                            <p><code>IsEnabled</code>: inherited enable/disable state. Command gating can also drive this state.</p>
+                            <p><code>IsMouseOver</code>, <code>IsPressed</code>: interaction state properties commonly used by triggers.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Toolbar action button</h3>
+                    <pre><code class="language-xml">&lt;Button Text="Refresh"
+        Padding="10,6"
+        Margin="0,0,8,0"
+        Command="{Binding RefreshCommand}" /&gt;</code></pre>
+                    <h3>Destructive action button style</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="DangerButtonStyle" TargetType="{x:Type Button}"&gt;
+  &lt;Setter Property="Background" Value="#552222" /&gt;
+  &lt;Setter Property="Foreground" Value="#FFF3F3" /&gt;
+  &lt;Setter Property="BorderBrush" Value="#D05C5C" /&gt;
+  &lt;Setter Property="BorderThickness" Value="1" /&gt;
+  &lt;Setter Property="Padding" Value="16,8" /&gt;
+  &lt;Style.Triggers&gt;
+    &lt;Trigger Property="IsMouseOver" Value="True"&gt;
+      &lt;Setter Property="Background" Value="#6A2626" /&gt;
+    &lt;/Trigger&gt;
+    &lt;Trigger Property="IsPressed" Value="True"&gt;
+      &lt;Setter Property="Background" Value="#441919" /&gt;
+    &lt;/Trigger&gt;
+  &lt;/Style.Triggers&gt;
+&lt;/Style&gt;
+
+&lt;Button Text="Delete save slot"
+        Style="{StaticResource DangerButtonStyle}" /&gt;</code></pre>
+                    <h3>Icon and label in a custom template</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="IconButtonStyle" TargetType="{x:Type Button}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type Button}"&gt;
+        &lt;Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                Padding="{TemplateBinding Padding}"&gt;
+          &lt;StackPanel Orientation="Horizontal"&gt;
+            &lt;TextBlock Text="[icon]" Margin="0,0,8,0" /&gt;
+            &lt;ContentPresenter VerticalAlignment="Center" /&gt;
+          &lt;/StackPanel&gt;
+        &lt;/Border&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;
+
+&lt;Button Style="{StaticResource IconButtonStyle}"
+        Text="Featured"
+        Background="#223245"
+        BorderBrush="#4FC7C1"
+        BorderThickness="1"
+        Padding="14,8" /&gt;</code></pre>
+                    <h3>Access-key driven command</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;AccessText Text="_Open" TargetName="OpenButton" /&gt;
+  &lt;Button x:Name="OpenButton"
+          Text="Open"
+          Command="{StaticResource OpenCommand}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Routed command example</h3>
+                    <pre><code class="language-xml">&lt;UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"&gt;
+  &lt;UserControl.Resources&gt;
+    &lt;RoutedUICommand x:Key="OpenCommand" Text="_Open" /&gt;
+  &lt;/UserControl.Resources&gt;
+
+  &lt;Grid&gt;
+    &lt;Button Text="Open"
+            Command="{StaticResource OpenCommand}" /&gt;
+  &lt;/Grid&gt;
+&lt;/UserControl&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Use <code>Text</code> first.</strong> It is the simplest path for ordinary caption buttons and matches the built-in rendering path.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Templates need a <code>ContentPresenter</code>.</strong> If you expect mirrored <code>Text</code> or explicit <code>Content</code> to appear inside a template, the template must present that content itself.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Commands can disable the button automatically.</strong> If your command reports that it cannot execute, the button reflects that by becoming disabled until the command changes state.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Visual polish lives in styles.</strong> Hover, pressed, and animated effects are typically created with style and template triggers. Button does not ship with built-in animation behavior.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-border.html">
+                        <span>Previous</span>
+                        <strong>Border</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-calendar.html">
+                        <span>Next</span>
+                        <strong>Calendar</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
