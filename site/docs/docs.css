@@ -74,7 +74,8 @@
 }
 
 .tree-nav a:hover,
-.tree-nav a:focus-visible {
+.tree-nav a:focus-visible,
+.tree-nav a.active {
     background: rgba(255, 255, 255, 0.05);
     color: var(--text);
 }
@@ -147,6 +148,12 @@
 
 .doc-card p {
     margin-bottom: 0;
+}
+
+.doc-link {
+    text-decoration: underline;
+    text-decoration-color: rgba(255, 159, 67, 0.45);
+    text-underline-offset: 0.18em;
 }
 
 .doc-subsection + .doc-subsection {

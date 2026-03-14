@@ -3,10 +3,10 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>InkkSlinger Docs - Getting Started and RenderSurface</title>
+    <title>InkkSlinger Docs</title>
     <meta
         name="description"
-        content="Getting Started with InkkSlinger: WPF-style mental model, hello world without a view model, hello world with a view model, and how to host your first view inside MonoGame."
+        content="InkkSlinger documentation index with separate pages for Getting Started and RenderSurface."
     >
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,14 +24,13 @@
                 <span class="brand-mark">IS</span>
                 <span class="brand-copy">
                     <strong>InkkSlinger Docs</strong>
-                    <span>Getting Started and RenderSurface</span>
+                    <span>Documentation index</span>
                 </span>
             </a>
             <nav class="site-nav" aria-label="Primary">
                 <a href="../index.html">Overview</a>
-                <a href="#without-viewmodel">No ViewModel</a>
-                <a href="#with-viewmodel">With ViewModel</a>
-                <a href="#rendersurface">RenderSurface</a>
+                <a href="./getting-started.html">Getting Started</a>
+                <a href="./rendersurface.html">RenderSurface</a>
                 <a class="nav-cta" href="https://github.com/Chevalier12/InkkSlinger">GitHub</a>
             </nav>
         </header>
@@ -42,541 +41,58 @@
                 <nav class="tree-nav">
                     <ul>
                         <li class="tree-node expanded">
-                            <a href="#getting-started">Getting Started</a>
+                            <a href="./index.html" class="active">Docs Home</a>
+                        </li>
+                        <li class="tree-node expanded">
+                            <a href="./getting-started.html">Getting Started</a>
                             <ul>
-                                <li><a href="#wpf-mental-model">How WPF-style UI maps here</a></li>
-                                <li><a href="#without-viewmodel">Hello World without a ViewModel</a></li>
-                                <li><a href="#with-viewmodel">Hello World with a ViewModel</a></li>
-                                <li><a href="#host-it">Hooking the view into MonoGame</a></li>
+                                <li><a href="./getting-started.html#wpf-mental-model">How WPF-style UI maps here</a></li>
+                                <li><a href="./getting-started.html#without-viewmodel">Hello World without a ViewModel</a></li>
+                                <li><a href="./getting-started.html#with-viewmodel">Hello World with a ViewModel</a></li>
+                                <li><a href="./getting-started.html#host-it">Hooking the view into MonoGame</a></li>
                             </ul>
                         </li>
                         <li class="tree-node expanded">
-                            <a href="#rendersurface">RenderSurface</a>
+                            <a href="./rendersurface.html">RenderSurface</a>
                             <ul>
-                                <li><a href="#rendersurface-story">Why it exists</a></li>
-                                <li><a href="#rendersurface-modes">The three modes</a></li>
-                                <li><a href="#rendersurface-layout">Sizing and layout</a></li>
-                                <li><a href="#rendersurface-rules">Rules worth knowing</a></li>
+                                <li><a href="./rendersurface.html#rendersurface-story">Why it exists</a></li>
+                                <li><a href="./rendersurface.html#rendersurface-modes">The three modes</a></li>
+                                <li><a href="./rendersurface.html#rendersurface-layout">Sizing and layout</a></li>
+                                <li><a href="./rendersurface.html#rendersurface-rules">Rules worth knowing</a></li>
                             </ul>
                         </li>
                     </ul>
                 </nav>
             </aside>
 
-            <article class="docs-content" id="getting-started">
+            <article class="docs-content">
                 <div class="doc-hero">
-                    <p class="eyebrow">Getting Started</p>
-                    <h1>Start with the WPF mental model, then remember the host is MonoGame.</h1>
+                    <p class="eyebrow">Documentation</p>
+                    <h1>Separate pages by topic.</h1>
                     <p>
-                        In WPF, you usually describe a tree of controls in markup, connect data through bindings,
-                        and let the framework handle layout, input routing, and rendering. InkkSlinger keeps that
-                        mental model, but it runs inside a MonoGame <code>UiRoot</code> instead of a native WPF window.
-                    </p>
-                    <p>
-                        The shortest useful way to think about it is: <strong>WPF-style authoring and behavior,
-                        MonoGame as the rendering host.</strong> You still build a visual tree, you still use
-                        <code>DataContext</code> for bindings, and you still write views in XML. The difference is
-                        that MonoGame owns the frame loop and InkkSlinger draws your UI inside that loop.
+                        The docs are now split into topic pages instead of one continuously growing page. That keeps
+                        navigation predictable and avoids turning the right-side content pane into a long, ever-growing stream.
                     </p>
                 </div>
 
-                <section class="doc-section" id="wpf-mental-model">
-                    <h2>How the pieces fit together</h2>
-                    <div class="doc-grid">
+                <section class="doc-section">
+                    <h2>Available pages</h2>
+                    <div class="doc-grid two-up">
                         <section class="doc-card">
-                            <h3>1. Write a view in XML</h3>
+                            <h3><a class="doc-link" href="./getting-started.html">Getting Started</a></h3>
                             <p>
-                                InkkSlinger views live in <code>.xml</code> files, not <code>.xaml</code>. You still
-                                use WPF-style concepts like <code>x:Class</code>, <code>x:Name</code>, resources, and bindings.
+                                WPF-style mental model, first hello world, MVVM hello world, and the minimal
+                                MonoGame host integration.
                             </p>
                         </section>
                         <section class="doc-card">
-                            <h3>2. Add code-behind if needed</h3>
+                            <h3><a class="doc-link" href="./rendersurface.html">RenderSurface</a></h3>
                             <p>
-                                A paired <code>.xml.cs</code> file can set up the view, assign a <code>DataContext</code>,
-                                or directly update named controls for simpler screens.
-                            </p>
-                        </section>
-                        <section class="doc-card">
-                            <h3>3. Mount the view into <code>UiRoot</code></h3>
-                            <p>
-                                MonoGame creates the window and runs the frame loop. InkkSlinger attaches your root view
-                                to <code>UiRoot</code>, then handles layout, input, animation, and drawing from there.
+                                The bridge between UI composition and MonoGame rendering, including all three
+                                supported usage modes and the important layout/lifecycle rules.
                             </p>
                         </section>
                     </div>
-                </section>
-
-                <section class="doc-section" id="without-viewmodel">
-                    <h2>Hello World without a ViewModel</h2>
-                    <p>
-                        Start here if you just want to get pixels on the screen. This version uses XML for the view
-                        and regular code-behind to update a named label.
-                    </p>
-
-                    <h3>View</h3>
-                    <pre><code class="language-xml">&lt;?xml version="1.0" encoding="utf-8"?&gt;
-&lt;UserControl xmlns="urn:inkkslinger-ui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="InkkSlinger.HelloWorldView"
-             Background="#101822"
-             Padding="24"&gt;
-  &lt;Border Background="#142231"
-          BorderBrush="#28445F"
-          BorderThickness="1"
-          CornerRadius="14"
-          Padding="20"&gt;
-    &lt;StackPanel&gt;
-      &lt;Label x:Name="MessageLabel"
-             Text="Hello from XML"
-             FontSize="24"
-             FontWeight="SemiBold"
-             Foreground="#F4FAFF" /&gt;
-      &lt;Label Text="This version uses code-behind only."
-             Margin="0,8,0,0"
-             Foreground="#9FC0D8" /&gt;
-    &lt;/StackPanel&gt;
-  &lt;/Border&gt;
-&lt;/UserControl&gt;</code></pre>
-
-                    <h3>Code-behind</h3>
-                    <pre><code class="language-csharp">namespace InkkSlinger;
-
-public partial class HelloWorldView : UserControl
-{
-    public HelloWorldView()
-    {
-        InitializeComponent();
-
-        if (MessageLabel != null)
-        {
-            MessageLabel.Text = "Hello from InkkSlinger.";
-        }
-    }
-}</code></pre>
-
-                    <div class="callout doc-callout">
-                        <p>
-                            <strong>When to use this style:</strong> use code-behind only when the screen is tiny,
-                            when you are proving out the pipeline, or when the state does not justify a separate
-                            view model yet.
-                        </p>
-                    </div>
-                </section>
-
-                <section class="doc-section" id="with-viewmodel">
-                    <h2>Hello World with a ViewModel</h2>
-                    <p>
-                        Use this version when you want the more WPF-like flow: state lives in a view model,
-                        the view binds to it, and button clicks call commands instead of mutating controls directly.
-                    </p>
-                    <p>
-                        The main project already references <code>CommunityToolkit.Mvvm</code>, so you can use
-                        <code>ObservableObject</code>, <code>[ObservableProperty]</code>, and
-                        <code>[RelayCommand]</code> the same way the existing sample view models do.
-                    </p>
-
-                    <h3>View</h3>
-                    <pre><code class="language-xml">&lt;?xml version="1.0" encoding="utf-8"?&gt;
-&lt;UserControl xmlns="urn:inkkslinger-ui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="InkkSlinger.HelloWorldWithViewModelView"
-             Background="#101822"
-             Padding="24"&gt;
-  &lt;Border Background="#142231"
-          BorderBrush="#28445F"
-          BorderThickness="1"
-          CornerRadius="14"
-          Padding="20"&gt;
-    &lt;StackPanel&gt;
-      &lt;Label Text="{Binding Message}"
-             FontSize="24"
-             FontWeight="SemiBold"
-             Foreground="#F4FAFF" /&gt;
-
-      &lt;Button Text="Change message"
-              Command="{Binding ChangeMessageCommand}"
-              Margin="0,12,0,0" /&gt;
-    &lt;/StackPanel&gt;
-  &lt;/Border&gt;
-&lt;/UserControl&gt;</code></pre>
-
-                    <h3>View model</h3>
-                    <pre><code class="language-csharp">using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-
-namespace InkkSlinger;
-
-public partial class HelloWorldViewModel : ObservableObject
-{
-    [ObservableProperty]
-    private string _message = "Hello from the view model.";
-
-    [RelayCommand]
-    private void ChangeMessage()
-    {
-        Message = "You clicked the button.";
-    }
-}</code></pre>
-
-                    <h3>Code-behind</h3>
-                    <pre><code class="language-csharp">namespace InkkSlinger;
-
-public partial class HelloWorldWithViewModelView : UserControl
-{
-    public HelloWorldWithViewModelView()
-    {
-        InitializeComponent();
-        DataContext = new HelloWorldViewModel();
-    }
-}</code></pre>
-
-                    <div class="callout doc-callout">
-                        <p>
-                            <strong>What the binding does:</strong> <code>{Binding Message}</code> reads the
-                            <code>Message</code> property from the view's <code>DataContext</code>, and
-                            <code>{Binding ChangeMessageCommand}</code> binds the button to the generated command.
-                        </p>
-                    </div>
-                </section>
-
-                <section class="doc-section" id="host-it">
-                    <h2>Hooking the view into MonoGame</h2>
-                    <p>
-                        The view will not show up until you mount it into the MonoGame host. The simplest way is to
-                        create a root panel in <code>Game1</code>, add your view to it, and pass that tree to <code>UiRoot</code>.
-                    </p>
-
-                    <pre><code class="language-csharp">protected override void Initialize()
-{
-    _root = new Panel();
-    _root.AddChild(new HelloWorldWithViewModelView());
-
-    _uiRoot = new UiRoot(_root)
-    {
-        UseRetainedRenderList = true,
-        UseDirtyRegionRendering = true,
-        UseConditionalDrawScheduling = true
-    };
-
-    base.Initialize();
-}</code></pre>
-
-                    <p>
-                        If you want the smallest first step, start with the code-behind-only version. If you already
-                        know you want bindings and commands, start with the view model version and keep the view mostly declarative.
-                    </p>
-                </section>
-
-                <section class="doc-section" id="rendersurface">
-                    <h2>RenderSurface</h2>
-                    <p>
-                        <code>RenderSurface</code> is not trying to imitate a native WPF control. It exists because
-                        a MonoGame-hosted UI framework needs a clean seam between two different kinds of work:
-                        UI composition on one side, custom game or simulation rendering on the other.
-                    </p>
-                    <p>
-                        In other words, this control is the bridge between the "WPF-style" part of InkkSlinger and
-                        the "draw whatever you want with MonoGame" part of your application.
-                    </p>
-
-                    <section class="doc-subsection" id="rendersurface-story">
-                        <h3>The story: why this control exists</h3>
-                        <p>
-                            Imagine two teams working on the same product.
-                        </p>
-                        <p>
-                            The gameplay team owns the simulation, rendering rules, textures, sprite batching,
-                            cameras, maps, debug overlays, or whatever custom visual system the game needs. They do
-                            not want to learn XML authoring, binding syntax, or control templates just to get a live
-                            viewport onto the screen.
-                        </p>
-                        <p>
-                            The UI team, on the other hand, wants to build screens declaratively. They want a layout
-                            tree, labels, buttons, side panels, score readouts, status messages, commands, and bindings.
-                            They want to control placement, spacing, styling, and interaction without having to rewrite
-                            the game renderer itself.
-                        </p>
-                        <p>
-                            <code>RenderSurface</code> is the meeting point between those two concerns.
-                        </p>
-
-                        <div class="doc-grid two-up">
-                            <section class="doc-card">
-                                <h3>What the game team provides</h3>
-                                <p>
-                                    A frame, a texture, or drawing logic. They stay in the MonoGame world and keep
-                                    authoring rendering code the way game code normally works.
-                                </p>
-                            </section>
-                            <section class="doc-card">
-                                <h3>What the UI team provides</h3>
-                                <p>
-                                    The surrounding screen: the layout, the buttons, the labels, the commands, the
-                                    bindings, and the rest of the application shell around that rendered content.
-                                </p>
-                            </section>
-                        </div>
-
-                        <p>
-                            That separation is the real value. The game team does not need to know anything about XML,
-                            <code>x:Name</code>, <code>DataContext</code>, or styles. The UI team does not need to know
-                            how the pixels were produced. The UI can bind to the values the game code exposes, and
-                            the game code can push or draw visuals into a <code>RenderSurface</code> without turning
-                            the whole app into a single monolithic render script.
-                        </p>
-
-                        <pre><code class="language-xml">&lt;Grid&gt;
-  &lt;StackPanel Grid.Row="0"&gt;
-    &lt;Label Text="{Binding ScoreText}" /&gt;
-    &lt;Label Text="{Binding StatusText}" /&gt;
-  &lt;/StackPanel&gt;
-
-  &lt;RenderSurface Grid.Row="1"
-                 Width="560"
-                 Height="392"
-                 Stretch="Uniform" /&gt;
-
-  &lt;Button Grid.Row="2"
-          Text="Restart"
-          Command="{Binding RestartGameCommand}" /&gt;
-&lt;/Grid&gt;</code></pre>
-
-                        <p>
-                            This is the important mental model: the view can stay declarative while the rendered
-                            content inside the <code>RenderSurface</code> remains fully custom.
-                        </p>
-                    </section>
-
-                    <section class="doc-subsection" id="rendersurface-modes">
-                        <h3>The three modes</h3>
-                        <p>
-                            <code>RenderSurface</code> has three real usage modes. Two of them are "managed" modes,
-                            where the control owns an offscreen render target and asks you to draw into it. The first
-                            is a manual presentation mode, where you provide the finished surface yourself.
-                        </p>
-
-                        <div class="mode-grid">
-                            <section class="mode-card">
-                                <p class="section-tag">Mode 1</p>
-                                <h4>Manual surface mode</h4>
-                                <p>
-                                    You provide an <code>ImageSource</code> or <code>Texture2D</code>. The control just
-                                    presents it and participates in layout like any other surface presenter.
-                                </p>
-                            </section>
-                            <section class="mode-card">
-                                <p class="section-tag">Mode 2</p>
-                                <h4>DrawSurface event mode</h4>
-                                <p>
-                                    You subscribe to <code>DrawSurface</code>. The control creates an offscreen target,
-                                    gives you a <code>SpriteBatch</code> and bounds rectangle, and you draw into it.
-                                </p>
-                            </section>
-                            <section class="mode-card">
-                                <p class="section-tag">Mode 3</p>
-                                <h4>Subclass override mode</h4>
-                                <p>
-                                    You derive from <code>RenderSurface</code> and override <code>OnDrawSurface</code>.
-                                    This is the most reusable and encapsulated mode.
-                                </p>
-                            </section>
-                        </div>
-
-                        <h3>Mode 1: Manual surface mode</h3>
-                        <p>
-                            Use this when some other part of the app already produces a texture or image and your UI
-                            only needs to display it. This is the cleanest mode when the gameplay or simulation side
-                            already owns the rendering pipeline.
-                        </p>
-                        <p>
-                            This is also the mode used by the CPU-backed demo in the repository. The demo renders
-                            into a texture, calls <code>Present(_surfaceTexture)</code>, and later calls
-                            <code>RefreshSurface()</code> after uploading new pixel data.
-                        </p>
-
-                        <pre><code class="language-csharp">public sealed class MiniMapHostView : UserControl
-{
-    private readonly RenderSurface? _miniMapSurface;
-    private Texture2D? _miniMapTexture;
-
-    public MiniMapHostView()
-    {
-        InitializeComponent();
-        _miniMapSurface = this.FindName("MiniMapSurface") as RenderSurface;
-    }
-
-    private void PublishLatestMiniMap(Texture2D texture)
-    {
-        _miniMapTexture = texture;
-        _miniMapSurface?.Present(texture);
-        _miniMapSurface?.RefreshSurface();
-    }
-
-    private void DisposeMiniMap()
-    {
-        _miniMapSurface?.ClearSurface();
-        _miniMapTexture?.Dispose();
-        _miniMapTexture = null;
-    }
-}</code></pre>
-
-                        <pre><code class="language-xml">&lt;RenderSurface x:Name="MiniMapSurface"
-               Width="320"
-               Height="180"
-               Stretch="Uniform" /&gt;</code></pre>
-
-                        <ul class="detail-list">
-                            <li>Best when the game team already has a finished texture or image frame.</li>
-                            <li>The control does not redraw the content for you; it only displays what you give it.</li>
-                            <li><code>Present(ImageSource)</code> and <code>Present(Texture2D)</code> are the main entry points.</li>
-                            <li><code>RefreshSurface()</code> is how you tell the UI that the presented content changed in place.</li>
-                        </ul>
-
-                        <h3>Mode 2: DrawSurface event mode</h3>
-                        <p>
-                            Use this when you want the control to own the offscreen target, but you do not want to
-                            create a custom subclass. You attach an event handler and draw with MonoGame primitives
-                            directly into the surface.
-                        </p>
-                        <p>
-                            This is the mode used by the GPU demo in the repository. The view subscribes to
-                            <code>_gameSurface.DrawSurface += OnDrawGameSurface;</code>, draws into the supplied
-                            <code>SpriteBatch</code>, and invalidates the control whenever a redraw is needed.
-                        </p>
-
-                        <pre><code class="language-csharp">public partial class MiniMapGpuView : UserControl
-{
-    private readonly RenderSurface? _miniMapSurface;
-    private bool _needsRedraw = true;
-
-    public MiniMapGpuView()
-    {
-        InitializeComponent();
-        _miniMapSurface = this.FindName("MiniMapSurface") as RenderSurface;
-        if (_miniMapSurface != null)
-        {
-            _miniMapSurface.DrawSurface += OnDrawMiniMap;
-        }
-    }
-
-    private void OnDrawMiniMap(SpriteBatch spriteBatch, Rectangle bounds)
-    {
-        // Draw your game visualization here.
-    }
-
-    private void RequestMiniMapRedraw()
-    {
-        _needsRedraw = true;
-        _miniMapSurface?.InvalidateVisual();
-    }
-}</code></pre>
-
-                        <ul class="detail-list">
-                            <li>This automatically switches the control into managed mode.</li>
-                            <li>The managed surface size comes from the arranged size of the control, not from an input texture.</li>
-                            <li>The render target is cleared before each managed redraw.</li>
-                            <li>If nothing changed, the managed surface is not redrawn again until invalidated.</li>
-                        </ul>
-
-                        <h3>Mode 3: Subclass override mode</h3>
-                        <p>
-                            Use this when <code>RenderSurface</code> is becoming a real reusable control in your UI layer.
-                            Instead of wiring event handlers from outside, you encapsulate the drawing behavior inside a type.
-                        </p>
-                        <p>
-                            A subclass enters managed mode automatically if it overrides <code>OnDrawSurface</code>.
-                            This means no external event subscription is required.
-                        </p>
-
-                        <pre><code class="language-csharp">public sealed class MiniMapSurface : RenderSurface
-{
-    private float _pulse;
-
-    protected override bool IsFrameUpdateActive => true;
-
-    protected override void OnFrameUpdate(GameTime gameTime)
-    {
-        _pulse += (float)gameTime.ElapsedGameTime.TotalSeconds;
-        InvalidateVisual();
-    }
-
-    protected override void OnDrawSurface(SpriteBatch spriteBatch, Rectangle bounds)
-    {
-        // Draw the control's content here using spriteBatch and bounds.
-    }
-}</code></pre>
-
-                        <ul class="detail-list">
-                            <li>Best when you want a reusable control instead of one-off view wiring.</li>
-                            <li><code>OnDrawSurface</code> is the draw hook.</li>
-                            <li><code>IsFrameUpdateActive</code> plus <code>OnFrameUpdate</code> let the control drive its own redraw cadence through <code>UiRoot</code>.</li>
-                            <li>This is the most control-like mode because rendering behavior lives with the control type itself.</li>
-                        </ul>
-                    </section>
-
-                    <section class="doc-subsection" id="rendersurface-layout">
-                        <h3>Sizing and layout behavior</h3>
-                        <p>
-                            The layout behavior changes depending on which mode you use.
-                        </p>
-
-                        <div class="doc-grid two-up">
-                            <section class="doc-card">
-                                <h3>Manual mode sizing</h3>
-                                <p>
-                                    In manual mode, the control can measure itself from the underlying surface size.
-                                    If you present a 64x32 surface, its natural desired size becomes 64x32 unless
-                                    parent layout constraints change the final arranged size.
-                                </p>
-                            </section>
-                            <section class="doc-card">
-                                <h3>Managed mode sizing</h3>
-                                <p>
-                                    In managed mode, the control reports zero intrinsic size. That means you should
-                                    normally set <code>Width</code>, <code>Height</code>, <code>MinWidth</code>,
-                                    <code>MinHeight</code>, or place it in a layout that gives it real space.
-                                </p>
-                            </section>
-                        </div>
-
-                        <p>
-                            Because <code>RenderSurface</code> inherits from <code>SurfacePresenterBase</code>, it also
-                            supports the standard surface scaling options:
-                        </p>
-
-                        <ul class="detail-list">
-                            <li><code>Stretch="None"</code>: do not scale the content.</li>
-                            <li><code>Stretch="Fill"</code>: stretch independently in both axes.</li>
-                            <li><code>Stretch="Uniform"</code>: preserve aspect ratio and fit inside the slot.</li>
-                            <li><code>Stretch="UniformToFill"</code>: preserve aspect ratio and fill the slot, cropping if needed.</li>
-                            <li><code>StretchDirection="Both"</code>: allow upscaling and downscaling.</li>
-                            <li><code>StretchDirection="UpOnly"</code>: do not shrink below natural size.</li>
-                            <li><code>StretchDirection="DownOnly"</code>: do not grow above natural size.</li>
-                        </ul>
-                    </section>
-
-                    <section class="doc-subsection" id="rendersurface-rules">
-                        <h3>Rules worth knowing</h3>
-                        <ul class="detail-list">
-                            <li>Manual and managed modes are not blended. If managed mode is active, the managed presentation surface wins while it is active.</li>
-                            <li>If managed mode later becomes inactive, the previously assigned manual surface becomes visible again.</li>
-                            <li>Managed resources are recreated when the arranged size changes or the graphics device changes.</li>
-                            <li><code>InvalidateVisual()</code> in managed mode marks the managed surface dirty so it will be redrawn.</li>
-                            <li><code>RefreshSurface()</code> is the lightweight "redraw this surface" signal when the underlying content changed.</li>
-                            <li><code>ClearSurface()</code> clears the manually assigned surface reference.</li>
-                            <li><code>OnFrameUpdate</code> only matters in managed mode, and only when <code>IsFrameUpdateActive</code> returns <code>true</code>.</li>
-                        </ul>
-
-                        <div class="callout doc-callout">
-                            <p>
-                                <strong>Recommended rule of thumb:</strong> if your gameplay code already produces a
-                                texture, use manual mode. If you want ad hoc drawing from a screen or view, use the
-                                <code>DrawSurface</code> event. If the thing you are building deserves to become a reusable
-                                control, subclass <code>RenderSurface</code> and own the drawing behavior there.
-                            </p>
-                        </div>
-                    </section>
                 </section>
             </article>
         </main>
