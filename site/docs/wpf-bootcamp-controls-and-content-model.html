@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs - WPF Controls and Content Model</title>
+    <meta name="description" content="Learn how content controls, items controls, and presenters structure WPF UI.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./docs.css">
+</head>
+<body class="docs-page">
+    <div class="page-shell docs-shell">
+        <header class="site-header docs-header">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger Docs</strong>
+                    <span>WPF Controls and Content Model</span>
+                </span>
+            </a>
+            <div class="docs-header-controls">
+                <a class="header-link" href="./index.html">Docs</a>
+            </div>
+        </header>
+        <main class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Documentation tree">
+                <p class="sidebar-label">Docs tree</p>
+                <nav class="tree-nav">
+                    <ul>
+                        <li class="tree-node expanded"><a href="./index.html">Docs Home</a></li>
+                        <li class="tree-node expanded"><details class="tree-group"><summary class="tree-group-toggle">Getting Started</summary><ul><li><a href="./getting-started-wpf-mental-model.html">How WPF-style UI maps here</a></li><li><a href="./getting-started-hello-world-without-viewmodel.html">Hello World without a ViewModel</a></li><li><a href="./getting-started-hello-world-with-viewmodel.html">Hello World with a ViewModel</a></li><li><a href="./getting-started-hooking-view-into-monogame.html">Hooking the view into MonoGame</a></li></ul></details></li>
+                        <li class="tree-node expanded"><details class="tree-group" open><summary class="tree-group-toggle">WPF Bootcamp</summary><ul><li><a href="./wpf-bootcamp-overview.html">Overview</a></li><li><a href="./wpf-bootcamp-application-mental-model.html">Application mental model</a></li><li><a href="./wpf-bootcamp-xaml-fundamentals.html">XAML fundamentals</a></li><li><a href="./wpf-bootcamp-layout-deep-dive.html">Layout deep dive</a></li><li><a class="active" href="./wpf-bootcamp-controls-and-content-model.html">Controls and content model</a></li><li><a href="./wpf-bootcamp-dependency-properties-explained.html">Dependency properties explained</a></li><li><a href="./wpf-bootcamp-routed-events-and-commands.html">Routed events and commands</a></li><li><a href="./wpf-bootcamp-data-binding-fundamentals.html">Data binding fundamentals</a></li><li><a href="./wpf-bootcamp-mvvm-core-workflow.html">MVVM core workflow</a></li><li><a href="./wpf-bootcamp-collections-and-item-controls.html">Collections and item controls</a></li><li><a href="./wpf-bootcamp-styling-templates-and-reuse.html">Styling, templates, and reuse</a></li><li><a href="./wpf-bootcamp-validation-and-user-input.html">Validation and user input</a></li><li><a href="./wpf-bootcamp-navigation-and-application-composition.html">Navigation and application composition</a></li><li><a href="./wpf-bootcamp-final-walkthrough.html">Final walkthrough</a></li></ul></details></li>
+                        <li class="tree-node expanded"><details class="tree-group"><summary class="tree-group-toggle">RenderSurface</summary><ul><li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li><li><a href="./rendersurface-the-three-modes.html">The three modes</a></li><li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li><li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li></ul></details></li>
+                    </ul>
+                </nav>
+            </aside>
+            <article class="docs-content">
+                <div class="doc-hero">
+                    <p class="eyebrow">WPF Bootcamp</p>
+                    <h1>Controls and Content Model</h1>
+                    <p>WPF controls are not all the same kind of thing. Some host one piece of content, some host a collection, some generate containers, and some mostly exist to present content defined elsewhere.</p>
+                    <p>If you understand the content model, you stop forcing controls into jobs they were not designed to do.</p>
+                </div>
+                <section class="doc-section">
+                    <h2>What you'll learn</h2>
+                    <ul>
+                        <li>The difference between a content control, items control, headered control, and presenter.</li>
+                        <li>Why some controls accept a single child while others render arbitrary collections.</li>
+                        <li>How generated containers affect styling, selection, and templates.</li>
+                    </ul>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>ContentControl</h3>
+                            <p><code>Button</code>, <code>ContentControl</code>, and similar types host one logical piece of content, which can itself be a complex tree.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>ItemsControl</h3>
+                            <p><code>ListBox</code>, <code>ComboBox</code>, and <code>TreeView</code> repeat visuals for a collection and often wrap each item in a generated container.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Presenters explain the magic</h2>
+                    <p>A <code>ContentPresenter</code> or <code>ItemsPresenter</code> inside a template is how the template says, "put the user-provided content here." That is the bridge between the control API and the visuals defined by its template.</p>
+                    <pre><code class="language-xml">&lt;Button&gt;
+    &lt;StackPanel Orientation="Horizontal"&gt;
+        &lt;Path Data="..." /&gt;
+        &lt;TextBlock Text="Save" Margin="8,0,0,0" /&gt;
+    &lt;/StackPanel&gt;
+&lt;/Button&gt;</code></pre>
+                    <p>That still counts as a single content value. The content just happens to be a panel containing multiple children.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Common mistakes</h2>
+                    <ul>
+                        <li>Using a <code>StackPanel</code> where an <code>ItemsControl</code> should own repetition and item generation.</li>
+                        <li>Confusing item data with item containers such as <code>ListBoxItem</code>.</li>
+                        <li>Editing a control template without understanding where its presenter is supposed to sit.</li>
+                    </ul>
+                    <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> The same distinction matters in this repo. Controls like <code>ItemsControl</code>, <code>ListBox</code>, <code>ComboBox</code>, and <code>TreeView</code> carry WPF-style item generation concepts, while content controls host one main child or content object.</p></div>
+                    <p>Next, go deeper into dependency properties, because the content model only works cleanly because WPF has a richer property system than normal CLR properties.</p>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./wpf-bootcamp-layout-deep-dive.html"><span>Previous</span><strong>Layout deep dive</strong></a>
+                    <a class="pager-link" href="./wpf-bootcamp-dependency-properties-explained.html"><span>Next</span><strong>Dependency properties explained</strong></a>
+                </nav>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

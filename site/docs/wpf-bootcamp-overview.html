@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>InkkSlinger Docs - RenderSurface sizing and layout</title>
-    <meta name="description" content="Sizing and layout rules for RenderSurface.">
+    <title>InkkSlinger Docs - WPF Bootcamp Overview</title>
+    <meta name="description" content="A complete WPF Bootcamp that teaches WPF and MVVM from fundamentals to applied architecture.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
                 <span class="brand-mark">IS</span>
                 <span class="brand-copy">
                     <strong>InkkSlinger Docs</strong>
-                    <span>RenderSurface sizing and layout</span>
+                    <span>WPF Bootcamp Overview</span>
                 </span>
             </a>
             <div class="docs-header-controls">
@@ -43,10 +43,10 @@
                             </details>
                         </li>
                         <li class="tree-node expanded">
-                            <details class="tree-group">
+                            <details class="tree-group" open>
                                 <summary class="tree-group-toggle">WPF Bootcamp</summary>
                                 <ul>
-                                    <li><a href="./wpf-bootcamp-overview.html">Overview</a></li>
+                                    <li><a class="active" href="./wpf-bootcamp-overview.html">Overview</a></li>
                                     <li><a href="./wpf-bootcamp-application-mental-model.html">Application mental model</a></li>
                                     <li><a href="./wpf-bootcamp-xaml-fundamentals.html">XAML fundamentals</a></li>
                                     <li><a href="./wpf-bootcamp-layout-deep-dive.html">Layout deep dive</a></li>
@@ -64,12 +64,12 @@
                             </details>
                         </li>
                         <li class="tree-node expanded">
-                            <details class="tree-group" open>
+                            <details class="tree-group">
                                 <summary class="tree-group-toggle">RenderSurface</summary>
                                 <ul>
                                     <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
                                     <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
-                                    <li><a class="active" href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
                                     <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
                                 </ul>
                             </details>
@@ -79,40 +79,81 @@
             </aside>
             <article class="docs-content">
                 <div class="doc-hero">
-                    <p class="eyebrow">RenderSurface</p>
-                    <h1>Sizing and layout</h1>
-                    <p>The layout behavior changes depending on which mode you use.</p>
+                    <p class="eyebrow">WPF Bootcamp</p>
+                    <h1>WPF Bootcamp Overview</h1>
+                    <p>This track is designed to take someone from "I can read a bit of XAML" to "I can build a maintainable WPF application with MVVM, bindings, templates, validation, and composable screens."</p>
+                    <p>The emphasis is standard WPF first. Whenever a concept matters to InkkSlinger, you will also get a short parity note so the mental model transfers cleanly into this repository.</p>
                 </div>
                 <section class="doc-section">
+                    <h2>What you'll learn</h2>
+                    <ul>
+                        <li>How WPF thinks about UI: trees, properties, events, commands, layout, resources, and templating.</li>
+                        <li>How MVVM separates view structure from state and behavior without turning the codebase into ceremony.</li>
+                        <li>How to move from isolated controls to reusable, testable, application-scale screens.</li>
+                    </ul>
                     <div class="doc-grid two-up">
                         <section class="doc-card">
-                            <h3>Manual mode sizing</h3>
-                            <p>In manual mode, the control can measure itself from the underlying surface size. If you present a 64x32 surface, its natural desired size becomes 64x32 unless parent layout constraints change the final arranged size.</p>
+                            <h3>How to use this bootcamp</h3>
+                            <p>Read the pages in order. Each lesson builds on the previous one, and the later topics assume you understand binding, layout, and the content model.</p>
                         </section>
                         <section class="doc-card">
-                            <h3>Managed mode sizing</h3>
-                            <p>In managed mode, the control reports zero intrinsic size. That means you should normally set <code>Width</code>, <code>Height</code>, <code>MinWidth</code>, <code>MinHeight</code>, or place it in a layout that gives it real space.</p>
+                            <h3>Expected outcome</h3>
+                            <p>By the end, you should be able to inspect almost any WPF view and explain how data, commands, templates, and layout cooperate to produce behavior.</p>
                         </section>
                     </div>
-                    <p>Because <code>RenderSurface</code> inherits from <code>SurfacePresenterBase</code>, it also supports the standard surface scaling options:</p>
-                    <ul class="detail-list">
-                        <li><code>Stretch="None"</code>: do not scale the content.</li>
-                        <li><code>Stretch="Fill"</code>: stretch independently in both axes.</li>
-                        <li><code>Stretch="Uniform"</code>: preserve aspect ratio and fit inside the slot.</li>
-                        <li><code>Stretch="UniformToFill"</code>: preserve aspect ratio and fill the slot, cropping if needed.</li>
-                        <li><code>StretchDirection="Both"</code>: allow upscaling and downscaling.</li>
-                        <li><code>StretchDirection="UpOnly"</code>: do not shrink below natural size.</li>
-                        <li><code>StretchDirection="DownOnly"</code>: do not grow above natural size.</li>
+                </section>
+                <section class="doc-section">
+                    <h2>The course map</h2>
+                    <ol>
+                        <li>Application mental model</li>
+                        <li>XAML fundamentals</li>
+                        <li>Layout deep dive</li>
+                        <li>Controls and content model</li>
+                        <li>Dependency properties explained</li>
+                        <li>Routed events and commands</li>
+                        <li>Data binding fundamentals</li>
+                        <li>MVVM core workflow</li>
+                        <li>Collections and item controls</li>
+                        <li>Styling, templates, and reuse</li>
+                        <li>Validation and user input</li>
+                        <li>Navigation and application composition</li>
+                        <li>Final walkthrough</li>
+                    </ol>
+                    <pre><code class="language-xml">&lt;Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Bootcamp"
+    Width="900"
+    Height="640"&gt;
+    &lt;Grid&gt;
+        &lt;TextBlock
+            Text="Learn the model first. Syntax gets easier after that."
+            VerticalAlignment="Center"
+            HorizontalAlignment="Center"
+            FontSize="28" /&gt;
+    &lt;/Grid&gt;
+&lt;/Window&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Common mistakes</h2>
+                    <ul>
+                        <li>Trying to memorize every control first instead of learning the layout, binding, and templating systems.</li>
+                        <li>Treating MVVM as a rule to obey mechanically instead of a way to isolate state and interactions.</li>
+                        <li>Skipping the fundamentals and jumping straight to frameworks, behaviors, or custom controls.</li>
                     </ul>
+                    <div class="callout doc-callout">
+                        <p><strong>InkkSlinger parity note:</strong> InkkSlinger aims for WPF-style authoring inside a MonoGame host. The better you understand standard WPF concepts, the easier the project API becomes to reason about.</p>
+                    </div>
+                    <p>Next, learn the mental model behind a WPF application before touching syntax details.</p>
                 </section>
                 <nav class="doc-pagination" aria-label="Page navigation">
-                    <a class="pager-link" href="./rendersurface-the-three-modes.html">
+                    <a class="pager-link" href="./index.html">
                         <span>Previous</span>
-                        <strong>The three modes</strong>
+                        <strong>Docs Home</strong>
                     </a>
-                    <a class="pager-link" href="./rendersurface-rules-worth-knowing.html">
+                    <a class="pager-link" href="./wpf-bootcamp-application-mental-model.html">
                         <span>Next</span>
-                        <strong>Rules worth knowing</strong>
+                        <strong>Application mental model</strong>
                     </a>
                 </nav>
             </article>

@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>InkkSlinger Docs - RenderSurface sizing and layout</title>
-    <meta name="description" content="Sizing and layout rules for RenderSurface.">
+    <title>InkkSlinger Docs - WPF Layout Deep Dive</title>
+    <meta name="description" content="Understand WPF measure, arrange, and the panel rules that drive layout.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
                 <span class="brand-mark">IS</span>
                 <span class="brand-copy">
                     <strong>InkkSlinger Docs</strong>
-                    <span>RenderSurface sizing and layout</span>
+                    <span>WPF Layout Deep Dive</span>
                 </span>
             </a>
             <div class="docs-header-controls">
@@ -43,13 +43,13 @@
                             </details>
                         </li>
                         <li class="tree-node expanded">
-                            <details class="tree-group">
+                            <details class="tree-group" open>
                                 <summary class="tree-group-toggle">WPF Bootcamp</summary>
                                 <ul>
                                     <li><a href="./wpf-bootcamp-overview.html">Overview</a></li>
                                     <li><a href="./wpf-bootcamp-application-mental-model.html">Application mental model</a></li>
                                     <li><a href="./wpf-bootcamp-xaml-fundamentals.html">XAML fundamentals</a></li>
-                                    <li><a href="./wpf-bootcamp-layout-deep-dive.html">Layout deep dive</a></li>
+                                    <li><a class="active" href="./wpf-bootcamp-layout-deep-dive.html">Layout deep dive</a></li>
                                     <li><a href="./wpf-bootcamp-controls-and-content-model.html">Controls and content model</a></li>
                                     <li><a href="./wpf-bootcamp-dependency-properties-explained.html">Dependency properties explained</a></li>
                                     <li><a href="./wpf-bootcamp-routed-events-and-commands.html">Routed events and commands</a></li>
@@ -64,12 +64,12 @@
                             </details>
                         </li>
                         <li class="tree-node expanded">
-                            <details class="tree-group" open>
+                            <details class="tree-group">
                                 <summary class="tree-group-toggle">RenderSurface</summary>
                                 <ul>
                                     <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
                                     <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
-                                    <li><a class="active" href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
                                     <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
                                 </ul>
                             </details>
@@ -79,40 +79,65 @@
             </aside>
             <article class="docs-content">
                 <div class="doc-hero">
-                    <p class="eyebrow">RenderSurface</p>
-                    <h1>Sizing and layout</h1>
-                    <p>The layout behavior changes depending on which mode you use.</p>
+                    <p class="eyebrow">WPF Bootcamp</p>
+                    <h1>Layout Deep Dive</h1>
+                    <p>Most WPF bugs are layout bugs wearing another costume. If you understand how measure and arrange work, controls stop feeling random and panels become predictable tools.</p>
+                    <p>WPF layout is recursive: parents ask children how much they want, then assign the final size they actually get.</p>
                 </div>
                 <section class="doc-section">
-                    <div class="doc-grid two-up">
-                        <section class="doc-card">
-                            <h3>Manual mode sizing</h3>
-                            <p>In manual mode, the control can measure itself from the underlying surface size. If you present a 64x32 surface, its natural desired size becomes 64x32 unless parent layout constraints change the final arranged size.</p>
-                        </section>
-                        <section class="doc-card">
-                            <h3>Managed mode sizing</h3>
-                            <p>In managed mode, the control reports zero intrinsic size. That means you should normally set <code>Width</code>, <code>Height</code>, <code>MinWidth</code>, <code>MinHeight</code>, or place it in a layout that gives it real space.</p>
-                        </section>
-                    </div>
-                    <p>Because <code>RenderSurface</code> inherits from <code>SurfacePresenterBase</code>, it also supports the standard surface scaling options:</p>
-                    <ul class="detail-list">
-                        <li><code>Stretch="None"</code>: do not scale the content.</li>
-                        <li><code>Stretch="Fill"</code>: stretch independently in both axes.</li>
-                        <li><code>Stretch="Uniform"</code>: preserve aspect ratio and fit inside the slot.</li>
-                        <li><code>Stretch="UniformToFill"</code>: preserve aspect ratio and fill the slot, cropping if needed.</li>
-                        <li><code>StretchDirection="Both"</code>: allow upscaling and downscaling.</li>
-                        <li><code>StretchDirection="UpOnly"</code>: do not shrink below natural size.</li>
-                        <li><code>StretchDirection="DownOnly"</code>: do not grow above natural size.</li>
+                    <h2>What you'll learn</h2>
+                    <ul>
+                        <li>How measure and arrange differ.</li>
+                        <li>Why panel choice controls nearly all sizing behavior.</li>
+                        <li>How alignment, margins, width, height, and star sizing cooperate.</li>
                     </ul>
+                    <h3>The layout cycle</h3>
+                    <ol>
+                        <li><strong>Measure:</strong> parent gives available size, child returns desired size.</li>
+                        <li><strong>Arrange:</strong> parent decides final slot and child lays itself out inside it.</li>
+                        <li><strong>Render:</strong> the arranged result gets drawn.</li>
+                    </ol>
+                    <pre><code class="language-xml">&lt;Grid Margin="24"&gt;
+    &lt;Grid.RowDefinitions&gt;
+        &lt;RowDefinition Height="Auto" /&gt;
+        &lt;RowDefinition Height="*" /&gt;
+        &lt;RowDefinition Height="Auto" /&gt;
+    &lt;/Grid.RowDefinitions&gt;
+
+    &lt;TextBlock Grid.Row="0" Text="Header" FontSize="28" /&gt;
+    &lt;ListBox Grid.Row="1" Margin="0,16,0,16" /&gt;
+    &lt;Button Grid.Row="2" Content="Continue" HorizontalAlignment="Right" /&gt;
+&lt;/Grid&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Pick the right panel</h2>
+                    <ul>
+                        <li><code>Grid</code> is the default for structured layouts and mixed sizing rules.</li>
+                        <li><code>StackPanel</code> is good for simple one-dimensional flows, but it can hide sizing issues if overused.</li>
+                        <li><code>DockPanel</code> is excellent for "header/sidebar/content" style shells.</li>
+                    </ul>
+                    <p>Use margin for spacing between siblings and padding for space inside a control. Use alignment to position within the allocated slot, not to negotiate the slot itself.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Common mistakes</h2>
+                    <ul>
+                        <li>Using nested <code>StackPanel</code> everywhere and then wondering why stretching or scrolling behaves poorly.</li>
+                        <li>Forgetting that <code>Auto</code>, fixed values, and <code>*</code> mean very different things in a <code>Grid</code>.</li>
+                        <li>Setting both explicit size and aggressive margin/alignment values without understanding which one is fighting the layout result.</li>
+                    </ul>
+                    <div class="callout doc-callout">
+                        <p><strong>InkkSlinger parity note:</strong> The same parent-measures-child model applies here. If an InkkSlinger view looks wrong, the first thing to inspect is usually the panel tree and the size information flowing through it.</p>
+                    </div>
+                    <p>Next, learn how controls relate to content, because that is what lets one control host text, another control host a tree of elements, and item controls generate repeated visuals.</p>
                 </section>
                 <nav class="doc-pagination" aria-label="Page navigation">
-                    <a class="pager-link" href="./rendersurface-the-three-modes.html">
+                    <a class="pager-link" href="./wpf-bootcamp-xaml-fundamentals.html">
                         <span>Previous</span>
-                        <strong>The three modes</strong>
+                        <strong>XAML fundamentals</strong>
                     </a>
-                    <a class="pager-link" href="./rendersurface-rules-worth-knowing.html">
+                    <a class="pager-link" href="./wpf-bootcamp-controls-and-content-model.html">
                         <span>Next</span>
-                        <strong>Rules worth knowing</strong>
+                        <strong>Controls and content model</strong>
                     </a>
                 </nav>
             </article>

@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>InkkSlinger Docs - RenderSurface sizing and layout</title>
-    <meta name="description" content="Sizing and layout rules for RenderSurface.">
+    <title>InkkSlinger Docs - WPF Application Mental Model</title>
+    <meta name="description" content="Understand the trees, systems, and responsibilities that make a WPF application work.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
                 <span class="brand-mark">IS</span>
                 <span class="brand-copy">
                     <strong>InkkSlinger Docs</strong>
-                    <span>RenderSurface sizing and layout</span>
+                    <span>WPF Application Mental Model</span>
                 </span>
             </a>
             <div class="docs-header-controls">
@@ -43,11 +43,11 @@
                             </details>
                         </li>
                         <li class="tree-node expanded">
-                            <details class="tree-group">
+                            <details class="tree-group" open>
                                 <summary class="tree-group-toggle">WPF Bootcamp</summary>
                                 <ul>
                                     <li><a href="./wpf-bootcamp-overview.html">Overview</a></li>
-                                    <li><a href="./wpf-bootcamp-application-mental-model.html">Application mental model</a></li>
+                                    <li><a class="active" href="./wpf-bootcamp-application-mental-model.html">Application mental model</a></li>
                                     <li><a href="./wpf-bootcamp-xaml-fundamentals.html">XAML fundamentals</a></li>
                                     <li><a href="./wpf-bootcamp-layout-deep-dive.html">Layout deep dive</a></li>
                                     <li><a href="./wpf-bootcamp-controls-and-content-model.html">Controls and content model</a></li>
@@ -64,12 +64,12 @@
                             </details>
                         </li>
                         <li class="tree-node expanded">
-                            <details class="tree-group" open>
+                            <details class="tree-group">
                                 <summary class="tree-group-toggle">RenderSurface</summary>
                                 <ul>
                                     <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
                                     <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
-                                    <li><a class="active" href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
                                     <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
                                 </ul>
                             </details>
@@ -79,40 +79,61 @@
             </aside>
             <article class="docs-content">
                 <div class="doc-hero">
-                    <p class="eyebrow">RenderSurface</p>
-                    <h1>Sizing and layout</h1>
-                    <p>The layout behavior changes depending on which mode you use.</p>
+                    <p class="eyebrow">WPF Bootcamp</p>
+                    <h1>WPF Application Mental Model</h1>
+                    <p>WPF is easiest when you stop thinking of it as a bag of controls and start thinking of it as a coordinated runtime with a tree, a property system, a layout engine, an event routing system, and a resource/template layer.</p>
+                    <p>Once that model clicks, most APIs stop feeling arbitrary. They become different ways to participate in the same underlying machinery.</p>
                 </div>
                 <section class="doc-section">
-                    <div class="doc-grid two-up">
+                    <h2>What you'll learn</h2>
+                    <ul>
+                        <li>The difference between the visual tree and logical tree.</li>
+                        <li>Why controls, panels, templates, resources, and bindings exist as separate concepts.</li>
+                        <li>How WPF decides where data, styles, events, and layout rules come from.</li>
+                    </ul>
+                    <div class="doc-grid">
                         <section class="doc-card">
-                            <h3>Manual mode sizing</h3>
-                            <p>In manual mode, the control can measure itself from the underlying surface size. If you present a 64x32 surface, its natural desired size becomes 64x32 unless parent layout constraints change the final arranged size.</p>
+                            <h3>Tree</h3>
+                            <p>Your UI is a hierarchy. Parents provide context. Children participate in layout, events, resources, and sometimes inherited values.</p>
                         </section>
                         <section class="doc-card">
-                            <h3>Managed mode sizing</h3>
-                            <p>In managed mode, the control reports zero intrinsic size. That means you should normally set <code>Width</code>, <code>Height</code>, <code>MinWidth</code>, <code>MinHeight</code>, or place it in a layout that gives it real space.</p>
+                            <h3>Property system</h3>
+                            <p>Dependency properties let values come from defaults, styles, bindings, animations, templates, and local settings without every control reinventing that logic.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Rendering pipeline</h3>
+                            <p>WPF measures, arranges, and then renders. A control only looks correct if all three phases agree on size and state.</p>
                         </section>
                     </div>
-                    <p>Because <code>RenderSurface</code> inherits from <code>SurfacePresenterBase</code>, it also supports the standard surface scaling options:</p>
-                    <ul class="detail-list">
-                        <li><code>Stretch="None"</code>: do not scale the content.</li>
-                        <li><code>Stretch="Fill"</code>: stretch independently in both axes.</li>
-                        <li><code>Stretch="Uniform"</code>: preserve aspect ratio and fit inside the slot.</li>
-                        <li><code>Stretch="UniformToFill"</code>: preserve aspect ratio and fill the slot, cropping if needed.</li>
-                        <li><code>StretchDirection="Both"</code>: allow upscaling and downscaling.</li>
-                        <li><code>StretchDirection="UpOnly"</code>: do not shrink below natural size.</li>
-                        <li><code>StretchDirection="DownOnly"</code>: do not grow above natural size.</li>
+                </section>
+                <section class="doc-section">
+                    <h2>Visual tree vs logical tree</h2>
+                    <p>The logical tree is the structure you author. The visual tree is the realized structure that actually renders, including template parts and generated visuals. The logical tree helps with resource lookup and high-level composition. The visual tree explains what exists on screen.</p>
+                    <pre><code class="language-xml">&lt;Button Content="Save" /&gt;</code></pre>
+                    <p>That one button may expand into borders, presenters, focus visuals, and template parts in the visual tree. When debugging styles or hit testing, the visual tree matters. When reasoning about content ownership or resource inheritance, the logical tree matters.</p>
+                    <h3>Resources and templates</h3>
+                    <p>Resources are lookup tables scoped to the application, window, or element. Templates decide how a control is rendered. Controls expose behavior; templates decide presentation. Keeping those separate is why one button API can support many looks.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Common mistakes</h2>
+                    <ul>
+                        <li>Expecting the visual tree to match the XAML line-for-line.</li>
+                        <li>Assuming a control owns all of its rendering directly instead of through templates and presenters.</li>
+                        <li>Using code-behind to push values around when the property system or resource system already solves the problem.</li>
                     </ul>
+                    <div class="callout doc-callout">
+                        <p><strong>InkkSlinger parity note:</strong> The same mental split exists here. You still author a declarative tree and rely on framework services like binding, styling, layout, and routed input, even though the final rendering sits in a MonoGame-backed host.</p>
+                    </div>
+                    <p>Next, move into XAML itself so the syntax matches the model you just learned.</p>
                 </section>
                 <nav class="doc-pagination" aria-label="Page navigation">
-                    <a class="pager-link" href="./rendersurface-the-three-modes.html">
+                    <a class="pager-link" href="./wpf-bootcamp-overview.html">
                         <span>Previous</span>
-                        <strong>The three modes</strong>
+                        <strong>Overview</strong>
                     </a>
-                    <a class="pager-link" href="./rendersurface-rules-worth-knowing.html">
+                    <a class="pager-link" href="./wpf-bootcamp-xaml-fundamentals.html">
                         <span>Next</span>
-                        <strong>Rules worth knowing</strong>
+                        <strong>XAML fundamentals</strong>
                     </a>
                 </nav>
             </article>

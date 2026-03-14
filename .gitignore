@@ -28,6 +28,8 @@ Desktop.ini
 
 # Local documentation
 Docs/
+!site/docs/
+!site/docs/**
 
 # Local automation scripts
 scripts/

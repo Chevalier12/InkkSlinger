@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>InkkSlinger Docs - RenderSurface sizing and layout</title>
-    <meta name="description" content="Sizing and layout rules for RenderSurface.">
+    <title>InkkSlinger Docs - WPF XAML Fundamentals</title>
+    <meta name="description" content="Learn the XAML syntax and conventions that make WPF declarative UI possible.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
                 <span class="brand-mark">IS</span>
                 <span class="brand-copy">
                     <strong>InkkSlinger Docs</strong>
-                    <span>RenderSurface sizing and layout</span>
+                    <span>WPF XAML Fundamentals</span>
                 </span>
             </a>
             <div class="docs-header-controls">
@@ -43,12 +43,12 @@
                             </details>
                         </li>
                         <li class="tree-node expanded">
-                            <details class="tree-group">
+                            <details class="tree-group" open>
                                 <summary class="tree-group-toggle">WPF Bootcamp</summary>
                                 <ul>
                                     <li><a href="./wpf-bootcamp-overview.html">Overview</a></li>
                                     <li><a href="./wpf-bootcamp-application-mental-model.html">Application mental model</a></li>
-                                    <li><a href="./wpf-bootcamp-xaml-fundamentals.html">XAML fundamentals</a></li>
+                                    <li><a class="active" href="./wpf-bootcamp-xaml-fundamentals.html">XAML fundamentals</a></li>
                                     <li><a href="./wpf-bootcamp-layout-deep-dive.html">Layout deep dive</a></li>
                                     <li><a href="./wpf-bootcamp-controls-and-content-model.html">Controls and content model</a></li>
                                     <li><a href="./wpf-bootcamp-dependency-properties-explained.html">Dependency properties explained</a></li>
@@ -64,12 +64,12 @@
                             </details>
                         </li>
                         <li class="tree-node expanded">
-                            <details class="tree-group" open>
+                            <details class="tree-group">
                                 <summary class="tree-group-toggle">RenderSurface</summary>
                                 <ul>
                                     <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
                                     <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
-                                    <li><a class="active" href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
                                     <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
                                 </ul>
                             </details>
@@ -79,40 +79,66 @@
             </aside>
             <article class="docs-content">
                 <div class="doc-hero">
-                    <p class="eyebrow">RenderSurface</p>
-                    <h1>Sizing and layout</h1>
-                    <p>The layout behavior changes depending on which mode you use.</p>
+                    <p class="eyebrow">WPF Bootcamp</p>
+                    <h1>XAML Fundamentals</h1>
+                    <p>XAML is not just XML with a WPF accent. It is a declarative object graph language that creates instances, sets properties, wires resources, and invokes markup extensions.</p>
+                    <p>The fastest way to get comfortable with WPF is to understand what each piece of XAML becomes at runtime.</p>
                 </div>
                 <section class="doc-section">
-                    <div class="doc-grid two-up">
-                        <section class="doc-card">
-                            <h3>Manual mode sizing</h3>
-                            <p>In manual mode, the control can measure itself from the underlying surface size. If you present a 64x32 surface, its natural desired size becomes 64x32 unless parent layout constraints change the final arranged size.</p>
-                        </section>
-                        <section class="doc-card">
-                            <h3>Managed mode sizing</h3>
-                            <p>In managed mode, the control reports zero intrinsic size. That means you should normally set <code>Width</code>, <code>Height</code>, <code>MinWidth</code>, <code>MinHeight</code>, or place it in a layout that gives it real space.</p>
-                        </section>
-                    </div>
-                    <p>Because <code>RenderSurface</code> inherits from <code>SurfacePresenterBase</code>, it also supports the standard surface scaling options:</p>
-                    <ul class="detail-list">
-                        <li><code>Stretch="None"</code>: do not scale the content.</li>
-                        <li><code>Stretch="Fill"</code>: stretch independently in both axes.</li>
-                        <li><code>Stretch="Uniform"</code>: preserve aspect ratio and fit inside the slot.</li>
-                        <li><code>Stretch="UniformToFill"</code>: preserve aspect ratio and fill the slot, cropping if needed.</li>
-                        <li><code>StretchDirection="Both"</code>: allow upscaling and downscaling.</li>
-                        <li><code>StretchDirection="UpOnly"</code>: do not shrink below natural size.</li>
-                        <li><code>StretchDirection="DownOnly"</code>: do not grow above natural size.</li>
+                    <h2>What you'll learn</h2>
+                    <ul>
+                        <li>How elements, attributes, property elements, and namespaces map to CLR types and properties.</li>
+                        <li>What markup extensions such as <code>{Binding}</code> and <code>{StaticResource}</code> actually do.</li>
+                        <li>When to use shorthand syntax versus explicit nested syntax.</li>
                     </ul>
+                    <pre><code class="language-xml">&lt;Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="clr-namespace:SampleApp.ViewModels"
+    x:Class="SampleApp.MainWindow"&gt;
+    &lt;Window.DataContext&gt;
+        &lt;vm:MainViewModel /&gt;
+    &lt;/Window.DataContext&gt;
+
+    &lt;TextBlock Text="{Binding Title}" /&gt;
+&lt;/Window&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Core syntax patterns</h2>
+                    <h3>Elements and attributes</h3>
+                    <p>An element creates an object. An attribute usually sets a property. If a property needs a complex object, you switch to property-element syntax.</p>
+                    <pre><code class="language-xml">&lt;Button Content="Save" Margin="12" /&gt;
+
+&lt;Button&gt;
+    &lt;Button.Content&gt;
+        &lt;StackPanel Orientation="Horizontal"&gt;
+            &lt;TextBlock Text="Save" /&gt;
+        &lt;/StackPanel&gt;
+    &lt;/Button.Content&gt;
+&lt;/Button&gt;</code></pre>
+                    <h3>Markup extensions and attached properties</h3>
+                    <p><code>{Binding}</code> and <code>{StaticResource}</code> are instructions to the XAML loader. Attached properties like <code>Grid.Row</code> let a parent container store layout metadata on children.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Common mistakes</h2>
+                    <ul>
+                        <li>Treating namespaces as just syntax noise instead of the thing that maps markup to CLR types.</li>
+                        <li>Trying to cram complex objects into attributes when property-element syntax is clearer.</li>
+                        <li>Missing the difference between a literal string and a markup extension expression.</li>
+                    </ul>
+                    <div class="callout doc-callout">
+                        <p><strong>InkkSlinger parity note:</strong> InkkSlinger uses WPF-style XML rather than native WPF XAML files, but the ideas remain the same: named elements, resources, bindings, markup extensions, and attached-style parent metadata still matter.</p>
+                    </div>
+                    <p>Next, use that syntax knowledge to understand the layout engine, because layout is where most WPF surprises begin.</p>
                 </section>
                 <nav class="doc-pagination" aria-label="Page navigation">
-                    <a class="pager-link" href="./rendersurface-the-three-modes.html">
+                    <a class="pager-link" href="./wpf-bootcamp-application-mental-model.html">
                         <span>Previous</span>
-                        <strong>The three modes</strong>
+                        <strong>Application mental model</strong>
                     </a>
-                    <a class="pager-link" href="./rendersurface-rules-worth-knowing.html">
+                    <a class="pager-link" href="./wpf-bootcamp-layout-deep-dive.html">
                         <span>Next</span>
-                        <strong>Rules worth knowing</strong>
+                        <strong>Layout deep dive</strong>
                     </a>
                 </nav>
             </article>
