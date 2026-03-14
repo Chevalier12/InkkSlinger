@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - Canvas</title>
-    <meta name="description" content="Canvas control reference.">
+    <meta name="description" content="Technical manual for the Canvas control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,272 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>Canvas</h1>
-                    <p>WIP</p>
+                    <p><code>Canvas</code> is the framework's free-positioning panel. It lays out each child at an explicit X/Y offset using the attached <code>Canvas.Left</code> and <code>Canvas.Top</code> properties, making it the right panel for overlays, HUDs, anchored popups, drag surfaces, and lightweight 2D scene composition.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>Canvas</code> when child position is part of your UI state. Unlike flow panels such as <code>StackPanel</code> or <code>Grid</code>, Canvas does not compute placement from rows, columns, or stacking order.</p>
+                    <h3>Minimal positioned child</h3>
+                    <pre><code class="language-xml">&lt;Canvas Width="320" Height="180"&gt;
+  &lt;TextBlock Text="Marker"
+             Canvas.Left="24"
+             Canvas.Top="18" /&gt;
+&lt;/Canvas&gt;</code></pre>
+                    <h3>Two independent children</h3>
+                    <pre><code class="language-xml">&lt;Canvas Width="420" Height="220"&gt;
+  &lt;Button Text="Primary action"
+          Width="140"
+          Height="40"
+          Canvas.Left="20"
+          Canvas.Top="20" /&gt;
+
+  &lt;Border Background="#1C2C3B"
+          BorderBrush="#50708F"
+          BorderThickness="1"
+          Padding="8"
+          Canvas.Left="210"
+          Canvas.Top="96"&gt;
+    &lt;TextBlock Text="Pinned note" /&gt;
+  &lt;/Border&gt;
+&lt;/Canvas&gt;</code></pre>
+                    <h3>Set coordinates from code</h3>
+                    <pre><code class="language-csharp">var badge = new Label
+{
+    Text = "Paused"
+};
+
+Canvas.SetLeft(badge, 16f);
+Canvas.SetTop(badge, 12f);
+overlayCanvas.AddChild(badge);</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> choose <code>Canvas</code> only when explicit coordinates are the behavior you want to own. If the layout should adapt automatically to available space, start with <code>Grid</code>, <code>StackPanel</code>, or <code>DockPanel</code> instead.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>How Canvas layout works</h2>
+                    <p>Canvas uses a deliberately simple layout contract. Every child is measured unconstrained, then arranged at its own explicit offset with its measured size.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Measure</h3>
+                            <p>Each child is measured with infinite available width and height. Canvas does not try to constrain children to its own available size during measure.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Arrange</h3>
+                            <p>Each child is arranged at <code>Canvas.Left</code>/<code>Canvas.Top</code> relative to the canvas origin, using the child's desired size as its arranged width and height.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>If <code>Canvas.Left</code> is not set, the child uses <code>0</code> for X.</li>
+                        <li>If <code>Canvas.Top</code> is not set, the child uses <code>0</code> for Y.</li>
+                        <li>Canvas desired width is the maximum of <code>left + child desired width</code> across all children.</li>
+                        <li>Canvas desired height is the maximum of <code>top + child desired height</code> across all children.</li>
+                        <li>Negative coordinates are allowed and can place content partially or fully outside the visible canvas region.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Canvas&gt;
+  &lt;TextBlock Text="Alpha"
+             Canvas.Left="10"
+             Canvas.Top="12" /&gt;
+  &lt;TextBlock Text="Beta"
+             Canvas.Left="120"
+             Canvas.Top="40" /&gt;
+&lt;/Canvas&gt;</code></pre>
+                    <p>If <code>Alpha</code> wants <code>60x20</code> and <code>Beta</code> wants <code>50x20</code>, the Canvas desired size becomes at least <code>170x60</code>.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Positioning API</h2>
+                    <p>The current Canvas implementation exposes exactly two positioning attached properties: <code>Canvas.Left</code> and <code>Canvas.Top</code>.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>XAML syntax</h3>
+                            <p>Set coordinates directly on the child element with attached-property syntax such as <code>Canvas.Left="48"</code> and <code>Canvas.Top="12"</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Code API</h3>
+                            <p>Use <code>Canvas.SetLeft</code>, <code>Canvas.SetTop</code>, <code>Canvas.GetLeft</code>, and <code>Canvas.GetTop</code> from code-behind or runtime logic.</p>
+                        </article>
+                    </div>
+                    <h3>Position a control in XAML</h3>
+                    <pre><code class="language-xml">&lt;Canvas Width="500" Height="280"&gt;
+  &lt;Button x:Name="SaveButton"
+          Text="Save"
+          Width="120"
+          Height="38"
+          Canvas.Left="32"
+          Canvas.Top="24" /&gt;
+&lt;/Canvas&gt;</code></pre>
+                    <h3>Read and update coordinates at runtime</h3>
+                    <pre><code class="language-csharp">var currentLeft = Canvas.GetLeft(saveButton);
+var currentTop = Canvas.GetTop(saveButton);
+
+Canvas.SetLeft(saveButton, currentLeft + 12f);
+Canvas.SetTop(saveButton, currentTop + 8f);</code></pre>
+                    <h3>Animate a positioned element</h3>
+                    <pre><code class="language-csharp">var leftAnimation = new DoubleAnimation
+{
+    To = 320f,
+    Duration = TimeSpan.FromMilliseconds(250)
+};
+
+Storyboard.SetTarget(leftAnimation, runner);
+Storyboard.SetTargetProperty(leftAnimation, "(Canvas.Left)");</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Important:</strong> the framework does not currently implement <code>Canvas.Right</code> or <code>Canvas.Bottom</code>. Document and design against <code>Left</code> and <code>Top</code> only.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Sizing and clipping behavior</h2>
+                    <p>Canvas is free-positioning, not free-visibility. Children can be arranged anywhere, but rendering and hit testing are clipped to the canvas layout slot.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Unconstrained measure</h3>
+                            <p>Children measure against infinite size, so text, borders, and controls can request their natural size even when the canvas itself is smaller.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Viewport clip</h3>
+                            <p>Canvas always clips to its own layout slot. Content outside the visible rectangle is not drawn and is not hit-test visible through the clip chain.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Final size</h3>
+                            <p>Canvas returns the final size given by its parent during arrange. Its own children do not force the final arranged size to expand at that stage.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;Border Width="220" Height="120" BorderBrush="#3A556F" BorderThickness="1"&gt;
+  &lt;Canvas Width="220" Height="120"&gt;
+    &lt;TextBlock Text="Visible"
+               Canvas.Left="12"
+               Canvas.Top="12" /&gt;
+    &lt;TextBlock Text="Partially clipped"
+               Canvas.Left="170"
+               Canvas.Top="92" /&gt;
+  &lt;/Canvas&gt;
+&lt;/Border&gt;</code></pre>
+                    <p>That second child may still be arranged at the requested coordinates, but any pixels outside the <code>220x120</code> canvas viewport are clipped away.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Common usage patterns</h2>
+                    <h3>HUD or overlay layer</h3>
+                    <pre><code class="language-xml">&lt;Canvas Width="1280" Height="720"&gt;
+  &lt;Border Background="#AA101820"
+          BorderBrush="#50708F"
+          BorderThickness="1"
+          Padding="10,6"
+          Canvas.Left="24"
+          Canvas.Top="24"&gt;
+    &lt;TextBlock Text="Mission timer: 02:18" /&gt;
+  &lt;/Border&gt;
+
+  &lt;Label Text="Inventory"
+         Canvas.Left="1110"
+         Canvas.Top="24" /&gt;
+&lt;/Canvas&gt;</code></pre>
+                    <h3>Freeform editor surface</h3>
+                    <pre><code class="language-xml">&lt;Canvas Width="900" Height="540"&gt;
+  &lt;Border Background="#182636"
+          BorderBrush="#4FC7C1"
+          BorderThickness="1"
+          Padding="12"
+          Width="220"
+          Height="120"
+          Canvas.Left="80"
+          Canvas.Top="60"&gt;
+    &lt;TextBlock Text="Node A" /&gt;
+  &lt;/Border&gt;
+
+  &lt;Border Background="#182636"
+          BorderBrush="#4FC7C1"
+          BorderThickness="1"
+          Padding="12"
+          Width="220"
+          Height="120"
+          Canvas.Left="420"
+          Canvas.Top="220"&gt;
+    &lt;TextBlock Text="Node B" /&gt;
+  &lt;/Border&gt;
+&lt;/Canvas&gt;</code></pre>
+                    <h3>Popup anchor host</h3>
+                    <pre><code class="language-xml">&lt;Canvas Width="640" Height="360"&gt;
+  &lt;Button x:Name="AnchorButton"
+          Text="Open menu"
+          Width="140"
+          Height="38"
+          Canvas.Left="40"
+          Canvas.Top="30" /&gt;
+
+  &lt;Popup IsOpen="True"
+         PlacementTarget="{Binding ElementName=AnchorButton}" /&gt;
+&lt;/Canvas&gt;</code></pre>
+                    <h3>Mixed content dashboard</h3>
+                    <pre><code class="language-xml">&lt;Canvas Width="760" Height="420"&gt;
+  &lt;TextBlock Text="Status" Canvas.Left="20" Canvas.Top="16" /&gt;
+  &lt;ProgressBar Width="240" Height="20" Value="68" Canvas.Left="20" Canvas.Top="44" /&gt;
+  &lt;Button Text="Retry" Width="96" Height="34" Canvas.Left="20" Canvas.Top="90" /&gt;
+  &lt;Border Width="320" Height="180" BorderBrush="#45627E" BorderThickness="1" Canvas.Left="380" Canvas.Top="20"&gt;
+    &lt;TextBlock Text="Preview area" Margin="12" /&gt;
+  &lt;/Border&gt;
+&lt;/Canvas&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Canvas vs other panels</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Choose Canvas when</h3>
+                            <p>Position comes from coordinates, gameplay state, diagram state, manual dragging, or anchor math that you control directly.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Choose another panel when</h3>
+                            <p>You want rows, columns, stacking, docking, wrapping, or automatic redistribution based on available size.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Use <code>Grid</code> for forms, dashboards, and structured two-dimensional layout.</li>
+                        <li>Use <code>StackPanel</code> for linear vertical or horizontal flows.</li>
+                        <li>Use <code>DockPanel</code> for edge-based composition.</li>
+                        <li>Use <code>Canvas</code> for explicit coordinates and overlay composition.</li>
+                    </ul>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Canvas attached properties</h3>
+                            <p><code>Canvas.Left</code>: <code>float</code> X offset from the canvas origin. Unset maps to <code>0</code> during layout.</p>
+                            <p><code>Canvas.Top</code>: <code>float</code> Y offset from the canvas origin. Unset maps to <code>0</code> during layout.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Inherited and common properties</h3>
+                            <p><code>Width</code> and <code>Height</code>: useful when you want a fixed visible drawing region.</p>
+                            <p><code>UseLayoutRounding</code>: inherited from the framework element stack and affects rounded arranged positions when enabled.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Only <code>Left</code> and <code>Top</code> exist today.</strong> Do not promise <code>Right</code>, <code>Bottom</code>, or WPF parity beyond the currently implemented attached properties.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Canvas does not auto-layout children.</strong> If two children overlap, that is expected. Canvas will not resolve collisions, spacing, or stacking for you.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Measure is unconstrained.</strong> Large or wrapping content can request more space than the visible canvas region. If that is not what you want, constrain the child explicitly with <code>Width</code>, <code>Height</code>, or a different parent panel.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Use coordinates for placement, not margin.</strong> Margin may still affect the child's own layout behavior, but Canvas positioning is driven by <code>Canvas.Left</code> and <code>Canvas.Top</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Content outside the viewport is clipped.</strong> Negative coordinates and oversized content are valid, but only the portion inside the canvas layout slot is visible and hit-testable.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-calendar-day-button.html">
+                        <span>Previous</span>
+                        <strong>CalendarDayButton</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-check-box.html">
+                        <span>Next</span>
+                        <strong>CheckBox</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
@@ -194,3 +458,5 @@
     </script>
 </body>
 </html>
+
+
