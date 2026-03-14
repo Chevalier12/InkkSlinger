@@ -173,11 +173,11 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>Label</h1>
-                    <p><code>Label</code> is a real WPF-style caption control. It derives from <code>ContentControl</code>, hosts arbitrary content, can point at a target control through <code>Target</code>, participates in access-key routing, and renders through a control template instead of behaving like a text leaf.</p>
+                    <p><code>Label</code> is a single-content caption control. It hosts strings, visuals, or templated data, can be associated with another control through <code>Target</code>, and presents its content through a template that applies background, border, padding, and content alignment.</p>
                 </div>
                 <section class="doc-section">
                     <h2>Quick start</h2>
-                    <p>Use <code>Label</code> for captions that describe another control, for access-key driven field labels, and for content that should benefit from chrome such as padding, border, and background through the default template.</p>
+                    <p>Use <code>Label</code> for field captions, setting names, small status surfaces, and any other UI text that carries caption semantics instead of acting as raw body text.</p>
                     <h3>Minimal label</h3>
                     <pre><code class="language-xml">&lt;Label Content="Display name" /&gt;</code></pre>
                     <h3>Text-node content</h3>
@@ -189,49 +189,62 @@
            Width="240" /&gt;
 &lt;/StackPanel&gt;</code></pre>
                     <div class="callout doc-callout">
-                        <p><strong>Default mental model:</strong> use <code>Label</code> when the text is a caption with semantics. Use <code>TextBlock</code> when you only need raw text rendering.</p>
+                        <p><strong>Default recommendation:</strong> choose <code>Label</code> when the element describes something else. Choose <code>TextBlock</code> when you only need text rendering.</p>
                     </div>
                 </section>
                 <section class="doc-section">
-                    <h2>What Label is</h2>
-                    <p>This implementation now follows the WPF contract much more closely. <code>Label</code> is a templated content control, not a specialized <code>TextBlock</code>.</p>
+                    <h2>How Label works</h2>
+                    <p><code>Label</code> derives from <code>ContentControl</code>. Its content can be a string, a visual child, or a data item displayed through <code>ContentTemplate</code>. The control itself is not focusable; when access-key content is present and a target is assigned, activation is routed to the target control.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
-                            <h3>What it is</h3>
-                            <p>A <code>ContentControl</code> that can host strings, visuals, or templated content, and can associate itself with another control through <code>Target</code>.</p>
+                            <h3>Content surface</h3>
+                            <p><code>Content</code> is the primary payload. You can provide that payload directly, through a text node, or through binding.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>What it is not</h3>
-                            <p>It is not a drop-in replacement for <code>TextBlock</code>. It no longer exposes a primary <code>Text</code> API or a text-leaf measure and render pipeline.</p>
+                            <h3>Caption semantics</h3>
+                            <p><code>Target</code> establishes the labeled control. That relationship is used by access-key routing and automation metadata.</p>
                         </article>
                     </div>
                     <ul>
-                        <li><code>Content</code> is the primary surface for strings, visuals, and bound objects.</li>
-                        <li><code>Target</code> points to the control that the label describes.</li>
-                        <li>The default template applies <code>Padding</code>, <code>Background</code>, <code>BorderBrush</code>, <code>BorderThickness</code>, and content alignment.</li>
-                        <li><code>Label</code> is non-focusable by default. Access keys move focus to the target instead of to the label.</li>
+                        <li><code>Content</code> accepts strings, visuals, and data objects.</li>
+                        <li><code>Target</code> references the control that the label describes.</li>
+                        <li><code>Padding</code>, <code>Background</code>, <code>BorderBrush</code>, and <code>BorderThickness</code> are consumed by the default template.</li>
+                        <li><code>HorizontalContentAlignment</code> and <code>VerticalContentAlignment</code> control content placement inside the label surface.</li>
                     </ul>
                 </section>
                 <section class="doc-section">
                     <h2>Content model</h2>
-                    <p><code>Label</code> behaves like a normal single-content control. That gives you three common authoring patterns.</p>
+                    <p><code>Label</code> behaves like a normal single-content control. The content path you choose depends on whether you want plain text, custom visuals, or a reusable data template.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
                             <h3>String content</h3>
-                            <p>Assign a string through <code>Content</code> or use a text node in XAML. When access-key recognition is enabled in the template, plain strings are presented through <code>AccessText</code>.</p>
+                            <p>Assign a string through <code>Content</code> or use a text node in XAML. This is the most common form for field captions and simple status labels.</p>
                         </article>
                         <article class="doc-card">
                             <h3>Visual content</h3>
-                            <p>You can host a child element directly, such as a <code>TextBlock</code>, <code>AccessText</code>, or a small icon-plus-text panel.</p>
+                            <p>You can host a child element directly, such as a <code>TextBlock</code>, <code>AccessText</code>, or a compact icon-and-text composition.</p>
                         </article>
                     </div>
                     <ul>
-                        <li>Use string content for the common label case.</li>
-                        <li>Use child visuals when you need richer composition than a single string.</li>
-                        <li>Use <code>ContentTemplate</code> when the content is data and you want a consistent label presentation shape.</li>
+                        <li>Use string content for ordinary captions.</li>
+                        <li>Use a child visual when you need fine control over the rendered structure.</li>
+                        <li>Use <code>ContentTemplate</code> when the label content comes from data and should follow a reusable visual pattern.</li>
                         <li>Whitespace-only text nodes are ignored by the XAML loader.</li>
                     </ul>
-                    <h3>Label with explicit visual content</h3>
+                    <h3>Data-templated label content</h3>
+                    <pre><code class="language-xml">&lt;Label Content="{Binding ActiveProfile}"
+       Padding="8"&gt;
+  &lt;Label.ContentTemplate&gt;
+    &lt;DataTemplate&gt;
+      &lt;StackPanel Orientation="Horizontal"&gt;
+        &lt;TextBlock Text="Profile: "
+                   FontWeight="Bold" /&gt;
+        &lt;TextBlock Text="{Binding}" /&gt;
+      &lt;/StackPanel&gt;
+    &lt;/DataTemplate&gt;
+  &lt;/Label.ContentTemplate&gt;
+&lt;/Label&gt;</code></pre>
+                    <h3>Label with a content template</h3>
                     <pre><code class="language-xml">&lt;Label Target="SearchBox"
        Padding="8,4"
        Background="#122233"
@@ -243,30 +256,18 @@
                Foreground="#89A9C3" /&gt;
   &lt;/StackPanel&gt;
 &lt;/Label&gt;</code></pre>
-                    <h3>Label with a content template</h3>
-                    <pre><code class="language-xml">&lt;Label Content="{Binding ActiveProfile}"
-       Padding="8"&gt;
-  &lt;Label.ContentTemplate&gt;
-    &lt;DataTemplate&gt;
-      &lt;StackPanel Orientation="Horizontal"&gt;
-        &lt;TextBlock Text="Profile: " FontWeight="Bold" /&gt;
-        &lt;TextBlock Text="{Binding}" /&gt;
-      &lt;/StackPanel&gt;
-    &lt;/DataTemplate&gt;
-  &lt;/Label.ContentTemplate&gt;
-&lt;/Label&gt;</code></pre>
                 </section>
                 <section class="doc-section">
                     <h2>Target and access keys</h2>
-                    <p><code>Label.Target</code> gives the control real caption semantics. When the label contains a mnemonic such as <code>_Name</code>, the access-key pipeline can move focus to the target control.</p>
+                    <p><code>Label.Target</code> connects the label to another control. When the label content includes a mnemonic marker such as <code>_Name</code>, the label can participate in access-key activation and route focus to the target.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
                             <h3>Target resolution</h3>
-                            <p>You can assign <code>Target</code> with a direct object reference, with <code>{x:Reference ...}</code>, or with a plain element name such as <code>Target="UserNameBox"</code>.</p>
+                            <p>You can assign <code>Target</code> with a direct object reference, with <code>{x:Reference ...}</code>, or with a named element such as <code>Target="UserNameBox"</code>.</p>
                         </article>
                         <article class="doc-card">
                             <h3>Automation</h3>
-                            <p>Assigning <code>Target</code> also updates <code>AutomationProperties.LabeledBy</code> on the target, which improves accessibility and automation lookup behavior.</p>
+                            <p>Assigning <code>Target</code> updates <code>AutomationProperties.LabeledBy</code> on the target so automation consumers can discover the relationship.</p>
                         </article>
                     </div>
                     <h3>Named target</h3>
@@ -281,28 +282,41 @@
            Width="260" /&gt;
   &lt;Label Target="{x:Reference PasswordBox}"&gt;_Password&lt;/Label&gt;
 &lt;/StackPanel&gt;</code></pre>
+                    <h3>Explicit <code>AccessText</code> content</h3>
+                    <pre><code class="language-xml">&lt;Label Target="SaveButton"
+       Padding="6,2"&gt;
+  &lt;AccessText Text="_Save" /&gt;
+&lt;/Label&gt;
+
+&lt;Button x:Name="SaveButton"
+        Text="Save now" /&gt;</code></pre>
                     <div class="callout doc-callout">
-                        <p><strong>Access-key rule:</strong> the mnemonic is recognized from the label's presented content. If the label is just decorative text, use <code>TextBlock</code> instead of adding stray access-key semantics.</p>
+                        <p><strong>Access-key rule:</strong> use mnemonic markers only for labels that are meant to activate a target. For decorative text, prefer <code>TextBlock</code> or a plain label string without a mnemonic marker.</p>
                     </div>
                 </section>
                 <section class="doc-section">
-                    <h2>Layout, template, and styling</h2>
-                    <p>The default label template is a bordered content host. Unlike the old implementation, chrome and inner spacing are real parts of the control surface.</p>
+                    <h2>Layout and rendering</h2>
+                    <p>The default label template wraps the content in a bordered content host. The label measures around its content plus template chrome and arranges the content inside the padded inner rectangle.</p>
                     <div class="doc-grid">
                         <article class="doc-card">
+                            <h3>Desired size</h3>
+                            <p>The desired size grows from the presented content size plus horizontal and vertical padding and border thickness.</p>
+                        </article>
+                        <article class="doc-card">
                             <h3>Chrome</h3>
-                            <p><code>Background</code>, <code>BorderBrush</code>, and <code>BorderThickness</code> apply through the default template.</p>
+                            <p><code>Background</code>, <code>BorderBrush</code>, and <code>BorderThickness</code> render through the control template rather than through a separate wrapper.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>Inner spacing</h3>
-                            <p><code>Padding</code> changes both desired size and the content placement inside the label.</p>
-                        </article>
-                        <article class="doc-card">
-                            <h3>Alignment</h3>
-                            <p><code>HorizontalContentAlignment</code> and <code>VerticalContentAlignment</code> control how hosted content is arranged inside the template.</p>
+                            <h3>Content placement</h3>
+                            <p><code>Padding</code>, <code>HorizontalContentAlignment</code>, and <code>VerticalContentAlignment</code> determine where the hosted content sits inside the label surface.</p>
                         </article>
                     </div>
-                    <h3>Styled label surface</h3>
+                    <ul>
+                        <li>Empty content produces a small or empty label surface depending on style setters and size constraints.</li>
+                        <li>Text wrapping depends on the content element that ultimately renders the text, such as <code>TextBlock</code> or <code>AccessText</code>.</li>
+                        <li>Font and foreground properties flow to generated text presentation just like other inherited text properties.</li>
+                    </ul>
+                    <h3>Styled caption surface</h3>
                     <pre><code class="language-xml">&lt;Label Content="Connection"
        Padding="10,6"
        Background="#112031"
@@ -330,38 +344,64 @@
 &lt;/Style&gt;</code></pre>
                 </section>
                 <section class="doc-section">
-                    <h2>Where labels appear automatically</h2>
-                    <p>The framework still creates <code>Label</code> instances in some presentation fallbacks. Those generated labels now participate in the same real control pipeline as hand-authored labels.</p>
+                    <h2>XAML authoring rules</h2>
+                    <p>Because <code>Label</code> is a single-content control, its XAML rules are simple but strict.</p>
                     <div class="doc-grid">
                         <article class="doc-card">
-                            <h3>ContentPresenter fallback</h3>
-                            <p>Plain content with no template can be materialized as a generated label, with fonts and foreground copied from the owning control.</p>
+                            <h3>Text nodes</h3>
+                            <p>You can write plain text inside the element body, for example <code>&lt;Label&gt;Name&lt;/Label&gt;</code>.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>Header fallback</h3>
-                            <p><code>HeaderedItemsControl</code> can generate a label for plain-data headers when no header template is supplied.</p>
+                            <h3>Single implicit child</h3>
+                            <p>You can provide one implicit visual child, such as <code>TextBlock</code> or <code>StackPanel</code>.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>Access-key aware text</h3>
-                            <p>When a presenter recognizes access keys, generated text content is surfaced through <code>AccessText</code> instead of a raw text leaf.</p>
+                            <h3>No mixed implicit content</h3>
+                            <p>Do not mix non-whitespace text-node content with an implicit visual child at the same level.</p>
                         </article>
                     </div>
-                    <pre><code class="language-xml">&lt;ContentControl Content="Build succeeded" /&gt;</code></pre>
-                    <p>That content may end up presented by a generated <code>Label</code> if no explicit template or visual child is supplied.</p>
+                    <h3>Valid text-node content</h3>
+                    <pre><code class="language-xml">&lt;Label&gt;_Project name&lt;/Label&gt;</code></pre>
+                    <h3>Valid visual child</h3>
+                    <pre><code class="language-xml">&lt;Label Target="NotesBox"&gt;
+  &lt;TextBlock Text="Notes"
+             FontWeight="Bold" /&gt;
+&lt;/Label&gt;</code></pre>
                 </section>
                 <section class="doc-section">
-                    <h2>Notes and pitfalls</h2>
+                    <h2>Common patterns</h2>
+                    <h3>Form caption</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;Label Target="EmailBox"
+         Margin="0,0,0,6"&gt;_Email address&lt;/Label&gt;
+  &lt;TextBox x:Name="EmailBox"
+           Width="280" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Small status badge</h3>
+                    <pre><code class="language-xml">&lt;Label Content="ONLINE"
+       Padding="8,3"
+       Background="#1D3A2A"
+       BorderBrush="#4BA36E"
+       BorderThickness="1"
+       Foreground="#DDF7E6" /&gt;</code></pre>
+                    <h3>Data-bound caption</h3>
+                    <pre><code class="language-xml">&lt;Label Content="{Binding ActiveProfileName}"
+       Padding="6,2"
+       Foreground="#D9E7F5" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and guidance</h2>
                     <div class="callout doc-callout">
-                        <p><strong>No primary <code>Text</code> property.</strong> Migrate old code to <code>Content</code> or to a child <code>TextBlock</code> when you want explicit text rendering behavior.</p>
+                        <p><strong>Use <code>Content</code> for simple captions.</strong> Reach for a child visual or <code>ContentTemplate</code> only when the label needs richer structure.</p>
                     </div>
                     <div class="callout doc-callout">
-                        <p><strong>Use <code>TextBlock</code> for raw text.</strong> Calendar headers, status text, dense item visuals, and text-heavy rendering surfaces should usually stay on <code>TextBlock</code>.</p>
+                        <p><strong>Use <code>Target</code> for real field labels.</strong> That keeps access keys and automation metadata aligned with the control the user is meant to interact with.</p>
                     </div>
                     <div class="callout doc-callout">
-                        <p><strong>Do not mix implicit text and child visuals.</strong> A single-content control can have text-node content or an implicit child, not both at the same level.</p>
+                        <p><strong>Use <code>TextBlock</code> for dense text-only surfaces.</strong> Lists, diagnostics panes, and other text-heavy displays usually read more clearly when they are authored as direct text elements instead of labels.</p>
                     </div>
                     <div class="callout doc-callout">
-                        <p><strong><code>Target</code> matters for semantics.</strong> If the label describes an input, wire the target so focus and automation behavior stay correct.</p>
+                        <p><strong>Keep implicit content unambiguous.</strong> A label body can contain text or one implicit child. If you need more structure, put that structure under a single panel or template.</p>
                     </div>
                 </section>
                 <nav class="doc-pagination" aria-label="Page navigation">
