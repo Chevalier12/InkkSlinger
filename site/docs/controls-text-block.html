@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - TextBlock</title>
-    <meta name="description" content="TextBlock control reference.">
+    <meta name="description" content="Technical manual for the TextBlock control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,257 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>TextBlock</h1>
-                    <p>WIP</p>
+                    <p><code>TextBlock</code> is the framework's lightweight read-only text element. Use it to render labels, captions, status text, headings, and bound string values without the editing behavior of <code>TextBox</code>.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p><code>TextBlock</code> renders plain text. Its main inputs are <code>Text</code>, <code>Foreground</code>, <code>TextWrapping</code>, and the inherited font properties from <code>FrameworkElement</code>.</p>
+                    <h3>Minimal text</h3>
+                    <pre><code class="language-xml">&lt;TextBlock Text="Ready." /&gt;</code></pre>
+                    <h3>Styled label</h3>
+                    <pre><code class="language-xml">&lt;TextBlock Text="Build completed"
+           Foreground="#AEE7FF"
+           FontSize="18"
+           FontWeight="Bold" /&gt;</code></pre>
+                    <h3>Wrapped paragraph</h3>
+                    <pre><code class="language-xml">&lt;Border Width="320" Padding="12" Background="#16212D"&gt;
+  &lt;TextBlock Text="This paragraph wraps to the available width of its container."
+             TextWrapping="Wrap" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> prefer <code>TextBlock</code> for display-only text. If users need to edit text, switch to <code>TextBox</code> or <code>RichTextBox</code>.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>When to use TextBlock</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Good fits</h3>
+                            <p>Static labels, data-bound text, headers, helper text, diagnostics, counters, and compact text inside templates.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Not a fit</h3>
+                            <p>Editable text, inline rich formatting, selectable text, or scenarios that depend on WPF's <code>Inlines</code>, trimming, or brush-based text APIs.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>TextBlock</code> is a <code>FrameworkElement</code>, not a <code>Control</code>.</li>
+                        <li>It does not expose a content model. The rendered value comes from <code>Text</code>.</li>
+                        <li>It is intentionally lightweight and optimized for common read-only text scenarios.</li>
+                    </ul>
+                </section>
+                <section class="doc-section">
+                    <h2>Text and line breaking</h2>
+                    <p>The <code>Text</code> property is a string dependency property. You can set it directly, bind it, or assign it with property-element syntax.</p>
+                    <h3>Direct string assignment</h3>
+                    <pre><code class="language-xml">&lt;TextBlock Text="Server: online" /&gt;</code></pre>
+                    <h3>Binding to a view model property</h3>
+                    <pre><code class="language-xml">&lt;TextBlock Text="{Binding StatusMessage}" /&gt;</code></pre>
+                    <h3>Property-element syntax</h3>
+                    <pre><code class="language-xml">&lt;TextBlock&gt;
+  &lt;TextBlock.Text&gt;
+    Bound or explicit text still ends up in the same Text property.
+  &lt;/TextBlock.Text&gt;
+&lt;/TextBlock&gt;</code></pre>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Explicit new lines</h3>
+                            <p><code>\r</code>, <code>\n</code>, and <code>\r\n</code> split the text into separate logical lines regardless of wrapping mode.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Single-line default</h3>
+                            <p><code>TextWrapping</code> defaults to <code>NoWrap</code>, so a single logical line measures at its intrinsic width.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Token-based wrapping</h3>
+                            <p>Wrapped layout breaks at whitespace when possible and breaks long tokens into smaller pieces only when they cannot fit.</p>
+                        </article>
+                    </div>
+                    <h3>Multi-line text from explicit line breaks</h3>
+                    <pre><code class="language-xml">&lt;TextBlock Text="Line one&#10;Line two&#10;Line three" /&gt;</code></pre>
+                    <h3>Long token wrapping</h3>
+                    <pre><code class="language-xml">&lt;Border Width="180" Padding="8" Background="#131C27"&gt;
+  &lt;TextBlock Text="DiagnosticIdentifier_ThisIsAVeryLongTokenWithoutSpaces"
+             TextWrapping="Wrap" /&gt;
+&lt;/Border&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout behavior</h2>
+                    <p><code>TextBlock</code> measures to the size required by its laid out text. The available width only matters when wrapping is enabled or when the text already contains explicit line breaks.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3><code>TextWrapping="NoWrap"</code></h3>
+                            <p>Single-line text measures to its intrinsic width and one line height. This is the fast path and is reused aggressively when only the available size changes.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>TextWrapping="Wrap"</code></h3>
+                            <p>The available width becomes a layout input. Narrower widths can increase the number of lines and therefore the measured height.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Empty or null <code>Text</code> measures to <code>0 x 0</code>.</li>
+                        <li>Desired height grows as the line count grows.</li>
+                        <li>Increasing <code>FontSize</code> increases the measured height.</li>
+                        <li>Normal layout properties such as <code>Width</code>, <code>Height</code>, <code>Margin</code>, <code>MinWidth</code>, and <code>MaxWidth</code> still apply because <code>TextBlock</code> inherits from <code>FrameworkElement</code>.</li>
+                    </ul>
+                    <h3>Wrapping depends on container width</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;Border Width="320" Padding="10" Background="#1A2431"&gt;
+    &lt;TextBlock Text="The wider container keeps this on fewer lines."
+               TextWrapping="Wrap" /&gt;
+  &lt;/Border&gt;
+
+  &lt;Border Width="180" Padding="10" Margin="0,8,0,0" Background="#1A2431"&gt;
+    &lt;TextBlock Text="The narrower container produces more wrapped lines."
+               TextWrapping="Wrap" /&gt;
+  &lt;/Border&gt;
+&lt;/StackPanel&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Rendering and appearance</h2>
+                    <p><code>TextBlock</code> renders each produced line with the resolved typography and <code>Foreground</code> color. Element <code>Opacity</code> is applied during drawing.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3><code>Foreground</code></h3>
+                            <p>The text color. The default is white. In this framework it is a <code>Color</code> value, not a brush object.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Font properties</h3>
+                            <p><code>FontFamily</code>, <code>FontSize</code>, <code>FontWeight</code>, and <code>FontStyle</code> are inherited from ancestor elements unless overridden locally.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>No text background</h3>
+                            <p><code>TextBlock</code> only renders text. If you need chrome behind it, place it inside a <code>Border</code>, <code>Grid</code>, or another container.</p>
+                        </article>
+                    </div>
+                    <h3>Simple emphasis</h3>
+                    <pre><code class="language-xml">&lt;TextBlock Text="Critical"
+           Foreground="#FF8C82"
+           FontWeight="Bold"
+           FontSize="20" /&gt;</code></pre>
+                    <h3>Dim secondary copy</h3>
+                    <pre><code class="language-xml">&lt;TextBlock Text="Last synced 2 minutes ago"
+           Foreground="#8BA1B8"
+           Opacity="0.9" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Typography inheritance</h2>
+                    <p>Because the font properties are inherited dependency properties, a parent container can define typography once and child <code>TextBlock</code> elements pick it up automatically.</p>
+                    <pre><code class="language-xml">&lt;StackPanel FontFamily="Segoe UI"
+            FontSize="16"
+            FontWeight="Normal"&gt;
+  &lt;TextBlock Text="Section title" FontWeight="Bold" FontSize="22" /&gt;
+  &lt;TextBlock Text="Shared family and base size come from the parent." /&gt;
+  &lt;TextBlock Text="This one also inherits them." Foreground="#9FC2D9" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default values:</strong> <code>FontSize</code> defaults to <code>12</code>, <code>FontWeight</code> defaults to <code>Normal</code>, and <code>FontStyle</code> defaults to <code>Normal</code>.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Primary properties</h3>
+                            <p><code>Text</code>: the string to render. Empty text produces no visible output and measures to zero.</p>
+                            <p><code>Foreground</code>: a <code>Color</code> used for drawing text. Default: white.</p>
+                            <p><code>TextWrapping</code>: <code>NoWrap</code>, <code>Wrap</code>, or <code>WrapWithOverflow</code>. Default: <code>NoWrap</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Inherited layout and font properties</h3>
+                            <p><code>FontFamily</code>, <code>FontSize</code>, <code>FontWeight</code>, <code>FontStyle</code>: control typography.</p>
+                            <p><code>Margin</code>, <code>Width</code>, <code>Height</code>, <code>MinWidth</code>, <code>MaxWidth</code>, and alignment properties: participate in normal layout.</p>
+                            <p><code>Opacity</code>: multiplies the rendered text color during drawing.</p>
+                        </article>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Current implementation note:</strong> <code>WrapWithOverflow</code> goes through the same wrapped layout path as <code>Wrap</code> today. Do not rely on distinct WPF overflow semantics here unless the framework documents that separately in a future release.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Dialog header and body copy</h3>
+                    <pre><code class="language-xml">&lt;StackPanel Width="420"&gt;
+  &lt;TextBlock Text="Delete saved capture?"
+             FontSize="24"
+             FontWeight="Bold"
+             Margin="0,0,0,8" /&gt;
+  &lt;TextBlock Text="This action permanently removes the local file and cannot be undone."
+             TextWrapping="Wrap"
+             Foreground="#AFC3D6" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Value label pair</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;TextBlock Text="FPS" Foreground="#7F96AB" /&gt;
+  &lt;TextBlock Text="{Binding FramesPerSecond}"
+             FontSize="28"
+             FontWeight="Bold" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Status line inside chrome</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#172331"
+        BorderBrush="#36506B"
+        BorderThickness="1"
+        Padding="10,8"&gt;
+  &lt;TextBlock Text="{Binding ConnectionSummary}"
+             Foreground="#D6EEFF" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Template content</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="HeadlineLabelStyle" TargetType="{x:Type Label}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type Label}"&gt;
+        &lt;Border Background="#111A24" Padding="12,8"&gt;
+          &lt;TextBlock Text="{TemplateBinding Content}"
+                     FontSize="18"
+                     FontWeight="Bold" /&gt;
+        &lt;/Border&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                    <h3>Dense diagnostics column</h3>
+                    <pre><code class="language-xml">&lt;StackPanel FontFamily="Consolas" FontSize="14"&gt;
+  &lt;TextBlock Text="Frame 000128" /&gt;
+  &lt;TextBlock Text="Draw calls: 54" /&gt;
+  &lt;TextBlock Text="Dirty regions: 3" /&gt;
+  &lt;TextBlock Text="Renderer: retained" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Performance notes</h2>
+                    <p><code>TextBlock</code> includes layout caching and an optimized intrinsic measurement path for common display text cases.</p>
+                    <ul>
+                        <li>Single-line <code>NoWrap</code> text avoids the more expensive wrapped layout builder.</li>
+                        <li>Wrapped single-line text can still reuse measurement work when the available width stays above the intrinsic line width.</li>
+                        <li>Changing <code>Text</code>, <code>TextWrapping</code>, <code>FontSize</code>, <code>FontFamily</code>, <code>FontWeight</code>, or <code>FontStyle</code> invalidates the cached layout.</li>
+                        <li>If you have many read-only labels, <code>TextBlock</code> is the intended primitive.</li>
+                    </ul>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical guidance:</strong> use <code>NoWrap</code> for short labels and counters when possible. Enable wrapping when readability matters more than the extra layout work.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Differences from WPF to keep in mind</h2>
+                    <div class="callout doc-callout">
+                        <p><strong><code>Foreground</code> is a color, not a brush.</strong> Examples should use values that resolve to <code>Color</code>, such as <code>#AEE7FF</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No inline rich text model.</strong> This control renders a plain string. If you need access-key parsing, use <code>AccessText</code>; if you need rich document content, use <code>RichTextBox</code> or <code>DocumentViewer</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No WPF text trimming API is documented here.</strong> If text must fit, control that with layout, wrapping, or alternative UI patterns rather than assuming ellipsis behavior.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-tab-item.html">
+                        <span>Previous</span>
+                        <strong>TabItem</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-text-box.html">
+                        <span>Next</span>
+                        <strong>TextBox</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
