@@ -16,6 +16,7 @@
     >
     <link rel="stylesheet" href="../styles.css">
     <link rel="stylesheet" href="./docs.css">
+    <script src="./docs.js" defer></script>
 </head>
 <body class="docs-page">
     <div class="page-shell docs-shell">
@@ -27,16 +28,20 @@
                     <span>RenderSurface</span>
                 </span>
             </a>
-            <nav class="site-nav" aria-label="Primary">
-                <a href="./index.html">Docs Home</a>
-                <a href="./getting-started.html">Getting Started</a>
-                <a href="#rendersurface-modes">Modes</a>
-                <a class="nav-cta" href="https://github.com/Chevalier12/InkkSlinger">GitHub</a>
-            </nav>
+            <div class="docs-header-controls">
+                <button
+                    type="button"
+                    class="sidebar-toggle"
+                    data-sidebar-toggle
+                    aria-controls="docs-sidebar"
+                    aria-expanded="true">
+                    Hide navigation
+                </button>
+            </div>
         </header>
 
         <main class="docs-layout">
-            <aside class="docs-sidebar" aria-label="Documentation tree">
+            <aside class="docs-sidebar" id="docs-sidebar" aria-label="Documentation tree">
                 <p class="sidebar-label">Docs tree</p>
                 <nav class="tree-nav">
                     <ul>

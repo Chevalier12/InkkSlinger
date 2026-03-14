@@ -16,6 +16,7 @@
     >
     <link rel="stylesheet" href="../styles.css">
     <link rel="stylesheet" href="./docs.css">
+    <script src="./docs.js" defer></script>
 </head>
 <body class="docs-page">
     <div class="page-shell docs-shell">
@@ -27,16 +28,20 @@
                     <span>Documentation index</span>
                 </span>
             </a>
-            <nav class="site-nav" aria-label="Primary">
-                <a href="../index.html">Overview</a>
-                <a href="./getting-started.html">Getting Started</a>
-                <a href="./rendersurface.html">RenderSurface</a>
-                <a class="nav-cta" href="https://github.com/Chevalier12/InkkSlinger">GitHub</a>
-            </nav>
+            <div class="docs-header-controls">
+                <button
+                    type="button"
+                    class="sidebar-toggle"
+                    data-sidebar-toggle
+                    aria-controls="docs-sidebar"
+                    aria-expanded="true">
+                    Hide navigation
+                </button>
+            </div>
         </header>
 
         <main class="docs-layout">
-            <aside class="docs-sidebar" aria-label="Documentation tree">
+            <aside class="docs-sidebar" id="docs-sidebar" aria-label="Documentation tree">
                 <p class="sidebar-label">Docs tree</p>
                 <nav class="tree-nav">
                     <ul>
@@ -66,15 +71,6 @@
             </aside>
 
             <article class="docs-content">
-                <div class="doc-hero">
-                    <p class="eyebrow">Documentation</p>
-                    <h1>Separate pages by topic.</h1>
-                    <p>
-                        The docs are now split into topic pages instead of one continuously growing page. That keeps
-                        navigation predictable and avoids turning the right-side content pane into a long, ever-growing stream.
-                    </p>
-                </div>
-
                 <section class="doc-section">
                     <h2>Available pages</h2>
                     <div class="doc-grid two-up">
