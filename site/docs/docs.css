@@ -270,14 +270,30 @@
     margin-top: 36px;
     padding-top: 24px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
+    align-items: stretch;
 }
 
 .pager-link {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: min(100%, 320px);
+    min-height: 96px;
     padding: 16px 18px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+        linear-gradient(135deg, rgba(255, 159, 67, 0.12), rgba(79, 209, 197, 0.07));
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--radius-md);
+    box-shadow:
+        0 18px 40px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    text-decoration: none;
+    transition:
+        transform 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        background 160ms ease;
 }
 
 .pager-link span {
@@ -297,9 +313,41 @@
     line-height: 1.5;
 }
 
+.doc-pagination .pager-link:first-child {
+    justify-self: start;
+    text-align: left;
+    align-items: flex-start;
+}
+
+.doc-pagination .pager-link:last-child {
+    justify-self: end;
+    text-align: right;
+    align-items: flex-end;
+}
+
+.doc-pagination .pager-link:first-child span::before {
+    content: "< ";
+}
+
+.doc-pagination .pager-link:last-child span::after {
+    content: " >";
+}
+
 .pager-link:hover,
 .pager-link:focus-visible {
-    background: rgba(255, 255, 255, 0.06);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+        linear-gradient(135deg, rgba(255, 159, 67, 0.18), rgba(79, 209, 197, 0.1));
+    border-color: rgba(255, 159, 67, 0.35);
+    box-shadow:
+        0 22px 48px rgba(0, 0, 0, 0.22),
+        0 0 0 1px rgba(255, 159, 67, 0.08);
+    transform: translateY(-1px);
+}
+
+.pager-link:focus-visible {
+    outline: 2px solid rgba(79, 209, 197, 0.42);
+    outline-offset: 2px;
 }
 
 @media (max-width: 1080px) {
@@ -313,6 +361,22 @@
 
     .docs-sidebar {
         position: static;
+    }
+
+    .doc-pagination .pager-link:first-child,
+    .doc-pagination .pager-link:last-child {
+        justify-self: stretch;
+        width: 100%;
+        text-align: left;
+        align-items: flex-start;
+    }
+
+    .doc-pagination .pager-link:last-child span::after {
+        content: "";
+    }
+
+    .doc-pagination .pager-link:last-child span::before {
+        content: "> ";
     }
 }
 
