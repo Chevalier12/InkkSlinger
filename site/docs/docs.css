@@ -56,9 +56,9 @@
 .docs-sidebar {
     position: sticky;
     top: 18px;
-    max-height: calc(100vh - 36px);
-    overflow-y: auto;
-    scrollbar-gutter: stable;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 36px);
     padding: 20px 18px;
 }
 
@@ -75,6 +75,14 @@
     padding-left: 0;
     margin: 0;
     list-style: none;
+}
+
+.tree-nav {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    padding-right: 4px;
 }
 
 .tree-node > a,
@@ -377,8 +385,13 @@
 
     .docs-sidebar {
         position: static;
-        max-height: none;
+        display: block;
+        height: auto;
+    }
+
+    .tree-nav {
         overflow-y: visible;
+        padding-right: 0;
     }
 
     .doc-pagination .pager-link:first-child,
