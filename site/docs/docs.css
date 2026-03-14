@@ -1,0 +1,190 @@
+.docs-page {
+    background:
+        radial-gradient(circle at top left, rgba(79, 209, 197, 0.08), transparent 24%),
+        linear-gradient(180deg, #07111a 0%, #050b10 100%);
+}
+
+.docs-shell {
+    width: min(calc(100% - 24px), 1320px);
+}
+
+.docs-header {
+    margin-bottom: 24px;
+}
+
+.docs-layout {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+.docs-sidebar,
+.docs-content {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow);
+}
+
+.docs-sidebar {
+    position: sticky;
+    top: 18px;
+    padding: 20px 18px;
+}
+
+.sidebar-label {
+    margin: 0 0 14px;
+    color: var(--accent-cool);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.tree-nav ul {
+    padding-left: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.tree-node > a,
+.tree-node ul a {
+    display: block;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: var(--text);
+}
+
+.tree-node > a {
+    background: rgba(255, 255, 255, 0.04);
+    font-weight: 700;
+}
+
+.tree-node ul {
+    margin-top: 10px;
+    padding-left: 14px;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tree-node ul a {
+    margin-top: 4px;
+    color: var(--muted);
+}
+
+.tree-nav a:hover,
+.tree-nav a:focus-visible {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+}
+
+.docs-content {
+    padding: 28px;
+}
+
+.doc-hero {
+    margin-bottom: 28px;
+}
+
+.doc-hero h1 {
+    margin: 0 0 18px;
+    font-size: clamp(2.6rem, 5vw, 4.4rem);
+    line-height: 0.98;
+    letter-spacing: -0.05em;
+}
+
+.doc-hero p,
+.doc-section p {
+    max-width: 72ch;
+    color: var(--muted);
+    line-height: 1.78;
+}
+
+.doc-section + .doc-section {
+    margin-top: 34px;
+    padding-top: 28px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-section h2 {
+    margin: 0 0 14px;
+    font-size: 2rem;
+    letter-spacing: -0.04em;
+}
+
+.doc-section h3 {
+    margin: 22px 0 12px;
+    font-size: 1.15rem;
+}
+
+.doc-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.doc-card,
+.doc-callout {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+}
+
+.doc-card {
+    padding: 18px;
+}
+
+.doc-card h3 {
+    margin-top: 0;
+}
+
+.doc-card p {
+    margin-bottom: 0;
+}
+
+.docs-content pre {
+    margin: 0;
+    padding: 20px;
+    overflow: auto;
+    background: rgba(0, 0, 0, 0.24);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: var(--radius-md);
+    color: #dff8f4;
+    line-height: 1.8;
+}
+
+.doc-callout {
+    margin-top: 18px;
+    padding: 18px;
+    background:
+        linear-gradient(135deg, rgba(255, 159, 67, 0.12), rgba(79, 209, 197, 0.08)),
+        rgba(255, 255, 255, 0.03);
+}
+
+.doc-callout p {
+    margin: 0;
+    max-width: none;
+}
+
+@media (max-width: 1080px) {
+    .docs-layout,
+    .doc-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .docs-sidebar {
+        position: static;
+    }
+}
+
+@media (max-width: 720px) {
+    .docs-content {
+        padding: 20px;
+    }
+
+    .doc-hero h1 {
+        font-size: clamp(2.2rem, 10vw, 3rem);
+    }
+}
