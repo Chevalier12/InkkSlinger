@@ -114,6 +114,8 @@
         <xs:element ref="Page" />
         <xs:element ref="ScrollBar" />
         <xs:element ref="ScrollViewer" />
+        <xs:element ref="InkCanvas" />
+        <xs:element ref="InkPresenter" />
         <xs:element ref="Viewbox" />
         <xs:element ref="Separator" />
         <xs:element ref="Slider" />
@@ -1933,6 +1935,25 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="inkCanvasType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="EditingMode" type="xs:string" />
+        <xs:attribute name="UseCustomCursor" type="xs:boolean" />
+        <xs:attribute name="Background" type="colorType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="inkPresenterType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="StrokeColor" type="colorType" />
+        <xs:attribute name="StrokeThickness" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="viewboxType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
@@ -2542,6 +2563,8 @@
   <xs:element name="Page" type="pageType" />
   <xs:element name="ScrollBar" type="scrollBarType" />
   <xs:element name="ScrollViewer" type="scrollViewerType" />
+  <xs:element name="InkCanvas" type="inkCanvasType" />
+  <xs:element name="InkPresenter" type="inkPresenterType" />
   <xs:element name="Viewbox" type="viewboxType" />
   <xs:element name="RenderSurface" type="renderSurfaceType" />
   <xs:element name="Separator" type="separatorType" />

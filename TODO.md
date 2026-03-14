@@ -182,8 +182,8 @@ explicitly unsupported until `InkCanvas` and `InkPresenter` are implemented.
 - [x] HeaderedContentControl
 - [x] HeaderedItemsControl
 - [x] Image
-- [ ] InkCanvas (bounty: https://github.com/Chevalier12/InkkSlinger/issues/3)
-- [ ] InkPresenter (bounty: https://github.com/Chevalier12/InkkSlinger/issues/3)
+- [x] InkCanvas (bounty: https://github.com/Chevalier12/InkkSlinger/issues/3)
+- [x] InkPresenter (bounty: https://github.com/Chevalier12/InkkSlinger/issues/3)
 - [x] ItemsControl
 - [x] Label
 - [x] ListBox

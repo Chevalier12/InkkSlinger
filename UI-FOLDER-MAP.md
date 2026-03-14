@@ -150,6 +150,8 @@ UI/
       DatePicker.cs
       IHyperlinkHoverHost.cs
       ITextInputControl.cs
+      InkCanvas.cs
+      InkPresenter.cs
       PasswordBox.cs
       RichTextBox.cs
       RichTextBox.FormattingEngine.cs
@@ -260,6 +262,8 @@ UI/
       FocusManager.cs
       InputGestureService.cs
       InputManager.cs
+    Ink
+      InkStrokeModel.cs
     State
       InputDelta.cs
       InputDispatchState.cs

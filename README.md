@@ -133,8 +133,8 @@ This matrix is compiled from a full pass over `TODO.md`, `UI/` source limitation
 
 | Area | Gap / Limitation | Evidence | State |
 |---|---|---|---|
-| Control coverage | `InkCanvas` | `TODO.md` (`## WPF Control Coverage`) | Not implemented ([bounty #3](https://github.com/Chevalier12/InkkSlinger/issues/3)) |
-| Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Not implemented ([bounty #3](https://github.com/Chevalier12/InkkSlinger/issues/3)) |
+| Control coverage | `InkCanvas` | `TODO.md` (`## WPF Control Coverage`) | Implemented (bounty #3) |
+| Control coverage | `InkPresenter` | `TODO.md` (`## WPF Control Coverage`) | Implemented (bounty #3) |
 | Control coverage | `MediaElement` | `TODO.md` (`## WPF Control Coverage`) | Not implemented ([bounty #5](https://github.com/Chevalier12/InkkSlinger/issues/5)) |
 | Parity track | Advanced adorner/layout composition depth | `TODO.md` (`## WPF Parity Gaps`) | Implemented |
 | Parity track | Windowing/popup edge parity and interaction depth | `TODO.md` (`## WPF Parity Gaps`) | Implemented |
