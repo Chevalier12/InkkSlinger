@@ -238,7 +238,7 @@
                             <h3>Best-supported item shapes</h3>
                             <p>Strings and other values with useful <code>ToString()</code> output.</p>
                             <p><code>ComboBoxItem</code> with <code>Text</code> set.</p>
-                            <p><code>Label</code> items whose <code>Text</code> should be used directly.</p>
+                            <p><code>Label</code> items whose content resolves to meaningful caption text.</p>
                         </article>
                         <article class="doc-card">
                             <h3>Use caution with arbitrary visuals</h3>
@@ -248,7 +248,7 @@
                     <p>The current display resolution rules are, in order:</p>
                     <ul>
                         <li><code>ComboBoxItem.Text</code> when it is non-empty.</li>
-                        <li>A nested <code>Label.Text</code> when the item content is a <code>Label</code>.</li>
+                        <li>Resolved text from a nested <code>Label</code> when the item content is a label.</li>
                         <li>The item's <code>ToString()</code> result.</li>
                     </ul>
                     <h3>Safe pattern for explicit captions</h3>

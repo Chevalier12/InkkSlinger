@@ -47,7 +47,7 @@ public sealed class ControlDemoDataGridSampleTests
         Assert.DoesNotContain(
             uiRoot.GetRetainedVisualOrderForTests(),
             static visual => visual is Label label &&
-                             string.Equals(label.Text, "InkkSlinger.ControlDemoSupport+DemoRow", StringComparison.Ordinal));
+                             string.Equals(label.GetContentText(), "InkkSlinger.ControlDemoSupport+DemoRow", StringComparison.Ordinal));
     }
 
     [Fact]

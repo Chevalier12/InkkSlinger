@@ -185,11 +185,11 @@ public sealed class AppXmlPhase1CompatibilityTests
         var border = Assert.IsType<Border>(Assert.Single(button.GetVisualChildren()));
         var presenter = Assert.IsType<ContentPresenter>(Assert.Single(border.GetVisualChildren()));
         var label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-        Assert.Equal("FromText", label.Text);
+        Assert.Equal("FromText", label.GetContentText());
 
         button.Text = "UpdatedText";
         label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-        Assert.Equal("UpdatedText", label.Text);
+        Assert.Equal("UpdatedText", label.GetContentText());
     }
 
     [Fact]
@@ -223,11 +223,11 @@ public sealed class AppXmlPhase1CompatibilityTests
         var border = Assert.IsType<Border>(Assert.Single(button.GetVisualChildren()));
         var presenter = Assert.IsType<ContentPresenter>(Assert.Single(border.GetVisualChildren()));
         var label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-        Assert.Equal("ExplicitContent", label.Text);
+        Assert.Equal("ExplicitContent", label.GetContentText());
 
         button.Text = "ChangedText";
         label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-        Assert.Equal("ExplicitContent", label.Text);
+        Assert.Equal("ExplicitContent", label.GetContentText());
     }
 
     [Fact]

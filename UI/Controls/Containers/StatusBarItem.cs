@@ -46,7 +46,7 @@ public class StatusBarItem : ContentControl
                 new Thickness(6f, 3f, 6f, 3f),
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
-    public static readonly DependencyProperty HorizontalContentAlignmentProperty =
+    public new static readonly DependencyProperty HorizontalContentAlignmentProperty =
         DependencyProperty.Register(
             nameof(HorizontalContentAlignment),
             typeof(HorizontalAlignment),
@@ -83,7 +83,7 @@ public class StatusBarItem : ContentControl
         set => SetValue(PaddingProperty, value);
     }
 
-    public HorizontalAlignment HorizontalContentAlignment
+    public new HorizontalAlignment HorizontalContentAlignment
     {
         get => GetValue<HorizontalAlignment>(HorizontalContentAlignmentProperty);
         set => SetValue(HorizontalContentAlignmentProperty, value);

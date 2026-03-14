@@ -49,7 +49,7 @@ public partial class ControlsCatalogView : UserControl
     {
         if (_selectedControlLabel != null)
         {
-            _selectedControlLabel.Text = $"Selected: {GetDisplayName(controlName)}";
+            _selectedControlLabel.Content = $"Selected: {GetDisplayName(controlName)}";
         }
 
         if (_previewHost != null)
@@ -152,7 +152,7 @@ public sealed class MissingControlView : UserControl
     {
         Content = new Label
         {
-            Text = $"Missing generated view for {controlName}",
+            Content = $"Missing generated view for {controlName}",
             Foreground = new Color(232, 245, 255)
         };
     }

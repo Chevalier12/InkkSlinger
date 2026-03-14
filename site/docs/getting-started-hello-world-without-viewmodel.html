@@ -173,7 +173,7 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Getting Started</p>
                     <h1>Hello World without a ViewModel</h1>
-                    <p>Start here if you just want to get pixels on the screen. This version uses XML for the view and regular code-behind to update a named label.</p>
+                    <p>Start here if you just want to get pixels on the screen. This version uses XML for the view and regular code-behind to update a named label through its content.</p>
                 </div>
                 <section class="doc-section">
                     <h2>View</h2>
@@ -190,11 +190,11 @@
           Padding="20"&gt;
     &lt;StackPanel&gt;
       &lt;Label x:Name="MessageLabel"
-             Text="Hello from XML"
+             Content="Hello from XML"
              FontSize="24"
              FontWeight="SemiBold"
              Foreground="#F4FAFF" /&gt;
-      &lt;Label Text="This version uses code-behind only."
+      &lt;Label Content="This version uses code-behind only."
              Margin="0,8,0,0"
              Foreground="#9FC0D8" /&gt;
     &lt;/StackPanel&gt;
@@ -211,7 +211,7 @@ public partial class HelloWorldView : UserControl
 
         if (MessageLabel != null)
         {
-            MessageLabel.Text = "Hello from InkkSlinger.";
+            MessageLabel.Content = "Hello from InkkSlinger.";
         }
     }
 }</code></pre>

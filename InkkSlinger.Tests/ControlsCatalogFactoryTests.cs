@@ -40,10 +40,10 @@ public sealed class ControlsCatalogFactoryTests
             var sample = ControlDemoSupport.BuildSampleElement(controlName);
             if (sample is Label label)
             {
-                Assert.DoesNotContain("not implemented as a UIElement", label.Text);
-                Assert.DoesNotContain("exists but has no parameterless constructor", label.Text);
-                Assert.DoesNotContain("Could not create", label.Text);
-                Assert.DoesNotContain("Failed to create", label.Text);
+                Assert.DoesNotContain("not implemented as a UIElement", label.GetContentText());
+                Assert.DoesNotContain("exists but has no parameterless constructor", label.GetContentText());
+                Assert.DoesNotContain("Could not create", label.GetContentText());
+                Assert.DoesNotContain("Failed to create", label.GetContentText());
             }
         }
     }

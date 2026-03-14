@@ -22,7 +22,7 @@ public sealed class ExpanderInputTests
             Width = 360f,
             Height = 200f,
             Header = "Expander Header",
-            Content = new Label { Text = "Expander Content" },
+            Content = new Label { Content = "Expander Content" },
             IsExpanded = true
         };
         host.AddChild(expander);
@@ -55,7 +55,7 @@ public sealed class ExpanderInputTests
             Height = 260f
         };
 
-        var content = new Label { Text = "Expander Content" };
+        var content = new Label { Content = "Expander Content" };
         var expander = new Expander
         {
             Width = 360f,

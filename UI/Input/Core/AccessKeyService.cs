@@ -76,7 +76,7 @@ internal static class AccessKeyService
         }
     }
 
-    private static FrameworkElement? ResolveTarget(AccessText accessText)
+    private static UIElement? ResolveTarget(AccessText accessText)
     {
         if (!string.IsNullOrWhiteSpace(accessText.TargetName))
         {
@@ -87,6 +87,17 @@ internal static class AccessKeyService
              current != null;
              current = current.VisualParent ?? current.LogicalParent)
         {
+            if (current is ContentPresenter presenter &&
+                presenter.RecognizesAccessKey)
+            {
+                return presenter.ResolveAccessKeyTarget();
+            }
+
+            if (current is Label label)
+            {
+                return label.ResolveAccessKeyTarget();
+            }
+
             if (current is FrameworkElement frameworkElement &&
                 frameworkElement.RecognizesAccessKey)
             {
@@ -97,20 +108,19 @@ internal static class AccessKeyService
         return null;
     }
 
-    private static FrameworkElement? ResolveTargetByName(AccessText accessText, string targetName)
+    private static UIElement? ResolveTargetByName(AccessText accessText, string targetName)
     {
         for (var current = accessText as FrameworkElement;
              current != null;
              current = current.VisualParent as FrameworkElement ?? current.LogicalParent as FrameworkElement)
         {
             var resolved = NameScopeService.FindName(current, targetName);
-            if (resolved is FrameworkElement frameworkElement)
+            if (resolved is UIElement namedElement)
             {
-                return frameworkElement;
+                return namedElement;
             }
 
-            var inTree = current.FindName(targetName);
-            if (inTree != null)
+            if (current.FindName(targetName) is UIElement inTree)
             {
                 return inTree;
             }
@@ -119,7 +129,7 @@ internal static class AccessKeyService
         return null;
     }
 
-    private static bool TryActivateTarget(FrameworkElement target)
+    private static bool TryActivateTarget(UIElement target)
     {
         if (target is Button button)
         {
@@ -127,7 +137,14 @@ internal static class AccessKeyService
             return true;
         }
 
-        if (target.Focusable)
+        if (target is FrameworkElement frameworkElement &&
+            frameworkElement.Focusable)
+        {
+            FocusManager.SetFocus(target);
+            return true;
+        }
+
+        if (target is ITextInputControl)
         {
             FocusManager.SetFocus(target);
             return true;
@@ -136,7 +153,7 @@ internal static class AccessKeyService
         return false;
     }
 
-    private static bool IsOnFocusedAncestorRoute(FrameworkElement target, UIElement? focusedElement)
+    private static bool IsOnFocusedAncestorRoute(UIElement target, UIElement? focusedElement)
     {
         if (focusedElement == null)
         {

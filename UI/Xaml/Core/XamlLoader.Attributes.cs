@@ -201,6 +201,10 @@ public static partial class XamlLoader
                 property.PropertyType,
                 $"{target.GetType().Name}.{propertyName}");
         }
+        else if (TryApplyRawNameReferenceProperty(target, property, valueText, target as FrameworkElement ?? resourceScope, location))
+        {
+            return;
+        }
         else
         {
             if (IsMarkupExtensionSyntax(valueText))
@@ -214,6 +218,54 @@ public static partial class XamlLoader
         }
 
         property.SetValue(target, converted);
+    }
+
+
+    private static bool TryApplyRawNameReferenceProperty(
+        object target,
+        PropertyInfo property,
+        string rawValue,
+        FrameworkElement? scope,
+        XObject? location)
+    {
+        if (!SupportsRawNameReferenceProperty(target, property) ||
+            string.IsNullOrWhiteSpace(rawValue) ||
+            IsMarkupExtensionSyntax(rawValue))
+        {
+            return false;
+        }
+
+        var name = rawValue.Trim();
+        var resolved = ResolveNameReference(scope, name);
+        if (resolved != null)
+        {
+            var converted = CoerceResolvedResourceValue(
+                resolved,
+                property.PropertyType,
+                $"{target.GetType().Name}.{property.Name}");
+            property.SetValue(target, converted);
+            return true;
+        }
+
+        QueueDeferredFinalizeAction(() =>
+        {
+            var deferred = ResolveDeferredXReference(new DeferredXReference(name), scope, location);
+            var converted = CoerceResolvedResourceValue(
+                deferred,
+                property.PropertyType,
+                $"{target.GetType().Name}.{property.Name}");
+            property.SetValue(target, converted);
+        });
+
+        return true;
+    }
+
+
+    private static bool SupportsRawNameReferenceProperty(object target, PropertyInfo property)
+    {
+        return target is Label &&
+               string.Equals(property.Name, nameof(Label.Target), StringComparison.Ordinal) &&
+               typeof(UIElement).IsAssignableFrom(property.PropertyType);
     }
 
 

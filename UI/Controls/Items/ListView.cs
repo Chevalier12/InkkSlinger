@@ -34,7 +34,7 @@ public class ListView : ListBox
 
         container.Content = new Label
         {
-            Text = item?.ToString() ?? string.Empty
+            Content = item?.ToString() ?? string.Empty
         };
 
         return container;

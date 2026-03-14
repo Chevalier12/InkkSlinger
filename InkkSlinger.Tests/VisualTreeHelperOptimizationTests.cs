@@ -98,7 +98,7 @@ public sealed class VisualTreeHelperOptimizationTests
                 Width = 90f,
                 Content = new Label
                 {
-                    Text = $"Item {i}"
+                    Content = $"Item {i}"
                 }
             });
         }

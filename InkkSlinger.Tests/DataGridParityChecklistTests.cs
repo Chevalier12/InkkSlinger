@@ -76,7 +76,7 @@ public sealed class DataGridParityChecklistTests
     public void VisibleWhenSelected_RowDetailsFollowSelection()
     {
         var (grid, uiRoot) = CreateGridHost();
-        grid.RowDetailsTemplate = new DataTemplate(static item => new Label { Text = $"details:{item}" });
+        grid.RowDetailsTemplate = new DataTemplate(static item => new Label { Content = $"details:{item}" });
         grid.RowDetailsVisibilityMode = DataGridRowDetailsVisibilityMode.VisibleWhenSelected;
         RunLayout(uiRoot);
 

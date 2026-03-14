@@ -102,7 +102,7 @@ public class InputDispatchOptimizationTests
         {
             virtualizingPanel.AddChild(new Label
             {
-                Text = $"Item {i}",
+                Content = $"Item {i}",
                 Margin = new Thickness(0f, 0f, 0f, 6f)
             });
         }
@@ -150,7 +150,7 @@ public class InputDispatchOptimizationTests
         {
             leftVirtualizingPanel.AddChild(new Label
             {
-                Text = $"Virtualized {i}",
+                Content = $"Virtualized {i}",
                 Margin = new Thickness(0f, 0f, 0f, 6f)
             });
         }

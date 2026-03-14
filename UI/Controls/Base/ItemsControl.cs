@@ -288,7 +288,7 @@ public class ItemsControl : Control
     {
         return new Label
         {
-            Text = item?.ToString() ?? string.Empty
+            Content = item?.ToString() ?? string.Empty
         };
     }
 

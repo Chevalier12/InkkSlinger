@@ -68,12 +68,36 @@ public static partial class XamlLoader
     }
 
 
+    private static string? GetSignificantTextContent(XContainer container)
+    {
+        List<string>? segments = null;
+        foreach (var node in container.Nodes())
+        {
+            if (node is not XText textNode || string.IsNullOrWhiteSpace(textNode.Value))
+            {
+                continue;
+            }
+
+            segments ??= new List<string>();
+            segments.Add(textNode.Value);
+        }
+
+        return segments == null ? null : string.Concat(segments);
+    }
+
+
     private static void ApplyChildren(UIElement parent, XElement parentElement, object? codeBehind, FrameworkElement? resourceScope)
     {
         XElement? firstVisualChild = null;
         List<XElement>? additionalVisualChildren = null;
-        foreach (var childElement in parentElement.Elements())
+        var textContent = GetSignificantTextContent(parentElement);
+        foreach (var node in parentElement.Nodes())
         {
+            if (node is not XElement childElement)
+            {
+                continue;
+            }
+
             if (TryApplyPropertyElement(parent, childElement, codeBehind, resourceScope))
             {
                 continue;
@@ -92,11 +116,24 @@ public static partial class XamlLoader
 
         if (firstVisualChild == null)
         {
+            if (textContent != null && parent is ContentControl contentTextHost)
+            {
+                contentTextHost.Content = textContent;
+                return;
+            }
+
             return;
         }
 
         if (parent is Panel panel)
         {
+            if (textContent != null)
+            {
+                throw CreateXamlException(
+                    $"Type '{parent.GetType().Name}' cannot host text content in XAML.",
+                    parentElement);
+            }
+
             panel.AddChild(BuildElement(firstVisualChild, codeBehind, panel));
             if (additionalVisualChildren == null)
             {
@@ -113,6 +150,11 @@ public static partial class XamlLoader
 
         if (parent is Border border)
         {
+            if (textContent != null)
+            {
+                throw CreateXamlException("Border does not support implicit text content.", parentElement);
+            }
+
             if (additionalVisualChildren != null)
             {
                 throw CreateXamlException("Border supports a single child element.", parentElement);
@@ -124,23 +166,17 @@ public static partial class XamlLoader
 
         if (parent is Decorator decorator)
         {
+            if (textContent != null)
+            {
+                throw CreateXamlException("Decorator does not support implicit text content.", parentElement);
+            }
+
             if (additionalVisualChildren != null)
             {
                 throw CreateXamlException("Decorator supports a single child element.", parentElement);
             }
 
             decorator.Child = BuildElement(firstVisualChild, codeBehind, decorator);
-            return;
-        }
-
-        if (parent is UserControl userControl)
-        {
-            if (additionalVisualChildren != null)
-            {
-                throw CreateXamlException("UserControl supports a single content child.", parentElement);
-            }
-
-            userControl.Content = BuildElement(firstVisualChild, codeBehind, userControl);
             return;
         }
 
@@ -151,23 +187,30 @@ public static partial class XamlLoader
                 throw CreateXamlException("ContentControl supports a single content child.", parentElement);
             }
 
+            if (textContent != null)
+            {
+                throw CreateXamlException("ContentControl cannot mix implicit text content with child elements.", parentElement);
+            }
+
             contentControl.Content = BuildElement(firstVisualChild, codeBehind, contentControl);
             return;
         }
 
-        if (parent is ScrollViewer scrollViewer)
+        if (textContent != null && parent is ContentControl textContentHost)
         {
-            if (additionalVisualChildren != null)
-            {
-                throw CreateXamlException("ScrollViewer supports a single content child.", parentElement);
-            }
-
-            scrollViewer.Content = BuildElement(firstVisualChild, codeBehind, scrollViewer);
+            textContentHost.Content = textContent;
             return;
         }
 
         if (parent is ItemsControl itemsControl)
         {
+            if (textContent != null)
+            {
+                throw CreateXamlException(
+                    $"Type '{parent.GetType().Name}' cannot host implicit text items in XAML.",
+                    parentElement);
+            }
+
             itemsControl.Items.Add(BuildElement(firstVisualChild, codeBehind, itemsControl));
             if (additionalVisualChildren == null)
             {

@@ -39,6 +39,20 @@ public class ContentPresenter : FrameworkElement
                 "Content",
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
+    public static readonly DependencyProperty HorizontalContentAlignmentProperty =
+        DependencyProperty.Register(
+            nameof(HorizontalContentAlignment),
+            typeof(HorizontalAlignment),
+            typeof(ContentPresenter),
+            new FrameworkPropertyMetadata(HorizontalAlignment.Left, FrameworkPropertyMetadataOptions.AffectsArrange));
+
+    public static readonly DependencyProperty VerticalContentAlignmentProperty =
+        DependencyProperty.Register(
+            nameof(VerticalContentAlignment),
+            typeof(VerticalAlignment),
+            typeof(ContentPresenter),
+            new FrameworkPropertyMetadata(VerticalAlignment.Top, FrameworkPropertyMetadataOptions.AffectsArrange));
+
     private UIElement? _presentedElement;
     private DependencyObject? _sourceOwner;
     private object? _lastEffectiveContent;
@@ -68,6 +82,18 @@ public class ContentPresenter : FrameworkElement
     {
         get => GetValue<string>(ContentSourceProperty) ?? "Content";
         set => SetValue(ContentSourceProperty, value);
+    }
+
+    public HorizontalAlignment HorizontalContentAlignment
+    {
+        get => GetValue<HorizontalAlignment>(HorizontalContentAlignmentProperty);
+        set => SetValue(HorizontalContentAlignmentProperty, value);
+    }
+
+    public VerticalAlignment VerticalContentAlignment
+    {
+        get => GetValue<VerticalAlignment>(VerticalContentAlignmentProperty);
+        set => SetValue(VerticalContentAlignmentProperty, value);
     }
 
     public override IEnumerable<UIElement> GetVisualChildren()
@@ -162,7 +188,13 @@ public class ContentPresenter : FrameworkElement
         EnsureSourceBinding();
         if (_presentedElement is FrameworkElement element)
         {
-            element.Arrange(new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
+            var horizontalAlignment = ResolveEffectiveHorizontalContentAlignment();
+            var verticalAlignment = ResolveEffectiveVerticalContentAlignment();
+            var childWidth = ResolveAlignedSize(finalSize.X, element.DesiredSize.X, horizontalAlignment);
+            var childHeight = ResolveAlignedSize(finalSize.Y, element.DesiredSize.Y, verticalAlignment);
+            var childX = ResolveAlignedPosition(LayoutSlot.X, finalSize.X, childWidth, horizontalAlignment);
+            var childY = ResolveAlignedPosition(LayoutSlot.Y, finalSize.Y, childHeight, verticalAlignment);
+            element.Arrange(new LayoutRect(childX, childY, childWidth, childHeight));
         }
 
         return finalSize;
@@ -217,14 +249,21 @@ public class ContentPresenter : FrameworkElement
             return;
         }
 
-        var refreshedFallbackLabel = TryRefreshFallbackLabelStyling(args.Property);
-        if (refreshedFallbackLabel)
+        var refreshedFallbackText = TryRefreshFallbackTextStyling(args.Property);
+        if (refreshedFallbackText)
         {
             if (!IsForegroundProperty(args.Property))
             {
                 InvalidateMeasure();
                 InvalidateVisual();
             }
+
+            return;
+        }
+
+        if (IsContentAlignmentProperty(args.Property))
+        {
+            InvalidateArrange();
         }
     }
 
@@ -309,7 +348,9 @@ public class ContentPresenter : FrameworkElement
             string.Equals(property.Name, nameof(FrameworkElement.FontSize), StringComparison.Ordinal) ||
             string.Equals(property.Name, nameof(FrameworkElement.FontWeight), StringComparison.Ordinal) ||
             string.Equals(property.Name, nameof(FrameworkElement.FontStyle), StringComparison.Ordinal) ||
-            string.Equals(property.Name, nameof(Control.Foreground), StringComparison.Ordinal))
+            string.Equals(property.Name, nameof(Control.Foreground), StringComparison.Ordinal) ||
+            string.Equals(property.Name, nameof(Control.HorizontalContentAlignment), StringComparison.Ordinal) ||
+            string.Equals(property.Name, nameof(Control.VerticalContentAlignment), StringComparison.Ordinal))
         {
             return true;
         }
@@ -402,7 +443,21 @@ public class ContentPresenter : FrameworkElement
 
         if (content != null)
         {
-            var label = new Label { Text = content.ToString() ?? string.Empty };
+            if (RecognizesAccessKey)
+            {
+                var accessText = new AccessText
+                {
+                    Text = content.ToString() ?? string.Empty
+                };
+
+                ApplyFallbackTextBlockStyling(accessText, changedProperty: null);
+                return accessText;
+            }
+
+            var label = new Label
+            {
+                Content = content.ToString() ?? string.Empty
+            };
             ApplyFallbackLabelStyling(label, changedProperty: null);
             return label;
         }
@@ -410,13 +465,24 @@ public class ContentPresenter : FrameworkElement
         return null;
     }
 
-    private bool TryRefreshFallbackLabelStyling(DependencyProperty? changedProperty = null)
+    internal UIElement? ResolveAccessKeyTarget()
     {
-        if (_presentedElement is not Label label)
+        if (_sourceOwner is Label label)
         {
-            return false;
+            return label.ResolveAccessKeyTarget();
         }
 
+        if (_sourceOwner is FrameworkElement frameworkElement &&
+            frameworkElement.RecognizesAccessKey)
+        {
+            return frameworkElement;
+        }
+
+        return null;
+    }
+
+    private bool TryRefreshFallbackTextStyling(DependencyProperty? changedProperty = null)
+    {
         var content = ResolveEffectiveContent();
         if (content == null || content is UIElement)
         {
@@ -428,8 +494,19 @@ public class ContentPresenter : FrameworkElement
             return false;
         }
 
-        ApplyFallbackLabelStyling(label, changedProperty);
-        return true;
+        if (_presentedElement is Label label && !RecognizesAccessKey)
+        {
+            ApplyFallbackLabelStyling(label, changedProperty);
+            return true;
+        }
+
+        if (_presentedElement is TextBlock textBlock && RecognizesAccessKey)
+        {
+            ApplyFallbackTextBlockStyling(textBlock, changedProperty);
+            return true;
+        }
+
+        return false;
     }
 
     private void ApplyFallbackLabelStyling(Label label, DependencyProperty? changedProperty)
@@ -488,6 +565,56 @@ public class ContentPresenter : FrameworkElement
         }
     }
 
+    private void ApplyFallbackTextBlockStyling(TextBlock textBlock, DependencyProperty? changedProperty)
+    {
+        if (IsForegroundProperty(changedProperty))
+        {
+            if (_sourceOwner != null && TryGetOwnerPropertyValue<Color>(_sourceOwner, nameof(Control.Foreground), out var foregroundOnly))
+            {
+                ApplyFallbackTextBlockAssignment(
+                    textBlock,
+                    static currentTextBlock => currentTextBlock.Foreground,
+                    static (currentTextBlock, value) => currentTextBlock.Foreground = value,
+                    foregroundOnly);
+            }
+
+            return;
+        }
+
+        if (_sourceOwner is FrameworkElement frameworkElement)
+        {
+            ApplyFallbackTextBlockAssignment(
+                textBlock,
+                static currentTextBlock => currentTextBlock.FontFamily,
+                static (currentTextBlock, value) => currentTextBlock.FontFamily = value,
+                frameworkElement.FontFamily);
+            ApplyFallbackTextBlockAssignment(
+                textBlock,
+                static currentTextBlock => currentTextBlock.FontSize,
+                static (currentTextBlock, value) => currentTextBlock.FontSize = value,
+                frameworkElement.FontSize);
+            ApplyFallbackTextBlockAssignment(
+                textBlock,
+                static currentTextBlock => currentTextBlock.FontWeight,
+                static (currentTextBlock, value) => currentTextBlock.FontWeight = value,
+                frameworkElement.FontWeight);
+            ApplyFallbackTextBlockAssignment(
+                textBlock,
+                static currentTextBlock => currentTextBlock.FontStyle,
+                static (currentTextBlock, value) => currentTextBlock.FontStyle = value,
+                frameworkElement.FontStyle);
+        }
+
+        if (_sourceOwner != null && TryGetOwnerPropertyValue<Color>(_sourceOwner, nameof(Control.Foreground), out var foreground))
+        {
+            ApplyFallbackTextBlockAssignment(
+                textBlock,
+                static currentTextBlock => currentTextBlock.Foreground,
+                static (currentTextBlock, value) => currentTextBlock.Foreground = value,
+                foreground);
+        }
+    }
+
     private static bool IsForegroundProperty(DependencyProperty? property)
     {
         return property != null &&
@@ -502,6 +629,15 @@ public class ContentPresenter : FrameworkElement
         TValue value)
     {
         setter(label, value);
+    }
+
+    private void ApplyFallbackTextBlockAssignment<TValue>(
+        TextBlock textBlock,
+        Func<TextBlock, TValue> getter,
+        Action<TextBlock, TValue> setter,
+        TValue value)
+    {
+        setter(textBlock, value);
     }
 
     private static bool TryGetOwnerPropertyValue<TValue>(DependencyObject owner, string propertyName, out TValue value)
@@ -557,7 +693,7 @@ public class ContentPresenter : FrameworkElement
     private static Label BuildCycleGuardLabel(object? content)
     {
         var contentType = content?.GetType().Name ?? "null";
-        return new Label { Text = $"ContentPresenter cycle guard ({contentType})" };
+        return new Label { Content = $"ContentPresenter cycle guard ({contentType})" };
     }
 
     private DependencyObject? FindSourceOwner()
@@ -621,6 +757,82 @@ public class ContentPresenter : FrameworkElement
         }
 
         return null;
+    }
+
+    private HorizontalAlignment ResolveEffectiveHorizontalContentAlignment()
+    {
+        if (HasLocalValue(HorizontalContentAlignmentProperty))
+        {
+            return HorizontalContentAlignment;
+        }
+
+        if (_sourceOwner is Control control)
+        {
+            return control.HorizontalContentAlignment;
+        }
+
+        return HorizontalContentAlignment;
+    }
+
+    private VerticalAlignment ResolveEffectiveVerticalContentAlignment()
+    {
+        if (HasLocalValue(VerticalContentAlignmentProperty))
+        {
+            return VerticalContentAlignment;
+        }
+
+        if (_sourceOwner is Control control)
+        {
+            return control.VerticalContentAlignment;
+        }
+
+        return VerticalContentAlignment;
+    }
+
+    private static float ResolveAlignedSize(float available, float desired, HorizontalAlignment alignment)
+    {
+        if (alignment == HorizontalAlignment.Stretch)
+        {
+            return available;
+        }
+
+        return MathF.Min(available, desired);
+    }
+
+    private static float ResolveAlignedSize(float available, float desired, VerticalAlignment alignment)
+    {
+        if (alignment == VerticalAlignment.Stretch)
+        {
+            return available;
+        }
+
+        return MathF.Min(available, desired);
+    }
+
+    private static float ResolveAlignedPosition(float start, float available, float size, HorizontalAlignment alignment)
+    {
+        return alignment switch
+        {
+            HorizontalAlignment.Center => start + ((available - size) / 2f),
+            HorizontalAlignment.Right => start + (available - size),
+            _ => start
+        };
+    }
+
+    private static float ResolveAlignedPosition(float start, float available, float size, VerticalAlignment alignment)
+    {
+        return alignment switch
+        {
+            VerticalAlignment.Center => start + ((available - size) / 2f),
+            VerticalAlignment.Bottom => start + (available - size),
+            _ => start
+        };
+    }
+
+    private static bool IsContentAlignmentProperty(DependencyProperty property)
+    {
+        return string.Equals(property.Name, nameof(Control.HorizontalContentAlignment), StringComparison.Ordinal) ||
+               string.Equals(property.Name, nameof(Control.VerticalContentAlignment), StringComparison.Ordinal);
     }
 }
 
@@ -1018,7 +1230,7 @@ public class HeaderedItemsControl : ItemsControl
             }
             else if (Header != null)
             {
-                _headerElement = new Label { Text = Header.ToString() ?? string.Empty };
+                _headerElement = new Label { Content = Header.ToString() ?? string.Empty };
             }
         }
 

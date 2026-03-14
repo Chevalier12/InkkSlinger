@@ -840,7 +840,7 @@ public sealed partial class UiRoot
                 {
                     Content = new Label
                     {
-                        Text = toolTipValue.ToString() ?? string.Empty
+                        Content = toolTipValue.ToString() ?? string.Empty
                     }
                 };
                 return true;

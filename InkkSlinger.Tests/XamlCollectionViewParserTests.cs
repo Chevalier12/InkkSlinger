@@ -68,7 +68,7 @@ public class XamlCollectionViewParserTests
   </UserControl.Resources>
   <Grid>
     <ListBox ItemsSource="{StaticResource RowsView}">
-      <Label Text="child" />
+      <Label Content="child" />
     </ListBox>
   </Grid>
 </UserControl>

@@ -36,7 +36,7 @@ public sealed class AppStyledDataGridSampleTests
             var border = Assert.IsType<Border>(Assert.Single(firstCell.GetVisualChildren()));
             var presenter = Assert.IsType<ContentPresenter>(Assert.Single(border.GetVisualChildren()));
             var label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-            Assert.Equal("1", label.Text);
+            Assert.Equal("1", label.GetContentText());
         }
         finally
         {

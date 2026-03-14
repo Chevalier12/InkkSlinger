@@ -44,7 +44,7 @@ public sealed class AppXmlPhase3CompatibilityTests
         var border = Assert.IsType<Border>(Assert.Single(item.GetVisualChildren()));
         var presenter = Assert.IsType<GridViewRowPresenter>(Assert.Single(border.GetVisualChildren()));
         var presented = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-        Assert.Equal("Alpha", presented.Text);
+        Assert.Equal("Alpha", presented.GetContentText());
     }
 
     [Fact]

@@ -63,7 +63,7 @@ public class ComboBoxItem : ListBoxItem
             Content = _generatedLabel;
         }
 
-        _generatedLabel.Text = Text;
+        _generatedLabel.Content = Text;
         SyncGeneratedLabelStyling();
     }
 

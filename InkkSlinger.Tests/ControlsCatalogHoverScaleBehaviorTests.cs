@@ -102,7 +102,7 @@ public sealed class ControlsCatalogHoverScaleBehaviorTests
         while (stack.Count > 0)
         {
             var current = stack.Pop();
-            if (current is Label label && string.Equals(label.Text, text, StringComparison.Ordinal))
+            if (current is Label label && string.Equals(label.GetContentText(), text, StringComparison.Ordinal))
             {
                 return label;
             }

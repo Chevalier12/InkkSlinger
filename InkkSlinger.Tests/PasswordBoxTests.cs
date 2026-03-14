@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Microsoft.Xna.Framework.Input;
 using Xunit;
 
@@ -12,7 +12,7 @@ public class PasswordBoxTests
         var passwordBox = new PasswordBox();
 
         Assert.Equal(string.Empty, passwordBox.Password);
-        Assert.Equal("•", passwordBox.PasswordChar);
+        Assert.Equal("�", passwordBox.PasswordChar);
         Assert.False(passwordBox.RevealPassword);
         Assert.False(passwordBox.AllowClipboardCopy);
         Assert.False(passwordBox.IsReadOnly);

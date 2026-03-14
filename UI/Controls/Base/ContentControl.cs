@@ -202,6 +202,11 @@ public class ContentControl : Control
             return;
         }
 
+        if (this is Label)
+        {
+            return;
+        }
+
         if (content is UIElement element)
         {
             _contentElement = element;
@@ -231,7 +236,7 @@ public class ContentControl : Control
         {
             _contentElement = new Label
             {
-                Text = content.ToString() ?? string.Empty
+                Content = content.ToString() ?? string.Empty
             };
             _contentElement.SetVisualParent(this);
             _contentElement.SetLogicalParent(this);

@@ -127,7 +127,7 @@ public class FrameNavigationTests
         Assert.Same(frame.NavigationService, second.NavigationService);
         Assert.True(frame.CanGoBack);
 
-        frame.Content = new Label { Text = "Externally set content" };
+        frame.Content = new Label { Content = "Externally set content" };
 
         Assert.False(frame.CanGoBack);
         Assert.False(frame.CanGoForward);
@@ -140,7 +140,7 @@ public class FrameNavigationTests
         const string xaml = """
 <Frame xmlns="urn:inkkslinger-ui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Page Title="Dashboard">
-    <Label Text="Hello" />
+    <Label Content="Hello" />
   </Page>
 </Frame>
 """;
@@ -150,7 +150,7 @@ public class FrameNavigationTests
 
         Assert.Equal("Dashboard", page.Title);
         var label = Assert.IsType<Label>(page.Content);
-        Assert.Equal("Hello", label.Text);
+        Assert.Equal("Hello", label.GetContentText());
         Assert.Same(root.NavigationService, page.NavigationService);
         Assert.False(root.CanGoBack);
         Assert.False(root.CanGoForward);
@@ -199,7 +199,7 @@ public class FrameNavigationTests
     public void GoBack_ToNonPageContent_DetachesPageNavigationService()
     {
         var frame = new Frame();
-        var label = new Label { Text = "Non-page" };
+        var label = new Label { Content = "Non-page" };
         var page = new Page { Title = "Page" };
         frame.Navigate(label);
         frame.Navigate(page);

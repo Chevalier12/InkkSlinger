@@ -18,8 +18,8 @@ public sealed class TabControlInputTests
             Height = 320f
         };
 
-        var firstContent = new Label { Text = "Tab One Content" };
-        var secondContent = new Label { Text = "Tab Two Content" };
+        var firstContent = new Label { Content = "Tab One Content" };
+        var secondContent = new Label { Content = "Tab Two Content" };
         var firstTab = new TabItem { Header = "Tab One", Content = firstContent };
         var secondTab = new TabItem { Header = "Tab Two", Content = secondContent };
         var tabControl = new TabControl
@@ -72,12 +72,12 @@ public sealed class TabControlInputTests
         tabControl.Items.Add(new TabItem
         {
             Header = "Tab One",
-            Content = new Label { Text = "First" }
+            Content = new Label { Content = "First" }
         });
         tabControl.Items.Add(new TabItem
         {
             Header = "Tab Two",
-            Content = new Label { Text = "Second" }
+            Content = new Label { Content = "Second" }
         });
 
         host.AddChild(tabControl);

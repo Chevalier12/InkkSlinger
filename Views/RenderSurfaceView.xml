@@ -23,11 +23,11 @@
       </Grid.ColumnDefinitions>
 
       <StackPanel>
-        <Label Text="RenderSurface Demo"
+        <Label Content="RenderSurface Demo"
                Foreground="#F4FAFF"
                FontSize="18"
                FontWeight="SemiBold" />
-        <Label Text="{Binding HintText}"
+        <Label Content="{Binding HintText}"
                Foreground="#9FC0D8"
                Margin="0,4,0,0" />
       </StackPanel>
@@ -41,7 +41,7 @@
                 CornerRadius="12"
                 Padding="10,6"
                 Margin="0,0,8,0">
-          <Label Text="{Binding ScoreText}"
+          <Label Content="{Binding ScoreText}"
                  Foreground="#E9F4FF" />
         </Border>
         <Border Background="#182636"
@@ -49,7 +49,7 @@
                 BorderThickness="1"
                 CornerRadius="12"
                 Padding="10,6">
-          <Label Text="{Binding BestScoreText}"
+          <Label Content="{Binding BestScoreText}"
                  Foreground="#E9F4FF" />
         </Border>
       </StackPanel>
@@ -80,17 +80,19 @@
       </Grid.ColumnDefinitions>
 
       <Button Grid.Column="0"
-              Text="Restart"
+              Content="Restart"
               Command="{Binding RestartGameCommand}"
               Margin="0,0,8,0" />
       <Button Grid.Column="1"
-              Text="{Binding PauseButtonText}"
+              Content="{Binding PauseButtonText}"
               Command="{Binding TogglePauseCommand}"
               Margin="0,0,12,0" />
       <Label Grid.Column="2"
-             Text="{Binding StatusText}"
+             Content="{Binding StatusText}"
              Foreground="#D8E9F5"
              VerticalAlignment="Center" />
     </Grid>
   </Grid>
 </UserControl>
+
+

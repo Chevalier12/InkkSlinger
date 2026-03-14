@@ -56,6 +56,20 @@ public class Control : FrameworkElement, ICommandSource
             typeof(Control),
             new FrameworkPropertyMetadata(Thickness.Empty));
 
+    public static readonly DependencyProperty HorizontalContentAlignmentProperty =
+        DependencyProperty.Register(
+            nameof(HorizontalContentAlignment),
+            typeof(HorizontalAlignment),
+            typeof(Control),
+            new FrameworkPropertyMetadata(HorizontalAlignment.Left, FrameworkPropertyMetadataOptions.AffectsArrange));
+
+    public static readonly DependencyProperty VerticalContentAlignmentProperty =
+        DependencyProperty.Register(
+            nameof(VerticalContentAlignment),
+            typeof(VerticalAlignment),
+            typeof(Control),
+            new FrameworkPropertyMetadata(VerticalAlignment.Top, FrameworkPropertyMetadataOptions.AffectsArrange));
+
     public static readonly DependencyProperty IsMouseOverProperty =
         DependencyProperty.Register(
             nameof(IsMouseOver),
@@ -160,6 +174,18 @@ public class Control : FrameworkElement, ICommandSource
     {
         get => GetValue<Thickness>(PaddingProperty);
         set => SetValue(PaddingProperty, value);
+    }
+
+    public HorizontalAlignment HorizontalContentAlignment
+    {
+        get => GetValue<HorizontalAlignment>(HorizontalContentAlignmentProperty);
+        set => SetValue(HorizontalContentAlignmentProperty, value);
+    }
+
+    public VerticalAlignment VerticalContentAlignment
+    {
+        get => GetValue<VerticalAlignment>(VerticalContentAlignmentProperty);
+        set => SetValue(VerticalContentAlignmentProperty, value);
     }
 
     public bool IsMouseOver
@@ -283,7 +309,11 @@ public class Control : FrameworkElement, ICommandSource
         {
             if (Template == null)
             {
-                return Vector2.Zero;
+                UpdateImplicitStyle();
+                if (Template == null)
+                {
+                    return Vector2.Zero;
+                }
             }
 
             _measureTemplateApplyAttemptCount++;

@@ -244,7 +244,7 @@ public sealed class PopupEdgeParityTests
   <Grid>
     <Popup Name="ProbeTop" PlacementMode="Top">
       <Popup.Content>
-        <Label Text="probe"/>
+        <Label Content="probe"/>
       </Popup.Content>
     </Popup>
   </Grid>
@@ -256,7 +256,7 @@ public sealed class PopupEdgeParityTests
   <Grid>
     <Popup Name="ProbeLeft" PlacementMode="Left">
       <Popup.Content>
-        <Label Text="probe"/>
+        <Label Content="probe"/>
       </Popup.Content>
     </Popup>
   </Grid>
@@ -280,7 +280,7 @@ public sealed class PopupEdgeParityTests
             Height = 90f,
             CanClose = canClose,
             DismissOnOutsideClick = dismissOnOutsideClick,
-            Content = new Label { Text = "popup" }
+            Content = new Label { Content = "popup" }
         };
     }
 

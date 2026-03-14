@@ -11,7 +11,7 @@ public sealed class AutomationPatternScrollTests
         var stack = new StackPanel();
         for (var i = 0; i < 40; i++)
         {
-            stack.AddChild(new Label { Text = $"Row {i}" });
+            stack.AddChild(new Label { Content = $"Row {i}" });
         }
 
         var viewer = new ScrollViewer

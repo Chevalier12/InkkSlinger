@@ -449,7 +449,7 @@ public class ComboBox : Selector
 
             if (comboBoxItem.Content is Label label)
             {
-                return label.Text;
+                return Label.ExtractAutomationText(label.Content);
             }
 
             return comboBoxItem.Content?.ToString() ?? string.Empty;
@@ -458,12 +458,12 @@ public class ComboBox : Selector
         if (item is ListBoxItem listBoxItem &&
             listBoxItem.Content is Label listBoxLabel)
         {
-            return listBoxLabel.Text;
+            return Label.ExtractAutomationText(listBoxLabel.Content);
         }
 
         if (item is Label itemLabel)
         {
-            return itemLabel.Text;
+            return Label.ExtractAutomationText(itemLabel.Content);
         }
 
         return item?.ToString() ?? string.Empty;

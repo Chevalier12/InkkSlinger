@@ -462,7 +462,7 @@ public sealed class OverlayDismissAndFocusParityTests
             Height = 90f,
             CanClose = canClose,
             DismissOnOutsideClick = dismissOnOutsideClick,
-            Content = new Label { Text = "popup" }
+            Content = new Label { Content = "popup" }
         };
     }
 

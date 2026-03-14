@@ -58,6 +58,7 @@ public static class AutomationPeerFactory
             Separator => AutomationControlType.Separator,
             ToolBar => AutomationControlType.ToolBar,
             ToolTip => AutomationControlType.ToolTip,
+            Label => AutomationControlType.Text,
             TextBlock => AutomationControlType.Text,
             Image => AutomationControlType.Image,
             Border => AutomationControlType.Pane,

@@ -323,7 +323,7 @@ public sealed class ControlsCatalogCalendarHotspotTests
         return element switch
         {
             Button button when !string.IsNullOrEmpty(button.Text) => $"{nameof(Button)}(\"{button.Text}\")",
-            Label label when !string.IsNullOrEmpty(label.Text) => $"{nameof(Label)}(\"{label.Text}\")",
+            Label label when !string.IsNullOrEmpty(label.GetContentText()) => $"{nameof(Label)}(\"{label.GetContentText()}\")",
             UniformGrid uniformGrid => $"{nameof(UniformGrid)}(Rows={uniformGrid.Rows}, Columns={uniformGrid.Columns})",
             Grid grid => $"{nameof(Grid)}(Rows={grid.RowDefinitions.Count}, Columns={grid.ColumnDefinitions.Count})",
             _ => element.GetType().Name

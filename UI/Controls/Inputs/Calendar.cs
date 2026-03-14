@@ -164,8 +164,8 @@ public class Calendar : UserControl
     private readonly UniformGrid _daysGrid;
     private readonly Button _previousMonthButton;
     private readonly Button _nextMonthButton;
-    private readonly Label _monthLabel;
-    private readonly Label[] _weekDayLabels = new Label[7];
+    private readonly TextBlock _monthLabel;
+    private readonly TextBlock[] _weekDayLabels = new TextBlock[7];
     private readonly Button[] _dayButtons = new Button[42];
     private readonly DateTime[] _dayButtonDates = new DateTime[42];
     private readonly List<CalendarDateRange> _selectedRanges = new();
@@ -216,7 +216,7 @@ public class Calendar : UserControl
         headerGrid.AddChild(_previousMonthButton);
         Grid.SetColumn(_previousMonthButton, 0);
 
-        _monthLabel = new Label
+        _monthLabel = new TextBlock
         {
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0f, 2f, 0f, 4f),
@@ -246,7 +246,7 @@ public class Calendar : UserControl
         };
         for (var i = 0; i < 7; i++)
         {
-            var label = new Label
+            var label = new TextBlock
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = new Color(178, 178, 178),
@@ -356,7 +356,7 @@ public class Calendar : UserControl
         }
     }
 
-    protected internal IReadOnlyList<Label> WeekDayLabelsForTesting
+    protected internal IReadOnlyList<TextBlock> WeekDayLabelsForTesting
     {
         get
         {
@@ -1023,7 +1023,7 @@ public class Calendar : UserControl
         });
     }
 
-    private static bool SetLabelTextIfChanged(Label label, string text)
+    private static bool SetLabelTextIfChanged(TextBlock label, string text)
     {
         if (string.Equals(label.Text, text, StringComparison.Ordinal))
         {

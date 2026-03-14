@@ -72,9 +72,9 @@ public class UiRootTelemetryTests
     public void VisualTreeMetricsSnapshot_AggregatesLayoutAndUpdateCounters()
     {
         var root = new StackPanel();
-        root.AddChild(new Label { Text = "Header" });
+        root.AddChild(new Label { Content = "Header" });
         root.AddChild(new ProgressBar { IsIndeterminate = true });
-        root.AddChild(new Border { Child = new Label { Text = "Body" } });
+        root.AddChild(new Border { Child = new Label { Content = "Body" } });
 
         var uiRoot = new UiRoot(root);
         uiRoot.Update(
@@ -105,8 +105,8 @@ public class UiRootTelemetryTests
     public void PassiveVisualTree_UpdatePhase_DoesNotWalkNonParticipantVisuals()
     {
         var root = new StackPanel();
-        root.AddChild(new Label { Text = "Header" });
-        root.AddChild(new Border { Child = new Label { Text = "Body" } });
+        root.AddChild(new Label { Content = "Header" });
+        root.AddChild(new Border { Child = new Label { Content = "Body" } });
 
         var uiRoot = new UiRoot(root);
         uiRoot.Update(

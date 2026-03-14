@@ -92,9 +92,12 @@ public partial class FrameView : UserControl
 
                 _demoFrame.Content = new Label
                 {
-                    Text = "Frame.Content assigned directly (journal cleared by design).",
-                    TextWrapping = TextWrapping.Wrap,
-                    Foreground = new Color(225, 238, 252)
+                    Content = new TextBlock
+                    {
+                        Text = "Frame.Content assigned directly (journal cleared by design).",
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground = new Color(225, 238, 252)
+                    }
                 };
                 RefreshState("External Content assignment.");
             }));
@@ -169,10 +172,10 @@ public partial class FrameView : UserControl
         };
         content.AddChild(new Label
         {
-            Text = $"Page: {title}",
+            Content = $"Page: {title}",
             Foreground = new Color(236, 246, 255)
         });
-        content.AddChild(new Label
+        content.AddChild(new TextBlock
         {
             Text = description,
             TextWrapping = TextWrapping.Wrap,
@@ -201,7 +204,7 @@ public partial class FrameView : UserControl
         };
         content.AddChild(inPageNavigate);
 
-        content.AddChild(new Label
+        content.AddChild(new TextBlock
         {
             Text = "Tip: Navigate Sticky repeatedly to inspect same-instance journal behavior.",
             TextWrapping = TextWrapping.Wrap,
@@ -276,19 +279,19 @@ public partial class FrameView : UserControl
 
         if (_actionLabel != null)
         {
-            _actionLabel.Text = $"Action: {action}";
+            _actionLabel.Content = $"Action: {action}";
         }
 
         if (_demoFrame.Content is Page page)
         {
-            _currentContentLabel!.Text = $"Current content: Page \"{page.Title}\"";
-            _serviceStateLabel!.Text = $"Current page service: {(page.NavigationService != null ? "Attached" : "Null")}";
+            _currentContentLabel!.Content = $"Current content: Page \"{page.Title}\"";
+            _serviceStateLabel!.Content = $"Current page service: {(page.NavigationService != null ? "Attached" : "Null")}";
             return;
         }
 
         var contentName = _demoFrame.Content?.GetType().Name ?? "(null)";
-        _currentContentLabel!.Text = $"Current content: {contentName}";
-        _serviceStateLabel!.Text = "Current page service: n/a (content is not Page)";
+        _currentContentLabel!.Content = $"Current content: {contentName}";
+        _serviceStateLabel!.Content = "Current page service: n/a (content is not Page)";
     }
 }
 

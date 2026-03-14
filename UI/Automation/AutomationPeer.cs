@@ -171,7 +171,7 @@ public abstract class AutomationPeer
         {
             null => string.Empty,
             string text => text,
-            Label label => label.Text,
+            Label label => label.GetAutomationContentText(),
             TextBlock textBlock => textBlock.Text,
             _ => value.ToString() ?? string.Empty
         };

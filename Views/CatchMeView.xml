@@ -23,7 +23,7 @@
             BorderThickness="1"
             Padding="10"
             Margin="0,0,0,8">
-      <Label Text="Catch Me! Hover the orb and it dashes away."
+      <Label Content="Catch Me! Hover the orb and it dashes away."
              Foreground="{StaticResource TextPrimaryBrush}" />
     </Border>
 
@@ -48,6 +48,7 @@
     </Border>
   </Grid>
 </UserControl>
+
 
 
 

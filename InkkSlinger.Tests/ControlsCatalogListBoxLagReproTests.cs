@@ -96,7 +96,7 @@ public sealed class ControlsCatalogListBoxLagReproTests
         Grid.SetColumn(rightBorder, 1);
         root.AddChild(rightBorder);
 
-        previewHostLocal.Content = new Label { Text = "No selection yet" };
+        previewHostLocal.Content = new Label { Content = "No selection yet" };
         listBoxButton.Click += (_, _) =>
         {
             var listBox = new ListBox();

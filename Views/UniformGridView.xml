@@ -18,7 +18,7 @@
     </Grid.RowDefinitions>
 
     <Border Grid.Row="0" Background="{StaticResource DarkElevatedBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
-      <Label Text="Control Demo: UniformGrid" Foreground="{StaticResource TextPrimaryBrush}" />
+      <Label Content="Control Demo: UniformGrid" Foreground="{StaticResource TextPrimaryBrush}" />
     </Border>
 
     <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
@@ -26,6 +26,7 @@
     </Border>
   </Grid>
 </UserControl>
+
 
 
 

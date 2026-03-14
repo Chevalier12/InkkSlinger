@@ -188,7 +188,7 @@ public sealed class DirtyBoundsEdgeRegressionTests
         for (var i = 0; i < 8; i++)
         {
             var row = new StackPanel();
-            row.AddChild(new Label { Text = $"Label {i}" });
+            row.AddChild(new Label { Content = $"Label {i}" });
             row.AddChild(new Button { Text = $"Button {i}" });
             detachedRoot.AddChild(row);
         }

@@ -108,7 +108,7 @@ public partial class PageView : UserControl
         var stack = new StackPanel();
         stack.AddChild(new Label
         {
-            Text = title,
+            Content = title,
             Foreground = new Color(237, 246, 255),
             Margin = new Thickness(0, 0, 0, 6)
         });
@@ -152,13 +152,13 @@ public partial class PageView : UserControl
         {
             Margin = new Thickness(8)
         };
-        stack.AddChild(new Label
+        stack.AddChild(new TextBlock
         {
             Text = "This Page is rendered through ContentControl, not Frame.",
             TextWrapping = TextWrapping.Wrap,
             Foreground = new Color(208, 226, 243)
         });
-        stack.AddChild(new Label
+        stack.AddChild(new TextBlock
         {
             Text = "Expected: Page.NavigationService remains null.",
             TextWrapping = TextWrapping.Wrap,
@@ -183,10 +183,10 @@ public partial class PageView : UserControl
         };
         stack.AddChild(new Label
         {
-            Text = $"Hosted Page: {title}",
+            Content = $"Hosted Page: {title}",
             Foreground = new Color(236, 246, 255)
         });
-        stack.AddChild(new Label
+        stack.AddChild(new TextBlock
         {
             Text = description,
             TextWrapping = TextWrapping.Wrap,
@@ -271,23 +271,23 @@ public partial class PageView : UserControl
     {
         if (_standaloneHost?.Content is Page standalonePage)
         {
-            _standaloneStatusLabel!.Text =
+            _standaloneStatusLabel!.Content =
                 $"Standalone '{standalonePage.Title}' NavigationService: {(standalonePage.NavigationService == null ? "Null" : "Attached")}";
         }
 
         if (_hostFrame?.Content is Page hostedPage)
         {
-            _hostedStatusLabel!.Text =
+            _hostedStatusLabel!.Content =
                 $"Hosted '{hostedPage.Title}' NavigationService: {(hostedPage.NavigationService == null ? "Null" : "Attached")}";
         }
         else
         {
-            _hostedStatusLabel!.Text = "Hosted content is not a Page.";
+            _hostedStatusLabel!.Content = "Hosted content is not a Page.";
         }
 
         if (_hostFrame != null)
         {
-            _journalStatusLabel!.Text =
+            _journalStatusLabel!.Content =
                 $"Action: {action} | CanGoBack={_hostFrame.CanGoBack} | CanGoForward={_hostFrame.CanGoForward}";
         }
 

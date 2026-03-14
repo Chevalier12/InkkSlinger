@@ -28,7 +28,7 @@ public sealed class UniformGridLayoutTests
     }
 
     [Fact]
-    public void Measure_WhenCellSizeGrowsForNoWrapLabel_ReusesChildMeasure()
+    public void Measure_WhenCellSizeGrowsForNoWrapTextBlock_ReusesChildMeasure()
     {
         var grid = new UniformGrid
         {
@@ -36,7 +36,7 @@ public sealed class UniformGridLayoutTests
             Columns = 1
         };
 
-        var child = new Label
+        var child = new TextBlock
         {
             Text = "Mon"
         };
@@ -106,7 +106,7 @@ public sealed class UniformGridLayoutTests
 
         for (var i = 0; i < 7; i++)
         {
-            grid.AddChild(new Label { Text = "Mon" });
+            grid.AddChild(new TextBlock { Text = "Mon" });
         }
 
         grid.Measure(new Vector2(140f, 24f));

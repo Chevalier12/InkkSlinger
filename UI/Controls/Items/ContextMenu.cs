@@ -181,7 +181,7 @@ public class ContextMenu : ItemsControl
         {
             return new MenuItem
             {
-                Header = label.Text
+                Header = Label.ExtractAutomationText(label.Content)
             };
         }
 

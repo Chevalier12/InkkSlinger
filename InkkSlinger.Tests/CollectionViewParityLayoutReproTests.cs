@@ -39,7 +39,7 @@ public class CollectionViewParityLayoutReproTests
     public void ListBoxInVerticalStackPanel_RemainsFiniteAndVisible_WhenMeasuredWithInfiniteStackAxis()
     {
         var stack = new StackPanel();
-        stack.AddChild(new Label { Text = "ListBox" });
+        stack.AddChild(new Label { Content = "ListBox" });
 
         var listBox = new ListBox();
         listBox.Items.Add("One");
