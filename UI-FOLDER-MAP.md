@@ -152,6 +152,7 @@ UI/
       ITextInputControl.cs
       InkCanvas.cs
       InkPresenter.cs
+      MediaElement.cs
       PasswordBox.cs
       RichTextBox.cs
       RichTextBox.FormattingEngine.cs

@@ -132,6 +132,7 @@
         <xs:element ref="Popup" />
         <xs:element ref="ContextMenu" />
         <xs:element ref="ProgressBar" />
+        <xs:element ref="MediaElement" />
         <xs:element ref="DataGrid" />
         <xs:element ref="DataGridCell" />
         <xs:element ref="DataGridColumnHeader" />
@@ -2170,6 +2171,21 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="mediaElementType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Source" type="xs:anyURI" />
+        <xs:attribute name="Volume" type="xs:float" />
+        <xs:attribute name="IsMuted" type="xs:boolean" />
+        <xs:attribute name="Stretch" type="xs:string" />
+        <xs:attribute name="Position" type="xs:string" />
+        <xs:attribute name="Duration" type="xs:string" />
+        <xs:attribute name="PlaybackRate" type="xs:float" />
+        <xs:attribute name="Background" type="colorType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="dataGridType">
     <xs:complexContent>
       <xs:extension base="itemsControlType">
@@ -2584,6 +2600,7 @@
   <xs:element name="Popup" type="popupType" />
   <xs:element name="ContextMenu" type="contextMenuType" />
   <xs:element name="ProgressBar" type="progressBarType" />
+  <xs:element name="MediaElement" type="mediaElementType" />
   <xs:element name="DataGrid" type="dataGridType" />
   <xs:element name="DataGridCell" type="dataGridCellType" />
   <xs:element name="DataGridColumnHeader" type="dataGridColumnHeaderType" />
