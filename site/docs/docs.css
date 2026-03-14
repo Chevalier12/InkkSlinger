@@ -275,9 +275,9 @@
 
 .pager-link {
     display: flex;
-    align-items: center;
-    gap: 14px;
-    width: min(100%, 360px);
+    flex-direction: column;
+    justify-content: center;
+    width: min(100%, 320px);
     min-height: 96px;
     padding: 16px 18px;
     background:
@@ -296,30 +296,9 @@
         background 160ms ease;
 }
 
-.pager-arrow {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    flex: 0 0 44px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: var(--text);
-    font-size: 1.2rem;
-    line-height: 1;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.pager-copy {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-}
-
-.pager-label {
+.pager-link span {
     display: block;
+    margin-bottom: 8px;
     color: var(--accent-cool);
     font-size: 0.8rem;
     font-weight: 700;
@@ -327,23 +306,31 @@
     text-transform: uppercase;
 }
 
-.pager-title {
+.pager-link strong {
     display: block;
-    margin-top: 8px;
     color: var(--text);
     font-size: 1rem;
-    font-weight: 700;
     line-height: 1.5;
 }
 
-.pager-link.pager-prev {
+.doc-pagination .pager-link:first-child {
     justify-self: start;
+    text-align: left;
+    align-items: flex-start;
 }
 
-.pager-link.pager-next {
+.doc-pagination .pager-link:last-child {
     justify-self: end;
-    flex-direction: row-reverse;
     text-align: right;
+    align-items: flex-end;
+}
+
+.doc-pagination .pager-link:first-child span::before {
+    content: "< ";
+}
+
+.doc-pagination .pager-link:last-child span::after {
+    content: " >";
 }
 
 .pager-link:hover,
@@ -363,12 +350,6 @@
     outline-offset: 2px;
 }
 
-.pager-link:hover .pager-arrow,
-.pager-link:focus-visible .pager-arrow {
-    background: rgba(255, 159, 67, 0.18);
-    border-color: rgba(255, 159, 67, 0.35);
-}
-
 @media (max-width: 1080px) {
     .docs-layout,
     .doc-grid,
@@ -382,12 +363,20 @@
         position: static;
     }
 
-    .pager-link.pager-prev,
-    .pager-link.pager-next {
+    .doc-pagination .pager-link:first-child,
+    .doc-pagination .pager-link:last-child {
         justify-self: stretch;
         width: 100%;
-        flex-direction: row;
         text-align: left;
+        align-items: flex-start;
+    }
+
+    .doc-pagination .pager-link:last-child span::after {
+        content: "";
+    }
+
+    .doc-pagination .pager-link:last-child span::before {
+        content: "> ";
     }
 }
 
