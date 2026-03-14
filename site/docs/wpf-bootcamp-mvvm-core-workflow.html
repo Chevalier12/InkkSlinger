@@ -20,21 +20,205 @@
                 <div class="doc-hero"><p class="eyebrow">WPF Bootcamp</p><h1>MVVM Core Workflow</h1><p>MVVM is a collaboration pattern. The view declares structure and binding targets. The view model exposes state and actions. The model layer handles domain rules and data access.</p><p>Good MVVM does not eliminate all code-behind. It simply makes behavior predictable by putting durable state and decisions where they can be tested.</p></div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
-                    <ul><li>Which responsibilities belong in the view, view model, and model/service layers.</li><li>How <code>INotifyPropertyChanged</code> and <code>ICommand</code> underpin most MVVM flows.</li><li>When code-behind is acceptable and when it is masking missing view model design.</li></ul>
+                    <ul><li>Which responsibilities belong in the view, view model, and model/service layers.</li><li>How <code>INotifyPropertyChanged</code> and <code>ICommand</code> underpin most MVVM flows.</li><li>When code-behind is acceptable and when it is masking missing view model design.</li><li>How data, commands, and user intent move through a real MVVM screen over time.</li></ul>
                     <pre><code class="language-csharp">public sealed class CustomerEditorViewModel : INotifyPropertyChanged
 {
     public string Name { get; set; } = string.Empty;
     public ICommand SaveCommand { get; }
     public event PropertyChangedEventHandler? PropertyChanged;
 }</code></pre>
+                    <p>This is the center of the pattern: the view model exposes state and actions that the view can bind to without knowing the details of domain work or storage.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The mental model in one sentence</h2>
+                    <p>MVVM says the view declares what the UI looks like, the view model declares what the UI knows and can do, and the model or service layer handles business rules and persistence.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>View</h3>
+                            <p>Markup, bindings, templates, visual state, and view-only behavior.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>View model</h3>
+                            <p>State, commands, validation-facing state, and coordination of use cases.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Model or services</h3>
+                            <p>Domain entities, persistence, API calls, business rules, and infrastructure concerns.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Why it matters</h3>
+                            <p>The view stays replaceable, the logic stays testable, and the responsibilities stop bleeding into each other.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>What belongs in the view</h2>
+                    <p>The view is responsible for structure and presentation. It owns layout, visuals, bindings, styles, templates, and interaction wiring such as commands and view-specific event hookups.</p>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+    &lt;TextBox Text="{Binding Name}" /&gt;
+    &lt;Button Content="Save" Command="{Binding SaveCommand}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>The view should know which control is a text box, which button is visible, and how content is laid out. It should not own durable application state just because a named control happens to exist on screen.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>What belongs in the view model</h2>
+                    <p>The view model owns state the screen needs to display and mutate, plus the actions the user can request from that screen.</p>
+                    <pre><code class="language-csharp">public sealed class CustomerEditorViewModel : INotifyPropertyChanged
+{
+    private string _name = string.Empty;
+
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            if (_name == value)
+            {
+                return;
+            }
+
+            _name = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+        }
+    }
+
+    public ICommand SaveCommand { get; }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}</code></pre>
+                    <ul>
+                        <li>Put editable form state here.</li>
+                        <li>Put selected-item state here.</li>
+                        <li>Put command properties here.</li>
+                        <li>Put validation-facing screen state here.</li>
+                    </ul>
+                    <p>The view model should not depend on concrete controls or visual tree traversal. It should describe the screen's state and actions in UI-agnostic terms.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>What belongs in models and services</h2>
+                    <p>The view model coordinates work, but it should not become the place where every domain rule and infrastructure concern gets dumped.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Model</h3>
+                            <p>Domain entities, validation rules, and business meaning that exist even without a screen.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Service</h3>
+                            <p>Persistence, HTTP calls, navigation orchestration, dialogs, logging, and similar cross-cutting operations.</p>
+                        </section>
+                    </div>
+                    <p>The view model should call into services or manipulate models, not replace them entirely.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>How a normal MVVM screen works</h2>
+                    <ol>
+                        <li>The view gets a view model as its <code>DataContext</code>.</li>
+                        <li>The view binds controls to properties and commands on that view model.</li>
+                        <li>The user edits values or invokes commands through the view.</li>
+                        <li>The binding system updates the view model as needed.</li>
+                        <li>The view model validates, transforms, or coordinates work through services.</li>
+                        <li>The view model raises property-change notifications so the view refreshes.</li>
+                    </ol>
+                    <p>That loop is the core workflow. The screen stays declarative, but it is still reactive because the binding system and command system keep the view and view model synchronized.</p>
+                </section>
+                <section class="doc-section">
+                    <h2><code>INotifyPropertyChanged</code> and <code>ICommand</code> are the backbone</h2>
+                    <p>Most MVVM screens rely on two simple interfaces.</p>
+                    <ul>
+                        <li><code>INotifyPropertyChanged</code> tells the view when bound properties changed.</li>
+                        <li><code>ICommand</code> lets the view expose user actions declaratively.</li>
+                    </ul>
+                    <p>If a view model is missing one of these where it should have it, the MVVM flow usually becomes awkward quickly.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Practical rules</h2>
                     <ul><li>Put persistent UI state in the view model, not in named controls.</li><li>Keep view models unaware of concrete controls and visual tree details.</li><li>Push domain work into services or models so the view model coordinates rather than owns everything.</li><li>Allow code-behind for view-only concerns such as focus, animations, or platform-specific glue.</li></ul>
                 </section>
                 <section class="doc-section">
+                    <h2>When code-behind is acceptable</h2>
+                    <p>Good MVVM does not ban code-behind. It limits it to concerns that are truly about the view layer.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Usually acceptable</h3>
+                            <p>Focus management, animation triggers, view-only composition glue, platform host integration, and control-specific behavior that does not belong in domain logic.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Usually a smell</h3>
+                            <p>Saving records, mutating durable screen state, making service calls, or deciding business rules inside a click handler.</p>
+                        </section>
+                    </div>
+                    <p>The question is not "is this code in the view file?" The question is "is this concern fundamentally about the view?"</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Signs a view model is taking on too much</h2>
+                    <p>MVVM can fail in the other direction too. A view model can become a giant coordinator with no clear boundaries.</p>
+                    <ul>
+                        <li>It knows too much about navigation, dialogs, persistence, and every other service in the app.</li>
+                        <li>It makes detailed visual decisions such as pixel measurements or control choreography.</li>
+                        <li>It becomes difficult to explain which state is screen state versus domain state.</li>
+                    </ul>
+                    <p>When that happens, the answer is usually not "put it back in the view." The answer is often to introduce better service boundaries or split the view model into clearer responsibilities.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>A worked end-to-end example</h2>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+    &lt;TextBox Text="{Binding Name, Mode=TwoWay}" /&gt;
+    &lt;TextBlock Text="{Binding StatusMessage}" /&gt;
+    &lt;Button Content="Save" Command="{Binding SaveCommand}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <pre><code class="language-csharp">public sealed class CustomerEditorViewModel : INotifyPropertyChanged
+{
+    private readonly ICustomerService _customerService;
+    private string _name = string.Empty;
+    private string _statusMessage = string.Empty;
+
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            if (_name == value)
+            {
+                return;
+            }
+
+            _name = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+        }
+    }
+
+    public string StatusMessage
+    {
+        get => _statusMessage;
+        private set
+        {
+            if (_statusMessage == value)
+            {
+                return;
+            }
+
+            _statusMessage = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusMessage)));
+        }
+    }
+
+    public ICommand SaveCommand { get; }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}</code></pre>
+                    <ol>
+                        <li>The user types into the text box.</li>
+                        <li>The binding updates <code>Name</code> on the view model.</li>
+                        <li>The user clicks Save.</li>
+                        <li>The command calls into a service to persist the data.</li>
+                        <li>The view model updates <code>StatusMessage</code>.</li>
+                        <li>The text block refreshes because property change notification propagated back through binding.</li>
+                    </ol>
+                    <p>That is MVVM working end to end: the view declares, the view model coordinates, and services do the domain or infrastructure work.</p>
+                </section>
+                <section class="doc-section">
                     <h2>Common mistakes</h2>
-                    <ul><li>Making the view model responsible for pixel-level presentation decisions.</li><li>Turning the view model into a dumping ground for service location, navigation, dialogs, and validation with no clear boundaries.</li><li>Refusing all code-behind even for pure view concerns, which often leads to worse abstractions.</li></ul>
+                    <ul><li>Making the view model responsible for pixel-level presentation decisions.</li><li>Turning the view model into a dumping ground for service location, navigation, dialogs, and validation with no clear boundaries.</li><li>Refusing all code-behind even for pure view concerns, which often leads to worse abstractions.</li><li>Letting controls become the source of truth for state that should live in the view model.</li><li>Using MVVM language while still pushing core workflow through code-behind handlers.</li></ul>
                     <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> The existing docs and samples already use a WPF-like MVVM flow. The more faithfully you keep state in the view model and use binding or commands in the view, the more portable your design becomes between WPF and InkkSlinger.</p></div>
                     <p>Next, add collections to the picture so your screens can render repeated data instead of one-off controls.</p>
                 </section>
