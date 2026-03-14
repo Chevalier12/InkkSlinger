@@ -173,8 +173,357 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>Grid</h1>
-                    <p>WIP</p>
+                    <p><code>Grid</code> is the most flexible general-purpose layout panel in InkkSlinger. It arranges children into rows and columns, supports pixel, auto, and star sizing, and lets each child choose its cell with the attached properties <code>Grid.Row</code>, <code>Grid.Column</code>, <code>Grid.RowSpan</code>, and <code>Grid.ColumnSpan</code>.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>Grid</code> when you need structured two-dimensional layout. It is the right default for headers plus content, dashboards, forms, sidebars, dialogs, and any screen where rows and columns matter.</p>
+                    <h3>Minimal two-row layout</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.RowDefinitions&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+    &lt;RowDefinition Height="*" /&gt;
+  &lt;/Grid.RowDefinitions&gt;
+
+  &lt;TextBlock Grid.Row="0"
+             Text="Inventory" /&gt;
+
+  &lt;ListBox Grid.Row="1"
+           Margin="0,8,0,0" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Two-column form shell</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="140" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+  &lt;Grid.RowDefinitions&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+  &lt;/Grid.RowDefinitions&gt;
+
+  &lt;TextBlock Grid.Row="0" Grid.Column="0" Text="Name" Margin="0,0,12,8" /&gt;
+  &lt;TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" /&gt;
+
+  &lt;TextBlock Grid.Row="1" Grid.Column="0" Text="Email" Margin="0,0,12,0" /&gt;
+  &lt;TextBox Grid.Row="1" Grid.Column="1" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Weighted star columns</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="2*" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+
+  &lt;Border Grid.Column="0" Background="#203448" /&gt;
+  &lt;Border Grid.Column="1" Background="#162330" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> start with <code>Auto</code> for content-sized rows or columns and <code>*</code> for the area that should absorb the remaining space. That pattern covers most application layouts cleanly.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Definition model</h2>
+                    <p><code>Grid</code> exposes two collections: <code>ColumnDefinitions</code> and <code>RowDefinitions</code>. Each definition controls the size policy for one column or row.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>ColumnDefinition</h3>
+                            <p>Use <code>Width</code>, <code>MinWidth</code>, <code>MaxWidth</code>, and inspect <code>ActualWidth</code> after arrange when you need the resolved final width.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>RowDefinition</h3>
+                            <p>Use <code>Height</code>, <code>MinHeight</code>, <code>MaxHeight</code>, and inspect <code>ActualHeight</code> after arrange when you need the resolved final height.</p>
+                        </article>
+                    </div>
+                    <p>The supported sizing syntax is:</p>
+                    <ul>
+                        <li><code>Auto</code> sizes to content, then applies min/max constraints.</li>
+                        <li>A number such as <code>120</code> means a fixed pixel size.</li>
+                        <li><code>*</code> means one share of the remaining space.</li>
+                        <li><code>2*</code>, <code>3*</code>, and similar values mean weighted shares of the remaining space.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Grid.ColumnDefinitions&gt;
+  &lt;ColumnDefinition Width="96" /&gt;
+  &lt;ColumnDefinition Width="Auto" MinWidth="80" /&gt;
+  &lt;ColumnDefinition Width="2*" /&gt;
+  &lt;ColumnDefinition Width="*" MaxWidth="220" /&gt;
+&lt;/Grid.ColumnDefinitions&gt;</code></pre>
+                    <p>If you do not declare any column definitions, Grid behaves as though it had one star-sized column. If you do not declare any row definitions, it behaves as though it had one star-sized row.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Placing children in cells</h2>
+                    <p>Each child stays in row <code>0</code>, column <code>0</code> by default. Use Grid's attached properties to move it to another cell or let it span across multiple cells.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3><code>Grid.Row</code></h3>
+                            <p>Zero-based row index. The default is <code>0</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>Grid.Column</code></h3>
+                            <p>Zero-based column index. The default is <code>0</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>Grid.RowSpan</code> and <code>Grid.ColumnSpan</code></h3>
+                            <p>Positive span lengths. The default is <code>1</code>.</p>
+                        </article>
+                    </div>
+                    <h3>Basic row and column placement</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="Auto" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+  &lt;Grid.RowDefinitions&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+  &lt;/Grid.RowDefinitions&gt;
+
+  &lt;TextBlock Grid.Row="0" Grid.Column="0" Text="Server" Margin="0,0,10,8" /&gt;
+  &lt;TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" /&gt;
+
+  &lt;TextBlock Grid.Row="1" Grid.Column="0" Text="Port" Margin="0,0,10,0" /&gt;
+  &lt;TextBox Grid.Row="1" Grid.Column="1" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Span a header across multiple columns</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+  &lt;Grid.RowDefinitions&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+    &lt;RowDefinition Height="*" /&gt;
+  &lt;/Grid.RowDefinitions&gt;
+
+  &lt;Border Grid.Row="0"
+          Grid.Column="0"
+          Grid.ColumnSpan="3"
+          Background="#223245"
+          Padding="12"
+          Margin="0,0,0,8"&gt;
+    &lt;TextBlock Text="Operations dashboard" /&gt;
+  &lt;/Border&gt;
+
+  &lt;Border Grid.Row="1" Grid.Column="0" Background="#182636" Margin="0,0,8,0" /&gt;
+  &lt;Border Grid.Row="1" Grid.Column="1" Background="#162330" Margin="0,0,8,0" /&gt;
+  &lt;Border Grid.Row="1" Grid.Column="2" Background="#101822" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Coercion behavior:</strong> if a row, column, or span points outside the declared grid range, InkkSlinger coerces it back into the valid range instead of throwing during layout. You should still author valid indexes because coercion is a safety net, not a layout design tool.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>How layout is resolved</h2>
+                    <p>Grid runs a measure pass to determine how much space rows and columns need, then an arrange pass to place each child into the rectangle defined by its resolved row and column sizes.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Measure pass</h3>
+                            <p>Pixel definitions reserve their fixed size immediately. Auto definitions grow to fit child desired size. Star definitions take a weighted share of remaining constrained space.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Arrange pass</h3>
+                            <p>The final grid size is divided across the arranged definitions. Each child is then arranged into the summed rectangle of its row and column span.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Auto rows and columns can trigger an unconstrained first measure for children in those axes.</li>
+                        <li>If the first measurement already fits the final resolved space, Grid avoids remeasuring the child.</li>
+                        <li>Min and max constraints are enforced on row and column definitions.</li>
+                        <li>When the total requested size exceeds the available size, Grid reduces overflow in star definitions first, then auto, then pixel definitions, while respecting minimums.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Grid Width="240" Height="100"&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="Auto" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+  &lt;Grid.RowDefinitions&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+    &lt;RowDefinition Height="*" /&gt;
+  &lt;/Grid.RowDefinitions&gt;
+
+  &lt;TextBlock Grid.Row="0" Grid.Column="0" Text="Auto-sized label" /&gt;
+  &lt;Border Grid.Row="1" Grid.Column="1" Background="#223245" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <p>In that layout, the top-left content determines the auto row and auto column size, and the remaining width and height flow into the star row and star column.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Behavior that matters in real screens</h2>
+                    <h3>Auto plus explicit child size</h3>
+                    <p>When a child sits in an auto-sized row or column and has an explicit <code>Width</code> or <code>Height</code>, Grid uses that explicit size plus margin to constrain the first measure pass on that axis. This avoids unnecessary remeasure work for fixed-size content.</p>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="Auto" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+  &lt;Grid.RowDefinitions&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+  &lt;/Grid.RowDefinitions&gt;
+
+  &lt;Button Width="120"
+          Height="36"
+          Margin="6,4"
+          Text="Apply" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Inspecting resolved sizes</h3>
+                    <p>After arrange, each definition reports its final resolved size through <code>ActualWidth</code> or <code>ActualHeight</code>. This is primarily useful for diagnostics, layout tooling, or controls such as <code>GridSplitter</code> that need to work against the current rendered dimensions.</p>
+                    <pre><code class="language-csharp">var grid = new Grid();
+grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+
+// After measure + arrange:
+float left = grid.ColumnDefinitions[0].ActualWidth;
+float right = grid.ColumnDefinitions[1].ActualWidth;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Grid surface</h3>
+                            <p><code>ColumnDefinitions</code>: ordered collection of <code>ColumnDefinition</code> objects.</p>
+                            <p><code>RowDefinitions</code>: ordered collection of <code>RowDefinition</code> objects.</p>
+                            <p><code>Children</code>: inherited from <code>Panel</code>; the visual elements arranged into cells.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Attached properties</h3>
+                            <p><code>Grid.Row</code>: target row index, default <code>0</code>.</p>
+                            <p><code>Grid.Column</code>: target column index, default <code>0</code>.</p>
+                            <p><code>Grid.RowSpan</code>: number of rows to span, default <code>1</code>.</p>
+                            <p><code>Grid.ColumnSpan</code>: number of columns to span, default <code>1</code>.</p>
+                        </article>
+                    </div>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>ColumnDefinition</h3>
+                            <p><code>Width</code>: <code>GridLength</code> using pixel, auto, or star sizing.</p>
+                            <p><code>MinWidth</code>: lower size bound, clamped to zero or above.</p>
+                            <p><code>MaxWidth</code>: upper size bound.</p>
+                            <p><code>ActualWidth</code>: resolved width after arrange.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>RowDefinition</h3>
+                            <p><code>Height</code>: <code>GridLength</code> using pixel, auto, or star sizing.</p>
+                            <p><code>MinHeight</code>: lower size bound, clamped to zero or above.</p>
+                            <p><code>MaxHeight</code>: upper size bound.</p>
+                            <p><code>ActualHeight</code>: resolved height after arrange.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Header plus content area</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.RowDefinitions&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+    &lt;RowDefinition Height="*" /&gt;
+  &lt;/Grid.RowDefinitions&gt;
+
+  &lt;Border Grid.Row="0"
+          Background="#1C2B3A"
+          BorderBrush="#33506B"
+          BorderThickness="0,0,0,1"
+          Padding="12"&gt;
+    &lt;TextBlock Text="Project Explorer" /&gt;
+  &lt;/Border&gt;
+
+  &lt;TreeView Grid.Row="1" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Sidebar and main panel</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="260" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+
+  &lt;Border Grid.Column="0"
+          Background="#162330"
+          BorderBrush="#28445F"
+          BorderThickness="0,0,1,0"
+          Padding="12" /&gt;
+
+  &lt;ContentControl Grid.Column="1"
+                  Margin="16,0,0,0" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Three-column dashboard cards</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+
+  &lt;Border Grid.Column="0" Margin="0,0,12,0" Padding="12" Background="#1B2C3C" /&gt;
+  &lt;Border Grid.Column="1" Margin="0,0,12,0" Padding="12" Background="#152331" /&gt;
+  &lt;Border Grid.Column="2" Padding="12" Background="#101A24" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Form with aligned labels</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="Auto" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+  &lt;Grid.RowDefinitions&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+    &lt;RowDefinition Height="Auto" /&gt;
+  &lt;/Grid.RowDefinitions&gt;
+
+  &lt;TextBlock Grid.Row="0" Grid.Column="0" Text="User" Margin="0,0,10,8" /&gt;
+  &lt;TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" /&gt;
+
+  &lt;TextBlock Grid.Row="1" Grid.Column="0" Text="Password" Margin="0,0,10,8" /&gt;
+  &lt;PasswordBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" /&gt;
+
+  &lt;Button Grid.Row="2"
+          Grid.Column="1"
+          Width="120"
+          HorizontalAlignment="Left"
+          Text="Sign in" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Resizable split layout with GridSplitter</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="220" MinWidth="160" /&gt;
+    &lt;ColumnDefinition Width="6" /&gt;
+    &lt;ColumnDefinition Width="*" MinWidth="280" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+
+  &lt;TreeView Grid.Column="0" /&gt;
+
+  &lt;GridSplitter Grid.Column="1"
+                Width="6"
+                HorizontalAlignment="Stretch" /&gt;
+
+  &lt;ContentControl Grid.Column="2" /&gt;
+&lt;/Grid&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Children default to cell 0,0.</strong> If multiple children omit <code>Grid.Row</code> and <code>Grid.Column</code>, they all stack into the first cell.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No definitions means one implicit star row and one implicit star column.</strong> That is convenient for a simple single-cell layout, but it is easy to forget when you expected a multi-row or multi-column arrangement.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Star sizing depends on finite available space.</strong> When the available width or height is unconstrained, star definitions do not magically pick a final size during the early measure phase. They resolve against constrained space during arrange or constrained measure.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Spans are clamped to the grid bounds.</strong> Oversized spans do not extend layout beyond the declared row or column count.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Use Grid for two-dimensional structure, not repetition.</strong> If you are creating repeated equally sized cells, <code>UniformGrid</code> is usually simpler. If you only need vertical or horizontal stacking, <code>StackPanel</code> is usually the better fit.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-frame.html">
+                        <span>Previous</span>
+                        <strong>Frame</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-grid-splitter.html">
+                        <span>Next</span>
+                        <strong>GridSplitter</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
