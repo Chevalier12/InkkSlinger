@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -171,6 +173,73 @@ public sealed class LabelControlTests
         Assert.Contains("cannot mix implicit text content", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void ControlsCatalog_Labels_BuildPresentedTextChildren()
+    {
+        var catalog = new ControlsCatalogView();
+
+        var uiRoot = RunLayout(catalog);
+        uiRoot.RebuildRenderListForTests();
+
+        var header = Assert.IsType<Label>(catalog.FindName("SelectedControlLabel"));
+        var presenter = Assert.IsType<ContentPresenter>(FindDescendant<ContentPresenter>(header));
+        var presented = Assert.Single(presenter.GetVisualChildren());
+        var headerAccessText = Assert.IsType<AccessText>(presented);
+        Assert.True(headerAccessText.DesiredSize.X > 0f);
+        Assert.Contains(headerAccessText, uiRoot.GetRetainedVisualOrderForTests());
+
+        var sidebarHeader = FindLabelByContent(catalog, "Control Views");
+        presenter = Assert.IsType<ContentPresenter>(FindDescendant<ContentPresenter>(sidebarHeader));
+        presented = Assert.Single(presenter.GetVisualChildren());
+        var sidebarAccessText = Assert.IsType<AccessText>(presented);
+        Assert.True(sidebarAccessText.DesiredSize.X > 0f);
+        Assert.Contains(sidebarAccessText, uiRoot.GetRetainedVisualOrderForTests());
+
+        var host = Assert.IsType<StackPanel>(catalog.FindName("ControlButtonsHost"));
+        var button = Assert.IsType<Button>(host.Children[0]);
+        presenter = Assert.IsType<ContentPresenter>(FindDescendant<ContentPresenter>(button));
+        presented = Assert.Single(presenter.GetVisualChildren());
+        var fallbackLabel = Assert.IsType<Label>(presented);
+        var nestedPresenter = Assert.IsType<ContentPresenter>(FindDescendant<ContentPresenter>(fallbackLabel));
+        var nestedText = Assert.IsType<AccessText>(Assert.Single(nestedPresenter.GetVisualChildren()));
+        Assert.True(nestedText.DesiredSize.X > 0f);
+        Assert.Contains(nestedText, uiRoot.GetRetainedVisualOrderForTests());
+    }
+
+    [Fact]
+    public void ControlsCatalog_WithAppResources_BuildsButtonAndLabelPresentedTextChildren()
+    {
+        var snapshot = SnapshotApplicationResources();
+        try
+        {
+            var appPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "App.xml"));
+            XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+
+            var catalog = new ControlsCatalogView();
+            var uiRoot = RunLayout(catalog);
+            uiRoot.RebuildRenderListForTests();
+
+            var header = Assert.IsType<Label>(catalog.FindName("SelectedControlLabel"));
+            var headerPresenter = Assert.IsType<ContentPresenter>(FindDescendant<ContentPresenter>(header));
+            var headerText = Assert.IsType<AccessText>(Assert.Single(headerPresenter.GetVisualChildren()));
+            Assert.True(headerText.DesiredSize.X > 0f);
+
+            var host = Assert.IsType<StackPanel>(catalog.FindName("ControlButtonsHost"));
+            var button = Assert.IsType<Button>(host.Children[0]);
+            var border = Assert.IsType<Border>(Assert.Single(button.GetVisualChildren()));
+            Assert.NotNull(border.Child);
+            var presenter = Assert.IsType<ContentPresenter>(FindDescendant<ContentPresenter>(button));
+            var fallbackLabel = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
+            var nestedPresenter = Assert.IsType<ContentPresenter>(FindDescendant<ContentPresenter>(fallbackLabel));
+            var nestedText = Assert.IsType<AccessText>(Assert.Single(nestedPresenter.GetVisualChildren()));
+            Assert.True(nestedText.DesiredSize.X > 0f);
+        }
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
+    }
+
     private static UiRoot RunLayout(UIElement content)
     {
         var uiRoot = new UiRoot(content);
@@ -200,6 +269,25 @@ public sealed class LabelControlTests
         return null;
     }
 
+    private static Label FindLabelByContent(UIElement root, string text)
+    {
+        if (root is Label label && string.Equals(label.GetContentText(), text, StringComparison.Ordinal))
+        {
+            return label;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindLabelByContent(child, text);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        throw new InvalidOperationException($"Could not find label with content '{text}'.");
+    }
+
     private static InputDelta CreateKeyDownDelta(Keys key, KeyboardState keyboard)
     {
         var pointer = new Vector2(16f, 16f);
@@ -219,5 +307,19 @@ public sealed class LabelControlTests
             MiddlePressed = false,
             MiddleReleased = false
         };
+    }
+
+    private static Dictionary<object, object> SnapshotApplicationResources()
+    {
+        return new Dictionary<object, object>(UiApplication.Current.Resources);
+    }
+
+    private static void RestoreApplicationResources(Dictionary<object, object> snapshot)
+    {
+        UiApplication.Current.Resources.Clear();
+        foreach (var entry in snapshot)
+        {
+            UiApplication.Current.Resources[entry.Key] = entry.Value;
+        }
     }
 }

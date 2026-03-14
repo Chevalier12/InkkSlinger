@@ -125,6 +125,9 @@ public class Control : FrameworkElement, ICommandSource
     private bool _isUpdatingIsEnabled;
     private bool _isApplyingImplicitStyle;
     private Style? _activeImplicitStyle;
+    private Style? _composedImplicitStyle;
+    private Style? _composedImplicitResourceStyle;
+    private Style? _composedImplicitFallbackStyle;
 
     public Control()
     {
@@ -891,6 +894,7 @@ public class Control : FrameworkElement, ICommandSource
 
     private Style? ResolveImplicitStyleTarget()
     {
+        var fallbackStyle = GetFallbackStyle();
         Style? resourceStyle = null;
         if (DefaultStyleKey != null &&
             TryFindResource(DefaultStyleKey, out var resource) &&
@@ -899,7 +903,76 @@ public class Control : FrameworkElement, ICommandSource
             resourceStyle = style;
         }
 
-        return resourceStyle ?? GetFallbackStyle();
+        if (resourceStyle == null)
+        {
+            return fallbackStyle;
+        }
+
+        if (fallbackStyle == null ||
+            ReferenceEquals(resourceStyle, fallbackStyle) ||
+            StyleChainContains(resourceStyle, fallbackStyle) ||
+            StyleDefinesProperty(resourceStyle, TemplateProperty))
+        {
+            return resourceStyle;
+        }
+
+        if (ReferenceEquals(_composedImplicitResourceStyle, resourceStyle) &&
+            ReferenceEquals(_composedImplicitFallbackStyle, fallbackStyle) &&
+            _composedImplicitStyle != null)
+        {
+            return _composedImplicitStyle;
+        }
+
+        var composedStyle = new Style(resourceStyle.TargetType)
+        {
+            BasedOn = fallbackStyle
+        };
+
+        foreach (var setter in resourceStyle.Setters)
+        {
+            composedStyle.Setters.Add(setter);
+        }
+
+        foreach (var trigger in resourceStyle.Triggers)
+        {
+            composedStyle.Triggers.Add(trigger);
+        }
+
+        _composedImplicitResourceStyle = resourceStyle;
+        _composedImplicitFallbackStyle = fallbackStyle;
+        _composedImplicitStyle = composedStyle;
+        return composedStyle;
+    }
+
+    private static bool StyleDefinesProperty(Style style, DependencyProperty property)
+    {
+        for (Style? current = style; current != null; current = current.BasedOn)
+        {
+            foreach (var setterBase in current.Setters)
+            {
+                if (setterBase is Setter setter &&
+                    string.IsNullOrWhiteSpace(setter.TargetName) &&
+                    ReferenceEquals(setter.Property, property))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool StyleChainContains(Style style, Style candidate)
+    {
+        for (Style? current = style; current != null; current = current.BasedOn)
+        {
+            if (ReferenceEquals(current, candidate))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void CollectAncestorScopeSubscriptions(
