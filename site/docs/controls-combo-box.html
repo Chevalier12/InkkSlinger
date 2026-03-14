@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - ComboBox</title>
-    <meta name="description" content="ComboBox control reference.">
+    <meta name="description" content="Technical manual for the ComboBox control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,312 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>ComboBox</h1>
-                    <p>WIP</p>
+                    <p><code>ComboBox</code> is InkkSlinger's non-editable drop-down selector. It renders the current selection as a single text line, opens a popup list when clicked, and synchronizes <code>SelectedIndex</code>, <code>SelectedItem</code>, and <code>SelectionChanged</code> through the shared selector pipeline.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>ComboBox</code> when you want a compact, single-selection picker that expands into an overlay list. The current implementation is text-first and works best with strings, simple objects, or explicit <code>ComboBoxItem</code> rows.</p>
+                    <h3>Minimal list</h3>
+                    <pre><code class="language-xml">&lt;ComboBox Width="220"
+          SelectedIndex="0"&gt;
+  &lt;ComboBoxItem Text="Low" /&gt;
+  &lt;ComboBoxItem Text="Medium" /&gt;
+  &lt;ComboBoxItem Text="High" /&gt;
+&lt;/ComboBox&gt;</code></pre>
+                    <h3>Explicit item rows</h3>
+                    <pre><code class="language-xml">&lt;ComboBox Width="220" SelectedIndex="1"&gt;
+  &lt;ComboBoxItem Text="Windowed" /&gt;
+  &lt;ComboBoxItem Text="Borderless Fullscreen" /&gt;
+  &lt;ComboBoxItem Text="Exclusive Fullscreen" /&gt;
+&lt;/ComboBox&gt;</code></pre>
+                    <h3>Bind the selected item</h3>
+                    <pre><code class="language-xml">&lt;ComboBox Width="240"
+          ItemsSource="{Binding DifficultyOptions}"
+          SelectedItem="{Binding SelectedDifficulty}" /&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> if you want predictable captions, feed the control strings or set <code>ComboBoxItem.Text</code> explicitly. That matches the current closed-state display path.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>How the current ComboBox behaves</h2>
+                    <p>This ComboBox is closer to a selector plus popup overlay than to WPF's full editable ComboBox surface. The closed control is owner-drawn, and the drop-down is backed by an internal <code>ListBox</code> hosted inside a <code>Popup</code>.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Closed state</h3>
+                            <p>The control paints its own background, border, arrow area, and selected text. It does not display arbitrary visual content in the closed state.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Open state</h3>
+                            <p>Clicking the control toggles <code>IsDropDownOpen</code>. When open, the popup appears below the control and overlays surrounding layout instead of reflowing siblings.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Dismissal</h3>
+                            <p>Selecting a row or clicking outside the popup closes the drop-down and synchronizes <code>IsDropDownOpen</code> back to <code>false</code>.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>The drop-down aligns to the ComboBox and uses the control width as its starting width.</li>
+                        <li>The popup is attached to the topmost ancestor panel so it renders as an overlay.</li>
+                        <li>The drop-down list uses single selection.</li>
+                        <li>Long lists scroll vertically inside the popup.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;ComboBox Width="220"
+          IsDropDownOpen="{Binding IsGraphicsPickerOpen}"
+          SelectedIndex="0"&gt;
+  &lt;ComboBoxItem Text="DirectX" /&gt;
+  &lt;ComboBoxItem Text="Vulkan" /&gt;
+  &lt;ComboBoxItem Text="OpenGL" /&gt;
+&lt;/ComboBox&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>What to put in the item list</h2>
+                    <p>The selected caption is generated from the underlying item value. That makes item choice important. If your items are not text-oriented, the control can only fall back to <code>ToString()</code>.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Best-supported item shapes</h3>
+                            <p>Strings and other values with useful <code>ToString()</code> output.</p>
+                            <p><code>ComboBoxItem</code> with <code>Text</code> set.</p>
+                            <p><code>Label</code> items whose <code>Text</code> should be used directly.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Use caution with arbitrary visuals</h3>
+                            <p>If you place richer content under a row and do not provide text separately, the closed ComboBox still needs a string caption. That caption may become the type name or another <code>ToString()</code> result.</p>
+                        </article>
+                    </div>
+                    <p>The current display resolution rules are, in order:</p>
+                    <ul>
+                        <li><code>ComboBoxItem.Text</code> when it is non-empty.</li>
+                        <li>A nested <code>Label.Text</code> when the item content is a <code>Label</code>.</li>
+                        <li>The item's <code>ToString()</code> result.</li>
+                    </ul>
+                    <h3>Safe pattern for explicit captions</h3>
+                    <pre><code class="language-xml">&lt;ComboBox Width="260" SelectedIndex="0"&gt;
+  &lt;ComboBoxItem Text="1920 x 1080" /&gt;
+  &lt;ComboBoxItem Text="2560 x 1440" /&gt;
+  &lt;ComboBoxItem Text="3840 x 2160" /&gt;
+&lt;/ComboBox&gt;</code></pre>
+                    <h3>ItemsSource with simple values</h3>
+                    <pre><code class="language-xml">&lt;ComboBox Width="220"
+          ItemsSource="{Binding LanguageCodes}"
+          SelectedItem="{Binding CurrentLanguageCode}" /&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical rule:</strong> treat the control as a text selector. If you need predictable labels, make the text explicit instead of depending on complex item visuals.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Selection and events</h2>
+                    <p><code>ComboBox</code> inherits the selector contract, so selection is driven through <code>SelectedIndex</code>, <code>SelectedItem</code>, and the bubbling <code>SelectionChanged</code> event.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Programmatic selection</h3>
+                            <p>Set <code>SelectedIndex</code> or <code>SelectedItem</code> to choose the current row. The other property updates automatically.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>User selection</h3>
+                            <p>Clicking a drop-down row updates the selected item, closes the popup, and raises <code>SelectionChanged</code>.</p>
+                        </article>
+                    </div>
+                    <h3>Handle SelectionChanged in XAML</h3>
+                    <pre><code class="language-xml">&lt;ComboBox Width="220"
+          SelectedIndex="0"
+          SelectionChanged="OnQualityChanged"&gt;
+  &lt;ComboBoxItem Text="Low" /&gt;
+  &lt;ComboBoxItem Text="Medium" /&gt;
+  &lt;ComboBoxItem Text="Ultra" /&gt;
+&lt;/ComboBox&gt;</code></pre>
+                    <pre><code class="language-csharp">namespace InkkSlinger;
+
+public partial class GraphicsView : UserControl
+{
+    public GraphicsView()
+    {
+        InitializeComponent();
+    }
+
+    private void OnQualityChanged(object? sender, SelectionChangedEventArgs args)
+    {
+        var comboBox = (ComboBox)sender!;
+        var selectedQuality = comboBox.SelectedItem;
+        // React to the new value here.
+    }
+}</code></pre>
+                    <ul>
+                        <li><code>SelectedIndex</code> defaults to <code>-1</code> when nothing is selected.</li>
+                        <li><code>SelectedItem</code> is the original item object, not a display string copy.</li>
+                        <li>The control is intended for single-selection workflows.</li>
+                    </ul>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout and sizing</h2>
+                    <p>The closed ComboBox measures around the selected caption plus its chrome. The arrow area is reserved internally, and the current font size contributes directly to the desired height.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Closed control width</h3>
+                            <p>Desired width grows from the selected text width plus horizontal padding, border thickness on both sides, and arrow-space reserve.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Closed control height</h3>
+                            <p>Desired height grows from the current text line height plus vertical padding and border thickness. Larger <code>FontSize</code> produces a taller desired size.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Drop-down height</h3>
+                            <p><code>MaxDropDownHeight</code> caps the popup height. Once the list grows past that cap, the internal list scrolls.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>BorderThickness</code> is a single <code>float</code> value, not a per-side thickness.</li>
+                        <li><code>Padding</code> is a normal <code>Thickness</code> and affects both measure and render placement.</li>
+                        <li>The popup width tracks the ComboBox width, with an internal minimum width floor.</li>
+                        <li>The popup height never shrinks below the control's minimum drop-down constraint.</li>
+                    </ul>
+                    <h3>Constrain a tall list</h3>
+                    <pre><code class="language-xml">&lt;ComboBox Width="260"
+          MaxDropDownHeight="140"
+          SelectedIndex="0"&gt;
+  &lt;ComboBoxItem Text="Autosave every 1 minute" /&gt;
+  &lt;ComboBoxItem Text="Autosave every 5 minutes" /&gt;
+  &lt;ComboBoxItem Text="Autosave every 10 minutes" /&gt;
+  &lt;ComboBoxItem Text="Autosave every 15 minutes" /&gt;
+  &lt;ComboBoxItem Text="Autosave every 30 minutes" /&gt;
+  &lt;ComboBoxItem Text="Manual only" /&gt;
+&lt;/ComboBox&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Styling the control and its rows</h2>
+                    <p>There are two styling layers: the closed ComboBox chrome, and the generated drop-down rows. The closed control uses its own <code>Background</code>, <code>Foreground</code>, <code>BorderBrush</code>, <code>BorderThickness</code>, and <code>Padding</code>. Drop-down rows are generated as <code>ComboBoxItem</code> containers.</p>
+                    <h3>Style the closed control</h3>
+                    <pre><code class="language-xml">&lt;ComboBox Width="230"
+          SelectedIndex="0"
+          Background="#1A2430"
+          Foreground="#F4FAFF"
+          BorderBrush="#4FC7C1"
+          BorderThickness="1"
+          Padding="10,6"&gt;
+  &lt;ComboBoxItem Text="Balanced" /&gt;
+  &lt;ComboBoxItem Text="Performance" /&gt;
+  &lt;ComboBoxItem Text="Battery Saver" /&gt;
+&lt;/ComboBox&gt;</code></pre>
+                    <h3>Style generated drop-down rows</h3>
+                    <pre><code class="language-xml">&lt;UserControl.Resources&gt;
+  &lt;Style x:Key="ThemeComboRowStyle" TargetType="{x:Type ComboBoxItem}"&gt;
+    &lt;Setter Property="Foreground" Value="#EAF3FF" /&gt;
+    &lt;Setter Property="Background" Value="#13202D" /&gt;
+    &lt;Setter Property="BorderBrush" Value="#274057" /&gt;
+    &lt;Setter Property="SelectedBackground" Value="#24507A" /&gt;
+    &lt;Setter Property="Padding" Value="10,7" /&gt;
+    &lt;Style.Triggers&gt;
+      &lt;Trigger Property="IsMouseOver" Value="True"&gt;
+        &lt;Setter Property="Background" Value="#1C3145" /&gt;
+      &lt;/Trigger&gt;
+      &lt;Trigger Property="IsSelected" Value="True"&gt;
+        &lt;Setter Property="BorderBrush" Value="#6EC7FF" /&gt;
+      &lt;/Trigger&gt;
+    &lt;/Style.Triggers&gt;
+  &lt;/Style&gt;
+&lt;/UserControl.Resources&gt;
+
+&lt;ComboBox Width="240"
+          SelectedIndex="0"
+          ItemContainerStyle="{StaticResource ThemeComboRowStyle}"&gt;
+  &lt;ComboBoxItem Text="English" /&gt;
+  &lt;ComboBoxItem Text="French" /&gt;
+  &lt;ComboBoxItem Text="Japanese" /&gt;
+&lt;/ComboBox&gt;</code></pre>
+                    <p>When <code>ItemContainerStyle</code> is not set, generated rows inherit typography from the ComboBox automatically. Once you set <code>ItemContainerStyle</code>, you should treat that style as the owner of row visuals and typography.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Property and event reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Selection and data</h3>
+                            <p><code>SelectedIndex</code>: zero-based selected row index, or <code>-1</code> when nothing is selected.</p>
+                            <p><code>SelectedItem</code>: the currently selected source item.</p>
+                            <p><code>SelectionChanged</code>: bubbling event raised when selection changes.</p>
+                            <p><code>Items</code>, <code>ItemsSource</code>: inherited item population paths from <code>ItemsControl</code>.</p>
+                            <p><code>ItemContainerStyle</code>: style applied to generated <code>ComboBoxItem</code> rows in the drop-down.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Visuals and popup</h3>
+                            <p><code>IsDropDownOpen</code>: opens or closes the popup list.</p>
+                            <p><code>MaxDropDownHeight</code>: maximum popup height, with a built-in minimum constraint.</p>
+                            <p><code>Background</code>, <code>Foreground</code>, <code>BorderBrush</code>: color values for the closed control.</p>
+                            <p><code>BorderThickness</code>: uniform border thickness as a <code>float</code>.</p>
+                            <p><code>Padding</code>: inner spacing used by the closed control.</p>
+                            <p><code>FontFamily</code>, <code>FontSize</code>, <code>FontWeight</code>, <code>FontStyle</code>: typography that affects the selected caption and, by default, generated rows.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Settings picker</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;Label Text="Texture quality" Margin="0,0,0,6" /&gt;
+  &lt;ComboBox Width="220" SelectedIndex="1"&gt;
+    &lt;ComboBoxItem Text="Low" /&gt;
+    &lt;ComboBoxItem Text="Medium" /&gt;
+    &lt;ComboBoxItem Text="High" /&gt;
+  &lt;/ComboBox&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>MVVM selection binding</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;Label Text="Language" Margin="0,0,0,6" /&gt;
+  &lt;ComboBox Width="220"
+            ItemsSource="{Binding AvailableLanguages}"
+            SelectedItem="{Binding CurrentLanguage}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Programmatically open the picker</h3>
+                    <pre><code class="language-xml">&lt;ComboBox Width="260"
+          SelectedItem="{Binding ActiveProfile}"
+          IsDropDownOpen="{Binding ShowProfilePicker}" /&gt;</code></pre>
+                    <h3>Simple object list with useful ToString output</h3>
+                    <pre><code class="language-csharp">public sealed class ResolutionOption
+{
+    public ResolutionOption(int width, int height)
+    {
+        Width = width;
+        Height = height;
+    }
+
+    public int Width { get; }
+    public int Height { get; }
+
+    public override string ToString() =&gt; $"{Width} x {Height}";
+}</code></pre>
+                    <pre><code class="language-xml">&lt;ComboBox Width="220"
+          ItemsSource="{Binding ResolutionOptions}"
+          SelectedItem="{Binding SelectedResolution}" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Current control is non-editable.</strong> This ComboBox does not expose an editable text box mode. Treat it as a selection-only picker.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Use text-oriented items.</strong> The closed control renders a single string caption. Strings, useful <code>ToString()</code> values, <code>Label</code>, or <code>ComboBoxItem.Text</code> are the safe paths.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Color properties are colors, not brushes.</strong> <code>Background</code>, <code>Foreground</code>, and <code>BorderBrush</code> on this control expect <code>Color</code>-compatible values.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong><code>BorderThickness</code> is uniform.</strong> Unlike <code>Border</code>, ComboBox uses a single <code>float</code> thickness value rather than a per-side <code>Thickness</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Do not mix <code>Items</code> and <code>ItemsSource</code>.</strong> As with other item controls in the framework, modifying <code>Items</code> while <code>ItemsSource</code> is set throws. Choose one population model.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Dropdown rows are styled as <code>ComboBoxItem</code>.</strong> Target <code>ComboBoxItem</code> in <code>ItemContainerStyle</code> when you need hover, selected, or row-level visual customization.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-check-box.html">
+                        <span>Previous</span>
+                        <strong>CheckBox</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-combo-box-item.html">
+                        <span>Next</span>
+                        <strong>ComboBoxItem</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
