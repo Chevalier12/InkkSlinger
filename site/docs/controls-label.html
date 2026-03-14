@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - Label</title>
-    <meta name="description" content="Label control reference.">
+    <meta name="description" content="Technical manual for the Label control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,230 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>Label</h1>
-                    <p>WIP</p>
+                    <p><code>Label</code> is a lightweight text-display control in this framework. It inherits the rendering and layout behavior of <code>TextBlock</code> and adds a <code>Padding</code> dependency property for parser and theme compatibility, but it does not use that padding to change layout or rendering.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>Label</code> when you want a named, styleable text caption element in XAML. It is well suited for headings, field captions, compact status text, and framework-generated fallback text content.</p>
+                    <h3>Minimal label</h3>
+                    <pre><code class="language-xml">&lt;Label Text="Display name" /&gt;</code></pre>
+                    <h3>Styled caption</h3>
+                    <pre><code class="language-xml">&lt;Label Text="Diagnostics"
+       Foreground="#D9E7F5"
+       FontSize="20"
+       FontWeight="Bold" /&gt;</code></pre>
+                    <h3>Wrapped helper text</h3>
+                    <pre><code class="language-xml">&lt;Label Text="Changes are saved automatically after each successful sync."
+       TextWrapping="Wrap"
+       Width="240"
+       Foreground="#AFC4D8" /&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default mental model:</strong> treat <code>Label</code> as a text primitive with a more semantic control name. If you need container chrome, inner spacing, or interactive label-target behavior, combine it with other controls instead of expecting those features from <code>Label</code> itself.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>What Label is in this framework</h2>
+                    <p>This implementation is intentionally small. The class derives directly from <code>TextBlock</code> and only adds a dependency property named <code>Padding</code>.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>What it is</h3>
+                            <p>A text-rendering element with the same core text pipeline as <code>TextBlock</code>, including <code>Text</code>, <code>Foreground</code>, typography inheritance, and optional wrapping.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>What it is not</h3>
+                            <p>It is not a WPF-style content control, it does not host arbitrary child elements, and it does not provide a built-in target relationship to another control.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>Label</code> renders plain text from its <code>Text</code> property.</li>
+                        <li>Its layout behavior comes from <code>TextBlock</code>.</li>
+                        <li>The added <code>Padding</code> property exists for compatibility with theme setters and parsing scenarios.</li>
+                        <li>The current class does not override measure, arrange, or render to apply padding.</li>
+                    </ul>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout and rendering behavior</h2>
+                    <p>Because <code>Label</code> inherits directly from <code>TextBlock</code>, it follows the same text measurement and rendering rules.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Measure</h3>
+                            <p>If <code>TextWrapping</code> is <code>NoWrap</code>, the control sizes to the intrinsic width of the text. If wrapping is enabled, the available width constrains line breaking and the desired size grows vertically as needed.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Render</h3>
+                            <p>The control draws text lines directly at its layout slot using the resolved font settings, <code>Foreground</code>, and element <code>Opacity</code>.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Empty or null text produces a desired size of zero and renders nothing.</li>
+                        <li>Wrapping only occurs when <code>TextWrapping="Wrap"</code>.</li>
+                        <li>Font family, size, weight, and style participate in both measurement and rendering.</li>
+                        <li><code>Foreground</code> controls text color.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Border Background="#121B25"
+        BorderBrush="#32485F"
+        BorderThickness="1"
+        Padding="12"&gt;
+  &lt;Label Text="This label wraps because the width is constrained by the surrounding layout."
+         Width="220"
+         TextWrapping="Wrap" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <p>In that example, the surrounding <code>Border</code> contributes the inner spacing. The <code>Label</code> itself only measures and draws text.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The <code>Padding</code> property</h2>
+                    <p><code>Label</code> exposes a <code>Padding</code> dependency property, but the current implementation does not use it during measure, arrange, or render.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Supported use</h3>
+                            <p>Accepting styles, setters, and XAML that assign <code>Padding</code> without failing. This is useful when sharing theme patterns across multiple control types.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Unsupported expectation</h3>
+                            <p>Do not expect <code>Padding</code> to add inner space around the text, change desired size, or shift the text rendering origin.</p>
+                        </article>
+                    </div>
+                    <h3>Accepted but visually inert padding</h3>
+                    <pre><code class="language-xml">&lt;Label Text="Theme-compatible label"
+       Padding="12,6"
+       Foreground="#D9E7F5" /&gt;</code></pre>
+                    <p>The XAML above is valid, and the property value is stored on the element. The current control still renders exactly like a <code>TextBlock</code> with the same text settings.</p>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical recommendation:</strong> if you need visual spacing around label text, put the <code>Label</code> inside a container such as <code>Border</code>, <code>Grid</code>, or <code>StackPanel</code> and apply spacing there.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Differences from WPF Label</h2>
+                    <p>The name matches WPF, but the behavior does not fully match WPF's richer <code>Label</code> control.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>This framework's Label</h3>
+                            <p>Text-only, derived from <code>TextBlock</code>, no arbitrary content model, no target property, and no built-in access-key host behavior.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Typical WPF expectation</h3>
+                            <p>A content-oriented control that can label another input element and often participates in mnemonic/access-key workflows.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Use <code>Text</code>, not arbitrary child content, as the primary label payload.</li>
+                        <li>Do not expect a <code>Target</code> property on <code>Label</code>.</li>
+                        <li>Do not expect <code>Padding</code> to create inner spacing.</li>
+                        <li>If you need mnemonic rendering and Alt-key targeting, use <code>AccessText</code> where appropriate instead.</li>
+                    </ul>
+                    <h3>Use <code>AccessText</code> for mnemonic-style captions</h3>
+                    <pre><code class="language-xml">&lt;AccessText Text="_Save"
+            TargetName="SaveButton" /&gt;
+
+&lt;Button x:Name="SaveButton"
+        Content="Save now" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Primary text properties</h3>
+                            <p><code>Text</code>: the string rendered by the control.</p>
+                            <p><code>Foreground</code>: a <code>Color</code> value for the rendered text.</p>
+                            <p><code>TextWrapping</code>: controls whether text stays on one line or wraps to multiple lines.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Inherited typography and layout</h3>
+                            <p><code>FontFamily</code>, <code>FontSize</code>, <code>FontWeight</code>, and <code>FontStyle</code>: inherited text styling inputs used by the renderer.</p>
+                            <p><code>Margin</code>, <code>Width</code>, <code>Height</code>, alignment properties, and <code>Opacity</code>: inherited element-level behavior.</p>
+                            <p><code>Padding</code>: exposed on <code>Label</code>, but currently not consumed by layout or rendering.</p>
+                        </article>
+                    </div>
+                    <p>Use color values that resolve to the framework's <code>Color</code> type for <code>Foreground</code>. When you need a background, border, or other decoration, pair the label with a container rather than looking for those properties on the label itself.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Form field caption</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;Label Text="Email address"
+         Margin="0,0,0,6"
+         Foreground="#D9E7F5" /&gt;
+  &lt;TextBox Width="280"
+           Text="{Binding EmailAddress}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Section heading</h3>
+                    <pre><code class="language-xml">&lt;Label Text="Session Summary"
+       FontSize="22"
+       FontWeight="Bold"
+       Foreground="#F4FAFF"
+       Margin="0,0,0,10" /&gt;</code></pre>
+                    <h3>Status text inside framed chrome</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#1D3A2A"
+        BorderBrush="#4BA36E"
+        BorderThickness="1"
+        Padding="8,4"&gt;
+  &lt;Label Text="ONLINE"
+         Foreground="#DDF7E6" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Data-bound label</h3>
+                    <pre><code class="language-xml">&lt;Label Text="{Binding ActiveProfileName}"
+       Foreground="#D9E7F5" /&gt;</code></pre>
+                    <h3>Wrapped explanatory note</h3>
+                    <pre><code class="language-xml">&lt;Label Width="300"
+       TextWrapping="Wrap"
+       Foreground="#AFC4D8"
+       Text="Selecting a preset applies typography, spacing, and color overrides to the current canvas." /&gt;</code></pre>
+                    <h3>Style targeted at labels</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="FieldLabelStyle" TargetType="{x:Type Label}"&gt;
+  &lt;Setter Property="Foreground" Value="#C8D9EA" /&gt;
+  &lt;Setter Property="FontSize" Value="14" /&gt;
+  &lt;Setter Property="FontWeight" Value="SemiBold" /&gt;
+  &lt;Setter Property="Margin" Value="0,0,0,4" /&gt;
+  &lt;Setter Property="Padding" Value="6,2" /&gt;
+&lt;/Style&gt;</code></pre>
+                    <p>That final example is valid, but only the text and layout-related inherited properties affect rendering today. The <code>Padding</code> setter is accepted without changing the visual result.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Where Labels appear automatically</h2>
+                    <p>You may encounter <code>Label</code> even when you did not write one explicitly. Some framework presentation paths create labels as fallback text visuals for non-visual content.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>ContentPresenter fallback</h3>
+                            <p>When a <code>ContentPresenter</code> receives plain data with no template and the content is not already a <code>UIElement</code>, it creates a <code>Label</code> to display that text.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Header fallback</h3>
+                            <p><code>HeaderedItemsControl</code> can also generate a <code>Label</code> when a header is plain data and no header template is supplied.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Inherited styling</h3>
+                            <p>In those fallback cases, font settings and foreground are copied from the owning control, so the generated label visually matches the surrounding control styling.</p>
+                        </article>
+                    </div>
+                    <h3>Implicit text presentation through <code>ContentPresenter</code></h3>
+                    <pre><code class="language-xml">&lt;ContentControl Content="Build succeeded" /&gt;</code></pre>
+                    <p>When no content template is involved, the presenter path can materialize a <code>Label</code> internally to show that string.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong><code>Padding</code> is currently inert.</strong> It exists on the API surface, but it does not change the measured size or the rendered text position.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No arbitrary child content.</strong> This is not a general content host. Use a container or another control when you need nested visuals.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No target relationship.</strong> If you are looking for mnemonic or control-target behavior, <code>Label</code> is not the right surface in this framework.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Use containers for decoration.</strong> Backgrounds, borders, and true inner spacing belong on wrappers such as <code>Border</code>, not on <code>Label</code>.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-items-presenter.html">
+                        <span>Previous</span>
+                        <strong>ItemsPresenter</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-line-shape.html">
+                        <span>Next</span>
+                        <strong>LineShape</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
