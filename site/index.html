@@ -3,10 +3,10 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>InkkSlinger Docs</title>
+    <title>InkkSlinger</title>
     <meta
         name="description"
-        content="Mock GitHub Pages landing page for the InkkSlinger framework."
+        content="InkkSlinger is a MonoGame/DesktopGL UI framework that brings WPF-style layout, binding, templating, commands, XML authoring, and rich control coverage into a real-time host."
     >
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,13 +26,14 @@
                 <span class="brand-mark">IS</span>
                 <span class="brand-copy">
                     <strong>InkkSlinger</strong>
-                    <span>Docs mock</span>
+                    <span>WPF-style UI for MonoGame/DesktopGL</span>
                 </span>
             </a>
             <nav class="site-nav" aria-label="Primary">
-                <a href="#features">Features</a>
-                <a href="#quickstart">Quickstart</a>
-                <a href="#roadmap">Roadmap</a>
+                <a href="#snapshot">Snapshot</a>
+                <a href="#capabilities">Capabilities</a>
+                <a href="#runtime">Runtime</a>
+                <a href="#limits">Limits</a>
                 <a class="nav-cta" href="https://github.com/Chevalier12/InkkSlinger">GitHub</a>
             </nav>
         </header>
@@ -40,133 +41,287 @@
         <main>
             <section class="hero">
                 <div class="hero-copy">
-                    <p class="eyebrow">MonoGame UI, WPF mindset</p>
-                    <h1>Framework docs that look like a product, not a folder dump.</h1>
+                    <p class="eyebrow">Framework overview</p>
+                    <h1>Desktop-style UI primitives in a real-time MonoGame host.</h1>
                     <p class="hero-text">
-                        This is a single-page GitHub Pages mock for InkkSlinger: a WPF-inspired UI framework
-                        built for MonoGame/DesktopGL. It is intentionally lightweight, visually opinionated,
-                        and easy to replace with real documentation later.
+                        InkkSlinger is a custom UI framework built on MonoGame DesktopGL. Its core direction is
+                        WPF-style authoring and runtime behavior: dependency properties, routed events, XML-driven
+                        views, resource dictionaries, styles, templates, bindings, commanding, animation, and a
+                        broad control set running inside a game loop.
                     </p>
                     <div class="hero-actions">
-                        <a class="button button-primary" href="#quickstart">Start reading</a>
-                        <a class="button button-secondary" href="https://github.com/Chevalier12/InkkSlinger">View repository</a>
+                        <a class="button button-primary" href="#snapshot">See verified status</a>
+                        <a class="button button-secondary" href="#build">Build and run</a>
                     </div>
-                    <ul class="hero-stats" aria-label="Project highlights">
+                    <ul class="hero-stats" aria-label="Current verified snapshot">
                         <li>
-                            <strong>74/77</strong>
-                            <span>tracked WPF controls</span>
+                            <strong>315</strong>
+                            <span>framework source files under <code>UI/</code></span>
                         </li>
                         <li>
-                            <strong>855</strong>
-                            <span>passing tests in latest full run</span>
+                            <strong>988</strong>
+                            <span>release tests currently discovered</span>
                         </li>
                         <li>
-                            <strong>XML</strong>
-                            <span>markup with `x:Name` support</span>
+                            <strong>84</strong>
+                            <span>XML view surfaces under <code>Views/</code></span>
                         </li>
                     </ul>
                 </div>
 
-                <aside class="hero-panel" aria-label="Example code">
+                <aside class="hero-panel" aria-label="Authoring sample">
                     <div class="panel-topbar">
                         <span></span>
                         <span></span>
                         <span></span>
                     </div>
                     <div class="panel-body">
-                        <p class="panel-label">Example surface</p>
-                        <pre><code>&lt;StackPanel Margin="20"&gt;
-    &lt;TextBlock FontSize="28"
-               Text="Hello InkkSlinger" /&gt;
+                        <p class="panel-label">XML authoring sample</p>
+                        <pre><code>&lt;UserControl x:Class="InkkSlinger.SampleView"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"&gt;
+    &lt;StackPanel Margin="20"&gt;
+        &lt;TextBlock x:Name="TitleText"
+                   FontSize="28"
+                   Text="Hello InkkSlinger" /&gt;
 
-    &lt;Button Width="180"
-            Height="44"
-            Content="Launch demo" /&gt;
-
-    &lt;ListBox ItemsSource="{Binding Samples}" /&gt;
-&lt;/StackPanel&gt;</code></pre>
+        &lt;Button Width="180"
+                Height="44"
+                Text="Launch demo"
+                Command="{x:Static NavigationCommands.Refresh}" /&gt;
+    &lt;/StackPanel&gt;
+&lt;/UserControl&gt;</code></pre>
                     </div>
                 </aside>
             </section>
 
-            <section class="feature-strip" aria-label="Highlights">
+            <section class="feature-strip" aria-label="Summary">
                 <article>
-                    <p>Composition</p>
-                    <h2>WPF-style layout, templates, triggers, and bindings.</h2>
+                    <p>Host</p>
+                    <h2>Main app targets <code>net9.0</code> and uses <code>MonoGame.Framework.DesktopGL</code>.</h2>
                 </article>
                 <article>
-                    <p>Runtime</p>
-                    <h2>Deterministic update phases with draw suppression and dirty regions.</h2>
+                    <p>Authoring</p>
+                    <h2>Views are authored as <code>.xml</code>, not <code>.xaml</code>, with code-behind and generated members.</h2>
                 </article>
                 <article>
-                    <p>Tooling</p>
-                    <h2>XML schema support plus generated fields from `x:Name`.</h2>
+                    <p>Status</p>
+                    <h2>Release build is clean and the release test project currently reports 987 passed, 1 skipped.</h2>
                 </article>
             </section>
 
-            <section class="content-grid" id="features">
+            <section class="content-grid" id="snapshot">
                 <article class="card card-wide">
-                    <p class="section-tag">Why this page works</p>
-                    <h2>Made for GitHub Pages without adding a docs toolchain.</h2>
+                    <p class="section-tag">Evidence snapshot</p>
+                    <h2>Verified directly from source and a local release build/test pass on <time datetime="2026-03-14">2026-03-14</time>.</h2>
                     <p>
-                        The site is just static HTML and CSS, so deployment is fast and maintenance cost is
-                        effectively zero. When you want a real docs system later, this can become the landing
-                        page in front of Docusaurus, VitePress, DocFX, or MkDocs.
+                        This page is based on the current repository state, not on the stale README, TODO list,
+                        or UI folder map. The numbers below come from a direct source audit plus a release build
+                        and test run.
+                    </p>
+                </article>
+
+                <article class="card stat-card">
+                    <p class="section-tag">Source</p>
+                    <h3>315 UI files</h3>
+                    <p>Across animation, automation, binding, controls, layout, rendering, text, resources, styling, templating, and XML loading.</p>
+                </article>
+
+                <article class="card stat-card">
+                    <p class="section-tag">Controls</p>
+                    <h3>119 control files</h3>
+                    <p>Buttons, containers, data grid, input controls, items controls, panels, primitives, scrolling, selection, and adorner infrastructure.</p>
+                </article>
+
+                <article class="card stat-card">
+                    <p class="section-tag">Tests</p>
+                    <h3>988 total tests</h3>
+                    <p><strong>987 passed</strong>, <strong>1 skipped</strong> in the current release test run. The test project itself targets <code>net10.0</code>.</p>
+                </article>
+            </section>
+
+            <section class="content-grid" id="capabilities">
+                <article class="card card-wide">
+                    <p class="section-tag">What is implemented</p>
+                    <h2>The framework surface is broad, and the code is organized like a UI stack rather than a widget demo.</h2>
+                    <p>
+                        The current tree includes a dependency property system, routed events, dispatcher enforcement,
+                        layout composition, resources, styles, triggers, templates, animations, commanding, XML
+                        loading, collection views, rich text/document infrastructure, automation peers, and a large
+                        set of controls and containers.
                     </p>
                 </article>
 
                 <article class="card">
-                    <p class="section-tag">Visual direction</p>
-                    <h3>Dark steel + amber accents</h3>
-                    <p>Strong contrast, layered gradients, glass panels, and tighter typography.</p>
+                    <p class="section-tag">Authoring model</p>
+                    <h3>XML + source generation</h3>
+                    <ul class="detail-list">
+                        <li>Views are stored as <code>.xml</code> with WPF-style <code>x:</code> metadata.</li>
+                        <li><code>x:Name</code> drives generated members and generated <code>InitializeComponent</code>.</li>
+                        <li><code>App.xml</code> is loaded at startup as the application resource root.</li>
+                    </ul>
                 </article>
 
                 <article class="card">
-                    <p class="section-tag">Deployment</p>
-                    <h3>Workflow included</h3>
-                    <p>The repo now has a GitHub Actions workflow that publishes the `site/` folder.</p>
+                    <p class="section-tag">Property and event system</p>
+                    <h3>WPF-style foundations</h3>
+                    <ul class="detail-list">
+                        <li>Dependency properties with metadata, coercion, value sources, and invalidation paths.</li>
+                        <li>Routed events with preview/bubble style dispatch.</li>
+                        <li>Dispatcher thread verification for UI access.</li>
+                    </ul>
                 </article>
 
                 <article class="card">
-                    <p class="section-tag">Scalable later</p>
-                    <h3>Replace content in place</h3>
-                    <p>Keep the shell, swap sections for real guides, API docs, and examples as needed.</p>
+                    <p class="section-tag">Styling and templating</p>
+                    <h3>Resources, styles, triggers, templates</h3>
+                    <ul class="detail-list">
+                        <li>Resource dictionaries and merged dictionary support.</li>
+                        <li>Implicit and explicit styles, setters, event setters, and trigger actions.</li>
+                        <li>Control templates, data templates, template binding, and visual-state-style behavior.</li>
+                    </ul>
+                </article>
+
+                <article class="card">
+                    <p class="section-tag">Binding and commanding</p>
+                    <h3>More than one-way text binding</h3>
+                    <ul class="detail-list">
+                        <li>Binding, MultiBinding, PriorityBinding, BindingGroup, validation, and update filters.</li>
+                        <li>CollectionView and CollectionViewSource surface for filter/sort/group/current-item behavior.</li>
+                        <li>Routed commands, command bindings, input bindings, access keys, and menu-mode input tests.</li>
+                    </ul>
+                </article>
+
+                <article class="card">
+                    <p class="section-tag">Controls and containers</p>
+                    <h3>Broad desktop control surface</h3>
+                    <ul class="detail-list">
+                        <li>Buttons, text inputs, password box, slider, progress bar, calendar, and date picker.</li>
+                        <li>ListBox, ListView, TreeView, Menu, ComboBox, TabControl, ScrollViewer, ToolTip, Popup, and Frame.</li>
+                        <li>DataGrid, DocumentViewer, RichTextBox, Window shell wrapper, adorners, and virtualization primitives.</li>
+                    </ul>
+                </article>
+
+                <article class="card">
+                    <p class="section-tag">Text and documents</p>
+                    <h3>Rich text is a real subsystem here</h3>
+                    <ul class="detail-list">
+                        <li>Shared text layout and runtime font rendering services.</li>
+                        <li>Flow-document model, editing operations, serialization, and document layout engine.</li>
+                        <li>RichTextBox formatting/navigation/list/table operations and DocumentViewer navigation coverage.</li>
+                    </ul>
+                </article>
+
+                <article class="card">
+                    <p class="section-tag">Automation and diagnostics</p>
+                    <h3>Not just rendering</h3>
+                    <ul class="detail-list">
+                        <li>Automation peers and attached automation properties.</li>
+                        <li>Tested patterns include invoke, value, selection, scroll, and expand/collapse.</li>
+                        <li>XAML diagnostics and telemetry snapshots exist for input, draw, layout, and retained rendering.</li>
+                    </ul>
                 </article>
             </section>
 
-            <section class="quickstart card" id="quickstart">
+            <section class="quickstart card" id="runtime">
                 <div>
-                    <p class="section-tag">Quickstart</p>
-                    <h2>Enough structure to feel like a framework homepage.</h2>
+                    <p class="section-tag">Runtime model</p>
+                    <h2>The UI root is explicitly phase-driven.</h2>
+                    <p class="muted-copy">
+                        The runtime is not pretending to be WPF internals. It is a MonoGame-hosted UI pipeline with
+                        a WPF-inspired programming model. The current <code>UiRoot</code> update phases are:
+                    </p>
                     <ol class="steps">
-                        <li>Clone the repo and restore tools.</li>
-                        <li>Build the solution or run the sample host.</li>
-                        <li>Start replacing mock copy with real guides.</li>
+                        <li>Input and events</li>
+                        <li>Binding and deferred work</li>
+                        <li>Layout</li>
+                        <li>Animation</li>
+                        <li>Render scheduling</li>
                     </ol>
                 </div>
-                <pre><code>dotnet restore InkkSlinger.sln
-dotnet build InkkSlinger.sln -c Release -v minimal
-dotnet run --project InkkSlinger.csproj</code></pre>
+                <div class="runtime-notes">
+                    <p>
+                        By default, the runtime enables retained render lists, dirty-region rendering, and
+                        conditional draw scheduling. It also exposes metrics snapshots for draw/layout skip counts,
+                        dirty-rect coverage, retained rebuilds, visual-tree work, and input routing cost.
+                    </p>
+                    <p>
+                        The sample host uses a composited UI render target, prewarms typography when possible, and
+                        suppresses draws on idle frames when the UI does not need repainting.
+                    </p>
+                </div>
             </section>
 
-            <section class="roadmap" id="roadmap">
+            <section class="roadmap" aria-label="Validation coverage">
                 <article class="roadmap-card">
-                    <p class="section-tag">Next steps</p>
-                    <h2>Turn the mock into real docs when you care.</h2>
+                    <p class="section-tag">Test concentration</p>
+                    <h2>The suite is deep in the areas that tend to regress.</h2>
                     <ul class="roadmap-list">
-                        <li>Add Getting Started, architecture, and controls pages.</li>
-                        <li>Generate API reference if you want XML comments surfaced.</li>
-                        <li>Keep this landing page as the entry point.</li>
+                        <li>12 XAML-focused test files cover parsing, markup extensions, resource loading, and compile directives.</li>
+                        <li>11 automation-focused test files cover peer tree sync plus core provider patterns.</li>
+                        <li>11 render-focused and 11 rich-text-focused test files target retained rendering, invalidation, and document behavior.</li>
+                        <li>Additional focused buckets exist for DataGrid, Calendar, DocumentViewer, ScrollViewer, layout, resources, menus, and windows.</li>
                     </ul>
                 </article>
                 <article class="roadmap-card callout">
-                    <p class="section-tag">Status</p>
-                    <h2>Mock page ready for GitHub Pages.</h2>
+                    <p class="section-tag">Validation surfaces</p>
+                    <h2>The repository is framework-first, but it ships with a large set of live demo surfaces.</h2>
                     <p>
-                        Push this branch and enable Pages to deploy from GitHub Actions. The site will publish
-                        on the next push to <code>master</code> or via manual workflow dispatch.
+                        There are currently <strong>84</strong> XML views under <code>Views/</code>, including a controls
+                        catalog host that boots inside the MonoGame app and can instantiate a large catalog of supported controls.
                     </p>
                 </article>
+            </section>
+
+            <section class="content-grid" id="limits">
+                <article class="card card-wide">
+                    <p class="section-tag">Current boundaries</p>
+                    <h2>This is the important part if you want to use the framework seriously.</h2>
+                    <p>
+                        The repository has enough real surface area to be worth exploring, but it still has clear
+                        edges. Those edges are visible in code today and should be treated as current constraints,
+                        not future promises.
+                    </p>
+                </article>
+
+                <article class="card">
+                    <p class="section-tag">Platform</p>
+                    <h3>Text backend is Windows-only right now</h3>
+                    <p>
+                        The installed-font catalog and FreeType-backed runtime text renderer both gate on
+                        <code>OperatingSystem.IsWindows()</code>. MonoGame uses DesktopGL, but the current text path is explicitly Windows-focused.
+                    </p>
+                </article>
+
+                <article class="card">
+                    <p class="section-tag">Missing controls</p>
+                    <h3>Three catalog entries are still placeholders</h3>
+                    <p>
+                        <code>InkCanvas</code>, <code>InkPresenter</code>, and <code>MediaElement</code> appear in demo/catalog surfaces,
+                        but the framework does not currently provide real <code>UIElement</code> implementations for them.
+                    </p>
+                </article>
+
+                <article class="card">
+                    <p class="section-tag">Input scope</p>
+                    <h3>No touch or stylus pipeline surfaced yet</h3>
+                    <p>
+                        The current input stack covers keyboard, mouse, access keys, gestures, focus, and text input.
+                        A source search does not show a stylus or touch input surface in the runtime input layer.
+                    </p>
+                </article>
+            </section>
+
+            <section class="quickstart card" id="build">
+                <div>
+                    <p class="section-tag">Build and run</p>
+                    <h2>Current local verification commands.</h2>
+                    <p class="muted-copy">
+                        These are the commands I used to validate the current state of the repo for this page.
+                    </p>
+                </div>
+                <pre><code>dotnet build InkkSlinger.sln -c Release -v minimal /m:1
+dotnet test InkkSlinger.Tests/InkkSlinger.Tests.csproj -c Release -v minimal
+dotnet run --project InkkSlinger.csproj</code></pre>
             </section>
         </main>
     </div>
