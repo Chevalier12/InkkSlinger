@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - ItemsPresenter</title>
-    <meta name="description" content="ItemsPresenter control reference.">
+    <meta name="description" content="Technical manual for the ItemsPresenter control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,278 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>ItemsPresenter</h1>
-                    <p>WIP</p>
+                    <p><code>ItemsPresenter</code> is the template-level host for an <code>ItemsControl</code>'s realized item containers. It does not generate items, choose templates, or own a collection by itself. Its job is to expose the owning control's existing item visuals and arrange them as one vertical stack.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>ItemsPresenter</code> inside a <code>ControlTemplate</code> when you want the repeated item visuals from an <code>ItemsControl</code>, <code>ListBox</code>, <code>TreeView</code>, or another derived items control to appear at a specific spot in the template.</p>
+                    <h3>Minimal items host in a template</h3>
+                    <pre><code class="language-xml">&lt;Style TargetType="{x:Type ItemsControl}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type ItemsControl}"&gt;
+        &lt;ItemsPresenter /&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                    <h3>Framed item list</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="FeedStyle" TargetType="{x:Type ItemsControl}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type ItemsControl}"&gt;
+        &lt;Border Background="#101822"
+                BorderBrush="#2D465E"
+                BorderThickness="1"
+                Padding="12"&gt;
+          &lt;ItemsPresenter /&gt;
+        &lt;/Border&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                    <h3>Items host inside a scroll viewer</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="ScrollableItemsControlStyle" TargetType="{x:Type ItemsControl}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type ItemsControl}"&gt;
+        &lt;ScrollViewer Padding="8"&gt;
+          &lt;ItemsPresenter /&gt;
+        &lt;/ScrollViewer&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default mental model:</strong> <code>ItemsPresenter</code> is a placement marker for item visuals that already belong to an items control. Think "render the owner's realized items here," not "this is a standalone repeater."</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>What it does and what it does not do</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>What it does</h3>
+                            <p>Finds an owning <code>ItemsControl</code>, attaches to that owner as the active item host, and exposes the owner's realized item containers as its own visual and logical children.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>What it does not do</h3>
+                            <p>It does not create containers, evaluate <code>ItemTemplate</code>, manage <code>ItemsSource</code>, support an <code>ItemsPanel</code> property, or introduce a custom layout algorithm.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>The owning <code>ItemsControl</code> still decides which item containers exist.</li>
+                        <li>The presenter only changes where those realized containers are parented and measured.</li>
+                        <li>If no owner is found, the presenter has no children and reports a desired size of zero.</li>
+                        <li>When an owner is found, that owner reparents realized item containers under the presenter.</li>
+                    </ul>
+                </section>
+                <section class="doc-section">
+                    <h2>Owner discovery</h2>
+                    <p><code>ItemsPresenter</code> locates its owner by walking up the logical or visual tree until it finds the nearest ancestor <code>ItemsControl</code>. That makes it a natural fit inside control templates, where the presenter lives somewhere beneath the templated items control.</p>
+                    <h3>Typical template relationship</h3>
+                    <pre><code class="language-xml">&lt;ControlTemplate TargetType="{x:Type ItemsControl}"&gt;
+  &lt;Border Background="#16212D"
+          BorderBrush="#34506C"
+          BorderThickness="1"
+          Padding="10"&gt;
+    &lt;ItemsPresenter /&gt;
+  &lt;/Border&gt;
+&lt;/ControlTemplate&gt;</code></pre>
+                    <p>In that arrangement, the presenter finds the surrounding <code>ItemsControl</code>, calls into it as the active host, and the owner moves its realized item containers under the presenter.</p>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical rule:</strong> place <code>ItemsPresenter</code> under the items control whose items you want to show. If you move it outside that ownership chain, it will not find the correct source of realized items.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout behavior</h2>
+                    <p>The layout contract is fixed and intentionally simple. This implementation always measures and arranges realized item containers as a vertical stack.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Measure</h3>
+                            <p>Every realized container is measured using the same available size. The presenter's desired width becomes the maximum child width, and its desired height becomes the sum of child heights.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Arrange</h3>
+                            <p>Children are arranged top to bottom in realization order. Each child gets the full final width of the presenter and keeps its own measured height.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Desired width = maximum realized item desired width.</li>
+                        <li>Desired height = sum of realized item desired heights.</li>
+                        <li>Each arranged child gets <code>finalSize.X</code> as its width.</li>
+                        <li>The first child starts at the presenter's top edge; later children are placed immediately below the previous one.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;ItemsControl ItemsSource="{Binding Logs}"&gt;
+  &lt;ItemsControl.ItemTemplate&gt;
+    &lt;DataTemplate&gt;
+      &lt;Border Background="#172331"
+              BorderBrush="#2B4259"
+              BorderThickness="1"
+              Padding="10"
+              Margin="0,0,0,8"&gt;
+        &lt;TextBlock Text="{Binding Message}" /&gt;
+      &lt;/Border&gt;
+    &lt;/DataTemplate&gt;
+  &lt;/ItemsControl.ItemTemplate&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <p>Those generated item visuals remain vertically stacked whether the hosting template uses the presenter's default position directly or wraps it in other containers such as <code>Border</code> or <code>ScrollViewer</code>.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>No <code>ItemsPanel</code> abstraction</h2>
+                    <p>WPF developers often expect <code>ItemsPresenter</code> to hand off layout to an <code>ItemsPanel</code>. That is not how this framework currently works. The presenter itself performs the vertical stacking behavior.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Supported expectation</h3>
+                            <p>Use the presenter to decide where repeated visuals appear inside a template.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Unsupported expectation</h3>
+                            <p>Do not expect swapping in a panel type such as <code>WrapPanel</code> or <code>UniformGrid</code> through an <code>ItemsPanel</code> property.</p>
+                        </article>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Framework-specific behavior:</strong> collection layout is vertically stacked by the owner or by <code>ItemsPresenter</code>. If you need a different collection layout contract, that requires a different control implementation rather than a presenter setting.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>How it interacts with item generation</h2>
+                    <p><code>ItemsPresenter</code> works with already realized item containers from the owning items control. That means templating, fallback container creation, grouping, and item container styling are still controlled by the owner.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Templates</h3>
+                            <p><code>ItemTemplate</code> and <code>ItemTemplateSelector</code> are resolved by the owning <code>ItemsControl</code> before the presenter lays anything out.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Fallback containers</h3>
+                            <p>If the owner creates generated <code>Label</code> containers for plain data, those labels are what the presenter hosts.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Grouping</h3>
+                            <p>If the owner projects grouped visuals through <code>GroupItem</code> containers, the presenter hosts those group containers instead of the raw item containers.</p>
+                        </article>
+                    </div>
+                    <h3>Template-driven list with generated item visuals</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="NotificationsStyle" TargetType="{x:Type ItemsControl}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type ItemsControl}"&gt;
+        &lt;Border Background="#0F1822"
+                BorderBrush="#2F475F"
+                BorderThickness="1"
+                Padding="12"&gt;
+          &lt;ItemsPresenter /&gt;
+        &lt;/Border&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;
+
+&lt;ItemsControl Style="{StaticResource NotificationsStyle}"
+              ItemsSource="{Binding Notifications}"&gt;
+  &lt;ItemsControl.ItemTemplate&gt;
+    &lt;DataTemplate&gt;
+      &lt;Border Background="#172331"
+              BorderBrush="#35516B"
+              BorderThickness="1"
+              Padding="10"
+              Margin="0,0,0,8"&gt;
+        &lt;StackPanel&gt;
+          &lt;TextBlock Text="{Binding Title}" Margin="0,0,0,4" /&gt;
+          &lt;TextBlock Text="{Binding Message}" /&gt;
+        &lt;/StackPanel&gt;
+      &lt;/Border&gt;
+    &lt;/DataTemplate&gt;
+  &lt;/ItemsControl.ItemTemplate&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Property surface</h2>
+                    <p><code>ItemsPresenter</code> does not add new public dependency properties of its own. You mainly work with it through placement and inherited <code>FrameworkElement</code> properties.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Inherited layout properties</h3>
+                            <p>Properties such as <code>Width</code>, <code>Height</code>, <code>Margin</code>, <code>HorizontalAlignment</code>, and <code>VerticalAlignment</code> affect the presenter's own slot like any other framework element.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>No presenter-specific knobs</h3>
+                            <p>There is no public <code>ItemsPanel</code>, spacing, orientation, or container-generation property on this type.</p>
+                        </article>
+                    </div>
+                    <p>Most customization happens around the presenter rather than on it. Typical examples include wrapping it in a <code>Border</code>, placing it in a <code>ScrollViewer</code>, or changing the owner's <code>ItemTemplate</code>.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Minimal template placeholder</h3>
+                    <pre><code class="language-xml">&lt;ControlTemplate TargetType="{x:Type ListBox}"&gt;
+  &lt;ItemsPresenter /&gt;
+&lt;/ControlTemplate&gt;</code></pre>
+                    <h3>Scrollable list shell</h3>
+                    <pre><code class="language-xml">&lt;ControlTemplate TargetType="{x:Type ItemsControl}"&gt;
+  &lt;Border Background="#111922"
+          BorderBrush="#35516B"
+          BorderThickness="1"&gt;
+    &lt;ScrollViewer Padding="10"&gt;
+      &lt;ItemsPresenter /&gt;
+    &lt;/ScrollViewer&gt;
+  &lt;/Border&gt;
+&lt;/ControlTemplate&gt;</code></pre>
+                    <h3>Grouped view with a custom shell</h3>
+                    <pre><code class="language-xml">&lt;ItemsControl ItemsSource="{StaticResource TasksView}"&gt;
+  &lt;ItemsControl.GroupStyle&gt;
+    &lt;GroupStyle HeaderStringFormat="{0}" /&gt;
+  &lt;/ItemsControl.GroupStyle&gt;
+  &lt;ItemsControl.Template&gt;
+    &lt;ControlTemplate TargetType="{x:Type ItemsControl}"&gt;
+      &lt;Border Background="#121B25"
+              BorderBrush="#32485F"
+              BorderThickness="1"
+              Padding="12"&gt;
+        &lt;ItemsPresenter /&gt;
+      &lt;/Border&gt;
+    &lt;/ControlTemplate&gt;
+  &lt;/ItemsControl.Template&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <h3>ListBox chrome with the same item host contract</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="CompactListBoxStyle" TargetType="{x:Type ListBox}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type ListBox}"&gt;
+        &lt;Border Background="#0F1720"
+                BorderBrush="#2D465E"
+                BorderThickness="1"
+                Padding="6"&gt;
+          &lt;ItemsPresenter /&gt;
+        &lt;/Border&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Do not treat it as a standalone control.</strong> Placing an <code>ItemsPresenter</code> in arbitrary XAML without an owning <code>ItemsControl</code> above it gives you an empty host.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>One presenter usually means one active host.</strong> The owning items control attaches to the active items host, so templates should provide a single clear location where realized items belong.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Layout is always vertical here.</strong> If you expected wrapping, horizontal flow, or grid-style item placement, this implementation does not expose that through <code>ItemsPresenter</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No virtualization guarantee.</strong> The presenter hosts the owner's realized visuals, and those realized children are still measured and arranged in order.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-items-control.html">
+                        <span>Previous</span>
+                        <strong>ItemsControl</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-label.html">
+                        <span>Next</span>
+                        <strong>Label</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
