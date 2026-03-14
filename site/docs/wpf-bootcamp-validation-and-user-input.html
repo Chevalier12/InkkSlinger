@@ -20,7 +20,7 @@
                 <div class="doc-hero"><p class="eyebrow">WPF Bootcamp</p><h1>Validation and User Input</h1><p>A polished WPF app does not just collect input. It guides the user toward valid input, explains errors clearly, and keeps commands in sync with the current state of the form.</p><p>Validation is part of interaction design, not just an exception that happens late.</p></div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
-                    <ul><li>Where validation can live: view model, binding rules, or domain layer.</li><li>How binding errors surface on controls and how commands react to invalid state.</li><li>How to design forms that feel responsive instead of hostile.</li></ul>
+                    <ul><li>Where validation can live: view model, binding rules, or domain layer.</li><li>How binding errors surface on controls and how commands react to invalid state.</li><li>How to design forms that feel responsive instead of hostile.</li><li>How to separate raw user input, transient edit state, and committed valid state.</li></ul>
                     <pre><code class="language-xml">&lt;TextBox&gt;
     &lt;TextBox.Text&gt;
         &lt;Binding Path="Email"
@@ -28,14 +28,109 @@
                  ValidatesOnDataErrors="True" /&gt;
     &lt;/TextBox.Text&gt;
 &lt;/TextBox&gt;</code></pre>
+                    <p>That binding is not only copying text. It is participating in a validation pipeline that can decide whether the user's current input is acceptable and how the UI should respond if it is not.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The mental model in one sentence</h2>
+                    <p>Validation in WPF is a conversation between the binding layer, the view model or domain rules, and the visual layer that communicates problems back to the user.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Validation is not only technical</h3>
+                            <p>A field may be invalid according to a rule, but the UX still determines whether the user understands what to do next.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Validation is not only visual</h3>
+                            <p>Red borders without good messages or command logic do not produce a usable form.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Where validation can live</h2>
+                    <p>WPF supports several validation layers, and they solve slightly different problems.</p>
+                    <ul>
+                        <li><strong>View model validation:</strong> useful for screen state and rules close to the editing workflow.</li>
+                        <li><strong>Binding validation rules:</strong> useful for conversion or binding-specific checks.</li>
+                        <li><strong>Domain validation:</strong> useful for business rules that must hold even outside the current screen.</li>
+                    </ul>
+                    <p>The strongest pattern is usually to validate as close to the real rule as possible, then surface the result through binding and command state instead of scattering ad hoc checks across controls.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Real-time validation vs commit-time validation</h2>
+                    <p>Not every form should validate in the same rhythm. Some fields benefit from immediate feedback while others feel better when validated on focus loss or on submit.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Validate while typing when</h3>
+                            <p>The rule is simple, cheap, and helpful to see immediately, such as required fields or obvious formatting problems.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Validate on commit when</h3>
+                            <p>The rule is expensive, noisy, or would punish the user for partially typed input.</p>
+                        </section>
+                    </div>
+                    <pre><code class="language-xml">&lt;Binding Path="Email"
+         UpdateSourceTrigger="PropertyChanged"
+         ValidatesOnDataErrors="True" /&gt;</code></pre>
+                    <p><code>UpdateSourceTrigger</code> strongly affects the feel of validation because it determines when the edited value reaches the source and can therefore be checked.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Error surfacing should be local and understandable</h2>
+                    <p>Users need to know which field has a problem, why it is a problem, and what they should do about it.</p>
+                    <ul>
+                        <li>Show the error near the field whenever possible.</li>
+                        <li>Use explanatory text, not just color or an icon.</li>
+                        <li>Prefer language the user can act on rather than internal rule wording.</li>
+                    </ul>
+                    <p>A red border is a useful signal, but it is rarely enough by itself.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Commands and validation should cooperate</h2>
+                    <p>Validation should not live in isolation. If the current form state is invalid, command availability often needs to reflect that.</p>
+                    <pre><code class="language-csharp">private bool CanSave()
+{
+    return !HasErrors;
+}</code></pre>
+                    <p>That keeps the UI honest. The user sees that the form is not currently submittable, and the save action does not need to rediscover the obvious state too late.</p>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical takeaway:</strong> disable commands only when the user truly cannot proceed. Over-disabling can hide useful workflows and make forms feel uncooperative.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Separate transient typing state from committed valid state when needed</h2>
+                    <p>Some workflows should not immediately push every keystroke into durable domain state. This is especially true when a field can be temporarily invalid while the user is still editing.</p>
+                    <p>In those cases, it can be useful to keep temporary screen-edit state in the view model, then commit it to the model or service layer only when the form is valid enough to proceed.</p>
+                    <p>This avoids corrupting domain objects with half-typed input while still letting the screen show responsive validation feedback.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Design principles</h2>
                     <ul><li>Validate as close to the real rule as possible.</li><li>Show errors near the field and in language the user can act on.</li><li>Disable commands only when the user truly cannot proceed.</li><li>Separate transient typing state from committed domain updates when the workflow needs it.</li></ul>
                 </section>
                 <section class="doc-section">
+                    <h2>A worked form example</h2>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+    &lt;TextBox&gt;
+        &lt;TextBox.Text&gt;
+            &lt;Binding Path="Email"
+                     UpdateSourceTrigger="PropertyChanged"
+                     ValidatesOnDataErrors="True" /&gt;
+        &lt;/TextBox.Text&gt;
+    &lt;/TextBox&gt;
+
+    &lt;TextBlock Text="{Binding EmailErrorMessage}" /&gt;
+    &lt;Button Content="Save" Command="{Binding SaveCommand}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <ol>
+                        <li>The user types into the email field.</li>
+                        <li>The binding pushes text into the view model as the user types.</li>
+                        <li>The validation layer checks whether the email is acceptable.</li>
+                        <li>The UI surfaces the problem near the field if validation fails.</li>
+                        <li>The save command reevaluates whether execution is allowed.</li>
+                        <li>Once the input is valid, the error clears and the command can proceed.</li>
+                    </ol>
+                    <p>This is the full interaction loop: input, validation, user feedback, and command availability all reinforce each other.</p>
+                </section>
+                <section class="doc-section">
                     <h2>Common mistakes</h2>
-                    <ul><li>Only validating on submit, which leaves the UI feeling unresponsive and ambiguous.</li><li>Embedding domain rules in the view without any reusable validation layer.</li><li>Using error visuals without clear explanatory text.</li></ul>
+                    <ul><li>Only validating on submit, which leaves the UI feeling unresponsive and ambiguous.</li><li>Embedding domain rules in the view without any reusable validation layer.</li><li>Using error visuals without clear explanatory text.</li><li>Treating invalid intermediate typing states as if they were final committed values.</li><li>Letting commands ignore invalid state until the last possible moment.</li></ul>
                     <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> The binding and validation primitives in this repo are WPF-inspired, which means the same broad guidance applies: validation should flow through the binding surface and command state rather than via manual control mutation whenever possible.</p></div>
                     <p>Next, zoom out from one screen and learn how WPF applications compose multiple views, windows, and shared services.</p>
                 </section>
