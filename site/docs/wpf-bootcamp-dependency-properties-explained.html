@@ -27,7 +27,7 @@
                     <p class="eyebrow">WPF Bootcamp</p>
                     <h1>Dependency Properties Explained</h1>
                     <p>Dependency properties are the reason WPF can combine defaults, styles, bindings, animations, inheritance, and local values without each control implementing a custom merge algorithm.</p>
-                    <p>If you skip this topic, many WPF behaviors look like magic. If you learn it, those behaviors become explainable.</p>
+                    <p>If you skip this topic, many WPF behaviors look like magic. If you learn it, those behaviors become explainable, and a lot of seemingly unrelated APIs suddenly fit together.</p>
                 </div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
@@ -35,6 +35,7 @@
                         <li>Why normal CLR properties are not enough for a retained, stylable UI framework.</li>
                         <li>How value precedence works and why the same property can be set from many sources.</li>
                         <li>What metadata and change callbacks do for control authors.</li>
+                        <li>When a dependency property is the right tool and when a plain CLR property is better.</li>
                     </ul>
                     <pre><code class="language-csharp">public static readonly DependencyProperty TitleProperty =
     DependencyProperty.Register(
@@ -44,6 +45,52 @@
         new FrameworkPropertyMetadata(string.Empty,
             FrameworkPropertyMetadataOptions.AffectsMeasure,
             OnTitleChanged));</code></pre>
+                    <p>That registration is not just boilerplate. It is the framework contract that tells WPF how the property participates in layout, styling, binding, default values, and change notifications.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The mental model in one sentence</h2>
+                    <p>A dependency property is a framework-managed property slot whose value can come from multiple sources, while metadata tells the framework how to react when that value changes.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Not just storage</h3>
+                            <p>A dependency property is not only "a field with getters and setters". It is a participant in the WPF property system.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Not every property needs this</h3>
+                            <p>Use dependency properties for framework-facing UI state. Use plain CLR properties for ordinary internal logic or most view model state.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Why normal CLR properties are not enough</h2>
+                    <p>A normal CLR property gives you one obvious value source: code assigns a value, and later code reads that value. WPF needs more than that.</p>
+                    <p>A property like <code>Background</code> or <code>Width</code> might need to come from:</p>
+                    <ul>
+                        <li>A default value defined by the control author.</li>
+                        <li>A style setter from a resource dictionary.</li>
+                        <li>A binding that updates over time.</li>
+                        <li>An animation that temporarily overrides the current value.</li>
+                        <li>A local value set directly in XAML or code.</li>
+                        <li>An inherited value flowing down from an ancestor.</li>
+                    </ul>
+                    <p>If every control had to reimplement those merging rules manually for every important property, the framework would be inconsistent and unmaintainable. Dependency properties centralize that logic.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>What a dependency property actually gives you</h2>
+                    <div class="doc-grid">
+                        <section class="doc-card">
+                            <h3>Multiple value sources</h3>
+                            <p>The framework can compute one effective value from defaults, styles, bindings, animations, templates, and local assignments.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Metadata-driven behavior</h3>
+                            <p>The property can declare that changes affect measure, arrange, rendering, inheritance, or other framework behavior.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Framework integration</h3>
+                            <p>Binding, styling, templating, animation, and resource systems can all talk to the same property model.</p>
+                        </section>
+                    </div>
                 </section>
                 <section class="doc-section">
                     <h2>Value precedence</h2>
@@ -53,6 +100,125 @@
                         <li>Animations can temporarily win over most other sources.</li>
                         <li>Inherited values flow down only for properties designed to inherit.</li>
                     </ul>
+                    <pre><code class="language-xml">&lt;Button
+    Background="{StaticResource AccentBrush}"
+    Content="Save" /&gt;</code></pre>
+                    <p>If a style also sets <code>Background</code>, the local value shown above usually wins. If an animation starts targeting <code>Background</code>, the displayed value can temporarily come from the animation instead. This is what people mean by the "effective value" of a dependency property.</p>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical takeaway:</strong> when a UI value looks wrong, ask "which source is currently winning?" not just "where did I set this last?"</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>A concrete example of competing value sources</h2>
+                    <pre><code class="language-xml">&lt;Window.Resources&gt;
+    &lt;Style TargetType="Button"&gt;
+        &lt;Setter Property="Width" Value="180" /&gt;
+    &lt;/Style&gt;
+&lt;/Window.Resources&gt;
+
+&lt;Button Width="220" Content="Save" /&gt;</code></pre>
+                    <p>The style says all buttons should be width 180. The button instance says this one should be width 220. The local value wins, so the effective width is 220.</p>
+                    <p>If you remove the local width, the style becomes the winning source. If neither exists, the property falls back to its default metadata value or the control's normal layout behavior.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Metadata is how the framework knows what a change means</h2>
+                    <p>Dependency property metadata is not just documentation. It tells the framework what kind of follow-up work a value change requires.</p>
+                    <pre><code class="language-csharp">new FrameworkPropertyMetadata(
+    string.Empty,
+    FrameworkPropertyMetadataOptions.AffectsMeasure |
+    FrameworkPropertyMetadataOptions.AffectsRender,
+    OnTitleChanged)</code></pre>
+                    <ul>
+                        <li><code>AffectsMeasure</code> means a change can alter desired size, so layout should remeasure.</li>
+                        <li><code>AffectsArrange</code> means the final placement might need to change.</li>
+                        <li><code>AffectsRender</code> means the control should redraw.</li>
+                        <li><code>Inherits</code> means the value can flow down the tree to descendants.</li>
+                    </ul>
+                    <p>Without these flags, the framework might not know that a property change should trigger layout or rendering work.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Change callbacks and coercion</h2>
+                    <p>Control authors can attach logic to property changes through callbacks, and they can also coerce values when the final effective value must obey additional rules.</p>
+                    <pre><code class="language-csharp">private static void OnTitleChanged(
+    DependencyObject d,
+    DependencyPropertyChangedEventArgs e)
+{
+    var card = (DashboardCard)d;
+    card.UpdateHeaderVisual();
+}</code></pre>
+                    <p>A property-changed callback is useful when the control needs to synchronize internal state or trigger additional behavior after the value changes.</p>
+                    <p>Coercion is useful when a property must be adjusted into a valid range. For example, a control might clamp a value or derive one property from another while still participating in the dependency property system.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Property inheritance</h2>
+                    <p>Some dependency properties are designed to inherit their value down the element tree. This is how settings like font family, data context, or flow direction can propagate without every child setting them explicitly.</p>
+                    <pre><code class="language-xml">&lt;StackPanel FontSize="18"&gt;
+    &lt;TextBlock Text="One" /&gt;
+    &lt;TextBlock Text="Two" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>Those text blocks may pick up the font size from their ancestor because the framework treats that property as inheritable. Not every dependency property does this. Inheritance is opt-in and defined by metadata.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Bindings, styles, templates, and animations all depend on this system</h2>
+                    <p>WPF's major subsystems are glued together by dependency properties.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Binding</h3>
+                            <p>A binding expression needs a framework-aware target property that can accept dynamic updates cleanly.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Styling</h3>
+                            <p>Style setters need a framework-owned property system so they can supply values without overwriting every local assignment permanently.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Templates</h3>
+                            <p>Templates rely on dependency properties so visual parts can react to control state and property changes.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Animation</h3>
+                            <p>Animations temporarily layer their values into the precedence system instead of permanently mutating plain fields.</p>
+                        </section>
+                    </div>
+                    <p>This is why dependency properties are such a foundational topic. They are not one feature among many. They are the property contract that lets many other WPF features cooperate.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>When to create a dependency property</h2>
+                    <p>Create one when you are authoring a framework-facing control property that needs to participate in layout, binding, styling, templating, animation, or inheritance.</p>
+                    <ul>
+                        <li>Create a dependency property for a control property like <code>Header</code>, <code>IsExpanded</code>, or <code>CornerRadius</code>.</li>
+                        <li>Do not create one for every private field or helper value inside a control.</li>
+                        <li>Do not use dependency properties in place of ordinary view model properties unless you are actually writing a framework element or framework-level type.</li>
+                    </ul>
+                    <p>Most view models should stay with plain CLR properties plus <code>INotifyPropertyChanged</code>. Dependency properties belong primarily to the UI framework layer.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>A worked example</h2>
+                    <p>Imagine a custom control with a <code>Title</code> dependency property:</p>
+                    <pre><code class="language-csharp">public static readonly DependencyProperty TitleProperty =
+    DependencyProperty.Register(
+        nameof(Title),
+        typeof(string),
+        typeof(DashboardCard),
+        new FrameworkPropertyMetadata(
+            string.Empty,
+            FrameworkPropertyMetadataOptions.AffectsMeasure |
+            FrameworkPropertyMetadataOptions.AffectsRender,
+            OnTitleChanged));
+
+public string Title
+{
+    get => (string)GetValue(TitleProperty);
+    set => SetValue(TitleProperty, value);
+}</code></pre>
+                    <ol>
+                        <li>The property is registered with the framework, not just declared as a normal auto-property.</li>
+                        <li>The default value is an empty string, so the control has a defined starting value.</li>
+                        <li>If the title changes, layout can rerun because the new text may change desired size.</li>
+                        <li>Rendering can rerun because the visible text has changed.</li>
+                        <li>The callback can update any internal state that depends on the title.</li>
+                        <li>The property can now be set locally, through a style, through a binding, or through a template interaction.</li>
+                    </ol>
+                    <p>That is the real power here: one property definition becomes a first-class participant in the whole framework.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Common mistakes</h2>
@@ -60,6 +226,8 @@
                         <li>Creating dependency properties without the metadata flags that tell layout or rendering when to refresh.</li>
                         <li>Assuming a style setter will override a local value.</li>
                         <li>Using dependency properties for every field, even when a plain CLR property inside a view model is the correct place.</li>
+                        <li>Forgetting that a property's displayed value may come from a different source than the one you most recently edited.</li>
+                        <li>Adding callbacks that duplicate existing framework behavior instead of using metadata correctly.</li>
                     </ul>
                     <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> This repository has its own dependency property system under `UI/Core/DependencyProperties`. The same conceptual contract applies: framework-owned properties participate in layout, styling, and binding in ways normal properties cannot.</p></div>
                     <p>Next, connect property changes to interaction by learning routed events and commands.</p>
