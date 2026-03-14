@@ -22,6 +22,29 @@
 
 html {
     scroll-behavior: smooth;
+    scrollbar-color: rgba(168, 183, 198, 0.25) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(168, 183, 198, 0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(168, 183, 198, 0.35);
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
 }
 
 body {
