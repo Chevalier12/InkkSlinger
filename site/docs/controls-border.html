@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - Border</title>
-    <meta name="description" content="Border control reference.">
+    <meta name="description" content="Technical manual for the Border control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,239 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>Border</h1>
-                    <p>WIP</p>
+                    <p><code>Border</code> is a single-child chrome wrapper. It paints a background across its full layout slot, draws rectangular border edges on each side, and adds border thickness plus padding around the hosted child element.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>Border</code> when you need simple container chrome around exactly one child element. It is a common building block for cards, section headers, framed content, and control templates.</p>
+                    <h3>Minimal border</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#223245"
+        BorderBrush="#4FC7C1"
+        BorderThickness="1" /&gt;</code></pre>
+                    <h3>Bordered card with content</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#182636"
+        BorderBrush="#28445F"
+        BorderThickness="1"
+        Padding="12"&gt;
+  &lt;TextBlock Text="Connection established." /&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Asymmetric chrome for layout framing</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#101822"
+        BorderBrush="#3E5670"
+        BorderThickness="1,1,1,3"
+        Padding="16,10,16,14"&gt;
+  &lt;StackPanel&gt;
+    &lt;TextBlock Text="Build summary" Margin="0,0,0,6" /&gt;
+    &lt;TextBlock Text="3 warnings, 0 errors" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/Border&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> treat <code>Border</code> as a lightweight layout and styling primitive. If you need multiple children directly, put a panel such as <code>Grid</code> or <code>StackPanel</code> inside the border.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>How Border lays out its child</h2>
+                    <p><code>Border</code> adds chrome thickness around its child during both measure and arrange. The total chrome is the sum of <code>BorderThickness</code> and <code>Padding</code> for each side.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Measure</h3>
+                            <p>During measure, <code>Border</code> subtracts the combined border and padding from the available size before measuring its child. Its desired size is the child desired size plus that combined chrome.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Arrange</h3>
+                            <p>During arrange, the child is placed inside the inner rectangle after subtracting left, top, right, and bottom chrome from the final slot.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Desired width = child desired width + left/right border thickness + left/right padding.</li>
+                        <li>Desired height = child desired height + top/bottom border thickness + top/bottom padding.</li>
+                        <li>If no child is present, desired size is just the combined border and padding thickness.</li>
+                        <li>If the final slot is too small, the child is arranged in the remaining non-negative inner rectangle.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Border BorderBrush="#55738F"
+        BorderThickness="2"
+        Padding="12,8"&gt;
+  &lt;TextBlock Text="Measured content" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <p>In that example, the child gets the available size reduced by <code>2 + 12</code> on the left, <code>2 + 8</code> on the top, and the corresponding values on the other sides.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Rendering behavior</h2>
+                    <p>The render path is intentionally simple and predictable. <code>Border</code> does not draw rounded geometry or perform clipping. It paints axis-aligned rectangles.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Background fill</h3>
+                            <p><code>Background</code> fills the entire layout slot first, including the space underneath the border edges.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Edge rendering</h3>
+                            <p>Each side of the border is then drawn as a separate filled rectangle using <code>BorderBrush</code> and the corresponding thickness value.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Opacity</h3>
+                            <p>The element's normal <code>Opacity</code> participates in rendering, so background and edge rectangles are tinted by the current opacity value.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Left, right, top, and bottom borders are rendered independently.</li>
+                        <li>A side is skipped when its thickness is less than or equal to zero.</li>
+                        <li>Border edges remain rectangular even if <code>CornerRadius</code> is set.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Border Background="#20405C"
+        BorderBrush="#9AD1FF"
+        BorderThickness="4,1,1,1"
+        Opacity="0.85"&gt;
+  &lt;TextBlock Text="Accent rail on the left" Margin="8" /&gt;
+&lt;/Border&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Single-child content model</h2>
+                    <p><code>Border</code> hosts exactly one child element. The XAML loader has explicit support for this and throws if you place multiple direct children inside the same border.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Correct</h3>
+                            <p>Put one element inside the border. If you need more, place a panel inside the border and add the rest under that panel.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Incorrect</h3>
+                            <p>Do not place two sibling elements directly under the border. That violates the supported XAML content model.</p>
+                        </article>
+                    </div>
+                    <h3>Single child with nested layout</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#16212D"
+        BorderBrush="#34506C"
+        BorderThickness="1"
+        Padding="12"&gt;
+  &lt;Grid&gt;
+    &lt;Grid.RowDefinitions&gt;
+      &lt;RowDefinition Height="Auto" /&gt;
+      &lt;RowDefinition Height="Auto" /&gt;
+    &lt;/Grid.RowDefinitions&gt;
+
+    &lt;TextBlock Grid.Row="0" Text="Account" Margin="0,0,0,6" /&gt;
+    &lt;TextBlock Grid.Row="1" Text="Signed in as admin@example.com" /&gt;
+  &lt;/Grid&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Explicit property-element form</h3>
+                    <pre><code class="language-xml">&lt;Border BorderBrush="#28445F" BorderThickness="1"&gt;
+  &lt;Border.Child&gt;
+    &lt;TextBlock Text="Hosted through Border.Child" /&gt;
+  &lt;/Border.Child&gt;
+&lt;/Border&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Loader contract:</strong> the framework's XAML loader handles <code>Border</code> directly and enforces the single-child rule with a dedicated error message when more than one visual child is supplied.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Chrome properties</h3>
+                            <p><code>Background</code>: a <code>Color</code> value used to fill the full layout slot.</p>
+                            <p><code>BorderBrush</code>: a <code>Color</code> value used for all rendered border edges.</p>
+                            <p><code>BorderThickness</code>: a <code>Thickness</code> that controls the size of each border side and contributes to measure/arrange.</p>
+                            <p><code>Padding</code>: a <code>Thickness</code> inside the border that adds inner space around the child and contributes to measure/arrange.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Content and shape</h3>
+                            <p><code>Child</code>: the single hosted <code>UIElement</code>.</p>
+                            <p><code>CornerRadius</code>: a <code>Thickness</code> property exposed by the API, but the current render path does not use it.</p>
+                            <p><code>Opacity</code>: inherited from the element base classes and applied during rendering.</p>
+                        </article>
+                    </div>
+                    <p>Use color literals such as <code>#223245</code>, named colors when supported by the loader, or bound values that resolve to <code>Color</code>. Do not document or expect WPF-style brush objects for <code>Background</code> or <code>BorderBrush</code> on this control.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Card or panel container</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#172331"
+        BorderBrush="#28445F"
+        BorderThickness="1"
+        Padding="14"&gt;
+  &lt;StackPanel&gt;
+    &lt;TextBlock Text="Recent sessions" Margin="0,0,0,10" /&gt;
+    &lt;TextBlock Text="12 sessions loaded" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Section header</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#203040"
+        BorderBrush="#4A6C89"
+        BorderThickness="0,0,0,1"
+        Padding="0,0,0,8"&gt;
+  &lt;TextBlock Text="Diagnostics" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Status badge or chip</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#1D3A2A"
+        BorderBrush="#4BA36E"
+        BorderThickness="1"
+        Padding="8,4"&gt;
+  &lt;TextBlock Text="ONLINE" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Input or content frame</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#111922"
+        BorderBrush="#35516B"
+        BorderThickness="1"
+        Padding="10"&gt;
+  &lt;TextBox Text="{Binding SearchText}" Width="220" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Nested borders for layered chrome</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#0E141C"
+        BorderBrush="#2C4259"
+        BorderThickness="1"
+        Padding="6"&gt;
+  &lt;Border Background="#172331"
+          BorderBrush="#4F6E8C"
+          BorderThickness="1"
+          Padding="12"&gt;
+    &lt;TextBlock Text="Two-stage framing" /&gt;
+  &lt;/Border&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Border inside a ControlTemplate</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="PanelButtonStyle" TargetType="{x:Type Button}"&gt;
+  &lt;Setter Property="Background" Value="#223245" /&gt;
+  &lt;Setter Property="BorderBrush" Value="#4FC7C1" /&gt;
+  &lt;Setter Property="BorderThickness" Value="1" /&gt;
+  &lt;Setter Property="Padding" Value="14,8" /&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type Button}"&gt;
+        &lt;Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                Padding="{TemplateBinding Padding}"&gt;
+          &lt;ContentPresenter HorizontalAlignment="Center"
+                            VerticalAlignment="Center" /&gt;
+        &lt;/Border&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong><code>Background</code> and <code>BorderBrush</code> are colors, not brushes.</strong> Use values that resolve to <code>Color</code>. Examples and styles should not imply WPF brush semantics for this control.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong><code>CornerRadius</code> is currently a no-op for rendering.</strong> The property exists on the API surface, but the current <code>OnRender</code> implementation still draws rectangular edges and background fills.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No implicit clipping.</strong> <code>Border</code> adds chrome and spacing, but it is not a general clipping primitive and does not automatically clip child content to a rounded or custom shape.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Use a panel for multiple elements.</strong> If you need more than one visual child, host a <code>Grid</code>, <code>StackPanel</code>, or another container inside the border instead of placing multiple direct children under it.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-anchored-adorner.html">
+                        <span>Previous</span>
+                        <strong>AnchoredAdorner</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-button.html">
+                        <span>Next</span>
+                        <strong>Button</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
