@@ -42,7 +42,7 @@
                     <p class="eyebrow">WPF Bootcamp</p>
                     <h1>Controls and Content Model</h1>
                     <p>WPF controls are not all the same kind of thing. Some host one piece of content, some host a collection, some generate containers, and some mostly exist to present content defined elsewhere.</p>
-                    <p>If you understand the content model, you stop forcing controls into jobs they were not designed to do.</p>
+                    <p>If you understand the content model, you stop forcing controls into jobs they were not designed to do, and the whole control library becomes easier to navigate.</p>
                 </div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
@@ -50,6 +50,7 @@
                         <li>The difference between a content control, items control, headered control, and presenter.</li>
                         <li>Why some controls accept a single child while others render arbitrary collections.</li>
                         <li>How generated containers affect styling, selection, and templates.</li>
+                        <li>How to choose the right control family based on what kind of content relationship you need.</li>
                     </ul>
                     <div class="doc-grid two-up">
                         <section class="doc-card">
@@ -63,8 +64,26 @@
                     </div>
                 </section>
                 <section class="doc-section">
-                    <h2>Presenters explain the magic</h2>
-                    <p>A <code>ContentPresenter</code> or <code>ItemsPresenter</code> inside a template is how the template says, "put the user-provided content here." That is the bridge between the control API and the visuals defined by its template.</p>
+                    <h2>The mental model in one sentence</h2>
+                    <p>A control's content model defines what kind of thing it is responsible for hosting: one object, one object plus a header, many items, or a placeholder where templated content gets injected.</p>
+                    <div class="doc-grid">
+                        <section class="doc-card">
+                            <h3>One main thing</h3>
+                            <p>Content controls host one logical content object, even if that object is itself a small subtree.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Many repeated things</h3>
+                            <p>Items controls host collections and generate a visual representation per item.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Template insertion point</h3>
+                            <p>Presenters are the bridge between a control's public API and the visuals created by its template.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Content controls: one logical content value</h2>
+                    <p>A content control has one primary content property. That content can be a string, a number, a model object, or an entire tree of elements. The important part is that the control conceptually hosts one main piece of content.</p>
                     <pre><code class="language-xml">&lt;Button&gt;
     &lt;StackPanel Orientation="Horizontal"&gt;
         &lt;Path Data="..." /&gt;
@@ -72,6 +91,127 @@
     &lt;/StackPanel&gt;
 &lt;/Button&gt;</code></pre>
                     <p>That still counts as a single content value. The content just happens to be a panel containing multiple children.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Examples</h3>
+                            <p><code>Button</code>, <code>Label</code>, <code>ContentControl</code>, <code>Window</code>, and often <code>UserControl</code> all fit the "one main content object" model.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Why it matters</h3>
+                            <p>If a control is a content control, you do not add multiple sibling children directly. You give it one content object, and that object can be a container if needed.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Headered controls: identity plus content</h2>
+                    <p>Some controls conceptually host both a header-like label and another content value. This is common for controls that need a caption or title in addition to their main content.</p>
+                    <pre><code class="language-xml">&lt;GroupBox Header="Profile"&gt;
+    &lt;StackPanel&gt;
+        &lt;TextBlock Text="Name" /&gt;
+        &lt;TextBox /&gt;
+    &lt;/StackPanel&gt;
+&lt;/GroupBox&gt;</code></pre>
+                    <p>Here the header is not the same thing as the main content. The control model exposes both concepts separately, and the template decides where each one gets rendered.</p>
+                    <p>This distinction also shows up in controls like <code>TabItem</code>, <code>Expander</code>, and menu-related elements where a header or title matters independently from the body content.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Items controls: collections, not hand-written repetition</h2>
+                    <p>An items control is for displaying many things from a collection. Instead of manually writing repeated children, you give the control items and let it generate visuals for each one.</p>
+                    <pre><code class="language-xml">&lt;ListBox ItemsSource="{Binding Orders}" /&gt;</code></pre>
+                    <p>That one line means something fundamentally different from a panel full of repeated child tags. The <code>ListBox</code> owns item generation, selection state, keyboard navigation, and often scrolling behavior.</p>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical takeaway:</strong> if the UI is showing a collection of data, reach for an <code>ItemsControl</code> family member before you start manually adding repeated visuals to a panel.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Item data is not the same as item containers</h2>
+                    <p>One of the most important ideas in WPF is that the data item and the generated UI container are different objects.</p>
+                    <pre><code class="language-xml">&lt;ListBox ItemsSource="{Binding Orders}" /&gt;</code></pre>
+                    <p>If <code>Orders</code> contains business objects, the items control does not just place those objects directly on screen. It typically wraps each item in a container like <code>ListBoxItem</code>, then uses templates or default rendering rules to present the item.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Data item</h3>
+                            <p>Your model or view model object, such as an <code>OrderViewModel</code>.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Container</h3>
+                            <p>The control-generated wrapper, such as <code>ListBoxItem</code> or <code>ComboBoxItem</code>, which carries selection, focus, and other control-specific behavior.</p>
+                        </section>
+                    </div>
+                    <p>This distinction matters for styling, selection, triggers, and debugging. If you do not know whether you are editing the item template or the container style, you will often change the wrong thing.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Panels are containers, not items controls</h2>
+                    <p>A panel like <code>StackPanel</code> or <code>Grid</code> lays out children that you explicitly place inside it. It does not generate visuals from data items, and it does not provide items-control behavior like selection or item containers.</p>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+    &lt;TextBlock Text="Order A" /&gt;
+    &lt;TextBlock Text="Order B" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>This is appropriate when the child set is small and explicit. It is not the right abstraction for a dynamic list of data coming from a collection.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Presenters explain the magic</h2>
+                    <p>A <code>ContentPresenter</code> or <code>ItemsPresenter</code> inside a template is how the template says, "put the user-provided content here." That is the bridge between the control API and the visuals defined by its template.</p>
+                    <pre><code class="language-xml">&lt;ControlTemplate TargetType="Button"&gt;
+    &lt;Border Padding="12,8"&gt;
+        &lt;ContentPresenter /&gt;
+    &lt;/Border&gt;
+&lt;/ControlTemplate&gt;</code></pre>
+                    <p>The template defines the border and chrome. The presenter marks the location where the button's content should appear. Without that presenter, the control might still exist, but user-provided content would have nowhere to render.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Data templates decide how data becomes visuals</h2>
+                    <p>For items controls and other content scenarios, a data template defines how a data object should be presented.</p>
+                    <pre><code class="language-xml">&lt;ListBox ItemsSource="{Binding Orders}"&gt;
+    &lt;ListBox.ItemTemplate&gt;
+        &lt;DataTemplate&gt;
+            &lt;StackPanel&gt;
+                &lt;TextBlock Text="{Binding CustomerName}" /&gt;
+                &lt;TextBlock Text="{Binding Total}" /&gt;
+            &lt;/StackPanel&gt;
+        &lt;/DataTemplate&gt;
+    &lt;/ListBox.ItemTemplate&gt;
+&lt;/ListBox&gt;</code></pre>
+                    <p>The items control still owns the collection behavior and container generation. The data template only decides what each item's inner visual content looks like.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Choosing the right abstraction</h2>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Use a content control when</h3>
+                            <p>You have one main thing to host, even if that one thing is a composite visual tree.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Use a headered control when</h3>
+                            <p>You need a title or label concept that is distinct from the main body content.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Use an items control when</h3>
+                            <p>You are presenting a collection and want the control to own repetition, containers, and interaction behavior.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Use a panel when</h3>
+                            <p>You are manually composing a fixed set of child elements and only need layout behavior.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>A worked example</h2>
+                    <p>Compare these two snippets:</p>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+    &lt;TextBlock Text="Order A" /&gt;
+    &lt;TextBlock Text="Order B" /&gt;
+&lt;/StackPanel&gt;
+
+&lt;ListBox ItemsSource="{Binding Orders}" /&gt;</code></pre>
+                    <p>They may both result in multiple rows on screen, but they represent different mental models.</p>
+                    <ol>
+                        <li>The <code>StackPanel</code> version is explicit composition. You authored each child yourself.</li>
+                        <li>The <code>ListBox</code> version is data-driven composition. The control generates visuals from a collection.</li>
+                        <li>The <code>ListBox</code> can provide selection, focus behavior, keyboard navigation, scrolling, and container state out of the box.</li>
+                        <li>The <code>StackPanel</code> gives you none of that because it is only a layout panel.</li>
+                    </ol>
+                    <p>That difference is the heart of the content model: not all "things that contain children" are responsible for the same kind of containment.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Common mistakes</h2>
@@ -79,6 +219,8 @@
                         <li>Using a <code>StackPanel</code> where an <code>ItemsControl</code> should own repetition and item generation.</li>
                         <li>Confusing item data with item containers such as <code>ListBoxItem</code>.</li>
                         <li>Editing a control template without understanding where its presenter is supposed to sit.</li>
+                        <li>Forgetting that a content control can host only one logical content value, even if that value is a whole layout subtree.</li>
+                        <li>Styling the data template when the real issue is container behavior, or styling the container when the issue is item content.</li>
                     </ul>
                     <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> The same distinction matters in this repo. Controls like <code>ItemsControl</code>, <code>ListBox</code>, <code>ComboBox</code>, and <code>TreeView</code> carry WPF-style item generation concepts, while content controls host one main child or content object.</p></div>
                     <p>Next, go deeper into dependency properties, because the content model only works cleanly because WPF has a richer property system than normal CLR properties.</p>
