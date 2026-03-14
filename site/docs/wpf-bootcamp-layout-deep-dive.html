@@ -82,7 +82,7 @@
                     <p class="eyebrow">WPF Bootcamp</p>
                     <h1>Layout Deep Dive</h1>
                     <p>Most WPF bugs are layout bugs wearing another costume. If you understand how measure and arrange work, controls stop feeling random and panels become predictable tools.</p>
-                    <p>WPF layout is recursive: parents ask children how much they want, then assign the final size they actually get.</p>
+                    <p>WPF layout is recursive: parents ask children how much they want, then assign the final size they actually get. Once that clicks, "why is this stretching, clipping, or collapsing?" stops feeling mysterious.</p>
                 </div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
@@ -90,6 +90,7 @@
                         <li>How measure and arrange differ.</li>
                         <li>Why panel choice controls nearly all sizing behavior.</li>
                         <li>How alignment, margins, width, height, and star sizing cooperate.</li>
+                        <li>How to read layout bugs as a flow of size information through the tree.</li>
                     </ul>
                     <h3>The layout cycle</h3>
                     <ol>
@@ -108,15 +109,184 @@
     &lt;ListBox Grid.Row="1" Margin="0,16,0,16" /&gt;
     &lt;Button Grid.Row="2" Content="Continue" HorizontalAlignment="Right" /&gt;
 &lt;/Grid&gt;</code></pre>
+                    <p>That grid is not merely stacking controls in order. It is negotiating space with each child, dividing the available height across rows, and then arranging each element into the slot it decided on.</p>
                 </section>
                 <section class="doc-section">
-                    <h2>Pick the right panel</h2>
+                    <h2>The mental model in one sentence</h2>
+                    <p>Layout in WPF is a conversation between parent and child: the parent offers constraints, the child reports what it would like, and the parent still gets the final say.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Measure answers "How big do you want to be?"</h3>
+                            <p>The child receives available space and computes its desired size based on its content, explicit sizing properties, and its own internal rules.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Arrange answers "Here is the slot you actually get"</h3>
+                            <p>The parent decides the final rectangle for each child. Alignment and stretching then determine how the child uses that slot.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Why parent panels matter so much</h2>
+                    <p>Most layout behavior is not controlled by the child. It is controlled by the parent panel. The same <code>Button</code> will size and position differently depending on whether it lives in a <code>Grid</code>, <code>StackPanel</code>, <code>DockPanel</code>, or <code>Canvas</code>.</p>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+    &lt;Button Content="Save" /&gt;
+&lt;/Grid&gt;
+
+&lt;StackPanel&gt;
+    &lt;Button Content="Save" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>Those two buttons can behave differently even with identical button properties, because the parent panel's measure and arrange rules are different.</p>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical takeaway:</strong> when a control looks wrong, inspect its parent panel before you start blaming the control itself.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Available size, desired size, and final size</h2>
+                    <p>These three ideas explain most layout outcomes.</p>
                     <ul>
-                        <li><code>Grid</code> is the default for structured layouts and mixed sizing rules.</li>
-                        <li><code>StackPanel</code> is good for simple one-dimensional flows, but it can hide sizing issues if overused.</li>
-                        <li><code>DockPanel</code> is excellent for "header/sidebar/content" style shells.</li>
+                        <li><strong>Available size:</strong> what the parent offers during measure.</li>
+                        <li><strong>Desired size:</strong> what the child asks for after measuring its content.</li>
+                        <li><strong>Final size:</strong> what the parent ultimately assigns during arrange.</li>
                     </ul>
-                    <p>Use margin for spacing between siblings and padding for space inside a control. Use alignment to position within the allocated slot, not to negotiate the slot itself.</p>
+                    <p>A child can desire more than it finally gets. It can also receive more space than it asked for and then stretch, center, or otherwise align itself inside that larger slot.</p>
+                    <pre><code class="language-xml">&lt;Grid Width="400"&gt;
+    &lt;Button Content="Short" HorizontalAlignment="Center" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <p>The button may only need a small desired width for its text, but the grid can still arrange it inside a much wider slot. Alignment determines where it sits inside that slot.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Measure in practice</h2>
+                    <p>During measure, the parent panel asks each child: "Given this much room, how large would you like to be?" The child considers content, font metrics, padding, template visuals, min/max constraints, and explicit width/height settings.</p>
+                    <pre><code class="language-xml">&lt;TextBlock
+    Text="This title determines my desired size"
+    FontSize="28" /&gt;</code></pre>
+                    <p>A bigger font produces a larger desired size. A longer string can change desired width or height. A text-wrapping setting changes the answer again. Measure is where content starts affecting geometry.</p>
+                    <p>Panels may measure children with generous or restrictive constraints depending on their rules. That is why controls often report different desired sizes under different parents.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Arrange in practice</h2>
+                    <p>During arrange, the parent decides the actual rectangle each child gets. This is where the parent enforces structure: rows, columns, stacking order, docking rules, or absolute coordinates.</p>
+                    <pre><code class="language-xml">&lt;Grid Width="500" Height="200"&gt;
+    &lt;Button
+        Content="Continue"
+        Width="140"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Center" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <p>The grid owns the 500 by 200 area. The button does not negotiate that away. Instead, the grid arranges the button into a slot, and the button uses alignment and explicit width to position itself within it.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Panel behavior is the real layout API</h2>
+                    <h3><code>Grid</code></h3>
+                    <p><code>Grid</code> is the default panel for structured screens. It is powerful because it can combine fixed sizes, automatic sizing, and proportional sizing.</p>
+                    <ul>
+                        <li><code>Auto</code> means size to content.</li>
+                        <li>A fixed number means exactly that size.</li>
+                        <li><code>*</code> means take a proportional share of the remaining space.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="Auto" /&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+    &lt;ColumnDefinition Width="2*" /&gt;
+&lt;/Grid.ColumnDefinitions&gt;</code></pre>
+                    <p>After satisfying fixed and auto columns, the remaining width is split proportionally between the star columns.</p>
+                    <h3><code>StackPanel</code></h3>
+                    <p><code>StackPanel</code> is simple and useful, but it is not a universal default. It stacks children in one axis and can give them effectively unconstrained size in that stacking direction, which sometimes leads to surprising measurement results.</p>
+                    <h3><code>DockPanel</code></h3>
+                    <p><code>DockPanel</code> is great for shell layouts like top bars, sidebars, and fill-content structures. Children dock one by one, and the remaining space goes to the last child by default.</p>
+                    <h3><code>Canvas</code></h3>
+                    <p><code>Canvas</code> uses explicit coordinates. That makes it useful for overlays and special cases, but it opts out of most of the adaptive behavior that makes WPF layout powerful.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Alignment, margin, padding, width, and height</h2>
+                    <p>These properties cooperate, but they do different jobs.</p>
+                    <ul>
+                        <li><strong>Margin</strong> adds space outside an element.</li>
+                        <li><strong>Padding</strong> adds space inside a control around its content.</li>
+                        <li><strong>Width</strong> and <strong>Height</strong> set explicit size requests or constraints.</li>
+                        <li><strong>HorizontalAlignment</strong> and <strong>VerticalAlignment</strong> decide how an element uses the slot it receives.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Button
+    Content="Save"
+    Margin="12"
+    Padding="16,8"
+    HorizontalAlignment="Right" /&gt;</code></pre>
+                    <p>That button gets external spacing from margin, internal spacing from padding, and right positioning from alignment. These are not interchangeable knobs.</p>
+                    <p>A common confusion is expecting alignment to change the amount of space the parent allocated. It does not. Alignment only affects how the element sits inside the slot it already received.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Stretching and why it sometimes seems to stop working</h2>
+                    <p>Stretch alignment only matters when the parent offers extra space and the panel type allows that extra space to exist meaningfully. Some parents constrain or measure children in ways that make stretch appear ineffective.</p>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+    &lt;TextBox HorizontalAlignment="Stretch" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>New WPF developers often expect that text box to stretch exactly the way it would inside a grid. Sometimes it will not behave as expected because <code>StackPanel</code> measurement rules differ from <code>Grid</code> rules. This is not the text box being inconsistent. It is the panel changing the layout conversation.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Scrolling changes the layout conversation</h2>
+                    <p>A <code>ScrollViewer</code> changes available size semantics because it may allow content to exceed the viewport. That can affect how descendants measure themselves, especially in the scrollable direction.</p>
+                    <pre><code class="language-xml">&lt;ScrollViewer VerticalScrollBarVisibility="Auto"&gt;
+    &lt;StackPanel&gt;
+        &lt;TextBlock Text="A lot of content..." /&gt;
+    &lt;/StackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                    <p>When scrolling is involved, a child may measure differently because the viewport and the scrollable extent are not the same thing. This is one reason nested scrolling or deeply nested stack panels can become confusing quickly.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Common panel choices and when to use them</h2>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Use <code>Grid</code> for most screens</h3>
+                            <p>It handles forms, dashboards, master-detail layouts, and shells because it supports explicit structure without giving up flexibility.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Use <code>StackPanel</code> for simple flows</h3>
+                            <p>It is good for short tool groups, small forms, or linear sections, but it is easy to overuse.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Use <code>DockPanel</code> for frame layouts</h3>
+                            <p>It maps naturally to headers, side rails, status bars, and a final fill area.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Use <code>Canvas</code> sparingly</h3>
+                            <p>Choose it when you truly want coordinates, not when you just want to "make things go where I want".</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>A worked example</h2>
+                    <p>Read this screen as a size negotiation:</p>
+                    <pre><code class="language-xml">&lt;Grid Margin="24"&gt;
+    &lt;Grid.RowDefinitions&gt;
+        &lt;RowDefinition Height="Auto" /&gt;
+        &lt;RowDefinition Height="*" /&gt;
+        &lt;RowDefinition Height="Auto" /&gt;
+    &lt;/Grid.RowDefinitions&gt;
+
+    &lt;TextBlock
+        Grid.Row="0"
+        Text="Orders"
+        FontSize="28" /&gt;
+
+    &lt;ListBox
+        Grid.Row="1"
+        Margin="0,16,0,16" /&gt;
+
+    &lt;Button
+        Grid.Row="2"
+        Content="Continue"
+        Width="140"
+        HorizontalAlignment="Right" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <ol>
+                        <li>The grid receives available space from its parent, reduced by its outer margin.</li>
+                        <li>The first row measures to the text block's desired height because it is <code>Auto</code>.</li>
+                        <li>The last row measures to the button's desired height because it is also <code>Auto</code>.</li>
+                        <li>The middle row gets the remaining height because it is <code>*</code>.</li>
+                        <li>The list box is arranged into that remaining area, minus its own margins.</li>
+                        <li>The button gets a slot across the bottom row, but its explicit width and right alignment determine how it sits inside that slot.</li>
+                    </ol>
+                    <p>That step-by-step reading is how experienced WPF developers debug layout. They track size decisions instead of guessing visually.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Common mistakes</h2>
@@ -124,11 +294,13 @@
                         <li>Using nested <code>StackPanel</code> everywhere and then wondering why stretching or scrolling behaves poorly.</li>
                         <li>Forgetting that <code>Auto</code>, fixed values, and <code>*</code> mean very different things in a <code>Grid</code>.</li>
                         <li>Setting both explicit size and aggressive margin/alignment values without understanding which one is fighting the layout result.</li>
+                        <li>Debugging a child control in isolation when the parent panel is actually deciding the behavior.</li>
+                        <li>Using <code>Canvas</code> to escape the layout system instead of learning the layout system.</li>
                     </ul>
                     <div class="callout doc-callout">
                         <p><strong>InkkSlinger parity note:</strong> The same parent-measures-child model applies here. If an InkkSlinger view looks wrong, the first thing to inspect is usually the panel tree and the size information flowing through it.</p>
                     </div>
-                    <p>Next, learn how controls relate to content, because that is what lets one control host text, another control host a tree of elements, and item controls generate repeated visuals.</p>
+                    <p>Next, learn how controls relate to content, because layout explains where things go, but the content model explains what kinds of things a control can host in the first place.</p>
                 </section>
                 <nav class="doc-pagination" aria-label="Page navigation">
                     <a class="pager-link" href="./wpf-bootcamp-xaml-fundamentals.html">
