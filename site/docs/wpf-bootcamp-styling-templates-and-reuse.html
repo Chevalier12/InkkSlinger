@@ -20,12 +20,81 @@
                 <div class="doc-hero"><p class="eyebrow">WPF Bootcamp</p><h1>Styling, Templates, and Reuse</h1><p>WPF becomes truly powerful when appearance stops being welded to behavior. Styles let you set coordinated defaults. Templates let you redefine visuals. Data templates let raw data become UI.</p><p>This is the layer that turns a functioning app into a coherent design system.</p></div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
-                    <ul><li>How resource dictionaries organize reusable UI values and assets.</li><li>When to use a style, control template, or data template.</li><li>How template binding and implicit styles reduce duplication.</li></ul>
+                    <ul><li>How resource dictionaries organize reusable UI values and assets.</li><li>When to use a style, control template, or data template.</li><li>How template binding and implicit styles reduce duplication.</li><li>How to separate visual language from control behavior without losing framework features.</li></ul>
                     <pre><code class="language-xml">&lt;Style TargetType="Button"&gt;
     &lt;Setter Property="Foreground" Value="White" /&gt;
     &lt;Setter Property="Background" Value="#22577A" /&gt;
     &lt;Setter Property="Padding" Value="14,8" /&gt;
 &lt;/Style&gt;</code></pre>
+                    <p>That style is more than a convenience. It is the start of a reusable design system: one place to define defaults so individual screens do not repeat the same visual decisions over and over.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The mental model in one sentence</h2>
+                    <p>Styles set coordinated property values, templates define structure, and resources provide sharable building blocks so visuals can evolve without rewriting behavior.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Style</h3>
+                            <p>Use it when the control shape stays the same and you mainly want reusable defaults, triggers, or visual states.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Template</h3>
+                            <p>Use it when you need to change the actual visual structure used to present a control or a piece of data.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Resources are the foundation of reuse</h2>
+                    <p>Resource dictionaries let you centralize reusable UI values such as brushes, thicknesses, styles, templates, and converters.</p>
+                    <pre><code class="language-xml">&lt;Window.Resources&gt;
+    &lt;SolidColorBrush x:Key="AccentBrush" Color="#22577A" /&gt;
+    &lt;x:Double x:Key="CardCornerRadius"&gt;12&lt;/x:Double&gt;
+&lt;/Window.Resources&gt;</code></pre>
+                    <p>Instead of hard-coding the same accent color or spacing value across many views, you define it once and reference it. This makes UI changes cheaper and less error-prone.</p>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical takeaway:</strong> if the same visual value appears in multiple places, it probably belongs in a resource dictionary rather than directly inside each control.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Styles set coordinated defaults</h2>
+                    <p>A style applies a set of property values and sometimes triggers to controls. This is the right abstraction when you want reuse without changing the control's underlying visual structure.</p>
+                    <pre><code class="language-xml">&lt;Style TargetType="Button"&gt;
+    &lt;Setter Property="Foreground" Value="White" /&gt;
+    &lt;Setter Property="Background" Value="{StaticResource AccentBrush}" /&gt;
+    &lt;Setter Property="Padding" Value="14,8" /&gt;
+    &lt;Setter Property="Margin" Value="8" /&gt;
+&lt;/Style&gt;</code></pre>
+                    <p>That style can affect every button in scope, depending on how it is keyed and where it is defined. This is far cleaner than restating the same properties on every button instance.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Implicit vs explicit styles</h2>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Implicit style</h3>
+                            <p>A style with only <code>TargetType</code> automatically applies to matching controls in scope.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Explicit style</h3>
+                            <p>A style with an <code>x:Key</code> must be referenced intentionally through the <code>Style</code> property.</p>
+                        </section>
+                    </div>
+                    <pre><code class="language-xml">&lt;Style x:Key="PrimaryButtonStyle" TargetType="Button"&gt;
+    &lt;Setter Property="Background" Value="{StaticResource AccentBrush}" /&gt;
+&lt;/Style&gt;</code></pre>
+                    <p>Implicit styles are great for broad consistency. Explicit styles are useful when you need multiple style variants in the same scope.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Style inheritance and composition</h2>
+                    <p>Styles can build on other styles through <code>BasedOn</code>, which lets you create shared foundations and then layer variants on top.</p>
+                    <pre><code class="language-xml">&lt;Style x:Key="BaseButtonStyle" TargetType="Button"&gt;
+    &lt;Setter Property="Padding" Value="14,8" /&gt;
+&lt;/Style&gt;
+
+&lt;Style x:Key="DangerButtonStyle"
+       TargetType="Button"
+       BasedOn="{StaticResource BaseButtonStyle}"&gt;
+    &lt;Setter Property="Background" Value="#B00020" /&gt;
+&lt;/Style&gt;</code></pre>
+                    <p>This is a common pattern in real applications: one base style establishes spacing and typography rules, while specialized styles define semantic variants like primary, secondary, danger, or subtle.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Choose the right abstraction</h2>
@@ -33,8 +102,92 @@
                     <p>If you only need different colors, spacing, or fonts, a style is enough. If you need a control to look structurally different, use a control template. If you are rendering data, use a data template.</p>
                 </section>
                 <section class="doc-section">
+                    <h2>Control templates redefine a control's visuals</h2>
+                    <p>A control template replaces the visual tree used to present a control while preserving the control's behavior contract. The button is still a button, but it can look radically different.</p>
+                    <pre><code class="language-xml">&lt;ControlTemplate TargetType="Button"&gt;
+    &lt;Border
+        Background="{TemplateBinding Background}"
+        Padding="{TemplateBinding Padding}"&gt;
+        &lt;ContentPresenter
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center" /&gt;
+    &lt;/Border&gt;
+&lt;/ControlTemplate&gt;</code></pre>
+                    <p>The important idea is that behavior and appearance are separate. The control still participates in focus, commands, and input routing. The template only changes how that behavior is presented visually.</p>
+                </section>
+                <section class="doc-section">
+                    <h2><code>TemplateBinding</code> connects the template to the control</h2>
+                    <p>A template needs a way to reflect the owning control's properties. <code>TemplateBinding</code> lets template elements read values like <code>Background</code>, <code>Padding</code>, or <code>Foreground</code> from the templated control instance.</p>
+                    <pre><code class="language-xml">&lt;Border Background="{TemplateBinding Background}" /&gt;</code></pre>
+                    <p>Without those bindings, your template visuals may ignore the control's public properties and become much harder to style or reuse.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Data templates turn data into UI</h2>
+                    <p>A data template is not about changing a control's chrome. It is about defining how a data object should be rendered.</p>
+                    <pre><code class="language-xml">&lt;DataTemplate x:Key="DocumentTemplate"&gt;
+    &lt;StackPanel&gt;
+        &lt;TextBlock Text="{Binding Name}" /&gt;
+        &lt;TextBlock Text="{Binding ModifiedAt}" /&gt;
+    &lt;/StackPanel&gt;
+&lt;/DataTemplate&gt;</code></pre>
+                    <p>This is the right tool when a list, content control, or presenter needs to display raw data objects as visuals.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Triggers let visuals react declaratively</h2>
+                    <p>Styles and templates can include triggers so visual states change automatically when properties or conditions change.</p>
+                    <pre><code class="language-xml">&lt;Style TargetType="Button"&gt;
+    &lt;Setter Property="Opacity" Value="1" /&gt;
+    &lt;Style.Triggers&gt;
+        &lt;Trigger Property="IsEnabled" Value="False"&gt;
+            &lt;Setter Property="Opacity" Value="0.5" /&gt;
+        &lt;/Trigger&gt;
+    &lt;/Style.Triggers&gt;
+&lt;/Style&gt;</code></pre>
+                    <p>That keeps simple visual reactions in the declarative layer instead of pushing every presentation tweak into code-behind.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>A practical reuse strategy</h2>
+                    <p>In a real application, the most maintainable approach is usually layered.</p>
+                    <ol>
+                        <li>Store shared colors, spacing, and typography as resources.</li>
+                        <li>Use styles for coordinated defaults and simple visual rules.</li>
+                        <li>Use control templates only when structure must change.</li>
+                        <li>Use data templates when rendering view-model or model objects.</li>
+                    </ol>
+                    <p>This keeps the reuse hierarchy clear and avoids reaching for the heaviest abstraction too early.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>A worked example</h2>
+                    <pre><code class="language-xml">&lt;Window.Resources&gt;
+    &lt;SolidColorBrush x:Key="AccentBrush" Color="#22577A" /&gt;
+
+    &lt;Style x:Key="PrimaryButtonStyle" TargetType="Button"&gt;
+        &lt;Setter Property="Foreground" Value="White" /&gt;
+        &lt;Setter Property="Background" Value="{StaticResource AccentBrush}" /&gt;
+        &lt;Setter Property="Padding" Value="14,8" /&gt;
+    &lt;/Style&gt;
+
+    &lt;DataTemplate x:Key="DocumentTemplate"&gt;
+        &lt;TextBlock Text="{Binding Name}" /&gt;
+    &lt;/DataTemplate&gt;
+&lt;/Window.Resources&gt;
+
+&lt;StackPanel&gt;
+    &lt;Button Style="{StaticResource PrimaryButtonStyle}" Content="Save" /&gt;
+    &lt;ListBox ItemsSource="{Binding Documents}"
+             ItemTemplate="{StaticResource DocumentTemplate}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <ol>
+                        <li>The accent brush is defined once as a reusable resource.</li>
+                        <li>The button style reuses that brush and standardizes common button visuals.</li>
+                        <li>The list box uses a data template to decide how each document item should render.</li>
+                        <li>The view stays concise because visual rules have been lifted into reusable assets.</li>
+                    </ol>
+                    <p>This is the essence of WPF reuse: define values once, apply them declaratively, and keep behavior separate from presentation.</p>
+                </section>
+                <section class="doc-section">
                     <h2>Common mistakes</h2>
-                    <ul><li>Using a control template when a style setter would be simpler and safer.</li><li>Breaking a template by removing the presenter or required named parts.</li><li>Hard-coding repeated values instead of moving them into shared resources.</li></ul>
+                    <ul><li>Using a control template when a style setter would be simpler and safer.</li><li>Breaking a template by removing the presenter or required named parts.</li><li>Hard-coding repeated values instead of moving them into shared resources.</li><li>Using a data template to solve a control-chrome problem that really belongs in a control template or style.</li><li>Forgetting to surface control properties through <code>TemplateBinding</code>, which makes templates brittle and hard to reuse.</li></ul>
                     <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> Styling and templating are first-class systems in this repository under `UI/Styling` and `UI/Templating`. Keeping visuals in styles or templates rather than in imperative code helps preserve the WPF-like authoring model.</p></div>
                     <p>Next, bring data entry into the picture with validation and user-input flows.</p>
                 </section>
