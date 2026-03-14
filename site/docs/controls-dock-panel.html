@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - DockPanel</title>
-    <meta name="description" content="DockPanel control reference.">
+    <meta name="description" content="Technical manual for the DockPanel control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,330 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>DockPanel</h1>
-                    <p>WIP</p>
+                    <p><code>DockPanel</code> is the framework's edge-composition panel. It lays out children in sequence, docking each one to the left, top, right, or bottom edge of the remaining rectangle. By default, the last child fills whatever space is left.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>DockPanel</code> when your screen naturally has frame pieces such as a top bar, a side rail, a footer, and a central content area. It is especially good for shell layout, inspectors, tool panes, and document hosts.</p>
+                    <h3>Minimal shell layout</h3>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;Border DockPanel.Dock="Top"
+          Background="#203040"
+          BorderBrush="#476582"
+          BorderThickness="0,0,0,1"
+          Padding="12,8"&gt;
+    &lt;TextBlock Text="Project Explorer" /&gt;
+  &lt;/Border&gt;
+
+  &lt;Border DockPanel.Dock="Left"
+          Width="220"
+          Background="#16212D"
+          BorderBrush="#2F455D"
+          BorderThickness="0,0,1,0"
+          Padding="12"&gt;
+    &lt;TextBlock Text="Navigation" /&gt;
+  &lt;/Border&gt;
+
+  &lt;TextBlock Text="Main content fills the rest." Margin="16" /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <h3>Top bar, bottom status bar, and center view</h3>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;Border DockPanel.Dock="Top"
+          Background="#1B2A39"
+          BorderBrush="#45627E"
+          BorderThickness="0,0,0,1"
+          Padding="14,10"&gt;
+    &lt;TextBlock Text="Build Monitor" /&gt;
+  &lt;/Border&gt;
+
+  &lt;StatusBar DockPanel.Dock="Bottom"&gt;
+    &lt;StatusBarItem Content="Ready" /&gt;
+  &lt;/StatusBar&gt;
+
+  &lt;Border Background="#101821" Padding="16"&gt;
+    &lt;TextBlock Text="Workspace content" /&gt;
+  &lt;/Border&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <h3>Disable fill behavior</h3>
+                    <pre><code class="language-xml">&lt;DockPanel LastChildFill="False"&gt;
+  &lt;Border DockPanel.Dock="Left" Width="140" Background="#223245" /&gt;
+  &lt;Border DockPanel.Dock="Right" Width="140" Background="#182636" /&gt;
+  &lt;Border DockPanel.Dock="Top" Height="60" Background="#30485F" /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> start with <code>DockPanel</code> when you are describing edges and a center region. If you are describing rows and columns, choose <code>Grid</code> instead.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>How DockPanel layout works</h2>
+                    <p><code>DockPanel</code> is order-sensitive. It processes children from first to last, shrinking the remaining rectangle after each non-fill child is arranged. The next child sees whatever space is left.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Measure</h3>
+                            <p>Each child is measured against the current remaining width and height. A left or right dock consumes width. A top or bottom dock consumes height.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Arrange</h3>
+                            <p>Children are arranged into the remaining rectangle in declaration order. The final remaining region goes to the last child when <code>LastChildFill</code> is enabled.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Child order changes layout results, even if the same children and dock values are used.</li>
+                        <li>The default attached dock value is <code>Left</code>.</li>
+                        <li><code>LastChildFill</code> defaults to <code>true</code>.</li>
+                        <li>When <code>LastChildFill</code> is <code>true</code>, the last child's own <code>DockPanel.Dock</code> value is ignored for layout.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;Border DockPanel.Dock="Left" Width="90" Background="#24415A" /&gt;
+  &lt;Border DockPanel.Dock="Top" Height="48" Background="#35516B" /&gt;
+  &lt;Border Background="#121C25" /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <p>That produces a left rail first, then a top strip inside the remaining area, then a fill region in the bottom-right remainder.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Child order is part of the API</h2>
+                    <p>Unlike <code>Grid</code>, <code>DockPanel</code> does not compute a global layout from attached metadata alone. It walks the children in sequence, so moving a child earlier or later changes which area it consumes.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Order A</h3>
+                            <p>Dock the left rail first, then dock the top strip. The top strip appears only across the remaining content region.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Order B</h3>
+                            <p>Dock the top strip first, then dock the left rail. The top strip now spans the full panel width before the left rail is carved out below it.</p>
+                        </article>
+                    </div>
+                    <h3>Left then top</h3>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;Border DockPanel.Dock="Left" Width="96" Background="#1F3448" /&gt;
+  &lt;Border DockPanel.Dock="Top" Height="44" Background="#2E4A62" /&gt;
+  &lt;Border Background="#111922" /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <h3>Top then left</h3>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;Border DockPanel.Dock="Top" Height="44" Background="#2E4A62" /&gt;
+  &lt;Border DockPanel.Dock="Left" Width="96" Background="#1F3448" /&gt;
+  &lt;Border Background="#111922" /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical rule:</strong> read a <code>DockPanel</code> from top to bottom in XAML as a sequence of space claims. Earlier children reserve edges. Later children live inside what remains.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2><code>LastChildFill</code> behavior</h2>
+                    <p>The default <code>LastChildFill="True"</code> behavior is what makes <code>DockPanel</code> convenient for application shells. You dock the framing pieces first, then let the last child become the main content surface automatically.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>When true</h3>
+                            <p>The last child gets the entire remaining rectangle. Its own <code>DockPanel.Dock</code> value does not affect layout.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>When false</h3>
+                            <p>Every child is docked according to its own <code>DockPanel.Dock</code> value. No child automatically fills the leftover area.</p>
+                        </article>
+                    </div>
+                    <h3>Typical fill layout</h3>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;Menu DockPanel.Dock="Top" /&gt;
+  &lt;StatusBar DockPanel.Dock="Bottom" /&gt;
+  &lt;Border DockPanel.Dock="Left" Width="240" Background="#172331" /&gt;
+  &lt;ContentControl Content="{Binding ActiveDocument}" /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <h3>All children dock explicitly</h3>
+                    <pre><code class="language-xml">&lt;DockPanel LastChildFill="False"&gt;
+  &lt;Border DockPanel.Dock="Top" Height="56" Background="#203040" /&gt;
+  &lt;Border DockPanel.Dock="Bottom" Height="32" Background="#172331" /&gt;
+  &lt;Border DockPanel.Dock="Left" Width="160" Background="#24384B" /&gt;
+  &lt;Border DockPanel.Dock="Right" Width="160" Background="#24384B" /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <p>If you expect a center region and you turned <code>LastChildFill</code> off, you must provide that center behavior through another panel or a different child structure.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Dock directions</h2>
+                    <p>The framework supports the standard four dock directions through the <code>Dock</code> enum: <code>Left</code>, <code>Top</code>, <code>Right</code>, and <code>Bottom</code>.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3><code>Left</code></h3>
+                            <p>Reserves width from the left edge of the remaining rectangle and stretches vertically across the current remaining height.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>Top</code></h3>
+                            <p>Reserves height from the top edge of the remaining rectangle and stretches horizontally across the current remaining width.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>Right</code></h3>
+                            <p>Reserves width from the right edge of the remaining rectangle and stretches vertically across the current remaining height.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>Bottom</code></h3>
+                            <p>Reserves height from the bottom edge of the remaining rectangle and stretches horizontally across the current remaining width.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;DockPanel LastChildFill="False"&gt;
+  &lt;Border DockPanel.Dock="Left" Width="80" Background="#28445F" /&gt;
+  &lt;Border DockPanel.Dock="Top" Height="50" Background="#35516B" /&gt;
+  &lt;Border DockPanel.Dock="Right" Width="80" Background="#28445F" /&gt;
+  &lt;Border DockPanel.Dock="Bottom" Height="34" Background="#203040" /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Typical usage patterns</h2>
+                    <h3>Application shell</h3>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;ToolBarTray DockPanel.Dock="Top"&gt;
+    &lt;ToolBar&gt;
+      &lt;Button Text="New" /&gt;
+      &lt;Button Text="Open" /&gt;
+      &lt;Button Text="Save" /&gt;
+    &lt;/ToolBar&gt;
+  &lt;/ToolBarTray&gt;
+
+  &lt;StatusBar DockPanel.Dock="Bottom"&gt;
+    &lt;StatusBarItem Content="Ready" /&gt;
+  &lt;/StatusBar&gt;
+
+  &lt;Border DockPanel.Dock="Left"
+          Width="220"
+          Background="#16212D"
+          BorderBrush="#34506C"
+          BorderThickness="0,0,1,0"
+          Padding="12"&gt;
+    &lt;TreeView /&gt;
+  &lt;/Border&gt;
+
+  &lt;DocumentViewer /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <h3>Inspector panel on the right</h3>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;Border DockPanel.Dock="Right"
+          Width="280"
+          Background="#172331"
+          BorderBrush="#2F455D"
+          BorderThickness="1,0,0,0"
+          Padding="14"&gt;
+    &lt;StackPanel&gt;
+      &lt;TextBlock Text="Properties" Margin="0,0,0,8" /&gt;
+      &lt;TextBlock Text="No selection" /&gt;
+    &lt;/StackPanel&gt;
+  &lt;/Border&gt;
+
+  &lt;Canvas /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <h3>Conversation layout with top input bar</h3>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;Border DockPanel.Dock="Bottom"
+          Background="#16212D"
+          BorderBrush="#2F455D"
+          BorderThickness="0,1,0,0"
+          Padding="12"&gt;
+    &lt;TextBox Text="{Binding DraftMessage}" /&gt;
+  &lt;/Border&gt;
+
+  &lt;ListBox ItemsSource="{Binding Messages}" /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <h3>Navigation rail and content host</h3>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;Border DockPanel.Dock="Left"
+          Width="96"
+          Background="#111922"
+          BorderBrush="#35516B"
+          BorderThickness="0,0,1,0"
+          Padding="8"&gt;
+    &lt;StackPanel&gt;
+      &lt;Button Text="Home" Margin="0,0,0,6" /&gt;
+      &lt;Button Text="Search" Margin="0,0,0,6" /&gt;
+      &lt;Button Text="Settings" /&gt;
+    &lt;/StackPanel&gt;
+  &lt;/Border&gt;
+
+  &lt;Frame /&gt;
+&lt;/DockPanel&gt;</code></pre>
+                    <h3>Nested DockPanels</h3>
+                    <pre><code class="language-xml">&lt;DockPanel&gt;
+  &lt;Border DockPanel.Dock="Top" Height="52" Background="#203040" /&gt;
+
+  &lt;DockPanel&gt;
+    &lt;Border DockPanel.Dock="Left" Width="200" Background="#16212D" /&gt;
+    &lt;Border DockPanel.Dock="Bottom" Height="30" Background="#111922" /&gt;
+    &lt;Border Background="#0E151D" /&gt;
+  &lt;/DockPanel&gt;
+&lt;/DockPanel&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>DockPanel-specific properties</h3>
+                            <p><code>DockPanel.Dock</code>: attached <code>Dock</code> value for each child. Supported values are <code>Left</code>, <code>Top</code>, <code>Right</code>, and <code>Bottom</code>. Default is <code>Left</code>.</p>
+                            <p><code>LastChildFill</code>: <code>bool</code>. Default is <code>true</code>. When enabled, the last child fills the remaining rectangle instead of docking to an edge.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Inherited and common properties</h3>
+                            <p><code>Width</code> and <code>Height</code>: useful when the DockPanel itself needs a fixed region.</p>
+                            <p><code>Margin</code>: affects the panel's placement in its parent, not how docked children are carved inside it.</p>
+                            <p>Child <code>Width</code> is especially relevant for left/right docks. Child <code>Height</code> is especially relevant for top/bottom docks.</p>
+                        </article>
+                    </div>
+                    <h3>Set dock in XAML</h3>
+                    <pre><code class="language-xml">&lt;Border DockPanel.Dock="Right"
+        Width="180"
+        Background="#1E3144" /&gt;</code></pre>
+                    <h3>Set dock from code</h3>
+                    <pre><code class="language-csharp">var sidebar = new Border
+{
+    Width = 220f
+};
+
+DockPanel.SetDock(sidebar, Dock.Left);
+rootDockPanel.AddChild(sidebar);</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>DockPanel vs other panels</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Choose DockPanel when</h3>
+                            <p>Your layout describes edges plus a remainder: headers, sidebars, tool panes, footers, and a main content region.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Choose another panel when</h3>
+                            <p>You need rows and columns, proportional sizing, wrapping, or explicit coordinates rather than edge consumption.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Use <code>Grid</code> for structured forms, dashboards, and layouts driven by rows and columns.</li>
+                        <li>Use <code>StackPanel</code> for simple one-axis flows.</li>
+                        <li>Use <code>Canvas</code> for explicit X/Y placement.</li>
+                        <li>Use <code>DockPanel</code> for frame layout and edge-first composition.</li>
+                    </ul>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Order matters.</strong> Reordering children changes the measured and arranged result. Treat XAML declaration order as a real part of the layout contract.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>The last child fills by default.</strong> If a child seems to ignore <code>DockPanel.Dock</code>, check whether it is the final child and whether <code>LastChildFill</code> is still enabled.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Default dock is <code>Left</code>.</strong> If you omit <code>DockPanel.Dock</code> on a non-final child, it behaves as a left-docked child.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Stretching follows the dock direction.</strong> Left and right docks consume width and stretch through the remaining height. Top and bottom docks consume height and stretch through the remaining width.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Use explicit size where appropriate.</strong> A left or right dock usually wants a meaningful <code>Width</code>. A top or bottom dock usually wants a meaningful <code>Height</code>. Otherwise the child sizes itself from content.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-decorator.html">
+                        <span>Previous</span>
+                        <strong>Decorator</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-document-viewer.html">
+                        <span>Next</span>
+                        <strong>DocumentViewer</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
