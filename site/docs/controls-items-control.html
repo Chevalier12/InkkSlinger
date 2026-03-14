@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - ItemsControl</title>
-    <meta name="description" content="ItemsControl control reference.">
+    <meta name="description" content="Technical manual for the ItemsControl control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,351 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>ItemsControl</h1>
-                    <p>WIP</p>
+                    <p><code>ItemsControl</code> is the framework's non-selecting item repeater. It turns either inline <code>Items</code> or a bound <code>ItemsSource</code> into a vertical sequence of realized child elements, optionally using data templates, template selection, item container styling, and grouped views.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>ItemsControl</code> when you want to render a collection but do not need built-in selection, current item handling, or row-level interaction semantics. If you need selection, use controls derived from it such as <code>ListBox</code>, <code>ListView</code>, <code>TreeView</code>, or <code>ComboBox</code>.</p>
+                    <h3>Inline items</h3>
+                    <pre><code class="language-xml">&lt;ItemsControl&gt;
+  &lt;TextBlock Text="Alpha" /&gt;
+  &lt;TextBlock Text="Bravo" /&gt;
+  &lt;TextBlock Text="Charlie" /&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <h3>Bound list with an item template</h3>
+                    <pre><code class="language-xml">&lt;ItemsControl ItemsSource="{Binding Notifications}"&gt;
+  &lt;ItemsControl.ItemTemplate&gt;
+    &lt;DataTemplate&gt;
+      &lt;Border Background="#172331"
+              BorderBrush="#2E4A66"
+              BorderThickness="1"
+              Padding="10"
+              Margin="0,0,0,8"&gt;
+        &lt;StackPanel&gt;
+          &lt;TextBlock Text="{Binding Title}" Margin="0,0,0,4" /&gt;
+          &lt;TextBlock Text="{Binding Message}" /&gt;
+        &lt;/StackPanel&gt;
+      &lt;/Border&gt;
+    &lt;/DataTemplate&gt;
+  &lt;/ItemsControl.ItemTemplate&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <h3>CollectionView-backed list</h3>
+                    <pre><code class="language-xml">&lt;UserControl.Resources&gt;
+  &lt;CollectionViewSource x:Key="BuildsView"&gt;
+    &lt;CollectionViewSource.SortDescriptions&gt;
+      &lt;SortDescription PropertyName="StartedAt" Direction="Descending" /&gt;
+    &lt;/CollectionViewSource.SortDescriptions&gt;
+  &lt;/CollectionViewSource&gt;
+&lt;/UserControl.Resources&gt;
+
+&lt;ItemsControl ItemsSource="{StaticResource BuildsView}" /&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default mental model:</strong> <code>ItemsControl</code> is a vertical renderer for a collection. Every realized item is measured and arranged in order from top to bottom.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Content model and item sources</h2>
+                    <p><code>ItemsControl</code> supports two mutually exclusive ways to provide data.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3><code>Items</code></h3>
+                            <p>Use <code>Items</code> for local, directly owned entries. In XAML, inline child elements are added to this collection automatically.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>ItemsSource</code></h3>
+                            <p>Use <code>ItemsSource</code> to bind an external collection or a <code>CollectionViewSource</code>. Once set, the <code>Items</code> collection becomes read-only for mutation.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Inline child elements in XAML become entries in <code>Items</code>.</li>
+                        <li>If <code>ItemsSource</code> is set, modifying <code>Items</code> throws an <code>InvalidOperationException</code>.</li>
+                        <li>If you want to switch back to local items, clear <code>ItemsSource</code> first.</li>
+                        <li>Do not mix <code>ItemsSource</code> with inline child items in the same element.</li>
+                    </ul>
+                    <h3>Local items created in code</h3>
+                    <pre><code class="language-csharp">var items = new ItemsControl();
+items.Items.Add("Queued");
+items.Items.Add("Running");
+items.Items.Add("Completed");</code></pre>
+                    <h3>Switching back from <code>ItemsSource</code> to local items</h3>
+                    <pre><code class="language-csharp">itemsControl.ItemsSource = null;
+itemsControl.Items.Add("Manual item");</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>How item generation works</h2>
+                    <p>For each projected item, the control chooses or creates one realized visual element. The resolution order matters because it determines whether you get a template result, a reused UI element, or an automatically generated fallback container.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>1. Explicit template selection</h3>
+                            <p>If <code>ItemTemplate</code> or <code>ItemTemplateSelector</code> is set, the control resolves a template first and builds from that when possible.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>2. Implicit template lookup</h3>
+                            <p>If no explicit template is set, the control looks for an implicit <code>DataTemplate</code> for the item's runtime type.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>3. UI element passthrough</h3>
+                            <p>If the item is already a <code>UIElement</code> and no template handled it, that element is used directly as the realized item.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>4. Fallback container</h3>
+                            <p>If the item is plain data and no template exists, the control creates a <code>Label</code> whose text is <code>item.ToString()</code>.</p>
+                        </article>
+                    </div>
+                    <h3>Direct UI elements</h3>
+                    <pre><code class="language-xml">&lt;ItemsControl&gt;
+  &lt;Border Background="#1C2B3B" BorderBrush="#35516B" BorderThickness="1" Padding="8"&gt;
+    &lt;TextBlock Text="Already a UIElement" /&gt;
+  &lt;/Border&gt;
+  &lt;Button Text="Second element" /&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <h3>Fallback text generation for plain objects</h3>
+                    <pre><code class="language-csharp">var items = new ItemsControl();
+items.Items.Add(42);
+items.Items.Add(DateTime.Today);
+items.Items.Add(new BuildStep("Restore"));</code></pre>
+                    <p>Without a matching template, those entries render through generated <code>Label</code> containers using the object's string representation.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Templates and styling</h2>
+                    <p><code>ItemsControl</code> exposes the core item templating surface you use throughout the framework.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3><code>ItemTemplate</code></h3>
+                            <p>Use one <code>DataTemplate</code> when every item should render the same way.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>ItemTemplateSelector</code></h3>
+                            <p>Use a selector when rendering depends on the data item at runtime.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>ItemContainerStyle</code></h3>
+                            <p>Applies a <code>Style</code> to generated item containers when those containers are <code>FrameworkElement</code> instances.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Implicit templates</h3>
+                            <p>If no explicit template is provided, typed templates can still be resolved implicitly from resources.</p>
+                        </article>
+                    </div>
+                    <h3>Single template for a bound row model</h3>
+                    <pre><code class="language-xml">&lt;ItemsControl ItemsSource="{Binding BuildJobs}"&gt;
+  &lt;ItemsControl.ItemTemplate&gt;
+    &lt;DataTemplate&gt;
+      &lt;Border Background="#172331"
+              BorderBrush="#2B4259"
+              BorderThickness="1"
+              Padding="12"
+              Margin="0,0,0,8"&gt;
+        &lt;Grid&gt;
+          &lt;Grid.ColumnDefinitions&gt;
+            &lt;ColumnDefinition Width="*" /&gt;
+            &lt;ColumnDefinition Width="Auto" /&gt;
+          &lt;/Grid.ColumnDefinitions&gt;
+          &lt;TextBlock Grid.Column="0" Text="{Binding Name}" /&gt;
+          &lt;TextBlock Grid.Column="1" Text="{Binding Status}" /&gt;
+        &lt;/Grid&gt;
+      &lt;/Border&gt;
+    &lt;/DataTemplate&gt;
+  &lt;/ItemsControl.ItemTemplate&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <h3>Applying shared chrome to generated containers</h3>
+                    <pre><code class="language-xml">&lt;ItemsControl ItemsSource="{Binding Steps}"&gt;
+  &lt;ItemsControl.ItemContainerStyle&gt;
+    &lt;Style TargetType="{x:Type Label}"&gt;
+      &lt;Setter Property="Margin" Value="0,0,0,6" /&gt;
+      &lt;Setter Property="Padding" Value="8,4" /&gt;
+      &lt;Setter Property="Background" Value="#1B2938" /&gt;
+      &lt;Setter Property="BorderBrush" Value="#35516B" /&gt;
+      &lt;Setter Property="BorderThickness" Value="1" /&gt;
+    &lt;/Style&gt;
+  &lt;/ItemsControl.ItemContainerStyle&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <p>That pattern is most useful when the control is auto-generating fallback containers such as <code>Label</code>. If your item template builds the full visuals itself, style the root element inside the template instead.</p>
+                    <h3>Using an item template selector</h3>
+                    <pre><code class="language-xml">&lt;ItemsControl ItemsSource="{Binding Feed}"
+              ItemTemplateSelector="{StaticResource FeedTemplateSelector}" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout behavior</h2>
+                    <p>The built-in layout behavior is intentionally simple. Whether items are hosted directly by the control or by an <code>ItemsPresenter</code>, realized items are measured with the available size and then arranged in a single top-to-bottom stack.</p>
+                    <ul>
+                        <li>Desired width is the maximum desired width of all realized items.</li>
+                        <li>Desired height is the sum of all realized item heights.</li>
+                        <li>Each item is arranged at the full available width of the control's final slot.</li>
+                        <li>The default item flow is vertical only.</li>
+                    </ul>
+                    <div class="callout doc-callout">
+                        <p><strong>No <code>ItemsPanel</code> abstraction here:</strong> this implementation does not expose WPF's <code>ItemsPanel</code> property. If you need a different collection layout pattern, use a more specialized control or build a control template that changes the surrounding composition, not the core item flow contract.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Collection views, sorting, filtering, and grouping</h2>
+                    <p><code>ItemsSource</code> can point at a collection directly, but the richer pattern is to bind a <code>CollectionViewSource</code>. That gives the control a projected view that can sort, filter, and group the source data before it is realized.</p>
+                    <h3>Sorted view source</h3>
+                    <pre><code class="language-xml">&lt;UserControl.Resources&gt;
+  &lt;CollectionViewSource x:Key="BuildsView"&gt;
+    &lt;CollectionViewSource.SortDescriptions&gt;
+      &lt;SortDescription PropertyName="StartedAt" Direction="Descending" /&gt;
+    &lt;/CollectionViewSource.SortDescriptions&gt;
+  &lt;/CollectionViewSource&gt;
+&lt;/UserControl.Resources&gt;
+
+&lt;ItemsControl ItemsSource="{StaticResource BuildsView}" /&gt;</code></pre>
+                    <h3>Grouped view source</h3>
+                    <pre><code class="language-xml">&lt;UserControl.Resources&gt;
+  &lt;CollectionViewSource x:Key="TasksView"&gt;
+    &lt;CollectionViewSource.GroupDescriptions&gt;
+      &lt;PropertyGroupDescription PropertyName="Category" /&gt;
+    &lt;/CollectionViewSource.GroupDescriptions&gt;
+  &lt;/CollectionViewSource&gt;
+&lt;/UserControl.Resources&gt;
+
+&lt;ItemsControl ItemsSource="{StaticResource TasksView}"&gt;
+  &lt;ItemsControl.GroupStyle&gt;
+    &lt;GroupStyle HeaderStringFormat="{0}" /&gt;
+  &lt;/ItemsControl.GroupStyle&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <p>When grouping is active and the control has at least one <code>GroupStyle</code>, it projects grouped visuals using <code>GroupItem</code> containers. Each group header defaults to <code>Name (ItemCount)</code> unless you provide <code>HeaderStringFormat</code> or a <code>HeaderTemplate</code>.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3><code>CollectionViewSource</code> features</h3>
+                            <p>Supports <code>SortDescriptions</code>, <code>GroupDescriptions</code>, and a <code>Filter</code> predicate on the produced view.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>GroupStyle</code> features</h3>
+                            <p>The current API exposes <code>HeaderTemplate</code> and <code>HeaderStringFormat</code> for group headers.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Working with updates</h2>
+                    <p><code>ItemsControl</code> listens to collection change notifications and updates realized children incrementally for add, remove, replace, and move operations when it can. That keeps existing containers stable and lets bindings such as <code>RelativeSourceMode.PreviousData</code> re-evaluate against the current projected order.</p>
+                    <h3>Observable collection update flow</h3>
+                    <pre><code class="language-csharp">public ObservableCollection&lt;BuildStep&gt; Steps { get; } =
+[
+    new("Restore"),
+    new("Build"),
+    new("Test")
+];
+
+Steps.Insert(1, new BuildStep("Generate Assets"));
+Steps.Move(0, 2);
+Steps.RemoveAt(1);</code></pre>
+                    <p>Those operations update the realized item sequence without requiring you to recreate the entire control tree yourself.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Item source properties</h3>
+                            <p><code>Items</code>: the local item collection owned by the control.</p>
+                            <p><code>ItemsSource</code>: external collection or <code>CollectionViewSource</code> used to project items.</p>
+                            <p><code>GroupStyle</code>: collection of <code>GroupStyle</code> descriptors used when the active view is grouped.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Templating properties</h3>
+                            <p><code>ItemTemplate</code>: explicit template used for every item.</p>
+                            <p><code>ItemTemplateSelector</code>: selector used to choose a template per item.</p>
+                            <p><code>ItemContainerStyle</code>: style applied to generated framework-element containers when the control owns that style assignment.</p>
+                        </article>
+                    </div>
+                    <p>Standard inherited properties such as <code>Margin</code>, <code>Width</code>, <code>Height</code>, <code>HorizontalAlignment</code>, <code>VerticalAlignment</code>, <code>Opacity</code>, and control-level styling properties continue to work as usual because <code>ItemsControl</code> derives from <code>Control</code>.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Settings list with static entries</h3>
+                    <pre><code class="language-xml">&lt;ItemsControl&gt;
+  &lt;Border Background="#182636" BorderBrush="#2E4A66" BorderThickness="1" Padding="10" Margin="0,0,0,8"&gt;
+    &lt;TextBlock Text="Audio" /&gt;
+  &lt;/Border&gt;
+  &lt;Border Background="#182636" BorderBrush="#2E4A66" BorderThickness="1" Padding="10" Margin="0,0,0,8"&gt;
+    &lt;TextBlock Text="Video" /&gt;
+  &lt;/Border&gt;
+  &lt;Border Background="#182636" BorderBrush="#2E4A66" BorderThickness="1" Padding="10"&gt;
+    &lt;TextBlock Text="Input" /&gt;
+  &lt;/Border&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <h3>Activity feed with typed data</h3>
+                    <pre><code class="language-xml">&lt;ItemsControl ItemsSource="{Binding Activity}"&gt;
+  &lt;ItemsControl.ItemTemplate&gt;
+    &lt;DataTemplate&gt;
+      &lt;StackPanel Margin="0,0,0,10"&gt;
+        &lt;TextBlock Text="{Binding Title}" /&gt;
+        &lt;TextBlock Text="{Binding Timestamp}" Opacity="0.7" /&gt;
+      &lt;/StackPanel&gt;
+    &lt;/DataTemplate&gt;
+  &lt;/ItemsControl.ItemTemplate&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <h3>Grouped issue list</h3>
+                    <pre><code class="language-xml">&lt;UserControl.Resources&gt;
+  &lt;CollectionViewSource x:Key="IssuesView"&gt;
+    &lt;CollectionViewSource.GroupDescriptions&gt;
+      &lt;PropertyGroupDescription PropertyName="Severity" /&gt;
+    &lt;/CollectionViewSource.GroupDescriptions&gt;
+  &lt;/CollectionViewSource&gt;
+&lt;/UserControl.Resources&gt;
+
+&lt;ItemsControl ItemsSource="{StaticResource IssuesView}"&gt;
+  &lt;ItemsControl.GroupStyle&gt;
+    &lt;GroupStyle HeaderStringFormat="{0}" /&gt;
+  &lt;/ItemsControl.GroupStyle&gt;
+  &lt;ItemsControl.ItemTemplate&gt;
+    &lt;DataTemplate&gt;
+      &lt;Border Background="#182636"
+              BorderBrush="#36516B"
+              BorderThickness="1"
+              Padding="8"
+              Margin="0,0,0,6"&gt;
+        &lt;TextBlock Text="{Binding Title}" /&gt;
+      &lt;/Border&gt;
+    &lt;/DataTemplate&gt;
+  &lt;/ItemsControl.ItemTemplate&gt;
+&lt;/ItemsControl&gt;</code></pre>
+                    <h3>Using <code>ItemsPresenter</code> inside a control template</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="FramedItemsControlStyle" TargetType="{x:Type ItemsControl}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type ItemsControl}"&gt;
+        &lt;Border Background="#101822"
+                BorderBrush="#2D465E"
+                BorderThickness="1"
+                Padding="12"&gt;
+          &lt;ItemsPresenter /&gt;
+        &lt;/Border&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                    <p><code>ItemsPresenter</code> becomes the active host for realized item visuals when the control template includes it.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>No built-in selection.</strong> <code>ItemsControl</code> repeats items only. If your UI needs selected state, keyboard navigation semantics, or current-item behavior, start from a selector-derived control instead.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No virtualization guarantee.</strong> This implementation realizes the active projected item visuals and measures them in order. Large collections should be approached carefully.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong><code>ItemContainerStyle</code> is not a universal override.</strong> It only applies when the realized container is a <code>FrameworkElement</code> and the control is allowed to set that element's local <code>Style</code> value.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Grouping requires both a grouped view and a <code>GroupStyle</code>.</strong> Group descriptions on the view alone are not enough to project grouped containers in this control.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Inline items and <code>ItemsSource</code> do not mix.</strong> Treat them as separate modes and pick one per control instance.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-image.html">
+                        <span>Previous</span>
+                        <strong>Image</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-items-presenter.html">
+                        <span>Next</span>
+                        <strong>ItemsPresenter</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
