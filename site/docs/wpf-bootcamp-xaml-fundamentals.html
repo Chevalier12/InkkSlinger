@@ -82,7 +82,7 @@
                     <p class="eyebrow">WPF Bootcamp</p>
                     <h1>XAML Fundamentals</h1>
                     <p>XAML is not just XML with a WPF accent. It is a declarative object graph language that creates instances, sets properties, wires resources, and invokes markup extensions.</p>
-                    <p>The fastest way to get comfortable with WPF is to understand what each piece of XAML becomes at runtime.</p>
+                    <p>The fastest way to get comfortable with WPF is to understand what each piece of XAML becomes at runtime, because the syntax only makes sense once you can see the objects and relationships hiding behind it.</p>
                 </div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
@@ -90,6 +90,7 @@
                         <li>How elements, attributes, property elements, and namespaces map to CLR types and properties.</li>
                         <li>What markup extensions such as <code>{Binding}</code> and <code>{StaticResource}</code> actually do.</li>
                         <li>When to use shorthand syntax versus explicit nested syntax.</li>
+                        <li>How to read XAML as a runtime object graph instead of a pile of tags.</li>
                     </ul>
                     <pre><code class="language-xml">&lt;Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -102,6 +103,36 @@
 
     &lt;TextBlock Text="{Binding Title}" /&gt;
 &lt;/Window&gt;</code></pre>
+                    <p>That snippet creates objects, sets properties, creates a nested view model instance, and installs a binding expression. XAML is declarative, but it is still building a concrete runtime structure.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The mental model in one sentence</h2>
+                    <p>XAML is a compact way to describe an object graph: create this object, put these children inside it, assign these values, and ask the framework to resolve these special expressions later.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Think objects, not tags</h3>
+                            <p>A tag usually means "construct an object". A nested tag usually means "assign an object-valued property" or "add an item to a collection".</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Think properties, not attributes</h3>
+                            <p>An attribute is often just the shortest way to set a property. If the value gets more complex, you switch to property-element syntax.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>How a XAML file maps to runtime objects</h2>
+                    <pre><code class="language-xml">&lt;StackPanel Margin="24"&gt;
+    &lt;TextBlock Text="Welcome" FontSize="24" /&gt;
+    &lt;Button Content="Continue" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>Read it as:</p>
+                    <ol>
+                        <li>Create a <code>StackPanel</code> object.</li>
+                        <li>Set its <code>Margin</code> property to <code>24</code>.</li>
+                        <li>Create a <code>TextBlock</code>, set its <code>Text</code> and <code>FontSize</code>, then add it to the panel's children.</li>
+                        <li>Create a <code>Button</code>, set its <code>Content</code>, then add it to the panel's children.</li>
+                    </ol>
+                    <p>If you learn to paraphrase XAML that way, the syntax becomes much easier to understand and debug.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Core syntax patterns</h2>
@@ -116,8 +147,162 @@
         &lt;/StackPanel&gt;
     &lt;/Button.Content&gt;
 &lt;/Button&gt;</code></pre>
-                    <h3>Markup extensions and attached properties</h3>
-                    <p><code>{Binding}</code> and <code>{StaticResource}</code> are instructions to the XAML loader. Attached properties like <code>Grid.Row</code> let a parent container store layout metadata on children.</p>
+                    <p>The second form is more explicit. It is not "more advanced"; it is just the syntax you need once the property value is not a simple literal.</p>
+                    <h3>Property-element syntax</h3>
+                    <p>Property-element syntax appears as <code>OwnerType.PropertyName</code>. It is how you assign an object, a collection, or any value that would be awkward or impossible to express in one attribute.</p>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+    &lt;Grid.RowDefinitions&gt;
+        &lt;RowDefinition Height="Auto" /&gt;
+        &lt;RowDefinition Height="*" /&gt;
+    &lt;/Grid.RowDefinitions&gt;
+&lt;/Grid&gt;</code></pre>
+                    <p>Here you are not creating a child visual called <code>Grid.RowDefinitions</code>. You are setting the <code>RowDefinitions</code> property on the grid with a collection of row definitions.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Namespaces explain what types you are talking about</h2>
+                    <p>XAML namespaces are not decoration. They are the mapping layer between the markup and actual CLR types.</p>
+                    <pre><code class="language-xml">&lt;Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="clr-namespace:SampleApp.ViewModels"&gt;</code></pre>
+                    <ul>
+                        <li>The default namespace usually maps to WPF presentation types such as <code>Grid</code>, <code>Button</code>, and <code>TextBlock</code>.</li>
+                        <li>The <code>x:</code> namespace provides XAML language features such as <code>x:Name</code>, <code>x:Key</code>, and <code>x:Class</code>.</li>
+                        <li>Custom prefixes like <code>vm:</code> let you instantiate your own application types.</li>
+                    </ul>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical takeaway:</strong> if a tag is not resolving, the namespace mapping is often the first thing to check. XAML cannot construct a type it cannot resolve.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Literal values vs type conversion</h2>
+                    <p>Many attribute values look like plain strings, but they are usually converted into richer types by the XAML type system.</p>
+                    <pre><code class="language-xml">&lt;Button
+    Margin="12,8"
+    Width="160"
+    HorizontalAlignment="Right"
+    Background="Orange" /&gt;</code></pre>
+                    <p>Those values are not stored as strings. WPF converts them into types like <code>Thickness</code>, <code>double</code>, enum values, or brushes. This is why concise attribute syntax works so often in XAML.</p>
+                    <p>When the conversion rules are not obvious, property-element syntax is often clearer than forcing everything into a string.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Content properties and why some tags can contain children directly</h2>
+                    <p>Some controls have a designated content property. That lets you omit the explicit property wrapper and write shorter, more natural markup.</p>
+                    <pre><code class="language-xml">&lt;Button&gt;
+    &lt;StackPanel Orientation="Horizontal"&gt;
+        &lt;TextBlock Text="Save" /&gt;
+    &lt;/StackPanel&gt;
+&lt;/Button&gt;</code></pre>
+                    <p>This works because the button's content property accepts an object. You could write the explicit form with <code>&lt;Button.Content&gt;</code>, but the shorter form is usually preferred when it stays readable.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>ContentControl-style APIs</h3>
+                            <p>Controls like <code>Button</code>, <code>Label</code>, and <code>ContentControl</code> often host one main content object.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Collection-style APIs</h3>
+                            <p>Panels and item collections often accept multiple child elements directly because their content model is a collection.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Collections in XAML</h2>
+                    <p>When a property is a collection, nested elements usually become items added to that collection.</p>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+    &lt;TextBlock Text="One" /&gt;
+    &lt;TextBlock Text="Two" /&gt;
+    &lt;TextBlock Text="Three" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>That is effectively shorthand for adding three children to the panel's children collection. The same idea appears in resources, row definitions, column definitions, menu items, and many other places.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Markup extensions are instructions, not plain text</h2>
+                    <p>Values inside braces such as <code>{Binding}</code> and <code>{StaticResource}</code> are not literal strings. They tell the XAML loader to run special logic and provide an object or expression.</p>
+                    <pre><code class="language-xml">&lt;TextBlock Text="{Binding DisplayName}" /&gt;
+&lt;Border Background="{StaticResource AccentBrush}" /&gt;</code></pre>
+                    <ul>
+                        <li><code>{Binding ...}</code> creates a binding expression that can update over time.</li>
+                        <li><code>{StaticResource ...}</code> performs a resource lookup and uses the found object.</li>
+                        <li>Other markup extensions can provide type references, relative references, dynamic resources, and more.</li>
+                    </ul>
+                    <p>This is one reason XAML stays compact. A small expression can stand for a significant amount of runtime behavior.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Attached properties let parents store metadata on children</h2>
+                    <p>Attached properties look like <code>OwnerType.PropertyName</code> when used as attributes. They are a way for one type to attach information to another object.</p>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+    &lt;TextBlock Grid.Row="0" Text="Header" /&gt;
+    &lt;Button Grid.Row="1" Content="Continue" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <p><code>Grid.Row</code> is not a property declared on <code>TextBlock</code> or <code>Button</code>. It is metadata owned by <code>Grid</code> so the parent grid knows where to place that child during layout.</p>
+                    <p>This pattern appears across WPF: docking, validation, automation, focus navigation, and many other framework systems use attached properties.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Names, keys, and identity</h2>
+                    <h3><code>x:Name</code></h3>
+                    <p>Use <code>x:Name</code> when you want to identify an element instance in the namescope. That can support code-behind references, storyboard targeting, and runtime lookup.</p>
+                    <pre><code class="language-xml">&lt;TextBox x:Name="SearchBox" /&gt;</code></pre>
+                    <h3><code>x:Key</code></h3>
+                    <p>Use <code>x:Key</code> to identify a resource in a resource dictionary.</p>
+                    <pre><code class="language-xml">&lt;SolidColorBrush x:Key="AccentBrush" Color="#FF4FD1C5" /&gt;</code></pre>
+                    <p>These are different concepts. A named element is a concrete object instance in a namescope. A keyed resource is a reusable object available through resource lookup.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Data context and object creation in XAML</h2>
+                    <p>XAML can create your own types too, not just WPF controls. One common example is creating a view model and assigning it as the data context.</p>
+                    <pre><code class="language-xml">&lt;Window.DataContext&gt;
+    &lt;vm:MainViewModel /&gt;
+&lt;/Window.DataContext&gt;</code></pre>
+                    <p>This means "construct a <code>MainViewModel</code> and assign it to the window's <code>DataContext</code> property". Descendant elements can then inherit that data context and use bindings against it.</p>
+                    <p>Even if your application later uses dependency injection or code-based composition, this example is still useful because it shows that XAML can instantiate arbitrary CLR types as part of the object graph.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Attribute syntax vs explicit syntax</h2>
+                    <p>Many XAML constructs have a short form and a verbose form. Choose the one that makes intent clearest.</p>
+                    <pre><code class="language-xml">&lt;TextBlock Text="{Binding Title}" /&gt;
+
+&lt;TextBlock&gt;
+    &lt;TextBlock.Text&gt;
+        &lt;Binding Path="Title" /&gt;
+    &lt;/TextBlock.Text&gt;
+&lt;/TextBlock&gt;</code></pre>
+                    <p>Both forms express the same idea. The compact form is better for common cases. The explicit form helps when you need more binding options or want to make structure obvious for teaching and debugging.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>A complete reading exercise</h2>
+                    <p>Read this example line by line as runtime intent:</p>
+                    <pre><code class="language-xml">&lt;Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="clr-namespace:SampleApp.ViewModels"&gt;
+    &lt;Window.Resources&gt;
+        &lt;Style TargetType="Button"&gt;
+            &lt;Setter Property="Margin" Value="0,12,0,0" /&gt;
+        &lt;/Style&gt;
+    &lt;/Window.Resources&gt;
+
+    &lt;Window.DataContext&gt;
+        &lt;vm:MainViewModel /&gt;
+    &lt;/Window.DataContext&gt;
+
+    &lt;Grid Margin="24"&gt;
+        &lt;TextBlock Text="{Binding Title}" FontSize="24" /&gt;
+        &lt;Button
+            Grid.Row="1"
+            Content="Save"
+            Command="{Binding SaveCommand}" /&gt;
+    &lt;/Grid&gt;
+&lt;/Window&gt;</code></pre>
+                    <ol>
+                        <li>The namespace declarations tell the loader which types and XAML language features are available.</li>
+                        <li>The window owns a resource dictionary that contains a button style.</li>
+                        <li>The window constructs a <code>MainViewModel</code> and assigns it to <code>DataContext</code>.</li>
+                        <li>The grid is created with a margin converted from string into a <code>Thickness</code>.</li>
+                        <li>The text block installs a binding expression for <code>Text</code>.</li>
+                        <li>The button stores layout metadata through the attached property <code>Grid.Row</code>.</li>
+                        <li>The button's command is not a string. It is a binding expression that will resolve against the current data context.</li>
+                    </ol>
+                    <p>That is what "knowing XAML" really means: not memorizing syntax trivia, but accurately translating markup into runtime behavior.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Common mistakes</h2>
@@ -125,11 +310,13 @@
                         <li>Treating namespaces as just syntax noise instead of the thing that maps markup to CLR types.</li>
                         <li>Trying to cram complex objects into attributes when property-element syntax is clearer.</li>
                         <li>Missing the difference between a literal string and a markup extension expression.</li>
+                        <li>Forgetting that many attribute values are type-converted into richer runtime objects.</li>
+                        <li>Thinking nested elements are always visual children when some of them are actually property assignments or collection items.</li>
                     </ul>
                     <div class="callout doc-callout">
                         <p><strong>InkkSlinger parity note:</strong> InkkSlinger uses WPF-style XML rather than native WPF XAML files, but the ideas remain the same: named elements, resources, bindings, markup extensions, and attached-style parent metadata still matter.</p>
                     </div>
-                    <p>Next, use that syntax knowledge to understand the layout engine, because layout is where most WPF surprises begin.</p>
+                    <p>Next, use that syntax knowledge to understand the layout engine, because layout is where many of these object and property relationships start producing visible behavior.</p>
                 </section>
                 <nav class="doc-pagination" aria-label="Page navigation">
                     <a class="pager-link" href="./wpf-bootcamp-application-mental-model.html">
