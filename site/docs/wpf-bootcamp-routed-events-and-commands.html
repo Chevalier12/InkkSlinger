@@ -27,7 +27,7 @@
                     <p class="eyebrow">WPF Bootcamp</p>
                     <h1>Routed Events and Commands</h1>
                     <p>WPF interaction is not just "control raises a CLR event." Events can route through the tree, and commands provide a higher-level interaction contract that decouples gesture from behavior.</p>
-                    <p>These systems are why a button click, menu item, shortcut key, and toolbar command can all trigger the same action cleanly.</p>
+                    <p>These systems are why a button click, menu item, shortcut key, and toolbar command can all trigger the same action cleanly, without the view turning into a pile of duplicated handlers.</p>
                 </div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
@@ -35,6 +35,7 @@
                         <li>The difference between bubbling, tunneling, and direct routed events.</li>
                         <li>Why commands are usually better than raw click handlers for application actions.</li>
                         <li>How <code>ICommand</code> and command sources cooperate in MVVM.</li>
+                        <li>How to reason about input as something that moves through the tree instead of stopping at one control.</li>
                     </ul>
                     <ul>
                         <li><strong>Tunneling:</strong> starts at the root and moves toward the source.</li>
@@ -44,6 +45,67 @@
                     <pre><code class="language-xml">&lt;Button Content="Save"
         Command="{Binding SaveCommand}"
         CommandParameter="{Binding SelectedDocument}" /&gt;</code></pre>
+                    <p>That one button can participate in routed input, query whether the command can execute, and invoke the same application action that might also be exposed from a menu or keyboard shortcut.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The mental model in one sentence</h2>
+                    <p>Routed events describe how input notifications travel through the tree, while commands describe what action the UI intends to perform regardless of which gesture triggered it.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Events answer "what happened?"</h3>
+                            <p>A key was pressed, a mouse button went down, a click occurred, focus moved, or selection changed.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Commands answer "what should we do?"</h3>
+                            <p>Save, Delete, Refresh, Open, Undo, and similar actions represent intent rather than a specific UI gesture.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Why routed events exist</h2>
+                    <p>In a complex visual tree, the element the user interacts with is often nested inside many parents that also care about the interaction. WPF solves this by letting some events route through the tree rather than stopping at the immediate source element.</p>
+                    <pre><code class="language-xml">&lt;Border MouseDown="OnBorderMouseDown"&gt;
+    &lt;Button Content="Save" Click="OnSaveClick" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <p>The button may be the most obvious source element, but the border, parent panels, and higher-level containers may also want to observe or influence the interaction. Routed events give the framework a consistent way to model that.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The three routing strategies</h2>
+                    <h3>Tunneling</h3>
+                    <p>Tunneling events travel from the root toward the source. They are often named with a <code>Preview</code> prefix, such as <code>PreviewMouseDown</code> or <code>PreviewKeyDown</code>.</p>
+                    <h3>Bubbling</h3>
+                    <p>Bubbling events start at the source and travel back upward through ancestors. This is useful when parents want to react to something a child did.</p>
+                    <h3>Direct</h3>
+                    <p>Direct events are raised and handled only by the source element. They still use WPF's event system, but they do not travel through the tree.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Use tunneling when</h3>
+                            <p>A parent needs an early chance to inspect or intercept input before the source element fully handles it.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Use bubbling when</h3>
+                            <p>You want higher-level containers to respond to child interactions without wiring every child manually.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Source element vs route participants</h2>
+                    <p>The source element is where the event originated. Route participants are all the ancestors and descendants involved in the event path, depending on routing strategy.</p>
+                    <pre><code class="language-xml">&lt;Window&gt;
+    &lt;Grid&gt;
+        &lt;Button Content="Delete" /&gt;
+    &lt;/Grid&gt;
+&lt;/Window&gt;</code></pre>
+                    <p>If the user clicks the button, the button is the source. But the grid and window can still observe the routed event as it bubbles upward, or during the preview/tunneling phase as it travels downward.</p>
+                    <p>This is why WPF interaction often feels compositional. Containers can participate in input policy without tightly coupling themselves to every child instance.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Handled events and why parent behavior can disappear</h2>
+                    <p>A routed event can be marked as handled along the route. Once that happens, later listeners may not see it unless they explicitly opt in to handled events.</p>
+                    <p>This is useful because controls can consume input that they own semantically. It is also a common source of confusion when a parent handler never fires.</p>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical takeaway:</strong> if an expected routed event is not reaching a parent, check whether a child control is handling it first.</p>
+                    </div>
                 </section>
                 <section class="doc-section">
                     <h2>Why commands matter</h2>
@@ -52,6 +114,80 @@
 {
     public ICommand SaveCommand { get; }
 }</code></pre>
+                    <p>That property says the view model exposes an action called Save. The view decides how to trigger it. One view might use a button, another might use a toolbar, and both can still point to the same command.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Commands separate gesture from intent</h2>
+                    <p>A click is a gesture. A keyboard shortcut is a gesture. A menu selection is a gesture. Save is the intent. Commands let you model the intent once and bind many gestures to it.</p>
+                    <pre><code class="language-xml">&lt;Button Content="Save" Command="{Binding SaveCommand}" /&gt;
+&lt;MenuItem Header="_Save" Command="{Binding SaveCommand}" /&gt;</code></pre>
+                    <p>That is cleaner than duplicating save logic in both a click handler and a menu handler. The view stays declarative, and the action logic stays centralized.</p>
+                </section>
+                <section class="doc-section">
+                    <h2><code>CanExecute</code> is part of the interaction contract</h2>
+                    <p>Commands do not only execute. They also answer whether execution is currently allowed. This lets the UI reflect application state naturally.</p>
+                    <pre><code class="language-csharp">public sealed class EditorViewModel
+{
+    public ICommand SaveCommand { get; }
+
+    private bool CanSave()
+    {
+        return HasUnsavedChanges;
+    }
+}</code></pre>
+                    <p>If <code>CanExecute</code> returns false, buttons and menu items bound to that command can disable themselves automatically. This keeps the view synchronized with action availability.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>When to use a command instead of a raw event handler</h2>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Use a command when</h3>
+                            <p>The interaction represents an application action or user intent that might be triggered from multiple places.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Use an event handler when</h3>
+                            <p>The interaction is local, purely visual, or tightly coupled to a control-specific behavior that is not really an application command.</p>
+                        </section>
+                    </div>
+                    <p>For example, toggling an animation on pointer enter is often just a UI event concern. Saving a document, deleting an item, or opening a screen is command territory.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Commands in MVVM</h2>
+                    <p>Commands fit naturally into MVVM because the view binds to command properties exposed by the view model.</p>
+                    <pre><code class="language-xml">&lt;Button
+    Content="Delete"
+    Command="{Binding DeleteCommand}"
+    CommandParameter="{Binding SelectedItem}" /&gt;</code></pre>
+                    <p>The view does not need to know how deletion works. It only declares that the button should trigger the view model's delete intent, optionally passing a parameter.</p>
+                    <p>This keeps interaction logic testable and decoupled from specific visual elements.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Command parameters and context</h2>
+                    <p>A command often needs context, such as the currently selected item, the current document, or the row the user interacted with. Command parameters carry that context.</p>
+                    <pre><code class="language-xml">&lt;Button
+    Content="Archive"
+    Command="{Binding ArchiveCommand}"
+    CommandParameter="{Binding SelectedMessage}" /&gt;</code></pre>
+                    <p>The command still models one intent, but the parameter tells it what to operate on. This is much cleaner than hard-wiring every control to a dedicated method just to pass along one object.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>A worked interaction walkthrough</h2>
+                    <p>Consider this simple setup:</p>
+                    <pre><code class="language-xml">&lt;Grid PreviewKeyDown="OnPreviewKeyDown"&gt;
+    &lt;Button
+        Content="Save"
+        Command="{Binding SaveCommand}" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <ol>
+                        <li>The user presses Enter while the button has focus.</li>
+                        <li>A preview or tunneling input event can travel from the root toward the button.</li>
+                        <li>The button processes the input according to its control behavior.</li>
+                        <li>The button may raise higher-level routed events associated with activation or click behavior.</li>
+                        <li>The bound command is queried for <code>CanExecute</code>.</li>
+                        <li>If execution is allowed, the command runs the save action.</li>
+                        <li>Parents can still participate in earlier or later phases of routed input if they need to coordinate broader UI behavior.</li>
+                    </ol>
+                    <p>That full pipeline is why WPF interaction is so composable. Input travels through the tree, but actions stay expressible at a higher semantic level.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Common mistakes</h2>
@@ -59,6 +195,8 @@
                         <li>Putting application logic directly in click handlers when the action should be a command.</li>
                         <li>Ignoring event routing and accidentally handling the same input at multiple levels.</li>
                         <li>Using commands for trivial one-off visual tweaks that belong in a control or behavior instead.</li>
+                        <li>Forgetting that a parent may be seeing a routed event from a child rather than an event it originated itself.</li>
+                        <li>Debugging a missing handler without checking whether the event was already marked handled.</li>
                     </ul>
                     <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> This repository exposes routed event and command infrastructure under `UI/Events` and `UI/Commanding`. The same architectural split applies: routed input helps UI composition, while commands keep view behavior declarative.</p></div>
                     <p>Next, learn binding, because commands become far more useful once the view can pull both data and actions from a view model.</p>
