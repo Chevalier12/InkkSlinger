@@ -20,8 +20,59 @@
                 <div class="doc-hero"><p class="eyebrow">WPF Bootcamp</p><h1>Navigation and Application Composition</h1><p>Single-screen demos teach syntax. Real WPF applications require composition: multiple views, shared services, navigation flow, shell layout, and a stable boundary between domain state and screen state.</p><p>This lesson is about organizing a WPF app so it can grow without becoming a tangle of direct control references and singleton shortcuts.</p></div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
-                    <ul><li>How windows, pages, frames, user controls, and shells differ.</li><li>How navigation services and region-like composition patterns keep screens decoupled.</li><li>How shared services, dialogs, and global state should be introduced carefully.</li></ul>
+                    <ul><li>How windows, pages, frames, user controls, and shells differ.</li><li>How navigation services and region-like composition patterns keep screens decoupled.</li><li>How shared services, dialogs, and global state should be introduced carefully.</li><li>How to scale from one view model and one screen to a whole application without collapsing boundaries.</li></ul>
                     <div class="doc-grid two-up"><section class="doc-card"><h3>Shell</h3><p>The top-level host that owns app chrome, shared navigation, toolbars, and long-lived services.</p></section><section class="doc-card"><h3>Feature view</h3><p>A focused screen or panel with its own view model, templates, and bounded responsibilities.</p></section></div>
+                </section>
+                <section class="doc-section">
+                    <h2>The mental model in one sentence</h2>
+                    <p>Application composition is about deciding which parts of the UI are long-lived hosts, which parts are replaceable features, and which infrastructure concerns should be accessed through explicit services rather than direct view-to-view coupling.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Shell owns continuity</h3>
+                            <p>Navigation chrome, global commands, shared menus, and durable services usually belong here.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Feature views own focus</h3>
+                            <p>A feature screen should solve one bounded problem with its own view model and state.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Know the major host types</h2>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Window</h3>
+                            <p>A top-level host with its own lifetime, chrome, and independent position on screen.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Page and Frame</h3>
+                            <p>Useful when you want navigation-like screen replacement inside a host rather than multiple separate windows.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>UserControl</h3>
+                            <p>A reusable piece of composed UI, often embedded inside larger screens or shells.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Shell</h3>
+                            <p>The top-level composition root for navigation areas, persistent chrome, and shared services.</p>
+                        </section>
+                    </div>
+                    <p>These are not interchangeable. A shell is an architectural role. A window is a host surface. A user control is usually a reusable piece inside something larger.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Why a shell matters</h2>
+                    <p>As applications grow, they need a place that owns the durable parts of the experience: top-level menus, navigation affordances, shared commands, and app-wide services.</p>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+    &lt;Grid.RowDefinitions&gt;
+        &lt;RowDefinition Height="Auto" /&gt;
+        &lt;RowDefinition Height="*" /&gt;
+    &lt;/Grid.RowDefinitions&gt;
+
+    &lt;local:AppToolbar /&gt;
+    &lt;ContentControl Grid.Row="1"
+                    Content="{Binding CurrentScreen}" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <p>That shell pattern gives the app a stable outer frame while still allowing the main content region to change over time.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Composition rules that scale</h2>
@@ -31,10 +82,86 @@
     void ShowCustomerList();
     void ShowCustomerEditor(Guid customerId);
 }</code></pre>
+                    <p>That interface is not about ceremony. It is about giving feature view models a stable way to request navigation without constructing views or knowing shell internals.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Navigation should be a service, not a direct control reference</h2>
+                    <p>When one child view directly creates or manipulates another child view, the application becomes tightly coupled and hard to evolve. Navigation is cleaner when it is expressed as an intent through a service or composition boundary.</p>
+                    <pre><code class="language-csharp">public interface INavigationService
+{
+    void ShowCustomerList();
+    void ShowCustomerEditor(Guid customerId);
+}</code></pre>
+                    <p>A view model can request "show the editor for this customer" without knowing whether that means replacing content in a shell, opening a dialog, navigating a frame, or swapping a region.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Shared services should stay explicit</h2>
+                    <p>Real applications need shared services for things like dialogs, persistence, logging, settings, and user-session state. The problem is not that these services exist. The problem is when they become invisible global dependencies.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Good pattern</h3>
+                            <p>Inject or explicitly provide the focused services a feature needs.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Bad pattern</h3>
+                            <p>Let any view or view model reach into a global singleton bag of app state for everything.</p>
+                        </section>
+                    </div>
+                    <p>Explicit dependencies make it easier to reason about who owns state and which screens are allowed to coordinate which parts of the application.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Dialogs, shared state, and boundaries</h2>
+                    <p>Dialogs and transient flows are part of composition too. A screen should usually request a dialog through a service boundary rather than directly constructing modal UI in the middle of business logic.</p>
+                    <p>Likewise, truly shared state should be introduced carefully. Some state belongs to the current feature screen. Some belongs to the session or application. Mixing those levels carelessly creates confusing lifetimes and hidden coupling.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Region-like composition patterns</h2>
+                    <p>Large WPF applications often define replaceable areas in a shell and let navigation or composition logic decide which view appears there.</p>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+    &lt;local:SidebarRegion /&gt;
+    &lt;ContentControl Content="{Binding ActiveWorkspace}" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <p>The exact framework or implementation can vary, but the idea is stable: the shell owns slots, and features are composed into those slots rather than reaching across the app to instantiate each other directly.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Feature-oriented view models scale better</h2>
+                    <p>A feature view model should represent one bounded screen or workflow, not the whole application.</p>
+                    <ul>
+                        <li>A customer list feature can own list state, filters, selection, and commands relevant to that screen.</li>
+                        <li>A customer editor feature can own edit state, validation, and save/cancel actions for that workflow.</li>
+                        <li>The shell can coordinate which one is active without absorbing all of their state into one giant view model.</li>
+                    </ul>
+                    <p>This keeps screens isolated and makes navigation feel like composition of features instead of mutation of one monolithic object.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>A worked composition example</h2>
+                    <pre><code class="language-csharp">public interface INavigationService
+{
+    void ShowCustomerList();
+    void ShowCustomerEditor(Guid customerId);
+}</code></pre>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+    &lt;Grid.RowDefinitions&gt;
+        &lt;RowDefinition Height="Auto" /&gt;
+        &lt;RowDefinition Height="*" /&gt;
+    &lt;/Grid.RowDefinitions&gt;
+
+    &lt;local:AppToolbar /&gt;
+    &lt;ContentControl Grid.Row="1"
+                    Content="{Binding CurrentScreen}" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <ol>
+                        <li>The shell owns the top-level layout and app chrome.</li>
+                        <li>The shell exposes a current screen or navigation target.</li>
+                        <li>A feature view model requests navigation through a service.</li>
+                        <li>The shell or navigation service swaps the active feature into the main region.</li>
+                        <li>Each feature keeps its own bounded state instead of sharing one giant mutable view model.</li>
+                    </ol>
+                    <p>This is how a WPF application scales from "one screen that works" to "multiple screens that remain understandable".</p>
                 </section>
                 <section class="doc-section">
                     <h2>Common mistakes</h2>
-                    <ul><li>Letting child views locate and instantiate other views directly.</li><li>Keeping too much shared mutable state in a singleton instead of passing focused context.</li><li>Using one giant shell view model for the whole application.</li></ul>
+                    <ul><li>Letting child views locate and instantiate other views directly.</li><li>Keeping too much shared mutable state in a singleton instead of passing focused context.</li><li>Using one giant shell view model for the whole application.</li><li>Confusing reusable user controls with full application-level composition boundaries.</li><li>Letting infrastructure concerns leak directly into feature views instead of wrapping them behind services.</li></ul>
                     <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> InkkSlinger adds hosting concerns because UI lives inside a MonoGame app, but the composition rules remain useful: isolate screens, keep navigation explicit, and treat the host integration as infrastructure rather than screen logic.</p></div>
                     <p>Next, finish the bootcamp with an end-to-end walkthrough that combines the concepts into one coherent screen.</p>
                 </section>
