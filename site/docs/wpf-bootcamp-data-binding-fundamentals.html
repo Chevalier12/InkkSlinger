@@ -20,12 +20,57 @@
                 <div class="doc-hero"><p class="eyebrow">WPF Bootcamp</p><h1>Data Binding Fundamentals</h1><p>Binding is the center of WPF. It lets the view describe what data it needs and where it should go, while the framework keeps the view synchronized with the source over time.</p><p>The goal is not just fewer lines of code. The goal is a more stable mental model for how UI state moves.</p></div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
-                    <ul><li>How <code>DataContext</code> inheritance works.</li><li>How binding paths, modes, update triggers, and alternate source strategies change behavior.</li><li>How to debug the most common broken-binding scenarios.</li></ul>
+                    <ul><li>How <code>DataContext</code> inheritance works.</li><li>How binding paths, modes, update triggers, and alternate source strategies change behavior.</li><li>How to debug the most common broken-binding scenarios.</li><li>How to think of a binding as an ongoing data-flow contract rather than a one-time value copy.</li></ul>
                     <pre><code class="language-xml">&lt;StackPanel&gt;
     &lt;TextBlock Text="{Binding Customer.Name}" /&gt;
     &lt;TextBox Text="{Binding Customer.Email, UpdateSourceTrigger=PropertyChanged}" /&gt;
     &lt;Button Content="Save" Command="{Binding SaveCommand}" /&gt;
 &lt;/StackPanel&gt;</code></pre>
+                    <p>That snippet is doing more than reading properties once. It is establishing ongoing relationships between the view and a source object so the UI can stay synchronized as state changes.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The mental model in one sentence</h2>
+                    <p>A binding is an instruction that says: find a source object, follow this path, move the value to this target property, and keep the relationship updated according to these rules.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Source side</h3>
+                            <p>Where the data comes from: <code>DataContext</code>, an explicit source, a named element, or a relative ancestor.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Target side</h3>
+                            <p>Which dependency property on the view should receive the value and how often it should update.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Why binding matters so much</h2>
+                    <p>Without binding, most WPF applications would fall back to manually copying values between controls and objects in code-behind. That does not scale well.</p>
+                    <p>Binding gives the framework a declarative way to keep the view synchronized with data and, when needed, keep user edits flowing back to the source.</p>
+                    <pre><code class="language-xml">&lt;TextBox Text="{Binding SearchText}" /&gt;</code></pre>
+                    <p>That one attribute can replace a large amount of repetitive glue code, but more importantly, it gives the framework a consistent model for data flow across the entire UI.</p>
+                </section>
+                <section class="doc-section">
+                    <h2><code>DataContext</code> is the default binding source</h2>
+                    <p>Most bindings do not specify a source directly. They rely on <code>DataContext</code>, which usually flows down the element tree.</p>
+                    <pre><code class="language-xml">&lt;Window.DataContext&gt;
+    &lt;vm:CustomerEditorViewModel /&gt;
+&lt;/Window.DataContext&gt;
+
+&lt;StackPanel&gt;
+    &lt;TextBlock Text="{Binding Name}" /&gt;
+    &lt;TextBox Text="{Binding Email}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>In that example, the text block and text box both resolve bindings against the window's data context because they inherit it from their ancestor.</p>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical takeaway:</strong> when a binding breaks unexpectedly, one of the first things to check is whether the element still has the data context you think it does.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Binding paths say what to read</h2>
+                    <p>The binding path describes how to navigate from the source object to the value you want.</p>
+                    <pre><code class="language-xml">&lt;TextBlock Text="{Binding Customer.Address.City}" /&gt;</code></pre>
+                    <p>That means: start at the current source object, get its <code>Customer</code>, then its <code>Address</code>, then its <code>City</code>. If any part of that chain is wrong or missing, the binding cannot resolve the final value.</p>
+                    <p>Simple bindings often omit <code>Path=</code> and use the path positionally, but it is still conceptually the same thing.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Key binding decisions</h2>
@@ -34,8 +79,118 @@
                     <p>Use <code>FallbackValue</code> when the binding cannot resolve and <code>TargetNullValue</code> when the source resolves but returns null. Those solve different failure modes.</p>
                 </section>
                 <section class="doc-section">
+                    <h2>Binding modes control direction</h2>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>OneWay</h3>
+                            <p>Data flows from source to target. The view reflects source changes, but user edits do not push back automatically.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>TwoWay</h3>
+                            <p>Data flows both directions. The source updates the view, and user input can update the source.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>OneTime</h3>
+                            <p>The target gets the source value once and does not keep listening for later changes.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>OneWayToSource</h3>
+                            <p>Data flows from target to source, which is rarer but useful in special cases.</p>
+                        </section>
+                    </div>
+                    <pre><code class="language-xml">&lt;TextBox Text="{Binding SearchText, Mode=TwoWay}" /&gt;</code></pre>
+                    <p>Choose the simplest mode that matches the intent. If the view should only display state, do not reach for two-way binding automatically.</p>
+                </section>
+                <section class="doc-section">
+                    <h2><code>UpdateSourceTrigger</code> controls when user edits flow back</h2>
+                    <p>For editable controls, two-way binding is only half the story. You also need to know when the target should push the edited value back to the source.</p>
+                    <pre><code class="language-xml">&lt;TextBox
+    Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" /&gt;</code></pre>
+                    <ul>
+                        <li><code>PropertyChanged</code> updates the source as the user types.</li>
+                        <li><code>LostFocus</code> updates when the control loses focus.</li>
+                        <li><code>Explicit</code> updates only when code requests it.</li>
+                    </ul>
+                    <p>This choice matters for validation, performance, and user experience. A search box might want immediate updates. A complex editor field might not.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Alternate source strategies</h2>
+                    <p>Not every binding should use the inherited data context. WPF also lets you bind to explicit objects, named elements, or ancestors in the tree.</p>
+                    <pre><code class="language-xml">&lt;TextBlock Text="{Binding ElementName=SearchBox, Path=Text}" /&gt;
+&lt;TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=Title}" /&gt;</code></pre>
+                    <p>These are useful when the value you need comes from the view tree itself rather than the view model, or when a control template needs to look upward to its templated parent or ancestor container.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Converters transform values between source and target</h2>
+                    <p>Sometimes the source type and target type do not line up directly, or the UI needs a transformed representation of the underlying data. Converters sit in the middle.</p>
+                    <pre><code class="language-xml">&lt;TextBlock
+    Text="{Binding Total, Converter={StaticResource CurrencyConverter}}" /&gt;</code></pre>
+                    <p>A converter can turn numbers into formatted strings, booleans into visibility values, and other source data into something the target property can consume.</p>
+                    <p>Converters are useful, but they should not become a place to hide large chunks of business logic.</p>
+                </section>
+                <section class="doc-section">
+                    <h2><code>FallbackValue</code> and <code>TargetNullValue</code> solve different problems</h2>
+                    <p>These two options are often confused.</p>
+                    <ul>
+                        <li><code>FallbackValue</code> is used when the binding cannot resolve successfully.</li>
+                        <li><code>TargetNullValue</code> is used when the binding resolves successfully but the resolved value is <code>null</code>.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;TextBlock
+    Text="{Binding Customer.Nickname,
+        TargetNullValue=(none),
+        FallbackValue=(unavailable)}" /&gt;</code></pre>
+                    <p>Those are different failure modes, and the right option depends on which one you are trying to soften.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Bindings depend on change notification</h2>
+                    <p>If the source object changes after the binding is established, the binding engine needs a way to know about that change. For view models, this usually means <code>INotifyPropertyChanged</code>.</p>
+                    <pre><code class="language-csharp">public sealed class CustomerEditorViewModel : INotifyPropertyChanged
+{
+    private string _name = string.Empty;
+
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            if (_name == value)
+            {
+                return;
+            }
+
+            _name = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}</code></pre>
+                    <p>Without notification, the binding may show the initial value correctly but fail to refresh when the source changes later.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>A worked binding walkthrough</h2>
+                    <pre><code class="language-xml">&lt;Window.DataContext&gt;
+    &lt;vm:CustomerEditorViewModel /&gt;
+&lt;/Window.DataContext&gt;
+
+&lt;StackPanel&gt;
+    &lt;TextBlock Text="{Binding Customer.Name}" /&gt;
+    &lt;TextBox
+        Text="{Binding Customer.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /&gt;
+    &lt;Button Content="Save" Command="{Binding SaveCommand}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <ol>
+                        <li>The window creates a view model and assigns it as the data context.</li>
+                        <li>The stack panel's children inherit that data context.</li>
+                        <li>The text block reads <code>Customer.Name</code> from the source and displays it.</li>
+                        <li>The text box reads <code>Customer.Email</code>, then pushes edits back as the user types because the binding is two-way with <code>PropertyChanged</code>.</li>
+                        <li>The button binds its command to <code>SaveCommand</code> on the same view model.</li>
+                    </ol>
+                    <p>That is a whole screen using one consistent data-flow model: source resolution, path evaluation, update direction, and command binding all work together.</p>
+                </section>
+                <section class="doc-section">
                     <h2>Common mistakes</h2>
-                    <ul><li>Forgetting that child elements inherit <code>DataContext</code>, then overriding it accidentally and breaking descendants.</li><li>Using two-way binding when the view should only read state.</li><li>Expecting property changes to update the UI without <code>INotifyPropertyChanged</code>.</li></ul>
+                    <ul><li>Forgetting that child elements inherit <code>DataContext</code>, then overriding it accidentally and breaking descendants.</li><li>Using two-way binding when the view should only read state.</li><li>Expecting property changes to update the UI without <code>INotifyPropertyChanged</code>.</li><li>Blaming the target control when the real problem is the source path or data context.</li><li>Using converters or explicit source bindings to patch over an unclear view-model design.</li></ul>
                     <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> Binding support in this repo lives under `UI/Binding`. The core ideas are the same: source resolution, path evaluation, update direction, and dependency-property-backed targets are what make declarative screens possible.</p></div>
                     <p>Next, plug binding into MVVM so data, commands, and state transitions live somewhere testable instead of in the view.</p>
                 </section>
