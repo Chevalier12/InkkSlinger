@@ -56,6 +56,9 @@
 .docs-sidebar {
     position: sticky;
     top: 18px;
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
     padding: 20px 18px;
 }
 
@@ -374,6 +377,8 @@
 
     .docs-sidebar {
         position: static;
+        max-height: none;
+        overflow-y: visible;
     }
 
     .doc-pagination .pager-link:first-child,
