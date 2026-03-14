@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - RenderSurface</title>
-    <meta name="description" content="RenderSurface control reference.">
+    <meta name="description" content="Technical manual for the RenderSurface control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,265 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>RenderSurface</h1>
-                    <p>WIP</p>
+                    <p><code>RenderSurface</code> is the control for showing MonoGame-produced pixels inside the WPF-style UI tree. It reserves a normal layout slot, presents either a manual <code>ImageSource</code> or a control-managed render target, and gives you a focused bridge between declarative UI layout and custom drawing code.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use manual mode when another part of your application already owns the texture. Use managed mode when you want <code>RenderSurface</code> to allocate an offscreen target and ask you to draw into it.</p>
+                    <h3>Minimal control in XAML</h3>
+                    <pre><code class="language-xml">&lt;RenderSurface x:Name="PreviewSurface"
+               Width="320"
+               Height="180"
+               Stretch="Uniform" /&gt;</code></pre>
+                    <h3>Present a texture you already have</h3>
+                    <pre><code class="language-csharp">namespace InkkSlinger;
+
+public partial class MiniMapView : UserControl
+{
+    private readonly RenderSurface? _previewSurface;
+
+    public MiniMapView()
+    {
+        InitializeComponent();
+        _previewSurface = this.FindName("PreviewSurface") as RenderSurface;
+    }
+
+    private void Publish(Texture2D texture)
+    {
+        _previewSurface?.Present(texture);
+        _previewSurface?.RefreshSurface();
+    }
+}</code></pre>
+                    <h3>Attach a draw handler</h3>
+                    <pre><code class="language-csharp">public partial class DiagnosticsView : UserControl
+{
+    private readonly RenderSurface? _surface;
+
+    public DiagnosticsView()
+    {
+        InitializeComponent();
+        _surface = this.FindName("PreviewSurface") as RenderSurface;
+        if (_surface != null)
+        {
+            _surface.DrawSurface += OnDrawSurface;
+        }
+    }
+
+    private void OnDrawSurface(SpriteBatch spriteBatch, Rectangle bounds)
+    {
+        // Draw into the supplied offscreen target.
+    }
+}</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> start in manual mode if your gameplay or simulation code already renders into a texture. Choose managed mode only when you want the control to own the redraw target and callback lifecycle.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Choosing a mode</h2>
+                    <p><code>RenderSurface</code> has three user-facing modes. Two are managed modes, where the control owns an offscreen target. The third is manual presentation mode, where you provide the finished surface yourself.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Manual presentation</h3>
+                            <p>Set <code>Surface</code> or call <code>Present(...)</code> when some other subsystem already produces the pixels. The control just presents that surface through the normal UI render path.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>DrawSurface event</h3>
+                            <p>Subscribe to <code>DrawSurface</code> when you want direct managed rendering without building a custom subclass. The control creates the target and invokes your callback when a redraw is needed.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Subclass override</h3>
+                            <p>Override <code>OnDrawSurface</code> when the drawing logic belongs inside a reusable control type. This activates managed mode automatically, even without event subscribers.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Managed mode is active whenever at least one <code>DrawSurface</code> handler is attached or a subclass overrides <code>OnDrawSurface</code>.</li>
+                        <li>While managed mode is active, the managed presentation surface overrides any manual <code>Surface</code> value.</li>
+                        <li>If managed mode later becomes inactive, the previously assigned manual surface becomes visible again.</li>
+                    </ul>
+                    <p>For deeper conceptual background, see <a href="./rendersurface-what-it-is.html">What it is</a> and <a href="./rendersurface-the-three-modes.html">The three modes</a>.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout and sizing behavior</h2>
+                    <p><code>RenderSurface</code> inherits from <code>SurfacePresenterBase</code>, so it measures from the current surface when it can and applies <code>Stretch</code> and <code>StretchDirection</code> to determine how the final texture is positioned inside its arranged slot.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Manual mode sizing</h3>
+                            <p>If the current surface has pixel dimensions, the control uses that natural size as its desired size. A <code>64x32</code> image produces a desired size of <code>64x32</code> before parent layout constraints are applied.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Managed mode sizing</h3>
+                            <p>Managed mode reports zero intrinsic size during measure. Give the control explicit space through <code>Width</code>, <code>Height</code>, minimum size, or a parent layout that stretches it.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>The final arranged slot can be larger or smaller than the surface's natural pixel size.</li>
+                        <li>The rendered texture is centered inside that slot after stretch scaling is computed.</li>
+                        <li>Rendering is clipped to the layout slot.</li>
+                        <li>When managed mode is arranged to a new pixel size, its offscreen resources are recreated.</li>
+                    </ul>
+                    <h3>Typical managed-mode layout</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#081019"
+        BorderBrush="#28445F"
+        BorderThickness="1"
+        Padding="12"&gt;
+  &lt;RenderSurface x:Name="GameSurface"
+                 Width="560"
+                 Height="392"
+                 MinWidth="320"
+                 MinHeight="224"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center"
+                 Stretch="Uniform" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Stretch and direction</h3>
+                    <pre><code class="language-xml">&lt;RenderSurface Width="320"
+               Height="180"
+               Stretch="UniformToFill"
+               StretchDirection="DownOnly" /&gt;</code></pre>
+                    <p>See <a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a> for the dedicated overview page.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Redraw and lifetime behavior</h2>
+                    <p>The redraw contract is small, but each method has a specific purpose. Use the method that matches how your pixels are produced.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Manual mode methods</h3>
+                            <p><code>Present(ImageSource?)</code> and <code>Present(Texture2D)</code> change the current manual surface. <code>RefreshSurface()</code> requests another render pass without forcing a new measure pass. <code>ClearSurface()</code> removes the current manual surface.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Managed mode methods</h3>
+                            <p><code>InvalidateVisual()</code> marks the managed surface dirty so it will be redrawn. <code>RefreshSurface()</code> also works in managed mode when you want the same lightweight redraw signal.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Presenting the same surface reference again invalidates rendering without invalidating measure.</li>
+                        <li>Presenting a different surface size invalidates measure, arrange, and render because the natural size changed.</li>
+                        <li>Managed surfaces are cleared to transparent before each redraw.</li>
+                        <li>The draw callback receives a <code>SpriteBatch</code> and a <code>Rectangle</code> in managed-surface pixel coordinates.</li>
+                        <li>Managed render targets are recreated when the graphics device changes or the arranged size changes.</li>
+                    </ul>
+                    <h3>Frame-driven reusable subclass</h3>
+                    <pre><code class="language-csharp">namespace InkkSlinger;
+
+public sealed class RadarSurface : RenderSurface
+{
+    protected override bool IsFrameUpdateActive => true;
+
+    protected override void OnFrameUpdate(GameTime gameTime)
+    {
+        _ = gameTime;
+        InvalidateVisual();
+    }
+
+    protected override void OnDrawSurface(SpriteBatch spriteBatch, Rectangle bounds)
+    {
+        // Draw the current frame here.
+    }
+}</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Important rule:</strong> <code>OnFrameUpdate</code> only participates when managed mode is active and <code>IsFrameUpdateActive</code> returns <code>true</code>.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Property and API reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Surface API</h3>
+                            <p><code>Surface</code>: manual <code>ImageSource</code> presented when managed mode is inactive.</p>
+                            <p><code>Present(ImageSource?)</code>: set or replace the current manual surface.</p>
+                            <p><code>Present(Texture2D)</code>: wrap a <code>Texture2D</code> in an <code>ImageSource</code> and present it.</p>
+                            <p><code>RefreshSurface()</code>: schedule another draw without changing the current source.</p>
+                            <p><code>ClearSurface()</code>: clear the manual surface reference.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Managed drawing API</h3>
+                            <p><code>DrawSurface</code>: event-based draw hook for managed mode.</p>
+                            <p><code>OnDrawSurface(SpriteBatch, Rectangle)</code>: virtual draw override for reusable derived controls.</p>
+                            <p><code>IsFrameUpdateActive</code>: opt-in flag for frame updates while managed mode is active.</p>
+                            <p><code>OnFrameUpdate(GameTime)</code>: per-frame callback for subclasses that need to animate or schedule redraw work.</p>
+                        </article>
+                    </div>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Inherited presentation properties</h3>
+                            <p><code>Stretch</code>: controls scaling inside the arranged slot. Supported values are <code>None</code>, <code>Fill</code>, <code>Uniform</code>, and <code>UniformToFill</code>.</p>
+                            <p><code>StretchDirection</code>: constrains scaling to <code>Both</code>, <code>UpOnly</code>, or <code>DownOnly</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Layout expectations</h3>
+                            <p><code>Width</code>, <code>Height</code>, <code>MinWidth</code>, and <code>MinHeight</code> are commonly required in managed mode because the control has no intrinsic desired size there.</p>
+                            <p><code>Opacity</code> is applied when the resolved texture is finally drawn into the UI tree.</p>
+                        </article>
+                    </div>
+                    <p><code>RenderSurface</code> is a presenter, not a content host. It does not expose a child content model.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Manual placeholder surface</h3>
+                    <pre><code class="language-csharp">var surface = new RenderSurface();
+surface.Present(ImageSource.FromPixels(160, 90));</code></pre>
+                    <h3>CPU-backed texture upload</h3>
+                    <pre><code class="language-csharp">private void TryUploadLatestFrameData()
+{
+    if (_framePixels == null || _surfaceTexture == null)
+    {
+        return;
+    }
+
+    RenderFrame(_framePixels, _surfaceTexture.Width, _surfaceTexture.Height);
+    _surfaceTexture.SetData(_framePixels);
+    _gameSurface?.RefreshSurface();
+}</code></pre>
+                    <h3>Managed event drawing</h3>
+                    <pre><code class="language-csharp">private void OnDrawGameSurface(SpriteBatch spriteBatch, Rectangle bounds)
+{
+    spriteBatch.Draw(_pixel, bounds, new Color(8, 12, 21));
+    spriteBatch.Draw(_pixel, new Rectangle(bounds.X + 16, bounds.Y + 16, 96, 32), Color.CornflowerBlue);
+}</code></pre>
+                    <h3>Trigger a managed redraw</h3>
+                    <pre><code class="language-csharp">private void OnBoardChanged()
+{
+    _gameSurface?.InvalidateVisual();
+}</code></pre>
+                    <h3>Reusable subclass</h3>
+                    <pre><code class="language-csharp">public sealed class MiniMapSurface : RenderSurface
+{
+    protected override void OnDrawSurface(SpriteBatch spriteBatch, Rectangle bounds)
+    {
+        // Custom reusable drawing code.
+    }
+}</code></pre>
+                    <p>The repository's demo views cover both major patterns: <code>RenderSurfaceView</code> uses manual presentation with a texture upload path, and <code>RenderSurfaceGpuView</code> uses the managed <code>DrawSurface</code> event.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Managed mode is exclusive while active.</strong> Manual and managed surfaces are not blended. The managed presentation surface wins until managed mode is turned off.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Managed mode needs real layout space.</strong> A managed <code>RenderSurface</code> without explicit sizing or parent-provided space can collapse because it measures as zero intrinsic size.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Use <code>RefreshSurface()</code> when pixels changed but layout did not.</strong> This is the lightweight redraw signal after updating an existing texture or when you want another render pass without changing the control contract.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Draw callbacks target an offscreen surface first.</strong> Your callback does not draw directly to the final UI backbuffer. It draws into the control-managed target, which is then presented like any other surface.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Expect recreation on resize and graphics-device changes.</strong> Managed targets are disposable graphics resources, so code should not assume they persist across those transitions.</p>
+                    </div>
+                    <p>For the lifecycle-focused companion page, see <a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a>.</p>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-rectangle-shape.html">
+                        <span>Previous</span>
+                        <strong>RectangleShape</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-repeat-button.html">
+                        <span>Next</span>
+                        <strong>RepeatButton</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
