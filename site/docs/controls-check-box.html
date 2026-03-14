@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - CheckBox</title>
-    <meta name="description" content="CheckBox control reference.">
+    <meta name="description" content="Technical manual for the CheckBox control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,280 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>CheckBox</h1>
-                    <p>WIP</p>
+                    <p><code>CheckBox</code> is the standard independent toggle control in InkkSlinger. It derives from <code>ToggleButton</code>, exposes a nullable <code>IsChecked</code> state, and supports both the stock app theme template and an owner-drawn fallback when no template is applied.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>CheckBox</code> for choices that can be enabled or disabled independently. Start with <code>Text</code> and <code>IsChecked</code>, then add events, commands, or templates only when the interaction requires them.</p>
+                    <h3>Minimal checkbox</h3>
+                    <pre><code class="language-xml">&lt;CheckBox Text="Enable telemetry" /&gt;</code></pre>
+                    <h3>Bind the checked state</h3>
+                    <pre><code class="language-xml">&lt;CheckBox Text="Remember window layout"
+          IsChecked="{Binding RememberLayout}" /&gt;</code></pre>
+                    <h3>Handle checked and unchecked transitions</h3>
+                    <pre><code class="language-xml">&lt;CheckBox Text="Receive updates"
+          Checked="OnReceiveUpdatesChecked"
+          Unchecked="OnReceiveUpdatesUnchecked" /&gt;</code></pre>
+                    <pre><code class="language-csharp">namespace InkkSlinger;
+
+public partial class PreferencesView : UserControl
+{
+    public PreferencesView()
+    {
+        InitializeComponent();
+    }
+
+    private void OnReceiveUpdatesChecked(object? sender, RoutedSimpleEventArgs args)
+    {
+        // Enable update delivery here.
+    }
+
+    private void OnReceiveUpdatesUnchecked(object? sender, RoutedSimpleEventArgs args)
+    {
+        // Disable update delivery here.
+    }
+}</code></pre>
+                    <h3>Enable three-state toggling</h3>
+                    <pre><code class="language-xml">&lt;CheckBox Text="Use inherited permissions"
+          IsThreeState="True"
+          IsChecked="{x:Null}" /&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> use <code>Text</code> plus a bound <code>IsChecked</code> value for ordinary settings and checklist rows. That matches the current built-in behavior most directly.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Checked state model</h2>
+                    <p><code>CheckBox</code> inherits its state machine from <code>ToggleButton</code>. The state is stored in nullable <code>bool?</code> <code>IsChecked</code>, so the control can represent checked, unchecked, and optional indeterminate states.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Two-state mode</h3>
+                            <p>With the default <code>IsThreeState="False"</code>, clicks cycle between <code>false</code> and <code>true</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Three-state mode</h3>
+                            <p>With <code>IsThreeState="True"</code>, clicks cycle <code>false -&gt; true -&gt; null -&gt; false</code>.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>IsChecked="True"</code> represents the checked state.</li>
+                        <li><code>IsChecked="False"</code> represents the unchecked state.</li>
+                        <li><code>IsChecked="{x:Null}"</code> represents the indeterminate state when three-state mode is enabled.</li>
+                        <li><code>Checked</code>, <code>Unchecked</code>, and <code>Indeterminate</code> are bubbling routed events raised when the value changes.</li>
+                        <li><code>OnClick</code> toggles the state first, then raises the inherited button click behavior and command execution path.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;CheckBox Text="Draft" IsChecked="False" Margin="0,0,0,8" /&gt;
+  &lt;CheckBox Text="Published" IsChecked="True" Margin="0,0,0,8" /&gt;
+  &lt;CheckBox Text="Inherited"
+            IsThreeState="True"
+            IsChecked="{x:Null}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>Use three-state mode only when <code>null</code> has a real meaning in your model, such as "inherit", "mixed selection", or "not decided yet".</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Text, content, and commands</h2>
+                    <p><code>CheckBox</code> inherits the text/content contract from <code>Button</code>. In practice, <code>Text</code> is the simplest path, while <code>Content</code> matters when a template uses a <code>ContentPresenter</code>.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Use Text first</h3>
+                            <p>In the owner-drawn fallback path, <code>CheckBox</code> renders the caption from <code>Text</code>. This is also mirrored into templated content when the template uses a <code>ContentPresenter</code> and you have not set explicit <code>Content</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Use Content for custom templates</h3>
+                            <p>If a template needs arbitrary content, set <code>Content</code> explicitly. Once explicit content is set, later <code>Text</code> changes no longer override it.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>Text</code> is the safest end-user API for ordinary checkbox captions.</li>
+                        <li><code>Content</code> is most useful in templates built around <code>ContentPresenter</code>.</li>
+                        <li><code>Command</code>, <code>CommandParameter</code>, and <code>CommandTarget</code> are inherited from <code>Button</code>.</li>
+                        <li>The command path runs after the checked state is toggled.</li>
+                    </ul>
+                    <h3>Command binding example</h3>
+                    <pre><code class="language-xml">&lt;CheckBox Text="Accept license terms"
+          IsChecked="{Binding AcceptedTerms}"
+          Command="{Binding SaveConsentCommand}"
+          CommandParameter="{Binding AcceptedTerms}" /&gt;</code></pre>
+                    <h3>Template-friendly content example</h3>
+                    <pre><code class="language-xml">&lt;CheckBox&gt;
+  &lt;CheckBox.Content&gt;
+    &lt;StackPanel Orientation="Horizontal"&gt;
+      &lt;TextBlock Text="Enable HDR" Margin="0,0,8,0" /&gt;
+      &lt;TextBlock Text="(restart required)" Foreground="#A0A0A0" /&gt;
+    &lt;/StackPanel&gt;
+  &lt;/CheckBox.Content&gt;
+&lt;/CheckBox&gt;</code></pre>
+                    <p>If you use explicit content like that, make sure your template actually presents it.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Styling and templating</h2>
+                    <p>Themed applications typically style <code>CheckBox</code> through a <code>ControlTemplate</code>. The stock <code>App.xml</code> template in this repo uses a horizontal layout with a 20x20 border glyph and a <code>ContentPresenter</code> for the caption.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Stock app theme</h3>
+                            <p>The app-level style sets <code>Foreground</code>, <code>FontSize</code>, and <code>Cursor</code>, then replaces the visual tree with a template. Hover changes the border color, checked changes both border and fill to the orange theme color, and disabled updates the caption and border colors.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Hit testing</h3>
+                            <p>The stock template marks the glyph border and caption presenter as <code>IsHitTestVisible="False"</code> so the entire checkbox surface can still toggle normally.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Indeterminate visuals</h3>
+                            <p>The stock <code>App.xml</code> template defines explicit visuals for checked and unchecked states only. If you use three-state mode and need a distinct null-state appearance, extend the template with an additional trigger and visual.</p>
+                        </article>
+                    </div>
+                    <h3>Template based on the stock pattern</h3>
+                    <pre><code class="language-xml">&lt;Style x:Key="SettingsCheckBoxStyle" TargetType="{x:Type CheckBox}"&gt;
+  &lt;Setter Property="Foreground" Value="#F0F0F0" /&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type CheckBox}"&gt;
+        &lt;StackPanel Orientation="Horizontal" VerticalAlignment="Center"&gt;
+          &lt;Border x:Name="Glyph"
+                  Width="20"
+                  Height="20"
+                  IsHitTestVisible="False"
+                  Background="#2A2A2A"
+                  BorderBrush="#3F3F3F"
+                  BorderThickness="2"&gt;
+            &lt;Path x:Name="CheckMark"
+                  Data="M 3,8 L 7,12 L 14,4"
+                  Stroke="#F0F0F0"
+                  StrokeThickness="2"
+                  Margin="1"
+                  Visibility="Collapsed" /&gt;
+          &lt;/Border&gt;
+          &lt;ContentPresenter Margin="8,0,0,0"
+                            IsHitTestVisible="False"
+                            RecognizesAccessKey="True"
+                            VerticalAlignment="Center" /&gt;
+        &lt;/StackPanel&gt;
+        &lt;ControlTemplate.Triggers&gt;
+          &lt;Trigger Property="IsMouseOver" Value="True"&gt;
+            &lt;Setter TargetName="Glyph" Property="BorderBrush" Value="#FF8C00" /&gt;
+          &lt;/Trigger&gt;
+          &lt;Trigger Property="IsChecked" Value="True"&gt;
+            &lt;Setter TargetName="Glyph" Property="Background" Value="#FF8C00" /&gt;
+            &lt;Setter TargetName="Glyph" Property="BorderBrush" Value="#FF8C00" /&gt;
+            &lt;Setter TargetName="CheckMark" Property="Visibility" Value="Visible" /&gt;
+          &lt;/Trigger&gt;
+        &lt;/ControlTemplate.Triggers&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Template rule:</strong> if you want clicking the label or icon area to toggle the checkbox, keep the decorative template children non-hit-testable unless they truly need direct interaction.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout and rendering</h2>
+                    <p><code>CheckBox</code> has two distinct visual modes. Which one you see depends on whether a template is applied.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Themed or templated mode</h3>
+                            <p>When app resources or a local style apply a <code>ControlTemplate</code>, the template owns measurement, arrangement, and rendering. The built-in owner-drawn checkbox glyph is skipped once a template root exists.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Owner-drawn fallback mode</h3>
+                            <p>When no template is present, <code>CheckBox</code> measures and renders its own square glyph plus caption text. This path is implemented directly in <code>CheckBox.cs</code>.</p>
+                        </article>
+                    </div>
+                    <h3>Owner-drawn fallback behavior</h3>
+                    <ul>
+                        <li>The fallback glyph is a 14x14 square with 8 pixels of spacing before the caption text.</li>
+                        <li>Desired width includes padding, glyph width, spacing when text exists, and measured text width.</li>
+                        <li>Desired height is the larger of glyph height or text height, plus vertical padding.</li>
+                        <li><code>TextWrapping</code> affects text measurement and drawing when the available width is constrained.</li>
+                        <li>Checked state draws a filled inner square inside the glyph.</li>
+                        <li>Indeterminate state draws a horizontal dash inside the glyph.</li>
+                        <li>Disabled state uses muted border, fill, and text colors.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;StackPanel Width="220"&gt;
+  &lt;CheckBox Text="Use owner-drawn fallback with wrapped text when no template is applied."
+            TextWrapping="Wrap"
+            Padding="6" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>That example only uses the fallback layout when no template replaces the control visuals. In a templated app, the template controls the final appearance.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Property and event reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>State and events</h3>
+                            <p><code>IsChecked</code>: nullable checked state stored as <code>bool?</code>.</p>
+                            <p><code>IsThreeState</code>: enables the indeterminate <code>null</code> state in the click cycle.</p>
+                            <p><code>Checked</code>: bubbling routed event raised when <code>IsChecked</code> becomes <code>true</code>.</p>
+                            <p><code>Unchecked</code>: bubbling routed event raised when <code>IsChecked</code> becomes <code>false</code>.</p>
+                            <p><code>Indeterminate</code>: bubbling routed event raised when <code>IsChecked</code> becomes <code>null</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Text, visuals, and commands</h3>
+                            <p><code>Text</code>: plain caption text for the fallback render path and the source for mirrored template content when explicit <code>Content</code> is not set.</p>
+                            <p><code>TextWrapping</code>: controls whether caption text is measured and drawn as one line or wrapped lines.</p>
+                            <p><code>Foreground</code>, <code>Background</code>, <code>BorderBrush</code>, <code>Padding</code>: styling inputs used directly by fallback rendering or forwarded into a template through bindings.</p>
+                            <p><code>Command</code>, <code>CommandParameter</code>, <code>CommandTarget</code>: inherited action surface from <code>Button</code>.</p>
+                            <p><code>IsEnabled</code>: inherited enabled state, used by both theme triggers and the fallback render path.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Settings panel checkbox</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;TextBlock Text="General" Margin="0,0,0,8" /&gt;
+  &lt;CheckBox Text="Launch on startup"
+            IsChecked="{Binding LaunchOnStartup}"
+            Margin="0,0,0,6" /&gt;
+  &lt;CheckBox Text="Minimize to tray"
+            IsChecked="{Binding MinimizeToTray}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Checklist row with bound state</h3>
+                    <pre><code class="language-xml">&lt;CheckBox Text="{Binding Title}"
+          IsChecked="{Binding IsComplete}"
+          Margin="0,4,0,4" /&gt;</code></pre>
+                    <h3>Command-driven consent flow</h3>
+                    <pre><code class="language-xml">&lt;CheckBox Text="I have reviewed the migration summary"
+          IsChecked="{Binding HasReviewedSummary}"
+          Command="{Binding RefreshContinueStateCommand}" /&gt;</code></pre>
+                    <h3>Access key example</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;AccessText Text="_Telemetry" TargetName="TelemetryCheckBox" /&gt;
+  &lt;CheckBox x:Name="TelemetryCheckBox"
+            Text="Enable telemetry"
+            IsChecked="{Binding EnableTelemetry}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Three-state usage with a custom visual note</h3>
+                    <pre><code class="language-xml">&lt;CheckBox Text="Use project default"
+          IsThreeState="True"
+          IsChecked="{Binding EffectiveSetting}" /&gt;</code></pre>
+                    <p>If you need a visible indeterminate glyph in a template, add an additional trigger for the <code>null</code> state and draw a dash, mixed-fill block, or alternate accent. The stock <code>App.xml</code> theme in this repo does not add that visual for you.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Use <code>CheckBox</code> for independent choices.</strong> If only one option in a group can be active, use <code>RadioButton</code> instead.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>The stock app theme has no dedicated indeterminate visual.</strong> Three-state logic is supported by the control, but the default <code>App.xml</code> template only styles checked and unchecked explicitly.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Template children can accidentally steal input.</strong> Decorative glyphs, paths, and caption presenters should usually set <code>IsHitTestVisible="False"</code> so the checkbox toggles when the user clicks anywhere on the row.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Fallback and themed visuals are different contracts.</strong> The framework guarantees the toggle logic and routed events. The exact glyph appearance depends on whether a template is active.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-canvas.html">
+                        <span>Previous</span>
+                        <strong>Canvas</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-combo-box.html">
+                        <span>Next</span>
+                        <strong>ComboBox</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
