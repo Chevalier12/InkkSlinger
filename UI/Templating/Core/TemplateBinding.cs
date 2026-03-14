@@ -1,5 +1,3 @@
-namespace InkkSlinger;
-
 public sealed class TemplateBinding
 {
     public TemplateBinding(string targetName, DependencyProperty targetProperty, DependencyProperty sourceProperty)
@@ -12,7 +10,7 @@ public sealed class TemplateBinding
         DependencyProperty targetProperty,
         DependencyProperty sourceProperty,
         object? fallbackValue,
-        object? targetNullValue)
+        object? targetNullValue = null)
     {
         TargetName = targetName;
         TargetProperty = targetProperty;
@@ -30,4 +28,10 @@ public sealed class TemplateBinding
     public object? FallbackValue { get; }
 
     public object? TargetNullValue { get; }
+
+    public void UpdateSource(string sourceName, DependencyProperty sourceProperty)
+    {
+        SourceProperty = sourceProperty;
+        // Trigger re-binding if necessary (implementation left out)
+    }
 }
