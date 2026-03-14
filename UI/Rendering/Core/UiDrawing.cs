@@ -17,6 +17,15 @@ internal static class UiDrawing
     private static int _frameClipPushCount;
     private static int _frameSpriteBatchRestartCount;
 
+    internal readonly record struct SuspendedSpriteBatchState(
+        SpriteSortMode SortMode,
+        BlendState BlendState,
+        SamplerState SamplerState,
+        DepthStencilState DepthStencilState,
+        RasterizerState RasterizerState,
+        Rectangle ScissorRectangle,
+        RenderTargetBinding[] RenderTargets);
+
     private readonly record struct SpriteBatchState(
         SpriteSortMode SortMode,
         BlendState BlendState,
@@ -70,6 +79,56 @@ internal static class UiDrawing
             state.SamplerState,
             state.DepthStencilState,
             state.RasterizerState);
+    }
+
+    internal static SuspendedSpriteBatchState SuspendActiveBatch(SpriteBatch spriteBatch)
+    {
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        if (!ActiveBatchStates.TryGetValue(graphicsDevice, out var state))
+        {
+            throw new InvalidOperationException("Cannot suspend a SpriteBatch without tracked active state.");
+        }
+
+        var suspendedState = new SuspendedSpriteBatchState(
+            state.SortMode,
+            state.BlendState,
+            state.SamplerState,
+            state.DepthStencilState,
+            state.RasterizerState,
+            graphicsDevice.ScissorRectangle,
+            graphicsDevice.GetRenderTargets());
+
+        spriteBatch.End();
+        ClearActiveBatchState(graphicsDevice);
+        return suspendedState;
+    }
+
+    internal static void ResumeSuspendedBatch(SpriteBatch spriteBatch, SuspendedSpriteBatchState suspendedState)
+    {
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        if (suspendedState.RenderTargets.Length == 0)
+        {
+            graphicsDevice.SetRenderTarget(null);
+        }
+        else
+        {
+            graphicsDevice.SetRenderTargets(suspendedState.RenderTargets);
+        }
+
+        graphicsDevice.ScissorRectangle = suspendedState.ScissorRectangle;
+        spriteBatch.Begin(
+            suspendedState.SortMode,
+            suspendedState.BlendState,
+            suspendedState.SamplerState,
+            suspendedState.DepthStencilState,
+            suspendedState.RasterizerState);
+        SetActiveBatchState(
+            graphicsDevice,
+            suspendedState.SortMode,
+            suspendedState.BlendState,
+            suspendedState.SamplerState,
+            suspendedState.DepthStencilState,
+            suspendedState.RasterizerState);
     }
 
     public static void ResetState(GraphicsDevice graphicsDevice)

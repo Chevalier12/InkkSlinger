@@ -38,6 +38,12 @@
         <xs:element ref="Border.Resources" />
         <xs:element ref="Grid.ColumnDefinitions" />
         <xs:element ref="Grid.RowDefinitions" />
+        <xs:element ref="Control" />
+        <xs:element ref="ContentControl" />
+        <xs:element ref="ItemsControl" />
+        <xs:element ref="Decorator" />
+        <xs:element ref="AdornerDecorator" />
+        <xs:element ref="AdornerLayer" />
         <xs:element ref="Grid" />
         <xs:element ref="GridSplitter" />
         <xs:element ref="Panel" />
@@ -47,9 +53,14 @@
         <xs:element ref="DockPanel" />
         <xs:element ref="WrapPanel" />
         <xs:element ref="UniformGrid" />
+        <xs:element ref="ToolBarPanel" />
+        <xs:element ref="ToolBarOverflowPanel" />
+        <xs:element ref="ToolBarTray" />
         <xs:element ref="Expander" />
+        <xs:element ref="GroupBox" />
         <xs:element ref="Border" />
         <xs:element ref="Image" />
+        <xs:element ref="RenderSurface" />
         <xs:element ref="Rectangle" />
         <xs:element ref="Ellipse" />
         <xs:element ref="Line" />
@@ -61,10 +72,12 @@
         <xs:element ref="TextBlock" />
         <xs:element ref="AccessText" />
         <xs:element ref="Button" />
+        <xs:element ref="RepeatButton" />
         <xs:element ref="ToggleButton" />
         <xs:element ref="CheckBox" />
         <xs:element ref="RadioButton" />
         <xs:element ref="Calendar" />
+        <xs:element ref="CalendarDayButton" />
         <xs:element ref="ComboBox" />
         <xs:element ref="ComboBoxItem" />
         <xs:element ref="DatePicker" />
@@ -94,6 +107,7 @@
         <xs:element ref="BlockUIContainer" />
         <xs:element ref="HeaderedContentControl" />
         <xs:element ref="HeaderedItemsControl" />
+        <xs:element ref="GroupItem" />
         <xs:element ref="ContentPresenter" />
         <xs:element ref="ItemsPresenter" />
         <xs:element ref="Frame" />
@@ -107,6 +121,8 @@
         <xs:element ref="ListBoxItem" />
         <xs:element ref="ListView" />
         <xs:element ref="ListViewItem" />
+        <xs:element ref="Menu" />
+        <xs:element ref="MenuItem" />
         <xs:element ref="TabControl" />
         <xs:element ref="TabItem" />
         <xs:element ref="TreeView" />
@@ -114,7 +130,16 @@
         <xs:element ref="Popup" />
         <xs:element ref="ContextMenu" />
         <xs:element ref="ProgressBar" />
+        <xs:element ref="DataGrid" />
+        <xs:element ref="DataGridCell" />
+        <xs:element ref="DataGridColumnHeader" />
+        <xs:element ref="DataGridDetailsPresenter" />
+        <xs:element ref="DataGridRow" />
+        <xs:element ref="DataGridRowHeader" />
         <xs:element ref="ResizeGrip" />
+        <xs:element ref="StatusBar" />
+        <xs:element ref="StatusBarItem" />
+        <xs:element ref="ToolBar" />
         <xs:element ref="Thumb" />
         <xs:element ref="ToolTip" />
       </xs:choice>
@@ -935,10 +960,84 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="frameworkElementType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Width" type="xs:float" />
+        <xs:attribute name="Height" type="xs:float" />
+        <xs:attribute name="MinWidth" type="xs:float" />
+        <xs:attribute name="MinHeight" type="xs:float" />
+        <xs:attribute name="MaxWidth" type="xs:float" />
+        <xs:attribute name="MaxHeight" type="xs:float" />
+        <xs:attribute name="Margin" type="thicknessType" />
+        <xs:attribute name="HorizontalAlignment" type="xs:string" />
+        <xs:attribute name="VerticalAlignment" type="xs:string" />
+        <xs:attribute name="Focusable" type="xs:boolean" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="controlType">
+    <xs:complexContent>
+      <xs:extension base="frameworkElementType">
+        <xs:attribute name="Background" type="colorType" />
+        <xs:attribute name="Foreground" type="colorType" />
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="thicknessType" />
+        <xs:attribute name="Padding" type="thicknessType" />
+        <xs:attribute name="Command" type="xs:string" />
+        <xs:attribute name="CommandParameter" type="xamlValueType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="contentControlType">
+    <xs:complexContent>
+      <xs:extension base="controlType">
+        <xs:attribute name="Content" type="xamlValueType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="itemsControlType">
+    <xs:complexContent>
+      <xs:extension base="controlType">
+        <xs:attribute name="ItemsSource" type="xamlValueType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="decoratorType">
+    <xs:complexContent>
+      <xs:extension base="frameworkElementType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="adornerDecoratorType">
+    <xs:complexContent>
+      <xs:extension base="decoratorType" />
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="panelType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
         <xs:attribute name="Background" type="colorType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="adornerLayerType">
+    <xs:complexContent>
+      <xs:extension base="panelType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="toolBarTrayType">
+    <xs:complexContent>
+      <xs:extension base="panelType">
+        <xs:attribute name="Orientation" type="xs:string" />
+        <xs:attribute name="BandSpacing" type="xs:float" />
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
@@ -1041,6 +1140,24 @@
         <xs:attribute name="Rows" type="xs:int" />
         <xs:attribute name="Columns" type="xs:int" />
         <xs:attribute name="FirstColumn" type="xs:int" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="toolBarPanelType">
+    <xs:complexContent>
+      <xs:extension base="panelType">
+        <xs:attribute name="Orientation" type="xs:string" />
+        <xs:attribute name="ItemSpacing" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="toolBarOverflowPanelType">
+    <xs:complexContent>
+      <xs:extension base="toolBarPanelType">
+        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="BorderThickness" type="thicknessType" />
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
@@ -1678,6 +1795,15 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="repeatButtonType">
+    <xs:complexContent>
+      <xs:extension base="buttonType">
+        <xs:attribute name="RepeatDelay" type="xs:int" />
+        <xs:attribute name="RepeatInterval" type="xs:int" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="frameType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
@@ -1708,6 +1834,66 @@
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
         <xs:attribute name="Header" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="groupItemType">
+    <xs:complexContent>
+      <xs:extension base="headeredItemsControlType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="groupBoxType">
+    <xs:complexContent>
+      <xs:extension base="contentControlType">
+        <xs:attribute name="Header" type="xamlValueType" />
+        <xs:attribute name="HeaderPadding" type="thicknessType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="menuType">
+    <xs:complexContent>
+      <xs:extension base="itemsControlType">
+        <xs:attribute name="ItemSpacing" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="menuItemType">
+    <xs:complexContent>
+      <xs:extension base="itemsControlType">
+        <xs:attribute name="Header" type="xs:string" />
+        <xs:attribute name="InputGestureText" type="xs:string" />
+        <xs:attribute name="IsSubmenuOpen" type="xs:boolean" />
+        <xs:attribute name="Click" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="toolBarType">
+    <xs:complexContent>
+      <xs:extension base="itemsControlType">
+        <xs:attribute name="ItemSpacing" type="xs:float" />
+        <xs:attribute name="OverflowButtonText" type="xs:string" />
+        <xs:attribute name="IsOverflowOpen" type="xs:boolean" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="statusBarType">
+    <xs:complexContent>
+      <xs:extension base="itemsControlType">
+        <xs:attribute name="ItemSpacing" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="statusBarItemType">
+    <xs:complexContent>
+      <xs:extension base="contentControlType">
+        <xs:attribute name="HorizontalContentAlignment" type="xs:string" />
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
@@ -1750,6 +1936,16 @@
   <xs:complexType name="viewboxType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Stretch" type="xs:string" />
+        <xs:attribute name="StretchDirection" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="renderSurfaceType">
+    <xs:complexContent>
+      <xs:extension base="frameworkElementType">
+        <xs:attribute name="Surface" type="xamlValueType" />
         <xs:attribute name="Stretch" type="xs:string" />
         <xs:attribute name="StretchDirection" type="xs:string" />
       </xs:extension>
@@ -1953,6 +2149,67 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="dataGridType">
+    <xs:complexContent>
+      <xs:extension base="itemsControlType">
+        <xs:attribute name="HeadersVisibility" type="xs:string" />
+        <xs:attribute name="GridLinesVisibility" type="xs:string" />
+        <xs:attribute name="RowHeight" type="xs:float" />
+        <xs:attribute name="ColumnHeaderHeight" type="xs:float" />
+        <xs:attribute name="RowHeaderWidth" type="xs:float" />
+        <xs:attribute name="ShowRowHeaders" type="xs:boolean" />
+        <xs:attribute name="SelectedRowIndex" type="xs:int" />
+        <xs:attribute name="SelectedColumnIndex" type="xs:int" />
+        <xs:attribute name="EnableRowVirtualization" type="xs:boolean" />
+        <xs:attribute name="CanUserSortColumns" type="xs:boolean" />
+        <xs:attribute name="CanUserResizeColumns" type="xs:boolean" />
+        <xs:attribute name="CanUserReorderColumns" type="xs:boolean" />
+        <xs:attribute name="FrozenColumnCount" type="xs:int" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="dataGridCellType">
+    <xs:complexContent>
+      <xs:extension base="controlType">
+        <xs:attribute name="Content" type="xamlValueType" />
+        <xs:attribute name="Value" type="xamlValueType" />
+        <xs:attribute name="SelectedBackground" type="colorType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="dataGridColumnHeaderType">
+    <xs:complexContent>
+      <xs:extension base="buttonType">
+        <xs:attribute name="SortDirection" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="dataGridDetailsPresenterType">
+    <xs:complexContent>
+      <xs:extension base="contentControlType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="dataGridRowType">
+    <xs:complexContent>
+      <xs:extension base="controlType">
+        <xs:attribute name="RowBackground" type="colorType" />
+        <xs:attribute name="SelectedRowBackground" type="colorType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="dataGridRowHeaderType">
+    <xs:complexContent>
+      <xs:extension base="controlType">
+        <xs:attribute name="Text" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="resizeGripType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
@@ -1993,6 +2250,14 @@
         <xs:attribute name="SelectionMode" type="xs:string" />
         <xs:attribute name="SelectedDateChanged" type="xs:string" />
         <xs:attribute name="SelectedDatesChanged" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="calendarDayButtonType">
+    <xs:complexContent>
+      <xs:extension base="buttonType">
+        <xs:attribute name="DayText" type="xs:string" />
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
@@ -2067,7 +2332,13 @@
   <xs:element name="ResourceDictionary" type="resourceDictionaryType" />
   <xs:element name="ResourceDictionary.MergedDictionaries" type="resourceDictionaryMergedDictionariesType" />
   <xs:element name="UserControl" type="userControlType" />
+  <xs:element name="Control" type="controlType" />
+  <xs:element name="ContentControl" type="contentControlType" />
+  <xs:element name="ItemsControl" type="itemsControlType" />
+  <xs:element name="Decorator" type="decoratorType" />
+  <xs:element name="AdornerDecorator" type="adornerDecoratorType" />
   <xs:element name="Panel" type="panelType" />
+  <xs:element name="AdornerLayer" type="adornerLayerType" />
   <xs:element name="Grid" type="gridType" />
   <xs:element name="GridSplitter" type="gridSplitterType" />
   <xs:element name="Grid.ColumnDefinitions" type="gridColumnDefinitionsType" />
@@ -2188,6 +2459,9 @@
   <xs:element name="DockPanel" type="dockPanelType" />
   <xs:element name="WrapPanel" type="wrapPanelType" />
   <xs:element name="UniformGrid" type="uniformGridType" />
+  <xs:element name="ToolBarTray" type="toolBarTrayType" />
+  <xs:element name="ToolBarPanel" type="toolBarPanelType" />
+  <xs:element name="ToolBarOverflowPanel" type="toolBarOverflowPanelType" />
   <xs:element name="Border" type="borderType" />
   <xs:element name="Image" type="imageType" />
   <xs:element name="Rectangle" type="rectangleType" />
@@ -2216,10 +2490,12 @@
   <xs:element name="AccessText" type="accessTextType" />
   <xs:element name="Button" type="buttonType" />
   <xs:element name="Button.ContextMenu" type="buttonContextMenuType" />
+  <xs:element name="RepeatButton" type="repeatButtonType" />
   <xs:element name="ToggleButton" type="toggleButtonType" />
   <xs:element name="CheckBox" type="checkBoxType" />
   <xs:element name="RadioButton" type="radioButtonType" />
   <xs:element name="Calendar" type="calendarType" />
+  <xs:element name="CalendarDayButton" type="calendarDayButtonType" />
   <xs:element name="ComboBoxItem" type="comboBoxItemType" />
   <xs:element name="ComboBox" type="comboBoxType" />
   <xs:element name="DatePicker" type="datePickerType" />
@@ -2259,6 +2535,7 @@
   <xs:element name="TableCell.Blocks" type="blocksContainerType" />
   <xs:element name="HeaderedContentControl" type="headeredContentControlType" />
   <xs:element name="HeaderedItemsControl" type="headeredItemsControlType" />
+  <xs:element name="GroupItem" type="groupItemType" />
   <xs:element name="ContentPresenter" type="contentPresenterType" />
   <xs:element name="ItemsPresenter" type="itemsPresenterType" />
   <xs:element name="Frame" type="frameType" />
@@ -2266,13 +2543,17 @@
   <xs:element name="ScrollBar" type="scrollBarType" />
   <xs:element name="ScrollViewer" type="scrollViewerType" />
   <xs:element name="Viewbox" type="viewboxType" />
+  <xs:element name="RenderSurface" type="renderSurfaceType" />
   <xs:element name="Separator" type="separatorType" />
   <xs:element name="Slider" type="sliderType" />
   <xs:element name="Expander" type="expanderType" />
+  <xs:element name="GroupBox" type="groupBoxType" />
   <xs:element name="ListBoxItem" type="listBoxItemType" />
   <xs:element name="ListBox" type="listBoxType" />
   <xs:element name="ListViewItem" type="listViewItemType" />
   <xs:element name="ListView" type="listViewType" />
+  <xs:element name="Menu" type="menuType" />
+  <xs:element name="MenuItem" type="menuItemType" />
   <xs:element name="TabItem" type="tabItemType" />
   <xs:element name="TabControl" type="tabControlType" />
   <xs:element name="TreeViewItem" type="treeViewItemType" />
@@ -2280,8 +2561,17 @@
   <xs:element name="Popup" type="popupType" />
   <xs:element name="ContextMenu" type="contextMenuType" />
   <xs:element name="ProgressBar" type="progressBarType" />
+  <xs:element name="DataGrid" type="dataGridType" />
+  <xs:element name="DataGridCell" type="dataGridCellType" />
+  <xs:element name="DataGridColumnHeader" type="dataGridColumnHeaderType" />
+  <xs:element name="DataGridDetailsPresenter" type="dataGridDetailsPresenterType" />
+  <xs:element name="DataGridRow" type="dataGridRowType" />
+  <xs:element name="DataGridRowHeader" type="dataGridRowHeaderType" />
   <xs:element name="ResizeGrip" type="resizeGripType" />
+  <xs:element name="StatusBar" type="statusBarType" />
+  <xs:element name="StatusBarItem" type="statusBarItemType" />
   <xs:element name="Thumb" type="thumbType" />
+  <xs:element name="ToolBar" type="toolBarType" />
   <xs:element name="ToolTip" type="toolTipType" />
   <xs:element name="CollectionViewSource" type="collectionViewSourceType" />
   <xs:element name="CollectionViewSource.SortDescriptions" type="collectionViewSortDescriptionsType" />

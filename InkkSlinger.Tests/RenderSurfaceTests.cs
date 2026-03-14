@@ -1,3 +1,5 @@
+using System;
+using System.Runtime.CompilerServices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Xunit;
@@ -82,6 +84,275 @@ public sealed class RenderSurfaceTests
     }
 
     [Fact]
+    public void ManagedMode_WinsOverManualSurfaceWhileActive()
+    {
+        var renderSurface = new RenderSurface();
+        renderSurface.Present(ImageSource.FromPixels(64, 32));
+
+        renderSurface.DrawSurface += OnDrawSurface;
+        renderSurface.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
+        renderSurface.Arrange(new LayoutRect(0f, 0f, 200f, 100f));
+
+        var displayedSurface = renderSurface.GetDisplayedSurfaceForTests();
+
+        Assert.NotNull(displayedSurface);
+        Assert.NotSame(renderSurface.Surface, displayedSurface);
+        Assert.Equal(200, displayedSurface!.PixelWidth);
+        Assert.Equal(100, displayedSurface.PixelHeight);
+
+        renderSurface.DrawSurface -= OnDrawSurface;
+        return;
+
+        static void OnDrawSurface(SpriteBatch spriteBatch, Rectangle bounds)
+        {
+            _ = spriteBatch;
+            _ = bounds;
+        }
+    }
+
+    [Fact]
+    public void ManualSurface_ResumesWhenManagedModeBecomesInactive()
+    {
+        var renderSurface = new RenderSurface();
+        var manualSurface = ImageSource.FromPixels(96, 48);
+        renderSurface.Present(manualSurface);
+        renderSurface.DrawSurface += OnDrawSurface;
+        renderSurface.Arrange(new LayoutRect(0f, 0f, 180f, 90f));
+
+        renderSurface.DrawSurface -= OnDrawSurface;
+
+        Assert.Same(manualSurface, renderSurface.GetDisplayedSurfaceForTests());
+        return;
+
+        static void OnDrawSurface(SpriteBatch spriteBatch, Rectangle bounds)
+        {
+            _ = spriteBatch;
+            _ = bounds;
+        }
+    }
+
+    [Fact]
+    public void DrawSurface_SubscriptionTransitions_InvalidateMeasureAndRender()
+    {
+        var renderSurface = new RenderSurface();
+        RenderSurfaceDrawEventHandler handler = static (spriteBatch, bounds) =>
+        {
+            _ = spriteBatch;
+            _ = bounds;
+        };
+
+        renderSurface.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
+        renderSurface.Arrange(new LayoutRect(0f, 0f, 100f, 50f));
+        renderSurface.ClearMeasureInvalidation();
+        renderSurface.ClearArrangeInvalidation();
+        renderSurface.ClearRenderInvalidationShallow();
+
+        renderSurface.DrawSurface += handler;
+
+        Assert.True(renderSurface.NeedsMeasure);
+        Assert.True(renderSurface.NeedsArrange);
+        Assert.True(renderSurface.NeedsRender);
+
+        renderSurface.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
+        renderSurface.Arrange(new LayoutRect(0f, 0f, 100f, 50f));
+        renderSurface.ClearMeasureInvalidation();
+        renderSurface.ClearArrangeInvalidation();
+        renderSurface.ClearRenderInvalidationShallow();
+
+        renderSurface.DrawSurface -= handler;
+
+        Assert.True(renderSurface.NeedsMeasure);
+        Assert.True(renderSurface.NeedsArrange);
+        Assert.True(renderSurface.NeedsRender);
+    }
+
+    [Fact]
+    public void ManagedMode_MeasuresAsZeroIntrinsicSize()
+    {
+        var renderSurface = new RenderSurface();
+        renderSurface.DrawSurface += OnDrawSurface;
+
+        renderSurface.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
+
+        Assert.Equal(Vector2.Zero, renderSurface.DesiredSize);
+
+        renderSurface.DrawSurface -= OnDrawSurface;
+        return;
+
+        static void OnDrawSurface(SpriteBatch spriteBatch, Rectangle bounds)
+        {
+            _ = spriteBatch;
+            _ = bounds;
+        }
+    }
+
+    [Fact]
+    public void RefreshSurface_InManagedMode_SchedulesDrawWithoutManualSurface()
+    {
+        var root = new Panel();
+        var renderSurface = new RenderSurface();
+        renderSurface.DrawSurface += OnDrawSurface;
+        root.AddChild(renderSurface);
+
+        var uiRoot = new UiRoot(root);
+        var viewport = new Viewport(0, 0, 800, 600);
+
+        _ = uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.Zero, TimeSpan.FromMilliseconds(16)),
+            viewport);
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.ApplyRenderInvalidationCleanupForTests();
+        renderSurface.ClearMeasureInvalidation();
+        renderSurface.ClearArrangeInvalidation();
+        renderSurface.ClearRenderInvalidationShallow();
+
+        renderSurface.RefreshSurface();
+        var shouldDraw = uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            viewport);
+
+        Assert.True(shouldDraw);
+        Assert.True((uiRoot.LastShouldDrawReasons & UiRedrawReason.RenderInvalidated) != 0);
+
+        renderSurface.DrawSurface -= OnDrawSurface;
+        return;
+
+        static void OnDrawSurface(SpriteBatch spriteBatch, Rectangle bounds)
+        {
+            _ = spriteBatch;
+            _ = bounds;
+        }
+    }
+
+    [Fact]
+    public void ManagedMode_DoesNotRedrawWithoutInvalidation()
+    {
+        var backend = new FakeRenderSurfaceManagedBackend();
+        var previousBackend = RenderSurface.ManagedBackend;
+        RenderSurface.ManagedBackend = backend;
+
+        try
+        {
+            var renderSurface = new RenderSurface();
+            var callbackCount = 0;
+            renderSurface.DrawSurface += (_, _) => callbackCount++;
+            renderSurface.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
+            renderSurface.Arrange(new LayoutRect(0f, 0f, 160f, 90f));
+
+            var graphicsDevice = CreateFakeGraphicsDevice();
+
+            Assert.True(renderSurface.EnsureManagedSurfaceRenderedForTests(graphicsDevice));
+            Assert.False(renderSurface.EnsureManagedSurfaceRenderedForTests(graphicsDevice));
+            Assert.Equal(1, callbackCount);
+            Assert.Equal(1, backend.RenderCallCount);
+
+            renderSurface.InvalidateVisual();
+            Assert.True(renderSurface.EnsureManagedSurfaceRenderedForTests(graphicsDevice));
+            Assert.Equal(2, callbackCount);
+            Assert.Equal(2, backend.RenderCallCount);
+        }
+        finally
+        {
+            RenderSurface.ManagedBackend = previousBackend;
+        }
+    }
+
+    [Fact]
+    public void ManagedMode_SizeChange_RecreatesManagedResources()
+    {
+        var backend = new FakeRenderSurfaceManagedBackend();
+        var previousBackend = RenderSurface.ManagedBackend;
+        RenderSurface.ManagedBackend = backend;
+
+        try
+        {
+            var renderSurface = new RenderSurface();
+            renderSurface.DrawSurface += static (_, _) => { };
+            renderSurface.Arrange(new LayoutRect(0f, 0f, 160f, 90f));
+
+            var graphicsDevice = CreateFakeGraphicsDevice();
+            _ = renderSurface.EnsureManagedSurfaceRenderedForTests(graphicsDevice);
+
+            renderSurface.Arrange(new LayoutRect(0f, 0f, 200f, 120f));
+            _ = renderSurface.EnsureManagedSurfaceRenderedForTests(graphicsDevice);
+
+            Assert.Equal(2, backend.CreateCallCount);
+            Assert.Equal(new Point(200, 120), backend.LastCreatedSize);
+        }
+        finally
+        {
+            RenderSurface.ManagedBackend = previousBackend;
+        }
+    }
+
+    [Fact]
+    public void ManagedMode_GraphicsDeviceChange_RecreatesManagedResources()
+    {
+        var backend = new FakeRenderSurfaceManagedBackend();
+        var previousBackend = RenderSurface.ManagedBackend;
+        RenderSurface.ManagedBackend = backend;
+
+        try
+        {
+            var renderSurface = new RenderSurface();
+            renderSurface.DrawSurface += static (_, _) => { };
+            renderSurface.Arrange(new LayoutRect(0f, 0f, 140f, 80f));
+
+            _ = renderSurface.EnsureManagedSurfaceRenderedForTests(CreateFakeGraphicsDevice());
+            _ = renderSurface.EnsureManagedSurfaceRenderedForTests(CreateFakeGraphicsDevice());
+
+            Assert.Equal(2, backend.CreateCallCount);
+        }
+        finally
+        {
+            RenderSurface.ManagedBackend = previousBackend;
+        }
+    }
+
+    [Fact]
+    public void DrawSurface_CallbackExecution_ClearsBeforeEachRedraw()
+    {
+        var backend = new FakeRenderSurfaceManagedBackend();
+        var previousBackend = RenderSurface.ManagedBackend;
+        RenderSurface.ManagedBackend = backend;
+
+        try
+        {
+            var renderSurface = new RenderSurface();
+            var callbackCount = 0;
+            renderSurface.DrawSurface += (_, _) => callbackCount++;
+            renderSurface.Arrange(new LayoutRect(0f, 0f, 180f, 120f));
+
+            var graphicsDevice = CreateFakeGraphicsDevice();
+            _ = renderSurface.EnsureManagedSurfaceRenderedForTests(graphicsDevice);
+            renderSurface.InvalidateVisual();
+            _ = renderSurface.EnsureManagedSurfaceRenderedForTests(graphicsDevice);
+
+            Assert.Equal(2, callbackCount);
+            Assert.Equal(2, backend.ClearCallCount);
+            Assert.Equal(new Rectangle(0, 0, 180, 120), backend.LastDrawBounds);
+        }
+        finally
+        {
+            RenderSurface.ManagedBackend = previousBackend;
+        }
+    }
+
+    [Fact]
+    public void OverrideOnlyManagedSurface_UsesManagedModeWithoutSubscribers()
+    {
+        var renderSurface = new OverridingRenderSurface();
+        renderSurface.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
+        renderSurface.Arrange(new LayoutRect(0f, 0f, 150f, 90f));
+
+        Assert.True(renderSurface.IsManagedModeActiveForTests);
+        Assert.NotNull(renderSurface.GetDisplayedSurfaceForTests());
+        Assert.Equal(150, renderSurface.GetDisplayedSurfaceForTests()!.PixelWidth);
+        Assert.Equal(90, renderSurface.GetDisplayedSurfaceForTests()!.PixelHeight);
+    }
+
+    [Fact]
     public void ApplyRenderInvalidationCleanup_WhenNoDirtyRootsRemain_ClearsStaleRenderFlags()
     {
         var root = new Panel();
@@ -132,5 +403,78 @@ public sealed class RenderSurfaceTests
 
         Assert.True(shouldDraw);
         Assert.True((uiRoot.LastShouldDrawReasons & UiRedrawReason.RenderInvalidated) != 0);
+    }
+
+    private static GraphicsDevice CreateFakeGraphicsDevice()
+    {
+        return (GraphicsDevice)RuntimeHelpers.GetUninitializedObject(typeof(GraphicsDevice));
+    }
+
+    private sealed class OverridingRenderSurface : RenderSurface
+    {
+        protected override void OnDrawSurface(SpriteBatch spriteBatch, Rectangle bounds)
+        {
+            _ = spriteBatch;
+            _ = bounds;
+        }
+    }
+
+    private sealed class FakeRenderSurfaceManagedBackend : IRenderSurfaceManagedBackend
+    {
+        public int CreateCallCount { get; private set; }
+
+        public int RenderCallCount { get; private set; }
+
+        public int ClearCallCount { get; private set; }
+
+        public Point LastCreatedSize { get; private set; }
+
+        public Rectangle LastDrawBounds { get; private set; }
+
+        public IRenderSurfaceManagedSession Create(GraphicsDevice graphicsDevice, int pixelWidth, int pixelHeight)
+        {
+            CreateCallCount++;
+            LastCreatedSize = new Point(pixelWidth, pixelHeight);
+            return new FakeSession(this, graphicsDevice, pixelWidth, pixelHeight);
+        }
+
+        private sealed class FakeSession : IRenderSurfaceManagedSession
+        {
+            private readonly FakeRenderSurfaceManagedBackend _owner;
+
+            public FakeSession(FakeRenderSurfaceManagedBackend owner, GraphicsDevice graphicsDevice, int pixelWidth, int pixelHeight)
+            {
+                _owner = owner;
+                GraphicsDevice = graphicsDevice;
+                PixelWidth = pixelWidth;
+                PixelHeight = pixelHeight;
+                Surface = ImageSource.FromPixels(pixelWidth, pixelHeight);
+            }
+
+            public GraphicsDevice GraphicsDevice { get; }
+
+            public int PixelWidth { get; }
+
+            public int PixelHeight { get; }
+
+            public bool IsDisposed { get; private set; }
+
+            public ImageSource Surface { get; }
+
+            public void Render(SpriteBatch? uiSpriteBatch, Color clearColor, Action<SpriteBatch, Rectangle> drawCallback)
+            {
+                _ = uiSpriteBatch;
+                _ = clearColor;
+                _owner.ClearCallCount++;
+                _owner.RenderCallCount++;
+                _owner.LastDrawBounds = new Rectangle(0, 0, PixelWidth, PixelHeight);
+                drawCallback(null!, _owner.LastDrawBounds);
+            }
+
+            public void Dispose()
+            {
+                IsDisposed = true;
+            }
+        }
     }
 }

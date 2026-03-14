@@ -61,6 +61,7 @@ public static class ControlViews
         "RadioButton",
         "RepeatButton",
         "RenderSurface",
+        "RenderSurface [GPU]",
         "ResizeGrip",
         "RichTextBox",
         "ScrollBar",
@@ -145,6 +146,7 @@ public static class ControlViews
             ["RadioButton"] = static () => new RadioButtonView(),
             ["RepeatButton"] = static () => new RepeatButtonView(),
             ["RenderSurface"] = static () => new RenderSurfaceView(),
+            ["RenderSurface [GPU]"] = static () => new RenderSurfaceGpuView(),
             ["ResizeGrip"] = static () => new ResizeGripView(),
             ["RichTextBox"] = static () => new RichTextBoxView(),
             ["ScrollBar"] = static () => new ScrollBarView(),
@@ -266,6 +268,7 @@ internal static class ControlDemoSupport
             ["RadioButton"] = static () => new RadioButton(),
             ["RepeatButton"] = static () => new RepeatButton(),
             ["RenderSurface"] = static () => new RenderSurface(),
+            ["RenderSurface [GPU]"] = static () => new RenderSurface(),
             ["ResizeGrip"] = static () => new ResizeGrip(),
             ["RichTextBox"] = static () => new RichTextBox(),
             ["ScrollBar"] = static () => new ScrollBar(),
@@ -554,6 +557,7 @@ internal static class ControlDemoSupport
                     Value = 35f
                 };
             case "RenderSurface":
+            case "RenderSurface [GPU]":
                 return new RenderSurface
                 {
                     Width = 320f,

@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-03-10 (full filesystem refresh)
+Generated: 2026-03-14 (full filesystem refresh)
 
 ```text
 UI/
@@ -145,6 +145,7 @@ UI/
     Inputs
       Calendar.cs
       CalendarDateRange.cs
+      CalendarDayButton.cs
       CalendarSelectionMode.cs
       DatePicker.cs
       IHyperlinkHoverHost.cs
@@ -194,8 +195,10 @@ UI/
       ImageSource.cs
       Label.cs
       ProgressBar.cs
+      RenderSurface.cs
       Separator.cs
       Shape.cs
+      SurfacePresenterBase.cs
       TextBlock.cs
     Scrolling
       IScrollTransformContent.cs
@@ -285,12 +288,15 @@ UI/
       LayoutManager.cs
     Root
       Services
+        IUiRootUpdateParticipant.cs
         UiRootDirtyRegionOps.cs
         UiRootDraw.cs
         UiRootFrameState.cs
+        UiRootFrameUpdates.cs
         UiRootInputPipeline.cs
         UiRootLayoutScheduler.cs
         UiRootRetainedTree.cs
+        UiRootVisualIndex.cs
       UiRoot.cs
       UiRootTypes.cs
     Tree
@@ -302,7 +308,9 @@ UI/
       DirtyRegionTracker.cs
       IRenderDirtyBoundsHintProvider.cs
     Text
+      UiRuntimeFontBackend.cs
       UiTextRenderer.cs
+      UiTextTypes.cs
   Resources
     Core
       ResourceDictionary.cs
