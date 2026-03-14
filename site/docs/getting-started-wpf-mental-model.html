@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs - How WPF-style UI maps here</title>
+    <meta name="description" content="How the WPF-style mental model maps onto InkkSlinger and MonoGame.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./docs.css">
+</head>
+<body class="docs-page">
+    <div class="page-shell docs-shell">
+        <header class="site-header docs-header">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger Docs</strong>
+                    <span>How WPF-style UI maps here</span>
+                </span>
+            </a>
+            <div class="docs-header-controls">
+                <a class="header-link" href="./index.html">Docs</a>
+            </div>
+        </header>
+        <main class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Documentation tree">
+                <p class="sidebar-label">Docs tree</p>
+                <nav class="tree-nav">
+                    <ul>
+                        <li class="tree-node expanded"><a href="./index.html">Docs Home</a></li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group" open>
+                                <summary class="tree-group-toggle">Getting Started</summary>
+                                <ul>
+                                    <li><a class="active" href="./getting-started-wpf-mental-model.html">How WPF-style UI maps here</a></li>
+                                    <li><a href="./getting-started-hello-world-without-viewmodel.html">Hello World without a ViewModel</a></li>
+                                    <li><a href="./getting-started-hello-world-with-viewmodel.html">Hello World with a ViewModel</a></li>
+                                    <li><a href="./getting-started-hooking-view-into-monogame.html">Hooking the view into MonoGame</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">RenderSurface</summary>
+                                <ul>
+                                    <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
+                                    <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+            <article class="docs-content">
+                <div class="doc-hero">
+                    <p class="eyebrow">Getting Started</p>
+                    <h1>How WPF-style UI maps here</h1>
+                    <p>In WPF, you describe a tree of controls in markup, connect data through bindings, and let the framework handle layout, input routing, and rendering. InkkSlinger keeps that mental model, but it runs inside a MonoGame <code>UiRoot</code> instead of a native WPF window.</p>
+                    <p>The shortest useful way to think about it is: <strong>WPF-style authoring and behavior, MonoGame as the rendering host.</strong> You still build a visual tree, you still use <code>DataContext</code> for bindings, and you still write views in XML. The difference is that MonoGame owns the frame loop and InkkSlinger draws your UI inside that loop.</p>
+                </div>
+                <section class="doc-section">
+                    <h2>How the pieces fit together</h2>
+                    <div class="doc-grid">
+                        <section class="doc-card">
+                            <h3>1. Write a view in XML</h3>
+                            <p>InkkSlinger views live in <code>.xml</code> files, not <code>.xaml</code>. You still use WPF-style concepts like <code>x:Class</code>, <code>x:Name</code>, resources, and bindings.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>2. Add code-behind if needed</h3>
+                            <p>A paired <code>.xml.cs</code> file can set up the view, assign a <code>DataContext</code>, or directly update named controls for simpler screens.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>3. Mount the view into <code>UiRoot</code></h3>
+                            <p>MonoGame creates the window and runs the frame loop. InkkSlinger attaches your root view to <code>UiRoot</code>, then handles layout, input, animation, and drawing from there.</p>
+                        </section>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./index.html">
+                        <span>Previous</span>
+                        <strong>Docs Home</strong>
+                    </a>
+                    <a class="pager-link" href="./getting-started-hello-world-without-viewmodel.html">
+                        <span>Next</span>
+                        <strong>Hello World without a ViewModel</strong>
+                    </a>
+                </nav>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

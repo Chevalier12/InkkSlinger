@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs - The three RenderSurface modes</title>
+    <meta name="description" content="The three user-facing modes of RenderSurface.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./docs.css">
+</head>
+<body class="docs-page">
+    <div class="page-shell docs-shell">
+        <header class="site-header docs-header">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger Docs</strong>
+                    <span>The three modes</span>
+                </span>
+            </a>
+            <div class="docs-header-controls">
+                <a class="header-link" href="./index.html">Docs</a>
+            </div>
+        </header>
+        <main class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Documentation tree">
+                <p class="sidebar-label">Docs tree</p>
+                <nav class="tree-nav">
+                    <ul>
+                        <li class="tree-node expanded"><a href="./index.html">Docs Home</a></li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">Getting Started</summary>
+                                <ul>
+                                    <li><a href="./getting-started-wpf-mental-model.html">How WPF-style UI maps here</a></li>
+                                    <li><a href="./getting-started-hello-world-without-viewmodel.html">Hello World without a ViewModel</a></li>
+                                    <li><a href="./getting-started-hello-world-with-viewmodel.html">Hello World with a ViewModel</a></li>
+                                    <li><a href="./getting-started-hooking-view-into-monogame.html">Hooking the view into MonoGame</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group" open>
+                                <summary class="tree-group-toggle">RenderSurface</summary>
+                                <ul>
+                                    <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
+                                    <li><a class="active" href="./rendersurface-the-three-modes.html">The three modes</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+            <article class="docs-content">
+                <div class="doc-hero">
+                    <p class="eyebrow">RenderSurface</p>
+                    <h1>The three modes</h1>
+                    <p><code>RenderSurface</code> has three real usage modes. Two of them are managed modes, where the control owns an offscreen render target and asks you to draw into it. The first is a manual presentation mode, where you provide the finished surface yourself.</p>
+                </div>
+                <section class="doc-section">
+                    <div class="mode-grid">
+                        <section class="mode-card">
+                            <p class="section-tag">Mode 1</p>
+                            <h4>Manual surface mode</h4>
+                            <p>You provide an <code>ImageSource</code> or <code>Texture2D</code>. The control just presents it and participates in layout like any other surface presenter.</p>
+                        </section>
+                        <section class="mode-card">
+                            <p class="section-tag">Mode 2</p>
+                            <h4>DrawSurface event mode</h4>
+                            <p>You subscribe to <code>DrawSurface</code>. The control creates an offscreen target, gives you a <code>SpriteBatch</code> and bounds rectangle, and you draw into it.</p>
+                        </section>
+                        <section class="mode-card">
+                            <p class="section-tag">Mode 3</p>
+                            <h4>Subclass override mode</h4>
+                            <p>You derive from <code>RenderSurface</code> and override <code>OnDrawSurface</code>. This is the most reusable and encapsulated mode.</p>
+                        </section>
+                    </div>
+
+                    <h2>Mode 1: Manual surface mode</h2>
+                    <p>Use this when some other part of the app already produces a texture or image and your UI only needs to display it. This is the cleanest mode when the gameplay or simulation side already owns the rendering pipeline.</p>
+                    <p>This is also the mode used by the CPU-backed demo in the repository. The demo renders into a texture, calls <code>Present(_surfaceTexture)</code>, and later calls <code>RefreshSurface()</code> after uploading new pixel data.</p>
+                    <pre><code class="language-csharp">public sealed class MiniMapHostView : UserControl
+{
+    private readonly RenderSurface? _miniMapSurface;
+    private Texture2D? _miniMapTexture;
+
+    public MiniMapHostView()
+    {
+        InitializeComponent();
+        _miniMapSurface = this.FindName("MiniMapSurface") as RenderSurface;
+    }
+
+    private void PublishLatestMiniMap(Texture2D texture)
+    {
+        _miniMapTexture = texture;
+        _miniMapSurface?.Present(texture);
+        _miniMapSurface?.RefreshSurface();
+    }
+}</code></pre>
+
+                    <h2>Mode 2: DrawSurface event mode</h2>
+                    <p>Use this when you want the control to own the offscreen target, but you do not want to create a custom subclass. You attach an event handler and draw with MonoGame primitives directly into the surface.</p>
+                    <p>This is the mode used by the GPU demo in the repository. The view subscribes to <code>_gameSurface.DrawSurface += OnDrawGameSurface;</code>, draws into the supplied <code>SpriteBatch</code>, and invalidates the control whenever a redraw is needed.</p>
+                    <pre><code class="language-csharp">private void OnDrawMiniMap(SpriteBatch spriteBatch, Rectangle bounds)
+{
+    // Draw your game visualization here.
+}</code></pre>
+
+                    <h2>Mode 3: Subclass override mode</h2>
+                    <p>Use this when <code>RenderSurface</code> is becoming a real reusable control in your UI layer. Instead of wiring event handlers from outside, you encapsulate the drawing behavior inside a type.</p>
+                    <p>A subclass enters managed mode automatically if it overrides <code>OnDrawSurface</code>. This means no external event subscription is required.</p>
+                    <pre><code class="language-csharp">public sealed class MiniMapSurface : RenderSurface
+{
+    protected override bool IsFrameUpdateActive => true;
+
+    protected override void OnFrameUpdate(GameTime gameTime)
+    {
+        InvalidateVisual();
+    }
+
+    protected override void OnDrawSurface(SpriteBatch spriteBatch, Rectangle bounds)
+    {
+        // Draw the control's content here.
+    }
+}</code></pre>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./rendersurface-why-it-exists.html">
+                        <span>Previous</span>
+                        <strong>Why it exists</strong>
+                    </a>
+                    <a class="pager-link" href="./rendersurface-sizing-and-layout.html">
+                        <span>Next</span>
+                        <strong>Sizing and layout</strong>
+                    </a>
+                </nav>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

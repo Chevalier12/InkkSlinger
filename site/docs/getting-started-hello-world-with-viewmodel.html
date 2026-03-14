@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs - Hello World with a ViewModel</title>
+    <meta name="description" content="Hello World in InkkSlinger with a view model and bindings.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./docs.css">
+</head>
+<body class="docs-page">
+    <div class="page-shell docs-shell">
+        <header class="site-header docs-header">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger Docs</strong>
+                    <span>Hello World with a ViewModel</span>
+                </span>
+            </a>
+            <div class="docs-header-controls">
+                <a class="header-link" href="./index.html">Docs</a>
+            </div>
+        </header>
+        <main class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Documentation tree">
+                <p class="sidebar-label">Docs tree</p>
+                <nav class="tree-nav">
+                    <ul>
+                        <li class="tree-node expanded"><a href="./index.html">Docs Home</a></li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group" open>
+                                <summary class="tree-group-toggle">Getting Started</summary>
+                                <ul>
+                                    <li><a href="./getting-started-wpf-mental-model.html">How WPF-style UI maps here</a></li>
+                                    <li><a href="./getting-started-hello-world-without-viewmodel.html">Hello World without a ViewModel</a></li>
+                                    <li><a class="active" href="./getting-started-hello-world-with-viewmodel.html">Hello World with a ViewModel</a></li>
+                                    <li><a href="./getting-started-hooking-view-into-monogame.html">Hooking the view into MonoGame</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">RenderSurface</summary>
+                                <ul>
+                                    <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
+                                    <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+            <article class="docs-content">
+                <div class="doc-hero">
+                    <p class="eyebrow">Getting Started</p>
+                    <h1>Hello World with a ViewModel</h1>
+                    <p>Use this version when you want the more WPF-like flow: state lives in a view model, the view binds to it, and button clicks call commands instead of mutating controls directly.</p>
+                    <p>The main project already references <code>CommunityToolkit.Mvvm</code>, so you can use <code>ObservableObject</code>, <code>[ObservableProperty]</code>, and <code>[RelayCommand]</code> the same way the existing sample view models do.</p>
+                </div>
+                <section class="doc-section">
+                    <h2>View</h2>
+                    <pre><code class="language-xml">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.HelloWorldWithViewModelView"
+             Background="#101822"
+             Padding="24"&gt;
+  &lt;Border Background="#142231"
+          BorderBrush="#28445F"
+          BorderThickness="1"
+          CornerRadius="14"
+          Padding="20"&gt;
+    &lt;StackPanel&gt;
+      &lt;Label Text="{Binding Message}"
+             FontSize="24"
+             FontWeight="SemiBold"
+             Foreground="#F4FAFF" /&gt;
+
+      &lt;Button Text="Change message"
+              Command="{Binding ChangeMessageCommand}"
+              Margin="0,12,0,0" /&gt;
+    &lt;/StackPanel&gt;
+  &lt;/Border&gt;
+&lt;/UserControl&gt;</code></pre>
+                    <h2>View model</h2>
+                    <pre><code class="language-csharp">using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace InkkSlinger;
+
+public partial class HelloWorldViewModel : ObservableObject
+{
+    [ObservableProperty]
+    private string _message = "Hello from the view model.";
+
+    [RelayCommand]
+    private void ChangeMessage()
+    {
+        Message = "You clicked the button.";
+    }
+}</code></pre>
+                    <h2>Code-behind</h2>
+                    <pre><code class="language-csharp">namespace InkkSlinger;
+
+public partial class HelloWorldWithViewModelView : UserControl
+{
+    public HelloWorldWithViewModelView()
+    {
+        InitializeComponent();
+        DataContext = new HelloWorldViewModel();
+    }
+}</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>What the binding does:</strong> <code>{Binding Message}</code> reads the <code>Message</code> property from the view's <code>DataContext</code>, and <code>{Binding ChangeMessageCommand}</code> binds the button to the generated command.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./getting-started-hello-world-without-viewmodel.html">
+                        <span>Previous</span>
+                        <strong>Hello World without a ViewModel</strong>
+                    </a>
+                    <a class="pager-link" href="./getting-started-hooking-view-into-monogame.html">
+                        <span>Next</span>
+                        <strong>Hooking the view into MonoGame</strong>
+                    </a>
+                </nav>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

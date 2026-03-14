@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs - RenderSurface rules worth knowing</title>
+    <meta name="description" content="Operational rules worth knowing when using RenderSurface.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./docs.css">
+</head>
+<body class="docs-page">
+    <div class="page-shell docs-shell">
+        <header class="site-header docs-header">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger Docs</strong>
+                    <span>RenderSurface rules worth knowing</span>
+                </span>
+            </a>
+            <div class="docs-header-controls">
+                <a class="header-link" href="./index.html">Docs</a>
+            </div>
+        </header>
+        <main class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Documentation tree">
+                <p class="sidebar-label">Docs tree</p>
+                <nav class="tree-nav">
+                    <ul>
+                        <li class="tree-node expanded"><a href="./index.html">Docs Home</a></li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">Getting Started</summary>
+                                <ul>
+                                    <li><a href="./getting-started-wpf-mental-model.html">How WPF-style UI maps here</a></li>
+                                    <li><a href="./getting-started-hello-world-without-viewmodel.html">Hello World without a ViewModel</a></li>
+                                    <li><a href="./getting-started-hello-world-with-viewmodel.html">Hello World with a ViewModel</a></li>
+                                    <li><a href="./getting-started-hooking-view-into-monogame.html">Hooking the view into MonoGame</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group" open>
+                                <summary class="tree-group-toggle">RenderSurface</summary>
+                                <ul>
+                                    <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
+                                    <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a class="active" href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+            <article class="docs-content">
+                <div class="doc-hero">
+                    <p class="eyebrow">RenderSurface</p>
+                    <h1>Rules worth knowing</h1>
+                    <p>These are the operational rules that matter when you use <code>RenderSurface</code> in a real app.</p>
+                </div>
+                <section class="doc-section">
+                    <ul class="detail-list">
+                        <li>Manual and managed modes are not blended. If managed mode is active, the managed presentation surface wins while it is active.</li>
+                        <li>If managed mode later becomes inactive, the previously assigned manual surface becomes visible again.</li>
+                        <li>Managed resources are recreated when the arranged size changes or the graphics device changes.</li>
+                        <li><code>InvalidateVisual()</code> in managed mode marks the managed surface dirty so it will be redrawn.</li>
+                        <li><code>RefreshSurface()</code> is the lightweight "redraw this surface" signal when the underlying content changed.</li>
+                        <li><code>ClearSurface()</code> clears the manually assigned surface reference.</li>
+                        <li><code>OnFrameUpdate</code> only matters in managed mode, and only when <code>IsFrameUpdateActive</code> returns <code>true</code>.</li>
+                    </ul>
+                    <div class="callout doc-callout">
+                        <p><strong>Recommended rule of thumb:</strong> if your gameplay code already produces a texture, use manual mode. If you want ad hoc drawing from a screen or view, use the <code>DrawSurface</code> event. If the thing you are building deserves to become a reusable control, subclass <code>RenderSurface</code> and own the drawing behavior there.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./rendersurface-sizing-and-layout.html">
+                        <span>Previous</span>
+                        <strong>Sizing and layout</strong>
+                    </a>
+                    <a class="pager-link" href="./index.html">
+                        <span>Next</span>
+                        <strong>Docs Home</strong>
+                    </a>
+                </nav>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

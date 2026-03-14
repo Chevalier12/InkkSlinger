@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs - Hooking the view into MonoGame</title>
+    <meta name="description" content="How to mount an InkkSlinger view into the MonoGame host.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./docs.css">
+</head>
+<body class="docs-page">
+    <div class="page-shell docs-shell">
+        <header class="site-header docs-header">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger Docs</strong>
+                    <span>Hooking the view into MonoGame</span>
+                </span>
+            </a>
+            <div class="docs-header-controls">
+                <a class="header-link" href="./index.html">Docs</a>
+            </div>
+        </header>
+        <main class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Documentation tree">
+                <p class="sidebar-label">Docs tree</p>
+                <nav class="tree-nav">
+                    <ul>
+                        <li class="tree-node expanded"><a href="./index.html">Docs Home</a></li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group" open>
+                                <summary class="tree-group-toggle">Getting Started</summary>
+                                <ul>
+                                    <li><a href="./getting-started-wpf-mental-model.html">How WPF-style UI maps here</a></li>
+                                    <li><a href="./getting-started-hello-world-without-viewmodel.html">Hello World without a ViewModel</a></li>
+                                    <li><a href="./getting-started-hello-world-with-viewmodel.html">Hello World with a ViewModel</a></li>
+                                    <li><a class="active" href="./getting-started-hooking-view-into-monogame.html">Hooking the view into MonoGame</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">RenderSurface</summary>
+                                <ul>
+                                    <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
+                                    <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+            <article class="docs-content">
+                <div class="doc-hero">
+                    <p class="eyebrow">Getting Started</p>
+                    <h1>Hooking the view into MonoGame</h1>
+                    <p>The view will not show up until you mount it into the MonoGame host. The simplest way is to create a root panel in <code>Game1</code>, add your view to it, and pass that tree to <code>UiRoot</code>.</p>
+                </div>
+                <section class="doc-section">
+                    <h2>Minimal host setup</h2>
+                    <pre><code class="language-csharp">protected override void Initialize()
+{
+    _root = new Panel();
+    _root.AddChild(new HelloWorldWithViewModelView());
+
+    _uiRoot = new UiRoot(_root)
+    {
+        UseRetainedRenderList = true,
+        UseDirtyRegionRendering = true,
+        UseConditionalDrawScheduling = true
+    };
+
+    base.Initialize();
+}</code></pre>
+                    <p>If you want the smallest first step, start with the code-behind-only version. If you already know you want bindings and commands, start with the view model version and keep the view mostly declarative.</p>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./getting-started-hello-world-with-viewmodel.html">
+                        <span>Previous</span>
+                        <strong>Hello World with a ViewModel</strong>
+                    </a>
+                    <a class="pager-link" href="./rendersurface-why-it-exists.html">
+                        <span>Next</span>
+                        <strong>Why it exists</strong>
+                    </a>
+                </nav>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

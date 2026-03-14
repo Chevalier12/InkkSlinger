@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs - RenderSurface sizing and layout</title>
+    <meta name="description" content="Sizing and layout rules for RenderSurface.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./docs.css">
+</head>
+<body class="docs-page">
+    <div class="page-shell docs-shell">
+        <header class="site-header docs-header">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger Docs</strong>
+                    <span>RenderSurface sizing and layout</span>
+                </span>
+            </a>
+            <div class="docs-header-controls">
+                <a class="header-link" href="./index.html">Docs</a>
+            </div>
+        </header>
+        <main class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Documentation tree">
+                <p class="sidebar-label">Docs tree</p>
+                <nav class="tree-nav">
+                    <ul>
+                        <li class="tree-node expanded"><a href="./index.html">Docs Home</a></li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">Getting Started</summary>
+                                <ul>
+                                    <li><a href="./getting-started-wpf-mental-model.html">How WPF-style UI maps here</a></li>
+                                    <li><a href="./getting-started-hello-world-without-viewmodel.html">Hello World without a ViewModel</a></li>
+                                    <li><a href="./getting-started-hello-world-with-viewmodel.html">Hello World with a ViewModel</a></li>
+                                    <li><a href="./getting-started-hooking-view-into-monogame.html">Hooking the view into MonoGame</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group" open>
+                                <summary class="tree-group-toggle">RenderSurface</summary>
+                                <ul>
+                                    <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
+                                    <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
+                                    <li><a class="active" href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+            <article class="docs-content">
+                <div class="doc-hero">
+                    <p class="eyebrow">RenderSurface</p>
+                    <h1>Sizing and layout</h1>
+                    <p>The layout behavior changes depending on which mode you use.</p>
+                </div>
+                <section class="doc-section">
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Manual mode sizing</h3>
+                            <p>In manual mode, the control can measure itself from the underlying surface size. If you present a 64x32 surface, its natural desired size becomes 64x32 unless parent layout constraints change the final arranged size.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Managed mode sizing</h3>
+                            <p>In managed mode, the control reports zero intrinsic size. That means you should normally set <code>Width</code>, <code>Height</code>, <code>MinWidth</code>, <code>MinHeight</code>, or place it in a layout that gives it real space.</p>
+                        </section>
+                    </div>
+                    <p>Because <code>RenderSurface</code> inherits from <code>SurfacePresenterBase</code>, it also supports the standard surface scaling options:</p>
+                    <ul class="detail-list">
+                        <li><code>Stretch="None"</code>: do not scale the content.</li>
+                        <li><code>Stretch="Fill"</code>: stretch independently in both axes.</li>
+                        <li><code>Stretch="Uniform"</code>: preserve aspect ratio and fit inside the slot.</li>
+                        <li><code>Stretch="UniformToFill"</code>: preserve aspect ratio and fill the slot, cropping if needed.</li>
+                        <li><code>StretchDirection="Both"</code>: allow upscaling and downscaling.</li>
+                        <li><code>StretchDirection="UpOnly"</code>: do not shrink below natural size.</li>
+                        <li><code>StretchDirection="DownOnly"</code>: do not grow above natural size.</li>
+                    </ul>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./rendersurface-the-three-modes.html">
+                        <span>Previous</span>
+                        <strong>The three modes</strong>
+                    </a>
+                    <a class="pager-link" href="./rendersurface-rules-worth-knowing.html">
+                        <span>Next</span>
+                        <strong>Rules worth knowing</strong>
+                    </a>
+                </nav>
+            </article>
+        </main>
+    </div>
+</body>
+</html>

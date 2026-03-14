@@ -134,6 +134,11 @@
     color: var(--text);
 }
 
+.tree-node ul a.active {
+    color: var(--text);
+    background: rgba(255, 159, 67, 0.12);
+}
+
 .docs-content {
     padding: 28px;
 }
@@ -258,11 +263,51 @@
     max-width: none;
 }
 
+.doc-pagination {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 36px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pager-link {
+    display: block;
+    padding: 16px 18px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+}
+
+.pager-link span {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--accent-cool);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.pager-link strong {
+    display: block;
+    color: var(--text);
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.pager-link:hover,
+.pager-link:focus-visible {
+    background: rgba(255, 255, 255, 0.06);
+}
+
 @media (max-width: 1080px) {
     .docs-layout,
     .doc-grid,
     .doc-grid.two-up,
-    .mode-grid {
+    .mode-grid,
+    .doc-pagination {
         grid-template-columns: 1fr;
     }
 
