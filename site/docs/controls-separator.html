@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>InkkSlinger Docs - What RenderSurface is</title>
-    <meta name="description" content="What RenderSurface is: a WPF-hosted control that owns a region of the screen for custom MonoGame rendering.">
+    <title>InkkSlinger Docs - Separator</title>
+    <meta name="description" content="Separator control reference.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
                 <span class="brand-mark">IS</span>
                 <span class="brand-copy">
                     <strong>InkkSlinger Docs</strong>
-                    <span>What RenderSurface is</span>
+                    <span>Separator</span>
                 </span>
             </a>
             <div class="docs-header-controls">
@@ -64,10 +64,10 @@
                             </details>
                         </li>
                         <li class="tree-node expanded">
-                            <details class="tree-group" open>
+                            <details class="tree-group">
                                 <summary class="tree-group-toggle">RenderSurface</summary>
                                 <ul>
-                                    <li><a class="active" href="./rendersurface-what-it-is.html">What it is</a></li>
+                                    <li><a href="./rendersurface-what-it-is.html">What it is</a></li>
                                     <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
                                     <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
                                     <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
@@ -76,7 +76,7 @@
                             </details>
                         </li>
                         <li class="tree-node expanded">
-                            <details class="tree-group">
+                            <details class="tree-group" open>
                                 <summary class="tree-group-toggle">Controls</summary>
                                 <ul>
                                     <li><a href="./controls-button.html">Button</a></li>
@@ -127,7 +127,7 @@
                                     <li><a href="./controls-data-grid-cell.html">DataGridCell</a></li>
                                     <li><a href="./controls-image.html">Image</a></li>
                                     <li><a href="./controls-grid-splitter.html">GridSplitter</a></li>
-                                    <li><a href="./controls-separator.html">Separator</a></li>
+                                    <li><a class="active" href="./controls-separator.html">Separator</a></li>
                                     <li><a href="./controls-window.html">Window</a></li>
                                     <li><a href="./controls-frame.html">Frame</a></li>
                                     <li><a href="./controls-user-control.html">UserControl</a></li>
@@ -142,49 +142,10 @@
             </aside>
             <article class="docs-content">
                 <div class="doc-hero">
-                    <p class="eyebrow">RenderSurface</p>
-                    <h1>What RenderSurface is</h1>
-                    <p><code>RenderSurface</code> is a WPF-hosted control that reserves a rectangular region of the screen for custom MonoGame rendering. From the layout tree's perspective it is just another control: it takes up space, participates in sizing, and can be positioned like anything else. From the rendering perspective it is a portal into the MonoGame world.</p>
-                    <p>It does not try to be a general-purpose canvas or a replacement for WPF's built-in drawing primitives. Its job is narrowly defined: hand off a bounded region of pixels to code that knows how to fill them using MonoGame.</p>
+                    <p class="eyebrow">Controls</p>
+                    <h1>Separator</h1>
+                    <p>WIP</p>
                 </div>
-                <section class="doc-section">
-                    <h2>The two sides it connects</h2>
-                    <p>Every InkkSlinger application has two distinct rendering concerns living in the same window.</p>
-                    <p>The UI side is handled by the WPF-style layout tree. Controls, panels, labels, buttons, and bindings all live here. This side is declarative and data-driven.</p>
-                    <p>The game side is handled by MonoGame. Sprites, textures, cameras, draw calls, and frame-by-frame update logic all live here. This side is imperative and frame-driven.</p>
-                    <p><code>RenderSurface</code> sits at the boundary between them. It gives the layout tree a stable, measurable slot while giving MonoGame a surface it can draw into each frame.</p>
-                    <div class="doc-grid two-up">
-                        <section class="doc-card">
-                            <h3>From the layout tree</h3>
-                            <p>A normal control with a size, alignment, and position. It participates in measure and arrange the same way any other element does.</p>
-                        </section>
-                        <section class="doc-card">
-                            <h3>From MonoGame</h3>
-                            <p>A render target with known dimensions. Each frame, MonoGame draws into this target and the result appears inside the control's bounds.</p>
-                        </section>
-                    </div>
-                </section>
-                <section class="doc-section">
-                    <h2>What it is not</h2>
-                    <ul>
-                        <li>It is not a general drawing API. You do not call drawing methods on it directly.</li>
-                        <li>It is not a replacement for WPF shapes or drawing visuals. Use those for UI-level graphics.</li>
-                        <li>It is not aware of your game logic. It only owns the pixel region and the handoff contract.</li>
-                    </ul>
-                    <div class="callout doc-callout">
-                        <p><strong>One control, one region.</strong> Each <code>RenderSurface</code> instance owns exactly one rectangular region. If you need multiple independent rendered viewports, place multiple instances in the layout tree.</p>
-                    </div>
-                </section>
-                <nav class="doc-pagination" aria-label="Page navigation">
-                    <a class="pager-link" href="./getting-started-hooking-view-into-monogame.html">
-                        <span>Previous</span>
-                        <strong>Hooking the view into MonoGame</strong>
-                    </a>
-                    <a class="pager-link" href="./rendersurface-why-it-exists.html">
-                        <span>Next</span>
-                        <strong>Why it exists</strong>
-                    </a>
-                </nav>
             </article>
         </main>
     </div>
