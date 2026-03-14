@@ -1,25 +1,21 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const body = document.body;
-    const toggleButtons = document.querySelectorAll("[data-sidebar-toggle]");
+    const toggleButtons = document.querySelectorAll("[data-tree-toggle]");
 
-    function syncButtons()
-    {
-        const isCollapsed = body.classList.contains("sidebar-collapsed");
-        toggleButtons.forEach((button) =>
-        {
-            button.setAttribute("aria-expanded", (!isCollapsed).toString());
-            button.textContent = isCollapsed ? "Show navigation" : "Hide navigation";
-        });
-    }
+    toggleButtons.forEach((button) => {
+        const targetId = button.getAttribute("aria-controls");
+        if (!targetId) {
+            return;
+        }
 
-    toggleButtons.forEach((button) =>
-    {
-        button.addEventListener("click", () =>
-        {
-            body.classList.toggle("sidebar-collapsed");
-            syncButtons();
+        const target = document.getElementById(targetId);
+        if (!target) {
+            return;
+        }
+
+        button.addEventListener("click", () => {
+            const isExpanded = button.getAttribute("aria-expanded") === "true";
+            button.setAttribute("aria-expanded", (!isExpanded).toString());
+            target.hidden = isExpanded;
         });
     });
-
-    syncButtons();
 });

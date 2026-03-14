@@ -29,14 +29,7 @@
                 </span>
             </a>
             <div class="docs-header-controls">
-                <button
-                    type="button"
-                    class="sidebar-toggle"
-                    data-sidebar-toggle
-                    aria-controls="docs-sidebar"
-                    aria-expanded="true">
-                    Hide navigation
-                </button>
+                <a class="header-link" href="./index.html">Docs</a>
             </div>
         </header>
 
@@ -49,8 +42,15 @@
                             <a href="./index.html">Docs Home</a>
                         </li>
                         <li class="tree-node expanded">
-                            <a href="./getting-started.html">Getting Started</a>
-                            <ul>
+                            <button
+                                type="button"
+                                class="tree-group-toggle"
+                                data-tree-toggle
+                                aria-controls="tree-getting-started"
+                                aria-expanded="false">
+                                Getting Started
+                            </button>
+                            <ul id="tree-getting-started" hidden>
                                 <li><a href="./getting-started.html#wpf-mental-model">How WPF-style UI maps here</a></li>
                                 <li><a href="./getting-started.html#without-viewmodel">Hello World without a ViewModel</a></li>
                                 <li><a href="./getting-started.html#with-viewmodel">Hello World with a ViewModel</a></li>
@@ -58,8 +58,15 @@
                             </ul>
                         </li>
                         <li class="tree-node expanded">
-                            <a href="./rendersurface.html" class="active">RenderSurface</a>
-                            <ul>
+                            <button
+                                type="button"
+                                class="tree-group-toggle"
+                                data-tree-toggle
+                                aria-controls="tree-rendersurface"
+                                aria-expanded="false">
+                                RenderSurface
+                            </button>
+                            <ul id="tree-rendersurface" hidden>
                                 <li><a href="#rendersurface-story">Why it exists</a></li>
                                 <li><a href="#rendersurface-modes">The three modes</a></li>
                                 <li><a href="#rendersurface-layout">Sizing and layout</a></li>

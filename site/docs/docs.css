@@ -18,7 +18,10 @@
     gap: 12px;
 }
 
-.sidebar-toggle {
+.header-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-height: 44px;
     padding: 0 16px;
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -27,11 +30,10 @@
     color: var(--text);
     font: inherit;
     font-weight: 700;
-    cursor: pointer;
 }
 
-.sidebar-toggle:hover,
-.sidebar-toggle:focus-visible {
+.header-link:hover,
+.header-link:focus-visible {
     background: rgba(255, 255, 255, 0.08);
 }
 
@@ -40,10 +42,6 @@
     grid-template-columns: 280px minmax(0, 1fr);
     gap: 20px;
     align-items: start;
-}
-
-.sidebar-collapsed .docs-layout {
-    grid-template-columns: minmax(0, 1fr);
 }
 
 .docs-sidebar,
@@ -59,10 +57,6 @@
     position: sticky;
     top: 18px;
     padding: 20px 18px;
-}
-
-.sidebar-collapsed .docs-sidebar {
-    display: none;
 }
 
 .sidebar-label {
@@ -81,16 +75,40 @@
 }
 
 .tree-node > a,
-.tree-node ul a {
+.tree-node ul a,
+.tree-group-toggle {
     display: block;
+    width: 100%;
     padding: 10px 12px;
     border-radius: 12px;
     color: var(--text);
 }
 
-.tree-node > a {
+.tree-node > a,
+.tree-group-toggle {
     background: rgba(255, 255, 255, 0.04);
     font-weight: 700;
+}
+
+.tree-group-toggle {
+    position: relative;
+    border: 0;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+
+.tree-group-toggle::after {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    color: var(--muted);
+    content: "+";
+}
+
+.tree-group-toggle[aria-expanded="true"]::after {
+    content: "-";
 }
 
 .tree-node ul {
@@ -106,7 +124,9 @@
 
 .tree-nav a:hover,
 .tree-nav a:focus-visible,
-.tree-nav a.active {
+.tree-nav a.active,
+.tree-group-toggle:hover,
+.tree-group-toggle:focus-visible {
     background: rgba(255, 255, 255, 0.05);
     color: var(--text);
 }
