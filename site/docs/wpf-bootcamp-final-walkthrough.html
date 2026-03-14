@@ -20,7 +20,7 @@
                 <div class="doc-hero"><p class="eyebrow">WPF Bootcamp</p><h1>Bootcamp Final Walkthrough</h1><p>This final walkthrough ties the core pieces together in one screen: layout, a view model, commands, collection rendering, validation-aware input, and reusable styling.</p><p>The point is not to memorize this exact sample. The point is to see how the WPF systems cooperate when the screen is built coherently.</p></div>
                 <section class="doc-section">
                     <h2>What you'll learn</h2>
-                    <ul><li>How the same screen can use layout, templates, bindings, and commands without leaking concerns across layers.</li><li>How to reason about the flow from state to visuals to user interaction and back again.</li><li>How to review a WPF screen and identify where each responsibility belongs.</li></ul>
+                    <ul><li>How the same screen can use layout, templates, bindings, and commands without leaking concerns across layers.</li><li>How to reason about the flow from state to visuals to user interaction and back again.</li><li>How to review a WPF screen and identify where each responsibility belongs.</li><li>How all the major WPF subsystems you just learned reinforce each other inside one realistic composition.</li></ul>
                     <pre><code class="language-xml">&lt;Grid Margin="24"&gt;
     &lt;Grid.RowDefinitions&gt;
         &lt;RowDefinition Height="Auto" /&gt;
@@ -33,6 +33,104 @@
             Content="Save changes"
             Command="{Binding SaveCommand}" /&gt;
 &lt;/Grid&gt;</code></pre>
+                    <p>Even this short sample already uses several framework ideas at once: layout negotiation, collection rendering, selected-item binding, and a command-driven action.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>The mental model in one sentence</h2>
+                    <p>A coherent WPF screen is a collaboration between the tree, property system, layout engine, binding engine, command system, collection controls, and template/style layer, all coordinated around one bounded screen state.</p>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>What you should see now</h3>
+                            <p>Not just "a list and a button", but a set of interacting framework contracts that each own part of the behavior.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Why this matters</h3>
+                            <p>If you can read a screen through those contracts, you can debug it, extend it, and review it much more reliably.</p>
+                        </section>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>A fuller sample screen</h2>
+                    <pre><code class="language-xml">&lt;Grid Margin="24"&gt;
+    &lt;Grid.RowDefinitions&gt;
+        &lt;RowDefinition Height="Auto" /&gt;
+        &lt;RowDefinition Height="*" /&gt;
+        &lt;RowDefinition Height="Auto" /&gt;
+    &lt;/Grid.RowDefinitions&gt;
+    &lt;Grid.ColumnDefinitions&gt;
+        &lt;ColumnDefinition Width="2*" /&gt;
+        &lt;ColumnDefinition Width="3*" /&gt;
+    &lt;/Grid.ColumnDefinitions&gt;
+
+    &lt;TextBlock Grid.ColumnSpan="2"
+               Text="Task Editor"
+               FontSize="28" /&gt;
+
+    &lt;ListBox Grid.Row="1"
+             ItemsSource="{Binding Tasks}"
+             SelectedItem="{Binding SelectedTask}" /&gt;
+
+    &lt;StackPanel Grid.Row="1"
+                Grid.Column="1"
+                Margin="24,0,0,0"&gt;
+        &lt;TextBox Text="{Binding SelectedTask.Title, Mode=TwoWay}" /&gt;
+        &lt;TextBox Text="{Binding SelectedTask.Notes, Mode=TwoWay}" /&gt;
+        &lt;TextBlock Text="{Binding ValidationMessage}" /&gt;
+    &lt;/StackPanel&gt;
+
+    &lt;Button Grid.Row="2"
+            Grid.ColumnSpan="2"
+            HorizontalAlignment="Right"
+            Content="Save changes"
+            Command="{Binding SaveCommand}" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <p>This is still small, but it is now representative enough to show how the main WPF subsystems cooperate inside one realistic editing workflow.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Read it subsystem by subsystem</h2>
+                    <ol>
+                        <li><strong>Tree and composition:</strong> the grid is the host, the list and editor are sibling feature areas, and the button sits in the command area.</li>
+                        <li><strong>Layout:</strong> rows and columns divide the screen into a header, content region, and action row.</li>
+                        <li><strong>Binding:</strong> the list binds to <code>Tasks</code>, the editor binds to the currently selected task, and the text block binds to validation-facing status.</li>
+                        <li><strong>Collections:</strong> the list box renders a collection and synchronizes selected item state back to the view model.</li>
+                        <li><strong>Commands:</strong> the save button expresses intent through <code>SaveCommand</code> instead of a direct click handler.</li>
+                        <li><strong>Validation and input:</strong> editable fields can surface invalid state while the validation message and command availability reflect whether the screen is ready to save.</li>
+                    </ol>
+                    <p>This is the real payoff of the bootcamp: you can now inspect the screen through a set of stable conceptual lenses instead of treating it like one indivisible blob of XAML.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>How the state flow works</h2>
+                    <ol>
+                        <li>The view model exposes a <code>Tasks</code> collection, a <code>SelectedTask</code>, editable properties, and a <code>SaveCommand</code>.</li>
+                        <li>The list box shows the collection and pushes selection back through binding.</li>
+                        <li>The editor fields read and write the selected task's editable state.</li>
+                        <li>Validation runs as input changes or when editing is committed, depending on the binding configuration.</li>
+                        <li>The save command evaluates whether the current state can be persisted.</li>
+                        <li>When saving succeeds, the view model updates any status properties and the bindings refresh the visible UI.</li>
+                    </ol>
+                    <p>That is a full loop from data to visuals to user input and back to state. If you can explain that loop, you understand the screen.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>How to review a WPF screen</h2>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Start with layout</h3>
+                            <p>Which panel owns sizing and placement? Are rows, columns, alignment, and spacing expressing the intended structure clearly?</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Then inspect bindings</h3>
+                            <p>What is the data context? Which properties are one-way, two-way, or command bindings? Is state living in the right layer?</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Then inspect control choice</h3>
+                            <p>Is a list actually using an items control? Is selection modeled declaratively? Are templates doing visual work rather than behavioral work?</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Then inspect reuse and validation</h3>
+                            <p>Are styles and resources centralizing design decisions? Do validation and commands produce a usable editing flow?</p>
+                        </section>
+                    </div>
+                    <p>This review order is practical because it follows the same architectural layering you learned across the bootcamp.</p>
                 </section>
                 <section class="doc-section">
                     <h2>How to read the sample</h2>
@@ -40,8 +138,20 @@
                     <p>Each decision maps back to an earlier lesson. That is the real goal of the bootcamp: not isolated facts, but a stable design instinct.</p>
                 </section>
                 <section class="doc-section">
+                    <h2>How the lessons connect</h2>
+                    <ul>
+                        <li>The application mental model taught you that the screen is a collaboration of systems, not a bag of controls.</li>
+                        <li>XAML fundamentals taught you how the object graph is declared.</li>
+                        <li>Layout taught you why the grid and stack panel behave the way they do.</li>
+                        <li>Controls, content, and collections taught you why the list box is the right abstraction for repeated items.</li>
+                        <li>Dependency properties, binding, and commands explained how state and actions move through the UI.</li>
+                        <li>MVVM, styling, validation, and composition taught you how to keep the whole thing maintainable as it grows.</li>
+                    </ul>
+                    <p>The final walkthrough matters because it proves these topics are not isolated chapters. They are all parts of one design language.</p>
+                </section>
+                <section class="doc-section">
                     <h2>Common mistakes</h2>
-                    <ul><li>Collapsing all responsibilities into the view model and calling it architecture.</li><li>Building the right screen with the wrong abstractions, such as manual list rendering instead of an item control.</li><li>Styling late and ad hoc rather than using resources and templates from the beginning.</li></ul>
+                    <ul><li>Collapsing all responsibilities into the view model and calling it architecture.</li><li>Building the right screen with the wrong abstractions, such as manual list rendering instead of an item control.</li><li>Styling late and ad hoc rather than using resources and templates from the beginning.</li><li>Reviewing a complex screen only visually instead of tracing layout, data flow, commands, and validation separately.</li><li>Treating the final sample as a recipe to copy verbatim rather than a model to reason from.</li></ul>
                     <div class="callout doc-callout"><p><strong>InkkSlinger parity note:</strong> This is the bridge point back into the repository. Once you understand the WPF side of the design, the existing InkkSlinger docs become much easier to use because you can map each screen concern onto the corresponding framework primitive.</p></div>
                     <p>The next practical step is to jump into the project-specific docs and apply this model inside InkkSlinger.</p>
                 </section>
