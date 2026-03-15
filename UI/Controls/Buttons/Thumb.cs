@@ -44,9 +44,12 @@ public class Thumb : Control
             new FrameworkPropertyMetadata(new Color(164, 164, 164), FrameworkPropertyMetadataOptions.AffectsRender));
 
     private bool _isDragging;
+    private Vector2 _dragStartPosition;
+    private Vector2 _lastPointerPosition;
 
     public Thumb()
     {
+        Focusable = false;
     }
 
     public event System.EventHandler<DragStartedEventArgs> DragStarted
@@ -120,16 +123,72 @@ public class Thumb : Control
         UiDrawing.DrawRectStroke(spriteBatch, slot, 1f, BorderBrush, Opacity);
     }
 
+    internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
+    {
+        if (!IsEnabled || !HitTest(pointerPosition))
+        {
+            return false;
+        }
 
+        _isDragging = true;
+        _dragStartPosition = pointerPosition;
+        _lastPointerPosition = pointerPosition;
+        IsDragging = true;
 
+        RaiseRoutedEvent(
+            DragStartedEvent,
+            new DragStartedEventArgs(
+                DragStartedEvent,
+                pointerPosition.X - LayoutSlot.X,
+                pointerPosition.Y - LayoutSlot.Y));
 
+        return true;
+    }
 
+    internal bool HandlePointerMoveFromInput(Vector2 pointerPosition)
+    {
+        if (!_isDragging)
+        {
+            return false;
+        }
 
+        var delta = pointerPosition - _lastPointerPosition;
+        _lastPointerPosition = pointerPosition;
+
+        RaiseRoutedEvent(
+            DragDeltaEvent,
+            new DragDeltaEventArgs(
+                DragDeltaEvent,
+                delta.X,
+                delta.Y));
+
+        return MathF.Abs(delta.X) > 0.001f || MathF.Abs(delta.Y) > 0.001f;
+    }
+
+    internal bool HandlePointerUpFromInput()
+    {
+        if (!_isDragging)
+        {
+            return false;
+        }
+
+        EndDrag(canceled: false, releaseCapture: true);
+        return true;
+    }
+
+    internal void SetMouseOverFromInput(bool isMouseOver)
+    {
+        if (IsMouseOver == isMouseOver)
+        {
+            return;
+        }
+
+        IsMouseOver = isMouseOver;
+    }
 
     private void EndDrag(bool canceled, bool releaseCapture)
     {
-        const float totalX = 0f;
-        const float totalY = 0f;
+        var total = _lastPointerPosition - _dragStartPosition;
 
         _isDragging = false;
         IsDragging = false;
@@ -138,6 +197,6 @@ public class Thumb : Control
 
         RaiseRoutedEvent(
             DragCompletedEvent,
-            new DragCompletedEventArgs(DragCompletedEvent, totalX, totalY, canceled));
+            new DragCompletedEventArgs(DragCompletedEvent, total.X, total.Y, canceled));
     }
 }

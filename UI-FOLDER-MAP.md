@@ -204,6 +204,7 @@ UI/
       IScrollTransformContent.cs
       ScrollBar.cs
       ScrollBarVisibility.cs
+      Track.cs
       ScrollViewer.cs
       VirtualizationEnums.cs
     Selection

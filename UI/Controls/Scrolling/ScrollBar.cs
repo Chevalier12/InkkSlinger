@@ -1,283 +1,424 @@
 using System;
-using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
+[TemplatePart("PART_Track", typeof(Track))]
+[TemplatePart("PART_Thumb", typeof(Thumb))]
+[TemplatePart("PART_LineUpButton", typeof(RepeatButton))]
+[TemplatePart("PART_LineDownButton", typeof(RepeatButton))]
 public class ScrollBar : Control
 {
     private const float ValueEpsilon = 0.01f;
+    private static readonly Lazy<Style> DefaultScrollBarStyle = new(BuildDefaultScrollBarStyle);
+    private Track? _track;
+    private Thumb? _thumb;
+    private RepeatButton? _lineUpButton;
+    private RepeatButton? _lineDownButton;
+    private float _thumbDragOriginTravel;
+    private float _thumbDragAccumulatedDelta;
+
+    public static readonly RoutedEvent ValueChangedEvent =
+        new(nameof(ValueChanged), RoutingStrategy.Bubble);
+
     public static readonly DependencyProperty OrientationProperty =
         DependencyProperty.Register(
             nameof(Orientation),
             typeof(Orientation),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(Orientation.Vertical, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                Orientation.Vertical,
+                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is ScrollBar scrollBar)
+                    {
+                        scrollBar.SyncTrackState();
+                        scrollBar.UpdateDefaultLineButtonText();
+                    }
+                }));
 
     public static readonly DependencyProperty MinimumProperty =
         DependencyProperty.Register(
             nameof(Minimum),
             typeof(float),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.AffectsArrange,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is ScrollBar scrollBar)
+                    {
+                        scrollBar.CoerceValueWithinRange();
+                        scrollBar.SyncTrackState();
+                    }
+                },
+                coerceValueCallback: static (_, value) => value is float numeric && float.IsFinite(numeric) ? numeric : 0f));
 
     public static readonly DependencyProperty MaximumProperty =
         DependencyProperty.Register(
             nameof(Maximum),
             typeof(float),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.AffectsArrange,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is ScrollBar scrollBar)
+                    {
+                        scrollBar.CoerceValueWithinRange();
+                        scrollBar.SyncTrackState();
+                    }
+                },
+                coerceValueCallback: static (_, value) => value is float numeric && float.IsFinite(numeric) ? numeric : 0f));
 
     public static readonly DependencyProperty ValueProperty =
         DependencyProperty.Register(
             nameof(Value),
             typeof(float),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.AffectsArrange,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is not ScrollBar scrollBar ||
+                        args.OldValue is not float oldValue ||
+                        args.NewValue is not float newValue)
+                    {
+                        return;
+                    }
+
+                    scrollBar.SyncTrackState();
+                    if (!AreClose(oldValue, newValue))
+                    {
+                        scrollBar.RaiseRoutedEvent(ValueChangedEvent, new RoutedSimpleEventArgs(ValueChangedEvent));
+                    }
+                },
+                coerceValueCallback: static (dependencyObject, value) =>
+                {
+                    var numeric = value is float v && float.IsFinite(v) ? v : 0f;
+                    return dependencyObject is ScrollBar scrollBar
+                        ? scrollBar.CoerceValue(numeric)
+                        : numeric;
+                }));
 
     public static readonly DependencyProperty ViewportSizeProperty =
         DependencyProperty.Register(
             nameof(ViewportSize),
             typeof(float),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.AffectsArrange,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is ScrollBar scrollBar)
+                    {
+                        scrollBar.CoerceValueWithinRange();
+                        scrollBar.SyncTrackState();
+                    }
+                },
+                coerceValueCallback: static (_, value) => value is float numeric && float.IsFinite(numeric) && numeric >= 0f ? numeric : 0f));
 
     public static readonly DependencyProperty SmallChangeProperty =
         DependencyProperty.Register(
             nameof(SmallChange),
             typeof(float),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(16f));
+            new FrameworkPropertyMetadata(
+                16f,
+                coerceValueCallback: static (_, value) => value is float change && float.IsFinite(change) && change > 0f ? change : 16f));
 
     public static readonly DependencyProperty LargeChangeProperty =
         DependencyProperty.Register(
             nameof(LargeChange),
             typeof(float),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(32f));
+            new FrameworkPropertyMetadata(
+                32f,
+                coerceValueCallback: static (_, value) => value is float change && float.IsFinite(change) && change > 0f ? change : 32f));
 
-    public static readonly DependencyProperty ThicknessProperty =
+    public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
-            nameof(Thickness),
-            typeof(float),
-            typeof(ScrollBar),
-            new FrameworkPropertyMetadata(12f, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
-
-    public static readonly DependencyProperty TrackBrushProperty =
-        DependencyProperty.Register(
-            nameof(TrackBrush),
+            nameof(Background),
             typeof(Color),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(new Color(42, 42, 42), FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(new Color(42, 42, 42)));
 
-    public static readonly DependencyProperty ThumbBrushProperty =
+    public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
-            nameof(ThumbBrush),
+            nameof(Foreground),
             typeof(Color),
             typeof(ScrollBar),
-            new FrameworkPropertyMetadata(new Color(112, 112, 112), FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(new Color(112, 112, 112)));
+
+    public new static readonly DependencyProperty BorderBrushProperty =
+        DependencyProperty.Register(
+            nameof(BorderBrush),
+            typeof(Color),
+            typeof(ScrollBar),
+            new FrameworkPropertyMetadata(Color.Transparent));
+
+    public new static readonly DependencyProperty BorderThicknessProperty =
+        DependencyProperty.Register(
+            nameof(BorderThickness),
+            typeof(Thickness),
+            typeof(ScrollBar),
+            new FrameworkPropertyMetadata(Thickness.Empty));
+
+    public ScrollBar()
+    {
+        Focusable = false;
+    }
+
+    public event EventHandler<RoutedSimpleEventArgs> ValueChanged
+    {
+        add => AddHandler(ValueChangedEvent, value);
+        remove => RemoveHandler(ValueChangedEvent, value);
+    }
 
     public Orientation Orientation
     {
         get => GetValue<Orientation>(OrientationProperty);
-        set => SetIfChanged(OrientationProperty, value);
+        set => SetValue(OrientationProperty, value);
     }
 
     public float Minimum
     {
         get => GetValue<float>(MinimumProperty);
-        set => SetIfChanged(MinimumProperty, value);
+        set => SetValue(MinimumProperty, value);
     }
 
     public float Maximum
     {
         get => GetValue<float>(MaximumProperty);
-        set => SetIfChanged(MaximumProperty, value);
+        set => SetValue(MaximumProperty, value);
     }
 
     public float Value
     {
         get => GetValue<float>(ValueProperty);
-        set => SetIfChanged(ValueProperty, value);
+        set => SetValue(ValueProperty, value);
     }
 
     public float ViewportSize
     {
         get => GetValue<float>(ViewportSizeProperty);
-        set => SetIfChanged(ViewportSizeProperty, value);
+        set => SetValue(ViewportSizeProperty, value);
     }
 
     public float SmallChange
     {
         get => GetValue<float>(SmallChangeProperty);
-        set => SetIfChanged(SmallChangeProperty, value);
+        set => SetValue(SmallChangeProperty, value);
     }
 
     public float LargeChange
     {
         get => GetValue<float>(LargeChangeProperty);
-        set => SetIfChanged(LargeChangeProperty, value);
+        set => SetValue(LargeChangeProperty, value);
     }
 
-    public float Thickness
+    public new Color Background
     {
-        get => GetValue<float>(ThicknessProperty);
-        set => SetIfChanged(ThicknessProperty, value);
+        get => GetValue<Color>(BackgroundProperty);
+        set => SetValue(BackgroundProperty, value);
     }
 
-    public Color TrackBrush
+    public new Color Foreground
     {
-        get => GetValue<Color>(TrackBrushProperty);
-        set => SetIfChanged(TrackBrushProperty, value);
+        get => GetValue<Color>(ForegroundProperty);
+        set => SetValue(ForegroundProperty, value);
     }
 
-    public Color ThumbBrush
+    public new Color BorderBrush
     {
-        get => GetValue<Color>(ThumbBrushProperty);
-        set => SetIfChanged(ThumbBrushProperty, value);
+        get => GetValue<Color>(BorderBrushProperty);
+        set => SetValue(BorderBrushProperty, value);
     }
 
-    protected override Vector2 MeasureOverride(Vector2 availableSize)
+    public new Thickness BorderThickness
     {
-        var thickness = MathF.Max(8f, Thickness);
-        if (Orientation == Orientation.Vertical)
-        {
-            return new Vector2(thickness, MathF.Max(0f, availableSize.Y));
-        }
-
-        return new Vector2(MathF.Max(0f, availableSize.X), thickness);
+        get => GetValue<Thickness>(BorderThicknessProperty);
+        set => SetValue(BorderThicknessProperty, value);
     }
 
-    protected override Vector2 ArrangeOverride(Vector2 finalSize)
+    public override void OnApplyTemplate()
     {
-        return finalSize;
-    }
+        DetachTemplatePartHandlers();
+        base.OnApplyTemplate();
 
-    protected override void OnRender(SpriteBatch spriteBatch)
-    {
-        var track = LayoutSlot;
-        if (track.Width <= 0f || track.Height <= 0f)
+        _track = GetTemplateChild("PART_Track") as Track;
+        _thumb = GetTemplateChild("PART_Thumb") as Thumb;
+        _lineUpButton = GetTemplateChild("PART_LineUpButton") as RepeatButton;
+        _lineDownButton = GetTemplateChild("PART_LineDownButton") as RepeatButton;
+
+        if (_track == null || _thumb == null || _lineUpButton == null || _lineDownButton == null)
         {
             return;
         }
 
-        var hasStyleDrivenTrack = GetValueSource(TrackBrushProperty) != DependencyPropertyValueSource.Default;
-        var hasStyleDrivenBackground = GetValueSource(BackgroundProperty) != DependencyPropertyValueSource.Default;
-        var trackFill = hasStyleDrivenTrack
-            ? TrackBrush
-            : (hasStyleDrivenBackground ? Background : TrackBrush);
-        UiDrawing.DrawFilledRect(spriteBatch, track, trackFill, Opacity);
+        EnsureTrackDescendant(_thumb, "PART_Thumb");
+        EnsureTrackDescendant(_lineUpButton, "PART_LineUpButton");
+        EnsureTrackDescendant(_lineDownButton, "PART_LineDownButton");
 
-        var thumb = GetThumbRect(track);
-        if (thumb.Width > 0f && thumb.Height > 0f)
-        {
-            var hasStyleDrivenThumb = GetValueSource(ThumbBrushProperty) != DependencyPropertyValueSource.Default;
-            var hasStyleDrivenForeground = GetValueSource(ForegroundProperty) != DependencyPropertyValueSource.Default;
-            var thumbFill = hasStyleDrivenThumb
-                ? ThumbBrush
-                : (hasStyleDrivenForeground ? Foreground : ThumbBrush);
-            UiDrawing.DrawFilledRect(spriteBatch, thumb, thumbFill, Opacity);
-        }
+        Track.SetPartRole(_lineUpButton, TrackPartRole.DecreaseButton);
+        Track.SetPartRole(_thumb, TrackPartRole.Thumb);
+        Track.SetPartRole(_lineDownButton, TrackPartRole.IncreaseButton);
+        Panel.SetZIndex(_thumb, 1);
+
+        _track.AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnTrackMouseDown);
+        _thumb.DragStarted += OnThumbDragStarted;
+        _thumb.DragDelta += OnThumbDragDelta;
+        _thumb.DragCompleted += OnThumbDragCompleted;
+        _lineUpButton.Click += OnLineUpButtonClick;
+        _lineDownButton.Click += OnLineDownButtonClick;
+
+        UpdateDefaultLineButtonText();
+        SyncTrackState();
+    }
+
+    protected override Style? GetFallbackStyle()
+    {
+        return DefaultScrollBarStyle.Value;
     }
 
     internal LayoutRect GetThumbRectForInput()
     {
-        return GetThumbRect(LayoutSlot);
+        return _track?.GetThumbRect() ?? LayoutSlot;
     }
 
-    internal bool HitTestTrack(Vector2 point)
+    private void OnLineUpButtonClick(object? sender, RoutedSimpleEventArgs args)
     {
-        var track = LayoutSlot;
-        return point.X >= track.X &&
-               point.X <= track.X + track.Width &&
-               point.Y >= track.Y &&
-               point.Y <= track.Y + track.Height;
+        _ = sender;
+        Value -= ResolveSmallChange();
+        args.Handled = true;
     }
 
-    internal bool TryHandlePointerDown(Vector2 pointerPosition, out float value, out bool startDrag, out float dragOffset)
+    private void OnLineDownButtonClick(object? sender, RoutedSimpleEventArgs args)
     {
-        value = Value;
-        startDrag = false;
-        dragOffset = 0f;
-
-        if (!HitTestTrack(pointerPosition))
-        {
-            return false;
-        }
-
-        var thumb = GetThumbRectForInput();
-        var pointerAxis = GetPointerAxis(pointerPosition);
-        var thumbStart = GetAxisStart(thumb);
-        var thumbEnd = GetAxisEnd(thumb);
-
-        if (pointerAxis >= thumbStart && pointerAxis <= thumbEnd)
-        {
-            startDrag = true;
-            dragOffset = pointerAxis - thumbStart;
-            value = CoerceValue(Value);
-            return true;
-        }
-
-        var next = Value + (pointerAxis < thumbStart ? -MathF.Max(1f, LargeChange) : MathF.Max(1f, LargeChange));
-        value = CoerceValue(next);
-        return true;
+        _ = sender;
+        Value += ResolveSmallChange();
+        args.Handled = true;
     }
 
-    internal float GetValueFromDragPointer(Vector2 pointerPosition, float dragOffset)
+    private void OnTrackMouseDown(object? sender, MouseRoutedEventArgs args)
     {
-        var track = LayoutSlot;
-        var thumb = GetThumbRect(track);
-        var range = GetScrollableRange();
-        if (range <= ValueEpsilon)
+        _ = sender;
+        if (!IsEnabled || args.Button != MouseButton.Left || _track == null)
         {
-            return Minimum;
+            return;
         }
 
-        var trackLength = GetAxisLength(track);
-        var thumbLength = GetAxisLength(thumb);
-        var travel = MathF.Max(1f, trackLength - thumbLength);
-        var pointerAxis = GetPointerAxis(pointerPosition);
-        var trackStart = GetAxisStart(track);
-        var thumbStart = MathF.Max(0f, MathF.Min(travel, pointerAxis - trackStart - dragOffset));
-        var normalized = thumbStart / travel;
-        return CoerceValue(Minimum + (normalized * range));
+        if (IsSameOrDescendantOf(args.OriginalSource, _thumb) ||
+            IsSameOrDescendantOf(args.OriginalSource, _lineUpButton) ||
+            IsSameOrDescendantOf(args.OriginalSource, _lineDownButton))
+        {
+            return;
+        }
+
+        if (_track.HitTestDecreaseRegion(args.Position))
+        {
+            Value -= ResolveLargeChange();
+            args.Handled = true;
+        }
+        else if (_track.HitTestIncreaseRegion(args.Position))
+        {
+            Value += ResolveLargeChange();
+            args.Handled = true;
+        }
     }
 
-    private LayoutRect GetThumbRect(LayoutRect track)
+    private void OnThumbDragStarted(object? sender, DragStartedEventArgs args)
     {
-        var extent = MathF.Max(0f, Maximum - Minimum);
-        if (extent <= 0.01f)
-        {
-            return track;
-        }
-
-        var viewport = MathF.Max(0f, ViewportSize);
-        var range = MathF.Max(0f, extent - viewport);
-        var offset = MathF.Max(Minimum, MathF.Min(Maximum, Value)) - Minimum;
-
-        if (Orientation == Orientation.Vertical)
-        {
-            var trackLength = MathF.Max(1f, track.Height);
-            var ratio = viewport > 0f ? MathF.Max(0.05f, MathF.Min(1f, viewport / MathF.Max(viewport, extent))) : 0.1f;
-            var thumbLength = MathF.Max(14f, trackLength * ratio);
-            var travel = MathF.Max(0f, trackLength - thumbLength);
-            var t = range <= 0.01f ? 0f : MathF.Max(0f, MathF.Min(1f, offset / range));
-            return new LayoutRect(track.X, track.Y + (travel * t), track.Width, thumbLength);
-        }
-
-        var trackWidth = MathF.Max(1f, track.Width);
-        var widthRatio = viewport > 0f ? MathF.Max(0.05f, MathF.Min(1f, viewport / MathF.Max(viewport, extent))) : 0.1f;
-        var thumbWidth = MathF.Max(14f, trackWidth * widthRatio);
-        var horizontalTravel = MathF.Max(0f, trackWidth - thumbWidth);
-        var horizontalT = range <= 0.01f ? 0f : MathF.Max(0f, MathF.Min(1f, offset / range));
-        return new LayoutRect(track.X + (horizontalTravel * horizontalT), track.Y, thumbWidth, track.Height);
+        _ = sender;
+        _thumbDragOriginTravel = _track?.GetThumbTravel() ?? 0f;
+        _thumbDragAccumulatedDelta = 0f;
+        args.Handled = true;
     }
 
-    private float GetScrollableRange()
+    private void OnThumbDragDelta(object? sender, DragDeltaEventArgs args)
     {
-        var extent = MathF.Max(0f, Maximum - Minimum);
-        return MathF.Max(0f, extent - MathF.Max(0f, ViewportSize));
+        _ = sender;
+        if (_track == null)
+        {
+            return;
+        }
+
+        _thumbDragAccumulatedDelta += Orientation == Orientation.Vertical
+            ? args.VerticalChange
+            : args.HorizontalChange;
+        Value = _track.GetValueFromThumbTravel(_thumbDragOriginTravel + _thumbDragAccumulatedDelta);
+        args.Handled = true;
+    }
+
+    private void OnThumbDragCompleted(object? sender, DragCompletedEventArgs args)
+    {
+        _ = sender;
+        _thumbDragOriginTravel = 0f;
+        _thumbDragAccumulatedDelta = 0f;
+        args.Handled = true;
+    }
+
+    private void SyncTrackState()
+    {
+        if (_track == null)
+        {
+            return;
+        }
+
+        var coercedValue = CoerceValue(Value);
+        if (!AreClose(Value, coercedValue))
+        {
+            SetValue(ValueProperty, coercedValue);
+        }
+
+        SetIfChanged(Track.OrientationProperty, _track, Orientation);
+        SetIfChanged(Track.MinimumProperty, _track, Minimum);
+        SetIfChanged(Track.MaximumProperty, _track, Maximum);
+        SetIfChanged(Track.ValueProperty, _track, coercedValue);
+        SetIfChanged(Track.ViewportSizeProperty, _track, ViewportSize);
+    }
+
+    private void UpdateDefaultLineButtonText()
+    {
+        UpdateLineButtonText(_lineUpButton, Orientation == Orientation.Vertical ? "^" : "<");
+        UpdateLineButtonText(_lineDownButton, Orientation == Orientation.Vertical ? "v" : ">");
+    }
+
+    private static void UpdateLineButtonText(RepeatButton? button, string nextText)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(button.Text) &&
+            button.Text is not "^" and not "v" and not "<" and not ">")
+        {
+            return;
+        }
+
+        if (button.Text == nextText)
+        {
+            return;
+        }
+
+        button.Text = nextText;
+    }
+
+    private void CoerceValueWithinRange()
+    {
+        var coerced = CoerceValue(Value);
+        if (AreClose(Value, coerced))
+        {
+            return;
+        }
+
+        SetValue(ValueProperty, coerced);
     }
 
     private float CoerceValue(float value)
@@ -291,48 +432,154 @@ public class ScrollBar : Control
         return MathF.Max(Minimum, MathF.Min(maxValue, value));
     }
 
-    private float GetPointerAxis(Vector2 pointerPosition)
+    private float GetScrollableRange()
     {
-        return Orientation == Orientation.Vertical ? pointerPosition.Y : pointerPosition.X;
+        var extent = MathF.Max(0f, Maximum - Minimum);
+        return MathF.Max(0f, extent - MathF.Max(0f, ViewportSize));
     }
 
-    private float GetAxisStart(LayoutRect rect)
+    private float ResolveSmallChange()
     {
-        return Orientation == Orientation.Vertical ? rect.Y : rect.X;
+        return MathF.Max(ValueEpsilon, SmallChange);
     }
 
-    private float GetAxisEnd(LayoutRect rect)
+    private float ResolveLargeChange()
     {
-        return Orientation == Orientation.Vertical ? rect.Y + rect.Height : rect.X + rect.Width;
+        return MathF.Max(ValueEpsilon, LargeChange);
     }
 
-    private float GetAxisLength(LayoutRect rect)
+    private void DetachTemplatePartHandlers()
     {
-        return Orientation == Orientation.Vertical ? rect.Height : rect.Width;
+        if (_track != null)
+        {
+            _track.RemoveHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnTrackMouseDown);
+        }
+
+        if (_thumb != null)
+        {
+            _thumb.DragStarted -= OnThumbDragStarted;
+            _thumb.DragDelta -= OnThumbDragDelta;
+            _thumb.DragCompleted -= OnThumbDragCompleted;
+        }
+
+        if (_lineUpButton != null)
+        {
+            _lineUpButton.Click -= OnLineUpButtonClick;
+        }
+
+        if (_lineDownButton != null)
+        {
+            _lineDownButton.Click -= OnLineDownButtonClick;
+        }
     }
 
-    private void SetIfChanged(DependencyProperty property, float value)
+    private void EnsureTrackDescendant(UIElement element, string partName)
     {
-        if (AreClose(GetValue<float>(property), value))
+        if (IsSameOrDescendantOf(element, _track))
         {
             return;
         }
 
-        SetValue(property, value);
+        throw new InvalidOperationException(
+            $"Template part '{partName}' for '{nameof(ScrollBar)}' must be within '{nameof(Track)}' part 'PART_Track'.");
     }
 
-    private void SetIfChanged<T>(DependencyProperty property, T value)
+    private static bool IsSameOrDescendantOf(UIElement? element, UIElement? ancestor)
     {
-        if (EqualityComparer<T>.Default.Equals(GetValue<T>(property), value))
+        if (element == null || ancestor == null)
+        {
+            return false;
+        }
+
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void SetIfChanged<T>(DependencyProperty property, DependencyObject target, T value)
+    {
+        if (Equals(target.GetValue(property), value))
         {
             return;
         }
 
-        SetValue(property, value);
+        target.SetValue(property, value);
     }
 
     private static bool AreClose(float left, float right)
     {
         return MathF.Abs(left - right) <= ValueEpsilon;
+    }
+
+    private static Style BuildDefaultScrollBarStyle()
+    {
+        var style = new Style(typeof(ScrollBar));
+        style.Setters.Add(new Setter(TemplateProperty, BuildDefaultScrollBarTemplate()));
+        return style;
+    }
+
+    private static ControlTemplate BuildDefaultScrollBarTemplate()
+    {
+        var template = new ControlTemplate(static owner =>
+        {
+            var scrollBar = (ScrollBar)owner;
+            var track = new Track
+            {
+                Name = "PART_Track"
+            };
+
+            var lineUpButton = CreateDefaultLineButton(
+                "PART_LineUpButton",
+                scrollBar.Orientation == Orientation.Vertical ? "^" : "<");
+            var thumb = new Thumb
+            {
+                Name = "PART_Thumb"
+            };
+            var lineDownButton = CreateDefaultLineButton(
+                "PART_LineDownButton",
+                scrollBar.Orientation == Orientation.Vertical ? "v" : ">");
+
+            Track.SetPartRole(lineUpButton, TrackPartRole.DecreaseButton);
+            Track.SetPartRole(thumb, TrackPartRole.Thumb);
+            Track.SetPartRole(lineDownButton, TrackPartRole.IncreaseButton);
+
+            track.AddChild(lineUpButton);
+            track.AddChild(thumb);
+            track.AddChild(lineDownButton);
+            return track;
+        })
+        {
+            TargetType = typeof(ScrollBar)
+        };
+
+        template.BindTemplate("PART_Track", Panel.BackgroundProperty, BackgroundProperty);
+        template.BindTemplate("PART_Track", Track.BorderBrushProperty, BorderBrushProperty);
+        template.BindTemplate("PART_Track", Track.BorderThicknessProperty, BorderThicknessProperty);
+        template.BindTemplate("PART_Thumb", Thumb.BackgroundProperty, ForegroundProperty);
+        template.BindTemplate("PART_Thumb", Thumb.BorderBrushProperty, BorderBrushProperty);
+        template.BindTemplate("PART_LineUpButton", Button.ForegroundProperty, ForegroundProperty);
+        template.BindTemplate("PART_LineDownButton", Button.ForegroundProperty, ForegroundProperty);
+
+        return template;
+    }
+
+    private static RepeatButton CreateDefaultLineButton(string name, string text)
+    {
+        return new RepeatButton
+        {
+            Name = name,
+            Text = text,
+            FontSize = 8f,
+            Padding = Thickness.Empty,
+            BorderThickness = 0f,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
     }
 }

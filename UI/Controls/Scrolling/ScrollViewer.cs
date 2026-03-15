@@ -133,11 +133,8 @@ public class ScrollViewer : ContentControl
     private LayoutRect _contentViewportRect;
     private bool _showHorizontalBar;
     private bool _showVerticalBar;
-    private bool _isDraggingHorizontalBar;
-    private bool _isDraggingVerticalBar;
-    private float _horizontalBarDragOffset;
-    private float _verticalBarDragOffset;
     private int _inputScrollMutationDepth;
+    private bool _suppressInternalScrollBarValueChange;
     private static int _diagWheelEvents;
     private static int _diagWheelHandled;
     private static int _diagSetOffsetCalls;
@@ -149,6 +146,8 @@ public class ScrollViewer : ContentControl
     {
         _horizontalBar = new ScrollBar { Orientation = Orientation.Horizontal };
         _verticalBar = new ScrollBar { Orientation = Orientation.Vertical };
+        _horizontalBar.ValueChanged += OnHorizontalScrollBarValueChanged;
+        _verticalBar.ValueChanged += OnVerticalScrollBarValueChanged;
 
         _horizontalBar.SetVisualParent(this);
         _horizontalBar.SetLogicalParent(this);
@@ -360,70 +359,19 @@ public class ScrollViewer : ContentControl
 
     internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
     {
-        if (!IsEnabled)
-        {
-            return false;
-        }
-
-        if (_showVerticalBar &&
-            _verticalBar.TryHandlePointerDown(pointerPosition, out var verticalValue, out var startVerticalDrag, out var verticalDragOffset))
-        {
-            RunWithinInputScrollMutation(() => SetOffsets(HorizontalOffset, verticalValue));
-            _isDraggingVerticalBar = startVerticalDrag;
-            _verticalBarDragOffset = startVerticalDrag ? verticalDragOffset : 0f;
-            _isDraggingHorizontalBar = false;
-            _horizontalBarDragOffset = 0f;
-            return true;
-        }
-
-        if (_showHorizontalBar &&
-            _horizontalBar.TryHandlePointerDown(pointerPosition, out var horizontalValue, out var startHorizontalDrag, out var horizontalDragOffset))
-        {
-            RunWithinInputScrollMutation(() => SetOffsets(horizontalValue, VerticalOffset));
-            _isDraggingHorizontalBar = startHorizontalDrag;
-            _horizontalBarDragOffset = startHorizontalDrag ? horizontalDragOffset : 0f;
-            _isDraggingVerticalBar = false;
-            _verticalBarDragOffset = 0f;
-            return true;
-        }
-
+        _ = pointerPosition;
         return false;
     }
 
     internal bool HandlePointerMoveFromInput(Vector2 pointerPosition)
     {
-        var handled = false;
-        if (_isDraggingVerticalBar)
-        {
-            var value = _verticalBar.GetValueFromDragPointer(pointerPosition, _verticalBarDragOffset);
-            var before = VerticalOffset;
-            RunWithinInputScrollMutation(() => SetOffsets(HorizontalOffset, value));
-            handled = handled || MathF.Abs(before - VerticalOffset) > 0.001f;
-        }
-
-        if (_isDraggingHorizontalBar)
-        {
-            var value = _horizontalBar.GetValueFromDragPointer(pointerPosition, _horizontalBarDragOffset);
-            var before = HorizontalOffset;
-            RunWithinInputScrollMutation(() => SetOffsets(value, VerticalOffset));
-            handled = handled || MathF.Abs(before - HorizontalOffset) > 0.001f;
-        }
-
-        return handled;
+        _ = pointerPosition;
+        return false;
     }
 
     internal bool HandlePointerUpFromInput()
     {
-        if (!_isDraggingHorizontalBar && !_isDraggingVerticalBar)
-        {
-            return false;
-        }
-
-        _isDraggingHorizontalBar = false;
-        _isDraggingVerticalBar = false;
-        _horizontalBarDragOffset = 0f;
-        _verticalBarDragOffset = 0f;
-        return true;
+        return false;
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
@@ -795,14 +743,26 @@ public class ScrollViewer : ContentControl
 
     private void UpdateScrollBars()
     {
-        SetIfChanged(ScrollBar.ViewportSizeProperty, _horizontalBar, ViewportWidth);
-        SetIfChanged(ScrollBar.ViewportSizeProperty, _verticalBar, ViewportHeight);
-        SetIfChanged(ScrollBar.MinimumProperty, _horizontalBar, 0f);
-        SetIfChanged(ScrollBar.MinimumProperty, _verticalBar, 0f);
-        SetIfChanged(ScrollBar.MaximumProperty, _horizontalBar, ExtentWidth);
-        SetIfChanged(ScrollBar.MaximumProperty, _verticalBar, ExtentHeight);
-        SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, HorizontalOffset);
-        SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
+        _suppressInternalScrollBarValueChange = true;
+        try
+        {
+            SetIfChanged(ScrollBar.ViewportSizeProperty, _horizontalBar, ViewportWidth);
+            SetIfChanged(ScrollBar.ViewportSizeProperty, _verticalBar, ViewportHeight);
+            SetIfChanged(ScrollBar.MinimumProperty, _horizontalBar, 0f);
+            SetIfChanged(ScrollBar.MinimumProperty, _verticalBar, 0f);
+            SetIfChanged(ScrollBar.MaximumProperty, _horizontalBar, ExtentWidth);
+            SetIfChanged(ScrollBar.MaximumProperty, _verticalBar, ExtentHeight);
+            SetIfChanged(ScrollBar.SmallChangeProperty, _horizontalBar, MathF.Max(1f, LineScrollAmount));
+            SetIfChanged(ScrollBar.SmallChangeProperty, _verticalBar, MathF.Max(1f, LineScrollAmount));
+            SetIfChanged(ScrollBar.LargeChangeProperty, _horizontalBar, MathF.Max(1f, ViewportWidth));
+            SetIfChanged(ScrollBar.LargeChangeProperty, _verticalBar, MathF.Max(1f, ViewportHeight));
+            SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, HorizontalOffset);
+            SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
+        }
+        finally
+        {
+            _suppressInternalScrollBarValueChange = false;
+        }
     }
 
     private float ResolveHorizontalBarThicknessForLayout()
@@ -812,11 +772,6 @@ public class ScrollViewer : ContentControl
             _horizontalBar.Height > 0f)
         {
             return MathF.Max(8f, _horizontalBar.Height);
-        }
-
-        if (_horizontalBar.GetValueSource(ScrollBar.ThicknessProperty) != DependencyPropertyValueSource.Default)
-        {
-            return MathF.Max(8f, _horizontalBar.Thickness);
         }
 
         return MathF.Max(8f, ScrollBarThickness);
@@ -831,18 +786,45 @@ public class ScrollViewer : ContentControl
             return MathF.Max(8f, _verticalBar.Width);
         }
 
-        if (_verticalBar.GetValueSource(ScrollBar.ThicknessProperty) != DependencyPropertyValueSource.Default)
-        {
-            return MathF.Max(8f, _verticalBar.Thickness);
-        }
-
         return MathF.Max(8f, ScrollBarThickness);
     }
 
     private void UpdateScrollBarValues()
     {
-        SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, HorizontalOffset);
-        SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
+        _suppressInternalScrollBarValueChange = true;
+        try
+        {
+            SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, HorizontalOffset);
+            SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
+        }
+        finally
+        {
+            _suppressInternalScrollBarValueChange = false;
+        }
+    }
+
+    private void OnHorizontalScrollBarValueChanged(object? sender, RoutedSimpleEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        if (_suppressInternalScrollBarValueChange)
+        {
+            return;
+        }
+
+        RunWithinInputScrollMutation(() => SetOffsets(_horizontalBar.Value, VerticalOffset));
+    }
+
+    private void OnVerticalScrollBarValueChanged(object? sender, RoutedSimpleEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        if (_suppressInternalScrollBarValueChange)
+        {
+            return;
+        }
+
+        RunWithinInputScrollMutation(() => SetOffsets(HorizontalOffset, _verticalBar.Value));
     }
 
     private void SetIfChanged(DependencyProperty property, float value, string? diagnosticsCounterName = null)
