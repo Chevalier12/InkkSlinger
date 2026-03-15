@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - StackPanel</title>
-    <meta name="description" content="StackPanel control reference.">
+    <meta name="description" content="Technical manual for the StackPanel control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,266 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>StackPanel</h1>
-                    <p>WIP</p>
+                    <p><code>StackPanel</code> is the framework's one-axis flow panel. It arranges children in declaration order, either top-to-bottom or left-to-right, and sizes itself from the combined desired size of those children.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>StackPanel</code> when your layout is fundamentally a simple list or strip of elements. It works well for button columns, form sections, option groups, tool rows, and any small composition where child order is the layout.</p>
+                    <h3>Minimal vertical stack</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;TextBlock Text="Project name" Margin="0,0,0,6" /&gt;
+  &lt;TextBox Width="240" Margin="0,0,0,10" /&gt;
+  &lt;Button Text="Create" Width="120" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Horizontal button row</h3>
+                    <pre><code class="language-xml">&lt;StackPanel Orientation="Horizontal"&gt;
+  &lt;Button Text="Save" Margin="0,0,8,0" /&gt;
+  &lt;Button Text="Publish" Margin="0,0,8,0" /&gt;
+  &lt;Button Text="Close" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Section with nested groups</h3>
+                    <pre><code class="language-xml">&lt;StackPanel Margin="16"&gt;
+  &lt;TextBlock Text="Audio settings" Margin="0,0,0,10" /&gt;
+
+  &lt;StackPanel Margin="0,0,0,12"&gt;
+    &lt;TextBlock Text="Output device" Margin="0,0,0,4" /&gt;
+    &lt;ComboBox Width="260" /&gt;
+  &lt;/StackPanel&gt;
+
+  &lt;CheckBox Content="Mute when inactive" Margin="0,0,0,6" /&gt;
+  &lt;CheckBox Content="Start minimized" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> choose <code>StackPanel</code> for small, readable one-dimensional flows. If you need rows plus columns, proportional sizing, or a true page shell, start with <code>Grid</code> or <code>DockPanel</code> instead.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>How StackPanel layout works</h2>
+                    <p><code>StackPanel</code> measures children one at a time and accumulates their size along the stacking axis. In the non-stacking axis, it keeps the largest child size it sees.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Vertical orientation</h3>
+                            <p>Children are measured with the available width, but effectively infinite height. Desired width becomes the widest child. Desired height becomes the sum of child heights.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Horizontal orientation</h3>
+                            <p>Children are measured with the available height, but effectively infinite width. Desired width becomes the sum of child widths. Desired height becomes the tallest child.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>The default <code>Orientation</code> is <code>Vertical</code>.</li>
+                        <li>Declaration order is the visual order.</li>
+                        <li><code>StackPanel</code> does not insert spacing automatically. Use child <code>Margin</code> for gaps.</li>
+                        <li>The panel hosts any number of child elements through its inherited <code>Children</code> collection.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;StackPanel Orientation="Vertical"&gt;
+  &lt;Border Height="48" Background="#223245" Margin="0,0,0,8" /&gt;
+  &lt;Border Height="72" Background="#182636" Margin="0,0,0,8" /&gt;
+  &lt;Border Height="40" Background="#30485F" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>That stack wants enough width for the widest border and enough height for all three borders plus their margins.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Arrange behavior and stretching</h2>
+                    <p>During arrange, <code>StackPanel</code> gives each child its desired size in the stacking axis, but the full panel size in the cross axis. The child's own alignment properties then decide whether it stretches or sizes to content inside that slot.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Cross-axis stretch by default</h3>
+                            <p>Because <code>HorizontalAlignment</code> and <code>VerticalAlignment</code> default to <code>Stretch</code>, children usually expand across the non-stacking axis unless you change alignment or set an explicit size.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Content-sized stacking axis</h3>
+                            <p>Each child keeps its desired size in the stacking direction. A vertical stack does not force every child to the same height, and a horizontal stack does not force every child to the same width.</p>
+                        </article>
+                    </div>
+                    <h3>Vertical stack with left-aligned children</h3>
+                    <pre><code class="language-xml">&lt;StackPanel Width="320"&gt;
+  &lt;Button Text="Short action"
+          Width="140"
+          HorizontalAlignment="Left"
+          Margin="0,0,0,8" /&gt;
+  &lt;Button Text="Stretched action" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Horizontal stack with vertically centered content</h3>
+                    <pre><code class="language-xml">&lt;StackPanel Orientation="Horizontal" Height="48"&gt;
+  &lt;TextBlock Text="Latency"
+             VerticalAlignment="Center"
+             Margin="0,0,10,0" /&gt;
+  &lt;TextBox Width="120"
+           VerticalAlignment="Center" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Practical rule:</strong> a <code>StackPanel</code> controls sequencing, not equalization. If you need uniform row heights, shared columns, or precise alignment between separate child groups, a <code>Grid</code> is usually the better panel.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2><code>Orientation</code></h2>
+                    <p>The panel exposes a single layout-specific dependency property, <code>Orientation</code>. Changing it switches both measurement and arrangement rules.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3><code>Vertical</code></h3>
+                            <p>The default. Children flow from top to bottom. Width is driven by the widest child. Height is driven by the sum of child heights.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>Horizontal</code></h3>
+                            <p>Children flow from left to right. Width is driven by the sum of child widths. Height is driven by the tallest child.</p>
+                        </article>
+                    </div>
+                    <h3>Set orientation in XAML</h3>
+                    <pre><code class="language-xml">&lt;StackPanel Orientation="Horizontal"&gt;
+  &lt;Button Text="Back" Margin="0,0,8,0" /&gt;
+  &lt;Button Text="Forward" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Set orientation from code</h3>
+                    <pre><code class="language-csharp">var toolbar = new StackPanel
+{
+    Orientation = Orientation.Horizontal
+};
+
+toolbar.AddChild(new Button { Text = "Refresh" });
+toolbar.AddChild(new Button { Text = "History" });</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>StackPanel inside a ScrollViewer</h2>
+                    <p><code>StackPanel</code> is a common scroll content host. In this framework, a plain stack panel hosted directly as <code>ScrollViewer.Content</code> participates in the default transform-based content scrolling path.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Default behavior</h3>
+                            <p>The panel stays arranged in place while the viewer applies scroll offsets through a local render transform. This avoids unnecessary layout invalidation for offset-only scroll changes.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>When to use it</h3>
+                            <p>This is the normal choice for long vertical forms, sidebars, and simple stacked content that needs viewer-owned scrolling.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;ScrollViewer VerticalScrollBarVisibility="Auto"&gt;
+  &lt;StackPanel Margin="16"&gt;
+    &lt;TextBlock Text="General" Margin="0,0,0,12" /&gt;
+    &lt;CheckBox Content="Enable telemetry" Margin="0,0,0,8" /&gt;
+    &lt;CheckBox Content="Send crash reports" Margin="0,0,0,8" /&gt;
+    &lt;CheckBox Content="Download previews" Margin="0,0,0,8" /&gt;
+    &lt;CheckBox Content="Use hardware acceleration" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                    <p>If you need item virtualization for large data sets, use an items control surface that provides <code>VirtualizingStackPanel</code> rather than a plain authored <code>StackPanel</code>.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>StackPanel surface</h3>
+                            <p><code>Orientation</code>: <code>Orientation.Vertical</code> or <code>Orientation.Horizontal</code>. Default is <code>Vertical</code>.</p>
+                            <p><code>Children</code>: inherited read-only collection of hosted child elements.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Inherited properties used often</h3>
+                            <p><code>Background</code>: inherited from <code>Panel</code>; fills the panel's layout slot.</p>
+                            <p><code>Margin</code>, <code>Width</code>, <code>Height</code>: affect the panel's own placement and size in its parent.</p>
+                            <p>Child <code>Margin</code>: the normal way to create spacing between stacked children.</p>
+                            <p>Child <code>HorizontalAlignment</code> and <code>VerticalAlignment</code>: control whether a child stretches or sizes to content inside its arranged slot.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Simple settings column</h3>
+                    <pre><code class="language-xml">&lt;StackPanel Width="340"&gt;
+  &lt;TextBlock Text="Notifications" Margin="0,0,0,12" /&gt;
+  &lt;CheckBox Content="Enable desktop alerts" Margin="0,0,0,8" /&gt;
+  &lt;CheckBox Content="Play sound on completion" Margin="0,0,0,8" /&gt;
+  &lt;CheckBox Content="Show badge count" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Toolbar or command strip</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#162330"
+        BorderBrush="#2E4A62"
+        BorderThickness="1"
+        Padding="10"&gt;
+  &lt;StackPanel Orientation="Horizontal"&gt;
+    &lt;Button Text="Undo" Margin="0,0,8,0" /&gt;
+    &lt;Button Text="Redo" Margin="0,0,8,0" /&gt;
+    &lt;Button Text="Format" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Labeled field group</h3>
+                    <pre><code class="language-xml">&lt;StackPanel Width="280"&gt;
+  &lt;TextBlock Text="Server" Margin="0,0,0,4" /&gt;
+  &lt;TextBox Margin="0,0,0,10" /&gt;
+
+  &lt;TextBlock Text="Port" Margin="0,0,0,4" /&gt;
+  &lt;TextBox Margin="0,0,0,10" /&gt;
+
+  &lt;Button Text="Connect"
+          Width="120"
+          HorizontalAlignment="Left" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Sidebar navigation</h3>
+                    <pre><code class="language-xml">&lt;StackPanel Background="#101822"&gt;
+  &lt;Button Text="Home" Margin="0,0,0,6" /&gt;
+  &lt;Button Text="Search" Margin="0,0,0,6" /&gt;
+  &lt;Button Text="Queues" Margin="0,0,0,6" /&gt;
+  &lt;Button Text="Settings" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <h3>Mixed content card</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#172331"
+        BorderBrush="#34506C"
+        BorderThickness="1"
+        Padding="14"&gt;
+  &lt;StackPanel&gt;
+    &lt;TextBlock Text="Release notes" Margin="0,0,0,8" /&gt;
+    &lt;TextBlock Text="Build 142 shipped successfully." Margin="0,0,0,10" /&gt;
+    &lt;Button Text="View details"
+            Width="120"
+            HorizontalAlignment="Left" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/Border&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>StackPanel vs other panels</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Choose StackPanel when</h3>
+                            <p>You have a clear one-axis flow and child order is the main layout rule.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Choose another panel when</h3>
+                            <p>You need two-dimensional structure, wrapping, docking, or explicit coordinates.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Use <code>Grid</code> for aligned forms, dashboards, and layouts with rows and columns.</li>
+                        <li>Use <code>DockPanel</code> for headers, sidebars, footers, and a fill region.</li>
+                        <li>Use <code>WrapPanel</code> when items should continue onto the next line.</li>
+                        <li>Use <code>Canvas</code> when X/Y position is explicit state.</li>
+                    </ul>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>The stacking axis is measured as unconstrained.</strong> This is intentional and useful, but it can surprise you if you expected grid-style space negotiation. Controls inside a stack often size to content in the stacking direction.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>There is no built-in spacing property.</strong> Use child <code>Margin</code> to create gaps.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Do not treat StackPanel as a universal default.</strong> Nested stacks are easy to author, but they can make stretching, alignment, and scrolling behavior harder to reason about than a simple <code>Grid</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Plain StackPanel is not a virtualizing items host.</strong> It is for explicitly authored children. For large scrolling data sets, prefer an items-control surface that uses <code>VirtualizingStackPanel</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Order matters because order is layout.</strong> Reordering children changes both visual sequence and the panel's accumulated desired size.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-slider.html">
+                        <span>Previous</span>
+                        <strong>Slider</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-status-bar.html">
+                        <span>Next</span>
+                        <strong>StatusBar</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
