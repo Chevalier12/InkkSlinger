@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - ScrollViewer</title>
-    <meta name="description" content="ScrollViewer control reference.">
+    <meta name="description" content="Technical manual for the ScrollViewer control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,410 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>ScrollViewer</h1>
-                    <p>WIP</p>
+                    <p><code>ScrollViewer</code> is a single-content viewport container. It measures oversized content, exposes scroll offsets and viewport metrics, clips the visible region, and shows built-in horizontal and vertical scroll bars when the configured visibility rules require them.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>ScrollViewer</code> when you have one content root that may be larger than the available area. In practice, that usually means placing a panel such as <code>StackPanel</code>, <code>Grid</code>, or <code>Canvas</code> inside the viewer and putting the rest of your UI under that panel.</p>
+                    <h3>Minimal vertical scroller</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="280"
+              Height="180"
+              VerticalScrollBarVisibility="Auto"&gt;
+  &lt;StackPanel&gt;
+    &lt;TextBlock Text="Line 1" /&gt;
+    &lt;TextBlock Text="Line 2" /&gt;
+    &lt;TextBlock Text="Line 3" /&gt;
+    &lt;TextBlock Text="Line 4" /&gt;
+    &lt;TextBlock Text="Line 5" /&gt;
+    &lt;TextBlock Text="Line 6" /&gt;
+    &lt;TextBlock Text="Line 7" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                    <h3>Scrollable form body with visible border chrome</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="420"
+              Height="260"
+              Background="#121C27"
+              BorderBrush="#35516B"
+              BorderThickness="1"
+              VerticalScrollBarVisibility="Auto"&gt;
+  &lt;StackPanel&gt;
+    &lt;TextBlock Text="Profile" Margin="0,0,0,12" /&gt;
+    &lt;TextBox Text="{Binding DisplayName}" Margin="0,0,0,8" /&gt;
+    &lt;TextBox Text="{Binding Email}" Margin="0,0,0,8" /&gt;
+    &lt;TextBox Text="{Binding Department}" Margin="0,0,0,8" /&gt;
+    &lt;TextBox Text="{Binding TimeZone}" Margin="0,0,0,8" /&gt;
+    &lt;TextBox Text="{Binding Notes}" Height="120" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                    <h3>Two-axis scrolling for a wide surface</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="420"
+              Height="220"
+              HorizontalScrollBarVisibility="Auto"
+              VerticalScrollBarVisibility="Auto"&gt;
+  &lt;Canvas Width="900" Height="600"&gt;
+    &lt;Border Canvas.Left="24"
+            Canvas.Top="24"
+            Width="220"
+            Height="120"
+            Background="#193149"
+            BorderBrush="#4C81B0"
+            BorderThickness="1" /&gt;
+  &lt;/Canvas&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default behavior:</strong> <code>HorizontalScrollBarVisibility</code> defaults to <code>Disabled</code> and <code>VerticalScrollBarVisibility</code> defaults to <code>Auto</code>. If you need horizontal scrolling, opt into it explicitly.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Content model</h2>
+                    <p><code>ScrollViewer</code> is a content control. It hosts one content root, not multiple direct children. If you need to scroll several elements together, place them inside a panel and make that panel the viewer's content.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Recommended</h3>
+                            <p>Use one inner layout container such as <code>StackPanel</code>, <code>Grid</code>, or <code>Canvas</code>, then place the actual child elements inside that container.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Not recommended</h3>
+                            <p>Do not think of <code>ScrollViewer</code> as a panel with multiple direct child slots. It is a viewport wrapped around a single content tree.</p>
+                        </article>
+                    </div>
+                    <h3>Explicit content property form</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer VerticalScrollBarVisibility="Auto"&gt;
+  &lt;ScrollViewer.Content&gt;
+    &lt;StackPanel&gt;
+      &lt;TextBlock Text="Alpha" /&gt;
+      &lt;TextBlock Text="Bravo" /&gt;
+      &lt;TextBlock Text="Charlie" /&gt;
+    &lt;/StackPanel&gt;
+  &lt;/ScrollViewer.Content&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>How layout works</h2>
+                    <p>The viewer computes a content viewport inside its own border, decides whether each scroll bar needs space, measures the hosted content, and then exposes the resulting metrics through the offset, extent, and viewport properties.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Measure</h3>
+                            <p>If scrolling is allowed on an axis, the content is measured with an effectively unbounded size on that axis. If scrolling is disabled, the content is measured against the current viewport size on that axis.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Arrange</h3>
+                            <p>The content is arranged inside the viewport, the offsets are clamped to the valid range, and the internal scroll bars are arranged in their reserved bands.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>ExtentWidth</code> and <code>ExtentHeight</code> describe the full measured content size.</li>
+                        <li><code>ViewportWidth</code> and <code>ViewportHeight</code> describe the visible content region after chrome and scroll bar reservations are applied.</li>
+                        <li><code>HorizontalOffset</code> and <code>VerticalOffset</code> are clamped to the scrollable range: <code>0</code> through <code>Extent - Viewport</code>.</li>
+                        <li>When a scroll bar is visible, the viewer reserves that band plus a small gutter between the content and the bar.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="320"
+              Height="180"
+              BorderThickness="1"
+              HorizontalScrollBarVisibility="Auto"
+              VerticalScrollBarVisibility="Auto"&gt;
+  &lt;Canvas Width="640" Height="360" /&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                    <p>In that example, the visible viewport is smaller than <code>320x180</code> because the border and any visible scroll bars reduce the content area.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Scroll bar visibility modes</h2>
+                    <p>The <code>ScrollBarVisibility</code> enum controls both whether an axis can scroll and whether a bar is shown for that axis.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3><code>Disabled</code></h3>
+                            <p>The content is constrained to the viewport on that axis and no scroll bar is shown. Use this when the axis should not scroll at all.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>Hidden</code></h3>
+                            <p>The axis remains scrollable, but the scroll bar is not shown. This is useful when you want wheel or programmatic scrolling without visible chrome.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>Auto</code></h3>
+                            <p>The viewer shows the bar only when the content extent is larger than the available viewport on that axis.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>Visible</code></h3>
+                            <p>The bar is always shown and always reserves space, even if the content currently fits without scrolling.</p>
+                        </article>
+                    </div>
+                    <h3>Vertical scrolling without visible chrome</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="320"
+              Height="180"
+              VerticalScrollBarVisibility="Hidden"&gt;
+  &lt;StackPanel&gt;
+    &lt;TextBlock Text="Timeline item 1" /&gt;
+    &lt;TextBlock Text="Timeline item 2" /&gt;
+    &lt;TextBlock Text="Timeline item 3" /&gt;
+    &lt;TextBlock Text="Timeline item 4" /&gt;
+    &lt;TextBlock Text="Timeline item 5" /&gt;
+    &lt;TextBlock Text="Timeline item 6" /&gt;
+    &lt;TextBlock Text="Timeline item 7" /&gt;
+    &lt;TextBlock Text="Timeline item 8" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>User interaction</h2>
+                    <p><code>ScrollViewer</code> supports wheel scrolling, drag interaction on the built-in scroll bar thumbs, and track clicks on visible scroll bars.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Mouse wheel</h3>
+                            <p>The mouse wheel changes <code>VerticalOffset</code> by <code>LineScrollAmount</code> per input step. The default line amount is <code>24</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Thumb drag</h3>
+                            <p>When a scroll bar is visible, dragging the thumb moves the corresponding offset continuously within the valid extent.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Track click</h3>
+                            <p>Clicking on the track outside the thumb pages the offset toward the clicked position.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Wheel scrolling clamps automatically at the start and end of the content.</li>
+                        <li>When the wheel actually changes the offset, hover state is refreshed for the element now under the pointer.</li>
+                        <li>If the content is already at the limit and the offset does not change, the viewer does not force a hover transition.</li>
+                    </ul>
+                    <h3>Adjusting wheel speed</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="320"
+              Height="180"
+              LineScrollAmount="64"
+              VerticalScrollBarVisibility="Auto"&gt;
+  &lt;StackPanel&gt;
+    &lt;Button Text="Button 1" Height="44" /&gt;
+    &lt;Button Text="Button 2" Height="44" /&gt;
+    &lt;Button Text="Button 3" Height="44" /&gt;
+    &lt;Button Text="Button 4" Height="44" /&gt;
+    &lt;Button Text="Button 5" Height="44" /&gt;
+    &lt;Button Text="Button 6" Height="44" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Programmatic scrolling</h2>
+                    <p>The viewer exposes runtime scroll state through its properties and provides methods for changing offsets in code. Offsets are clamped automatically, so calls beyond the valid range settle at the nearest legal value.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Read state</h3>
+                            <p>Use <code>HorizontalOffset</code>, <code>VerticalOffset</code>, <code>ExtentWidth</code>, <code>ExtentHeight</code>, <code>ViewportWidth</code>, and <code>ViewportHeight</code> to inspect the current scroll metrics after layout has run.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Change state</h3>
+                            <p>Use <code>ScrollToHorizontalOffset(float)</code> and <code>ScrollToVerticalOffset(float)</code> to move the viewport. Use <code>InvalidateScrollInfo()</code> when custom content logic needs the viewer to recompute its metrics.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-csharp">var viewer = new ScrollViewer
+{
+    Width = 320f,
+    Height = 200f,
+    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+    Content = BuildInspectorPanel()
+};
+
+viewer.ScrollToVerticalOffset(180f);
+
+var visibleBottom = viewer.VerticalOffset + viewer.ViewportHeight;
+var maxVertical = MathF.Max(0f, viewer.ExtentHeight - viewer.ViewportHeight);</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Important:</strong> the metric properties are most useful after measure and arrange have completed. Before the first layout pass, their values can still be zero.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Transform-based content scrolling</h2>
+                    <p>For direct panel content, <code>ScrollViewer</code> usually scrolls by applying a local render transform instead of re-arranging the panel for every offset-only change. This keeps scrolling lightweight while preserving the same visible viewport.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Default path</h3>
+                            <p>If the direct content root is a panel such as <code>StackPanel</code>, <code>Grid</code>, <code>Canvas</code>, <code>WrapPanel</code>, or <code>UniformGrid</code>, transform-based scrolling is enabled by default.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Fallback path</h3>
+                            <p>If the direct content root is not a supported panel host, or if the content is a <code>VirtualizingStackPanel</code>, the viewer falls back to arrange-based scrolling.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>The attached property <code>ScrollViewer.UseTransformContentScrolling</code> applies to the direct content host element.</li>
+                        <li>Setting that property to <code>False</code> opts the direct content host out of transform-based scrolling and makes the viewer move the content through arrange instead.</li>
+                        <li>The opt-out only applies to the direct content root under the viewer, not to deeper descendants.</li>
+                    </ul>
+                    <h3>Default transform-scrolling panel</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="320"
+              Height="180"
+              VerticalScrollBarVisibility="Auto"&gt;
+  &lt;StackPanel&gt;
+    &lt;TextBlock Text="Rendered via transform scrolling" /&gt;
+    &lt;TextBlock Text="Offset-only changes stay lightweight" /&gt;
+    &lt;TextBlock Text="Add enough content to overflow the viewport" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                    <h3>Opting out of transform scrolling</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="320"
+              Height="180"
+              VerticalScrollBarVisibility="Auto"&gt;
+  &lt;StackPanel ScrollViewer.UseTransformContentScrolling="False"&gt;
+    &lt;TextBlock Text="This host panel is arranged with the offset applied." /&gt;
+    &lt;TextBlock Text="Use this when you explicitly need arrange-based movement." /&gt;
+  &lt;/StackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Appearance and chrome</h2>
+                    <p><code>ScrollViewer</code> paints its own background and border, then renders the internal scroll bars inside the reserved viewer area. The content viewport is the remaining space after chrome and bar reservations are applied.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Viewer chrome</h3>
+                            <p><code>Background</code> fills the full viewer slot. <code>BorderBrush</code> and <code>BorderThickness</code> draw a rectangular outline around the control.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Scroll bar size</h3>
+                            <p><code>ScrollBarThickness</code> controls the reserved thickness for the internal bars. The runtime enforces a practical minimum thickness of <code>8</code>.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="360"
+              Height="220"
+              Background="#101821"
+              BorderBrush="#40607F"
+              BorderThickness="1"
+              ScrollBarThickness="16"
+              VerticalScrollBarVisibility="Visible"&gt;
+  &lt;StackPanel&gt;
+    &lt;TextBlock Text="Styled viewer chrome" /&gt;
+    &lt;TextBlock Text="Scrollbar always present" /&gt;
+    &lt;TextBlock Text="Thicker interaction rail" /&gt;
+    &lt;TextBlock Text="Add more content here" /&gt;
+    &lt;TextBlock Text="to make the thumb meaningful" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Property and method reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Scrolling configuration</h3>
+                            <p><code>HorizontalScrollBarVisibility</code>: <code>Disabled</code>, <code>Hidden</code>, <code>Auto</code>, or <code>Visible</code>. Default: <code>Disabled</code>.</p>
+                            <p><code>VerticalScrollBarVisibility</code>: <code>Disabled</code>, <code>Hidden</code>, <code>Auto</code>, or <code>Visible</code>. Default: <code>Auto</code>.</p>
+                            <p><code>LineScrollAmount</code>: wheel step size in device-independent layout units. Default: <code>24</code>.</p>
+                            <p><code>ScrollBarThickness</code>: thickness used by the built-in bars. Default: <code>12</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Runtime metrics</h3>
+                            <p><code>HorizontalOffset</code> and <code>VerticalOffset</code>: current scroll position, read from the control and changed through methods.</p>
+                            <p><code>ExtentWidth</code> and <code>ExtentHeight</code>: total measured content size.</p>
+                            <p><code>ViewportWidth</code> and <code>ViewportHeight</code>: visible content area after layout.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Chrome</h3>
+                            <p><code>Background</code>: a <code>Color</code> used to fill the viewer.</p>
+                            <p><code>BorderBrush</code>: a <code>Color</code> used for the rectangular outline.</p>
+                            <p><code>BorderThickness</code>: a single <code>float</code> value for the outline thickness.</p>
+                            <p><code>Padding</code>: inherited from the base control surface, but the current <code>ScrollViewer</code> layout logic does not use it when computing the viewport.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Methods and attached property</h3>
+                            <p><code>ScrollToHorizontalOffset(float)</code>: moves the horizontal viewport.</p>
+                            <p><code>ScrollToVerticalOffset(float)</code>: moves the vertical viewport.</p>
+                            <p><code>InvalidateScrollInfo()</code>: requests metric recomputation.</p>
+                            <p><code>ScrollViewer.UseTransformContentScrolling</code>: attached property for the direct content host element.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Scrollable diagnostics panel</h3>
+                    <pre><code class="language-xml">&lt;Border Background="#0F1620"
+        BorderBrush="#29435A"
+        BorderThickness="1"
+        Padding="8"&gt;
+  &lt;ScrollViewer Height="220"
+                VerticalScrollBarVisibility="Auto"&gt;
+    &lt;StackPanel&gt;
+      &lt;TextBlock Text="Build started..." /&gt;
+      &lt;TextBlock Text="Loading assets..." /&gt;
+      &lt;TextBlock Text="Compiling shaders..." /&gt;
+      &lt;TextBlock Text="Indexing content..." /&gt;
+      &lt;TextBlock Text="Diagnostics continue below..." /&gt;
+    &lt;/StackPanel&gt;
+  &lt;/ScrollViewer&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Large canvas workspace</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="520"
+              Height="320"
+              HorizontalScrollBarVisibility="Auto"
+              VerticalScrollBarVisibility="Auto"
+              Background="#0D141C"
+              BorderBrush="#37536E"
+              BorderThickness="1"&gt;
+  &lt;Canvas Width="1400" Height="900"&gt;
+    &lt;Border Canvas.Left="80"
+            Canvas.Top="60"
+            Width="260"
+            Height="180"
+            Background="#16304A"
+            BorderBrush="#5B97CE"
+            BorderThickness="1" /&gt;
+  &lt;/Canvas&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                    <h3>Programmatic jump to a section</h3>
+                    <pre><code class="language-csharp">private void ShowValidationSummary()
+{
+    SummaryScrollViewer.ScrollToVerticalOffset(0f);
+}
+
+private void ShowLatestEntry()
+{
+    var bottom = MathF.Max(
+        0f,
+        SummaryScrollViewer.ExtentHeight - SummaryScrollViewer.ViewportHeight);
+
+    SummaryScrollViewer.ScrollToVerticalOffset(bottom);
+}</code></pre>
+                    <h3>Host a virtualizing list</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="320"
+              Height="240"
+              VerticalScrollBarVisibility="Auto"&gt;
+  &lt;VirtualizingStackPanel IsVirtualizing="True"
+                          CacheLength="0.5"
+                          CacheLengthUnit="Page"&gt;
+    &lt;!-- items --&gt;
+  &lt;/VirtualizingStackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                    <p>This is the right pattern when you want a large list surface that still refreshes realization as the offset changes.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong><code>Background</code> and <code>BorderBrush</code> are colors, not brush objects.</strong> Examples and styles for this control should use values that resolve to <code>Color</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong><code>BorderThickness</code> is a single float.</strong> Unlike the <code>Border</code> control, <code>ScrollViewer</code> does not expose per-side border thickness.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong><code>Padding</code> is not part of the current viewport calculation.</strong> The property exists on the inherited control surface, but this control's layout code does not presently subtract it from the content area.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Horizontal scrolling is off by default.</strong> If your content can overflow horizontally, set <code>HorizontalScrollBarVisibility</code> to <code>Auto</code>, <code>Hidden</code>, or <code>Visible</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Put multiple elements inside an inner panel.</strong> The viewer scrolls one content root; it is not the right place for multiple direct sibling elements.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>The transform-scrolling opt-out belongs on the direct content host.</strong> Setting <code>ScrollViewer.UseTransformContentScrolling="False"</code> on a nested descendant does not disable transform scrolling for the outer content root.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Read viewport metrics after layout.</strong> If you inspect <code>ExtentHeight</code> or <code>ViewportHeight</code> before the first measure and arrange pass, they may still be zero.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-scroll-bar.html">
+                        <span>Previous</span>
+                        <strong>ScrollBar</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-separator.html">
+                        <span>Next</span>
+                        <strong>Separator</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
