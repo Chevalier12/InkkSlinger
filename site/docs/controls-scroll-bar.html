@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - ScrollBar</title>
-    <meta name="description" content="ScrollBar control reference.">
+    <meta name="description" content="Technical manual for the ScrollBar control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,362 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>ScrollBar</h1>
-                    <p>WIP</p>
+                    <p><code>ScrollBar</code> is a direct-drawn range control that visualizes a viewport moving through a larger extent. It renders a track and a thumb, supports horizontal and vertical orientations, and is used internally by <code>ScrollViewer</code> for end-user scrolling chrome.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>ScrollBar</code> when you want to expose scroll state, viewport position, or a range indicator on a custom surface. For standard content scrolling, you will usually use <code>ScrollViewer</code>, which owns and configures its internal scroll bars automatically.</p>
+                    <h3>Minimal horizontal bar</h3>
+                    <pre><code class="language-xml">&lt;ScrollBar Width="280"
+           Orientation="Horizontal"
+           Minimum="0"
+           Maximum="100"
+           ViewportSize="20"
+           Value="35" /&gt;</code></pre>
+                    <h3>Vertical bar for a tall surface</h3>
+                    <pre><code class="language-xml">&lt;ScrollBar Height="220"
+           Orientation="Vertical"
+           Minimum="0"
+           Maximum="1200"
+           ViewportSize="240"
+           Value="360" /&gt;</code></pre>
+                    <h3>Styled bar using control colors</h3>
+                    <pre><code class="language-xml">&lt;ScrollBar Width="300"
+           Orientation="Horizontal"
+           Minimum="0"
+           Maximum="800"
+           ViewportSize="160"
+           Value="240"
+           Background="#152231"
+           Foreground="#6FB7FF" /&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> reach for <code>ScrollViewer</code> when you need actual content scrolling. Use a standalone <code>ScrollBar</code> for custom editors, minimaps, timeline rails, camera indicators, or other surfaces where you own the range logic yourself.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>What the range means</h2>
+                    <p><code>ScrollBar</code> models a visible window inside a larger logical extent. The important point is that <code>Maximum</code> represents the end of the full extent, not the largest legal scroll offset.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Extent</h3>
+                            <p>The total logical length is <code>Maximum - Minimum</code>. This is the full content size or domain size the bar represents.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Viewport</h3>
+                            <p><code>ViewportSize</code> is the visible window inside that extent. The thumb size is derived from it.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Offset</h3>
+                            <p><code>Value</code> is the current viewport origin. For a typical scroller, the legal offset range is <code>Minimum</code> through <code>Minimum + max(0, Maximum - Minimum - ViewportSize)</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Clamping</h3>
+                            <p>Built-in drag and page-click logic clamps to the scrollable range. If you assign <code>Value</code> directly, keep it in range yourself for the clearest semantics.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;ScrollBar Width="320"
+           Orientation="Horizontal"
+           Minimum="0"
+           Maximum="1000"
+           ViewportSize="320"
+           Value="180" /&gt;</code></pre>
+                    <p>In that example, the represented extent is <code>1000</code> units, the visible window is <code>320</code> units, and the largest practical offset is <code>680</code>, not <code>1000</code>.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Thumb sizing and movement</h2>
+                    <p>The thumb rectangle is computed directly from the track size, orientation, extent, viewport, and current value. The math is simple and predictable.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>When the thumb fills the track</h3>
+                            <p>If <code>Maximum - Minimum</code> is effectively zero, the thumb covers the full track. This is how the control represents a non-scrollable extent.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Viewport-based ratio</h3>
+                            <p>When <code>ViewportSize</code> is positive, thumb length is based on <code>ViewportSize / extent</code>, clamped between <code>5%</code> and <code>100%</code> of the track.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Minimum thumb size</h3>
+                            <p>The rendered thumb never shrinks below <code>14</code> layout units, even when the represented extent is much larger than the viewport.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>If <code>ViewportSize</code> is <code>0</code> or negative, the thumb falls back to roughly <code>10%</code> of the track, still respecting the <code>14</code>-unit minimum.</li>
+                        <li>The thumb position is normalized across the scrollable range, not the full extent.</li>
+                        <li>When the viewport covers the whole extent, the thumb stays effectively pinned to the start because there is no remaining travel.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;ScrollBar Width="260"
+             Orientation="Horizontal"
+             Minimum="0"
+             Maximum="100"
+             ViewportSize="80"
+             Value="10" /&gt;
+
+  &lt;ScrollBar Width="260"
+             Orientation="Horizontal"
+             Minimum="0"
+             Maximum="100"
+             ViewportSize="10"
+             Value="10"
+             Margin="0,8,0,0" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>The first bar shows a large thumb because the viewport covers most of the extent. The second shows a much smaller thumb because the viewport is only a small slice of the same range.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout and sizing</h2>
+                    <p><code>ScrollBar</code> is not a content host. Its desired size is driven entirely by orientation and thickness.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Vertical orientation</h3>
+                            <p>The desired width is <code>max(8, Thickness)</code>. The desired height follows the available height passed in by layout.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Horizontal orientation</h3>
+                            <p>The desired height is <code>max(8, Thickness)</code>. The desired width follows the available width passed in by layout.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>Thickness</code> defaults to <code>12</code>.</li>
+                        <li>The cross-axis thickness has a practical minimum of <code>8</code>, even if you set a smaller value.</li>
+                        <li>Because the along-axis desired size mirrors available space, standalone bars usually work best when you also set an explicit <code>Width</code> or <code>Height</code>.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+    &lt;ColumnDefinition Width="Auto" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+
+  &lt;Canvas Grid.Column="0" Width="420" Height="220" /&gt;
+
+  &lt;ScrollBar Grid.Column="1"
+             Height="220"
+             Orientation="Vertical"
+             Thickness="14"
+             Minimum="0"
+             Maximum="600"
+             ViewportSize="220"
+             Value="120" /&gt;
+&lt;/Grid&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Interaction model</h2>
+                    <p>The built-in pointer behavior supports thumb dragging and paging by clicking the track outside the thumb. That behavior is straightforward, but there is an ownership detail that matters for end-user apps.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Thumb drag</h3>
+                            <p>Pressing on the thumb starts a drag. The control records the pointer offset inside the thumb so the thumb does not jump when dragging begins.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Track click</h3>
+                            <p>Clicking before or after the thumb moves the value by <code>LargeChange</code> toward the clicked side. The step is always at least <code>1</code>.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>LargeChange</code> defaults to <code>32</code>.</li>
+                        <li><code>SmallChange</code> defaults to <code>16</code>, but the current built-in pointer path does not use it.</li>
+                        <li>Drag math and track clicks clamp the resulting value to the legal scrollable range.</li>
+                    </ul>
+                    <div class="callout doc-callout">
+                        <p><strong>Important ownership rule:</strong> the framework's automatic mouse handling for <code>ScrollBar</code> is currently wired through an owning <code>ScrollViewer</code>. A standalone <code>ScrollBar</code> renders correctly and exposes range state, but direct end-user dragging and track paging are not automatically hooked up unless the bar is the internal bar owned by a <code>ScrollViewer</code> or you provide your own input logic.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Appearance and color fallback</h2>
+                    <p><code>ScrollBar</code> draws two filled rectangles: the full track first, then the thumb on top. It does not use a control template or separate child elements for these visuals.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Track color</h3>
+                            <p>If <code>TrackBrush</code> is set, it wins. Otherwise, if <code>Background</code> is set on the control, the track uses <code>Background</code>. If neither is set, the default track color is a dark gray.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Thumb color</h3>
+                            <p>If <code>ThumbBrush</code> is set, it wins. Otherwise, if <code>Foreground</code> is set on the control, the thumb uses <code>Foreground</code>. If neither is set, the default thumb color is a lighter gray.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>The track fills the full arranged slot.</li>
+                        <li>The thumb is rendered as an axis-aligned rectangle.</li>
+                        <li>The element's normal <code>Opacity</code> applies to both rectangles.</li>
+                        <li>No rounded geometry, border stroke, or separate chrome layers are drawn by the control itself.</li>
+                    </ul>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;ScrollBar Width="280"
+             Orientation="Horizontal"
+             Minimum="0"
+             Maximum="300"
+             ViewportSize="80"
+             Value="60"
+             Background="#132131"
+             Foreground="#77D1FF" /&gt;
+
+  &lt;ScrollBar Width="280"
+             Orientation="Horizontal"
+             Minimum="0"
+             Maximum="300"
+             ViewportSize="80"
+             Value="60"
+             TrackBrush="#1B2D41"
+             ThumbBrush="#FFB347"
+             Margin="0,8,0,0" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>The first bar uses the inherited control color fallback path. The second overrides the dedicated scroll-bar colors directly.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>ScrollViewer ownership</h2>
+                    <p><code>ScrollViewer</code> creates and owns its internal horizontal and vertical <code>ScrollBar</code> instances. When that happens, the viewer drives the important range properties for you.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Values supplied by ScrollViewer</h3>
+                            <p>The viewer sets <code>Minimum</code> to <code>0</code>, <code>Maximum</code> to the content extent, <code>ViewportSize</code> to the current viewport size, and <code>Value</code> to the current scroll offset.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Thickness resolution</h3>
+                            <p>The viewer uses its own <code>ScrollBarThickness</code> by default, but an internally owned bar can also be influenced by the bar's explicit cross-axis size or <code>Thickness</code>.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="360"
+              Height="220"
+              HorizontalScrollBarVisibility="Auto"
+              VerticalScrollBarVisibility="Auto"
+              ScrollBarThickness="16"&gt;
+  &lt;Canvas Width="960" Height="640"&gt;
+    &lt;Border Canvas.Left="40"
+            Canvas.Top="32"
+            Width="200"
+            Height="120"
+            Background="#183149"
+            BorderBrush="#5A9CD4"
+            BorderThickness="1" /&gt;
+  &lt;/Canvas&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                    <p>If your goal is end-user scrolling of a content surface, this is the usual pattern. The viewer handles range updates, offset clamping, and pointer routing to its internal bars.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Range properties</h3>
+                            <p><code>Orientation</code>: <code>Vertical</code> or <code>Horizontal</code>. Default: <code>Vertical</code>.</p>
+                            <p><code>Minimum</code>: lower bound of the represented extent. Default: <code>0</code>.</p>
+                            <p><code>Maximum</code>: upper bound of the represented extent. Default: <code>0</code>.</p>
+                            <p><code>Value</code>: current viewport origin or logical offset. Default: <code>0</code>.</p>
+                            <p><code>ViewportSize</code>: visible window size inside the extent. Default: <code>0</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Interaction and rendering</h3>
+                            <p><code>SmallChange</code>: small step value exposed on the API. Default: <code>16</code>. Not currently used by the built-in pointer path.</p>
+                            <p><code>LargeChange</code>: page step used for track clicks. Default: <code>32</code>.</p>
+                            <p><code>Thickness</code>: desired cross-axis thickness. Default: <code>12</code>. Practical minimum: <code>8</code>.</p>
+                            <p><code>TrackBrush</code>: track fill color. Default: <code>(42, 42, 42)</code>.</p>
+                            <p><code>ThumbBrush</code>: thumb fill color. Default: <code>(112, 112, 112)</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Inherited control colors</h3>
+                            <p><code>Background</code>: fallback color source for the track when <code>TrackBrush</code> is still default.</p>
+                            <p><code>Foreground</code>: fallback color source for the thumb when <code>ThumbBrush</code> is still default.</p>
+                            <p><code>Opacity</code>: inherited rendering opacity applied to the track and thumb.</p>
+                            <p><code>BorderBrush</code>, <code>BorderThickness</code>, and <code>Padding</code>: inherited on the base control surface, but not used by the current <code>ScrollBar</code> layout or render path.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Automation</h3>
+                            <p><code>ScrollBar</code> participates in the framework automation surface as a scroll-bar control type and exposes range values through the automation peer.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Viewport indicator for a large canvas</h3>
+                    <pre><code class="language-xml">&lt;Grid&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="*" /&gt;
+    &lt;ColumnDefinition Width="Auto" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+
+  &lt;Canvas x:Name="WorldCanvas" Grid.Column="0" Width="1200" Height="900" /&gt;
+
+  &lt;ScrollBar Grid.Column="1"
+             Height="260"
+             Orientation="Vertical"
+             Minimum="0"
+             Maximum="900"
+             ViewportSize="260"
+             Value="{Binding CameraY}"
+             TrackBrush="#13202E"
+             ThumbBrush="#5FA8E8" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Horizontal timeline navigator</h3>
+                    <pre><code class="language-xml">&lt;ScrollBar Width="420"
+           Orientation="Horizontal"
+           Minimum="0"
+           Maximum="{Binding TimelineLength}"
+           ViewportSize="{Binding VisibleRange}"
+           Value="{Binding TimelineOffset}"
+           Background="#0F1823"
+           Foreground="#F5B04C" /&gt;</code></pre>
+                    <h3>Programmatic setup in code</h3>
+                    <pre><code class="language-csharp">var bar = new ScrollBar
+{
+    Orientation = Orientation.Vertical,
+    Height = 240f,
+    Minimum = 0f,
+    Maximum = documentHeight,
+    ViewportSize = viewportHeight,
+    Value = currentOffset,
+    TrackBrush = new Color(19, 32, 46),
+    ThumbBrush = new Color(95, 168, 232)
+};
+
+bar.Value = MathF.Max(
+    bar.Minimum,
+    MathF.Min(
+        bar.Minimum + MathF.Max(0f, (bar.Maximum - bar.Minimum) - bar.ViewportSize),
+        nextOffset));</code></pre>
+                    <h3>Prefer ScrollViewer for interactive content scrolling</h3>
+                    <pre><code class="language-xml">&lt;ScrollViewer Width="340"
+              Height="220"
+              VerticalScrollBarVisibility="Auto"&gt;
+  &lt;StackPanel&gt;
+    &lt;TextBlock Text="Entry 1" /&gt;
+    &lt;TextBlock Text="Entry 2" /&gt;
+    &lt;TextBlock Text="Entry 3" /&gt;
+    &lt;TextBlock Text="Entry 4" /&gt;
+    &lt;TextBlock Text="Entry 5" /&gt;
+    &lt;TextBlock Text="Entry 6" /&gt;
+    &lt;TextBlock Text="Entry 7" /&gt;
+  &lt;/StackPanel&gt;
+&lt;/ScrollViewer&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong><code>Maximum</code> is not the largest offset.</strong> The effective end of the scrollable range is <code>Maximum - ViewportSize</code> relative to <code>Minimum</code>, clamped at zero.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Standalone bars are not fully wired for end-user mouse input by default.</strong> Automatic drag and track-click routing currently comes from the owning <code>ScrollViewer</code> input path.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong><code>SmallChange</code> is currently unused by the built-in pointer path.</strong> Do not rely on it for user interaction behavior unless you add your own logic around the control.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong><code>Background</code>, <code>Foreground</code>, <code>TrackBrush</code>, and <code>ThumbBrush</code> are colors, not brush objects.</strong> Examples and styles for this control should use values that resolve to <code>Color</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No template-driven parts.</strong> The control renders its visuals directly; it does not expose a separate thumb child, track child, or content slot.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Set an explicit length when using the control on its own.</strong> Because the desired size along the scrolling axis mirrors the available size, a standalone bar is easiest to reason about when you also set <code>Width</code> or <code>Height</code>.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-rich-text-box.html">
+                        <span>Previous</span>
+                        <strong>RichTextBox</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-scroll-viewer.html">
+                        <span>Next</span>
+                        <strong>ScrollViewer</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
