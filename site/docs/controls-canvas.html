@@ -186,7 +186,7 @@
 &lt;/Canvas&gt;</code></pre>
                     <h3>Two independent children</h3>
                     <pre><code class="language-xml">&lt;Canvas Width="420" Height="220"&gt;
-  &lt;Button Text="Primary action"
+    &lt;Button Content="Primary action"
           Width="140"
           Height="40"
           Canvas.Left="20"
@@ -260,7 +260,7 @@ overlayCanvas.AddChild(badge);</code></pre>
                     <h3>Position a control in XAML</h3>
                     <pre><code class="language-xml">&lt;Canvas Width="500" Height="280"&gt;
   &lt;Button x:Name="SaveButton"
-          Text="Save"
+                  Content="Save"
           Width="120"
           Height="38"
           Canvas.Left="32"
@@ -358,7 +358,7 @@ Storyboard.SetTargetProperty(leftAnimation, "(Canvas.Left)");</code></pre>
                     <h3>Popup anchor host</h3>
                     <pre><code class="language-xml">&lt;Canvas Width="640" Height="360"&gt;
   &lt;Button x:Name="AnchorButton"
-          Text="Open menu"
+                  Content="Open menu"
           Width="140"
           Height="38"
           Canvas.Left="40"
@@ -371,7 +371,7 @@ Storyboard.SetTargetProperty(leftAnimation, "(Canvas.Left)");</code></pre>
                     <pre><code class="language-xml">&lt;Canvas Width="760" Height="420"&gt;
   &lt;TextBlock Text="Status" Canvas.Left="20" Canvas.Top="16" /&gt;
   &lt;ProgressBar Width="240" Height="20" Value="68" Canvas.Left="20" Canvas.Top="44" /&gt;
-  &lt;Button Text="Retry" Width="96" Height="34" Canvas.Left="20" Canvas.Top="90" /&gt;
+    &lt;Button Content="Retry" Width="96" Height="34" Canvas.Left="20" Canvas.Top="90" /&gt;
   &lt;Border Width="320" Height="180" BorderBrush="#45627E" BorderThickness="1" Canvas.Left="380" Canvas.Top="20"&gt;
     &lt;TextBlock Text="Preview area" Margin="12" /&gt;
   &lt;/Border&gt;

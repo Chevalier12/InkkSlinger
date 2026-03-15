@@ -177,14 +177,14 @@
                 </div>
                 <section class="doc-section">
                     <h2>Quick start</h2>
-                    <p>Use <code>CheckBox</code> for choices that can be enabled or disabled independently. Start with <code>Text</code> and <code>IsChecked</code>, then add events, commands, or templates only when the interaction requires them.</p>
+                        <p>Use <code>CheckBox</code> for choices that can be enabled or disabled independently. Start with string <code>Content</code> and <code>IsChecked</code>, then add events, commands, or templates only when the interaction requires them.</p>
                     <h3>Minimal checkbox</h3>
-                    <pre><code class="language-xml">&lt;CheckBox Text="Enable telemetry" /&gt;</code></pre>
+                        <pre><code class="language-xml">&lt;CheckBox Content="Enable telemetry" /&gt;</code></pre>
                     <h3>Bind the checked state</h3>
-                    <pre><code class="language-xml">&lt;CheckBox Text="Remember window layout"
+                        <pre><code class="language-xml">&lt;CheckBox Content="Remember window layout"
           IsChecked="{Binding RememberLayout}" /&gt;</code></pre>
                     <h3>Handle checked and unchecked transitions</h3>
-                    <pre><code class="language-xml">&lt;CheckBox Text="Receive updates"
+                        <pre><code class="language-xml">&lt;CheckBox Content="Receive updates"
           Checked="OnReceiveUpdatesChecked"
           Unchecked="OnReceiveUpdatesUnchecked" /&gt;</code></pre>
                     <pre><code class="language-csharp">namespace InkkSlinger;
@@ -207,11 +207,11 @@ public partial class PreferencesView : UserControl
     }
 }</code></pre>
                     <h3>Enable three-state toggling</h3>
-                    <pre><code class="language-xml">&lt;CheckBox Text="Use inherited permissions"
+                    <pre><code class="language-xml">&lt;CheckBox Content="Use inherited permissions"
           IsThreeState="True"
           IsChecked="{x:Null}" /&gt;</code></pre>
                     <div class="callout doc-callout">
-                        <p><strong>Default recommendation:</strong> use <code>Text</code> plus a bound <code>IsChecked</code> value for ordinary settings and checklist rows. That matches the current built-in behavior most directly.</p>
+                        <p><strong>Default recommendation:</strong> use string <code>Content</code> plus a bound <code>IsChecked</code> value for ordinary settings and checklist rows. That matches the built-in behavior most directly.</p>
                     </div>
                 </section>
                 <section class="doc-section">
@@ -235,35 +235,35 @@ public partial class PreferencesView : UserControl
                         <li><code>OnClick</code> toggles the state first, then raises the inherited button click behavior and command execution path.</li>
                     </ul>
                     <pre><code class="language-xml">&lt;StackPanel&gt;
-  &lt;CheckBox Text="Draft" IsChecked="False" Margin="0,0,0,8" /&gt;
-  &lt;CheckBox Text="Published" IsChecked="True" Margin="0,0,0,8" /&gt;
-  &lt;CheckBox Text="Inherited"
+  &lt;CheckBox Content="Draft" IsChecked="False" Margin="0,0,0,8" /&gt;
+  &lt;CheckBox Content="Published" IsChecked="True" Margin="0,0,0,8" /&gt;
+  &lt;CheckBox Content="Inherited"
             IsThreeState="True"
             IsChecked="{x:Null}" /&gt;
 &lt;/StackPanel&gt;</code></pre>
                     <p>Use three-state mode only when <code>null</code> has a real meaning in your model, such as "inherit", "mixed selection", or "not decided yet".</p>
                 </section>
                 <section class="doc-section">
-                    <h2>Text, content, and commands</h2>
-                    <p><code>CheckBox</code> inherits the text/content contract from <code>Button</code>. In practice, <code>Text</code> is the simplest path, while <code>Content</code> matters when a template uses a <code>ContentPresenter</code>.</p>
+                    <h2>Content and commands</h2>
+                    <p><code>CheckBox</code> follows the same content model as <code>Button</code>. Use string <code>Content</code> for standard captions, and use richer content when a template presents it.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
-                            <h3>Use Text first</h3>
-                            <p>In the owner-drawn fallback path, <code>CheckBox</code> renders the caption from <code>Text</code>. This is also mirrored into templated content when the template uses a <code>ContentPresenter</code> and you have not set explicit <code>Content</code>.</p>
+                            <h3>Simple captions</h3>
+                            <p>In the owner-drawn fallback path, <code>CheckBox</code> renders caption text resolved from <code>Content</code>. A plain string gives the most predictable result for settings rows and checklists.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>Use Content for custom templates</h3>
-                            <p>If a template needs arbitrary content, set <code>Content</code> explicitly. Once explicit content is set, later <code>Text</code> changes no longer override it.</p>
+                            <h3>Rich content</h3>
+                            <p>If a template needs arbitrary content, provide UIElement content or composed markup and make sure the template includes a <code>ContentPresenter</code>.</p>
                         </article>
                     </div>
                     <ul>
-                        <li><code>Text</code> is the safest end-user API for ordinary checkbox captions.</li>
-                        <li><code>Content</code> is most useful in templates built around <code>ContentPresenter</code>.</li>
+                        <li><code>Content</code> is the primary caption API for ordinary checkbox labels.</li>
+                        <li>Plain string content participates naturally in fallback rendering and template-based presentation.</li>
                         <li><code>Command</code>, <code>CommandParameter</code>, and <code>CommandTarget</code> are inherited from <code>Button</code>.</li>
                         <li>The command path runs after the checked state is toggled.</li>
                     </ul>
                     <h3>Command binding example</h3>
-                    <pre><code class="language-xml">&lt;CheckBox Text="Accept license terms"
+                    <pre><code class="language-xml">&lt;CheckBox Content="Accept license terms"
           IsChecked="{Binding AcceptedTerms}"
           Command="{Binding SaveConsentCommand}"
           CommandParameter="{Binding AcceptedTerms}" /&gt;</code></pre>
@@ -355,15 +355,15 @@ public partial class PreferencesView : UserControl
                     <h3>Owner-drawn fallback behavior</h3>
                     <ul>
                         <li>The fallback glyph is a 14x14 square with 8 pixels of spacing before the caption text.</li>
-                        <li>Desired width includes padding, glyph width, spacing when text exists, and measured text width.</li>
+                        <li>Desired width includes padding, glyph width, spacing when caption text exists, and measured text width.</li>
                         <li>Desired height is the larger of glyph height or text height, plus vertical padding.</li>
-                        <li><code>TextWrapping</code> affects text measurement and drawing when the available width is constrained.</li>
+                        <li><code>TextWrapping</code> affects caption measurement and drawing when the available width is constrained.</li>
                         <li>Checked state draws a filled inner square inside the glyph.</li>
                         <li>Indeterminate state draws a horizontal dash inside the glyph.</li>
                         <li>Disabled state uses muted border, fill, and text colors.</li>
                     </ul>
                     <pre><code class="language-xml">&lt;StackPanel Width="220"&gt;
-  &lt;CheckBox Text="Use owner-drawn fallback with wrapped text when no template is applied."
+  &lt;CheckBox Content="Use owner-drawn fallback with wrapped text when no template is applied."
             TextWrapping="Wrap"
             Padding="6" /&gt;
 &lt;/StackPanel&gt;</code></pre>
@@ -381,9 +381,9 @@ public partial class PreferencesView : UserControl
                             <p><code>Indeterminate</code>: bubbling routed event raised when <code>IsChecked</code> becomes <code>null</code>.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>Text, visuals, and commands</h3>
-                            <p><code>Text</code>: plain caption text for the fallback render path and the source for mirrored template content when explicit <code>Content</code> is not set.</p>
-                            <p><code>TextWrapping</code>: controls whether caption text is measured and drawn as one line or wrapped lines.</p>
+                            <h3>Content, visuals, and commands</h3>
+                            <p><code>Content</code>: the checkbox label payload. Use a string for standard captions or richer content when the template presents it.</p>
+                            <p><code>TextWrapping</code>: controls whether plain text content is measured and drawn as one line or wrapped lines.</p>
                             <p><code>Foreground</code>, <code>Background</code>, <code>BorderBrush</code>, <code>Padding</code>: styling inputs used directly by fallback rendering or forwarded into a template through bindings.</p>
                             <p><code>Command</code>, <code>CommandParameter</code>, <code>CommandTarget</code>: inherited action surface from <code>Button</code>.</p>
                             <p><code>IsEnabled</code>: inherited enabled state, used by both theme triggers and the fallback render path.</p>
@@ -395,29 +395,29 @@ public partial class PreferencesView : UserControl
                     <h3>Settings panel checkbox</h3>
                     <pre><code class="language-xml">&lt;StackPanel&gt;
   &lt;TextBlock Text="General" Margin="0,0,0,8" /&gt;
-  &lt;CheckBox Text="Launch on startup"
+    &lt;CheckBox Content="Launch on startup"
             IsChecked="{Binding LaunchOnStartup}"
             Margin="0,0,0,6" /&gt;
-  &lt;CheckBox Text="Minimize to tray"
+    &lt;CheckBox Content="Minimize to tray"
             IsChecked="{Binding MinimizeToTray}" /&gt;
 &lt;/StackPanel&gt;</code></pre>
                     <h3>Checklist row with bound state</h3>
-                    <pre><code class="language-xml">&lt;CheckBox Text="{Binding Title}"
+                                        <pre><code class="language-xml">&lt;CheckBox Content="{Binding Title}"
           IsChecked="{Binding IsComplete}"
           Margin="0,4,0,4" /&gt;</code></pre>
                     <h3>Command-driven consent flow</h3>
-                    <pre><code class="language-xml">&lt;CheckBox Text="I have reviewed the migration summary"
+                                        <pre><code class="language-xml">&lt;CheckBox Content="I have reviewed the migration summary"
           IsChecked="{Binding HasReviewedSummary}"
           Command="{Binding RefreshContinueStateCommand}" /&gt;</code></pre>
                     <h3>Access key example</h3>
                     <pre><code class="language-xml">&lt;StackPanel&gt;
   &lt;AccessText Text="_Telemetry" TargetName="TelemetryCheckBox" /&gt;
   &lt;CheckBox x:Name="TelemetryCheckBox"
-            Text="Enable telemetry"
+                        Content="Enable telemetry"
             IsChecked="{Binding EnableTelemetry}" /&gt;
 &lt;/StackPanel&gt;</code></pre>
                     <h3>Three-state usage with a custom visual note</h3>
-                    <pre><code class="language-xml">&lt;CheckBox Text="Use project default"
+                                        <pre><code class="language-xml">&lt;CheckBox Content="Use project default"
           IsThreeState="True"
           IsChecked="{Binding EffectiveSetting}" /&gt;</code></pre>
                     <p>If you need a visible indeterminate glyph in a template, add an additional trigger for the <code>null</code> state and draw a dash, mixed-fill block, or alternate accent. The stock <code>App.xml</code> theme in this repo does not add that visual for you.</p>

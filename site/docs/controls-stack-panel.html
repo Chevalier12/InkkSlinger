@@ -182,13 +182,13 @@
                     <pre><code class="language-xml">&lt;StackPanel&gt;
   &lt;TextBlock Text="Project name" Margin="0,0,0,6" /&gt;
   &lt;TextBox Width="240" Margin="0,0,0,10" /&gt;
-  &lt;Button Text="Create" Width="120" /&gt;
+    &lt;Button Content="Create" Width="120" /&gt;
 &lt;/StackPanel&gt;</code></pre>
                     <h3>Horizontal button row</h3>
                     <pre><code class="language-xml">&lt;StackPanel Orientation="Horizontal"&gt;
-  &lt;Button Text="Save" Margin="0,0,8,0" /&gt;
-  &lt;Button Text="Publish" Margin="0,0,8,0" /&gt;
-  &lt;Button Text="Close" /&gt;
+    &lt;Button Content="Save" Margin="0,0,8,0" /&gt;
+    &lt;Button Content="Publish" Margin="0,0,8,0" /&gt;
+    &lt;Button Content="Close" /&gt;
 &lt;/StackPanel&gt;</code></pre>
                     <h3>Section with nested groups</h3>
                     <pre><code class="language-xml">&lt;StackPanel Margin="16"&gt;
@@ -247,11 +247,11 @@
                     </div>
                     <h3>Vertical stack with left-aligned children</h3>
                     <pre><code class="language-xml">&lt;StackPanel Width="320"&gt;
-  &lt;Button Text="Short action"
+    &lt;Button Content="Short action"
           Width="140"
           HorizontalAlignment="Left"
           Margin="0,0,0,8" /&gt;
-  &lt;Button Text="Stretched action" /&gt;
+    &lt;Button Content="Stretched action" /&gt;
 &lt;/StackPanel&gt;</code></pre>
                     <h3>Horizontal stack with vertically centered content</h3>
                     <pre><code class="language-xml">&lt;StackPanel Orientation="Horizontal" Height="48"&gt;
@@ -280,8 +280,8 @@
                     </div>
                     <h3>Set orientation in XAML</h3>
                     <pre><code class="language-xml">&lt;StackPanel Orientation="Horizontal"&gt;
-  &lt;Button Text="Back" Margin="0,0,8,0" /&gt;
-  &lt;Button Text="Forward" /&gt;
+    &lt;Button Content="Back" Margin="0,0,8,0" /&gt;
+    &lt;Button Content="Forward" /&gt;
 &lt;/StackPanel&gt;</code></pre>
                     <h3>Set orientation from code</h3>
                     <pre><code class="language-csharp">var toolbar = new StackPanel
@@ -289,8 +289,8 @@
     Orientation = Orientation.Horizontal
 };
 
-toolbar.AddChild(new Button { Text = "Refresh" });
-toolbar.AddChild(new Button { Text = "History" });</code></pre>
+toolbar.AddChild(new Button { Content = "Refresh" });
+toolbar.AddChild(new Button { Content = "History" });</code></pre>
                 </section>
                 <section class="doc-section">
                     <h2>StackPanel inside a ScrollViewer</h2>
@@ -348,9 +348,9 @@ toolbar.AddChild(new Button { Text = "History" });</code></pre>
         BorderThickness="1"
         Padding="10"&gt;
   &lt;StackPanel Orientation="Horizontal"&gt;
-    &lt;Button Text="Undo" Margin="0,0,8,0" /&gt;
-    &lt;Button Text="Redo" Margin="0,0,8,0" /&gt;
-    &lt;Button Text="Format" /&gt;
+        &lt;Button Content="Undo" Margin="0,0,8,0" /&gt;
+        &lt;Button Content="Redo" Margin="0,0,8,0" /&gt;
+        &lt;Button Content="Format" /&gt;
   &lt;/StackPanel&gt;
 &lt;/Border&gt;</code></pre>
                     <h3>Labeled field group</h3>
@@ -361,16 +361,16 @@ toolbar.AddChild(new Button { Text = "History" });</code></pre>
   &lt;TextBlock Text="Port" Margin="0,0,0,4" /&gt;
   &lt;TextBox Margin="0,0,0,10" /&gt;
 
-  &lt;Button Text="Connect"
+    &lt;Button Content="Connect"
           Width="120"
           HorizontalAlignment="Left" /&gt;
 &lt;/StackPanel&gt;</code></pre>
                     <h3>Sidebar navigation</h3>
                     <pre><code class="language-xml">&lt;StackPanel Background="#101822"&gt;
-  &lt;Button Text="Home" Margin="0,0,0,6" /&gt;
-  &lt;Button Text="Search" Margin="0,0,0,6" /&gt;
-  &lt;Button Text="Queues" Margin="0,0,0,6" /&gt;
-  &lt;Button Text="Settings" /&gt;
+    &lt;Button Content="Home" Margin="0,0,0,6" /&gt;
+    &lt;Button Content="Search" Margin="0,0,0,6" /&gt;
+    &lt;Button Content="Queues" Margin="0,0,0,6" /&gt;
+    &lt;Button Content="Settings" /&gt;
 &lt;/StackPanel&gt;</code></pre>
                     <h3>Mixed content card</h3>
                     <pre><code class="language-xml">&lt;Border Background="#172331"
@@ -380,7 +380,7 @@ toolbar.AddChild(new Button { Text = "History" });</code></pre>
   &lt;StackPanel&gt;
     &lt;TextBlock Text="Release notes" Margin="0,0,0,8" /&gt;
     &lt;TextBlock Text="Build 142 shipped successfully." Margin="0,0,0,10" /&gt;
-    &lt;Button Text="View details"
+        &lt;Button Content="View details"
             Width="120"
             HorizontalAlignment="Left" /&gt;
   &lt;/StackPanel&gt;

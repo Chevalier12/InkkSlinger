@@ -362,7 +362,7 @@
   &lt;Button Width="120"
           Height="36"
           Margin="6,4"
-          Text="Apply" /&gt;
+      Content="Apply" /&gt;
 &lt;/Grid&gt;</code></pre>
                     <h3>Inspecting resolved sizes</h3>
                     <p>After arrange, each definition reports its final resolved size through <code>ActualWidth</code> or <code>ActualHeight</code>. This is primarily useful for diagnostics, layout tooling, or controls such as <code>GridSplitter</code> that need to work against the current rendered dimensions.</p>
@@ -477,7 +477,7 @@ float right = grid.ColumnDefinitions[1].ActualWidth;</code></pre>
           Grid.Column="1"
           Width="120"
           HorizontalAlignment="Left"
-          Text="Sign in" /&gt;
+      Content="Sign in" /&gt;
 &lt;/Grid&gt;</code></pre>
                     <h3>Resizable split layout with GridSplitter</h3>
                     <pre><code class="language-xml">&lt;Grid&gt;
