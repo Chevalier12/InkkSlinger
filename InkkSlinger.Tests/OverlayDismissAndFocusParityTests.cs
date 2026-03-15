@@ -14,7 +14,7 @@ public sealed class OverlayDismissAndFocusParityTests
     {
         var (uiRoot, host) = CreateUiRootWithHost();
         var buttonClicks = 0;
-        var button = new Button { Width = 140f, Height = 40f, Text = "Underlay" };
+        var button = new Button { Width = 140f, Height = 40f, Content = "Underlay" };
         button.Click += (_, _) => buttonClicks++;
         host.AddChild(button);
         Canvas.SetLeft(button, 24f);
@@ -164,7 +164,7 @@ public sealed class OverlayDismissAndFocusParityTests
     public void RightClickDismiss_DoesNotOpenAnotherContextMenuFromSameClick()
     {
         var (uiRoot, host) = CreateUiRootWithHost();
-        var target = new Button { Width = 160f, Height = 40f, Text = "Target" };
+        var target = new Button { Width = 160f, Height = 40f, Content = "Target" };
         host.AddChild(target);
         Canvas.SetLeft(target, 24f);
         Canvas.SetTop(target, 24f);
@@ -207,7 +207,7 @@ public sealed class OverlayDismissAndFocusParityTests
     {
         var (uiRoot, host) = CreateUiRootWithHost();
         var buttonClicks = 0;
-        var button = new Button { Width = 140f, Height = 40f, Text = "Behind" };
+        var button = new Button { Width = 140f, Height = 40f, Content = "Behind" };
         button.Click += (_, _) => buttonClicks++;
         host.AddChild(button);
         Canvas.SetLeft(button, 24f);
@@ -364,7 +364,7 @@ public sealed class OverlayDismissAndFocusParityTests
     {
         var (uiRoot, host) = CreateUiRootWithHost();
         var buttonClicks = 0;
-        var button = new Button { Width = 140f, Height = 40f, Text = "Behind" };
+        var button = new Button { Width = 140f, Height = 40f, Content = "Behind" };
         button.Click += (_, _) => buttonClicks++;
         host.AddChild(button);
         Canvas.SetLeft(button, 24f);
@@ -401,7 +401,7 @@ public sealed class OverlayDismissAndFocusParityTests
         {
             Width = 120f,
             Height = 32f,
-            Text = "Target"
+            Content = "Target"
         };
         var contextMenu = CreateSimpleContextMenu();
         ContextMenu.SetContextMenu(target, contextMenu);

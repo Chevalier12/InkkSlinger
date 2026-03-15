@@ -17,7 +17,7 @@ public sealed class AccessKeyRoutingTests
         var button = new Button
         {
             Name = "SaveButton",
-            Text = "Save"
+            Content = "Save"
         };
         button.Click += (_, _) => executions++;
         var accessText = new AccessText
@@ -42,7 +42,7 @@ public sealed class AccessKeyRoutingTests
         var button = new Button
         {
             Name = "SaveButton",
-            Text = "Save",
+            Content = "Save",
             IsEnabled = false
         };
         button.Click += (_, _) => executions++;
@@ -67,7 +67,7 @@ public sealed class AccessKeyRoutingTests
         var button = new Button
         {
             Name = "SaveButton",
-            Text = "Save",
+            Content = "Save",
             RecognizesAccessKey = false
         };
         button.Click += (_, _) => executions++;
@@ -93,13 +93,13 @@ public sealed class AccessKeyRoutingTests
 
         var firstPanel = new StackPanel();
         firstPanel.AddChild(new AccessText { Text = "_Save", TargetName = "FirstButton" });
-        var firstButton = new Button { Name = "FirstButton", Text = "First" };
+        var firstButton = new Button { Name = "FirstButton", Content = "First" };
         firstButton.Click += (_, _) => firstExecutions++;
         firstPanel.AddChild(firstButton);
 
         var secondPanel = new StackPanel();
         secondPanel.AddChild(new AccessText { Text = "_Save", TargetName = "SecondButton" });
-        var secondButton = new Button { Name = "SecondButton", Text = "Second" };
+        var secondButton = new Button { Name = "SecondButton", Content = "Second" };
         secondButton.Click += (_, _) => secondExecutions++;
         secondPanel.AddChild(secondButton);
 
@@ -125,7 +125,7 @@ public sealed class AccessKeyRoutingTests
         menu.Items.Add(saveMenu);
         root.AddChild(menu);
 
-        var button = new Button { Name = "SaveButton", Text = "Save" };
+        var button = new Button { Name = "SaveButton", Content = "Save" };
         button.Click += (_, _) => executions++;
         root.AddChild(new AccessText { Text = "_Save", TargetName = "SaveButton" });
         root.AddChild(button);
@@ -148,7 +148,7 @@ public sealed class AccessKeyRoutingTests
         menu.Items.Add(new MenuItem { Header = "_File" });
         root.AddChild(menu);
 
-        var button = new Button { Name = "SaveButton", Text = "Save" };
+        var button = new Button { Name = "SaveButton", Content = "Save" };
         button.Click += (_, _) => executions++;
         root.AddChild(new AccessText { Text = "_Save", TargetName = "SaveButton" });
         root.AddChild(button);
@@ -169,14 +169,14 @@ public sealed class AccessKeyRoutingTests
 
         var firstContainer = new StackPanel();
         firstContainer.AddChild(new AccessText { Text = "_Save", TargetName = "FirstButton" });
-        var firstButton = new Button { Name = "FirstButton", Text = "First" };
+        var firstButton = new Button { Name = "FirstButton", Content = "First" };
         firstButton.Click += (_, _) => firstExecutions++;
         firstContainer.AddChild(firstButton);
         root.AddChild(firstContainer);
 
         var secondContainer = new StackPanel();
         secondContainer.AddChild(new AccessText { Text = "_Save", TargetName = "SecondButton" });
-        var secondButton = new Button { Name = "SecondButton", Text = "Second" };
+        var secondButton = new Button { Name = "SecondButton", Content = "Second" };
         secondButton.Click += (_, _) => secondExecutions++;
         secondContainer.AddChild(secondButton);
         root.AddChild(secondContainer);

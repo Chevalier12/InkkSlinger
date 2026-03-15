@@ -150,7 +150,7 @@ public sealed class ComboBoxPopupEdgeParityTests
 
         var siblingButton = new Button
         {
-            Text = "Open Combo Dropdown",
+            Content = "Open Combo Dropdown",
             Height = 30f,
             Margin = new Thickness(0f, 10f, 0f, 0f)
         };
@@ -194,7 +194,7 @@ public sealed class ComboBoxPopupEdgeParityTests
         var openButtonClicks = 0;
         var openDropDownButton = new Button
         {
-            Text = "Open Combo Dropdown",
+            Content = "Open Combo Dropdown",
             Width = 240f,
             Height = 32f
         };
@@ -253,7 +253,7 @@ public sealed class ComboBoxPopupEdgeParityTests
         var buttonClicks = 0;
         var underneathButton = new Button
         {
-            Text = "Underneath",
+            Content = "Underneath",
             Width = 260f,
             Height = 32f
         };

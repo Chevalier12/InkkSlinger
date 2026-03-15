@@ -31,6 +31,13 @@ public class ContentControl : Control
     private ContentPresenter? _activeContentPresenter;
     protected UIElement? ContentElement => _contentElement;
 
+    protected virtual bool ShouldCreateImplicitContentElement(object? content, DataTemplate? selectedTemplate)
+    {
+        _ = content;
+        _ = selectedTemplate;
+        return true;
+    }
+
     public object? Content
     {
         get => GetValue(ContentProperty);
@@ -229,6 +236,11 @@ public class ContentControl : Control
                 _contentElement.SetVisualParent(this);
                 _contentElement.SetLogicalParent(this);
             }
+            return;
+        }
+
+        if (!ShouldCreateImplicitContentElement(content, selectedTemplate))
+        {
             return;
         }
 

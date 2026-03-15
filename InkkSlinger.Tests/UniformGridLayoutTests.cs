@@ -16,7 +16,7 @@ public sealed class UniformGridLayoutTests
 
         var child = new Button
         {
-            Text = "13"
+            Content = "13"
         };
         grid.AddChild(child);
 

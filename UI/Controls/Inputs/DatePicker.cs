@@ -213,7 +213,7 @@ public class DatePicker : UserControl
 
         _dropDownButton = new Button
         {
-            Text = "v",
+            Content = "v",
             Width = 28f,
             Padding = new Thickness(0f),
             Margin = new Thickness(2f, 0f, 0f, 0f)

@@ -76,7 +76,7 @@ public sealed class ControlsCatalogLayoutTests
 
                 Assert.True(
                     rightBorderPixelRight <= barPixelLeft,
-                    $"Button right border overlaps scrollbar pixels. viewport={width}x{height}, button={button.Text}, borderRight={rightBorderPixelRight}, barLeft={barPixelLeft}, slotX={button.LayoutSlot.X:0.###}, slotW={button.LayoutSlot.Width:0.###}");
+                    $"Button right border overlaps scrollbar pixels. viewport={width}x{height}, button={button.GetContentText()}, borderRight={rightBorderPixelRight}, barLeft={barPixelLeft}, slotX={button.LayoutSlot.X:0.###}, slotW={button.LayoutSlot.Width:0.###}");
             }
         }
     }

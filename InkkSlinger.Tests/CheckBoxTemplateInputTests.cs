@@ -29,7 +29,7 @@ public sealed class CheckBoxTemplateInputTests
             {
                 Width = 260,
                 Height = 44,
-                Text = "Receive updates"
+                Content = "Receive updates"
             };
             host.AddChild(checkBox);
             Canvas.SetLeft(checkBox, 48f);

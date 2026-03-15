@@ -155,7 +155,7 @@ public sealed class AppXmlPhase1CompatibilityTests
     }
 
     [Fact]
-    public void ButtonText_WithControlTemplateContentPresenter_MirrorsIntoPresentedContent()
+    public void ButtonContent_WithControlTemplateContentPresenter_PresentsAndUpdatesContent()
     {
         var root = (UserControl)XamlLoader.LoadFromString(
             """
@@ -173,7 +173,7 @@ public sealed class AppXmlPhase1CompatibilityTests
       </Setter>
     </Style>
   </UserControl.Resources>
-  <Button x:Name="Probe" Style="{StaticResource TemplateStyle}" Text="FromText" />
+  <Button x:Name="Probe" Style="{StaticResource TemplateStyle}" Content="FromContent" />
 </UserControl>
 """);
 
@@ -185,15 +185,15 @@ public sealed class AppXmlPhase1CompatibilityTests
         var border = Assert.IsType<Border>(Assert.Single(button.GetVisualChildren()));
         var presenter = Assert.IsType<ContentPresenter>(Assert.Single(border.GetVisualChildren()));
         var label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-        Assert.Equal("FromText", label.GetContentText());
+        Assert.Equal("FromContent", label.GetContentText());
 
-        button.Text = "UpdatedText";
+        button.Content = "UpdatedContent";
         label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-        Assert.Equal("UpdatedText", label.GetContentText());
+        Assert.Equal("UpdatedContent", label.GetContentText());
     }
 
     [Fact]
-    public void ButtonContent_WithControlTemplateContentPresenter_IsNotOverriddenByTextMirror()
+      public void ButtonUiElementContent_WithControlTemplateContentPresenter_PresentsProvidedElement()
     {
         var root = (UserControl)XamlLoader.LoadFromString(
             """
@@ -211,11 +211,14 @@ public sealed class AppXmlPhase1CompatibilityTests
       </Setter>
     </Style>
   </UserControl.Resources>
-  <Button x:Name="Probe" Style="{StaticResource TemplateStyle}" Content="ExplicitContent" Text="TextValue" />
+  <Button x:Name="Probe" Style="{StaticResource TemplateStyle}">
+    <Label x:Name="InnerLabel" Content="ExplicitContent" />
+  </Button>
 </UserControl>
 """);
 
         var button = Assert.IsType<Button>(root.FindName("Probe"));
+        var innerLabel = Assert.IsType<Label>(root.FindName("InnerLabel"));
         Assert.True(button.ApplyTemplate());
         button.Measure(new Vector2(320f, 120f));
         button.Arrange(new LayoutRect(0f, 0f, 320f, 120f));
@@ -223,10 +226,7 @@ public sealed class AppXmlPhase1CompatibilityTests
         var border = Assert.IsType<Border>(Assert.Single(button.GetVisualChildren()));
         var presenter = Assert.IsType<ContentPresenter>(Assert.Single(border.GetVisualChildren()));
         var label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-        Assert.Equal("ExplicitContent", label.GetContentText());
-
-        button.Text = "ChangedText";
-        label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
+        Assert.Same(innerLabel, label);
         Assert.Equal("ExplicitContent", label.GetContentText());
     }
 

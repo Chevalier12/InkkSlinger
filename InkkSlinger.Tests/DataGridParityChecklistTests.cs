@@ -115,7 +115,7 @@ public sealed class DataGridParityChecklistTests
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(dragTarget, leftReleased: true));
         RunLayout(uiRoot);
 
-        Assert.Equal("Name", grid.ColumnHeadersForTesting[0].Text);
+        Assert.Equal("Name", grid.ColumnHeadersForTesting[0].GetContentText());
         Assert.Equal("Alpha", grid.RowsForTesting[0].Cells[0].Content?.ToString());
     }
 

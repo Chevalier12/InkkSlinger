@@ -19,7 +19,7 @@ public class Button : ContentControl
     private static long _renderTextDrawDispatchElapsedTicks;
     private static int _renderTextPreparationCallCount;
     private static int _renderTextDrawDispatchCallCount;
-    private static int _textPropertyChangedCount;
+    private static int _contentPropertyChangedCount;
     private static int _textLayoutCacheHitCount;
     private static int _textLayoutCacheMissCount;
     private static int _intrinsicNoWrapMeasureCacheHitCount;
@@ -29,9 +29,6 @@ public class Button : ContentControl
     private static int _plainTextMeasureFastPathCount;
     private static int _intrinsicNoWrapMeasurePathCount;
     private static int _textLayoutMeasurePathCount;
-    private bool _isSyncingTemplateContent;
-    private bool _isTextMirroringTemplateContent;
-    private bool _hasExplicitContentOverride;
     private bool _hasTextLayoutCache;
     private bool _hasIntrinsicNoWrapMeasureCache;
     private int _textLayoutCacheTextVersion = -1;
@@ -44,17 +41,10 @@ public class Button : ContentControl
     private TextWrapping _textLayoutCacheWrapping = TextWrapping.NoWrap;
     private TextLayout.TextLayoutResult _textLayoutCacheResult = TextLayout.TextLayoutResult.Empty;
     private Vector2 _intrinsicNoWrapMeasureSize = Vector2.Zero;
-    private int _textVersion;
+    private int _contentVersion;
 
     public static readonly RoutedEvent ClickEvent =
         new(nameof(Click), RoutingStrategy.Bubble);
-
-    public static readonly DependencyProperty TextProperty =
-        DependencyProperty.Register(
-            nameof(Text),
-            typeof(string),
-            typeof(Button),
-            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
@@ -128,12 +118,6 @@ public class Button : ContentControl
         remove => RemoveHandler(ClickEvent, value);
     }
 
-    public string Text
-    {
-        get => GetValue<string>(TextProperty) ?? string.Empty;
-        set => SetValue(TextProperty, value);
-    }
-
     public new Color Foreground
     {
         get => GetValue<Color>(ForegroundProperty);
@@ -187,10 +171,11 @@ public class Button : ContentControl
         var start = Stopwatch.GetTimestamp();
         try
         {
+            var text = GetSelfRenderedContentText();
             if (CanUsePlainTextMeasureFastPath())
             {
                 _plainTextMeasureFastPathCount++;
-                return MeasurePlainTextButton(availableSize);
+                return MeasurePlainTextButton(availableSize, text);
             }
 
             var desired = base.MeasureOverride(availableSize);
@@ -198,13 +183,13 @@ public class Button : ContentControl
             var border = BorderThickness * 2f;
             var innerAvailableWidth = MathF.Max(0f, availableSize.X - padding.Horizontal - border);
 
-            if (!string.IsNullOrEmpty(Text))
+            if (!string.IsNullOrEmpty(text))
             {
                 _textLayoutMeasurePathCount++;
                 var textAvailableWidth = TextWrapping == TextWrapping.NoWrap
                     ? float.PositiveInfinity
                     : innerAvailableWidth;
-                var textSize = ResolveTextLayout(textAvailableWidth).Size;
+                var textSize = ResolveTextLayout(text, textAvailableWidth).Size;
                 desired.X = System.MathF.Max(desired.X, textSize.X + padding.Horizontal + border);
                 desired.Y = System.MathF.Max(desired.Y, textSize.Y + padding.Vertical + border);
                 return desired;
@@ -235,31 +220,14 @@ public class Button : ContentControl
         ExecuteCommand();
     }
 
-    public override void OnApplyTemplate()
-    {
-        base.OnApplyTemplate();
-        SyncTemplateContentFromTextIfNeeded();
-    }
-
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);
 
         if (args.Property == ContentProperty)
         {
-            if (!_isSyncingTemplateContent)
-            {
-                _hasExplicitContentOverride = HasLocalValue(ContentProperty);
-                _isTextMirroringTemplateContent = false;
-            }
-
-            return;
-        }
-
-        if (args.Property == TextProperty)
-        {
-            _textPropertyChangedCount++;
-            _textVersion++;
+            _contentPropertyChangedCount++;
+            _contentVersion++;
             InvalidateTextLayoutCache();
             InvalidateIntrinsicNoWrapMeasureCache();
         }
@@ -271,11 +239,6 @@ public class Button : ContentControl
         {
             InvalidateTextLayoutCache();
             InvalidateIntrinsicNoWrapMeasureCache();
-        }
-
-        if (args.Property == TextProperty || args.Property == TemplateProperty)
-        {
-            SyncTemplateContentFromTextIfNeeded();
         }
     }
 
@@ -307,58 +270,34 @@ public class Button : ContentControl
         }
     }
 
-    private void SyncTemplateContentFromTextIfNeeded()
+    protected override bool ShouldCreateImplicitContentElement(object? content, DataTemplate? selectedTemplate)
     {
-        if (!HasTemplateRoot)
-        {
-            if (_isTextMirroringTemplateContent && !_hasExplicitContentOverride)
-            {
-                _isSyncingTemplateContent = true;
-                try
-                {
-                    Content = null;
-                    _isTextMirroringTemplateContent = false;
-                }
-                finally
-                {
-                    _isSyncingTemplateContent = false;
-                }
-            }
-
-            return;
-        }
-
-        if (_hasExplicitContentOverride)
-        {
-            return;
-        }
-
-        var nextContent = string.IsNullOrEmpty(Text) ? null : Text;
-        if (Equals(Content, nextContent) && _isTextMirroringTemplateContent)
-        {
-            return;
-        }
-
-        _isSyncingTemplateContent = true;
-        try
-        {
-            Content = nextContent;
-            _isTextMirroringTemplateContent = true;
-        }
-        finally
-        {
-            _isSyncingTemplateContent = false;
-        }
+        return content is UIElement || selectedTemplate != null;
     }
 
-    private TextLayout.TextLayoutResult ResolveTextLayout(float availableWidth)
+    protected string GetDisplayContentText()
+    {
+        if (ContentElement != null || Content == null)
+        {
+            return string.Empty;
+        }
+
+        return Label.ExtractAutomationText(Content);
+    }
+
+    private string GetSelfRenderedContentText()
+    {
+        return CanUsePlainTextMeasureFastPath() ? GetDisplayContentText() : string.Empty;
+    }
+
+    private TextLayout.TextLayoutResult ResolveTextLayout(string text, float availableWidth)
     {
         var start = Stopwatch.GetTimestamp();
         try
         {
             var typography = UiTextRenderer.ResolveTypography(this, FontSize);
             if (_hasTextLayoutCache &&
-                _textLayoutCacheTextVersion == _textVersion &&
+                _textLayoutCacheTextVersion == _contentVersion &&
                 Nullable.Equals(_textLayoutCacheTypography, typography) &&
                 WidthMatches(_textLayoutCacheFontSize, FontSize) &&
                 _textLayoutCacheWrapping == TextWrapping &&
@@ -369,8 +308,8 @@ public class Button : ContentControl
             }
 
             _textLayoutCacheMissCount++;
-            var result = TextLayout.Layout(Text, typography, FontSize, availableWidth, TextWrapping);
-            _textLayoutCacheTextVersion = _textVersion;
+            var result = TextLayout.Layout(text, typography, FontSize, availableWidth, TextWrapping);
+            _textLayoutCacheTextVersion = _contentVersion;
             _textLayoutCacheWidth = availableWidth;
             _textLayoutCacheTypography = typography;
             _textLayoutCacheFontSize = FontSize;
@@ -412,40 +351,39 @@ public class Button : ContentControl
         return Template == null &&
                !HasTemplateRoot &&
                ContentElement == null &&
-               Content == null &&
                ContentTemplate == null &&
                ContentTemplateSelector == null;
     }
 
-    private Vector2 MeasurePlainTextButton(Vector2 availableSize)
+    private Vector2 MeasurePlainTextButton(Vector2 availableSize, string text)
     {
         var padding = Padding;
         var border = BorderThickness * 2f;
         var desired = new Vector2(padding.Horizontal + border, padding.Vertical + border);
-        if (string.IsNullOrEmpty(Text))
+        if (string.IsNullOrEmpty(text))
         {
             return desired;
         }
 
         var innerAvailableWidth = MathF.Max(0f, availableSize.X - padding.Horizontal - border);
         var textSize = CanUseIntrinsicNoWrapTextMeasure()
-            ? ResolveIntrinsicNoWrapMeasurePath()
-            : ResolveTextLayoutMeasurePath(innerAvailableWidth);
+            ? ResolveIntrinsicNoWrapMeasurePath(text)
+            : ResolveTextLayoutMeasurePath(text, innerAvailableWidth);
         desired.X = MathF.Max(desired.X, textSize.X + padding.Horizontal + border);
         desired.Y = MathF.Max(desired.Y, textSize.Y + padding.Vertical + border);
         return desired;
     }
 
-    private Vector2 ResolveIntrinsicNoWrapMeasurePath()
+    private Vector2 ResolveIntrinsicNoWrapMeasurePath(string text)
     {
         _intrinsicNoWrapMeasurePathCount++;
-        return ResolveIntrinsicNoWrapTextSize();
+        return ResolveIntrinsicNoWrapTextSize(text);
     }
 
-    private Vector2 ResolveTextLayoutMeasurePath(float availableWidth)
+    private Vector2 ResolveTextLayoutMeasurePath(string text, float availableWidth)
     {
         _textLayoutMeasurePathCount++;
-        return ResolveTextLayout(availableWidth).Size;
+        return ResolveTextLayout(text, availableWidth).Size;
     }
 
     internal bool HasAvailableIndependentDesiredSizeForUniformGrid()
@@ -455,16 +393,17 @@ public class Button : ContentControl
 
     private bool CanUseIntrinsicNoWrapTextMeasure()
     {
+        var text = GetDisplayContentText();
         return TextWrapping == TextWrapping.NoWrap &&
-               !string.IsNullOrEmpty(Text) &&
-               Text.IndexOfAny(['\r', '\n']) < 0;
+               !string.IsNullOrEmpty(text) &&
+               text.IndexOfAny(['\r', '\n']) < 0;
     }
 
-    private Vector2 ResolveIntrinsicNoWrapTextSize()
+    private Vector2 ResolveIntrinsicNoWrapTextSize(string text)
     {
         var typography = UiTextRenderer.ResolveTypography(this, FontSize);
         if (_hasIntrinsicNoWrapMeasureCache &&
-            _intrinsicNoWrapMeasureTextVersion == _textVersion &&
+            _intrinsicNoWrapMeasureTextVersion == _contentVersion &&
             Nullable.Equals(_intrinsicNoWrapMeasureTypography, typography) &&
             WidthMatches(_intrinsicNoWrapMeasureFontSize, FontSize))
         {
@@ -474,9 +413,9 @@ public class Button : ContentControl
 
         _intrinsicNoWrapMeasureCacheMissCount++;
         var size = new Vector2(
-            UiTextRenderer.MeasureWidth(typography, Text),
+            UiTextRenderer.MeasureWidth(typography, text),
             UiTextRenderer.GetLineHeight(typography));
-        _intrinsicNoWrapMeasureTextVersion = _textVersion;
+        _intrinsicNoWrapMeasureTextVersion = _contentVersion;
         _intrinsicNoWrapMeasureTypography = typography;
         _intrinsicNoWrapMeasureFontSize = FontSize;
         _intrinsicNoWrapMeasureSize = size;
@@ -539,7 +478,8 @@ public class Button : ContentControl
         var start = Stopwatch.GetTimestamp();
         try
         {
-            if (string.IsNullOrEmpty(Text))
+            var text = GetSelfRenderedContentText();
+            if (string.IsNullOrEmpty(text))
             {
                 return null;
             }
@@ -560,7 +500,7 @@ public class Button : ContentControl
             var availableWidth = TextWrapping == TextWrapping.NoWrap
                 ? float.PositiveInfinity
                 : maxTextWidth;
-            var layout = ResolveTextLayout(availableWidth);
+            var layout = ResolveTextLayout(text, availableWidth);
             var textX = left + ((maxTextWidth - layout.Size.X) / 2f);
             var textY = top + ((maxTextHeight - layout.Size.Y) / 2f);
             var lineSpacing = UiTextRenderer.GetLineHeight(this, FontSize);
@@ -636,7 +576,7 @@ public class Button : ContentControl
             _renderTextDrawDispatchElapsedTicks,
             _renderTextPreparationCallCount,
             _renderTextDrawDispatchCallCount,
-            _textPropertyChangedCount,
+            _contentPropertyChangedCount,
             _textLayoutCacheHitCount,
             _textLayoutCacheMissCount,
             _intrinsicNoWrapMeasureCacheHitCount,
@@ -658,7 +598,7 @@ public class Button : ContentControl
         _renderTextDrawDispatchElapsedTicks = 0;
         _renderTextPreparationCallCount = 0;
         _renderTextDrawDispatchCallCount = 0;
-        _textPropertyChangedCount = 0;
+        _contentPropertyChangedCount = 0;
         _textLayoutCacheHitCount = 0;
         _textLayoutCacheMissCount = 0;
         _intrinsicNoWrapMeasureCacheHitCount = 0;
@@ -753,7 +693,7 @@ internal readonly record struct ButtonTimingSnapshot(
     long RenderTextDrawDispatchElapsedTicks,
     int RenderTextPreparationCallCount,
     int RenderTextDrawDispatchCallCount,
-    int TextPropertyChangedCount,
+    int ContentPropertyChangedCount,
     int TextLayoutCacheHitCount,
     int TextLayoutCacheMissCount,
     int IntrinsicNoWrapMeasureCacheHitCount,

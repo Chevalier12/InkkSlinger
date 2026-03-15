@@ -206,7 +206,7 @@ public sealed class CalendarTests
             Assert.NotEmpty(dayButton.GetVisualChildren());
             Assert.Empty(dayButton.GetRetainedRenderChildren());
             Assert.NotEmpty(dayButton.DayText);
-            Assert.Equal(string.Empty, dayButton.Text);
+            Assert.NotEmpty(dayButton.DayText);
         }
         finally
         {

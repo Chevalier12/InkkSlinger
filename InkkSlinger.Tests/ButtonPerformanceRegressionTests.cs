@@ -12,7 +12,7 @@ public sealed class ButtonPerformanceRegressionTests
 
         var button = new ProbeButton
         {
-            Text = "Calendar"
+            Content = "Calendar"
         };
 
         button.Measure(new Vector2(240f, 80f));
@@ -26,14 +26,14 @@ public sealed class ButtonPerformanceRegressionTests
     {
         var button = new Button
         {
-            Text = "Open Calendar",
+            Content = "Open Calendar",
             Padding = new Thickness(10f, 6f, 10f, 6f),
             BorderThickness = 1f
         };
 
         button.Measure(new Vector2(300f, 120f));
 
-        var layout = TextLayout.Layout(button.Text, UiTextRenderer.ResolveTypography(button), button.FontSize, float.PositiveInfinity, TextWrapping.NoWrap);
+        var layout = TextLayout.Layout(button.GetContentText(), UiTextRenderer.ResolveTypography(button), button.FontSize, float.PositiveInfinity, TextWrapping.NoWrap);
         var expected = new Vector2(
             layout.Size.X + button.Padding.Horizontal + (button.BorderThickness * 2f),
             layout.Size.Y + button.Padding.Vertical + (button.BorderThickness * 2f));
@@ -46,7 +46,7 @@ public sealed class ButtonPerformanceRegressionTests
     {
         var button = new Button
         {
-            Text = string.Empty,
+            Content = string.Empty,
             Padding = new Thickness(10f, 6f, 10f, 6f),
             BorderThickness = 1f
         };
@@ -65,7 +65,7 @@ public sealed class ButtonPerformanceRegressionTests
     {
         var button = new Button
         {
-            Text = "Wednesday Thursday Friday Saturday",
+            Content = "Wednesday Thursday Friday Saturday",
             TextWrapping = TextWrapping.Wrap,
             Padding = new Thickness(10f, 6f, 10f, 6f),
             BorderThickness = 1f
@@ -75,7 +75,7 @@ public sealed class ButtonPerformanceRegressionTests
         button.Measure(availableSize);
 
         var textWidth = availableSize.X - button.Padding.Horizontal - (button.BorderThickness * 2f);
-        var layout = TextLayout.Layout(button.Text, UiTextRenderer.ResolveTypography(button), button.FontSize, textWidth, TextWrapping.Wrap);
+        var layout = TextLayout.Layout(button.GetContentText(), UiTextRenderer.ResolveTypography(button), button.FontSize, textWidth, TextWrapping.Wrap);
         var expected = new Vector2(
             layout.Size.X + button.Padding.Horizontal + (button.BorderThickness * 2f),
             layout.Size.Y + button.Padding.Vertical + (button.BorderThickness * 2f));
@@ -90,7 +90,7 @@ public sealed class ButtonPerformanceRegressionTests
 
         var button = new Button
         {
-            Text = "31",
+            Content = "31",
             Padding = new Thickness(10f, 6f, 10f, 6f),
             BorderThickness = 1f
         };
@@ -98,7 +98,7 @@ public sealed class ButtonPerformanceRegressionTests
         button.Measure(new Vector2(300f, 120f));
 
         var expected = new Vector2(
-            UiTextRenderer.MeasureWidth(button, button.Text, button.FontSize) + button.Padding.Horizontal + (button.BorderThickness * 2f),
+            UiTextRenderer.MeasureWidth(button, button.GetContentText(), button.FontSize) + button.Padding.Horizontal + (button.BorderThickness * 2f),
             UiTextRenderer.GetLineHeight(button, button.FontSize) + button.Padding.Vertical + (button.BorderThickness * 2f));
 
         AssertClose(expected, button.DesiredSize);
@@ -110,7 +110,7 @@ public sealed class ButtonPerformanceRegressionTests
     {
         var button = new Button
         {
-            Text = "31",
+            Content = "31",
             Padding = new Thickness(10f, 6f, 10f, 6f),
             BorderThickness = 1f
         };
@@ -174,7 +174,7 @@ public sealed class ButtonPerformanceRegressionTests
 
         var button = new Button
         {
-            Text = "31",
+            Content = "31",
             Width = 32f,
             Height = 24f,
             Padding = new Thickness(0f),
@@ -204,7 +204,7 @@ public sealed class ButtonPerformanceRegressionTests
 
         var button = new Button
         {
-            Text = string.Empty,
+            Content = string.Empty,
             Width = 32f,
             Height = 24f,
             Padding = new Thickness(0f),
@@ -246,7 +246,7 @@ public sealed class ButtonPerformanceRegressionTests
         {
             var button = new Button
             {
-                Text = includeText ? (i + 1).ToString() : string.Empty,
+                Content = includeText ? (i + 1).ToString() : string.Empty,
                 Width = 32f,
                 Height = 24f,
                 Padding = new Thickness(0f),

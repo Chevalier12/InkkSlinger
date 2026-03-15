@@ -151,7 +151,7 @@ public partial class FrameView : UserControl
     {
         var button = new Button
         {
-            Text = text,
+            Content = text,
             Margin = new Thickness(0, 0, 8, 8),
             MinWidth = 120
         };
@@ -185,7 +185,7 @@ public partial class FrameView : UserControl
 
         var inPageNavigate = new Button
         {
-            Text = "Navigate Next Via Page.NavigationService",
+            Content = "Navigate Next Via Page.NavigationService",
             Margin = new Thickness(0, 0, 0, 4)
         };
         inPageNavigate.Click += (_, _) =>

@@ -14,7 +14,7 @@ public sealed class XamlCompileDirectiveCompatibilityTests
              x:ClassModifier="public"
              x:Subclass="InkkSlinger.SampleViewSubclass">
   <Grid>
-    <Button x:Name="MyButton" x:FieldModifier="private" Text="OK" />
+    <Button x:Name="MyButton" x:FieldModifier="private" Content="OK" />
   </Grid>
 </UserControl>
 """;

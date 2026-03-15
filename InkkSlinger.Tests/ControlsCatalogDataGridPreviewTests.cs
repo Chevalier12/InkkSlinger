@@ -101,7 +101,7 @@ public sealed class ControlsCatalogDataGridPreviewTests
         Assert.Equal(DependencyPropertyValueSource.Default, verticalBar.GetValueSource(UIElement.IsVisibleProperty));
         Assert.Equal(DependencyPropertyValueSource.Default, horizontalBar.GetValueSource(UIElement.IsVisibleProperty));
 
-        var header = Assert.Single(dataGrid.ColumnHeadersForTesting, static item => item.Text == "Id");
+        var header = Assert.Single(dataGrid.ColumnHeadersForTesting, static item => item.GetContentText() == "Id");
         AssertTypography(header, view);
         Assert.Equal(DependencyPropertyValueSource.Inherited, header.GetValueSource(FrameworkElement.FontFamilyProperty));
 

@@ -38,7 +38,7 @@ public sealed class CalendarTextDiagnosticsTests
         Assert.Equal(1, calendarDiagnostics.Total.MonthLabelTextChangeCount);
         Assert.Equal(7, calendarDiagnostics.Total.WeekDayLabelTextChangeCount);
         Assert.Equal(42, calendarDiagnostics.Total.DayButtonTextChangeCount);
-        Assert.Equal(0, buttonTiming.TextPropertyChangedCount);
+        Assert.Equal(0, buttonTiming.ContentPropertyChangedCount);
         Assert.Equal(0, buttonTiming.TextLayoutInvalidationCount);
         Assert.Equal(0, buttonTiming.IntrinsicNoWrapMeasureInvalidationCount);
         Assert.True(buttonTiming.IntrinsicNoWrapMeasurePathCount <= 2);
@@ -71,7 +71,7 @@ public sealed class CalendarTextDiagnosticsTests
         LogSnapshot("month-cycle", calendarDiagnostics, buttonTiming, textTiming, backendTiming, gridTiming, uniformGridTiming, textLayoutMetrics);
 
         Assert.True(calendarDiagnostics.Total.DayButtonTextChangeCount > 0);
-        Assert.Equal(0, buttonTiming.TextPropertyChangedCount);
+        Assert.Equal(0, buttonTiming.ContentPropertyChangedCount);
         Assert.Equal(0, buttonTiming.TextLayoutInvalidationCount);
         Assert.Equal(0, buttonTiming.IntrinsicNoWrapMeasureInvalidationCount);
         Assert.Equal(0, buttonTiming.IntrinsicNoWrapMeasureCacheMissCount);
@@ -142,7 +142,7 @@ public sealed class CalendarTextDiagnosticsTests
             $"monthText={calendarDiagnostics.LastRefresh.MonthLabelTextChangeCount}, navEnabled={calendarDiagnostics.LastRefresh.NavigationEnabledChangeCount}]");
         _output.WriteLine(
             $"scenario={scenario} button[measureTicks={buttonTiming.MeasureOverrideElapsedTicks}, textLayoutTicks={buttonTiming.ResolveTextLayoutElapsedTicks}, " +
-            $"textChanged={buttonTiming.TextPropertyChangedCount}, textLayoutInvalidations={buttonTiming.TextLayoutInvalidationCount}, " +
+            $"contentChanged={buttonTiming.ContentPropertyChangedCount}, textLayoutInvalidations={buttonTiming.TextLayoutInvalidationCount}, " +
             $"intrinsicInvalidations={buttonTiming.IntrinsicNoWrapMeasureInvalidationCount}, intrinsicHits={buttonTiming.IntrinsicNoWrapMeasureCacheHitCount}, " +
             $"intrinsicMisses={buttonTiming.IntrinsicNoWrapMeasureCacheMissCount}, textLayoutHits={buttonTiming.TextLayoutCacheHitCount}, " +
             $"textLayoutMisses={buttonTiming.TextLayoutCacheMissCount}, fastPath={buttonTiming.PlainTextMeasureFastPathCount}, " +

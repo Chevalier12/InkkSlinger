@@ -178,7 +178,7 @@ public sealed class PanelButtonComparisonHotspotTests
 
         for (var i = 0; i < 40; i++)
         {
-            panel.AddChild(new Button { Text = (i + 1).ToString() });
+            panel.AddChild(new Button { Content = (i + 1).ToString() });
         }
 
         return panel;
@@ -200,7 +200,7 @@ public sealed class PanelButtonComparisonHotspotTests
         {
             panel.AddChild(new Button
             {
-                Text = includeText
+                Content = includeText
                     ? (useRepeatedText ? "1" : (i + 1).ToString())
                     : string.Empty
             });
@@ -229,7 +229,7 @@ public sealed class PanelButtonComparisonHotspotTests
 
         for (var i = 0; i < 40; i++)
         {
-            var button = new Button { Text = (i + 1).ToString() };
+            var button = new Button { Content = (i + 1).ToString() };
             Grid.SetRow(button, i / 8);
             Grid.SetColumn(button, i % 8);
             panel.AddChild(button);

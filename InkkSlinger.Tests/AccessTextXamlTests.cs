@@ -31,7 +31,7 @@ public sealed class AccessTextXamlTests
 <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <StackPanel>
     <AccessText Text="_Save" TargetName="SaveButton" />
-    <Button x:Name="SaveButton" Text="Save" />
+    <Button x:Name="SaveButton" Content="Save" />
   </StackPanel>
 </UserControl>
 """;

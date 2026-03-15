@@ -42,7 +42,7 @@ public sealed class ControlsCatalogHoverRegressionTests
 
         Assert.True(
             button.IsMouseOver,
-            $"Expected button hover to recover after moving from viewer gutter. button={button.Text}, gutter=({gutterPoint.X:0.###},{gutterPoint.Y:0.###}), buttonPoint=({buttonPoint.X:0.###},{buttonPoint.Y:0.###})");
+            $"Expected button hover to recover after moving from viewer gutter. button={button.GetContentText()}, gutter=({gutterPoint.X:0.###},{gutterPoint.Y:0.###}), buttonPoint=({buttonPoint.X:0.###},{buttonPoint.Y:0.###})");
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class ControlsCatalogHoverRegressionTests
         {
             sidebarHost.AddChild(new Button
             {
-                Text = $"Control {i}",
+                Content = $"Control {i}",
                 Margin = new Thickness(0, 0, 0, 4)
             });
         }
@@ -109,7 +109,7 @@ public sealed class ControlsCatalogHoverRegressionTests
 
         Assert.True(
             firstSidebarButton.IsMouseOver,
-            $"Expected sidebar hover to activate after leaving ListBox. sidebar={firstSidebarButton.Text}, listBoxPoint=({previewItemPoint.X:0.###},{previewItemPoint.Y:0.###}), sidebarPoint=({sidebarButtonPoint.X:0.###},{sidebarButtonPoint.Y:0.###}), preMoveHit={preMoveHit?.GetType().Name ?? "null"}, preMoveButton={preMoveButton?.Text ?? "null"}");
+            $"Expected sidebar hover to activate after leaving ListBox. sidebar={firstSidebarButton.GetContentText()}, listBoxPoint=({previewItemPoint.X:0.###},{previewItemPoint.Y:0.###}), sidebarPoint=({sidebarButtonPoint.X:0.###},{sidebarButtonPoint.Y:0.###}), preMoveHit={preMoveHit?.GetType().Name ?? "null"}, preMoveButton={preMoveButton?.GetContentText() ?? "null"}");
     }
 
     private static void MovePointer(UiRoot uiRoot, Vector2 point)

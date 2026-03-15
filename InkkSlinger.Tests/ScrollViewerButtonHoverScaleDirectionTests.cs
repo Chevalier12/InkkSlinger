@@ -63,7 +63,7 @@ public sealed class ScrollViewerButtonHoverScaleDirectionTests
         {
             host.AddChild(new Button
             {
-                Text = $"Item {i}",
+                Content = $"Item {i}",
                 Height = 36f,
                 Margin = new Thickness(0f, 0f, 0f, 4f),
                 Style = Assert.IsType<Style>(root.Resources["HoverScaleStyle"])

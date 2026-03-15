@@ -14,7 +14,7 @@ public sealed class XamlLoaderOptimizationTests
     {
         const string xaml = """
 <Canvas xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Button x:Name="Probe" Text="Run" Canvas.Left="20" Canvas.Top="30" />
+  <Button x:Name="Probe" Content="Run" Canvas.Left="20" Canvas.Top="30" />
 </Canvas>
 """;
 
@@ -61,7 +61,7 @@ public sealed class XamlLoaderOptimizationTests
     {
         const string xaml = """
 <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Button x:Name="Probe" Text="Run" Click="OnProbeClick" />
+  <Button x:Name="Probe" Content="Run" Click="OnProbeClick" />
 </UserControl>
 """;
 

@@ -322,7 +322,7 @@ public sealed class ControlsCatalogCalendarHotspotTests
     {
         return element switch
         {
-            Button button when !string.IsNullOrEmpty(button.Text) => $"{nameof(Button)}(\"{button.Text}\")",
+            Button button when !string.IsNullOrEmpty(button.GetContentText()) => $"{nameof(Button)}(\"{button.GetContentText()}\")",
             Label label when !string.IsNullOrEmpty(label.GetContentText()) => $"{nameof(Label)}(\"{label.GetContentText()}\")",
             UniformGrid uniformGrid => $"{nameof(UniformGrid)}(Rows={uniformGrid.Rows}, Columns={uniformGrid.Columns})",
             Grid grid => $"{nameof(Grid)}(Rows={grid.RowDefinitions.Count}, Columns={grid.ColumnDefinitions.Count})",
@@ -332,7 +332,7 @@ public sealed class ControlsCatalogCalendarHotspotTests
 
     private static Button? FindCatalogButton(UIElement root, string text)
     {
-        if (root is Button button && string.Equals(button.Text, text, StringComparison.Ordinal))
+        if (root is Button button && string.Equals(button.GetContentText(), text, StringComparison.Ordinal))
         {
             return button;
         }

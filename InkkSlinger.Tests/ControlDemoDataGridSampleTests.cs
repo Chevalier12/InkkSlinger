@@ -80,7 +80,7 @@ public sealed class ControlDemoDataGridSampleTests
         var uiRoot = new UiRoot(host);
         RunLayout(uiRoot, 900, 500);
 
-        var idHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.Text == "Id");
+        var idHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.GetContentText() == "Id");
         Assert.NotNull(idHeader);
         var clickCount = 0;
         idHeader!.Click += (_, _) => clickCount++;
@@ -127,8 +127,8 @@ public sealed class ControlDemoDataGridSampleTests
         var uiRoot = new UiRoot(host);
         RunLayout(uiRoot, 900, 500);
 
-        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.Text == "Name");
-        var idHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.Text == "Id");
+        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.GetContentText() == "Name");
+        var idHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.GetContentText() == "Id");
         Assert.NotNull(nameHeader);
         Assert.NotNull(idHeader);
 
@@ -168,7 +168,7 @@ public sealed class ControlDemoDataGridSampleTests
         var uiRoot = new UiRoot(host);
         RunLayout(uiRoot, 900, 500);
 
-        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.Text == "Name");
+        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.GetContentText() == "Name");
         Assert.NotNull(nameHeader);
 
         Click(uiRoot, GetCenter(nameHeader!.LayoutSlot));
@@ -209,7 +209,7 @@ public sealed class ControlDemoDataGridSampleTests
         var viewportWidthBeforeSort = dataGrid!.ScrollViewerForTesting.ViewportWidth;
         var gridWidthBeforeSort = dataGrid.ActualWidth;
 
-        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.Text == "Name");
+        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.GetContentText() == "Name");
         Assert.NotNull(nameHeader);
 
         Click(uiRoot, GetCenter(nameHeader!.LayoutSlot));
@@ -241,7 +241,7 @@ public sealed class ControlDemoDataGridSampleTests
         var dataGrid = FindFirstVisualChild<DataGrid>(view);
         Assert.NotNull(dataGrid);
 
-        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid!, static header => header.Text == "Name");
+        var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid!, static header => header.GetContentText() == "Name");
         Assert.NotNull(nameHeader);
 
         Click(uiRoot, GetCenter(nameHeader!.LayoutSlot));

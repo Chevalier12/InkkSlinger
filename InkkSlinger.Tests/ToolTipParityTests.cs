@@ -30,7 +30,7 @@ public sealed class ToolTipParityTests
     public void Hover_SwitchBetweenTargetsWithinBetweenShowDelay_ReopensImmediately()
     {
         var (uiRoot, host, first) = CreateFixture();
-        var second = new Button { Width = 140f, Height = 36f, Text = "Second" };
+        var second = new Button { Width = 140f, Height = 36f, Content = "Second" };
         host.AddChild(second);
         Canvas.SetLeft(second, 220f);
         Canvas.SetTop(second, 40f);
@@ -126,7 +126,7 @@ public sealed class ToolTipParityTests
         {
             Width = 180f,
             Height = 36f,
-            Text = "Hover me"
+            Content = "Hover me"
         };
         host.AddChild(hoverButton);
         Canvas.SetLeft(hoverButton, 20f);
@@ -200,7 +200,7 @@ public sealed class ToolTipParityTests
         {
             Width = 140f,
             Height = 36f,
-            Text = "Hover"
+            Content = "Hover"
         };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);

@@ -38,7 +38,7 @@ public sealed class XamlResourceDictionarySourceTests
     </ResourceDictionary>
   </UserControl.Resources>
   <Grid>
-    <Button x:Name="ThemedButton" Style="{StaticResource ThemeButtonStyle}" Text="Themed" />
+    <Button x:Name="ThemedButton" Style="{StaticResource ThemeButtonStyle}" Content="Themed" />
   </Grid>
 </UserControl>
 """);
@@ -84,7 +84,7 @@ public sealed class XamlResourceDictionarySourceTests
     </ResourceDictionary>
   </UserControl.Resources>
   <Grid>
-    <Button x:Name="StyledButton" Style="{StaticResource LoudButtonStyle}" Text="Styled" />
+    <Button x:Name="StyledButton" Style="{StaticResource LoudButtonStyle}" Content="Styled" />
   </Grid>
 </UserControl>
 """;

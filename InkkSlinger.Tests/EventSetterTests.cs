@@ -18,7 +18,7 @@ public sealed class EventSetterTests
       <EventSetter Event="Click" Handler="OnStyledClick" />
     </Style>
   </UserControl.Resources>
-  <Button Name="ProbeButton" Style="{StaticResource ProbeButtonStyle}" Text="Run" />
+    <Button Name="ProbeButton" Style="{StaticResource ProbeButtonStyle}" Content="Run" />
 </UserControl>
 """;
 
@@ -41,7 +41,7 @@ public sealed class EventSetterTests
       <EventSetter Event="Click" Handler="OnStyledClick" HandledEventsToo="True" />
     </Style>
   </UserControl.Resources>
-  <Button Name="ProbeButton" Style="{StaticResource ProbeButtonStyle}" Text="Run" />
+    <Button Name="ProbeButton" Style="{StaticResource ProbeButtonStyle}" Content="Run" />
 </UserControl>
 """;
 
@@ -63,7 +63,7 @@ public sealed class EventSetterTests
       <EventSetter Event="Click" Handler="OnNoArgs" />
     </Style>
   </UserControl.Resources>
-  <Button Name="ProbeButton" Style="{StaticResource ProbeButtonStyle}" Text="Run" />
+    <Button Name="ProbeButton" Style="{StaticResource ProbeButtonStyle}" Content="Run" />
 </UserControl>
 """;
 
@@ -86,7 +86,7 @@ public sealed class EventSetterTests
       <EventSetter Event="Click" Handler="OnArgsOnly" />
     </Style>
   </UserControl.Resources>
-  <Button Name="ProbeButton" Style="{StaticResource ProbeButtonStyle}" Text="Run" />
+    <Button Name="ProbeButton" Style="{StaticResource ProbeButtonStyle}" Content="Run" />
 </UserControl>
 """;
 
@@ -109,7 +109,7 @@ public sealed class EventSetterTests
       <EventSetter Event="Click" Handler="OnObjectArgs" />
     </Style>
   </UserControl.Resources>
-  <Button Name="ProbeButton" Style="{StaticResource ProbeButtonStyle}" Text="Run" />
+    <Button Name="ProbeButton" Style="{StaticResource ProbeButtonStyle}" Content="Run" />
 </UserControl>
 """;
 

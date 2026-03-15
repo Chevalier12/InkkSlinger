@@ -38,7 +38,7 @@ public class DataGridColumnHeader : Button
     internal void BindState(DataGridColumnState columnState)
     {
         ColumnIndex = columnState.DisplayIndex;
-        Text = columnState.HeaderText;
+        Content = columnState.HeaderText;
         SortDirection = columnState.SortDirection;
     }
 
@@ -62,7 +62,7 @@ public class DataGridColumnHeader : Button
         var padding = Padding;
         var border = BorderThickness;
         var fontSize = ResolveFontSize();
-        var text = Text ?? string.Empty;
+        var text = GetDisplayContentText();
         var textWidth = string.IsNullOrEmpty(text)
             ? 0f
             : UiTextRenderer.MeasureWidth(this, text, fontSize);
@@ -111,7 +111,7 @@ public class DataGridColumnHeader : Button
 
         var padding = Padding;
         var fontSize = ResolveFontSize();
-        var text = Text ?? string.Empty;
+        var text = GetDisplayContentText();
         var glyph = SortDirection == DataGridSortDirection.None
             ? string.Empty
             : (SortDirection == DataGridSortDirection.Ascending ? "^" : "v");

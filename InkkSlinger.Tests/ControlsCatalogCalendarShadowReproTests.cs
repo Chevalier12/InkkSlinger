@@ -72,7 +72,7 @@ public sealed class ControlsCatalogCalendarShadowReproTests
                 .ToArray();
 
             _output.WriteLine(
-                $"sidebar hover button='{sidebarButton.Text}', blur={sidebarShadow.BlurRadius:0.###}, opacity={sidebarShadow.Opacity:0.###}, isMouseOver={sidebarButton.IsMouseOver}");
+                $"sidebar hover button='{sidebarButton.GetContentText()}', blur={sidebarShadow.BlurRadius:0.###}, opacity={sidebarShadow.Opacity:0.###}, isMouseOver={sidebarButton.IsMouseOver}");
             foreach (var item in shadowedDays)
             {
                 _output.WriteLine(
@@ -156,7 +156,7 @@ public sealed class ControlsCatalogCalendarShadowReproTests
         return Assert.IsType<Button>(
             host.Children
                 .OfType<Button>()
-                .First(button => string.Equals(button.Text, buttonText, StringComparison.Ordinal)));
+                .First(button => string.Equals(button.GetContentText(), buttonText, StringComparison.Ordinal)));
     }
 
     private static TElement? FindFirstVisualChild<TElement>(UIElement root)

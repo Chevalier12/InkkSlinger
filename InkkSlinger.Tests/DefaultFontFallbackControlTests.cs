@@ -10,7 +10,7 @@ public sealed class DefaultFontFallbackControlTests
     {
         var checkBox = new CheckBox
         {
-            Text = "Enable feature"
+            Content = "Enable feature"
         };
 
         checkBox.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
@@ -23,7 +23,7 @@ public sealed class DefaultFontFallbackControlTests
     {
         var radioButton = new RadioButton
         {
-            Text = "Option A"
+            Content = "Option A"
         };
 
         radioButton.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
@@ -57,7 +57,7 @@ public sealed class DefaultFontFallbackControlTests
         };
         var checkBox = new CheckBox
         {
-            Text = "Inherit me"
+            Content = "Inherit me"
         };
 
         host.AddChild(checkBox);

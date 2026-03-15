@@ -13,7 +13,7 @@ public sealed class ContextMenuEdgeParityTests
     public void RightClick_OnElementWithAttachedContextMenu_ShouldOpenAtPointer()
     {
         var (uiRoot, host) = CreateUiRootWithHost();
-        var button = new Button { Width = 160f, Height = 30f, Text = "Open" };
+        var button = new Button { Width = 160f, Height = 30f, Content = "Open" };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);
         Canvas.SetTop(button, 50f);
@@ -35,7 +35,7 @@ public sealed class ContextMenuEdgeParityTests
     public void RightClick_WithoutPointerMove_ShouldStillOpenAttachedContextMenu()
     {
         var (uiRoot, host) = CreateUiRootWithHost();
-        var button = new Button { Width = 160f, Height = 30f, Text = "Open" };
+        var button = new Button { Width = 160f, Height = 30f, Content = "Open" };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);
         Canvas.SetTop(button, 50f);
@@ -55,7 +55,7 @@ public sealed class ContextMenuEdgeParityTests
     public void ShiftF10_ShouldOpenAttachedContextMenuForFocusedElement()
     {
         var (uiRoot, host) = CreateUiRootWithHost();
-        var button = new Button { Width = 160f, Height = 30f, Text = "Open" };
+        var button = new Button { Width = 160f, Height = 30f, Content = "Open" };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);
         Canvas.SetTop(button, 50f);
@@ -75,7 +75,7 @@ public sealed class ContextMenuEdgeParityTests
     public void AppsKey_ShouldOpenAttachedContextMenuForFocusedElement()
     {
         var (uiRoot, host) = CreateUiRootWithHost();
-        var button = new Button { Width = 160f, Height = 30f, Text = "Open" };
+        var button = new Button { Width = 160f, Height = 30f, Content = "Open" };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);
         Canvas.SetTop(button, 50f);
@@ -113,7 +113,7 @@ public sealed class ContextMenuEdgeParityTests
     public void Esc_WhenRestoreTargetDetached_ShouldNotRestoreDetachedFocus()
     {
         var (uiRoot, host) = CreateUiRootWithHost();
-        var target = new Button { Width = 160f, Height = 30f, Text = "Open" };
+        var target = new Button { Width = 160f, Height = 30f, Content = "Open" };
         host.AddChild(target);
         Canvas.SetLeft(target, 40f);
         Canvas.SetTop(target, 50f);
@@ -160,7 +160,7 @@ public sealed class ContextMenuEdgeParityTests
     public void PlacementBottom_WithOffsets_ShouldPositionFromTarget()
     {
         var (uiRoot, host) = CreateUiRootWithHost();
-        var target = new Button { Width = 120f, Height = 40f, Text = "anchor" };
+        var target = new Button { Width = 120f, Height = 40f, Content = "anchor" };
         host.AddChild(target);
         Canvas.SetLeft(target, 30f);
         Canvas.SetTop(target, 20f);
@@ -214,7 +214,7 @@ public sealed class ContextMenuEdgeParityTests
         menu.Items.Add(new MenuItem { Header = "File" });
         menu.Items.Add(recent);
 
-        var button = new Button { Width = 160f, Height = 30f, Text = "Open" };
+        var button = new Button { Width = 160f, Height = 30f, Content = "Open" };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);
         Canvas.SetTop(button, 50f);
@@ -248,7 +248,7 @@ public sealed class ContextMenuEdgeParityTests
         menu.Items.Add(new MenuItem { Header = "File" });
         menu.Items.Add(recent);
 
-        var button = new Button { Width = 160f, Height = 30f, Text = "Open" };
+        var button = new Button { Width = 160f, Height = 30f, Content = "Open" };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);
         Canvas.SetTop(button, 50f);
@@ -287,7 +287,7 @@ public sealed class ContextMenuEdgeParityTests
         menu.Items.Add(new MenuItem { Header = "File" });
         menu.Items.Add(recent);
 
-        var button = new Button { Width = 160f, Height = 30f, Text = "Open" };
+        var button = new Button { Width = 160f, Height = 30f, Content = "Open" };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);
         Canvas.SetTop(button, 50f);
@@ -340,7 +340,7 @@ public sealed class ContextMenuEdgeParityTests
         menu.Items.Add(new MenuItem { Header = "SaveAs" });
         menu.Items.Add(recent);
 
-        var button = new Button { Width = 220f, Height = 30f, Text = "Button with Context Menu" };
+        var button = new Button { Width = 220f, Height = 30f, Content = "Button with Context Menu" };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);
         Canvas.SetTop(button, 50f);
@@ -406,7 +406,7 @@ public sealed class ContextMenuEdgeParityTests
         menu.Items.Add(new MenuItem { Header = "SaveAs" });
         menu.Items.Add(recent);
 
-        var button = new Button { Width = 220f, Height = 30f, Text = "Button with Context Menu" };
+        var button = new Button { Width = 220f, Height = 30f, Content = "Button with Context Menu" };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);
         Canvas.SetTop(button, 50f);
@@ -454,7 +454,7 @@ public sealed class ContextMenuEdgeParityTests
         menu.Items.Add(firstParent);
         menu.Items.Add(new MenuItem { Header = "Save" });
 
-        var button = new Button { Width = 160f, Height = 30f, Text = "Open" };
+        var button = new Button { Width = 160f, Height = 30f, Content = "Open" };
         host.AddChild(button);
         Canvas.SetLeft(button, 40f);
         Canvas.SetTop(button, 50f);
@@ -516,7 +516,7 @@ public sealed class ContextMenuEdgeParityTests
         {
             Width = 200f,
             Height = 30f,
-            Text = "Button with Context Menu"
+            Content = "Button with Context Menu"
         };
         Grid.SetRow(button, 0);
         grid.AddChild(button);

@@ -16,11 +16,11 @@ public class CollectionViewParityLayoutReproTests
         actionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8f, GridUnitType.Pixel) });
         actionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
 
-        var addButton = new Button { Text = "Add Item" };
+        var addButton = new Button { Content = "Add Item" };
         Grid.SetColumn(addButton, 0);
         actionRow.AddChild(addButton);
 
-        var removeButton = new Button { Text = "Remove Current" };
+        var removeButton = new Button { Content = "Remove Current" };
         Grid.SetColumn(removeButton, 2);
         actionRow.AddChild(removeButton);
 

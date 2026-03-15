@@ -84,7 +84,7 @@ public class ToolBar : ItemsControl
     {
         _overflowButton = new Button
         {
-            Text = OverflowButtonText,
+            Content = OverflowButtonText,
             MinWidth = 24f,
             Padding = new Thickness(6f, 4f, 6f, 4f)
         };
@@ -209,7 +209,7 @@ public class ToolBar : ItemsControl
             maxItemHeight = MathF.Max(maxItemHeight, itemHeights[i]);
         }
 
-        _overflowButton.Text = OverflowButtonText;
+        _overflowButton.Content = OverflowButtonText;
         _overflowButton.Measure(new Vector2(innerWidth, innerHeight));
         var overflowButtonWidth = _overflowButton.DesiredSize.X;
         var overflowButtonHeight = _overflowButton.DesiredSize.Y;
@@ -371,7 +371,7 @@ public class ToolBar : ItemsControl
 
         if (args.Property == OverflowButtonTextProperty)
         {
-            _overflowButton.Text = OverflowButtonText;
+            _overflowButton.Content = OverflowButtonText;
         }
     }
 

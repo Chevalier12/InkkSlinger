@@ -63,14 +63,14 @@ public sealed class ControlsCatalogListBoxLagReproTests
         var leftButtons = new StackPanel();
         for (var i = 0; i < 6; i++)
         {
-            leftButtons.AddChild(new Button { Text = $"Control {i:00}", Margin = new Thickness(0f, 0f, 0f, 4f) });
+            leftButtons.AddChild(new Button { Content = $"Control {i:00}", Margin = new Thickness(0f, 0f, 0f, 4f) });
         }
 
-        listBoxButton = new Button { Text = "ListBox", Margin = new Thickness(0f, 0f, 0f, 4f) };
+        listBoxButton = new Button { Content = "ListBox", Margin = new Thickness(0f, 0f, 0f, 4f) };
         leftButtons.AddChild(listBoxButton);
         for (var i = 6; i < 90; i++)
         {
-            leftButtons.AddChild(new Button { Text = $"Control {i:00}", Margin = new Thickness(0f, 0f, 0f, 4f) });
+            leftButtons.AddChild(new Button { Content = $"Control {i:00}", Margin = new Thickness(0f, 0f, 0f, 4f) });
         }
 
         var leftScroll = new ScrollViewer

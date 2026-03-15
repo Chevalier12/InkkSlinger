@@ -16,7 +16,7 @@ public sealed class ScrollViewerContentGutterTests
         {
             host.AddChild(new Button
             {
-                Text = $"Button {i}",
+                Content = $"Button {i}",
                 Margin = new Thickness(0f, 0f, 0f, 4f)
             });
         }
@@ -60,7 +60,7 @@ public sealed class ScrollViewerContentGutterTests
         {
             host.AddChild(new Button
             {
-                Text = $"VeryLongControlName_{i}_ThatIntentionallyExceedsTheViewportWidth",
+                Content = $"VeryLongControlName_{i}_ThatIntentionallyExceedsTheViewportWidth",
                 Margin = new Thickness(0f, 0f, 0f, 4f)
             });
         }

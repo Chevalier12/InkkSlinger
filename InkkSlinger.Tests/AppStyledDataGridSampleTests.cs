@@ -95,13 +95,13 @@ public sealed class AppStyledDataGridSampleTests
     {
         var smaller = new DataGridColumnHeader
         {
-            Text = "Name",
+            Content = "Name",
             FontSize = 12f,
             Padding = new Thickness(12f, 8f, 12f, 8f)
         };
         var larger = new DataGridColumnHeader
         {
-            Text = "Name",
+            Content = "Name",
             FontSize = 20f,
             Padding = new Thickness(12f, 8f, 12f, 8f)
         };

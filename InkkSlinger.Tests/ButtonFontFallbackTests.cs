@@ -10,7 +10,7 @@ public class ButtonFontFallbackTests
     {
         var button = new Button
         {
-            Text = "Open Popup",
+            Content = "Open Popup",
             Padding = new Thickness(10f, 6f, 10f, 6f),
             BorderThickness = 1f
         };
@@ -28,7 +28,7 @@ public class ButtonFontFallbackTests
     {
         var button = new Button
         {
-            Text = "Toggle Fullscreen",
+            Content = "Toggle Fullscreen",
             Padding = new Thickness(10f, 6f, 10f, 6f),
             BorderThickness = 1f
         };

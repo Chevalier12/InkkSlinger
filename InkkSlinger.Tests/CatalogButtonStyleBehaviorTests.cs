@@ -108,7 +108,7 @@ public sealed class CatalogButtonStyleBehaviorTests
         {
             host.AddChild(new Button
             {
-                Text = $"Item {i}",
+                Content = $"Item {i}",
                 Height = 40f,
                 Margin = new Thickness(0f, 0f, 0f, 4f),
                 Style = style

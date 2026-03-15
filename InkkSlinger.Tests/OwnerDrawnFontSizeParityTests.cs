@@ -31,12 +31,12 @@ public sealed class OwnerDrawnFontSizeParityTests
     {
         var smaller = new CheckBox
         {
-            Text = "Enable feature",
+            Content = "Enable feature",
             FontSize = 12f
         };
         var larger = new CheckBox
         {
-            Text = "Enable feature",
+            Content = "Enable feature",
             FontSize = 24f
         };
 

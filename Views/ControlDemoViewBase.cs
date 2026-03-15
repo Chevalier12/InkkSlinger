@@ -332,15 +332,15 @@ internal static class ControlDemoSupport
         switch (controlName)
         {
             case "Button":
-                return new Button { Text = "Button" };
+                return new Button { Content = "Button" };
             case "CheckBox":
-                return new CheckBox { Text = "Check me" };
+                return new CheckBox { Content = "Check me" };
             case "RadioButton":
-                return new RadioButton { Text = "Option A" };
+                return new RadioButton { Content = "Option A" };
             case "ToggleButton":
-                return new ToggleButton { Text = "Toggle" };
+                return new ToggleButton { Content = "Toggle" };
             case "RepeatButton":
-                return new RepeatButton { Text = "Repeat" };
+                return new RepeatButton { Content = "Repeat" };
             case "Label":
                 return new Label { Content = "Label" };
             case "TextBlock":
@@ -354,7 +354,7 @@ internal static class ControlDemoSupport
                 var button = new Button
                 {
                     Name = "SaveButton",
-                    Text = "Save",
+                    Content = "Save",
                     Width = 180f
                 };
                 var accessText = new AccessText
@@ -729,9 +729,9 @@ internal static class ControlDemoSupport
                 tabControl.Items.Add(new TabItem { Header = "Tab 2", Content = BuildItemLabel("Tab 2 Content") });
                 break;
             case ToolBar toolBar:
-                toolBar.Items.Add(new Button { Text = "New" });
-                toolBar.Items.Add(new Button { Text = "Open" });
-                toolBar.Items.Add(new Button { Text = "Save" });
+                toolBar.Items.Add(new Button { Content = "New" });
+                toolBar.Items.Add(new Button { Content = "Open" });
+                toolBar.Items.Add(new Button { Content = "Save" });
                 break;
             case StatusBar statusBar:
                 statusBar.Items.Add(new StatusBarItem { Content = BuildItemLabel("Ready") });
@@ -803,9 +803,9 @@ internal static class ControlDemoSupport
             case ToolBarTray toolBarTray:
             {
                 var toolBar = new ToolBar();
-                toolBar.Items.Add(new Button { Text = "Cut" });
-                toolBar.Items.Add(new Button { Text = "Copy" });
-                toolBar.Items.Add(new Button { Text = "Paste" });
+                toolBar.Items.Add(new Button { Content = "Cut" });
+                toolBar.Items.Add(new Button { Content = "Copy" });
+                toolBar.Items.Add(new Button { Content = "Paste" });
                 toolBarTray.AddChild(toolBar);
                 break;
             }

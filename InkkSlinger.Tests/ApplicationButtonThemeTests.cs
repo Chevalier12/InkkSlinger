@@ -29,7 +29,7 @@ public sealed class ApplicationButtonThemeTests
             };
             var button = new Button
             {
-                Text = "Theme Probe",
+                Content = "Theme Probe",
                 Width = 180f,
                 Height = 36f
             };
@@ -75,7 +75,7 @@ public sealed class ApplicationButtonThemeTests
             };
             var button = new Button
             {
-                Text = "Live Theme Probe",
+                Content = "Live Theme Probe",
                 Width = 180f,
                 Height = 36f
             };

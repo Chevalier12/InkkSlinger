@@ -37,7 +37,7 @@ public partial class ControlsCatalogView : UserControl
             var capture = name;
             var button = new Button
             {
-                Text = GetDisplayName(name),
+                Content = GetDisplayName(name),
                 Margin = new Thickness(0, 0, 0, 4)
             };
             button.Click += (_, _) => ShowControl(capture);

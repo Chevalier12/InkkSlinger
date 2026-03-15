@@ -739,7 +739,7 @@ public class CommandingTests
         FocusManager.ClearFocus();
         try
         {
-            var source = new Button { Text = "Source" };
+            var source = new Button { Content = "Source" };
             var focusedTarget = new TextBox();
             var command = new RoutedCommand("Probe", typeof(CommandingTests));
             var executedOnFocused = 0;
@@ -771,7 +771,7 @@ public class CommandingTests
         FocusManager.ClearFocus();
         try
         {
-            var source = new Button { Text = "Source" };
+            var source = new Button { Content = "Source" };
             var focusedTarget = new TextBox();
             var explicitTarget = new TextBox();
             var command = new RoutedCommand("Probe", typeof(CommandingTests));

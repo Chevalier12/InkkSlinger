@@ -121,7 +121,7 @@ public sealed class ScrollViewerWheelHoverRegressionTests
         {
             host.AddChild(new Button
             {
-                Text = $"Button {i}",
+                Content = $"Button {i}",
                 Height = 44f
             });
         }

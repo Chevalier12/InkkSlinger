@@ -397,18 +397,20 @@ public class ScrollBar : Control
             return;
         }
 
-        if (!string.IsNullOrEmpty(button.Text) &&
-            button.Text is not "^" and not "v" and not "<" and not ">")
+        var currentText = Label.ExtractAutomationText(button.Content);
+
+        if (!string.IsNullOrEmpty(currentText) &&
+            currentText is not "^" and not "v" and not "<" and not ">")
         {
             return;
         }
 
-        if (button.Text == nextText)
+        if (currentText == nextText)
         {
             return;
         }
 
-        button.Text = nextText;
+        button.Content = nextText;
     }
 
     private void CoerceValueWithinRange()
@@ -596,7 +598,7 @@ public class ScrollBar : Control
         return new RepeatButton
         {
             Name = name,
-            Text = text,
+            Content = text,
             FontSize = 8f,
             Padding = Thickness.Empty,
             BorderThickness = 0f,

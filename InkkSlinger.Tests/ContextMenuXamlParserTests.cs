@@ -13,7 +13,7 @@ public sealed class ContextMenuXamlParserTests
         const string xaml = """
 <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Grid>
-    <Button Name="cmButton" Text="Button with Context Menu" Height="30" Width="200">
+    <Button Name="cmButton" Content="Button with Context Menu" Height="30" Width="200">
       <Button.ContextMenu>
         <ContextMenu Name="cm" StaysOpen="true">
           <MenuItem Header="File"/>
@@ -53,7 +53,7 @@ public sealed class ContextMenuXamlParserTests
   </UserControl.Resources>
   <Grid>
     <Button Name="cmButton"
-            Text="Button with Context Menu"
+            Content="Button with Context Menu"
             Height="30"
             Width="200"
             ContextMenu="{StaticResource ParityContextMenu}" />
@@ -75,7 +75,7 @@ public sealed class ContextMenuXamlParserTests
         const string xaml = """
 <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Grid>
-    <Button Name="cmButton" Text="Button with Context Menu" Height="30" Width="200">
+    <Button Name="cmButton" Content="Button with Context Menu" Height="30" Width="200">
       <Button.ContextMenu>
         <ContextMenu Name="cm" Opened="Menu_OnOpened" Closed="Menu_OnClosed" StaysOpen="true">
           <MenuItem Header="File"/>

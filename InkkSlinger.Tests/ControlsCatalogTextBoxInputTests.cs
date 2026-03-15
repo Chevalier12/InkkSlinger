@@ -26,7 +26,7 @@ public sealed class ControlsCatalogTextBoxInputTests
             RunLayout(uiRoot, 1280, 820);
 
             var buttonsHost = Assert.IsType<StackPanel>(view.FindName("ControlButtonsHost"));
-            var textBoxButton = buttonsHost.Children.OfType<Button>().Single(button => button.Text == "TextBox");
+            var textBoxButton = buttonsHost.Children.OfType<Button>().Single(button => button.GetContentText() == "TextBox");
             textBoxButton.InvokeFromInput();
             RunLayout(uiRoot, 1280, 820);
 

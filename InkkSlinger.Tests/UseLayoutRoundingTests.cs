@@ -227,7 +227,7 @@ public sealed class UseLayoutRoundingTests
         {
             host.AddChild(new Button
             {
-                Text = $"Button {i}",
+                Content = $"Button {i}",
                 Height = 40f,
                 Margin = new Thickness(0f, 0f, 0f, 4f)
             });

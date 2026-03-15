@@ -121,7 +121,7 @@ public partial class PageView : UserControl
     {
         var button = new Button
         {
-            Text = text,
+            Content = text,
             Margin = new Thickness(0, 0, 8, 8),
             MinWidth = 140
         };
@@ -196,7 +196,7 @@ public partial class PageView : UserControl
 
         var nextButton = new Button
         {
-            Text = "Next Via This Page.NavigationService"
+            Content = "Next Via This Page.NavigationService"
         };
         nextButton.Click += (_, _) =>
         {

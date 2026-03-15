@@ -6,4 +6,9 @@ internal static class LabelTestExtensions
     {
         return Label.ExtractAutomationText(label.Content);
     }
+
+    public static string GetContentText(this ContentControl contentControl)
+    {
+        return Label.ExtractAutomationText(contentControl.Content);
+    }
 }

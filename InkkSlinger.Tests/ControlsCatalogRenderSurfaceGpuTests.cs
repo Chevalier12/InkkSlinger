@@ -21,7 +21,7 @@ public sealed class ControlsCatalogRenderSurfaceGpuTests
 
     private static Button? FindCatalogButton(UIElement root, string text)
     {
-        if (root is Button button && string.Equals(button.Text, text, StringComparison.Ordinal))
+        if (root is Button button && string.Equals(button.GetContentText(), text, StringComparison.Ordinal))
         {
             return button;
         }

@@ -19,12 +19,12 @@ public sealed class ViewportResizeInputRegressionTests
         var leftClicks = 0;
         var rightClicks = 0;
 
-        var leftButton = new Button { Text = "Left" };
+        var leftButton = new Button { Content = "Left" };
         leftButton.Click += (_, _) => leftClicks++;
         Grid.SetColumn(leftButton, 0);
         root.AddChild(leftButton);
 
-        var rightButton = new Button { Text = "Right" };
+        var rightButton = new Button { Content = "Right" };
         rightButton.Click += (_, _) => rightClicks++;
         Grid.SetColumn(rightButton, 1);
         root.AddChild(rightButton);
@@ -54,12 +54,12 @@ public sealed class ViewportResizeInputRegressionTests
         var leftClicks = 0;
         var rightClicks = 0;
 
-        var leftButton = new Button { Text = "Left" };
+        var leftButton = new Button { Content = "Left" };
         leftButton.Click += (_, _) => leftClicks++;
         Grid.SetColumn(leftButton, 0);
         root.AddChild(leftButton);
 
-        var rightButton = new Button { Text = "Right" };
+        var rightButton = new Button { Content = "Right" };
         rightButton.Click += (_, _) => rightClicks++;
         Grid.SetColumn(rightButton, 1);
         root.AddChild(rightButton);

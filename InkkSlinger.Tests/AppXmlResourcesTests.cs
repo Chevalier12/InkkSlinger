@@ -36,7 +36,7 @@ public sealed class AppXmlResourcesTests
             XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
 
             var host = new Panel { Width = 300f, Height = 180f };
-            var button = new Button { Text = "AppStyle", Width = 140f, Height = 36f };
+            var button = new Button { Content = "AppStyle", Width = 140f, Height = 36f };
             host.AddChild(button);
             var uiRoot = new UiRoot(host);
             uiRoot.Update(

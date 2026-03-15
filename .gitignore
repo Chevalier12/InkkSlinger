@@ -30,6 +30,9 @@ Desktop.ini
 Docs/
 !site/docs/
 !site/docs/**
+ARCHITECTURE-SUMMARY.md
+BEHAVIOR-PARITY-MAP.md
+TEST-MAP.md
 
 # Local automation scripts
 scripts/

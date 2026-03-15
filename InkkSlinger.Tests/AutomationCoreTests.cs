@@ -8,7 +8,7 @@ public sealed class AutomationCoreTests
     public void GetPeer_ForElementInTree_ReturnsPeerWithStableRuntimeId()
     {
         var host = new Canvas();
-        var button = new Button { Text = "Run" };
+        var button = new Button { Content = "Run" };
         host.AddChild(button);
         var uiRoot = new UiRoot(host);
 
@@ -25,7 +25,7 @@ public sealed class AutomationCoreTests
     [Fact]
     public void NameResolution_UsesAutomationPropertiesBeforeControlFallback()
     {
-        var button = new Button { Text = "Fallback" };
+        var button = new Button { Content = "Fallback" };
         AutomationProperties.SetName(button, "ExplicitName");
 
         var host = new Canvas();

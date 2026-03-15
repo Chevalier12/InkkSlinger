@@ -207,7 +207,7 @@ public class Calendar : UserControl
 
         _previousMonthButton = new Button
         {
-            Text = "<",
+            Content = "<",
             Width = 28f,
             Margin = new Thickness(0f, 0f, 6f, 4f),
             Padding = new Thickness(0f)
@@ -227,7 +227,7 @@ public class Calendar : UserControl
 
         _nextMonthButton = new Button
         {
-            Text = ">",
+            Content = ">",
             Width = 28f,
             Margin = new Thickness(6f, 0f, 0f, 4f),
             Padding = new Thickness(0f)
@@ -1047,12 +1047,12 @@ public class Calendar : UserControl
             return true;
         }
 
-        if (string.Equals(button.Text, text, StringComparison.Ordinal))
+        if (string.Equals(Label.ExtractAutomationText(button.Content), text, StringComparison.Ordinal))
         {
             return false;
         }
 
-        button.Text = text;
+        button.Content = text;
         return true;
     }
 
@@ -1107,7 +1107,17 @@ public class Calendar : UserControl
         var nonEmptyDayButtonCount = 0;
         for (var i = 0; i < _dayButtons.Length; i++)
         {
-            if (!string.IsNullOrEmpty(_dayButtons[i].Text))
+            if (_dayButtons[i] is CalendarDayButton calendarDayButton)
+            {
+                if (!string.IsNullOrEmpty(calendarDayButton.DayText))
+                {
+                    nonEmptyDayButtonCount++;
+                }
+
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(Label.ExtractAutomationText(_dayButtons[i].Content)))
             {
                 nonEmptyDayButtonCount++;
             }
