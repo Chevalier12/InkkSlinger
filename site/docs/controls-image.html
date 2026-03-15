@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - Image</title>
-    <meta name="description" content="Image control reference.">
+    <meta name="description" content="Technical manual for the Image control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -173,8 +173,244 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>Image</h1>
-                    <p>WIP</p>
+                    <p><code>Image</code> is the lightweight control for presenting an <code>ImageSource</code> inside the WPF-style UI tree. It has no child content model and no managed drawing mode. Its job is to resolve a source, use that source's pixel size for layout when available, and draw the resulting texture into its arranged slot with the inherited stretch rules.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>Image</code> when you already have an <code>ImageSource</code> contract for a texture or URI-backed asset and you want a normal framework element that participates in layout, alignment, clipping, styling, and opacity.</p>
+                    <h3>Minimal XAML image</h3>
+                    <pre><code class="language-xml">&lt;Image Width="96"
+       Height="96"
+       Source="avatars/player-1"
+       Stretch="Uniform" /&gt;</code></pre>
+                    <h3>Thumbnail crop-style presentation</h3>
+                    <pre><code class="language-xml">&lt;Border Width="160"
+        Height="96"
+        BorderBrush="#35516B"
+        BorderThickness="1"&gt;
+  &lt;Image Source="art/cards/mission-brief"
+         Stretch="UniformToFill" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Assign a texture in code</h3>
+                    <pre><code class="language-csharp">namespace InkkSlinger;
+
+public partial class ProfileView : UserControl
+{
+    private readonly Image? _portrait;
+
+    public ProfileView()
+    {
+        InitializeComponent();
+        _portrait = this.FindName("PortraitImage") as Image;
+    }
+
+    public void SetPortrait(Texture2D texture)
+    {
+        _portrait!.Source = ImageSource.FromTexture(texture);
+    }
+}</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Default recommendation:</strong> use <code>ImageSource.FromTexture(...)</code> when you already own a <code>Texture2D</code>. Use URI-backed sources only after you have configured <code>ImageSource.UriSourceResolver</code> for your application.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Source model</h2>
+                    <p><code>Image</code> exposes a single content-like property: <code>Source</code>. The property type is <code>ImageSource</code>, not a WPF bitmap class. The control inherits its entire presentation contract from that source object.</p>
+                    <div class="doc-grid">
+                        <article class="doc-card">
+                            <h3>Texture-backed source</h3>
+                            <p><code>ImageSource.FromTexture(texture)</code> gives the control both a real renderable texture and a natural pixel size immediately. This is the most direct and predictable path.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>URI-backed source</h3>
+                            <p><code>ImageSource.FromUri(uri)</code> stores a URI string and resolves it later through <code>ImageSource.UriSourceResolver</code>. In XAML, a raw string assigned to <code>Source</code> is converted to this form automatically.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Pixel-only source</h3>
+                            <p><code>ImageSource.FromPixels(width, height)</code> provides layout size without a texture. It is useful for placeholders, sizing contracts, or tests, but it does not produce visible pixels by itself.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>If <code>Source</code> is <code>null</code>, the control has no intrinsic size and draws nothing.</li>
+                        <li>If a URI-backed source cannot resolve to a valid pixel-sized surface, the control behaves as unresolved and does not contribute intrinsic image size.</li>
+                        <li>The control clears its cached URI resolution when <code>Source</code> changes.</li>
+                    </ul>
+                    <h3>Raw XAML string to URI-backed source</h3>
+                    <pre><code class="language-xml">&lt;Image Source="ui/icons/warning"
+       Width="20"
+       Height="20" /&gt;</code></pre>
+                    <p>That markup is treated as an <code>ImageSource</code> value by the XAML loader, which converts the raw string into <code>ImageSource.FromUri(...)</code> before the property is applied.</p>
+                    <h3>Configure a URI resolver once</h3>
+                    <pre><code class="language-csharp">ImageSource.UriSourceResolver = uri =&gt;
+    ImageSource.FromTexture(Content.Load&lt;Texture2D&gt;(uri));</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Resolver contract:</strong> the framework does not ship a built-in asset pipeline for <code>ImageSource.FromUri(...)</code>. Your application decides how URI strings map to textures.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout and sizing behavior</h2>
+                    <p><code>Image</code> inherits from <code>SurfacePresenterBase</code>. Measure and arrange use the resolved source's natural pixel size, then apply <code>Stretch</code> and <code>StretchDirection</code> to fit the image into the arranged slot.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Measure</h3>
+                            <p>If the source resolves to a pixel size, that natural size becomes the desired size after stretch scaling is computed against the available size. If no pixel size is available, desired size falls back to zero intrinsic image size.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Arrange</h3>
+                            <p>The rendered image rectangle is centered inside the final slot after scaling. The control keeps a clip equal to its layout slot, so drawing does not bleed outside the arranged bounds.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>Stretch="None"</code> keeps the natural pixel size.</li>
+                        <li><code>Stretch="Fill"</code> scales width and height independently to fill the slot.</li>
+                        <li><code>Stretch="Uniform"</code> preserves aspect ratio and fits entirely inside the slot.</li>
+                        <li><code>Stretch="UniformToFill"</code> preserves aspect ratio and fills the slot, which can crop against the layout clip.</li>
+                        <li><code>StretchDirection="UpOnly"</code> prevents downscaling below <code>1x</code>.</li>
+                        <li><code>StretchDirection="DownOnly"</code> prevents upscaling above <code>1x</code>.</li>
+                    </ul>
+                    <h3>Preserve the whole image</h3>
+                    <pre><code class="language-xml">&lt;Image Width="320"
+       Height="180"
+       Source="art/loading-screen"
+       Stretch="Uniform"
+       StretchDirection="Both" /&gt;</code></pre>
+                    <h3>Avoid enlarging small icons</h3>
+                    <pre><code class="language-xml">&lt;Border Width="48"
+        Height="48"
+        Background="#101822"&gt;
+  &lt;Image Source="ui/icons/pin"
+         Stretch="Uniform"
+         StretchDirection="DownOnly" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <p>In that second example, a smaller icon can shrink to fit but will not be scaled up beyond its natural pixel size.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Rendering behavior</h2>
+                    <p>The render path is intentionally narrow. <code>Image</code> draws one texture into one computed rectangle. There is no built-in tiling, brush model, nine-slice scaling, or child composition behavior on this control.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>When pixels appear</h3>
+                            <p>The control renders only when the resolved <code>ImageSource</code> contains a non-null <code>Texture2D</code>. A pixel-only source still affects layout, but it does not draw.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Opacity and clipping</h3>
+                            <p>The normal element <code>Opacity</code> value is applied when the texture is drawn. Rendering is clipped to the control's layout slot, which is especially visible with <code>UniformToFill</code>.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Source changes invalidate both measure and rendering through the dependency property metadata on <code>Source</code>.</li>
+                        <li>URI-backed resolution is cached per requested source instance until the <code>Source</code> property changes.</li>
+                        <li>The final texture rectangle is centered inside the arranged slot.</li>
+                    </ul>
+                    <h3>Fade an image with normal element opacity</h3>
+                    <pre><code class="language-xml">&lt;Image Source="gallery/cover-01"
+       Width="240"
+       Height="135"
+       Stretch="UniformToFill"
+       Opacity="0.72" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Image-specific property</h3>
+                            <p><code>Source</code>: the <code>ImageSource</code> to resolve and present. This can come from <code>ImageSource.FromTexture(...)</code>, <code>ImageSource.FromUri(...)</code>, <code>ImageSource.FromPixels(...)</code>, or a raw XAML string that converts to a URI-backed source.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Inherited presentation properties</h3>
+                            <p><code>Stretch</code>: scaling mode inside the arranged slot. Supported values are <code>None</code>, <code>Fill</code>, <code>Uniform</code>, and <code>UniformToFill</code>.</p>
+                            <p><code>StretchDirection</code>: scaling constraint. Supported values are <code>Both</code>, <code>UpOnly</code>, and <code>DownOnly</code>.</p>
+                        </article>
+                    </div>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Common layout properties</h3>
+                            <p><code>Width</code>, <code>Height</code>, <code>MinWidth</code>, and <code>MinHeight</code> can reserve space even when the source is unresolved or when you intentionally want a fixed slot.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Inherited visual properties</h3>
+                            <p><code>Opacity</code> affects the final texture draw. Standard framework alignment and margin properties still apply because <code>Image</code> is a normal <code>FrameworkElement</code>.</p>
+                        </article>
+                    </div>
+                    <p><code>Image</code> is a presenter, not a content host. It does not expose a child collection, overlay slot, or template-owned drawing callback like <code>RenderSurface</code>.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Avatar inside framed chrome</h3>
+                    <pre><code class="language-xml">&lt;Border Width="88"
+        Height="88"
+        BorderBrush="#4FC7C1"
+        BorderThickness="1"
+        Padding="4"&gt;
+  &lt;Image x:Name="PortraitImage"
+         Source="avatars/scout"
+         Stretch="UniformToFill" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Banner art that fills the card</h3>
+                    <pre><code class="language-xml">&lt;Grid Width="320" Height="140"&gt;
+  &lt;Image Source="banners/season-05"
+         Stretch="UniformToFill"
+         Opacity="0.85" /&gt;
+  &lt;Border Background="#66081119" /&gt;
+  &lt;TextBlock Text="Season Five"
+             Margin="16"
+             VerticalAlignment="Bottom" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Reserve layout while the asset loads</h3>
+                    <pre><code class="language-csharp">var image = new Image
+{
+    Width = 320,
+    Height = 180,
+    Source = ImageSource.FromPixels(320, 180)
+};
+
+// Later, once the texture is available:
+image.Source = ImageSource.FromTexture(texture);</code></pre>
+                    <h3>Swap sources without changing the view structure</h3>
+                    <pre><code class="language-csharp">private void ShowPreview(Texture2D texture)
+{
+    PreviewImage.Source = ImageSource.FromTexture(texture);
+}
+
+private void ClearPreview()
+{
+    PreviewImage.Source = null;
+}</code></pre>
+                    <h3>Bind a view-model-provided source</h3>
+                    <pre><code class="language-xml">&lt;Image Width="200"
+       Height="112"
+       Source="{Binding SelectedPreview}"
+       Stretch="Uniform" /&gt;</code></pre>
+                    <p>That binding works when <code>SelectedPreview</code> resolves to an <code>ImageSource</code> instance. If your view model exposes a string URI instead, convert it before binding or expose an <code>ImageSource</code>-typed property directly.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong><code>Source</code> is not a WPF <code>BitmapImage</code> pipeline.</strong> This control expects <code>ImageSource</code>. The supported factories are texture-backed, URI-backed, and pixel-only sources.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>URI strings do nothing until you provide a resolver.</strong> XAML can convert a string to <code>ImageSource.FromUri(...)</code>, but actual texture loading depends entirely on <code>ImageSource.UriSourceResolver</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong><code>ImageSource.FromPixels(...)</code> affects layout only.</strong> It is useful for placeholders and tests, but the control will not render visible pixels until the source resolves to a real texture.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No child content model.</strong> If you need captions, overlays, badges, or chrome, compose them around the <code>Image</code> with a <code>Grid</code>, <code>Border</code>, or other container rather than expecting the control to host children.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Clipping comes from the layout slot.</strong> When you use <code>UniformToFill</code>, the oversized portions are clipped by the control bounds, not by a special crop API.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-headered-items-control.html">
+                        <span>Previous</span>
+                        <strong>HeaderedItemsControl</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-items-control.html">
+                        <span>Next</span>
+                        <strong>ItemsControl</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
