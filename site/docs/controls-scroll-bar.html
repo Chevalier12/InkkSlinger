@@ -173,11 +173,11 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>ScrollBar</h1>
-                    <p><code>ScrollBar</code> is a templateable range control that represents a viewport moving through a larger extent. The default template includes a <code>Track</code>, a draggable <code>Thumb</code>, and two repeat buttons for line stepping, and the same control works both as a standalone bar and as the internal chrome used by <code>ScrollViewer</code>.</p>
+                    <p><code>ScrollBar</code> is a range control that displays a viewport moving through a larger extent. It supports horizontal and vertical orientations, standalone interaction, and template-based visuals built around a <code>Track</code>, a draggable <code>Thumb</code>, and line-step buttons.</p>
                 </div>
                 <section class="doc-section">
                     <h2>Quick start</h2>
-                    <p>Use <code>ScrollBar</code> when you want a WPF-style scrolling primitive with real end-user interaction: thumb drag, page clicks, and line buttons. For normal content scrolling, <code>ScrollViewer</code> is still the usual choice because it creates, sizes, and synchronizes its own internal bars automatically.</p>
+                    <p>Use <code>ScrollBar</code> when you want to expose scroll state, viewport position, or range navigation on a custom surface. For standard content scrolling, use <code>ScrollViewer</code>, which creates and synchronizes its own internal scroll bars automatically.</p>
                     <h3>Minimal horizontal bar</h3>
                     <pre><code class="language-xml">&lt;ScrollBar Width="280"
            Orientation="Horizontal"
@@ -204,12 +204,12 @@
            BorderBrush="#27425A"
            BorderThickness="1" /&gt;</code></pre>
                     <div class="callout doc-callout">
-                        <p><strong>Default recommendation:</strong> use a standalone <code>ScrollBar</code> for editors, timelines, minimaps, camera rails, or any custom viewport where you own the offset logic. Use <code>ScrollViewer</code> when the bar is just the chrome for scrolling actual content.</p>
+                        <p><strong>Rule of thumb:</strong> use a standalone <code>ScrollBar</code> when your code owns the range and offset values. Use <code>ScrollViewer</code> when the bar is simply the scrolling chrome for UI content.</p>
                     </div>
                 </section>
                 <section class="doc-section">
                     <h2>What the range means</h2>
-                    <p><code>ScrollBar</code> models a visible window inside a larger logical extent. The important point is that <code>Maximum</code> represents the end of the full extent, not the largest legal scroll offset.</p>
+                    <p><code>ScrollBar</code> models a visible window inside a larger logical extent. The key point is that <code>Maximum</code> represents the end of the total extent, not the last legal scroll offset.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
                             <h3>Extent</h3>
@@ -256,7 +256,7 @@
                     <ul>
                         <li>If <code>ViewportSize</code> is <code>0</code>, the thumb falls back to roughly <code>10%</code> of the track, still respecting the <code>14</code>-unit minimum.</li>
                         <li>The thumb position is normalized across the scrollable range, not the full extent.</li>
-                        <li>The default template reserves space for the line buttons first, then sizes the thumb inside the remaining track.</li>
+                        <li>The line buttons are arranged first, then the remaining track space is used for the thumb and page regions.</li>
                     </ul>
                     <pre><code class="language-xml">&lt;StackPanel&gt;
   &lt;ScrollBar Width="260"
@@ -291,13 +291,21 @@
                     </div>
                     <ul>
                         <li>The default template root is a <code>Track</code>.</li>
-                        <li>The default line buttons are <code>RepeatButton</code> instances, so holding the pointer continues line stepping.</li>
-                        <li>The default thumb is a <code>Thumb</code>, so dragging works through the normal input pipeline instead of a <code>ScrollViewer</code>-specific special case.</li>
+                        <li>The line buttons are <code>RepeatButton</code> instances, so holding the pointer continues line stepping.</li>
+                        <li>The thumb is a <code>Thumb</code>, which supplies drag events and pointer capture for thumb movement.</li>
                     </ul>
+                    <h3>Template example</h3>
+                    <pre><code class="language-xml">&lt;ControlTemplate TargetType="ScrollBar"&gt;
+  &lt;Track x:Name="PART_Track"&gt;
+    &lt;RepeatButton x:Name="PART_LineUpButton" /&gt;
+    &lt;Thumb x:Name="PART_Thumb" /&gt;
+    &lt;RepeatButton x:Name="PART_LineDownButton" /&gt;
+  &lt;/Track&gt;
+&lt;/ControlTemplate&gt;</code></pre>
                 </section>
                 <section class="doc-section">
                     <h2>Interaction model</h2>
-                    <p>The control owns its own pointer behavior. Standalone bars and bars hosted by <code>ScrollViewer</code> use the same interaction rules.</p>
+                    <p>The control owns its own pointer behavior. The same interaction rules apply whether the bar is used on its own or inside a <code>ScrollViewer</code>.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
                             <h3>Thumb drag</h3>
@@ -314,9 +322,22 @@
                         <li>Drag math and track clicks clamp the resulting value to the legal scrollable range.</li>
                         <li><code>ValueChanged</code> is raised whenever the effective value changes.</li>
                     </ul>
-                    <div class="callout doc-callout">
-                        <p><strong>Important ownership rule:</strong> <code>ScrollViewer</code> no longer owns scrollbar pointer math. It synchronizes range properties and responds to <code>ValueChanged</code>, while the <code>ScrollBar</code> itself owns thumb drag, track paging, and line-button stepping.</p>
-                    </div>
+                    <h3>Interaction example</h3>
+                    <pre><code class="language-csharp">var bar = new ScrollBar
+{
+    Orientation = Orientation.Vertical,
+    Height = 240f,
+    Minimum = 0f,
+    Maximum = 1200f,
+    ViewportSize = 240f,
+    SmallChange = 24f,
+    LargeChange = 240f
+};
+
+bar.ValueChanged += (_, _) =>
+{
+    cameraY = bar.Value;
+};</code></pre>
                 </section>
                 <section class="doc-section">
                     <h2>Layout and sizing</h2>
@@ -332,7 +353,7 @@
                         </article>
                     </div>
                     <ul>
-                        <li>The old <code>Thickness</code> property is gone. Size bars with normal layout properties like <code>Width</code> and <code>Height</code>.</li>
+                        <li>Use normal layout properties like <code>Width</code> and <code>Height</code> to size the control.</li>
                         <li>The default template uses square-ish line buttons sized from the available bar thickness.</li>
                         <li>Custom templates can replace the visual structure, as long as the required parts remain present and wired inside <code>PART_Track</code>.</li>
                     </ul>
@@ -356,7 +377,7 @@
                 </section>
                 <section class="doc-section">
                     <h2>Appearance and styling</h2>
-                    <p>The default template is visually conservative, but the control is no longer locked to a hard-coded track-and-thumb rectangle render path.</p>
+                    <p>The default template is visually conservative and intended to be restyled. The normal control styling surface drives the default visuals.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
                             <h3>Default color bindings</h3>
@@ -368,9 +389,9 @@
                         </article>
                     </div>
                     <ul>
-                        <li><code>TrackBrush</code> and <code>ThumbBrush</code> were removed.</li>
                         <li>The default line buttons use the bar's <code>Foreground</code> for their arrow glyphs.</li>
                         <li>Template-driven styling works for standalone bars and for bars hosted inside <code>ScrollViewer</code>.</li>
+                        <li>The default template binds the track border and thumb outline to the control's border styling surface.</li>
                     </ul>
                     <pre><code class="language-xml">&lt;StackPanel&gt;
   &lt;ScrollBar Width="280"
@@ -400,7 +421,7 @@
                 </section>
                 <section class="doc-section">
                     <h2>ScrollViewer ownership</h2>
-                    <p><code>ScrollViewer</code> still creates and owns its internal horizontal and vertical <code>ScrollBar</code> instances. The difference is that those internal bars are now just normal templated <code>ScrollBar</code> controls.</p>
+                    <p><code>ScrollViewer</code> creates and owns its internal horizontal and vertical <code>ScrollBar</code> instances. Those bars are regular <code>ScrollBar</code> controls whose range values are synchronized by the viewer.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
                             <h3>Values supplied by ScrollViewer</h3>
@@ -426,7 +447,7 @@
             BorderThickness="1" /&gt;
   &lt;/Canvas&gt;
 &lt;/ScrollViewer&gt;</code></pre>
-                    <p>If your goal is end-user scrolling of a content surface, this is still the usual pattern. The viewer owns the scroll offsets; the internal bars just surface those offsets through the normal scrollbar behavior.</p>
+                    <p>If your goal is end-user scrolling of a content surface, this is the usual pattern. The viewer owns the offsets, extents, and viewport metrics, while the internal bars surface those values through the normal scrollbar UI.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Property and event reference</h2>
@@ -509,6 +530,13 @@
 
 bar.Value = nextOffset;
 bar.ValueChanged += (_, _) => camera.Y = bar.Value;</code></pre>
+                    <h3>Custom template styling</h3>
+                    <pre><code class="language-xml">&lt;Style TargetType="ScrollBar"&gt;
+  &lt;Setter Property="Background" Value="#102030" /&gt;
+  &lt;Setter Property="Foreground" Value="#76C7FF" /&gt;
+  &lt;Setter Property="BorderBrush" Value="#28455C" /&gt;
+  &lt;Setter Property="BorderThickness" Value="1" /&gt;
+&lt;/Style&gt;</code></pre>
                     <h3>Prefer ScrollViewer for interactive content scrolling</h3>
                     <pre><code class="language-xml">&lt;ScrollViewer Width="340"
               Height="220"
@@ -537,9 +565,6 @@ bar.ValueChanged += (_, _) => camera.Y = bar.Value;</code></pre>
                     </div>
                     <div class="callout doc-callout">
                         <p><strong><code>Background</code>, <code>Foreground</code>, and <code>BorderBrush</code> are colors, not brush objects.</strong> Examples and styles for this control should use values that resolve to <code>Color</code>.</p>
-                    </div>
-                    <div class="callout doc-callout">
-                        <p><strong>The old <code>TrackBrush</code>, <code>ThumbBrush</code>, and <code>Thickness</code> properties are gone.</strong> Use the normal styling surface and template system instead.</p>
                     </div>
                     <div class="callout doc-callout">
                         <p><strong>Set an explicit length when using the control on its own.</strong> A standalone bar is easiest to reason about when you set the scrolling-axis length with <code>Width</code> or <code>Height</code>.</p>
