@@ -381,6 +381,7 @@ public class ScrollBar : Control
         SetIfChanged(Track.MaximumProperty, _track, Maximum);
         SetIfChanged(Track.ValueProperty, _track, coercedValue);
         SetIfChanged(Track.ViewportSizeProperty, _track, ViewportSize);
+        RefreshTrackLayoutIfPossible();
     }
 
     private void UpdateDefaultLineButtonText()
@@ -515,6 +516,27 @@ public class ScrollBar : Control
     private static bool AreClose(float left, float right)
     {
         return MathF.Abs(left - right) <= ValueEpsilon;
+    }
+
+    private void RefreshTrackLayoutIfPossible()
+    {
+        if (_track is not FrameworkElement track)
+        {
+            return;
+        }
+
+        var slot = track.LayoutSlot;
+        if (slot.Width <= 0f || slot.Height <= 0f)
+        {
+            return;
+        }
+
+        if (!track.NeedsMeasure && !track.NeedsArrange)
+        {
+            return;
+        }
+
+        track.Arrange(slot);
     }
 
     private static Style BuildDefaultScrollBarStyle()

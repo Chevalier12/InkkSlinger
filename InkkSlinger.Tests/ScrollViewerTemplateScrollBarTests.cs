@@ -13,7 +13,7 @@ public sealed class ScrollViewerTemplateScrollBarTests
     [Fact]
     public void InternalVerticalScrollBarThumbDrag_UpdatesOffset()
     {
-        var (uiRoot, viewer) = BuildViewerSurface();
+        var (uiRoot, viewer, _) = BuildViewerSurface();
         var verticalBar = GetPrivateScrollBar(viewer, "_verticalBar");
         var thumb = FindNamedVisualChild<Thumb>(verticalBar, "PART_Thumb");
         Assert.NotNull(thumb);
@@ -32,9 +32,44 @@ public sealed class ScrollViewerTemplateScrollBarTests
     }
 
     [Fact]
+    public void InternalVerticalScrollBarThumb_CanBeDraggedTwice()
+    {
+        var (uiRoot, viewer, root) = BuildViewerSurface();
+        var verticalBar = GetPrivateScrollBar(viewer, "_verticalBar");
+        var thumb = FindNamedVisualChild<Thumb>(verticalBar, "PART_Thumb");
+        Assert.NotNull(thumb);
+
+        var firstStart = GetCenter(verticalBar.GetThumbRectForInput());
+        var firstEnd = new Vector2(firstStart.X, firstStart.Y + 40f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(firstStart, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(firstStart, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(firstEnd, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(firstEnd, leftReleased: true));
+
+        var offsetAfterFirstDrag = viewer.VerticalOffset;
+        var secondStart = GetCenter(verticalBar.GetThumbRectForInput());
+        var liveThumbCenter = GetCenter(thumb.LayoutSlot);
+        Assert.True(Vector2.Distance(secondStart, liveThumbCenter) <= 0.01f);
+        var secondHit = VisualTreeHelper.HitTest(root, secondStart);
+        Assert.Same(thumb, secondHit);
+
+        var secondEnd = new Vector2(secondStart.X, secondStart.Y + 30f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(secondStart, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(secondStart, leftPressed: true));
+
+        Assert.Same(thumb, FocusManager.GetCapturedPointerElement());
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(secondEnd, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(secondEnd, leftReleased: true));
+
+        Assert.True(viewer.VerticalOffset > offsetAfterFirstDrag + 0.01f);
+        Assert.Null(FocusManager.GetCapturedPointerElement());
+    }
+
+    [Fact]
     public void InternalVerticalScrollBarLineButton_UsesLineScrollAmount()
     {
-        var (uiRoot, viewer) = BuildViewerSurface();
+        var (uiRoot, viewer, _) = BuildViewerSurface();
         var verticalBar = GetPrivateScrollBar(viewer, "_verticalBar");
         var lineDownButton = FindNamedVisualChild<RepeatButton>(verticalBar, "PART_LineDownButton");
         Assert.NotNull(lineDownButton);
@@ -47,7 +82,7 @@ public sealed class ScrollViewerTemplateScrollBarTests
     [Fact]
     public void InternalVerticalScrollBarTrackClick_UsesViewportLargeChange()
     {
-        var (uiRoot, viewer) = BuildViewerSurface();
+        var (uiRoot, viewer, _) = BuildViewerSurface();
         var verticalBar = GetPrivateScrollBar(viewer, "_verticalBar");
         var thumb = verticalBar.GetThumbRectForInput();
         var increasePoint = new Vector2(GetCenter(thumb).X, thumb.Y + thumb.Height + 8f);
@@ -57,7 +92,23 @@ public sealed class ScrollViewerTemplateScrollBarTests
         Assert.True(MathF.Abs(viewer.VerticalOffset - viewer.ViewportHeight) <= 0.5f);
     }
 
-    private static (UiRoot UiRoot, ScrollViewer Viewer) BuildViewerSurface()
+    [Fact]
+    public void WheelScroll_UpdatesInternalVerticalScrollBarThumbWithoutExtraLayoutPass()
+    {
+        var (uiRoot, viewer, _) = BuildViewerSurface();
+        var verticalBar = GetPrivateScrollBar(viewer, "_verticalBar");
+        var beforeThumb = verticalBar.GetThumbRectForInput();
+        var pointer = new Vector2(viewer.LayoutSlot.X + 24f, viewer.LayoutSlot.Y + 24f);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, wheelDelta: -120));
+
+        var afterThumb = verticalBar.GetThumbRectForInput();
+        Assert.True(viewer.VerticalOffset > 0.01f);
+        Assert.True(afterThumb.Y > beforeThumb.Y + 0.01f);
+    }
+
+    private static (UiRoot UiRoot, ScrollViewer Viewer, Canvas Root) BuildViewerSurface()
     {
         var root = new Canvas
         {
@@ -81,7 +132,7 @@ public sealed class ScrollViewerTemplateScrollBarTests
 
         var uiRoot = new UiRoot(root);
         RunLayout(uiRoot, 320, 240);
-        return (uiRoot, viewer);
+        return (uiRoot, viewer, root);
     }
 
     private static StackPanel CreateTallStackPanel(int itemCount)
@@ -136,6 +187,7 @@ public sealed class ScrollViewerTemplateScrollBarTests
     private static InputDelta CreatePointerDelta(
         Vector2 pointer,
         bool pointerMoved = false,
+        int wheelDelta = 0,
         bool leftPressed = false,
         bool leftReleased = false)
     {
@@ -147,7 +199,7 @@ public sealed class ScrollViewerTemplateScrollBarTests
             ReleasedKeys = new List<Keys>(),
             TextInput = new List<char>(),
             PointerMoved = pointerMoved || leftPressed || leftReleased,
-            WheelDelta = 0,
+            WheelDelta = wheelDelta,
             LeftPressed = leftPressed,
             LeftReleased = leftReleased,
             RightPressed = false,

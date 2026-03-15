@@ -179,11 +179,12 @@ public static class VisualTreeHelper
 
             for (var i = ordered.Count - 1; i >= 0; i--)
             {
+                var child = ordered[i];
                 var hit = HitTestCore(
-                    ordered[i],
+                    child,
                     position,
-                    nextHorizontalOffset,
-                    nextVerticalOffset,
+                    ResolveChildHorizontalOffset(root, child, accumulatedHorizontalOffset, nextHorizontalOffset),
+                    ResolveChildVerticalOffset(root, child, accumulatedVerticalOffset, nextVerticalOffset),
                     collector,
                     depth + 1,
                     nextAncestorTransformToRoot,
@@ -456,11 +457,12 @@ public static class VisualTreeHelper
                         orderedIndices.Sort(static (left, right) => CompareTraversalEntries(left, right));
                         for (var i = 0; i < orderedIndices.Count; i++)
                         {
+                            var child = root.GetVisualChildAtForTraversal(orderedIndices[i].Index);
                             var hit = HitTestCore(
-                                root.GetVisualChildAtForTraversal(orderedIndices[i].Index),
+                                child,
                                 position,
-                                nextHorizontalOffset,
-                                nextVerticalOffset,
+                                ResolveChildHorizontalOffset(root, child, accumulatedHorizontalOffset, nextHorizontalOffset),
+                                ResolveChildVerticalOffset(root, child, accumulatedVerticalOffset, nextVerticalOffset),
                                 collector,
                                 depth + 1,
                                 nextAncestorTransformToRoot,
@@ -485,11 +487,12 @@ public static class VisualTreeHelper
                 // Common case: no ZIndex variance. Iterate in reverse draw order so later children win.
                 for (var i = traversalChildCount - 1; i >= 0; i--)
                 {
+                    var child = root.GetVisualChildAtForTraversal(i);
                     var hit = HitTestCore(
-                        root.GetVisualChildAtForTraversal(i),
+                        child,
                         position,
-                        nextHorizontalOffset,
-                        nextVerticalOffset,
+                        ResolveChildHorizontalOffset(root, child, accumulatedHorizontalOffset, nextHorizontalOffset),
+                        ResolveChildVerticalOffset(root, child, accumulatedVerticalOffset, nextVerticalOffset),
                         collector,
                         depth + 1,
                         nextAncestorTransformToRoot,
@@ -532,11 +535,12 @@ public static class VisualTreeHelper
                     childBuffer.Sort(static (left, right) => CompareVisualChildrenByZIndex(left, right));
                     for (var i = 0; i < childBuffer.Count; i++)
                     {
+                        var child = childBuffer[i];
                         var hit = HitTestCore(
-                            childBuffer[i],
+                            child,
                             position,
-                            nextHorizontalOffset,
-                            nextVerticalOffset,
+                            ResolveChildHorizontalOffset(root, child, accumulatedHorizontalOffset, nextHorizontalOffset),
+                            ResolveChildVerticalOffset(root, child, accumulatedVerticalOffset, nextVerticalOffset),
                             collector,
                             depth + 1,
                             nextAncestorTransformToRoot,
@@ -556,11 +560,12 @@ public static class VisualTreeHelper
                 // Common case: no ZIndex variance. Iterate in reverse draw order so later children win.
                 for (var i = childBuffer.Count - 1; i >= 0; i--)
                 {
+                    var child = childBuffer[i];
                     var hit = HitTestCore(
-                        childBuffer[i],
+                        child,
                         position,
-                        nextHorizontalOffset,
-                        nextVerticalOffset,
+                        ResolveChildHorizontalOffset(root, child, accumulatedHorizontalOffset, nextHorizontalOffset),
+                        ResolveChildVerticalOffset(root, child, accumulatedVerticalOffset, nextVerticalOffset),
                         collector,
                         depth + 1,
                         nextAncestorTransformToRoot,
@@ -964,6 +969,36 @@ public static class VisualTreeHelper
                point.X <= rect.X + rect.Width &&
                point.Y >= rect.Y &&
                point.Y <= rect.Y + rect.Height;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static float ResolveChildHorizontalOffset(
+        UIElement parent,
+        UIElement child,
+        float currentHorizontalOffset,
+        float scrolledHorizontalOffset)
+    {
+        return ShouldApplyScrollViewerOffsetToChild(parent, child)
+            ? scrolledHorizontalOffset
+            : currentHorizontalOffset;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static float ResolveChildVerticalOffset(
+        UIElement parent,
+        UIElement child,
+        float currentVerticalOffset,
+        float scrolledVerticalOffset)
+    {
+        return ShouldApplyScrollViewerOffsetToChild(parent, child)
+            ? scrolledVerticalOffset
+            : currentVerticalOffset;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool ShouldApplyScrollViewerOffsetToChild(UIElement parent, UIElement child)
+    {
+        return parent is not ScrollViewer || child is not ScrollBar;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
