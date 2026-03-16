@@ -9,8 +9,22 @@ public sealed class SelectionModel
     private readonly List<object> _items = new();
     private readonly SortedSet<int> _selectedIndices = new();
     private int _anchorIndex = -1;
+    private SelectionMode _mode = SelectionMode.Single;
 
-    public SelectionMode Mode { get; set; } = SelectionMode.Single;
+    public SelectionMode Mode
+    {
+        get => _mode;
+        set
+        {
+            if (_mode == value)
+            {
+                return;
+            }
+
+            _mode = value;
+            CoerceSelectionForMode();
+        }
+    }
 
     public event EventHandler<SelectionModelChangedEventArgs>? Changed;
 
@@ -29,32 +43,67 @@ public sealed class SelectionModel
 
     public IReadOnlyList<int> SelectedIndices => _selectedIndices.ToList();
 
+    public IReadOnlyList<object> SelectedItems => _selectedIndices
+        .Where(index => index >= 0 && index < _items.Count)
+        .Select(index => _items[index])
+        .ToList();
+
     public void ReplaceItems(IEnumerable<object> items)
     {
+        var previouslySelectedItems = SelectedItems;
+        var previousAnchorItem = _anchorIndex >= 0 && _anchorIndex < _items.Count
+            ? _items[_anchorIndex]
+            : null;
+
         _items.Clear();
         _items.AddRange(items);
 
-        var removed = new List<int>();
-        foreach (var selected in _selectedIndices.ToList())
+        _selectedIndices.Clear();
+        for (var i = 0; i < previouslySelectedItems.Count; i++)
         {
-            if (selected >= 0 && selected < _items.Count)
+            var index = _items.IndexOf(previouslySelectedItems[i]);
+            if (index >= 0)
             {
-                continue;
+                _selectedIndices.Add(index);
             }
-
-            removed.Add(selected);
-            _selectedIndices.Remove(selected);
         }
 
-        if (removed.Count > 0)
+        if (previousAnchorItem != null)
         {
-            RaiseChanged(removed, Array.Empty<int>());
+            _anchorIndex = _items.IndexOf(previousAnchorItem);
         }
-
-        if (_anchorIndex >= _items.Count)
+        else if (_anchorIndex >= _items.Count)
         {
             _anchorIndex = -1;
         }
+
+        if (_anchorIndex < 0 && _selectedIndices.Count > 0)
+        {
+            _anchorIndex = _selectedIndices.Min;
+        }
+
+        CoerceSelectionForMode();
+    }
+
+    public void SelectOnlyIndex(int index)
+    {
+        if (index < 0 || index >= _items.Count)
+        {
+            Clear();
+            return;
+        }
+
+        var removed = _selectedIndices.Where(value => value != index).ToList();
+        if (_selectedIndices.Count == 1 && _selectedIndices.Contains(index))
+        {
+            _anchorIndex = index;
+            return;
+        }
+
+        _selectedIndices.Clear();
+        _selectedIndices.Add(index);
+        _anchorIndex = index;
+        RaiseChanged(removed, new[] { index });
     }
 
     public void InsertItems(int index, System.Collections.IList newItems)
@@ -116,19 +165,9 @@ public sealed class SelectionModel
             return;
         }
 
-        if (Mode == SelectionMode.Single)
+        if (Mode is SelectionMode.Single or SelectionMode.Extended)
         {
-            var removed = _selectedIndices.Where(value => value != index).ToList();
-            if (_selectedIndices.Count == 1 && _selectedIndices.Contains(index))
-            {
-                _anchorIndex = index;
-                return;
-            }
-
-            _selectedIndices.Clear();
-            _selectedIndices.Add(index);
-            _anchorIndex = index;
-            RaiseChanged(removed, new[] { index });
+            SelectOnlyIndex(index);
             return;
         }
 
@@ -149,6 +188,18 @@ public sealed class SelectionModel
 
         var index = _items.IndexOf(item);
         SelectIndex(index);
+    }
+
+    public void SelectOnlyItem(object? item)
+    {
+        if (item == null)
+        {
+            Clear();
+            return;
+        }
+
+        var index = _items.IndexOf(item);
+        SelectOnlyIndex(index);
     }
 
     public void UnselectIndex(int index)
@@ -188,6 +239,30 @@ public sealed class SelectionModel
         _selectedIndices.Add(index);
         _anchorIndex = index;
         RaiseChanged(Array.Empty<int>(), new[] { index });
+    }
+
+    public void SelectAll()
+    {
+        if (Mode == SelectionMode.Single || _items.Count == 0)
+        {
+            return;
+        }
+
+        var added = new List<int>();
+        for (var i = 0; i < _items.Count; i++)
+        {
+            if (_selectedIndices.Add(i))
+            {
+                added.Add(i);
+            }
+        }
+
+        if (_anchorIndex < 0)
+        {
+            _anchorIndex = 0;
+        }
+
+        RaiseChanged(Array.Empty<int>(), added);
     }
 
     public void SelectRange(int startIndex, int endIndex, bool clearExisting)
@@ -233,9 +308,32 @@ public sealed class SelectionModel
         RaiseChanged(removed, added);
     }
 
+    public bool IsSelected(int index)
+    {
+        return _selectedIndices.Contains(index);
+    }
+
     public void SetAnchorIndex(int index)
     {
         _anchorIndex = index >= 0 && index < _items.Count ? index : -1;
+    }
+
+    private void CoerceSelectionForMode()
+    {
+        if (_mode != SelectionMode.Single || _selectedIndices.Count <= 1)
+        {
+            return;
+        }
+
+        var retainedIndex = _anchorIndex >= 0 && _selectedIndices.Contains(_anchorIndex)
+            ? _anchorIndex
+            : _selectedIndices.Min;
+        var removed = _selectedIndices.Where(index => index != retainedIndex).ToList();
+
+        _selectedIndices.Clear();
+        _selectedIndices.Add(retainedIndex);
+        _anchorIndex = retainedIndex;
+        RaiseChanged(removed, Array.Empty<int>());
     }
 
     private void RaiseChanged(IReadOnlyList<int> removedIndices, IReadOnlyList<int> addedIndices)

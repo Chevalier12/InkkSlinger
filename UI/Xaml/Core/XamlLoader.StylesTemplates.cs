@@ -352,6 +352,45 @@ public static partial class XamlLoader
     }
 
 
+    private static ItemsPanelTemplate BuildItemsPanelTemplate(XElement element, object? codeBehind, FrameworkElement? resourceScope)
+    {
+        XElement? rootPanel = null;
+        foreach (var child in element.Elements())
+        {
+            if (rootPanel != null)
+            {
+                throw CreateXamlException("ItemsPanelTemplate can only contain a single root panel.", element);
+            }
+
+            var childType = ResolveElementType(child.Name.LocalName);
+            if (!typeof(Panel).IsAssignableFrom(childType))
+            {
+                throw CreateXamlException("ItemsPanelTemplate root element must derive from Panel.", child);
+            }
+
+            rootPanel = new XElement(child);
+        }
+
+        if (rootPanel == null)
+        {
+            throw CreateXamlException("ItemsPanelTemplate requires a panel root element.", element);
+        }
+
+        var templatePanelRoot = rootPanel;
+        return new ItemsPanelTemplate(owner =>
+        {
+            var built = RunWithinIsolatedTemplateInstantiationScope(() =>
+                BuildElement(templatePanelRoot, codeBehind, owner ?? resourceScope));
+            if (built is Panel panel)
+            {
+                return panel;
+            }
+
+            throw new InvalidOperationException("ItemsPanelTemplate must build a Panel instance.");
+        });
+    }
+
+
     private static ControlTemplate BuildControlTemplate(XElement element, object? codeBehind, FrameworkElement? resourceScope)
     {
         var targetTypeText = GetOptionalAttributeValue(element, nameof(ControlTemplate.TargetType));

@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
+[TemplatePart("PART_ScrollViewer", typeof(ScrollViewer))]
 public class ListBox : Selector
 {
     public static readonly DependencyProperty IsVirtualizingProperty =
@@ -19,7 +21,8 @@ public class ListBox : Selector
                 {
                     if (dependencyObject is ListBox listBox && args.NewValue is bool isVirtualizing)
                     {
-                        listBox.UpdateItemsHost(isVirtualizing);
+                        _ = isVirtualizing;
+                        listBox.UpdateItemsHost();
                     }
                 }));
 
@@ -71,14 +74,15 @@ public class ListBox : Selector
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender,
                 coerceValueCallback: static (_, value) => value is float f && f >= 0f ? f : 0f));
 
-    private readonly ScrollViewer _scrollViewer;
+    private readonly ScrollViewer _fallbackScrollViewer;
+    private ScrollViewer? _templatedScrollViewer;
     private Panel _itemsHost;
 
     public ListBox()
     {
-        _itemsHost = CreateItemsHost(isVirtualizing: false);
+        _itemsHost = CreateItemsHost();
         AttachItemsHost(_itemsHost);
-        _scrollViewer = new ScrollViewer
+        _fallbackScrollViewer = new ScrollViewer
         {
             Content = _itemsHost,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
@@ -88,10 +92,26 @@ public class ListBox : Selector
             Background = Color.Transparent
         };
 
-        _scrollViewer.SetVisualParent(this);
-        _scrollViewer.SetLogicalParent(this);
+        _fallbackScrollViewer.SetVisualParent(this);
+        _fallbackScrollViewer.SetLogicalParent(this);
 
         AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnMouseDownSelectItem);
+    }
+
+    public override void OnApplyTemplate()
+    {
+        base.OnApplyTemplate();
+
+        _templatedScrollViewer = GetTemplateChild("PART_ScrollViewer") as ScrollViewer;
+        if (_templatedScrollViewer == null)
+        {
+            RestoreFallbackScrollViewer();
+            return;
+        }
+
+        DetachFallbackScrollViewer();
+        ConfigureScrollViewer(_templatedScrollViewer);
+        AttachItemsHostToActiveScrollViewer();
     }
 
     public bool IsVirtualizing
@@ -143,12 +163,17 @@ public class ListBox : Selector
             yield return element;
         }
 
-        yield return _scrollViewer;
+        if (HasTemplateRoot)
+        {
+            yield break;
+        }
+
+        yield return _fallbackScrollViewer;
     }
 
     internal override int GetVisualChildCountForTraversal()
     {
-        return base.GetVisualChildCountForTraversal() + 1;
+        return base.GetVisualChildCountForTraversal() + (HasTemplateRoot ? 0 : 1);
     }
 
     internal override UIElement GetVisualChildAtForTraversal(int index)
@@ -159,9 +184,9 @@ public class ListBox : Selector
             return base.GetVisualChildAtForTraversal(index);
         }
 
-        if (index == baseCount)
+        if (!HasTemplateRoot && index == baseCount)
         {
-            return _scrollViewer;
+            return _fallbackScrollViewer;
         }
 
         throw new ArgumentOutOfRangeException(nameof(index));
@@ -174,7 +199,12 @@ public class ListBox : Selector
             yield return element;
         }
 
-        yield return _scrollViewer;
+        if (HasTemplateRoot)
+        {
+            yield break;
+        }
+
+        yield return _fallbackScrollViewer;
     }
 
     protected override bool IsItemItsOwnContainerOverride(object item)
@@ -194,9 +224,22 @@ public class ListBox : Selector
 
         container.Content = new Label
         {
-            Content = item?.ToString() ?? string.Empty
+            Content = ResolveDisplayTextForItem(item)
         };
 
+        return container;
+    }
+
+    protected override UIElement? BuildContainerForTemplatedItemOverride(object? item, DataTemplate selectedTemplate)
+    {
+        var container = CreateContainerForItemOverride(item ?? string.Empty);
+        if (container is not ContentControl contentControl)
+        {
+            return null;
+        }
+
+        contentControl.ContentTemplate = selectedTemplate;
+        contentControl.Content = item;
         return container;
     }
 
@@ -236,32 +279,128 @@ public class ListBox : Selector
         EnsureSelectedItemIsFullyVisible();
     }
 
+    internal bool HandleKeyDownFromInput(Keys key, ModifierKeys modifiers)
+    {
+        if (!IsEnabled || ItemContainers.Count == 0)
+        {
+            return false;
+        }
+
+        var shift = (modifiers & ModifierKeys.Shift) != 0;
+        var ctrl = (modifiers & ModifierKeys.Control) != 0;
+        var selectionIndex = SelectedIndex;
+        if (selectionIndex < 0)
+        {
+            selectionIndex = 0;
+        }
+
+        switch (key)
+        {
+            case Keys.Up:
+                return MoveSelectionByDelta(-1, shift, ctrl);
+            case Keys.Down:
+                return MoveSelectionByDelta(1, shift, ctrl);
+            case Keys.Home:
+                return MoveSelectionToIndex(0, shift, ctrl);
+            case Keys.End:
+                return MoveSelectionToIndex(ItemContainers.Count - 1, shift, ctrl);
+            case Keys.PageUp:
+                return MoveSelectionByDelta(-EstimatePageStep(), shift, ctrl);
+            case Keys.PageDown:
+                return MoveSelectionByDelta(EstimatePageStep(), shift, ctrl);
+            case Keys.Space:
+                if ((SelectionMode == SelectionMode.Multiple || SelectionMode == SelectionMode.Extended) && ctrl)
+                {
+                    ToggleSelectedIndexInternal(selectionIndex);
+                    SetSelectionAnchorInternal(selectionIndex);
+                    EnsureItemIsFullyVisible(selectionIndex);
+                    return true;
+                }
+
+                return false;
+            case Keys.A:
+                if (ctrl && SelectionMode != SelectionMode.Single)
+                {
+                    SelectAllInternal();
+                    EnsureSelectedItemIsFullyVisible();
+                    return true;
+                }
+
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    public void ScrollIntoView(object? item)
+    {
+        if (item == null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < Items.Count; i++)
+        {
+            if (Equals(Items[i], item))
+            {
+                EnsureItemIsFullyVisible(i);
+                return;
+            }
+        }
+
+        if (ItemsSourceView != null)
+        {
+            var index = 0;
+            foreach (var projectedItem in ItemsSourceView)
+            {
+                if (Equals(projectedItem, item))
+                {
+                    EnsureItemIsFullyVisible(index);
+                    return;
+                }
+
+                index++;
+            }
+        }
+    }
+
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
         base.OnDependencyPropertyChanged(args);
 
         if (args.Property == HorizontalScrollBarVisibilityProperty && args.NewValue is ScrollBarVisibility h)
         {
-            _scrollViewer.HorizontalScrollBarVisibility = h;
+            ActiveScrollViewer.HorizontalScrollBarVisibility = h;
         }
         else if (args.Property == VerticalScrollBarVisibilityProperty && args.NewValue is ScrollBarVisibility v)
         {
-            _scrollViewer.VerticalScrollBarVisibility = v;
+            ActiveScrollViewer.VerticalScrollBarVisibility = v;
         }
         else if (args.Property == LineScrollAmountProperty && args.NewValue is float amount)
         {
-            _scrollViewer.LineScrollAmount = amount;
+            ActiveScrollViewer.LineScrollAmount = amount;
+        }
+        else if (args.Property == ItemsPanelProperty)
+        {
+            UpdateItemsHost();
         }
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var templateDesired = base.MeasureOverride(availableSize);
+        if (HasTemplateRoot)
+        {
+            return templateDesired;
+        }
+
         var border = BorderThickness * 2f;
         var innerWidth = MathF.Max(0f, availableSize.X - border);
         var innerHeight = MathF.Max(0f, availableSize.Y - border);
 
-        _scrollViewer.Measure(new Vector2(innerWidth, innerHeight));
-        var scrollDesired = _scrollViewer.DesiredSize;
+        var scrollViewer = ActiveScrollViewer;
+        scrollViewer.Measure(new Vector2(innerWidth, innerHeight));
+        var scrollDesired = scrollViewer.DesiredSize;
         return new Vector2(
             MathF.Max(0f, scrollDesired.X + border),
             MathF.Max(0f, scrollDesired.Y + border));
@@ -269,16 +408,26 @@ public class ListBox : Selector
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        if (HasTemplateRoot)
+        {
+            return base.ArrangeOverride(finalSize);
+        }
+
         var border = BorderThickness;
         var width = MathF.Max(0f, finalSize.X - (border * 2f));
         var height = MathF.Max(0f, finalSize.Y - (border * 2f));
-        _scrollViewer.Arrange(new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, width, height));
+        ActiveScrollViewer.Arrange(new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, width, height));
 
         return finalSize;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        if (HasTemplateRoot)
+        {
+            return;
+        }
+
         var slot = LayoutSlot;
         UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
 
@@ -290,6 +439,11 @@ public class ListBox : Selector
 
     protected override bool TryGetClipRect(out LayoutRect clipRect)
     {
+        if (HasTemplateRoot)
+        {
+            return base.TryGetClipRect(out clipRect);
+        }
+
         clipRect = LayoutSlot;
         return true;
     }
@@ -309,18 +463,23 @@ public class ListBox : Selector
 
     private void EnsureSelectedItemIsFullyVisible()
     {
-        var selectedIndex = SelectedIndex;
-        if (selectedIndex < 0 || selectedIndex >= ItemContainers.Count)
+        EnsureItemIsFullyVisible(SelectedIndex);
+    }
+
+    private void EnsureItemIsFullyVisible(int index)
+    {
+        if (index < 0 || index >= ItemContainers.Count)
         {
             return;
         }
 
-        if (ItemContainers[selectedIndex] is not FrameworkElement selectedContainer)
+        if (ItemContainers[index] is not FrameworkElement selectedContainer)
         {
             return;
         }
 
-        var viewportHeight = _scrollViewer.ViewportHeight;
+        var scrollViewer = ActiveScrollViewer;
+        var viewportHeight = scrollViewer.ViewportHeight;
         if (viewportHeight <= 0f)
         {
             return;
@@ -328,31 +487,33 @@ public class ListBox : Selector
 
         var itemTop = selectedContainer.LayoutSlot.Y - _itemsHost.LayoutSlot.Y;
         var itemBottom = itemTop + selectedContainer.LayoutSlot.Height;
-        var viewportTop = _scrollViewer.VerticalOffset;
+        var viewportTop = scrollViewer.VerticalOffset;
         var viewportBottom = viewportTop + viewportHeight;
 
         if (itemTop < viewportTop)
         {
-            _scrollViewer.ScrollToVerticalOffset(itemTop);
+            scrollViewer.ScrollToVerticalOffset(itemTop);
             return;
         }
 
         if (itemBottom > viewportBottom)
         {
-            _scrollViewer.ScrollToVerticalOffset(itemBottom - viewportHeight);
+            scrollViewer.ScrollToVerticalOffset(itemBottom - viewportHeight);
         }
     }
 
-    private void UpdateItemsHost(bool isVirtualizing)
+    private ScrollViewer ActiveScrollViewer => _templatedScrollViewer ?? _fallbackScrollViewer;
+
+    private void UpdateItemsHost()
     {
-        var nextHost = CreateItemsHost(isVirtualizing);
+        var nextHost = CreateItemsHost();
         if (ReferenceEquals(nextHost, _itemsHost))
         {
             return;
         }
 
         _itemsHost = nextHost;
-        _scrollViewer.Content = _itemsHost;
+        ActiveScrollViewer.Content = _itemsHost;
         AttachItemsHost(_itemsHost);
         InvalidateMeasure();
     }
@@ -380,10 +541,35 @@ public class ListBox : Selector
         {
             SetSelectedIndexInternal(index);
         }
-        else
+        else if (SelectionMode == SelectionMode.Multiple)
         {
             ToggleSelectedIndexInternal(index);
             SetSelectionAnchorInternal(index);
+        }
+        else
+        {
+            var shift = (args.Modifiers & ModifierKeys.Shift) != 0;
+            var ctrl = (args.Modifiers & ModifierKeys.Control) != 0;
+            var anchor = GetSelectionAnchorIndexInternal();
+            if (shift)
+            {
+                if (anchor < 0)
+                {
+                    anchor = SelectedIndex >= 0 ? SelectedIndex : index;
+                    SetSelectionAnchorInternal(anchor);
+                }
+
+                SelectRangeInternal(anchor, index, clearExisting: !ctrl);
+            }
+            else if (ctrl)
+            {
+                ToggleSelectedIndexInternal(index);
+                SetSelectionAnchorInternal(index);
+            }
+            else
+            {
+                SelectOnlyIndexInternal(index);
+            }
         }
     }
 
@@ -405,9 +591,14 @@ public class ListBox : Selector
         return null;
     }
 
-    private static Panel CreateItemsHost(bool isVirtualizing)
+    private Panel CreateItemsHost()
     {
-        if (isVirtualizing)
+        if (ItemsPanel != null)
+        {
+            return ItemsPanel.Build(this);
+        }
+
+        if (IsVirtualizing)
         {
             return new VirtualizingStackPanel
             {
@@ -419,6 +610,142 @@ public class ListBox : Selector
         {
             Orientation = Orientation.Vertical
         };
+    }
+
+    private void ConfigureScrollViewer(ScrollViewer viewer)
+    {
+        viewer.HorizontalScrollBarVisibility = HorizontalScrollBarVisibility;
+        viewer.VerticalScrollBarVisibility = VerticalScrollBarVisibility;
+        viewer.LineScrollAmount = LineScrollAmount;
+    }
+
+    private void AttachItemsHostToActiveScrollViewer()
+    {
+        if (!ReferenceEquals(_fallbackScrollViewer, ActiveScrollViewer) && ReferenceEquals(_fallbackScrollViewer.Content, _itemsHost))
+        {
+            _fallbackScrollViewer.Content = null;
+        }
+
+        if (_templatedScrollViewer != null &&
+            !ReferenceEquals(_templatedScrollViewer, ActiveScrollViewer) &&
+            ReferenceEquals(_templatedScrollViewer.Content, _itemsHost))
+        {
+            _templatedScrollViewer.Content = null;
+        }
+
+        if (!ReferenceEquals(ActiveScrollViewer.Content, _itemsHost))
+        {
+            ActiveScrollViewer.Content = _itemsHost;
+        }
+
+        AttachItemsHost(_itemsHost);
+    }
+
+    private void RestoreFallbackScrollViewer()
+    {
+        _templatedScrollViewer = null;
+        if (!ReferenceEquals(_fallbackScrollViewer.VisualParent, this))
+        {
+            _fallbackScrollViewer.SetVisualParent(this);
+            _fallbackScrollViewer.SetLogicalParent(this);
+        }
+
+        ConfigureScrollViewer(_fallbackScrollViewer);
+        AttachItemsHostToActiveScrollViewer();
+    }
+
+    private void DetachFallbackScrollViewer()
+    {
+        if (ReferenceEquals(_fallbackScrollViewer.Content, _itemsHost))
+        {
+            _fallbackScrollViewer.Content = null;
+        }
+
+        _fallbackScrollViewer.SetVisualParent(null);
+        _fallbackScrollViewer.SetLogicalParent(null);
+    }
+
+    private bool MoveSelectionByDelta(int delta, bool extendSelection, bool preserveExisting)
+    {
+        var currentIndex = SelectedIndex;
+        if (extendSelection && SelectedIndices.Count > 0)
+        {
+            currentIndex = delta >= 0
+                ? SelectedIndices[SelectedIndices.Count - 1]
+                : SelectedIndices[0];
+        }
+
+        if (currentIndex < 0)
+        {
+            currentIndex = delta >= 0 ? 0 : ItemContainers.Count - 1;
+        }
+
+        return MoveSelectionToIndex(currentIndex + delta, extendSelection, preserveExisting);
+    }
+
+    private bool MoveSelectionToIndex(int targetIndex, bool extendSelection, bool preserveExisting)
+    {
+        if (ItemContainers.Count == 0)
+        {
+            return false;
+        }
+
+        var clampedIndex = Math.Clamp(targetIndex, 0, ItemContainers.Count - 1);
+        if (SelectionMode == SelectionMode.Single)
+        {
+            SelectOnlyIndexInternal(clampedIndex);
+            EnsureItemIsFullyVisible(clampedIndex);
+            return true;
+        }
+
+        if (extendSelection)
+        {
+            var anchor = GetSelectionAnchorIndexInternal();
+            if (anchor < 0)
+            {
+                anchor = SelectedIndex >= 0 ? SelectedIndex : clampedIndex;
+                SetSelectionAnchorInternal(anchor);
+            }
+
+            SelectRangeInternal(anchor, clampedIndex, clearExisting: !preserveExisting);
+            EnsureItemIsFullyVisible(clampedIndex);
+            return true;
+        }
+
+        if (SelectionMode == SelectionMode.Multiple && preserveExisting)
+        {
+            EnsureItemIsFullyVisible(clampedIndex);
+            return true;
+        }
+
+        SelectOnlyIndexInternal(clampedIndex);
+        EnsureItemIsFullyVisible(clampedIndex);
+        return true;
+    }
+
+    private int EstimatePageStep()
+    {
+        if (ItemContainers.Count == 0)
+        {
+            return 1;
+        }
+
+        var sampleHeight = 0f;
+        for (var i = 0; i < ItemContainers.Count; i++)
+        {
+            if (ItemContainers[i] is FrameworkElement element && element.LayoutSlot.Height > 0f)
+            {
+                sampleHeight = element.LayoutSlot.Height;
+                break;
+            }
+        }
+
+        if (sampleHeight <= 0f)
+        {
+            sampleHeight = LineScrollAmount > 0f ? LineScrollAmount : 24f;
+        }
+
+        return Math.Max(1, (int)MathF.Floor(ActiveScrollViewer.ViewportHeight / sampleHeight));
     }
 
     private sealed class ScrollContentStackPanel : StackPanel, IScrollTransformContent

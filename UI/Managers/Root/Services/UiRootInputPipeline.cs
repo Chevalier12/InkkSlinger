@@ -2273,6 +2273,12 @@ public sealed partial class UiRoot
                 return;
             }
 
+            if (TryFindFocusedListBox(out var focusedListBox) &&
+                focusedListBox.HandleKeyDownFromInput(key, modifiers))
+            {
+                return;
+            }
+
             if (_inputState.FocusedElement is Button button && (key == Keys.Enter || key == Keys.Space))
             {
                 button.InvokeFromInput();
@@ -2299,6 +2305,21 @@ public sealed partial class UiRoot
         var target = _inputState.FocusedElement ?? _visualRoot;
         var dispatchStart = Stopwatch.GetTimestamp(); _lastInputKeyEventCount++;
         _lastInputRoutedEventCount += 2; target.RaiseRoutedEventInternal(UIElement.PreviewKeyUpEvent, new KeyRoutedEventArgs(UIElement.PreviewKeyUpEvent, key, modifiers)); target.RaiseRoutedEventInternal(UIElement.KeyUpEvent, new KeyRoutedEventArgs(UIElement.KeyUpEvent, key, modifiers));
+    }
+
+    private bool TryFindFocusedListBox(out ListBox listBox)
+    {
+        for (var current = _inputState.FocusedElement; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is ListBox focusedListBox)
+            {
+                listBox = focusedListBox;
+                return true;
+            }
+        }
+
+        listBox = null!;
+        return false;
     }
 
     private void DispatchTextInput(char character)

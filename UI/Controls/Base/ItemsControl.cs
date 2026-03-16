@@ -10,6 +10,27 @@ namespace InkkSlinger;
 
 public class ItemsControl : Control
 {
+    public static readonly DependencyProperty DisplayMemberPathProperty =
+        DependencyProperty.Register(
+            nameof(DisplayMemberPath),
+            typeof(string),
+            typeof(ItemsControl),
+            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+
+    public static readonly DependencyProperty ItemStringFormatProperty =
+        DependencyProperty.Register(
+            nameof(ItemStringFormat),
+            typeof(string),
+            typeof(ItemsControl),
+            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+
+    public static readonly DependencyProperty ItemsPanelProperty =
+        DependencyProperty.Register(
+            nameof(ItemsPanel),
+            typeof(ItemsPanelTemplate),
+            typeof(ItemsControl),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+
     public static readonly DependencyProperty ItemTemplateProperty =
         DependencyProperty.Register(
             nameof(ItemTemplate),
@@ -28,6 +49,13 @@ public class ItemsControl : Control
         DependencyProperty.Register(
             nameof(ItemContainerStyle),
             typeof(Style),
+            typeof(ItemsControl),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
+
+    public static readonly DependencyProperty ItemContainerStyleSelectorProperty =
+        DependencyProperty.Register(
+            nameof(ItemContainerStyleSelector),
+            typeof(StyleSelector),
             typeof(ItemsControl),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
@@ -76,6 +104,24 @@ public class ItemsControl : Control
         set => SetValue(ItemsSourceProperty, value);
     }
 
+    public string DisplayMemberPath
+    {
+        get => GetValue<string>(DisplayMemberPathProperty);
+        set => SetValue(DisplayMemberPathProperty, value);
+    }
+
+    public string ItemStringFormat
+    {
+        get => GetValue<string>(ItemStringFormatProperty);
+        set => SetValue(ItemStringFormatProperty, value);
+    }
+
+    public ItemsPanelTemplate? ItemsPanel
+    {
+        get => GetValue<ItemsPanelTemplate>(ItemsPanelProperty);
+        set => SetValue(ItemsPanelProperty, value);
+    }
+
     public DataTemplate? ItemTemplate
     {
         get => GetValue<DataTemplate>(ItemTemplateProperty);
@@ -94,13 +140,19 @@ public class ItemsControl : Control
         set => SetValue(ItemContainerStyleProperty, value);
     }
 
+    public StyleSelector? ItemContainerStyleSelector
+    {
+        get => GetValue<StyleSelector>(ItemContainerStyleSelectorProperty);
+        set => SetValue(ItemContainerStyleSelectorProperty, value);
+    }
+
     public ObservableCollection<GroupStyle> GroupStyle => _groupStyle;
 
     protected ICollectionView? ItemsSourceView => _itemsSourceView;
 
     protected virtual bool IncludeGeneratedChildrenInVisualTree => _activeItemsHost == null;
 
-    protected virtual bool SupportsGroupedVisualProjection => this is not Selector and not DataGrid;
+    protected virtual bool SupportsGroupedVisualProjection => this is not DataGrid;
 
     protected virtual bool CanReconcileProjectedContainersOnReset => true;
 
@@ -176,7 +228,6 @@ public class ItemsControl : Control
             yield return source[i];
         }
     }
-
     internal override int GetVisualChildCountForTraversal()
     {
         var count = base.GetVisualChildCountForTraversal();
@@ -288,13 +339,20 @@ public class ItemsControl : Control
     {
         return new Label
         {
-            Content = item?.ToString() ?? string.Empty
+            Content = ResolveDisplayTextForItem(item)
         };
+    }
+
+    protected virtual UIElement? BuildContainerForTemplatedItemOverride(object? item, DataTemplate selectedTemplate)
+    {
+        _ = item;
+        _ = selectedTemplate;
+        return null;
     }
 
     protected virtual void PrepareContainerForItemOverride(UIElement element, object item, int index)
     {
-        ApplyItemContainerStyle(element);
+        ApplyItemContainerStyle(element, item, index);
     }
 
     protected virtual void ClearContainerForItemOverride(UIElement element, object item)
@@ -323,7 +381,10 @@ public class ItemsControl : Control
             return;
         }
 
-        if (args.Property == ItemContainerStyleProperty)
+        if (args.Property == ItemContainerStyleProperty ||
+            args.Property == ItemContainerStyleSelectorProperty ||
+            args.Property == DisplayMemberPathProperty ||
+            args.Property == ItemStringFormatProperty)
         {
             RegenerateChildren();
         }
@@ -535,6 +596,11 @@ public class ItemsControl : Control
 
     private UIElement? BuildContainerForItem(object? item)
     {
+        if (item != null && IsItemItsOwnContainerOverride(item) && item is UIElement ownContainer)
+        {
+            return ownContainer;
+        }
+
         DataTemplate? selectedTemplate;
         if (ItemTemplate != null || ItemTemplateSelector != null || item == null)
         {
@@ -557,12 +623,13 @@ public class ItemsControl : Control
 
         if (selectedTemplate != null)
         {
-            return selectedTemplate.Build(item, this);
-        }
+            var templatedContainer = BuildContainerForTemplatedItemOverride(item, selectedTemplate);
+            if (templatedContainer != null)
+            {
+                return templatedContainer;
+            }
 
-        if (item != null && IsItemItsOwnContainerOverride(item) && item is UIElement uiElement)
-        {
-            return uiElement;
+            return selectedTemplate.Build(item, this);
         }
 
         return CreateContainerForItemOverride(item ?? string.Empty);
@@ -1066,14 +1133,35 @@ public class ItemsControl : Control
         return true;
     }
 
-    private void ApplyItemContainerStyle(UIElement element)
+    protected string ResolveDisplayTextForItem(object? item)
+    {
+        var text = item;
+        if (item != null && !string.IsNullOrWhiteSpace(DisplayMemberPath))
+        {
+            text = BindingExpressionUtilities.ResolvePathValue(item, DisplayMemberPath);
+        }
+
+        var displayText = text?.ToString() ?? string.Empty;
+        if (string.IsNullOrEmpty(ItemStringFormat))
+        {
+            return displayText;
+        }
+
+        return string.Format(System.Globalization.CultureInfo.CurrentCulture, ItemStringFormat, displayText);
+    }
+
+    private void ApplyItemContainerStyle(UIElement element, object item, int index)
     {
         if (element is not FrameworkElement frameworkElement)
         {
             return;
         }
 
-        if (ItemContainerStyle == null)
+        _ = index;
+
+        var selectedStyle = ItemContainerStyleSelector?.SelectStyle(item, frameworkElement) ?? ItemContainerStyle;
+
+        if (selectedStyle == null)
         {
             if (_appliedItemContainerStyles.TryGetValue(element, out var trackedStyle))
             {
@@ -1103,12 +1191,12 @@ public class ItemsControl : Control
             return;
         }
 
-        if (!ReferenceEquals(frameworkElement.Style, ItemContainerStyle))
+        if (!ReferenceEquals(frameworkElement.Style, selectedStyle))
         {
-            frameworkElement.Style = ItemContainerStyle;
+            frameworkElement.Style = selectedStyle;
         }
 
-        _appliedItemContainerStyles[element] = ItemContainerStyle;
+        _appliedItemContainerStyles[element] = selectedStyle;
     }
 
     private void RemoveItemContainerStyleTracking(UIElement element)

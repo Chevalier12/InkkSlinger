@@ -198,6 +198,10 @@ public class ComboBox : Selector
         base.OnDependencyPropertyChanged(args);
 
         if (args.Property == ItemContainerStyleProperty ||
+            args.Property == ItemContainerStyleSelectorProperty ||
+            args.Property == DisplayMemberPathProperty ||
+            args.Property == ItemsPanelProperty ||
+            args.Property == ItemStringFormatProperty ||
             args.Property == ForegroundProperty ||
             args.Property == FontSizeProperty ||
             args.Property == FontFamilyProperty ||
@@ -406,6 +410,7 @@ public class ComboBox : Selector
         try
         {
             _dropDownList.ItemContainerStyle = ItemContainerStyle;
+            _dropDownList.ItemsPanel = ItemsPanel;
             _dropDownList.Items.Clear();
             for (var i = 0; i < ItemContainers.Count; i++)
             {
@@ -438,7 +443,7 @@ public class ComboBox : Selector
         return host;
     }
 
-    private static string GetDisplayText(object? item)
+    private string GetDisplayText(object? item)
     {
         if (item is ComboBoxItem comboBoxItem)
         {
@@ -466,7 +471,7 @@ public class ComboBox : Selector
             return Label.ExtractAutomationText(itemLabel.Content);
         }
 
-        return item?.ToString() ?? string.Empty;
+        return this.ResolveDisplayTextForItem(item);
     }
 
     private ComboBoxItem BuildDropDownContainer(object? item, int index)

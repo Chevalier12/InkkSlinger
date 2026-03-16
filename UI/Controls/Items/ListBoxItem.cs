@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -5,6 +6,12 @@ namespace InkkSlinger;
 
 public class ListBoxItem : ContentControl
 {
+    public static readonly RoutedEvent SelectedEvent =
+        new(nameof(Selected), RoutingStrategy.Bubble);
+
+    public static readonly RoutedEvent UnselectedEvent =
+        new(nameof(Unselected), RoutingStrategy.Bubble);
+
     public new static readonly DependencyProperty IsMouseOverProperty =
         DependencyProperty.Register(
             nameof(IsMouseOver),
@@ -17,7 +24,20 @@ public class ListBoxItem : ContentControl
             nameof(IsSelected),
             typeof(bool),
             typeof(ListBoxItem),
-            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                false,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is ListBoxItem listBoxItem &&
+                        args.NewValue is bool isSelected &&
+                        args.OldValue is bool wasSelected &&
+                        isSelected != wasSelected)
+                    {
+                        var routedEvent = isSelected ? SelectedEvent : UnselectedEvent;
+                        listBoxItem.RaiseRoutedEvent(routedEvent, new RoutedSimpleEventArgs(routedEvent));
+                    }
+                }));
 
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
@@ -58,6 +78,18 @@ public class ListBoxItem : ContentControl
     {
         get => GetValue<bool>(IsSelectedProperty);
         set => SetValue(IsSelectedProperty, value);
+    }
+
+    public event EventHandler<RoutedSimpleEventArgs> Selected
+    {
+        add => AddHandler(SelectedEvent, value);
+        remove => RemoveHandler(SelectedEvent, value);
+    }
+
+    public event EventHandler<RoutedSimpleEventArgs> Unselected
+    {
+        add => AddHandler(UnselectedEvent, value);
+        remove => RemoveHandler(UnselectedEvent, value);
     }
 
     public new bool IsMouseOver

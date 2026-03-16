@@ -423,6 +423,11 @@ public static partial class XamlLoader
             return BuildDataTemplate(element, codeBehind, resourceScope);
         }
 
+        if (string.Equals(element.Name.LocalName, nameof(ItemsPanelTemplate), StringComparison.Ordinal))
+        {
+            return BuildItemsPanelTemplate(element, codeBehind, resourceScope);
+        }
+
         if (string.Equals(element.Name.LocalName, nameof(Binding), StringComparison.Ordinal))
         {
             return BuildBindingElement(element, typeof(object), resourceScope);

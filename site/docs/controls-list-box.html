@@ -173,11 +173,11 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>ListBox</h1>
-                    <p><code>ListBox</code> is the selectable vertical items control for menu-like lists, inspectors, pickers, and scrolling collections of rows. It combines the <code>ItemsControl</code> item pipeline with <code>Selector</code> selection state and an internal <code>ScrollViewer</code>, then keeps realized <code>ListBoxItem</code> containers synchronized with hover and selection.</p>
+                    <p><code>ListBox</code> is the selectable vertical items control for inspectors, pickers, navigation rails, and scrolling data lists. It layers the <code>ItemsControl</code> item-generation pipeline on top of <code>Selector</code> selection state, then hosts realized <code>ListBoxItem</code> containers inside a templated <code>ScrollViewer</code> so selection, styling, grouping, keyboard input, and scrolling stay on the same control surface.</p>
                 </div>
                 <section class="doc-section">
                     <h2>Quick start</h2>
-                    <p>Use <code>ListBox</code> when you need a vertically stacked collection of selectable rows with built-in scrolling and a conventional selected-item API.</p>
+                    <p>Use <code>ListBox</code> when you need a vertically stacked list with built-in selection, scrolling, and item-container styling. It works with explicit <code>ListBoxItem</code> markup, raw object collections, and grouped or collection-view-backed sources.</p>
                     <h3>Minimal single-select list</h3>
                     <pre><code class="language-xml">&lt;ListBox Width="260"
          Height="180"
@@ -192,148 +192,251 @@
     &lt;Label Content="Archive" /&gt;
   &lt;/ListBoxItem&gt;
 &lt;/ListBox&gt;</code></pre>
-                    <h3>Populate simple text items in code</h3>
-                    <pre><code class="language-csharp">var listBox = new ListBox
-{
-    Width = 320,
-    Height = 220
-};
-
-listBox.Items.Add("Alpha");
-listBox.Items.Add("Beta");
-listBox.Items.Add("Gamma");
-listBox.SelectedIndex = 1;</code></pre>
-                    <h3>Enable multi-select toggling</h3>
-                    <pre><code class="language-xml">&lt;ListBox Width="300"
-         Height="200"
-         SelectionMode="Multiple"&gt;
-  &lt;ListBoxItem&gt;
-    &lt;Label Content="Shaders" /&gt;
-  &lt;/ListBoxItem&gt;
-  &lt;ListBoxItem&gt;
-    &lt;Label Content="Textures" /&gt;
-  &lt;/ListBoxItem&gt;
-  &lt;ListBoxItem&gt;
-    &lt;Label Content="Audio" /&gt;
-  &lt;/ListBoxItem&gt;
-&lt;/ListBox&gt;</code></pre>
+                    <h3>Bound object list with projected text</h3>
+                    <pre><code class="language-xml">&lt;ListBox Width="320"
+         Height="220"
+         ItemsSource="{Binding RecentProjects}"
+         DisplayMemberPath="Name"
+         SelectedItem="{Binding ActiveProject}"
+         SelectedValuePath="Id"
+         SelectedValue="{Binding ActiveProjectId}" /&gt;</code></pre>
+                    <h3>Extended multi-select with scrolling</h3>
+                    <pre><code class="language-xml">&lt;ListBox Width="340"
+         Height="220"
+         SelectionMode="Extended"
+         VerticalScrollBarVisibility="Auto"
+         ItemsSource="{Binding CandidateFiles}" /&gt;</code></pre>
                     <div class="callout doc-callout">
-                        <p><strong>Default recommendation:</strong> use plain string items for simple lists, and move to explicit <code>ListBoxItem</code> markup or <code>ItemContainerStyle</code> when you need custom row chrome, hover treatment, or selected-state visuals.</p>
+                        <p><strong>Default recommendation:</strong> use bound data plus <code>DisplayMemberPath</code> for simple row text, then move to <code>ItemTemplate</code>, <code>ItemContainerStyle</code>, or explicit <code>ListBoxItem</code> markup when the row needs richer visuals or behavior.</p>
                     </div>
                 </section>
                 <section class="doc-section">
                     <h2>Items and container model</h2>
-                    <p><code>ListBox</code> inherits from <code>Selector</code>, which in turn inherits from <code>ItemsControl</code>. That means you get the normal <code>Items</code>, <code>ItemsSource</code>, and <code>ItemContainerStyle</code> pipeline, but the interactive row contract still centers on <code>ListBoxItem</code>.</p>
+                    <p><code>ListBox</code> inherits from <code>Selector</code>, which inherits from <code>ItemsControl</code>. The backing items can come from <code>Items</code>, <code>ItemsSource</code>, or a grouped <code>ICollectionView</code>, but the interactive row contract is always a realized <code>ListBoxItem</code> container.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
                             <h3>Explicit containers</h3>
-                            <p>If you supply <code>ListBoxItem</code> elements directly, the control uses them as-is. This is the clearest way to author richer row content and keep full control over selection visuals.</p>
+                            <p>If you supply <code>ListBoxItem</code> elements directly, the control preserves them as-is. They are not replaced by <code>ItemTemplate</code> or by the generated-row pipeline.</p>
                         </article>
                         <article class="doc-card">
                             <h3>Generated containers</h3>
-                            <p>If you add plain objects, <code>ListBox</code> creates <code>ListBoxItem</code> containers for them. Raw <code>UIElement</code> items are hosted as the container content, and non-visual values fall back to a generated <code>Label</code> whose content is <code>ToString()</code>.</p>
+                            <p>If you add plain objects, <code>ListBox</code> creates <code>ListBoxItem</code> containers for them. That remains true even when <code>ItemTemplate</code> or <code>ItemTemplateSelector</code> is used.</p>
                         </article>
                     </div>
                     <ul>
-                        <li><code>Items</code> and <code>ItemsSource</code> follow the normal <code>ItemsControl</code> rule: do not mutate <code>Items</code> while <code>ItemsSource</code> is set.</li>
-                        <li><code>ItemContainerStyle</code> is the primary row-level styling hook for generated containers.</li>
-                        <li>Generated label rows copy the list box typography fast-path for <code>FontFamily</code>, <code>FontSize</code>, <code>FontWeight</code>, and <code>FontStyle</code>.</li>
+                        <li><code>Items</code> and <code>ItemsSource</code> follow the normal <code>ItemsControl</code> rule: do not mix direct item mutation with an active <code>ItemsSource</code>.</li>
+                        <li>Raw <code>UIElement</code> items become the content of a generated <code>ListBoxItem</code>, not standalone rows outside the container model.</li>
+                        <li>When neither <code>ItemTemplate</code> nor <code>ItemTemplateSelector</code> is present, generated text rows use <code>DisplayMemberPath</code> and <code>ItemStringFormat</code> before falling back to <code>ToString()</code>.</li>
+                        <li>Generated label rows inherit the list box typography fast-path for <code>FontFamily</code>, <code>FontSize</code>, <code>FontWeight</code>, and <code>FontStyle</code>.</li>
                     </ul>
-                    <h3>Bind a simple string collection</h3>
-                    <pre><code class="language-xml">&lt;ListBox Width="320"
+                    <h3>Simple text rows from a bound object collection</h3>
+                    <pre><code class="language-xml">&lt;ListBox Width="340"
          Height="220"
-         ItemsSource="{Binding RecentProjects}"
-         SelectedItem="{Binding ActiveProject}" /&gt;</code></pre>
-                    <p>That works best when the bound items are strings or when the bound objects provide a useful <code>ToString()</code> result. For custom row layout, prefer explicit <code>ListBoxItem</code> content or a container style.</p>
-                    <h3>Author a richer row explicitly</h3>
-                    <pre><code class="language-xml">&lt;ListBox Width="360" Height="220"&gt;
-  &lt;ListBoxItem&gt;
-    &lt;Grid&gt;
-      &lt;Grid.ColumnDefinitions&gt;
-        &lt;ColumnDefinition Width="Auto" /&gt;
-        &lt;ColumnDefinition Width="*" /&gt;
-      &lt;/Grid.ColumnDefinitions&gt;
+         ItemsSource="{Binding Agents}"
+         DisplayMemberPath="DisplayName"
+         ItemStringFormat="[{0}]" /&gt;</code></pre>
+                    <h3>Templated rows without losing ListBoxItem containers</h3>
+                    <pre><code class="language-xml">&lt;ListBox Width="360"
+         Height="220"
+         ItemsSource="{Binding Agents}"&gt;
+  &lt;ListBox.ItemTemplate&gt;
+    &lt;DataTemplate&gt;
+      &lt;Grid&gt;
+        &lt;Grid.ColumnDefinitions&gt;
+          &lt;ColumnDefinition Width="Auto" /&gt;
+          &lt;ColumnDefinition Width="*" /&gt;
+        &lt;/Grid.ColumnDefinitions&gt;
 
-      &lt;Border Width="10" Height="10" Background="#4FC7C1" Margin="0,0,10,0" /&gt;
-      &lt;StackPanel Grid.Column="1"&gt;
-        &lt;Label Content="Build agent A" /&gt;
-        &lt;Label Content="Online" Opacity="0.7" /&gt;
-      &lt;/StackPanel&gt;
-    &lt;/Grid&gt;
-  &lt;/ListBoxItem&gt;
+        &lt;Border Width="10" Height="10" Background="#4FC7C1" Margin="0,0,10,0" /&gt;
+        &lt;StackPanel Grid.Column="1"&gt;
+          &lt;Label Content="{Binding Name}" /&gt;
+          &lt;Label Content="{Binding Status}" Opacity="0.7" /&gt;
+        &lt;/StackPanel&gt;
+      &lt;/Grid&gt;
+    &lt;/DataTemplate&gt;
+  &lt;/ListBox.ItemTemplate&gt;
 &lt;/ListBox&gt;</code></pre>
                     <div class="callout doc-callout">
-                        <p><strong>Primary customization surface:</strong> if the row itself needs selected or hover visuals, style <code>ListBoxItem</code> rather than only styling the content inside it.</p>
+                        <p><strong>Important precedence rule:</strong> <code>ItemTemplate</code> changes the content inside generated <code>ListBoxItem</code> containers. It does not replace explicit <code>ListBoxItem</code> elements and it does not remove the row container itself.</p>
                     </div>
                 </section>
                 <section class="doc-section">
-                    <h2>Selection behavior</h2>
-                    <p><code>ListBox</code> exposes the standard selector properties and raises the bubbled <code>SelectionChanged</code> routed event. Pointer selection is handled by clicking a realized <code>ListBoxItem</code> container.</p>
+                    <h2>Selection model and data API</h2>
+                    <p><code>ListBox</code> exposes the standard <code>Selector</code> properties, including <code>SelectedIndex</code>, <code>SelectedItem</code>, <code>SelectedValue</code>, <code>SelectedValuePath</code>, and the read-only <code>SelectedItems</code> projection. Selection changes still raise the bubbled <code>SelectionChanged</code> routed event.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
-                            <h3>Single mode</h3>
-                            <p><code>SelectionMode="Single"</code> is the default. Clicking a row replaces the current selection and updates <code>SelectedIndex</code> plus <code>SelectedItem</code>.</p>
+                            <h3>Single</h3>
+                            <p><code>SelectionMode="Single"</code> keeps exactly one primary selection. Setting <code>SelectedIndex</code>, <code>SelectedItem</code>, or <code>SelectedValue</code> replaces the current row.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>Multiple mode</h3>
-                            <p><code>SelectionMode="Multiple"</code> toggles the clicked row directly. The full selection is exposed through <code>SelectedIndices</code>, while <code>SelectedIndex</code> and <code>SelectedItem</code> reflect the first selected entry.</p>
+                            <h3>Multiple and Extended</h3>
+                            <p><code>SelectionMode="Multiple"</code> is direct toggle mode. <code>SelectionMode="Extended"</code> adds WPF-style range and modifier gestures while keeping <code>SelectedItems</code> and <code>SelectedIndices</code> synchronized.</p>
                         </article>
                     </div>
                     <ul>
-                        <li><code>SelectedIndex = -1</code> clears the selection.</li>
-                        <li><code>SelectedItem</code> can also drive selection when you already have the backing item instance.</li>
-                        <li><code>SelectedIndices</code> is the inspection API for multi-select state; there is no separate <code>SelectedItems</code> collection.</li>
+                        <li><code>SelectedIndex = -1</code>, <code>SelectedItem = null</code>, or <code>SelectedValue = null</code> clears selection.</li>
+                        <li><code>SelectedValue</code> resolves through <code>SelectedValuePath</code>; when no path is supplied, it mirrors <code>SelectedItem</code>.</li>
+                        <li><code>SelectedItems</code> is a read-only live projection of the current selected backing items.</li>
+                        <li><code>SelectedIndices</code> remains the index-based inspection API for multi-selection scenarios.</li>
                     </ul>
-                    <h3>Observe selection changes in code</h3>
-                    <pre><code class="language-csharp">listBox.SelectionChanged += (_, _) =&gt;
+                    <h3>Observe selection and selected values</h3>
+                    <pre><code class="language-csharp">listBox.SelectionChanged += (_, e) =&gt;
 {
-    var firstSelected = listBox.SelectedItem;
+    Logger.Write($"Primary item: {listBox.SelectedItem}");
+    Logger.Write($"Selected value: {listBox.SelectedValue}");
 
-    foreach (var index in listBox.SelectedIndices)
+    foreach (var item in listBox.SelectedItems)
     {
-        Logger.Write($"Selected row: {index}");
+        Logger.Write($"Selected item: {item}");
     }
 };</code></pre>
-                    <h3>Drive selection from code</h3>
-                    <pre><code class="language-csharp">listBox.SelectedIndex = 3;
-
-if (listBox.SelectedItem is ServerEntry server)
-{
-    Connect(server);
-}</code></pre>
+                    <h3>Select by projected value</h3>
+                    <pre><code class="language-csharp">listBox.SelectedValuePath = nameof(ServerEntry.Id);
+listBox.SelectedValue = 42;</code></pre>
                 </section>
                 <section class="doc-section">
-                    <h2>Layout, scrolling, and virtualization</h2>
-                    <p><code>ListBox</code> renders its own background and border, then measures and arranges an internal <code>ScrollViewer</code> inside that border. The items host is a vertical stack panel by default, or a <code>VirtualizingStackPanel</code> when <code>IsVirtualizing</code> is enabled.</p>
+                    <h2>Pointer and keyboard behavior</h2>
+                    <p>Pointer selection happens against realized <code>ListBoxItem</code> containers, and focused list boxes participate in the shared input pipeline so keyboard navigation can change selection and viewport state without extra wiring.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
-                            <h3>Scroll behavior</h3>
+                            <h3>Pointer gestures</h3>
+                            <p>Single-click selects. In <code>Multiple</code> mode, click toggles the clicked item. In <code>Extended</code> mode, plain click replaces selection, Ctrl+click toggles, Shift+click selects a range from the anchor, and Ctrl+Shift+click adds a range without clearing the existing one.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Keyboard gestures</h3>
+                            <p>Focused list boxes handle Up, Down, Home, End, PageUp, and PageDown. In <code>Extended</code> mode, Shift+Arrow extends the current range, Ctrl+A selects all, and Ctrl+Space toggles the focused row.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Arrow and paging commands keep the new active item fully visible when selection moves.</li>
+                        <li><code>Ctrl+A</code> is available for all non-single-select modes.</li>
+                        <li><code>ListBoxItem</code> raises bubbled <code>Selected</code> and <code>Unselected</code> routed events as its selection state changes.</li>
+                    </ul>
+                    <h3>Extended multi-select picker</h3>
+                    <pre><code class="language-xml">&lt;ListBox Width="360"
+         Height="240"
+         SelectionMode="Extended"
+         ItemsSource="{Binding SearchResults}" /&gt;</code></pre>
+                    <h3>Programmatic selection and reveal</h3>
+                    <pre><code class="language-csharp">listBox.SelectedIndex = 27;
+listBox.ScrollIntoView(listBox.SelectedItem);</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Collection views, grouping, and current item sync</h2>
+                    <p><code>ListBox</code> works with projected collection views, including grouped views. When the bound source exposes a grouped <code>ICollectionView</code> and you add one or more <code>GroupStyle</code> entries, the presenter projects <code>GroupItem</code> containers instead of a flat row list.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Grouped views</h3>
+                            <p>Use a grouped collection view plus <code>GroupStyle</code> when you want category headers or grouped item sections inside the same <code>ListBox</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Current item synchronization</h3>
+                            <p><code>IsSynchronizedWithCurrentItem="True"</code> couples the list box with the active <code>ICollectionView.CurrentItem</code> in single-select mode. Selection can pull from or push to the current item position.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Current-item synchronization is meaningful only for single-select lists.</li>
+                        <li>Changing the view's current item can update <code>SelectedItem</code> and <code>SelectedIndex</code>.</li>
+                        <li>Changing the list box selection can move <code>CurrentItem</code> and <code>CurrentPosition</code> on the bound view.</li>
+                    </ul>
+                    <h3>Grouped list backed by a collection view</h3>
+                    <pre><code class="language-xml">&lt;ListBox Width="360"
+         Height="260"
+         ItemsSource="{Binding AgentGroups}"
+         IsSynchronizedWithCurrentItem="True"&gt;
+  &lt;ListBox.GroupStyle&gt;
+    &lt;GroupStyle /&gt;
+  &lt;/ListBox.GroupStyle&gt;
+&lt;/ListBox&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Presentation, items panel, and templates</h2>
+                    <p>The control now exposes the broader <code>ItemsControl</code> presentation surface. That means you can independently control text projection, item content templates, per-item container styles, the items host panel, and the outer control template.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Row presentation</h3>
+                            <p><code>DisplayMemberPath</code>, <code>ItemStringFormat</code>, <code>ItemTemplate</code>, and <code>ItemTemplateSelector</code> control the content shown inside generated containers.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Container presentation</h3>
+                            <p><code>ItemContainerStyle</code> and <code>ItemContainerStyleSelector</code> style the <code>ListBoxItem</code> containers themselves, which is where selection and hover visuals should usually live.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>ItemsPanel</code> supplies the panel used as the items host. If you do not set it, the control uses a vertical host and switches to <code>VirtualizingStackPanel</code> when <code>IsVirtualizing</code> is enabled.</li>
+                        <li>If you set <code>ItemsPanel</code> yourself, that custom panel takes precedence over the built-in host selection.</li>
+                        <li>The default control template expects a <code>ScrollViewer</code> named <code>PART_ScrollViewer</code>. That part becomes the row host for scrolling, selection reveal, and viewport management.</li>
+                    </ul>
+                    <h3>Per-item container styling by selector</h3>
+                    <pre><code class="language-csharp">public sealed class CategoryStyleSelector : StyleSelector
+{
+    public override Style? SelectStyle(object? item, DependencyObject container)
+    {
+        if (item is AgentRow row && row.IsOnline)
+        {
+            return OnlineStyle;
+        }
+
+        return OfflineStyle;
+    }
+}
+
+listBox.ItemContainerStyleSelector = new CategoryStyleSelector();</code></pre>
+                    <h3>Custom items panel</h3>
+                    <pre><code class="language-xml">&lt;ListBox Width="360"
+         Height="220"
+         ItemsSource="{Binding Logs}"&gt;
+  &lt;ListBox.ItemsPanel&gt;
+    &lt;ItemsPanelTemplate&gt;
+      &lt;VirtualizingStackPanel Orientation="Vertical" /&gt;
+    &lt;/ItemsPanelTemplate&gt;
+  &lt;/ListBox.ItemsPanel&gt;
+&lt;/ListBox&gt;</code></pre>
+                    <h3>Custom template that preserves the scroll host contract</h3>
+                    <pre><code class="language-xml">&lt;Style TargetType="{x:Type ListBox}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type ListBox}"&gt;
+        &lt;ScrollViewer x:Name="PART_ScrollViewer"
+                      Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}"
+                      HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
+                      VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}" /&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Scrolling, layout, and virtualization</h2>
+                    <p><code>ListBox</code> measures and arranges its active scroll host, then keeps selection changes and explicit reveal requests aligned with the viewport. The default host is vertical and optimized for row lists, but you can replace it through <code>ItemsPanel</code> or the outer control template.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Scroll settings</h3>
                             <p>Horizontal scrolling defaults to <code>Disabled</code>. Vertical scrolling defaults to <code>Auto</code>. <code>LineScrollAmount</code> defaults to <code>24</code> device-independent units.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>Selection visibility</h3>
-                            <p>When the selected index changes, the control automatically scrolls the chosen row fully into view if it is currently above or below the viewport.</p>
+                            <h3>Viewport reveal</h3>
+                            <p><code>ScrollIntoView(object)</code> brings a specific item into view, and selection-driven keyboard or pointer changes automatically reveal the active row when needed.</p>
                         </article>
                     </div>
                     <ul>
-                        <li><code>BorderThickness</code> is a single <code>float</code> value, not a <code>Thickness</code>.</li>
-                        <li>The clip rect matches the list box layout slot, so scrolled content stays clipped to the control bounds.</li>
-                        <li><code>IsVirtualizing="True"</code> switches the items host, but the control still behaves like a normal vertically scrolling list.</li>
+                        <li><code>IsVirtualizing="True"</code> switches the default host to <code>VirtualizingStackPanel</code>.</li>
+                        <li>The clip rect matches the list box layout slot, so scrolled content remains clipped to the control bounds.</li>
+                        <li><code>BorderThickness</code> is a non-negative single <code>float</code> value on this control, not a four-sided <code>Thickness</code>.</li>
                     </ul>
-                    <h3>Virtualized log or event stream</h3>
+                    <h3>Virtualized event stream</h3>
                     <pre><code class="language-xml">&lt;ListBox Width="420"
          Height="260"
          IsVirtualizing="True"
          VerticalScrollBarVisibility="Auto"
          LineScrollAmount="18"
          ItemsSource="{Binding EventLines}" /&gt;</code></pre>
-                    <h3>Select a far item and let the control reveal it</h3>
-                    <pre><code class="language-csharp">for (var i = 0; i &lt; 80; i++)
-{
-    listBox.Items.Add($"Item {i:000}");
-}
-
-listBox.SelectedIndex = 79; // The control scrolls so the last row becomes fully visible.</code></pre>
+                    <h3>Reveal a backing item directly</h3>
+                    <pre><code class="language-csharp">var target = viewModel.SearchResults[79];
+listBox.ScrollIntoView(target);
+listBox.SelectedItem = target;</code></pre>
                 </section>
                 <section class="doc-section">
                     <h2>Property reference</h2>
@@ -342,29 +445,38 @@ listBox.SelectedIndex = 79; // The control scrolls so the last row becomes fully
                             <h3>Selection API</h3>
                             <p><code>SelectedIndex</code>: the primary selected row index, or <code>-1</code> when nothing is selected.</p>
                             <p><code>SelectedItem</code>: the primary selected backing item.</p>
-                            <p><code>SelectedIndices</code>: read-only access to every selected index.</p>
-                            <p><code>SelectionMode</code>: <code>Single</code> or <code>Multiple</code>.</p>
+                            <p><code>SelectedItems</code>: read-only projection of every selected backing item.</p>
+                            <p><code>SelectedIndices</code>: read-only projection of every selected index.</p>
+                            <p><code>SelectedValue</code> and <code>SelectedValuePath</code>: projected selection value support.</p>
+                            <p><code>SelectionMode</code>: <code>Single</code>, <code>Multiple</code>, or <code>Extended</code>.</p>
+                            <p><code>IsSynchronizedWithCurrentItem</code>: current-item coupling for single-select collection views.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>Scrolling and host behavior</h3>
-                            <p><code>IsVirtualizing</code>: swaps the item host between a normal vertical stack and a <code>VirtualizingStackPanel</code>.</p>
-                            <p><code>HorizontalScrollBarVisibility</code> and <code>VerticalScrollBarVisibility</code>: forwarded to the internal <code>ScrollViewer</code>.</p>
-                            <p><code>LineScrollAmount</code>: positive scroll increment for line-based wheel and button scrolling.</p>
+                            <h3>Item pipeline</h3>
+                            <p><code>Items</code> and <code>ItemsSource</code>: backing item collection sources.</p>
+                            <p><code>DisplayMemberPath</code> and <code>ItemStringFormat</code>: default generated-text projection.</p>
+                            <p><code>ItemTemplate</code> and <code>ItemTemplateSelector</code>: content templates inside generated <code>ListBoxItem</code> containers.</p>
+                            <p><code>ItemContainerStyle</code> and <code>ItemContainerStyleSelector</code>: row container styling.</p>
+                            <p><code>ItemsPanel</code>: explicit host panel template.</p>
+                            <p><code>GroupStyle</code>: grouped collection-view projection.</p>
                         </article>
                     </div>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
-                            <h3>Chrome properties</h3>
-                            <p><code>Background</code> and <code>BorderBrush</code>: <code>Color</code> values used for the list body and stroke.</p>
-                            <p><code>BorderThickness</code>: non-negative single-width border around the hosted scroller.</p>
+                            <h3>Scrolling and layout</h3>
+                            <p><code>IsVirtualizing</code>: switches the default host to a <code>VirtualizingStackPanel</code>.</p>
+                            <p><code>HorizontalScrollBarVisibility</code> and <code>VerticalScrollBarVisibility</code>: forwarded to the active <code>ScrollViewer</code> host.</p>
+                            <p><code>LineScrollAmount</code>: positive scroll increment for line-based scrolling.</p>
+                            <p><code>ScrollIntoView(object)</code>: reveals a specific backing item.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>Inherited item pipeline</h3>
-                            <p><code>Items</code>, <code>ItemsSource</code>, and <code>ItemContainerStyle</code> come from <code>ItemsControl</code>.</p>
-                            <p><code>FontFamily</code>, <code>FontSize</code>, <code>FontWeight</code>, and <code>FontStyle</code> help drive generated text rows.</p>
+                            <h3>Chrome and template contract</h3>
+                            <p><code>Background</code> and <code>BorderBrush</code>: <code>Color</code> values used by the default themed template.</p>
+                            <p><code>BorderThickness</code>: non-negative single-width border around the hosted scroller.</p>
+                            <p><code>Template</code>: custom control template support; preserve <code>PART_ScrollViewer</code> when replacing the default structure.</p>
                         </article>
                     </div>
-                    <p>For row-level visuals, the key companion type is <code>ListBoxItem</code>, which exposes <code>IsSelected</code>, <code>IsMouseOver</code>, <code>Background</code>, <code>SelectedBackground</code>, <code>BorderBrush</code>, and <code>Padding</code>.</p>
+                    <p>The companion row type is <code>ListBoxItem</code>, which exposes <code>IsSelected</code>, <code>IsMouseOver</code>, selection-aware chrome properties, and bubbled <code>Selected</code> / <code>Unselected</code> routed events.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Patterns and examples</h2>
@@ -382,12 +494,14 @@ listBox.SelectedIndex = 79; // The control scrolls so the last row becomes fully
     &lt;Label Content="Diagnostics" /&gt;
   &lt;/ListBoxItem&gt;
 &lt;/ListBox&gt;</code></pre>
-                    <h3>Bound string list with selected item binding</h3>
+                    <h3>Object picker with selected value binding</h3>
                     <pre><code class="language-xml">&lt;ListBox Width="320"
          Height="220"
-         ItemsSource="{Binding BuildSteps}"
-         SelectedItem="{Binding ActiveBuildStep}" /&gt;</code></pre>
-                    <h3>Restyle generated rows with ItemContainerStyle</h3>
+         ItemsSource="{Binding Servers}"
+         DisplayMemberPath="DisplayName"
+         SelectedValuePath="Id"
+         SelectedValue="{Binding ActiveServerId}" /&gt;</code></pre>
+                    <h3>Restyle rows while keeping selection on the container</h3>
                     <pre><code class="language-xml">&lt;ListBox Width="340"
          Height="220"
          ItemsSource="{Binding Agents}"&gt;
@@ -400,7 +514,7 @@ listBox.SelectedIndex = 79; // The control scrolls so the last row becomes fully
     &lt;/Style&gt;
   &lt;/ListBox.ItemContainerStyle&gt;
 &lt;/ListBox&gt;</code></pre>
-                    <h3>Use the selected row to drive detail content</h3>
+                    <h3>Drive a details panel from the primary selection</h3>
                     <pre><code class="language-csharp">private void OnServerListSelectionChanged(object? sender, SelectionChangedEventArgs e)
 {
     if (ServerList.SelectedItem is ServerEntry selected)
@@ -408,28 +522,32 @@ listBox.SelectedIndex = 79; // The control scrolls so the last row becomes fully
         DetailHost.Content = BuildServerPanel(selected);
     }
 }</code></pre>
-                    <h3>File picker with multi-select toggles</h3>
-                    <pre><code class="language-xml">&lt;ListBox Width="360"
-         Height="220"
-         SelectionMode="Multiple"
-         ItemsSource="{Binding CandidateFiles}" /&gt;</code></pre>
+                    <h3>Grouped operational view</h3>
+                    <pre><code class="language-xml">&lt;ListBox Width="380"
+         Height="260"
+         ItemsSource="{Binding GroupedIncidents}"
+         IsSynchronizedWithCurrentItem="True"&gt;
+  &lt;ListBox.GroupStyle&gt;
+    &lt;GroupStyle /&gt;
+  &lt;/ListBox.GroupStyle&gt;
+&lt;/ListBox&gt;</code></pre>
                 </section>
                 <section class="doc-section">
                     <h2>Notes and pitfalls</h2>
                     <div class="callout doc-callout">
-                        <p><strong>Multiple selection is direct toggle mode.</strong> In the current implementation, clicking a row in <code>SelectionMode="Multiple"</code> toggles that row immediately. There is no WPF-style <code>Extended</code> selection mode with Ctrl or Shift gesture rules.</p>
+                        <p><strong>Keep <code>PART_ScrollViewer</code> in custom templates.</strong> The default template contract expects a scroll host with that name. If you replace the control template, preserve that part so scrolling, viewport metrics, and item hosting remain connected.</p>
                     </div>
                     <div class="callout doc-callout">
-                        <p><strong>There is no separate <code>SelectedItems</code> collection.</strong> Use <code>SelectedIndices</code> to inspect the full multi-select state. <code>SelectedIndex</code> and <code>SelectedItem</code> expose the first selected entry.</p>
+                        <p><strong><code>ItemsPanel</code> wins over <code>IsVirtualizing</code>.</strong> If you explicitly supply an <code>ItemsPanelTemplate</code>, that panel becomes the host. Choose a <code>VirtualizingStackPanel</code> yourself if you still want virtualization on a custom panel path.</p>
                     </div>
                     <div class="callout doc-callout">
-                        <p><strong>Row visuals belong on <code>ListBoxItem</code>.</strong> If you only style the content inside the row, selected and hover states can feel disconnected from the clickable surface. Prefer an explicit <code>ListBoxItem</code> template or <code>ItemContainerStyle</code>.</p>
+                        <p><strong>Row visuals belong on <code>ListBoxItem</code>.</strong> Styling only the content inside the row can leave hover and selection visuals disconnected from the clickable surface. Put row chrome on the container through <code>ItemContainerStyle</code> or explicit <code>ListBoxItem</code> markup.</p>
                     </div>
                     <div class="callout doc-callout">
-                        <p><strong><code>Background</code> and <code>BorderBrush</code> are colors, not brush objects.</strong> Keep examples and styles in terms of <code>Color</code>-compatible values.</p>
+                        <p><strong><code>Background</code> and <code>BorderBrush</code> are colors, not brush objects.</strong> Keep examples and styles in terms of values that resolve to <code>Color</code>.</p>
                     </div>
                     <div class="callout doc-callout">
-                        <p><strong>Programmatic selection can move the viewport.</strong> Setting <code>SelectedIndex</code> or <code>SelectedItem</code> may scroll the internal viewer so the chosen row is fully visible.</p>
+                        <p><strong>Current-item synchronization is single-select behavior.</strong> <code>IsSynchronizedWithCurrentItem</code> is designed for single-selection collection-view scenarios. Multi-select lists still expose <code>SelectedItems</code>, but they do not use current-item syncing as the primary model.</p>
                     </div>
                 </section>
                 <nav class="doc-pagination" aria-label="Page navigation">
