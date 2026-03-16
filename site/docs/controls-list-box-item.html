@@ -173,8 +173,288 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>ListBoxItem</h1>
-                    <p>WIP</p>
+                                        <p><code>ListBoxItem</code> is the selectable row container used by <code>ListBox</code>. It combines the <code>ContentControl</code> content model with selection-aware chrome, hover state, and bubbled selected or unselected routed events so each row can participate cleanly in list selection, templating, and theming.</p>
                 </div>
+                                <section class="doc-section">
+                                        <h2>Quick start</h2>
+                                        <p>Most <code>ListBoxItem</code> instances are generated automatically by <code>ListBox</code> for plain objects in <code>Items</code> or <code>ItemsSource</code>. You still use the type directly when you want explicit row markup, direct row properties, or per-item content that should stay under your control.</p>
+                                        <h3>Explicit rows inside a ListBox</h3>
+                                        <pre><code class="language-xml">&lt;ListBox Width="280"
+                 Height="200"
+                 SelectedIndex="0"&gt;
+    &lt;ListBoxItem Padding="10,8"&gt;
+        &lt;Label Content="Inbox" /&gt;
+    &lt;/ListBoxItem&gt;
+    &lt;ListBoxItem Padding="10,8"&gt;
+        &lt;Label Content="Drafts" /&gt;
+    &lt;/ListBoxItem&gt;
+    &lt;ListBoxItem Padding="10,8"&gt;
+        &lt;Label Content="Archive" /&gt;
+    &lt;/ListBoxItem&gt;
+&lt;/ListBox&gt;</code></pre>
+                                        <h3>Generated rows styled through the container</h3>
+                                        <pre><code class="language-xml">&lt;ListBox Width="320"
+                 Height="220"
+                 ItemsSource="{Binding Agents}"
+                 DisplayMemberPath="Name"&gt;
+    &lt;ListBox.ItemContainerStyle&gt;
+        &lt;Style TargetType="{x:Type ListBoxItem}"&gt;
+            &lt;Setter Property="Padding" Value="12,8" /&gt;
+            &lt;Setter Property="Background" Value="#152230" /&gt;
+            &lt;Setter Property="SelectedBackground" Value="#28445F" /&gt;
+            &lt;Setter Property="BorderBrush" Value="#35516B" /&gt;
+        &lt;/Style&gt;
+    &lt;/ListBox.ItemContainerStyle&gt;
+&lt;/ListBox&gt;</code></pre>
+                                        <div class="callout doc-callout">
+                                                <p><strong>Default usage:</strong> put row-level hover, selection, padding, and border visuals on <code>ListBoxItem</code> rather than only styling the content inside it. The row container is the clickable and selectable surface.</p>
+                                        </div>
+                                </section>
+                                <section class="doc-section">
+                                        <h2>Role in the ListBox pipeline</h2>
+                                        <p><code>ListBoxItem</code> is the row container contract for <code>ListBox</code>. Whether you create rows explicitly or let the list generate them, selection and hover state live on the container rather than on the inner content.</p>
+                                        <div class="doc-grid two-up">
+                                                <article class="doc-card">
+                                                        <h3>Explicit container path</h3>
+                                                        <p>If you add <code>ListBoxItem</code> elements directly, the list preserves them. <code>ItemTemplate</code> does not replace those explicit containers.</p>
+                                                </article>
+                                                <article class="doc-card">
+                                                        <h3>Generated container path</h3>
+                                                        <p>If the list receives plain objects, it creates <code>ListBoxItem</code> containers and places projected content inside them. That remains true even when <code>ItemTemplate</code> is used.</p>
+                                                </article>
+                                        </div>
+                                        <ul>
+                                                <li><code>ListBox</code> updates <code>IsSelected</code> as its selection model changes.</li>
+                                                <li>Pointer hover updates <code>IsMouseOver</code> on the realized row under the pointer.</li>
+                                                <li>The row content comes from the inherited <code>ContentControl</code> pipeline: direct <code>UIElement</code> content, a selected <code>ContentTemplate</code>, or an implicit generated label for plain values.</li>
+                                                <li>A <code>ListBoxItem</code> can be authored manually, but it is most useful when hosted by <code>ListBox</code> because that is where selection ownership lives.</li>
+                                        </ul>
+                                        <h3>Templated content inside an explicit ListBoxItem</h3>
+                                        <pre><code class="language-xml">&lt;ListBoxItem Padding="12,10"&gt;
+    &lt;Grid&gt;
+        &lt;Grid.ColumnDefinitions&gt;
+            &lt;ColumnDefinition Width="Auto" /&gt;
+            &lt;ColumnDefinition Width="*" /&gt;
+        &lt;/Grid.ColumnDefinitions&gt;
+
+        &lt;Border Width="10" Height="10" Background="#4FC7C1" Margin="0,0,10,0" /&gt;
+        &lt;StackPanel Grid.Column="1"&gt;
+            &lt;Label Content="Build agent A" /&gt;
+            &lt;Label Content="Online" Opacity="0.7" /&gt;
+        &lt;/StackPanel&gt;
+    &lt;/Grid&gt;
+&lt;/ListBoxItem&gt;</code></pre>
+                                </section>
+                                <section class="doc-section">
+                                        <h2>Selection state and routed events</h2>
+                                        <p><code>ListBoxItem</code> surfaces row state through dependency properties and also raises bubbled routed events when its selected state changes. The parent list remains responsible for deciding which rows become selected.</p>
+                                        <div class="doc-grid two-up">
+                                                <article class="doc-card">
+                                                        <h3>State properties</h3>
+                                                        <p><code>IsSelected</code> tracks whether the row belongs to the list's current selection. <code>IsMouseOver</code> tracks hover state for the row surface.</p>
+                                                </article>
+                                                <article class="doc-card">
+                                                        <h3>State events</h3>
+                                                        <p><code>Selected</code> and <code>Unselected</code> are bubbled routed events raised when <code>IsSelected</code> changes between <code>true</code> and <code>false</code>.</p>
+                                                </article>
+                                        </div>
+                                        <ul>
+                                                <li>The routed events are emitted only when the <code>IsSelected</code> value actually changes.</li>
+                                                <li>Handlers can be attached either to the row itself or to an ancestor such as the owning <code>ListBox</code>.</li>
+                                                <li>Changing <code>IsSelected</code> directly affects the row state, but in normal list usage the parent selector should remain the source of truth.</li>
+                                        </ul>
+                                        <h3>Handle row selection events on the parent list</h3>
+                                        <pre><code class="language-csharp">listBox.AddHandler&lt;RoutedSimpleEventArgs&gt;(ListBoxItem.SelectedEvent, (_, args) =&gt;
+{
+        if (args.OriginalSource is ListBoxItem item)
+        {
+                Logger.Write($"Selected row: {item.Content}");
+        }
+});
+
+listBox.AddHandler&lt;RoutedSimpleEventArgs&gt;(ListBoxItem.UnselectedEvent, (_, args) =&gt;
+{
+        if (args.OriginalSource is ListBoxItem item)
+        {
+                Logger.Write($"Unselected row: {item.Content}");
+        }
+});</code></pre>
+                                </section>
+                                <section class="doc-section">
+                                        <h2>Appearance and template behavior</h2>
+                                        <p><code>ListBoxItem</code> supports two rendering paths. Without a control template it uses a built-in fallback renderer that fills the row background, switches to <code>SelectedBackground</code> when selected, and draws a one-pixel border. With a template root present, the template owns the visuals and the fallback chrome is skipped.</p>
+                                        <div class="doc-grid two-up">
+                                                <article class="doc-card">
+                                                        <h3>Fallback renderer</h3>
+                                                        <p>The fallback path uses <code>Background</code>, <code>SelectedBackground</code>, <code>BorderBrush</code>, and <code>Padding</code> directly. It is useful for minimal rows or simple custom styles without a template.</p>
+                                                </article>
+                                                <article class="doc-card">
+                                                        <h3>Templated renderer</h3>
+                                                        <p>When a <code>ControlTemplate</code> is applied, the template root becomes responsible for hover, selection, padding, and border visuals. The built-in drawing path no longer paints row chrome.</p>
+                                                </article>
+                                        </div>
+                                        <ul>
+                                                <li><code>Foreground</code>, <code>Background</code>, and <code>BorderBrush</code> are <code>Color</code> values in this implementation, not brush objects.</li>
+                                                <li><code>Padding</code> is a full <code>Thickness</code> and only contributes to layout directly when no template root takes over arrangement.</li>
+                                                <li>If your template should react to selection, bind or trigger against <code>IsSelected</code> explicitly.</li>
+                                                <li>If your template should use <code>SelectedBackground</code>, reference it in template bindings or triggers yourself. The default themed template uses <code>IsSelected</code> triggers instead of that property.</li>
+                                        </ul>
+                                        <h3>Default themed shape in App.xml</h3>
+                                        <pre><code class="language-xml">&lt;Style TargetType="{x:Type ListBoxItem}"&gt;
+    &lt;Setter Property="Background" Value="Transparent" /&gt;
+    &lt;Setter Property="Padding" Value="10,8" /&gt;
+    &lt;Setter Property="Template"&gt;
+        &lt;Setter.Value&gt;
+            &lt;ControlTemplate TargetType="{x:Type ListBoxItem}"&gt;
+                &lt;Border x:Name="itemBorder"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"&gt;
+                    &lt;ContentPresenter /&gt;
+                &lt;/Border&gt;
+                &lt;ControlTemplate.Triggers&gt;
+                    &lt;Trigger Property="IsMouseOver" Value="True"&gt;
+                        &lt;Setter TargetName="itemBorder" Property="Background" Value="{StaticResource DarkElevatedBrush}" /&gt;
+                    &lt;/Trigger&gt;
+                    &lt;Trigger Property="IsSelected" Value="True"&gt;
+                        &lt;Setter TargetName="itemBorder" Property="Background" Value="{StaticResource OrangeSubtleBrush}" /&gt;
+                    &lt;/Trigger&gt;
+                &lt;/ControlTemplate.Triggers&gt;
+            &lt;/ControlTemplate&gt;
+        &lt;/Setter.Value&gt;
+    &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                                        <h3>Custom template with explicit selected-state visuals</h3>
+                                        <pre><code class="language-xml">&lt;Style TargetType="{x:Type ListBoxItem}"&gt;
+    &lt;Setter Property="Template"&gt;
+        &lt;Setter.Value&gt;
+            &lt;ControlTemplate TargetType="{x:Type ListBoxItem}"&gt;
+                &lt;Border x:Name="itemBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                Padding="{TemplateBinding Padding}"&gt;
+                    &lt;ContentPresenter /&gt;
+                &lt;/Border&gt;
+                &lt;ControlTemplate.Triggers&gt;
+                    &lt;Trigger Property="IsSelected" Value="True"&gt;
+                        &lt;Setter TargetName="itemBorder" Property="Background" Value="#28445F" /&gt;
+                    &lt;/Trigger&gt;
+                &lt;/ControlTemplate.Triggers&gt;
+            &lt;/ControlTemplate&gt;
+        &lt;/Setter.Value&gt;
+    &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                                </section>
+                                <section class="doc-section">
+                                        <h2>Layout and content model</h2>
+                                        <p>Because <code>ListBoxItem</code> inherits from <code>ContentControl</code>, it can host a direct element, a templated content projection, or a simple generated label for plain values. The container then adds row-specific chrome and layout behavior around that content.</p>
+                                        <div class="doc-grid two-up">
+                                                <article class="doc-card">
+                                                        <h3>Untemplated layout</h3>
+                                                        <p>Without a template root, the item measures its content and then adds <code>Padding</code> around it. During arrange, the content is inset by that padding.</p>
+                                                </article>
+                                                <article class="doc-card">
+                                                        <h3>Templated layout</h3>
+                                                        <p>With a template root, layout is delegated to the template tree. Your template decides where the <code>ContentPresenter</code> goes and how padding is applied.</p>
+                                                </article>
+                                        </div>
+                                        <ul>
+                                                <li>Direct <code>UIElement</code> content is hosted as the row's content element.</li>
+                                                <li><code>ContentTemplate</code> and <code>ContentTemplateSelector</code> can project plain values into richer visuals.</li>
+                                                <li>When no template or direct element is present, plain content falls back to a generated label using <code>ToString()</code>.</li>
+                                        </ul>
+                                        <h3>Templated content projection on a single row</h3>
+                                        <pre><code class="language-xml">&lt;ListBoxItem Content="Alpha" Padding="12,8"&gt;
+    &lt;ListBoxItem.ContentTemplate&gt;
+        &lt;DataTemplate&gt;
+            &lt;StackPanel&gt;
+                &lt;Label Content="{Binding}" /&gt;
+                &lt;Label Content="Secondary line" Opacity="0.7" /&gt;
+            &lt;/StackPanel&gt;
+        &lt;/DataTemplate&gt;
+    &lt;/ListBoxItem.ContentTemplate&gt;
+&lt;/ListBoxItem&gt;</code></pre>
+                                </section>
+                                <section class="doc-section">
+                                        <h2>Property reference</h2>
+                                        <div class="doc-grid two-up">
+                                                <article class="doc-card">
+                                                        <h3>Selection and interaction</h3>
+                                                        <p><code>IsSelected</code>: whether the row is currently selected.</p>
+                                                        <p><code>IsMouseOver</code>: whether the pointer is currently over the row surface.</p>
+                                                        <p><code>Selected</code> and <code>Unselected</code>: bubbled routed events raised when selected state changes.</p>
+                                                </article>
+                                                <article class="doc-card">
+                                                        <h3>Row chrome</h3>
+                                                        <p><code>Background</code>: base row fill color for fallback or template-bound visuals.</p>
+                                                        <p><code>SelectedBackground</code>: selected-state fill color used by the fallback renderer.</p>
+                                                        <p><code>BorderBrush</code>: row border color.</p>
+                                                        <p><code>Foreground</code>: foreground color inherited by row content that respects it.</p>
+                                                        <p><code>Padding</code>: inner spacing around the row content.</p>
+                                                </article>
+                                        </div>
+                                        <div class="doc-grid two-up">
+                                                <article class="doc-card">
+                                                        <h3>Inherited content API</h3>
+                                                        <p><code>Content</code>: the row's content payload.</p>
+                                                        <p><code>ContentTemplate</code> and <code>ContentTemplateSelector</code>: template-based content projection for the row body.</p>
+                                                </article>
+                                                <article class="doc-card">
+                                                        <h3>Template behavior</h3>
+                                                        <p><code>Template</code>: custom control template for replacing the built-in row visuals.</p>
+                                                        <p>When a template root exists, fallback drawing and padding-based arrange logic are bypassed in favor of the template tree.</p>
+                                                </article>
+                                        </div>
+                                </section>
+                                <section class="doc-section">
+                                        <h2>Patterns and examples</h2>
+                                        <h3>Inline navigation row</h3>
+                                        <pre><code class="language-xml">&lt;ListBoxItem Padding="12,8"&gt;
+    &lt;Label Content="Diagnostics" /&gt;
+&lt;/ListBoxItem&gt;</code></pre>
+                                        <h3>Row with content template</h3>
+                                        <pre><code class="language-xml">&lt;ListBoxItem Content="Build agent A" Padding="12,8"&gt;
+    &lt;ListBoxItem.ContentTemplate&gt;
+        &lt;DataTemplate&gt;
+            &lt;Grid&gt;
+                &lt;Grid.ColumnDefinitions&gt;
+                    &lt;ColumnDefinition Width="Auto" /&gt;
+                    &lt;ColumnDefinition Width="*" /&gt;
+                &lt;/Grid.ColumnDefinitions&gt;
+                &lt;Border Width="10" Height="10" Background="#4FC7C1" Margin="0,0,10,0" /&gt;
+                &lt;Label Grid.Column="1" Content="{Binding}" /&gt;
+            &lt;/Grid&gt;
+        &lt;/DataTemplate&gt;
+    &lt;/ListBoxItem.ContentTemplate&gt;
+&lt;/ListBoxItem&gt;</code></pre>
+                                        <h3>Inspect selection transitions</h3>
+                                        <pre><code class="language-csharp">item.Selected += (_, _) =&gt; Logger.Write("Row selected");
+item.Unselected += (_, _) =&gt; Logger.Write("Row unselected");</code></pre>
+                                </section>
+                                <section class="doc-section">
+                                        <h2>Notes and pitfalls</h2>
+                                        <div class="callout doc-callout">
+                                                <p><strong>Selection ownership belongs to the parent list.</strong> A <code>ListBoxItem</code> exposes <code>IsSelected</code>, but in normal usage <code>ListBox</code> should control that state so the selection model stays coherent.</p>
+                                        </div>
+                                        <div class="callout doc-callout">
+                                                <p><strong>Templates replace fallback chrome.</strong> Once a template root exists, <code>Background</code>, <code>SelectedBackground</code>, <code>BorderBrush</code>, and <code>Padding</code> only matter insofar as your template reads or reacts to them.</p>
+                                        </div>
+                                        <div class="callout doc-callout">
+                                                <p><strong>Use container styling for row visuals.</strong> If you style only the inner content, hover and selected visuals can look disconnected from the clickable row surface.</p>
+                                        </div>
+                                        <div class="callout doc-callout">
+                                                <p><strong>Color semantics are not brush semantics.</strong> The item's foreground and background properties are <code>Color</code> values in this implementation, so template and style examples should use color-compatible values.</p>
+                                        </div>
+                                </section>
+                                <nav class="doc-pagination" aria-label="Page navigation">
+                                        <a class="pager-link" href="./controls-list-box.html">
+                                                <span>Previous</span>
+                                                <strong>ListBox</strong>
+                                        </a>
+                                        <a class="pager-link" href="./controls-list-view.html">
+                                                <span>Next</span>
+                                                <strong>ListView</strong>
+                                        </a>
+                                </nav>
             </article>
         </main>
     </div>
