@@ -173,8 +173,263 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>GridSplitter</h1>
-                    <p>WIP</p>
+                    <p><code>GridSplitter</code> is the grid-resize handle for adjusting adjacent row or column definitions inside a <code>Grid</code>. It resolves a resize direction, selects a pair of neighboring definitions based on placement and alignment, and applies bounded pixel-size deltas while preserving each definition's minimum and maximum constraints.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>GridSplitter</code> when a view should let the user rebalance space between adjacent regions in a <code>Grid</code>. Place it in the grid between the definitions you want to resize, then set either an explicit direction or let the control infer one from its size and alignment.</p>
+                    <h3>Vertical splitter between two columns</h3>
+                    <pre><code class="language-xml">&lt;Grid Width="480" Height="260"&gt;
+  &lt;Grid.ColumnDefinitions&gt;
+    &lt;ColumnDefinition Width="180" MinWidth="120" /&gt;
+    &lt;ColumnDefinition Width="6" /&gt;
+    &lt;ColumnDefinition Width="*" MinWidth="160" /&gt;
+  &lt;/Grid.ColumnDefinitions&gt;
+
+  &lt;Border Grid.Column="0" Background="#152230" /&gt;
+
+  &lt;GridSplitter Grid.Column="1"
+                Width="6"
+                HorizontalAlignment="Center"
+                ResizeDirection="Columns"
+                Background="#44576A"
+                BorderBrush="#6D8298" /&gt;
+
+  &lt;Border Grid.Column="2" Background="#101820" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <h3>Horizontal splitter between two rows</h3>
+                    <pre><code class="language-xml">&lt;Grid Width="420" Height="320"&gt;
+  &lt;Grid.RowDefinitions&gt;
+    &lt;RowDefinition Height="180" MinHeight="100" /&gt;
+    &lt;RowDefinition Height="6" /&gt;
+    &lt;RowDefinition Height="*" MinHeight="120" /&gt;
+  &lt;/Grid.RowDefinitions&gt;
+
+  &lt;Border Grid.Row="0" Background="#152230" /&gt;
+
+  &lt;GridSplitter Grid.Row="1"
+                Height="6"
+                VerticalAlignment="Center"
+                ResizeDirection="Rows" /&gt;
+
+  &lt;Border Grid.Row="2" Background="#0F151C" /&gt;
+&lt;/Grid&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Placement rule:</strong> put the splitter in the row or column that visually separates the regions you want to resize. The control chooses neighboring definitions relative to its own <code>Grid.Row</code> or <code>Grid.Column</code> position.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>How resize targeting works</h2>
+                    <p><code>GridSplitter</code> only operates when its visual parent is a <code>Grid</code>. Once a resize direction is resolved, it chooses two neighboring definitions and treats them as the resizable pair.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Column mode</h3>
+                            <p>In <code>Columns</code> mode the control resizes adjacent <code>ColumnDefinition</code> entries, using the splitter's current <code>Grid.Column</code> value as the placement anchor.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Row mode</h3>
+                            <p>In <code>Rows</code> mode it resizes adjacent <code>RowDefinition</code> entries, using the splitter's current <code>Grid.Row</code> value as the placement anchor.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>If the parent is not a <code>Grid</code>, no resize target can be resolved.</li>
+                        <li>If the target dimension has fewer than two definitions, resizing cannot start.</li>
+                        <li>The control clamps its anchor index into the valid row or column range before resolving neighbors.</li>
+                    </ul>
+                    <h3>ResizeBehavior resolution</h3>
+                    <pre><code class="language-text">BasedOnAlignment
+
+Columns:
+Left   -> PreviousAndCurrent
+Right  -> CurrentAndNext
+Other  -> PreviousAndNext
+
+Rows:
+Top    -> PreviousAndCurrent
+Bottom -> CurrentAndNext
+Other  -> PreviousAndNext</code></pre>
+                    <p>That means centered splitters usually resize the definitions on both sides, while edge-aligned splitters resize the current definition against either the previous or next one.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Direction resolution</h2>
+                    <p><code>ResizeDirection</code> defaults to <code>Auto</code>. In that mode, the control infers whether it should operate on rows or columns from its size and alignment.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Explicit direction</h3>
+                            <p>Set <code>ResizeDirection="Columns"</code> or <code>ResizeDirection="Rows"</code> when the layout intent is clear and you do not want inference.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Auto direction</h3>
+                            <p>When <code>Auto</code> is active, the control compares width and height. Narrow vertical shapes resolve to columns; flatter horizontal shapes resolve to rows.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>If both width and height are unresolved or non-positive, <code>HorizontalAlignment="Stretch"</code> resolves to column mode and all other cases resolve to row mode.</li>
+                        <li>If both dimensions are available, <code>width &lt;= height</code> resolves to columns and <code>width &gt; height</code> resolves to rows.</li>
+                        <li>The minimum desired size follows the resolved direction: at least <code>5x20</code> for columns, or <code>20x5</code> for rows.</li>
+                    </ul>
+                    <h3>Auto-resolved narrow splitter</h3>
+                    <pre><code class="language-xml">&lt;GridSplitter Grid.Column="1"
+              Width="5"
+              HorizontalAlignment="Stretch"
+              Background="#58697A" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Resize math and constraint handling</h2>
+                    <p>Once the target pair is chosen, the splitter measures the starting size of both definitions, applies a delta, and writes back new pixel lengths. The delta is bounded by the two definitions' minimum sizes, then the resulting values are clamped again against each definition's minimum and maximum range.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Source sizes</h3>
+                            <p>The control uses <code>ActualWidth</code> or <code>ActualHeight</code> when available. If the definition is pixel-sized and not yet measured, it falls back to the declared pixel value.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Write-back sizes</h3>
+                            <p>After applying the bounded delta, the control writes pixel <code>GridLength</code> values back to the affected definitions, preserving the combined size as closely as possible.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>MinWidth</code> and <code>MaxWidth</code> constrain column resizing.</li>
+                        <li><code>MinHeight</code> and <code>MaxHeight</code> constrain row resizing.</li>
+                        <li>If a non-pixel definition has not produced an actual size yet, the fallback starting size is effectively <code>0</code>.</li>
+                        <li>Resizing converts the affected pair to pixel sizes for the new layout state.</li>
+                    </ul>
+                    <h3>Typical before and after model</h3>
+                    <pre><code class="language-text">Before drag:
+Column A = 180 px
+Column B = 300 px
+
+Delta = +24 px
+
+After drag:
+Column A = 204 px
+Column B = 276 px</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Appearance and visual states</h2>
+                    <p><code>GridSplitter</code> is a simple rendered control with no required template parts. It draws a filled rectangle and a one-pixel border using its current visual state.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Normal state</h3>
+                            <p>The control fills itself using <code>Background</code> and outlines itself with <code>BorderBrush</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Hover and drag state</h3>
+                            <p>When <code>IsMouseOver</code> is true the fill shifts to a darker hover color. When <code>IsDragging</code> is true the fill switches to a stronger blue drag highlight.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>Background</code> defaults to a mid-gray <code>Color</code>.</li>
+                        <li><code>BorderBrush</code> defaults to a lighter gray <code>Color</code>.</li>
+                        <li>There is no dedicated <code>App.xml</code> style for <code>GridSplitter</code> in the current theme; if you want branded visuals, style it directly.</li>
+                        <li>The hover and drag fills are internal colors rather than theme-bound brush resources.</li>
+                    </ul>
+                    <h3>Simple styled splitter</h3>
+                    <pre><code class="language-xml">&lt;GridSplitter Grid.Column="1"
+              Width="6"
+              ResizeDirection="Columns"
+              Background="#44576A"
+              BorderBrush="#7A8EA4" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Interaction surface</h2>
+                    <p>The public API exposes <code>DragIncrement</code>, <code>KeyboardIncrement</code>, and <code>IsDragging</code>, which describe how resize interactions should be quantized and surfaced visually. The control implementation also contains the internal logic for beginning a drag, applying a snapped delta, and ending the drag once a target pair has been resolved.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>DragIncrement</h3>
+                            <p>Positive step value used to snap resize deltas to a predictable drag cadence. Values less than or equal to zero are coerced to <code>1</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>KeyboardIncrement</h3>
+                            <p>Positive step value intended for keyboard-driven resize adjustments. Values less than or equal to zero are coerced to <code>1</code>.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>IsDragging</code> is read-only from outside the control and exists primarily as a visual-state surface.</li>
+                        <li>The control file contains the resize-targeting and delta-application logic; it does not define a template contract.</li>
+                        <li>When documenting user input, treat these properties as part of the control's interaction model, not as a separate layout concern.</li>
+                    </ul>
+                    <h3>Quantized drag settings</h3>
+                    <pre><code class="language-xml">&lt;GridSplitter Grid.Column="1"
+              Width="8"
+              ResizeDirection="Columns"
+              DragIncrement="8"
+              KeyboardIncrement="16" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Property reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Resize model</h3>
+                            <p><code>ResizeDirection</code>: <code>Auto</code>, <code>Columns</code>, or <code>Rows</code>.</p>
+                            <p><code>ResizeBehavior</code>: <code>BasedOnAlignment</code>, <code>CurrentAndNext</code>, <code>PreviousAndCurrent</code>, or <code>PreviousAndNext</code>.</p>
+                            <p><code>DragIncrement</code>: positive step for snapped drag movement.</p>
+                            <p><code>KeyboardIncrement</code>: positive step for keyboard-driven movement.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Visual state</h3>
+                            <p><code>Background</code>: base fill color in the normal state.</p>
+                            <p><code>BorderBrush</code>: border stroke color.</p>
+                            <p><code>IsMouseOver</code>: hover-state flag.</p>
+                            <p><code>IsDragging</code>: drag-state flag.</p>
+                        </article>
+                    </div>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Inherited layout inputs</h3>
+                            <p><code>Width</code>, <code>Height</code>, <code>HorizontalAlignment</code>, and <code>VerticalAlignment</code> all influence the resolved resize direction and neighbor-selection behavior.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Grid attachment</h3>
+                            <p><code>Grid.Row</code> and <code>Grid.Column</code> determine the placement anchor from which the target definitions are resolved.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Centered splitter that resizes both neighbors</h3>
+                    <pre><code class="language-xml">&lt;GridSplitter Grid.Column="1"
+              Width="6"
+              HorizontalAlignment="Center"
+              ResizeBehavior="BasedOnAlignment"
+              ResizeDirection="Columns" /&gt;</code></pre>
+                    <h3>Current row against next row</h3>
+                    <pre><code class="language-xml">&lt;GridSplitter Grid.Row="1"
+              Height="6"
+              VerticalAlignment="Bottom"
+              ResizeBehavior="CurrentAndNext"
+              ResizeDirection="Rows" /&gt;</code></pre>
+                    <h3>Explicit previous-and-current column pair</h3>
+                    <pre><code class="language-xml">&lt;GridSplitter Grid.Column="2"
+              Width="8"
+              HorizontalAlignment="Left"
+              ResizeBehavior="PreviousAndCurrent"
+              ResizeDirection="Columns" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Grid-only control.</strong> <code>GridSplitter</code> must be parented by a <code>Grid</code>. Without a grid parent, the control has nothing to resize.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Placement matters more than visuals.</strong> The row or column where you place the splitter determines which definitions can be resized. A visually centered handle in the wrong slot will target the wrong pair or no pair at all.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Resizing writes pixel lengths.</strong> The control preserves total size but commits the affected pair back as pixel <code>GridLength</code> values, which is important if the original grid used star sizing.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>No dedicated default theme style.</strong> The current theme does not define a specific <code>GridSplitter</code> style in <code>App.xml</code>, so appearance relies on the control defaults unless you style it yourself.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-grid.html">
+                        <span>Previous</span>
+                        <strong>Grid</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-grid-view-row-presenter.html">
+                        <span>Next</span>
+                        <strong>GridViewRowPresenter</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>
