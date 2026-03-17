@@ -341,6 +341,7 @@ UI/
       Style.cs
       StyleSelector.cs
       StyleValueCloneUtility.cs
+      VisualStateManager.cs
       VisualStates.cs
     Effects
       Effects.cs

@@ -507,24 +507,76 @@
       <Style TargetType="{x:Type ProgressBar}">
         <Setter Property="Background" Value="{StaticResource DarkElevatedBrush}" />
         <Setter Property="Foreground" Value="{StaticResource OrangePrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Height" Value="6" />
         <Setter Property="Template">
           <Setter.Value>
             <ControlTemplate TargetType="{x:Type ProgressBar}">
-              <Border Background="{TemplateBinding Background}"
+              <Border x:Name="RootChrome"
+                      Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}"
                       CornerRadius="3"
                       SnapsToDevicePixels="True">
-                <Border x:Name="PART_Track">
+                <VisualStateManager.VisualStateGroups>
+                  <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Determinate">
+                      <VisualState.Setters>
+                        <Setter TargetName="PART_GlowRect" Property="Opacity" Value="0" />
+                      </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Indeterminate">
+                      <VisualState.Setters>
+                        <Setter TargetName="PART_GlowRect" Property="Opacity" Value="0.8" />
+                      </VisualState.Setters>
+                    </VisualState>
+                  </VisualStateGroup>
+                  <VisualStateGroup x:Name="ValidationStates">
+                    <VisualState x:Name="Valid">
+                      <VisualState.Setters>
+                        <Setter TargetName="RootChrome" Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+                        <Setter TargetName="RootChrome" Property="BorderThickness" Value="0" />
+                      </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="InvalidFocused">
+                      <VisualState.Setters>
+                        <Setter TargetName="RootChrome" Property="BorderBrush" Value="{StaticResource OrangePrimaryBrush}" />
+                        <Setter TargetName="RootChrome" Property="BorderThickness" Value="1" />
+                      </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="InvalidUnfocused">
+                      <VisualState.Setters>
+                        <Setter TargetName="RootChrome" Property="BorderBrush" Value="{StaticResource OrangeSubtleBrush}" />
+                        <Setter TargetName="RootChrome" Property="BorderThickness" Value="1" />
+                      </VisualState.Setters>
+                    </VisualState>
+                  </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                    <Grid x:Name="PART_Track">
                   <Border x:Name="PART_Indicator"
                           Background="{TemplateBinding Foreground}"
                           CornerRadius="3"
-                          HorizontalAlignment="Left" />
-                </Border>
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Top"
+                          Opacity="1" />
+                  <Border x:Name="PART_GlowRect"
+                          Background="{StaticResource TextPrimaryBrush}"
+                          CornerRadius="3"
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Top"
+                          Opacity="0" />
+                </Grid>
               </Border>
             </ControlTemplate>
           </Setter.Value>
         </Setter>
+        <Style.Triggers>
+          <Trigger Property="Orientation" Value="Vertical">
+            <Setter Property="Width" Value="6" />
+            <Setter Property="Height" Value="120" />
+          </Trigger>
+        </Style.Triggers>
       </Style>
 
       <!-- ═══════════════════════════════════════════════════════════ -->

@@ -60,6 +60,9 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
                 coerceValueCallback: static (_, value) => value is float thickness && thickness >= 0f ? thickness : 0f));
 
     private float _indeterminatePhase;
+    private FrameworkElement? _track;
+    private FrameworkElement? _indicator;
+    private FrameworkElement? _glowRect;
 
     static ProgressBar()
     {
@@ -143,6 +146,18 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
         UpdateIndeterminateState(gameTime);
     }
 
+    public override void OnApplyTemplate()
+    {
+        base.OnApplyTemplate();
+
+        _track = GetTemplateChild("PART_Track") as FrameworkElement;
+        _indicator = GetTemplateChild("PART_Indicator") as FrameworkElement;
+        _glowRect = GetTemplateChild("PART_GlowRect") as FrameworkElement;
+
+        UpdateVisualStates();
+        SyncTemplateParts();
+    }
+
     bool IUiRootUpdateParticipant.IsFrameUpdateActive => IsIndeterminate;
 
     void IUiRootUpdateParticipant.UpdateFromUiRoot(GameTime gameTime)
@@ -155,6 +170,12 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
     {
         if (!IsIndeterminate)
         {
+            if (_indeterminatePhase != 0f)
+            {
+                _indeterminatePhase = 0f;
+                SyncTemplateParts();
+            }
+
             return;
         }
 
@@ -169,12 +190,14 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
         {
             _indeterminatePhase -= MathF.Floor(_indeterminatePhase);
         }
+
+        SyncTemplateParts();
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
         base.OnRender(spriteBatch);
-        if (HasTemplateRoot)
+        if (CanUseTemplateParts())
         {
             return;
         }
@@ -229,6 +252,53 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
             Opacity);
     }
 
+    protected override Vector2 ArrangeOverride(Vector2 finalSize)
+    {
+        var arranged = base.ArrangeOverride(finalSize);
+        SyncTemplateParts();
+        return arranged;
+    }
+
+    protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
+    {
+        base.OnDependencyPropertyChanged(args);
+
+        if (args.Property == IsIndeterminateProperty ||
+            args.Property == OrientationProperty ||
+            args.Property == Validation.HasErrorProperty ||
+            args.Property == Control.IsFocusedProperty)
+        {
+            UpdateVisualStates();
+        }
+
+        if (args.Property == IsIndeterminateProperty ||
+            args.Property == OrientationProperty ||
+            args.Property == ValueProperty ||
+            args.Property == MinimumProperty ||
+            args.Property == MaximumProperty)
+        {
+            SyncTemplateParts();
+        }
+    }
+
+    protected override void OnMinimumChanged(float oldMinimum, float newMinimum)
+    {
+        base.OnMinimumChanged(oldMinimum, newMinimum);
+        SyncTemplateParts();
+    }
+
+    protected override void OnMaximumChanged(float oldMaximum, float newMaximum)
+    {
+        base.OnMaximumChanged(oldMaximum, newMaximum);
+        SyncTemplateParts();
+    }
+
+    protected override void OnValueChanged(float oldValue, float newValue)
+    {
+        base.OnValueChanged(oldValue, newValue);
+        SyncTemplateParts();
+    }
+
     private void DrawIndeterminateFill(SpriteBatch spriteBatch, LayoutRect inner)
     {
         const float chunkRatio = 0.32f;
@@ -281,6 +351,114 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
 
         var normalized = (Value - Minimum) / range;
         return MathF.Max(0f, MathF.Min(1f, normalized));
+    }
+
+    private bool CanUseTemplateParts()
+    {
+        return HasTemplateRoot && _track != null && _indicator != null;
+    }
+
+    private void UpdateVisualStates()
+    {
+        _ = VisualStateManager.GoToState(this, IsIndeterminate ? "Indeterminate" : "Determinate");
+
+        var validationState = Validation.GetHasError(this)
+            ? (IsFocused ? "InvalidFocused" : "InvalidUnfocused")
+            : "Valid";
+        _ = VisualStateManager.GoToState(this, validationState);
+    }
+
+    private void SyncTemplateParts()
+    {
+        if (!CanUseTemplateParts() || _track == null || _indicator == null)
+        {
+            return;
+        }
+
+        var trackWidth = _track.ActualWidth;
+        var trackHeight = _track.ActualHeight;
+        if (trackWidth <= 0f || trackHeight <= 0f)
+        {
+            return;
+        }
+
+        if (IsIndeterminate)
+        {
+            SyncIndeterminateTemplateParts(trackWidth, trackHeight);
+            return;
+        }
+
+        SyncDeterminateTemplateParts(trackWidth, trackHeight);
+    }
+
+    private void SyncDeterminateTemplateParts(float trackWidth, float trackHeight)
+    {
+        var normalized = GetNormalizedValue();
+        if (Orientation == Orientation.Horizontal)
+        {
+            SetElementRect(_track!, _indicator!, 0f, 0f, trackWidth * normalized, trackHeight);
+            SetElementRect(_track, _glowRect, 0f, 0f, 0f, trackHeight);
+            return;
+        }
+
+        var fillHeight = trackHeight * normalized;
+        SetElementRect(_track!, _indicator!, 0f, trackHeight - fillHeight, trackWidth, fillHeight);
+        SetElementRect(_track, _glowRect, 0f, 0f, trackWidth, 0f);
+    }
+
+    private void SyncIndeterminateTemplateParts(float trackWidth, float trackHeight)
+    {
+        const float chunkRatio = 0.32f;
+        const float glowRatio = 0.42f;
+
+        if (Orientation == Orientation.Horizontal)
+        {
+            var segmentWidth = MathF.Max(6f, trackWidth * chunkRatio);
+            var travel = trackWidth + segmentWidth;
+            var startX = (_indeterminatePhase * travel) - segmentWidth;
+            var endX = startX + segmentWidth;
+            var visibleStartX = MathF.Max(0f, startX);
+            var visibleEndX = MathF.Min(trackWidth, endX);
+            SetElementRect(_track!, _indicator!, visibleStartX, 0f, MathF.Max(0f, visibleEndX - visibleStartX), trackHeight);
+
+            var glowWidth = MathF.Max(4f, segmentWidth * glowRatio);
+            var glowX = startX + ((segmentWidth - glowWidth) / 2f);
+            var glowEndX = glowX + glowWidth;
+            var visibleGlowStartX = MathF.Max(0f, glowX);
+            var visibleGlowEndX = MathF.Min(trackWidth, glowEndX);
+            SetElementRect(_track, _glowRect, visibleGlowStartX, 0f, MathF.Max(0f, visibleGlowEndX - visibleGlowStartX), trackHeight);
+            return;
+        }
+
+        var segmentHeight = MathF.Max(6f, trackHeight * chunkRatio);
+        var travelHeight = trackHeight + segmentHeight;
+        var startY = trackHeight - (_indeterminatePhase * travelHeight);
+        var endY = startY + segmentHeight;
+        var visibleStartY = MathF.Max(0f, startY);
+        var visibleEndY = MathF.Min(trackHeight, endY);
+        SetElementRect(_track!, _indicator!, 0f, visibleStartY, trackWidth, MathF.Max(0f, visibleEndY - visibleStartY));
+
+        var glowHeight = MathF.Max(4f, segmentHeight * glowRatio);
+        var glowY = startY + ((segmentHeight - glowHeight) / 2f);
+        var glowEndY = glowY + glowHeight;
+        var visibleGlowStartY = MathF.Max(0f, glowY);
+        var visibleGlowEndY = MathF.Min(trackHeight, glowEndY);
+        SetElementRect(_track, _glowRect, 0f, visibleGlowStartY, trackWidth, MathF.Max(0f, visibleGlowEndY - visibleGlowStartY));
+    }
+
+    private static void SetElementRect(FrameworkElement? track, FrameworkElement? element, float x, float y, float width, float height)
+    {
+        if (track == null || element == null)
+        {
+            return;
+        }
+
+        element.HorizontalAlignment = HorizontalAlignment.Left;
+        element.VerticalAlignment = VerticalAlignment.Top;
+        element.Margin = new Thickness(x, y, 0f, 0f);
+        element.Width = MathF.Max(0f, width);
+        element.Height = MathF.Max(0f, height);
+        element.Arrange(track.LayoutSlot);
     }
 
 }

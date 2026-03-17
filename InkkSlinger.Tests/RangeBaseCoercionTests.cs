@@ -51,4 +51,21 @@ public sealed class RangeBaseCoercionTests
         Assert.Equal(40f, progressBar.Maximum);
         Assert.Equal(40f, progressBar.Value);
     }
+
+    [Fact]
+    public void ProgressBar_ValueOutsideRange_ClampsToBounds()
+    {
+        var progressBar = new ProgressBar
+        {
+            Minimum = 10f,
+            Maximum = 40f,
+            Value = -5f
+        };
+
+        Assert.Equal(10f, progressBar.Value);
+
+        progressBar.Value = 90f;
+
+        Assert.Equal(40f, progressBar.Value);
+    }
 }

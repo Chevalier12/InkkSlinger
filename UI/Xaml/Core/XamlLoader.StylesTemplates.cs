@@ -433,12 +433,31 @@ public static partial class XamlLoader
             throw CreateXamlException("ControlTemplate requires a visual root element.", element);
         }
 
-        var templateVisualRoot = visualRoot;
+        var templateVisualRoot = new XElement(visualRoot);
+        var visualStateGroupElements = ExtractTemplateVisualStateGroupElements(templateVisualRoot);
         var templateAnalysis = AnalyzeTemplateVisualRoot(templateVisualRoot, targetType, resourceScope);
+        var rootElementType = ResolveElementType(templateVisualRoot.Name.LocalName);
         var template = new ControlTemplate(owner =>
         {
-            return RunWithinIsolatedTemplateInstantiationScope(() =>
+            var built = RunWithinIsolatedTemplateInstantiationScope(() =>
                 BuildElement(templateVisualRoot, null, owner));
+            if (built is FrameworkElement templateRoot && visualStateGroupElements.Count > 0)
+            {
+                VisualStateManager.SetVisualStateGroups(
+                    templateRoot,
+                    BuildVisualStateGroupCollection(
+                        visualStateGroupElements,
+                        rootElementType,
+                        resourceScope,
+                        targetName =>
+                        {
+                            return templateAnalysis.NamedElementTypes.TryGetValue(targetName, out var elementType)
+                                ? elementType
+                                : null;
+                        }));
+            }
+
+            return built;
         })
         {
             TargetType = targetType
@@ -470,6 +489,148 @@ public static partial class XamlLoader
         }
 
         return template;
+    }
+
+
+    private static List<XElement> ExtractTemplateVisualStateGroupElements(XElement templateVisualRoot)
+    {
+        var extracted = new List<XElement>();
+        var visualStatePropertyElements = templateVisualRoot.Elements()
+            .Where(static child => string.Equals(child.Name.LocalName, "VisualStateManager.VisualStateGroups", StringComparison.Ordinal))
+            .ToList();
+
+        foreach (var propertyElement in visualStatePropertyElements)
+        {
+            foreach (var child in propertyElement.Elements())
+            {
+                extracted.Add(new XElement(child));
+            }
+
+            propertyElement.Remove();
+        }
+
+        return extracted;
+    }
+
+
+    private static VisualStateGroupCollection BuildVisualStateGroupCollection(
+        IEnumerable<XElement> groupElements,
+        Type rootElementType,
+        FrameworkElement? resourceScope,
+        Func<string, Type?> setterTargetTypeResolver)
+    {
+        var groups = new VisualStateGroupCollection();
+        foreach (var groupElement in groupElements)
+        {
+            groups.Add(BuildVisualStateGroup(groupElement, rootElementType, resourceScope, setterTargetTypeResolver));
+        }
+
+        return groups;
+    }
+
+
+    private static VisualStateGroup BuildVisualStateGroup(
+        XElement element,
+        Type rootElementType,
+        FrameworkElement? resourceScope,
+        Func<string, Type?> setterTargetTypeResolver)
+    {
+        if (!string.Equals(element.Name.LocalName, nameof(VisualStateGroup), StringComparison.Ordinal))
+        {
+            throw CreateXamlException(
+                $"VisualStateManager.VisualStateGroups can only contain '{nameof(VisualStateGroup)}' elements.",
+                element);
+        }
+
+        var name = ResolveVisualStateName(element, nameof(VisualStateGroup));
+        var group = new VisualStateGroup(name);
+
+        foreach (var child in element.Elements())
+        {
+            if (string.Equals(child.Name.LocalName, "VisualStateGroup.States", StringComparison.Ordinal))
+            {
+                foreach (var stateElement in child.Elements())
+                {
+                    group.States.Add(BuildVisualState(stateElement, rootElementType, resourceScope, setterTargetTypeResolver));
+                }
+
+                continue;
+            }
+
+            group.States.Add(BuildVisualState(child, rootElementType, resourceScope, setterTargetTypeResolver));
+        }
+
+        return group;
+    }
+
+
+    private static VisualState BuildVisualState(
+        XElement element,
+        Type rootElementType,
+        FrameworkElement? resourceScope,
+        Func<string, Type?> setterTargetTypeResolver)
+    {
+        if (!string.Equals(element.Name.LocalName, nameof(VisualState), StringComparison.Ordinal))
+        {
+            throw CreateXamlException(
+                $"'{nameof(VisualStateGroup)}' can only contain '{nameof(VisualState)}' elements.",
+                element);
+        }
+
+        var state = new VisualState(ResolveVisualStateName(element, nameof(VisualState)));
+
+        foreach (var child in element.Elements())
+        {
+            if (string.Equals(child.Name.LocalName, nameof(Storyboard), StringComparison.Ordinal))
+            {
+                state.Storyboard = (Storyboard)BuildObject(child, null, resourceScope);
+                continue;
+            }
+
+            if (string.Equals(child.Name.LocalName, "VisualState.Storyboard", StringComparison.Ordinal))
+            {
+                var storyboardElement = GetSingleChildElementOrThrow(
+                    child,
+                    "VisualState.Storyboard must contain exactly one Storyboard element.",
+                    child);
+                state.Storyboard = (Storyboard)BuildObject(storyboardElement, null, resourceScope);
+                continue;
+            }
+
+            if (string.Equals(child.Name.LocalName, "VisualState.Setters", StringComparison.Ordinal))
+            {
+                foreach (var setterElement in child.Elements())
+                {
+                    state.Setters.Add(BuildSetter(setterElement, rootElementType, resourceScope, setterTargetTypeResolver));
+                }
+
+                continue;
+            }
+
+            throw CreateXamlException(
+                $"Element '{nameof(VisualState)}' does not support nested child '{child.Name.LocalName}'.",
+                child);
+        }
+
+        return state;
+    }
+
+
+    private static string ResolveVisualStateName(XElement element, string typeName)
+    {
+        var xName = element.Attribute(XName.Get("Name", XamlNamespace.NamespaceName))?.Value?.Trim();
+        if (!string.IsNullOrWhiteSpace(xName))
+        {
+            return xName;
+        }
+
+        var name = element.Attribute(nameof(VisualState.Name))?.Value?.Trim();
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            return name;
+        }
+
+        throw CreateXamlException($"'{typeName}' requires x:Name or Name.", element);
     }
 
 

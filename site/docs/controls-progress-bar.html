@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - ProgressBar</title>
-    <meta name="description" content="ProgressBar control reference.">
+    <meta name="description" content="Technical manual for the ProgressBar control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -174,8 +174,134 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>ProgressBar</h1>
-                    <p>WIP</p>
+                    <p><code>ProgressBar</code> is the framework's non-interactive range control for showing determinate or indeterminate work. It shares the same range coercion foundation as <code>Slider</code> and <code>ScrollBar</code>, but its shipped template is driven by named parts plus template-root visual states rather than direct user manipulation.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>ProgressBar</code> when your UI needs to display progress, load state, or background activity without exposing direct input. The control can render as a classic determinate fill, a vertical meter, or an indeterminate animation when there is no stable percentage yet.</p>
+                    <h3>Minimal determinate bar</h3>
+                    <pre><code class="language-xml">&lt;ProgressBar Width="260"
+             Minimum="0"
+             Maximum="100"
+             Value="64" /&gt;</code></pre>
+                    <h3>Vertical progress</h3>
+                    <pre><code class="language-xml">&lt;ProgressBar Width="8"
+             Height="140"
+             Orientation="Vertical"
+             Minimum="0"
+             Maximum="1"
+             Value="0.3" /&gt;</code></pre>
+                    <h3>Indeterminate progress</h3>
+                    <pre><code class="language-xml">&lt;ProgressBar Width="220"
+             Height="10"
+             IsIndeterminate="True" /&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Choose the right range control:</strong> use <code>ProgressBar</code> when the user should observe progress only. Use <code>Slider</code> when the user must choose a value, and use <code>ScrollBar</code> when the range represents viewport movement through content.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Range model</h2>
+                    <p><code>ProgressBar</code> inherits from <code>RangeBase</code>, so <code>Minimum</code>, <code>Maximum</code>, and <code>Value</code> obey the same coercion rules as the other range controls. That shared contract drives the normalized fill geometry, automation exposure, and parity tests for out-of-range assignments.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Bounds and coercion</h3>
+                            <p><code>Minimum</code> defaults to <code>0</code>, <code>Maximum</code> defaults to <code>100</code>, and <code>Value</code> is clamped back into the effective range every time any of those inputs changes.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Non-interactive by design</h3>
+                            <p>The control is not hit-testable by default. It reports state, but unlike <code>Slider</code> it does not expose drag or keyboard interaction paths for changing the value.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Horizontal fill</h3>
+                            <p>In the default horizontal template, the indicator grows from left to right as the normalized value increases.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Vertical fill</h3>
+                            <p>In vertical orientation, the same normalized value is mapped from the bottom upward so lower values stay near the base of the bar.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-csharp">var progressBar = new ProgressBar
+{
+    Width = 240f,
+    Minimum = 0f,
+    Maximum = 1f,
+    Value = 0.42f
+};</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Template contract and visual states</h2>
+                    <p>The shipped theme uses a template-root <code>VisualStateManager.VisualStateGroups</code> declaration plus three named parts. When those parts exist, <code>ProgressBar</code> sizes and positions them directly during arrange and frame updates. When the template is incomplete, the control falls back to its direct renderer instead of throwing.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3><code>PART_Track</code></h3>
+                            <p>The track is the layout host for the indicator and glow. It provides the geometry the control uses for both determinate and indeterminate calculations.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>PART_Indicator</code></h3>
+                            <p>The indicator is the filled segment. In determinate mode its width or height is mapped from the normalized value, and in indeterminate mode it becomes the moving chunk.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3><code>PART_GlowRect</code></h3>
+                            <p>The glow rectangle is only visible in the indeterminate state. The control updates its position each frame while the visual-state setter controls its opacity.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>State groups</h3>
+                            <p><code>CommonStates</code> switches between <code>Determinate</code> and <code>Indeterminate</code>. <code>ValidationStates</code> switches between <code>Valid</code>, <code>InvalidFocused</code>, and <code>InvalidUnfocused</code>.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;ControlTemplate TargetType="{x:Type ProgressBar}"&gt;
+  &lt;Border x:Name="RootChrome"&gt;
+    &lt;VisualStateManager.VisualStateGroups&gt;
+      &lt;VisualStateGroup x:Name="CommonStates"&gt;
+        &lt;VisualState x:Name="Determinate" /&gt;
+        &lt;VisualState x:Name="Indeterminate"&gt;
+          &lt;VisualState.Setters&gt;
+            &lt;Setter TargetName="PART_GlowRect" Property="Opacity" Value="0.8" /&gt;
+          &lt;/VisualState.Setters&gt;
+        &lt;/VisualState&gt;
+      &lt;/VisualStateGroup&gt;
+    &lt;/VisualStateManager.VisualStateGroups&gt;
+    &lt;Grid x:Name="PART_Track"&gt;
+      &lt;Border x:Name="PART_Indicator" /&gt;
+      &lt;Border x:Name="PART_GlowRect" Opacity="0" /&gt;
+    &lt;/Grid&gt;
+  &lt;/Border&gt;
+&lt;/ControlTemplate&gt;</code></pre>
+                    <p>Template visual states are resolved against the applied template root, so state setters and storyboards can target named template parts directly. State transitions also clear values from the previous state when the next state no longer owns that property.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Indeterminate mode and validation</h2>
+                    <p>Indeterminate mode does not estimate completion. Instead, the control advances a phase value each frame and uses that value to reposition the indicator and glow inside the track. Validation styling is independent of that animation and is controlled through the template's validation states.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Motion model</h3>
+                            <p>The default template keeps the glow visible only while <code>IsIndeterminate</code> is <code>true</code>. When indeterminate mode turns off, the phase resets and the glow opacity returns to zero.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Validation chrome</h3>
+                            <p><code>Validation.HasError</code> and focus state drive the validation group so a templated bar can surface focused and unfocused invalid styling without changing the range model.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;ProgressBar Width="240"
+             Height="12"
+             IsIndeterminate="True"
+             Foreground="{StaticResource OrangePrimaryBrush}"
+             Background="{StaticResource DarkElevatedBrush}" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Automation and regression coverage</h2>
+                    <p><code>ProgressBar</code> exposes the read-only range value automation pattern expected for a passive progress indicator. The regression suite also verifies template visual-state resolution, horizontal and vertical indicator geometry, indeterminate motion, validation-state switching, fallback rendering for incomplete templates, and shared range coercion.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Automation</h3>
+                            <p>Automation peers report the current value through the range-value pattern, but the pattern is read-only because the control is not user-editable.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Key tests</h3>
+                            <p>Look at <code>ProgressBarBehaviorTests</code>, <code>VisualStateManagerTemplateTests</code>, <code>AutomationPatternValueTests</code>, and <code>RangeBaseCoercionTests</code> when changing ProgressBar behavior.</p>
+                        </article>
+                    </div>
+                </section>
             </article>
         </main>
     </div>

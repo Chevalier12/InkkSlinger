@@ -26,11 +26,10 @@ internal static class XamlTypeResolver
     {
         return WritableProperties.GetOrAdd((type, propertyName), key =>
         {
-            var property = key.Type.GetProperty(
+            return FindPropertyInHierarchy(
+                key.Type,
                 key.PropertyName,
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
-
-            return property is { CanWrite: true } ? property : property;
+                BindingFlags.Instance | BindingFlags.Public);
         });
     }
 
@@ -126,7 +125,10 @@ internal static class XamlTypeResolver
     {
         return Properties.GetOrAdd(
             (type, memberName),
-            key => key.Type.GetProperty(key.MemberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
+            key => FindPropertyInHierarchy(
+                key.Type,
+                key.MemberName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
     }
 
     public static bool TryResolveStaticMember(Type ownerType, string memberName, out object resolved)
@@ -188,6 +190,27 @@ internal static class XamlTypeResolver
     public static ParameterInfo[] GetMethodParameters(MethodInfo method)
     {
         return MethodParameters.GetOrAdd(method, static candidate => candidate.GetParameters());
+    }
+
+    private static PropertyInfo? FindPropertyInHierarchy(Type type, string propertyName, BindingFlags bindingFlags)
+    {
+        var current = type;
+        while (current != null)
+        {
+            var properties = current.GetProperties(bindingFlags | BindingFlags.DeclaredOnly);
+            for (var i = 0; i < properties.Length; i++)
+            {
+                var candidate = properties[i];
+                if (string.Equals(candidate.Name, propertyName, StringComparison.Ordinal))
+                {
+                    return candidate;
+                }
+            }
+
+            current = current.BaseType;
+        }
+
+        return null;
     }
 
     private static MethodInfo? FindCompatibleAttachedSetter(Type ownerType, string setterName, Type targetType, Type valueType)

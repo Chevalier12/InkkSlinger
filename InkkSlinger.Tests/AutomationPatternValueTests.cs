@@ -91,4 +91,31 @@ public sealed class AutomationPatternValueTests
 
         uiRoot.Shutdown();
     }
+
+    [Fact]
+    public void ProgressBarPeer_ExposesReadOnlyRangeValuePattern()
+    {
+        var host = new Canvas();
+        var progressBar = new ProgressBar
+        {
+            Minimum = 10f,
+            Maximum = 90f,
+            Value = 30f
+        };
+        host.AddChild(progressBar);
+        var uiRoot = new UiRoot(host);
+        var peer = uiRoot.Automation.GetPeer(progressBar);
+        Assert.NotNull(peer);
+
+        Assert.True(peer.TryGetPattern(AutomationPatternType.RangeValue, out var provider));
+        var rangeProvider = Assert.IsAssignableFrom<IRangeValueProvider>(provider);
+
+        Assert.True(rangeProvider.IsReadOnly);
+        Assert.Equal(10f, rangeProvider.Minimum);
+        Assert.Equal(90f, rangeProvider.Maximum);
+        Assert.Equal(30f, rangeProvider.Value);
+        Assert.Throws<InvalidOperationException>(() => rangeProvider.SetValue(40f));
+
+        uiRoot.Shutdown();
+    }
 }

@@ -548,6 +548,7 @@ public class Control : FrameworkElement, ICommandSource
 
         if (_templateRoot != null)
         {
+            VisualStateManager.ClearState(_templateRoot as FrameworkElement);
             _templateRoot.SetVisualParent(null);
             _templateRoot.SetLogicalParent(null);
         }
