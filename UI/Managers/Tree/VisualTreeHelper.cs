@@ -101,8 +101,8 @@ public static class VisualTreeHelper
 
             if (hasLocalClip)
             {
-                var clipRect = hasAncestorTransformToRoot
-                    ? TransformRect(localClipRect, ancestorTransformToRoot)
+                var clipRect = hasNextAncestorTransformToRoot
+                    ? TransformRect(localClipRect, nextAncestorTransformToRoot)
                     : localClipRect;
                 if (!ContainsPoint(clipRect, position))
                 {
@@ -123,19 +123,21 @@ public static class VisualTreeHelper
                 else
                 {
                     var probePoint = position;
-                    if (hasCurrentRootToThisInverse)
-                    {
-                        probePoint = Vector2.Transform(position, currentRootToThisInverse);
-                    }
-                    else if (MathF.Abs(accumulatedHorizontalOffset) > 0.01f ||
-                             MathF.Abs(accumulatedVerticalOffset) > 0.01f)
+                    if (MathF.Abs(accumulatedHorizontalOffset) > 0.01f ||
+                        MathF.Abs(accumulatedVerticalOffset) > 0.01f)
                     {
                         probePoint = new Vector2(
                             position.X + accumulatedHorizontalOffset,
                             position.Y + accumulatedVerticalOffset);
                     }
 
-                    if (!ContainsPoint(frameworkElement.LayoutSlot, probePoint))
+                    var transformedBounds = frameworkElement.LayoutSlot;
+                    if (hasNextAncestorTransformToRoot)
+                    {
+                        transformedBounds = TransformRect(transformedBounds, nextAncestorTransformToRoot);
+                    }
+
+                    if (!ContainsPoint(transformedBounds, probePoint))
                     {
                         return null;
                     }
@@ -998,7 +1000,28 @@ public static class VisualTreeHelper
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool ShouldApplyScrollViewerOffsetToChild(UIElement parent, UIElement child)
     {
-        return parent is not ScrollViewer || child is not ScrollBar;
+        if (parent is not ScrollViewer)
+        {
+            return true;
+        }
+
+        if (child is ScrollBar)
+        {
+            return false;
+        }
+
+        return !UsesTransformBasedScrollHitTesting(child);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool UsesTransformBasedScrollHitTesting(UIElement element)
+    {
+        if (element is IScrollTransformContent)
+        {
+            return true;
+        }
+
+        return element is Panel panel && ScrollViewer.GetUseTransformContentScrolling(panel);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -168,11 +168,7 @@ public sealed class AppStyledDataGridSampleTests
 
     private static void RestoreApplicationResources(Dictionary<object, object> snapshot)
     {
-        UiApplication.Current.Resources.Clear();
-        foreach (var entry in snapshot)
-        {
-            UiApplication.Current.Resources[entry.Key] = entry.Value;
-        }
+        TestApplicationResources.Restore(snapshot);
     }
 
     private static void LoadRootAppResources()

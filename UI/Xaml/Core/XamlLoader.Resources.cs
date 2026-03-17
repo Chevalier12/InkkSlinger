@@ -220,15 +220,32 @@ public static partial class XamlLoader
 
     private static void MergeResourceDictionaryContents(ResourceDictionary target, ResourceDictionary source)
     {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(source);
+
+        var mergedEntries = new Dictionary<object, object>();
+        foreach (var pair in target)
+        {
+            mergedEntries[pair.Key] = pair.Value;
+        }
+
         foreach (var pair in source)
         {
-            target[pair.Key] = pair.Value;
+            mergedEntries[pair.Key] = pair.Value;
+        }
+
+        var mergedDictionaries = new List<ResourceDictionary>(target.MergedDictionaries.Count + source.MergedDictionaries.Count);
+        foreach (var mergedDictionary in target.MergedDictionaries)
+        {
+            mergedDictionaries.Add(mergedDictionary);
         }
 
         foreach (var mergedDictionary in source.MergedDictionaries)
         {
-            target.AddMergedDictionary(mergedDictionary);
+            mergedDictionaries.Add(mergedDictionary);
         }
+
+        target.ReplaceContents(mergedEntries, mergedDictionaries);
     }
 
 

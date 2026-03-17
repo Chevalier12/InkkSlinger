@@ -121,6 +121,98 @@ public sealed class ComboBoxPopupEdgeParityTests
     }
 
     [Fact]
+    public void DropDown_InNestedScrollViewerUserControl_ShouldAnchorToComboBoxInsteadOfFlowingAfterSiblingContent()
+    {
+        var rootView = new UserControl();
+        var rootGrid = new Grid();
+        rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1f, GridUnitType.Star) });
+        rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(360f, GridUnitType.Pixel) });
+        rootView.Content = rootGrid;
+
+        var filler = new Border();
+        Grid.SetColumn(filler, 0);
+        rootGrid.AddChild(filler);
+
+        var scrollViewer = new ScrollViewer();
+        Grid.SetColumn(scrollViewer, 1);
+        rootGrid.AddChild(scrollViewer);
+
+        var sidebar = new StackPanel();
+        scrollViewer.Content = sidebar;
+        sidebar.AddChild(new Label { Content = "Payload lab" });
+        sidebar.AddChild(new Label { Content = "Round-trip full documents or the active selection." });
+
+        var comboBox = new ComboBox
+        {
+            Width = 320f,
+            Height = 40f,
+            Margin = new Thickness(0f, 8f, 0f, 0f)
+        };
+        comboBox.Items.Add("Flow XML");
+        comboBox.Items.Add("XAML");
+        comboBox.Items.Add("XamlPackage");
+        comboBox.Items.Add("Rich Text Format");
+        comboBox.Items.Add("Plain Text");
+        comboBox.SelectedIndex = 0;
+        sidebar.AddChild(comboBox);
+
+        var buttonRow = new WrapPanel { Margin = new Thickness(0f, 8f, 0f, 0f) };
+        buttonRow.AddChild(new Button { Content = "Export Doc", Width = 112f, Height = 36f, Margin = new Thickness(0f, 0f, 8f, 8f) });
+        buttonRow.AddChild(new Button { Content = "Export Selection", Width = 144f, Height = 36f, Margin = new Thickness(0f, 0f, 8f, 8f) });
+        buttonRow.AddChild(new Button { Content = "Load Doc", Width = 112f, Height = 36f, Margin = new Thickness(0f, 0f, 8f, 8f) });
+        buttonRow.AddChild(new Button { Content = "Load Selection", Width = 144f, Height = 36f, Margin = new Thickness(0f, 0f, 8f, 8f) });
+        sidebar.AddChild(buttonRow);
+        sidebar.AddChild(new TextBox { Width = 320f, Height = 220f, Margin = new Thickness(0f, 8f, 0f, 0f) });
+
+        var uiRoot = new UiRoot(rootView);
+        RunLayout(uiRoot, 1200, 900);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot, 1200, 900);
+
+        var dropDown = comboBox.DropDownListForTesting;
+        Assert.NotNull(dropDown);
+        Assert.InRange(dropDown!.LayoutSlot.X - comboBox.LayoutSlot.X, 0f, 4f);
+        Assert.InRange(dropDown.LayoutSlot.Y - (comboBox.LayoutSlot.Y + comboBox.LayoutSlot.Height), 0f, 8f);
+    }
+
+    [Fact]
+    public void DropDown_InScrolledScrollViewer_ShouldAnchorToRenderedComboBoxBounds()
+    {
+        var (uiRoot, scrollViewer, comboBox) = CreateScrolledSidebarFixture();
+
+        scrollViewer.ScrollToVerticalOffset(96f);
+        RunLayout(uiRoot, 1200, 900);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot, 1200, 900);
+
+        var dropDown = comboBox.DropDownListForTesting;
+        Assert.NotNull(dropDown);
+
+        var renderedComboBoxY = comboBox.LayoutSlot.Y - scrollViewer.VerticalOffset;
+        var renderedDropDownY = dropDown!.LayoutSlot.Y;
+        Assert.InRange(dropDown.LayoutSlot.X - comboBox.LayoutSlot.X, 0f, 4f);
+        Assert.InRange(renderedDropDownY - (renderedComboBoxY + comboBox.LayoutSlot.Height), 0f, 8f);
+    }
+
+    [Fact]
+    public void ScrollViewerScroll_ShouldCloseOpenComboBoxDropDown()
+    {
+        var (uiRoot, scrollViewer, comboBox) = CreateScrolledSidebarFixture();
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot, 1200, 900);
+        Assert.True(comboBox.IsDropDownPopupOpenForTesting);
+
+        scrollViewer.ScrollToVerticalOffset(64f);
+        RunLayout(uiRoot, 1200, 900);
+
+        Assert.False(comboBox.IsDropDownOpen);
+        Assert.False(comboBox.IsDropDownPopupOpenForTesting);
+    }
+
+    [Fact]
     public void OpenDropDown_ShouldNotReflowSiblingRows_InLocalGrid()
     {
         var root = new Panel
@@ -311,6 +403,56 @@ public sealed class ComboBoxPopupEdgeParityTests
         return (uiRoot, comboBox);
     }
 
+    private static (UiRoot UiRoot, ScrollViewer ScrollViewer, ComboBox ComboBox) CreateScrolledSidebarFixture()
+    {
+        var rootView = new UserControl();
+        var rootGrid = new Grid();
+        rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1f, GridUnitType.Star) });
+        rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(360f, GridUnitType.Pixel) });
+        rootView.Content = rootGrid;
+
+        var filler = new Border();
+        Grid.SetColumn(filler, 0);
+        rootGrid.AddChild(filler);
+
+        var scrollViewer = new ScrollViewer();
+        Grid.SetColumn(scrollViewer, 1);
+        rootGrid.AddChild(scrollViewer);
+
+        var sidebar = new StackPanel();
+        scrollViewer.Content = sidebar;
+        sidebar.AddChild(new Border { Height = 140f });
+        sidebar.AddChild(new Label { Content = "Payload lab" });
+        sidebar.AddChild(new Label { Content = "Round-trip full documents or the active selection." });
+
+        var comboBox = new ComboBox
+        {
+            Width = 320f,
+            Height = 40f,
+            Margin = new Thickness(0f, 8f, 0f, 0f)
+        };
+        comboBox.Items.Add("Flow XML");
+        comboBox.Items.Add("XAML");
+        comboBox.Items.Add("XamlPackage");
+        comboBox.Items.Add("Rich Text Format");
+        comboBox.Items.Add("Plain Text");
+        comboBox.SelectedIndex = 0;
+        sidebar.AddChild(comboBox);
+
+        var buttonRow = new WrapPanel { Margin = new Thickness(0f, 8f, 0f, 0f) };
+        buttonRow.AddChild(new Button { Content = "Export Doc", Width = 112f, Height = 36f, Margin = new Thickness(0f, 0f, 8f, 8f) });
+        buttonRow.AddChild(new Button { Content = "Export Selection", Width = 144f, Height = 36f, Margin = new Thickness(0f, 0f, 8f, 8f) });
+        buttonRow.AddChild(new Button { Content = "Load Doc", Width = 112f, Height = 36f, Margin = new Thickness(0f, 0f, 8f, 8f) });
+        buttonRow.AddChild(new Button { Content = "Load Selection", Width = 144f, Height = 36f, Margin = new Thickness(0f, 0f, 8f, 8f) });
+        sidebar.AddChild(buttonRow);
+        sidebar.AddChild(new TextBox { Width = 320f, Height = 220f, Margin = new Thickness(0f, 8f, 0f, 0f) });
+        sidebar.AddChild(new Border { Height = 420f });
+
+        var uiRoot = new UiRoot(rootView);
+        RunLayout(uiRoot, 1200, 900);
+        return (uiRoot, scrollViewer, comboBox);
+    }
+
     private static Panel FindItemsHostPanel(ListBox listBox)
     {
         foreach (var child in listBox.GetVisualChildren())
@@ -358,10 +500,11 @@ public sealed class ComboBoxPopupEdgeParityTests
         };
     }
 
-    private static void RunLayout(UiRoot uiRoot)
-    {            uiRoot.Update(
-                new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
-                new Viewport(0, 0, 420, 260));
+    private static void RunLayout(UiRoot uiRoot, int width = 420, int height = 260)
+    {
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, width, height));
     }
 }
 

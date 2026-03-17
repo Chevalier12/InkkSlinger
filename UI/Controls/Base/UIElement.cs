@@ -564,16 +564,16 @@ public class UIElement : DependencyObject
             return false;
         }
 
-        var probePoint = point;
-        if (TryGetTransformFromRootToThisInverse(out var inverseTransform))
+        var transformedBounds = _layoutSlot;
+        if (TryGetTransformFromThisToRoot(out var transform))
         {
-            probePoint = Vector2.Transform(point, inverseTransform);
+            transformedBounds = TransformRect(transformedBounds, transform);
         }
 
-        return probePoint.X >= _layoutSlot.X &&
-               probePoint.X <= _layoutSlot.X + _layoutSlot.Width &&
-               probePoint.Y >= _layoutSlot.Y &&
-               probePoint.Y <= _layoutSlot.Y + _layoutSlot.Height;
+        return point.X >= transformedBounds.X &&
+               point.X <= transformedBounds.X + transformedBounds.Width &&
+               point.Y >= transformedBounds.Y &&
+               point.Y <= transformedBounds.Y + transformedBounds.Height;
     }
 
     protected bool IsPointVisibleThroughClipChain(Vector2 point)
@@ -1046,19 +1046,22 @@ public class UIElement : DependencyObject
             return false;
         }
 
+        var currentTransform = accumulatedTransform;
+        if (element.TryGetLocalRenderTransform(out var localTransform, out _))
+        {
+            currentTransform = localTransform * accumulatedTransform;
+        }
+
         if (element.TryGetClipRect(out var clipRect))
         {
-            var transformedClip = TransformRect(clipRect, accumulatedTransform);
+            var transformedClip = TransformRect(clipRect, currentTransform);
             if (!ContainsPoint(transformedClip, point))
             {
                 return false;
             }
         }
 
-        if (element.TryGetLocalRenderTransform(out var localTransform, out _))
-        {
-            accumulatedTransform = localTransform * accumulatedTransform;
-        }
+        accumulatedTransform = currentTransform;
 
         return true;
     }

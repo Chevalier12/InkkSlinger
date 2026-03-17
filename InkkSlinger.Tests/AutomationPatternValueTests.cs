@@ -41,4 +41,24 @@ public sealed class AutomationPatternValueTests
 
         uiRoot.Shutdown();
     }
+
+    [Fact]
+    public void RichTextBoxPeer_ExposesValuePattern_AndCanSetValue()
+    {
+        var host = new Canvas();
+        var richTextBox = new RichTextBox();
+        DocumentEditing.ReplaceAllText(richTextBox.Document, "seed");
+        host.AddChild(richTextBox);
+        var uiRoot = new UiRoot(host);
+        var peer = uiRoot.Automation.GetPeer(richTextBox);
+        Assert.NotNull(peer);
+
+        Assert.True(peer.TryGetPattern(AutomationPatternType.Value, out var provider));
+        var valueProvider = Assert.IsAssignableFrom<IValueProvider>(provider);
+
+        valueProvider.SetValue("updated");
+        Assert.Equal("updated", DocumentEditing.GetText(richTextBox.Document));
+
+        uiRoot.Shutdown();
+    }
 }

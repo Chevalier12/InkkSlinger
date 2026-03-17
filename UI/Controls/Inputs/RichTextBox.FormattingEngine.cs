@@ -154,8 +154,11 @@ public partial class RichTextBox
                 start,
                 length,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDoc, afterDocument));
-        session.CommitTransaction();
+            ExecuteDocumentChangeBatch(() =>
+            {
+                session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDoc, afterDocument));
+                session.CommitTransaction();
+            });
         var maxCaret = GetText().Length;
         _selectionAnchor = Math.Clamp(originalAnchor, 0, maxCaret);
         _caretIndex = Math.Clamp(originalCaret, 0, maxCaret);

@@ -22,4 +22,28 @@ public sealed class Game1IdleThrottlingTests
 
         Assert.Equal(0, delay);
     }
+
+    [Fact]
+    public void CompositeTargetRecreate_ForcesDrawEvenWhenUpdateScheduledSkip()
+    {
+        var shouldDraw = Game1.ShouldDrawUiOnCurrentFrame(scheduledDraw: false, targetRecreated: true);
+
+        Assert.True(shouldDraw);
+    }
+
+    [Fact]
+    public void NoCompositeTargetRecreate_PreservesScheduledSkip()
+    {
+        var shouldDraw = Game1.ShouldDrawUiOnCurrentFrame(scheduledDraw: false, targetRecreated: false);
+
+        Assert.False(shouldDraw);
+    }
+
+    [Fact]
+    public void ScheduledDraw_RemainsTrueWithoutCompositeTargetRecreate()
+    {
+        var shouldDraw = Game1.ShouldDrawUiOnCurrentFrame(scheduledDraw: true, targetRecreated: false);
+
+        Assert.True(shouldDraw);
+    }
 }

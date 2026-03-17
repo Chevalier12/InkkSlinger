@@ -25,6 +25,15 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <xs:simpleType name="scrollBarVisibilityType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Disabled" />
+      <xs:enumeration value="Hidden" />
+      <xs:enumeration value="Auto" />
+      <xs:enumeration value="Visible" />
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:complexType name="uiElementBaseType">
     <xs:sequence minOccurs="0" maxOccurs="unbounded">
       <xs:choice>
@@ -1524,6 +1533,23 @@
         <xs:attribute name="BorderThickness" type="xs:float" />
         <xs:attribute name="Padding" type="thicknessType" />
         <xs:attribute name="IsReadOnly" type="xs:boolean" />
+        <xs:attribute name="HorizontalScrollBarVisibility" type="scrollBarVisibilityType" />
+        <xs:attribute name="VerticalScrollBarVisibility" type="scrollBarVisibilityType" />
+        <xs:attribute name="SelectionBrush" type="colorType" />
+        <xs:attribute name="CaretBrush" type="colorType" />
+        <xs:attribute name="SelectionTextBrush" type="colorType" />
+        <xs:attribute name="SelectionOpacity" type="xs:float" />
+        <xs:attribute name="AcceptsReturn" type="xs:boolean" />
+        <xs:attribute name="AcceptsTab" type="xs:boolean" />
+        <xs:attribute name="IsSpellCheckEnabled" type="xs:boolean" />
+        <xs:attribute name="IsUndoEnabled" type="xs:boolean" />
+        <xs:attribute name="UndoLimit" type="xs:int" />
+        <xs:attribute name="IsReadOnlyCaretVisible" type="xs:boolean" />
+        <xs:attribute name="IsInactiveSelectionHighlightEnabled" type="xs:boolean" />
+        <xs:attribute name="DocumentChanged" type="xs:string" />
+        <xs:attribute name="TextChanged" type="xs:string" />
+        <xs:attribute name="SelectionChanged" type="xs:string" />
+        <xs:attribute name="HyperlinkNavigate" type="xs:string" />
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>

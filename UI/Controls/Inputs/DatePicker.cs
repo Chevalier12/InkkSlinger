@@ -746,15 +746,6 @@ public class DatePicker : UserControl
 
     private Panel? FindHostPanel()
     {
-        Panel? host = null;
-        for (var current = VisualParent; current != null; current = current.VisualParent ?? current.LogicalParent)
-        {
-            if (current is Panel panel)
-            {
-                host = panel;
-            }
-        }
-
-        return host;
+        return Popup.ResolveOverlayHost(this);
     }
 }

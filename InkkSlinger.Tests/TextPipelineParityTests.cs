@@ -65,6 +65,30 @@ public class TextPipelineParityTests
     }
 
     [Fact]
+    public void TextBlock_Measure_UsesMaxWidthConstrainedWrapWidth()
+    {
+        var textBlock = new TextBlock
+        {
+            Text = "Activity loaded welcome preset hyperlink none spell check remains disabled without an attached engine",
+            TextWrapping = TextWrapping.Wrap
+        };
+
+        var intrinsicWidth = UiTextRenderer.MeasureWidth(textBlock, textBlock.Text, textBlock.FontSize);
+        textBlock.MaxWidth = intrinsicWidth * 0.55f;
+
+        var unconstrainedLayout = TextLayout.LayoutForElement(textBlock.Text, textBlock, textBlock.FontSize, intrinsicWidth + 10f, TextWrapping.Wrap);
+        var constrainedLayout = TextLayout.LayoutForElement(textBlock.Text, textBlock, textBlock.FontSize, textBlock.MaxWidth, TextWrapping.Wrap);
+
+        Assert.Single(unconstrainedLayout.Lines);
+        Assert.True(constrainedLayout.Lines.Count > 1);
+
+        textBlock.Measure(new Vector2(intrinsicWidth + 10f, float.PositiveInfinity));
+
+        Assert.True(textBlock.DesiredSize.X <= textBlock.MaxWidth + 0.01f);
+        Assert.Equal(constrainedLayout.Size.Y, textBlock.DesiredSize.Y, 3);
+    }
+
+    [Fact]
     public void CaretBlink_Invalidation_UsesTightDirtyRegion()
     {
         Dispatcher.ResetForTests();

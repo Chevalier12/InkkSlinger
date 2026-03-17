@@ -36,7 +36,7 @@ public sealed class AccessText : TextBlock
     {
         var availableWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
-            : availableSize.X;
+            : ResolveMeasureTextLayoutWidth(availableSize.X);
 
         return TextLayout.LayoutForElement(DisplayText, this, FontSize, availableWidth, TextWrapping).Size;
     }

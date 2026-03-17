@@ -124,11 +124,8 @@ public static partial class XamlLoader
         var appResources = UiApplication.Current.Resources;
         if (clearExisting)
         {
-            appResources.Clear();
-            foreach (var merged in appResources.MergedDictionaries.ToList())
-            {
-                appResources.RemoveMergedDictionary(merged);
-            }
+            appResources.ReplaceContents(loadedResources, loadedResources.MergedDictionaries);
+            return;
         }
 
         MergeResourceDictionaryContents(appResources, loadedResources);

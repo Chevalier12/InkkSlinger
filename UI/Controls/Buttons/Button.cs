@@ -501,8 +501,12 @@ public class Button : ContentControl
                 ? float.PositiveInfinity
                 : maxTextWidth;
             var layout = ResolveTextLayout(text, availableWidth);
-            var textX = left + ((maxTextWidth - layout.Size.X) / 2f);
-            var textY = top + ((maxTextHeight - layout.Size.Y) / 2f);
+            var textX = layout.Size.X <= maxTextWidth
+                ? left + ((maxTextWidth - layout.Size.X) / 2f)
+                : left;
+            var textY = layout.Size.Y <= maxTextHeight
+                ? top + ((maxTextHeight - layout.Size.Y) / 2f)
+                : top;
             var lineSpacing = UiTextRenderer.GetLineHeight(this, FontSize);
             var lineDraws = new ButtonTextLineDraw[layout.Lines.Count];
             var lineDrawCount = 0;
@@ -516,7 +520,9 @@ public class Button : ContentControl
                 }
 
                 var lineWidth = ResolveRenderedLineWidth(layout, i, line, FontSize);
-                var lineX = textX + ((layout.Size.X - lineWidth) / 2f);
+                var lineX = lineWidth <= maxTextWidth
+                    ? left + ((maxTextWidth - lineWidth) / 2f)
+                    : left;
                 var linePosition = new Vector2(lineX, textY + (i * lineSpacing));
                 lineDraws[lineDrawCount++] = new ButtonTextLineDraw(line, linePosition);
             }

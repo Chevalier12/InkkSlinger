@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - RichTextBox</title>
-    <meta name="description" content="RichTextBox control reference.">
+    <meta name="description" content="RichTextBox control reference covering editing, commands, selection, rendering, and integration with the rich document model.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -137,6 +137,7 @@
                                     <li><a href="./controls-repeat-button.html">RepeatButton</a></li>
                                     <li><a href="./controls-resize-grip.html">ResizeGrip</a></li>
                                     <li><a class="active" href="./controls-rich-text-box.html">RichTextBox</a></li>
+                                    <li><a href="./controls-rich-text-document.html">RichTextDocument</a></li>
                                     <li><a href="./controls-scroll-bar.html">ScrollBar</a></li>
                                     <li><a href="./controls-scroll-viewer.html">ScrollViewer</a></li>
                                     <li><a href="./controls-separator.html">Separator</a></li>
@@ -173,308 +174,177 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>RichTextBox</h1>
-                    <p><code>RichTextBox</code> is the structured document editor for rich text, inline formatting, hyperlinks, lists, tables, clipboard round-trips, and undoable editing. It hosts a <code>FlowDocument</code>, renders the document surface directly, maintains caret and selection state, and exposes routed events for document changes and hyperlink navigation.</p>
+                    <p><code>RichTextBox</code> is the interactive host for structured rich documents. It owns focus, caret and selection state, editing commands, scrolling, rendering, hyperlink activation, and the control-template contract. The document tree it hosts is covered separately on <a href="./controls-rich-text-document.html">the RichTextDocument page</a>.</p>
                 </div>
                 <section class="doc-section">
+                    <h2>Mental model</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>The control</h3>
+                            <p><code>RichTextBox</code> behaves like an editor surface: it receives input, manages selection and caret visibility, executes editing commands, and renders the live document viewport.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>The model</h3>
+                            <p>The hosted document is still a structured tree of blocks and inlines. When you need to reason about paragraphs, runs, lists, tables, or hosted UI, jump to <a href="./controls-rich-text-document.html">RichTextDocument</a>.</p>
+                        </article>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Choose the layer deliberately.</strong> Reach for <code>RichTextBox</code> when your problem is about editing behavior or UI integration. Reach for <a href="./controls-rich-text-document.html"><code>RichTextDocument</code></a> when your problem is about document structure or serialization.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
                     <h2>Quick start</h2>
-                    <p>Use <code>RichTextBox</code> when you need editable document content rather than a single plain text buffer. The control works directly against a <code>FlowDocument</code>, so paragraphs, runs, lists, tables, and hyperlinks remain part of the editing model.</p>
-                    <h3>Minimal editor with a document</h3>
-                    <pre><code class="language-xml">&lt;RichTextBox Width="420"
-             Height="220"
-             Background="{StaticResource DarkSurfaceBrush}"
-             BorderBrush="{StaticResource DarkBorderBrush}"
-             BorderThickness="1"
-             Padding="8" /&gt;</code></pre>
-                    <h3>Seed a FlowDocument in code</h3>
-                    <pre><code class="language-csharp">var document = new FlowDocument();
-var paragraph = new Paragraph();
-paragraph.Inlines.Add(new Run("Release notes"));
-document.Blocks.Add(paragraph);
-
-editor.Document = document;</code></pre>
-                    <h3>Read-only viewer with rich selection</h3>
+                    <h3>Minimal editor surface</h3>
                     <pre><code class="language-xml">&lt;RichTextBox Width="520"
              Height="260"
-             IsReadOnly="True"
+             Padding="8"
+             BorderThickness="1"
              TextWrapping="Wrap" /&gt;</code></pre>
-                    <div class="callout doc-callout">
-                        <p><strong>Default model:</strong> the editor always keeps a valid <code>FlowDocument</code>. Setting <code>Document</code> to <code>null</code> is coerced back to a default document with one empty paragraph.</p>
-                    </div>
-                </section>
-                <section class="doc-section">
-                    <h2>Document model</h2>
-                    <p><code>RichTextBox</code> edits a <code>FlowDocument</code>, not a plain string property. The document can contain block-level and inline rich content, and the editor preserves that structure through many selection, clipboard, and command operations.</p>
-                    <div class="doc-grid two-up">
-                        <article class="doc-card">
-                            <h3>Block content</h3>
-                            <p>The document can host <code>Paragraph</code>, <code>List</code>, <code>Table</code>, <code>Section</code>, and related flow blocks as part of the editable surface.</p>
-                        </article>
-                        <article class="doc-card">
-                            <h3>Inline content</h3>
-                            <p>Paragraphs can contain <code>Run</code>, <code>Bold</code>, <code>Italic</code>, <code>Underline</code>, <code>Hyperlink</code>, and other inline spans. Formatting commands operate against that structure instead of flattening it to plain text.</p>
-                        </article>
-                    </div>
-                    <ul>
-                        <li><code>DocumentChanged</code> is raised both when you replace <code>Document</code> and when the current document mutates internally.</li>
-                        <li>The control applies implicit hyperlink styling when documents change so links participate in the visual model without requiring manual post-processing.</li>
-                        <li>The editor clamps caret and selection offsets whenever document structure changes, which keeps document edits and undo or redo transitions stable.</li>
-                    </ul>
-                    <h3>Document with inline rich content</h3>
+                    <h3>Assign a document</h3>
                     <pre><code class="language-csharp">var document = new FlowDocument();
 var paragraph = new Paragraph();
-
-paragraph.Inlines.Add(new Run("Build status: "));
-
-var bold = new Bold();
-bold.Inlines.Add(new Run("Ready"));
-paragraph.Inlines.Add(bold);
-
-var link = new Hyperlink
-{
-    NavigateUri = "https://example.com/release-notes"
-};
-link.Inlines.Add(new Run(" release notes"));
-paragraph.Inlines.Add(link);
-
+paragraph.Inlines.Add(new Run("Edit me"));
 document.Blocks.Add(paragraph);
+
 editor.Document = document;</code></pre>
+                    <h3>Read-only rich viewer</h3>
+                    <pre><code class="language-xml">&lt;RichTextBox Width="560"
+             Height="280"
+             IsReadOnly="True"
+             TextWrapping="Wrap" /&gt;</code></pre>
                 </section>
                 <section class="doc-section">
-                    <h2>Caret, selection, and pointer behavior</h2>
-                    <p>The editor tracks caret and selection directly through text offsets into the flattened document text. Public inspection surfaces include <code>CaretIndex</code>, <code>SelectionStart</code>, and <code>SelectionLength</code>, while input handlers and command bindings keep those values synchronized with the document layout.</p>
-                    <div class="doc-grid two-up">
-                        <article class="doc-card">
-                            <h3>Keyboard navigation</h3>
-                            <p>Arrow keys move by character or visual line. <code>Ctrl+Left</code> and <code>Ctrl+Right</code> move by word, <code>Home</code> and <code>End</code> move by line, and <code>Ctrl+Home</code> or <code>Ctrl+End</code> jump to document bounds.</p>
-                        </article>
-                        <article class="doc-card">
-                            <h3>Pointer selection</h3>
-                            <p>Pointer down moves the caret or extends selection, drag updates the active selection range, double-click selects a word, and triple-click selects a paragraph.</p>
-                        </article>
-                    </div>
+                    <h2>What the control owns</h2>
                     <ul>
-                        <li><code>Shift</code> extends selection during keyboard navigation.</li>
-                        <li>The editor auto-scrolls while pointer selection drags beyond the visible text rect.</li>
-                        <li>The caret visibility is maintained automatically, including horizontal offset updates for long unwrapped lines.</li>
-                        <li>Read-only mode still allows caret movement, selection, and hyperlink activation.</li>
+                        <li>Keyboard and pointer editing gestures, including word motion, selection extension, paragraph breaks, list commands, and hyperlink activation.</li>
+                        <li>Caret and selection state through both integer offsets and document-aware pointer or range APIs.</li>
+                        <li>Undo or redo orchestration through the document undo manager.</li>
+                        <li>Viewport scrolling, caret visibility, auto-scroll during drag selection, and wheel handling.</li>
+                        <li>Rendering of the document surface, selection geometry, caret, table lines, and hosted document children.</li>
                     </ul>
                     <h3>Inspect selection state</h3>
-                    <pre><code class="language-csharp">Logger.Write($"Caret: {editor.CaretIndex}");
-Logger.Write($"Selection start: {editor.SelectionStart}");
-Logger.Write($"Selection length: {editor.SelectionLength}");</code></pre>
-                    <h3>Programmatic focus handoff from input hosting</h3>
-                    <pre><code class="language-csharp">editor.SetFocusedFromInput(true);
-editor.SetMouseOverFromInput(true);</code></pre>
+                    <pre><code class="language-csharp">Console.WriteLine(editor.CaretIndex);
+Console.WriteLine(editor.SelectionStart);
+Console.WriteLine(editor.SelectionLength);</code></pre>
+                    <h3>Hit test into the document</h3>
+                    <pre><code class="language-csharp">TextPointer? pointer = editor.GetPositionFromPoint(mousePosition, snapToText: true);
+if (pointer.HasValue)
+{
+    var offset = DocumentPointers.GetDocumentOffset(pointer.Value);
+    Console.WriteLine($"Hit offset: {offset}");
+}</code></pre>
                 </section>
                 <section class="doc-section">
-                    <h2>Editing commands and shortcuts</h2>
-                    <p><code>RichTextBox</code> registers a broad editing command surface through command bindings and key bindings. Most text editing, selection, formatting, clipboard, list, and table operations route through those commands, which keeps keyboard shortcuts and explicit <code>CommandManager.Execute</code> calls aligned.</p>
+                    <h2>Working with the document</h2>
+                    <p><code>RichTextBox</code> always hosts a valid document. Setting <code>Document</code> to <code>null</code> is coerced back to a default document, and whole-document operations are intentionally separate from selection-scoped operations.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Whole-document APIs</h3>
+                            <p>Use <code>Document</code>, <code>Load</code>, and <code>Save</code> when you want to replace or serialize the complete document.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Selection APIs</h3>
+                            <p>Use <code>Select</code>, <code>LoadSelection</code>, and <code>SaveSelection</code> when the operation should affect only the current range.</p>
+                        </article>
+                    </div>
+                    <h3>Whole-document load</h3>
+                    <pre><code class="language-csharp">using var stream = new MemoryStream(Encoding.UTF8.GetBytes(payload));
+editor.Load(stream, "Xaml");</code></pre>
+                    <h3>Selection-scoped load</h3>
+                    <pre><code class="language-csharp">using var stream = new MemoryStream(Encoding.UTF8.GetBytes("Inserted text"));
+editor.LoadSelection(stream, "Text");</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Document structure is preserved by default.</strong> The editor will preserve rich fragments during selection edits, clipboard operations, and many command-driven transformations. The full model details live on <a href="./controls-rich-text-document.html">the RichTextDocument guide</a>.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Commands and shortcuts</h2>
+                    <p>Toolbar buttons, keyboard shortcuts, and explicit command execution all go through the same routed command surface.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
                             <h3>Core editing</h3>
-                            <p>Backspace, delete, paragraph break, line break, tab, shift+tab, copy, cut, paste, undo, redo, and select-all are all part of the active editing path.</p>
+                            <p>Backspace, delete, copy, cut, paste, undo, redo, select-all, paragraph breaks, line breaks, and word navigation.</p>
                         </article>
                         <article class="doc-card">
                             <h3>Rich editing</h3>
-                            <p><code>Ctrl+B</code>, <code>Ctrl+I</code>, and <code>Ctrl+U</code> toggle bold, italic, and underline. Additional editing commands support list indent or outdent plus table insertion, cell split, and cell merge.</p>
+                            <p>Formatting toggles, list indent or outdent, table insertion, cell split or merge, document navigation, and hyperlink activation.</p>
                         </article>
                     </div>
-                    <ul>
-                        <li><code>Ctrl+Z</code> and <code>Ctrl+Y</code> drive undo and redo directly through the internal document undo manager.</li>
-                        <li>Typing bursts are grouped so sequential typing can undo as a single operation.</li>
-                        <li>When no selection exists, bold, italic, and underline commands switch typing mode so newly typed text inherits the chosen inline style.</li>
-                        <li>When a selection exists, formatting commands apply or remove inline wrappers across the selected rich fragment.</li>
-                    </ul>
-                    <h3>Execute a formatting command explicitly</h3>
+                    <h3>Formatting commands</h3>
                     <pre><code class="language-csharp">CommandManager.Execute(EditingCommands.ToggleBold, null, editor);
 CommandManager.Execute(EditingCommands.ToggleItalic, null, editor);
 CommandManager.Execute(EditingCommands.ToggleUnderline, null, editor);</code></pre>
-                    <h3>Execute structural commands</h3>
-                    <pre><code class="language-csharp">CommandManager.Execute(EditingCommands.InsertTable, null, editor);
-CommandManager.Execute(EditingCommands.IncreaseListLevel, null, editor);
-CommandManager.Execute(EditingCommands.DecreaseListLevel, null, editor);</code></pre>
+                    <h3>Structure commands</h3>
+                    <pre><code class="language-csharp">CommandManager.Execute(EditingCommands.ToggleBullets, null, editor);
+CommandManager.Execute(EditingCommands.InsertTable, null, editor);
+CommandManager.Execute(EditingCommands.SplitCell, null, editor);</code></pre>
                 </section>
                 <section class="doc-section">
-                    <h2>Clipboard, lists, and tables</h2>
-                    <p>The control supports rich clipboard and structure-aware editing paths rather than treating everything as raw plain text. This matters most when selections cross paragraph boundaries or when the document already contains rich inline or block content.</p>
-                    <div class="doc-grid two-up">
-                        <article class="doc-card">
-                            <h3>Clipboard</h3>
-                            <p>Copy and paste handle both plain text and richer document fragments. The editor recognizes rich clipboard payloads such as RTF, XAML, and XamlPackage when available.</p>
-                        </article>
-                        <article class="doc-card">
-                            <h3>Structure-aware edits</h3>
-                            <p>List and table commands preserve document structure where possible, including nested list operations, table insertion, and adjacent cell split or merge behavior.</p>
-                        </article>
-                    </div>
+                    <h2>Serialization and clipboard</h2>
+                    <p>The control supports both rich and plain formats. Rich formats preserve more structure; text formats flatten the document.</p>
                     <ul>
-                        <li><code>Enter</code> inserts a paragraph break, while <code>Shift+Enter</code> inserts a line break.</li>
-                        <li><code>Tab</code> and <code>Shift+Tab</code> participate in list-level and table-cell editing instead of immediately handing focus away.</li>
-                        <li>Table insertion creates a default <code>2x2</code> table and moves the caret into the first reachable cell.</li>
-                        <li>Merge and split commands act on the currently active table cell and are gated by the current document position.</li>
+                        <li>Rich formats include <code>Flow XML</code>, <code>Xaml</code>, <code>XamlPackage</code>, and <code>Rich Text Format</code>.</li>
+                        <li>Plain formats include <code>Text</code> and <code>UnicodeText</code>.</li>
+                        <li><code>SaveSelection</code> and <code>LoadSelection</code> let you round-trip only the active fragment.</li>
                     </ul>
-                    <h3>Insert a table and then edit cells</h3>
-                    <pre><code class="language-csharp">CommandManager.Execute(EditingCommands.InsertTable, null, editor);
-CommandManager.Execute(EditingCommands.SplitCell, null, editor);
-CommandManager.Execute(EditingCommands.MergeCells, null, editor);</code></pre>
+                    <h3>Save the whole document</h3>
+                    <pre><code class="language-csharp">using var stream = new MemoryStream();
+editor.Save(stream, FlowDocumentSerializer.ClipboardFormat);</code></pre>
+                    <h3>Save only the current selection</h3>
+                    <pre><code class="language-csharp">using var stream = new MemoryStream();
+editor.SaveSelection(stream, "Xaml");</code></pre>
                 </section>
                 <section class="doc-section">
-                    <h2>Hyperlinks and read-only behavior</h2>
-                    <p><code>RichTextBox</code> supports interactive hyperlinks inside the document model. Hyperlinks are resolved from the current caret or pointer hit-test offset and raise a bubbled <code>HyperlinkNavigate</code> routed event carrying the target URI.</p>
+                    <h2>Layout, templating, and rendering</h2>
+                    <p>The control template provides outer chrome only. <code>RichTextBox</code> still owns the rich document viewport and rendering behavior.</p>
                     <div class="doc-grid two-up">
                         <article class="doc-card">
-                            <h3>Keyboard activation</h3>
-                            <p><code>Ctrl+Enter</code> activates the hyperlink at the current selection or caret position. This remains available even in read-only mode.</p>
+                            <h3>Template contract</h3>
+                            <p>The default template must expose <code>PART_ContentHost</code> so the control aligns with the rest of the text-input family.</p>
                         </article>
                         <article class="doc-card">
-                            <h3>Pointer activation</h3>
-                            <p>In read-only mode, a simple click on a hyperlink can activate it when the pointer interaction did not turn into a drag selection.</p>
+                            <h3>Control-owned surface</h3>
+                            <p>Selection, caret, rendered runs, table borders, and hosted document UI are still drawn and managed by the control itself.</p>
                         </article>
                     </div>
-                    <ul>
-                        <li>Read-only blocks text mutation, cut, paste, and formatting changes.</li>
-                        <li>Read-only still permits navigation, selection, mouse-over tracking, and hyperlink activation.</li>
-                        <li>The control maintains hovered hyperlink state separately from the selected text range.</li>
-                    </ul>
-                    <h3>Handle navigation events</h3>
-                    <pre><code class="language-csharp">editor.HyperlinkNavigate += (_, args) =&gt;
-{
-    Logger.Write($"Navigate: {args.NavigateUri}");
-};</code></pre>
-                </section>
-                <section class="doc-section">
-                    <h2>Layout, rendering, and scrolling</h2>
-                    <p>The control renders its own document surface. It measures document content through the layout engine, draws the background and border, paints selection geometry and inline runs, draws table borders, and finally renders the caret when focused and visible.</p>
-                    <div class="doc-grid two-up">
-                        <article class="doc-card">
-                            <h3>Measurement</h3>
-                            <p>Desired size comes from the laid out document plus <code>Padding</code> and <code>BorderThickness</code>. With <code>TextWrapping="NoWrap"</code>, measurement uses infinite text width.</p>
-                        </article>
-                        <article class="doc-card">
-                            <h3>Scrolling</h3>
-                            <p>The editor manages internal horizontal and vertical offsets itself. Mouse wheel scrolling is vertical and requires focus, while caret visibility logic can also adjust horizontal offsets for long lines.</p>
-                        </article>
-                    </div>
-                    <ul>
-                        <li>The control is not driven by a <code>PART_ContentHost</code> or <code>ScrollViewer</code> template contract.</li>
-                        <li>Selection, caret, and rendered runs are clipped to the computed text rect inside the control's border and padding.</li>
-                        <li>When focused, the caret blinks on a half-second cadence and the editor participates in the UI root frame update loop.</li>
-                        <li>Pointer selection auto-scroll can move both vertically and horizontally when dragging beyond the visible document bounds.</li>
-                    </ul>
-                    <h3>Configure no-wrap editing</h3>
-                    <pre><code class="language-xml">&lt;RichTextBox Width="500"
-             Height="180"
-             TextWrapping="NoWrap"
-             Padding="8"
-             BorderThickness="1" /&gt;</code></pre>
-                </section>
-                <section class="doc-section">
-                    <h2>Performance and diagnostics</h2>
-                    <p>The editor carries internal performance tracking for layout, rendering, selection geometry, clipboard serialization and deserialization, and edit operations. This is useful when profiling large documents or validating undo and clipboard costs during complex flows.</p>
-                    <div class="doc-grid two-up">
-                        <article class="doc-card">
-                            <h3>Snapshot access</h3>
-                            <p><code>GetPerformanceSnapshot()</code> returns the current metrics summary, including undo stack visibility through the integrated performance tracker.</p>
-                        </article>
-                        <article class="doc-card">
-                            <h3>Reset support</h3>
-                            <p><code>ResetPerformanceSnapshot()</code> clears the tracked counters so a new scenario can be measured without constructing a new editor instance.</p>
-                        </article>
-                    </div>
-                    <h3>Capture a performance snapshot</h3>
-                    <pre><code class="language-csharp">var snapshot = editor.GetPerformanceSnapshot();
-Logger.Write(snapshot.ToString());
-
-editor.ResetPerformanceSnapshot();</code></pre>
-                </section>
-                <section class="doc-section">
-                    <h2>Theme and styling</h2>
-                    <p>The current theme styles <code>RichTextBox</code> through direct property setters in <code>App.xml</code>. Unlike <code>TextBox</code> and <code>PasswordBox</code>, the theme does not replace the visual tree with a control template because the editor already renders its own document surface.</p>
-                    <div class="doc-grid two-up">
-                        <article class="doc-card">
-                            <h3>Theme-set properties</h3>
-                            <p><code>Background</code>, <code>Foreground</code>, <code>CaretBrush</code>, <code>SelectionBrush</code>, <code>BorderBrush</code>, <code>BorderThickness</code>, and <code>Padding</code> are set from the default dark theme.</p>
-                        </article>
-                        <article class="doc-card">
-                            <h3>Control-owned rendering</h3>
-                            <p>Those values feed directly into the control's renderer instead of being forwarded to named template parts.</p>
-                        </article>
-                    </div>
-                    <h3>Current theme entry</h3>
+                    <h3>Template example</h3>
                     <pre><code class="language-xml">&lt;Style TargetType="{x:Type RichTextBox}"&gt;
-  &lt;Setter Property="Background" Value="{StaticResource DarkSurfaceBrush}" /&gt;
-  &lt;Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" /&gt;
-  &lt;Setter Property="CaretBrush" Value="{StaticResource OrangePrimaryBrush}" /&gt;
-  &lt;Setter Property="SelectionBrush" Value="{StaticResource OrangeSubtleBrush}" /&gt;
-  &lt;Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" /&gt;
-  &lt;Setter Property="BorderThickness" Value="1" /&gt;
-  &lt;Setter Property="Padding" Value="8" /&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type RichTextBox}"&gt;
+        &lt;Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"&gt;
+          &lt;ScrollViewer x:Name="PART_ContentHost"
+                        Margin="{TemplateBinding Padding}"
+                        Focusable="False" /&gt;
+        &lt;/Border&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
 &lt;/Style&gt;</code></pre>
                 </section>
                 <section class="doc-section">
-                    <h2>Property and event reference</h2>
-                    <div class="doc-grid two-up">
-                        <article class="doc-card">
-                            <h3>Core document API</h3>
-                            <p><code>Document</code>: active <code>FlowDocument</code> being edited or viewed.</p>
-                            <p><code>DocumentChanged</code>: bubbled routed event raised when the active document is replaced or mutated.</p>
-                            <p><code>HyperlinkNavigate</code>: bubbled routed event raised when a hyperlink is activated.</p>
-                        </article>
-                        <article class="doc-card">
-                            <h3>Editing state</h3>
-                            <p><code>CaretIndex</code>: current caret offset into the flattened document text.</p>
-                            <p><code>SelectionStart</code> and <code>SelectionLength</code>: current selection bounds.</p>
-                            <p><code>IsReadOnly</code>: blocks mutation while preserving navigation and selection.</p>
-                        </article>
-                    </div>
-                    <div class="doc-grid two-up">
-                        <article class="doc-card">
-                            <h3>Visual properties</h3>
-                            <p><code>Background</code>, <code>Foreground</code>, <code>BorderBrush</code>, and <code>BorderThickness</code>: direct rendering inputs for the editor chrome.</p>
-                            <p><code>Padding</code>: inset around the document text rect.</p>
-                            <p><code>SelectionBrush</code> and <code>CaretBrush</code>: colors for selection geometry and caret rendering.</p>
-                            <p><code>TextWrapping</code>: wrap or no-wrap layout behavior.</p>
-                        </article>
-                        <article class="doc-card">
-                            <h3>Diagnostics</h3>
-                            <p><code>GetPerformanceSnapshot()</code>: capture performance counters for layout, render, clipboard, and edit activity.</p>
-                            <p><code>ResetPerformanceSnapshot()</code>: clear the current counters.</p>
-                            <p><code>IsFocused</code> and <code>IsMouseOver</code>: input-driven visual state surfaces.</p>
-                        </article>
-                    </div>
+                    <h2>Events and integration points</h2>
+                    <ul>
+                        <li><code>DocumentChanged</code> fires when the document is replaced or mutates internally.</li>
+                        <li><code>TextChanged</code> fires for text-affecting edits.</li>
+                        <li><code>SelectionChanged</code> tracks caret and selection transitions.</li>
+                        <li><code>HyperlinkNavigate</code> bubbles the activated target URI.</li>
+                    </ul>
+                    <h3>Subscribe to the main events</h3>
+                    <pre><code class="language-csharp">editor.DocumentChanged += (_, _) =&gt; Console.WriteLine("Document changed");
+editor.TextChanged += (_, _) =&gt; Console.WriteLine("Text changed");
+editor.SelectionChanged += (_, _) =&gt; Console.WriteLine("Selection changed");
+editor.HyperlinkNavigate += (_, args) =&gt; Console.WriteLine(args.NavigateUri);</code></pre>
                 </section>
                 <section class="doc-section">
-                    <h2>Patterns and examples</h2>
-                    <h3>Release-notes editor</h3>
-                    <pre><code class="language-xml">&lt;RichTextBox Width="560"
-             Height="320"
-             Padding="12"
-             SelectionBrush="{StaticResource OrangeSubtleBrush}"
-             CaretBrush="{StaticResource OrangePrimaryBrush}" /&gt;</code></pre>
-                    <h3>React to document changes</h3>
-                    <pre><code class="language-csharp">editor.DocumentChanged += (_, _) =&gt;
-{
-    Logger.Write("Document changed");
-};</code></pre>
-                    <h3>Read-only rich viewer with active links</h3>
-                    <pre><code class="language-xml">&lt;RichTextBox Width="520"
-             Height="260"
-             IsReadOnly="True"
-             TextWrapping="Wrap" /&gt;</code></pre>
-                </section>
-                <section class="doc-section">
-                    <h2>Notes and pitfalls</h2>
+                    <h2>When to use it</h2>
                     <div class="callout doc-callout">
-                        <p><strong>Document, not Text.</strong> This control does not expose a simple <code>Text</code> dependency property. If you need plain-text editing only, <code>TextBox</code> is the simpler surface.</p>
+                        <p><strong>Use <code>TextBox</code> for plain text.</strong> Use <code>RichTextBox</code> when the UI problem includes rich selection, structured clipboard content, hyperlinks, lists, tables, or hosted UI inside the document.</p>
                     </div>
                     <div class="callout doc-callout">
-                        <p><strong>No TextBox-style content host.</strong> The editor renders its own document, selection, caret, and table borders. There is no <code>PART_ContentHost</code> scroll host contract to preserve in a template.</p>
-                    </div>
-                    <div class="callout doc-callout">
-                        <p><strong>Read-only still allows interaction.</strong> <code>IsReadOnly</code> blocks mutation, but navigation, selection, wheel scrolling, and hyperlink activation remain part of the runtime behavior.</p>
-                    </div>
-                    <div class="callout doc-callout">
-                        <p><strong>Structural edits can stay rich.</strong> Clipboard, formatting, list, and table commands often preserve existing document structure instead of flattening content to plain text, which is usually what you want but is different from simple text replacement semantics.</p>
+                        <p><strong>Go deeper on the model.</strong> For blocks, inlines, tables, hosted UI containers, and example-rich document construction patterns, continue to <a href="./controls-rich-text-document.html">RichTextDocument</a>.</p>
                     </div>
                 </section>
                 <nav class="doc-pagination" aria-label="Page navigation">
@@ -482,9 +352,9 @@ editor.ResetPerformanceSnapshot();</code></pre>
                         <span>Previous</span>
                         <strong>ResizeGrip</strong>
                     </a>
-                    <a class="pager-link" href="./controls-scroll-bar.html">
+                    <a class="pager-link" href="./controls-rich-text-document.html">
                         <span>Next</span>
-                        <strong>ScrollBar</strong>
+                        <strong>RichTextDocument</strong>
                     </a>
                 </nav>
             </article>

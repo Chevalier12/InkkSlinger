@@ -7,6 +7,9 @@ namespace InkkSlinger;
 
 public static class TextClipboard
 {
+    private const uint ClipboardFormatText = 1;
+    private const uint ClipboardFormatUnicodeText = 13;
+
     private static string _text = string.Empty;
     private static readonly Dictionary<string, object?> DataByFormat = new(StringComparer.Ordinal);
     private static long _lastExternalSyncTicks;
@@ -109,6 +112,27 @@ public static class TextClipboard
     {
         SyncFromExternalClipboard();
         return new TextClipboardReadSnapshot(_text, new Dictionary<string, object?>(DataByFormat, StringComparer.Ordinal));
+    }
+
+    public static bool HasPastePayloadFast()
+    {
+        if (_text.Length > 0 || DataByFormat.Count > 0)
+        {
+            return true;
+        }
+
+        if (GetTextOverride != null)
+        {
+            return !string.IsNullOrEmpty(GetTextOverride());
+        }
+
+        if (!OperatingSystem.IsWindows() || IsTestHostProcess())
+        {
+            return false;
+        }
+
+        return IsClipboardFormatAvailable(ClipboardFormatUnicodeText) ||
+               IsClipboardFormatAvailable(ClipboardFormatText);
     }
 
     private static void SyncFromExternalClipboard()
@@ -215,8 +239,7 @@ public static class TextClipboard
     private static bool TryReadSystemClipboardTextFast(out string? text)
     {
         text = null;
-        const uint cfUnicodeText = 13;
-        if (!IsClipboardFormatAvailable(cfUnicodeText))
+        if (!IsClipboardFormatAvailable(ClipboardFormatUnicodeText))
         {
             return false;
         }
@@ -241,7 +264,7 @@ public static class TextClipboard
 
         try
         {
-            var handle = GetClipboardData(cfUnicodeText);
+            var handle = GetClipboardData(ClipboardFormatUnicodeText);
             if (handle == IntPtr.Zero)
             {
                 return false;

@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-03-14 (full filesystem refresh)
+Generated: 2026-03-17 (full filesystem refresh)
 
 ```text
 UI/
@@ -158,6 +158,7 @@ UI/
       RichTextBox.TableOperations.cs
       RichTextBoxPerformanceTracker.cs
       Slider.cs
+      SpellCheck.cs
       TextBox.cs
     Items
       ComboBox.cs
@@ -195,6 +196,7 @@ UI/
       ImageSource.cs
       Label.cs
       ProgressBar.cs
+      RenderSurface.ManagedBackend.cs
       RenderSurface.cs
       Separator.cs
       Shape.cs
@@ -333,6 +335,7 @@ UI/
       Setter.cs
       SetterBase.cs
       Style.cs
+      StyleSelector.cs
       StyleValueCloneUtility.cs
       VisualStates.cs
     Effects
@@ -349,6 +352,7 @@ UI/
   Templating
     Core
       ControlTemplate.cs
+      ItemsPanelTemplate.cs
       TemplateBinding.cs
       TemplateTriggerEngine.cs
     Data
@@ -362,12 +366,14 @@ UI/
       AccessTextParser.cs
       TextLayout.cs
     Documents
+      LogicalDirection.cs
       Operations
         DocumentOperations.cs
       DocumentEditing.cs
       DocumentModel.cs
       DocumentPointers.cs
       FlowDocumentSerialization.cs
+      SpellingError.cs
     Editing
       TextClipboard.cs
       TextEditingBuffer.cs

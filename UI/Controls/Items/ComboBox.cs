@@ -429,18 +429,7 @@ public class ComboBox : Selector
 
     private Panel? FindHostPanel()
     {
-        Panel? host = null;
-        for (var current = VisualParent; current != null; current = current.VisualParent ?? current.LogicalParent)
-        {
-            if (current is Panel panel)
-            {
-                // Popups should attach to the topmost panel so they render as an overlay
-                // and do not participate in local container layout (for example Grid auto rows).
-                host = panel;
-            }
-        }
-
-        return host;
+        return Popup.ResolveOverlayHost(this);
     }
 
     private string GetDisplayText(object? item)

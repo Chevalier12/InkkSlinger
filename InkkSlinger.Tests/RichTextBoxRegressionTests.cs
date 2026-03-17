@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Xunit;
 
@@ -53,6 +54,93 @@ public sealed class RichTextBoxRegressionTests
         Assert.True(editor.HandleTextInputFromInput('X'));
 
         Assert.Equal("X", DocumentEditing.GetText(editor.Document));
+        Assert.Equal(0, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void RepeatedTyping_AfterExistingFormatting_AppendsInOrder()
+    {
+        var editor = CreateEditor(320f, 90f, string.Empty);
+        editor.Document = BuildFormattedDocument("A", "B");
+        editor.Select(2, 0);
+
+        Assert.True(editor.HandleTextInputFromInput('c'));
+        Assert.True(editor.HandleTextInputFromInput('d'));
+        Assert.True(editor.HandleTextInputFromInput('e'));
+
+        Assert.Equal("ABcde", DocumentEditing.GetText(editor.Document));
+        Assert.Equal(5, editor.CaretIndex);
+        Assert.Equal(0, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void PointerPlacement_InFormattedParagraph_ThenRepeatedTyping_AppendsInOrder()
+    {
+        var editor = CreateEditor(360f, 90f, string.Empty);
+        editor.Document = BuildFormattedDocument("Alpha", "Beta");
+        var textLeft = 1f + 8f;
+        var textTop = 1f + 5f;
+        var pointAtEnd = new Vector2(
+            textLeft + UiTextRenderer.MeasureWidth("AlphaBeta", editor.FontSize),
+            textTop + 2f);
+
+        Assert.True(editor.HandlePointerDownFromInput(pointAtEnd, extendSelection: false));
+        Assert.True(editor.HandlePointerUpFromInput());
+        Assert.True(editor.HandleTextInputFromInput('c'));
+        Assert.True(editor.HandleTextInputFromInput('d'));
+        Assert.True(editor.HandleTextInputFromInput('e'));
+
+        Assert.Equal("AlphaBetacde", DocumentEditing.GetText(editor.Document));
+        Assert.Equal(12, editor.CaretIndex);
+        Assert.Equal(0, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void RepeatedTyping_AtStartOfMultiBlockDocument_PreservesOrder()
+    {
+        var editor = CreateEditor(480f, 220f, string.Empty);
+        editor.Document = BuildWelcomeStyleDocument();
+        editor.Select(0, 0);
+
+        Assert.True(editor.HandleTextInputFromInput('a'));
+        Assert.True(editor.HandleTextInputFromInput('b'));
+        Assert.True(editor.HandleTextInputFromInput('c'));
+
+        Assert.StartsWith("abc", DocumentEditing.GetText(editor.Document), StringComparison.Ordinal);
+        Assert.Equal(3, editor.CaretIndex);
+        Assert.Equal(0, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void RepeatedTyping_AtStartOfMultiBlockDocument_AcrossUiRootFrames_PreservesOrder()
+    {
+        var editor = CreateEditor(480f, 220f, string.Empty);
+        editor.Document = BuildWelcomeStyleDocument();
+
+        var host = new Canvas
+        {
+            Width = 640f,
+            Height = 360f
+        };
+        host.AddChild(editor);
+        var uiRoot = new UiRoot(host);
+
+        RunLayout(uiRoot, 640, 360);
+        RunLayout(uiRoot, 640, 360);
+        RunLayout(uiRoot, 640, 360);
+
+        editor.SetFocusedFromInput(true);
+        editor.Select(0, 0);
+
+        Assert.True(editor.HandleTextInputFromInput('a'));
+        RunLayout(uiRoot, 640, 360);
+        Assert.True(editor.HandleTextInputFromInput('b'));
+        RunLayout(uiRoot, 640, 360);
+        Assert.True(editor.HandleTextInputFromInput('c'));
+        RunLayout(uiRoot, 640, 360);
+
+        Assert.StartsWith("abc", DocumentEditing.GetText(editor.Document), StringComparison.Ordinal);
+        Assert.Equal(3, editor.CaretIndex);
         Assert.Equal(0, editor.SelectionLength);
     }
 
@@ -169,6 +257,13 @@ public sealed class RichTextBoxRegressionTests
         return text.Substring(editor.SelectionStart, editor.SelectionLength);
     }
 
+    private static void RunLayout(UiRoot uiRoot, int width, int height)
+    {
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, width, height));
+    }
+
     private static string[] BuildLines(int count)
     {
         var lines = new string[count];
@@ -192,5 +287,77 @@ public sealed class RichTextBoxRegressionTests
         paragraph.Inlines.Add(hyperlink);
         document.Blocks.Add(paragraph);
         return document;
+    }
+
+    private static FlowDocument BuildFormattedDocument(string boldText, string normalText)
+    {
+        var document = new FlowDocument();
+        var paragraph = new Paragraph();
+        var bold = new Bold();
+        bold.Inlines.Add(new Run(boldText));
+        paragraph.Inlines.Add(bold);
+        paragraph.Inlines.Add(new Run(normalText));
+        document.Blocks.Add(paragraph);
+        return document;
+    }
+
+    private static FlowDocument BuildWelcomeStyleDocument()
+    {
+        var document = new FlowDocument();
+
+        var title = new Paragraph();
+        var titleBold = new Bold();
+        titleBold.Inlines.Add(new Run("RichTextBox Studio"));
+        title.Inlines.Add(titleBold);
+        title.Inlines.Add(new Run(" gives the Controls Catalog a real editing surface."));
+        document.Blocks.Add(title);
+
+        var body = new Paragraph();
+        body.Inlines.Add(new Run("Use Bold, Italic, and Underline with the toolbar."));
+        document.Blocks.Add(body);
+
+        var list = new InkkSlinger.List();
+        list.Items.Add(CreateListItem("Toggle formatting on a live selection."));
+        list.Items.Add(CreateListItem("Round-trip the document through export formats."));
+        document.Blocks.Add(list);
+
+        document.Blocks.Add(BuildStatusTable());
+        return document;
+    }
+
+    private static ListItem CreateListItem(string text)
+    {
+        var item = new ListItem();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run(text));
+        item.Blocks.Add(paragraph);
+        return item;
+    }
+
+    private static Table BuildStatusTable()
+    {
+        var table = new Table();
+        var rowGroup = new TableRowGroup();
+        rowGroup.Rows.Add(CreateStatusRow("Mode", "Interactive"));
+        rowGroup.Rows.Add(CreateStatusRow("Clipboard", "Flow XML"));
+        table.RowGroups.Add(rowGroup);
+        return table;
+    }
+
+    private static TableRow CreateStatusRow(string label, string value)
+    {
+        var row = new TableRow();
+        row.Cells.Add(CreateTableCell(label));
+        row.Cells.Add(CreateTableCell(value));
+        return row;
+    }
+
+    private static TableCell CreateTableCell(string text)
+    {
+        var cell = new TableCell();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run(text));
+        cell.Blocks.Add(paragraph);
+        return cell;
     }
 }

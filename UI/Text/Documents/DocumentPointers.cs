@@ -88,6 +88,20 @@ public static class DocumentPointers
         return traversed;
     }
 
+    public static bool TryGetDocumentOffset(FlowDocument document, TextPointer pointer, out int offset)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (!TryFindOwningDocument(pointer.Run, out var owningDocument) ||
+            !ReferenceEquals(owningDocument, document))
+        {
+            offset = 0;
+            return false;
+        }
+
+        offset = GetDocumentOffset(pointer);
+        return true;
+    }
+
     private static int GetRunDocumentOrderIndex(Run run)
     {
         var root = FindOwningDocument(run);
@@ -107,15 +121,33 @@ public static class DocumentPointers
 
     private static FlowDocument FindOwningDocument(TextElement element)
     {
-        for (var current = element.Parent; current != null; current = current.Parent)
+        if (TryFindOwningDocument(element, out var document))
         {
-            if (current is FlowDocument document)
-            {
-                return document;
-            }
+            return document;
         }
 
         throw new InvalidOperationException("TextPointer target is not attached to a FlowDocument.");
+    }
+
+    private static bool TryFindOwningDocument(TextElement? element, out FlowDocument document)
+    {
+        if (element is null)
+        {
+            document = null!;
+            return false;
+        }
+
+        for (var current = element.Parent; current != null; current = current.Parent)
+        {
+            if (current is FlowDocument owningDocument)
+            {
+                document = owningDocument;
+                return true;
+            }
+        }
+
+        document = null!;
+        return false;
     }
 
     private static Run EnsureTrailingRun(FlowDocument document)

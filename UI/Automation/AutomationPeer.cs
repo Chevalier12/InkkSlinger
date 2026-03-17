@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
+using System.Text;
 
 namespace InkkSlinger;
 
@@ -683,5 +684,91 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
         }
 
         return -1;
+    }
+}
+
+internal sealed class RichTextBoxAutomationPeer : ControlAutomationPeer, IValueProvider, IScrollProvider
+{
+    public RichTextBoxAutomationPeer(AutomationManager manager, RichTextBox owner)
+        : base(manager, owner)
+    {
+    }
+
+    private RichTextBox Editor => (RichTextBox)Owner;
+
+    public override AutomationControlType GetControlType()
+    {
+        return AutomationControlType.Document;
+    }
+
+    public override bool TryGetPattern(AutomationPatternType patternType, out object? provider)
+    {
+        switch (patternType)
+        {
+            case AutomationPatternType.Value:
+                provider = this;
+                return true;
+            case AutomationPatternType.Scroll:
+                provider = this;
+                return true;
+            default:
+                provider = null;
+                return false;
+        }
+    }
+
+    bool IValueProvider.IsReadOnly => Editor.IsReadOnly;
+
+    string IValueProvider.Value => DocumentEditing.GetText(Editor.Document);
+
+    void IValueProvider.SetValue(string value)
+    {
+        if (Editor.IsReadOnly)
+        {
+            throw new InvalidOperationException("RichTextBox is read-only.");
+        }
+
+        var document = new FlowDocument();
+        DocumentEditing.ReplaceAllText(document, value ?? string.Empty);
+        Editor.Document = document;
+        Editor.Select(0, 0);
+    }
+
+    public bool HorizontallyScrollable => Editor.ScrollableWidth > 0.01f;
+
+    public bool VerticallyScrollable => Editor.ScrollableHeight > 0.01f;
+
+    public float HorizontalScrollPercent
+    {
+        get
+        {
+            if (!HorizontallyScrollable)
+            {
+                return 0f;
+            }
+
+            return (Editor.HorizontalOffset / MathF.Max(Editor.ScrollableWidth, 0.01f)) * 100f;
+        }
+    }
+
+    public float VerticalScrollPercent
+    {
+        get
+        {
+            if (!VerticallyScrollable)
+            {
+                return 0f;
+            }
+
+            return (Editor.VerticalOffset / MathF.Max(Editor.ScrollableHeight, 0.01f)) * 100f;
+        }
+    }
+
+    public void SetScrollPercent(float horizontalPercent, float verticalPercent)
+    {
+        var clampedHorizontal = MathF.Max(0f, MathF.Min(100f, horizontalPercent));
+        var clampedVertical = MathF.Max(0f, MathF.Min(100f, verticalPercent));
+        Editor.ScrollToHorizontalOffset((clampedHorizontal / 100f) * Editor.ScrollableWidth);
+        Editor.ScrollToVerticalOffset((clampedVertical / 100f) * Editor.ScrollableHeight);
     }
 }

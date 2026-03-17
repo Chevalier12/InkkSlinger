@@ -71,6 +71,59 @@ public sealed class CheckBoxTemplateInputTests
         }
     }
 
+    [Fact]
+    public void AppXmlCheckBox_StyleEnablesLayoutRounding_ForCaptionPresenterAndAccessText()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var host = new Canvas
+            {
+                Width = 640,
+                Height = 360
+            };
+
+            var checkBox = new CheckBox
+            {
+                Width = 260,
+                Height = 44,
+                Content = "Receive updates"
+            };
+            host.AddChild(checkBox);
+            Canvas.SetLeft(checkBox, 48.3f);
+            Canvas.SetTop(checkBox, 56.4f);
+
+            var uiRoot = new UiRoot(host);
+            RunLayout(uiRoot, 640, 360);
+
+            var contentPresenter = FindDescendant<ContentPresenter>(checkBox);
+            var accessText = FindDescendant<AccessText>(checkBox);
+
+            Assert.True(checkBox.UseLayoutRounding);
+            Assert.Equal(DependencyPropertyValueSource.Style, checkBox.GetValueSource(FrameworkElement.UseLayoutRoundingProperty));
+
+            Assert.True(contentPresenter.UseLayoutRounding);
+            Assert.Equal(DependencyPropertyValueSource.Inherited, contentPresenter.GetValueSource(FrameworkElement.UseLayoutRoundingProperty));
+            Assert.True(IsRounded(contentPresenter.LayoutSlot.X));
+            Assert.True(IsRounded(contentPresenter.LayoutSlot.Y));
+            Assert.True(IsRounded(contentPresenter.LayoutSlot.Width));
+            Assert.True(IsRounded(contentPresenter.LayoutSlot.Height));
+
+            Assert.True(accessText.UseLayoutRounding);
+            Assert.Equal(DependencyPropertyValueSource.Inherited, accessText.GetValueSource(FrameworkElement.UseLayoutRoundingProperty));
+            Assert.True(IsRounded(accessText.LayoutSlot.X));
+            Assert.True(IsRounded(accessText.LayoutSlot.Y));
+            Assert.True(IsRounded(accessText.LayoutSlot.Width));
+            Assert.True(IsRounded(accessText.LayoutSlot.Height));
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
     private static void LoadRootAppResources()
     {
         var appPath = Path.GetFullPath(Path.Combine(
@@ -164,6 +217,11 @@ public sealed class CheckBoxTemplateInputTests
             new Viewport(0, 0, width, height));
     }
 
+    private static bool IsRounded(float value)
+    {
+        return MathF.Abs(value - MathF.Round(value)) < 0.001f;
+    }
+
     private static ResourceSnapshot CaptureApplicationResources()
     {
         var resources = UiApplication.Current.Resources;
@@ -174,22 +232,7 @@ public sealed class CheckBoxTemplateInputTests
 
     private static void RestoreApplicationResources(ResourceSnapshot snapshot)
     {
-        var resources = UiApplication.Current.Resources;
-        resources.Clear();
-        foreach (var merged in resources.MergedDictionaries.ToList())
-        {
-            resources.RemoveMergedDictionary(merged);
-        }
-
-        foreach (var pair in snapshot.Entries)
-        {
-            resources[pair.Key] = pair.Value;
-        }
-
-        foreach (var merged in snapshot.MergedDictionaries)
-        {
-            resources.AddMergedDictionary(merged);
-        }
+        TestApplicationResources.Restore(snapshot.Entries, snapshot.MergedDictionaries);
     }
 
     private sealed record ResourceSnapshot(

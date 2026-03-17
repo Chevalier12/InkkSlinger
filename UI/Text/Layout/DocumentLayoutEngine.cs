@@ -57,6 +57,19 @@ public sealed class DocumentLayoutBlockMetrics
     public bool IsTableCell { get; init; }
 }
 
+public sealed class DocumentLayoutHostedElement
+{
+    public required UIElement Child { get; init; }
+
+    public required LayoutRect Bounds { get; init; }
+
+    public int StartOffset { get; init; }
+
+    public int Length { get; init; }
+
+    public bool IsBlock { get; init; }
+}
+
 public sealed class DocumentLayoutResult
 {
     private readonly Dictionary<int, Vector2> _caretPositions;
@@ -65,6 +78,7 @@ public sealed class DocumentLayoutResult
         IReadOnlyList<DocumentLayoutLine> lines,
         IReadOnlyList<DocumentLayoutRun> runs,
         IReadOnlyList<DocumentLayoutBlockMetrics> blocks,
+        IReadOnlyList<DocumentLayoutHostedElement> hostedElements,
         IReadOnlyList<LayoutRect> tableCellBounds,
         Dictionary<int, Vector2> caretPositions,
         float contentWidth,
@@ -74,6 +88,7 @@ public sealed class DocumentLayoutResult
         Lines = lines;
         Runs = runs;
         Blocks = blocks;
+        HostedElements = hostedElements;
         TableCellBounds = tableCellBounds;
         _caretPositions = caretPositions;
         ContentWidth = contentWidth;
@@ -85,6 +100,7 @@ public sealed class DocumentLayoutResult
         Array.Empty<DocumentLayoutLine>(),
         Array.Empty<DocumentLayoutRun>(),
         Array.Empty<DocumentLayoutBlockMetrics>(),
+        Array.Empty<DocumentLayoutHostedElement>(),
         Array.Empty<LayoutRect>(),
         new Dictionary<int, Vector2> { [0] = Vector2.Zero },
         0f,
@@ -96,6 +112,8 @@ public sealed class DocumentLayoutResult
     public IReadOnlyList<DocumentLayoutRun> Runs { get; }
 
     public IReadOnlyList<DocumentLayoutBlockMetrics> Blocks { get; }
+
+    public IReadOnlyList<DocumentLayoutHostedElement> HostedElements { get; }
 
     public IReadOnlyList<LayoutRect> TableCellBounds { get; }
 
@@ -277,6 +295,7 @@ public sealed class DocumentLayoutEngine
         private readonly List<DocumentLayoutLine> _lines = [];
         private readonly List<DocumentLayoutRun> _runs = [];
         private readonly List<DocumentLayoutBlockMetrics> _blocks = [];
+        private readonly List<DocumentLayoutHostedElement> _hostedElements = [];
         private readonly List<LayoutRect> _tableCellBounds = [];
         private readonly Dictionary<int, Vector2> _caretPositions = [];
         private readonly int _paragraphCount;
@@ -302,6 +321,7 @@ public sealed class DocumentLayoutEngine
                 _lines,
                 _runs,
                 _blocks,
+                _hostedElements,
                 _tableCellBounds,
                 _caretPositions,
                 _contentWidth,
@@ -335,10 +355,10 @@ public sealed class DocumentLayoutEngine
                     case Table table:
                         LayoutTable(table, blockPath, baseX, listDepth);
                         break;
+                    case BlockUIContainer blockUiContainer when blockUiContainer.Child != null:
+                        LayoutBlockContainer(blockUiContainer, blockPath, baseX, listDepth, isTableCell, isListItem);
+                        break;
                     case BlockUIContainer:
-                        var placeholder = new Paragraph();
-                        placeholder.Inlines.Add(new Run("\uFFFC"));
-                        LayoutParagraph(placeholder, blockPath, baseX, listDepth, markerText: null, isTableCell, isListItem, fixedY: null, advanceCursor: true);
                         break;
                 }
 
@@ -505,84 +525,182 @@ public sealed class DocumentLayoutEngine
                 width = float.PositiveInfinity;
             }
 
-            var layoutLines = plainText.Length == 0
-                ? new[] { string.Empty }
-                : TextLayout.Layout(plainText, _settings.Typography, width, _settings.Wrapping).Lines;
+            MeasureHostedSegments(segments, width);
+            var hasHostedVisuals = ContainsHostedVisuals(segments);
+
             var y = fixedY ?? _cursorY;
             var blockTop = y;
             var blockBottom = y;
-            var scanIndex = 0;
-            for (var lineIndex = 0; lineIndex < layoutLines.Count; lineIndex++)
+
+            if (!hasHostedVisuals)
             {
-                while (scanIndex < plainText.Length && plainText[scanIndex] == '\n')
+                var layoutLines = plainText.Length == 0
+                    ? new[] { string.Empty }
+                    : TextLayout.Layout(plainText, _settings.Typography, width, _settings.Wrapping).Lines;
+                var scanIndex = 0;
+                for (var lineIndex = 0; lineIndex < layoutLines.Count; lineIndex++)
                 {
-                    scanIndex++;
-                }
-
-                var lineText = layoutLines[lineIndex];
-                if (scanIndex + lineText.Length > plainText.Length)
-                {
-                    lineText = scanIndex < plainText.Length ? plainText[scanIndex..] : string.Empty;
-                }
-
-                var globalLineStart = _offset + scanIndex;
-                var lineY = y + (lineIndex * _settings.LineHeight);
-                var lineRuns = BuildLineRuns(
-                    segments,
-                    scanIndex,
-                    lineText.Length,
-                    textStartX,
-                    lineY,
-                    globalLineStart,
-                    isTableCell,
-                    _settings.LineHeight,
-                    _settings.Typography);
-                var prefixWidths = BuildPrefixWidths(segments, scanIndex, lineText.Length, _settings.Typography);
-                var lineWidth = prefixWidths[prefixWidths.Length - 1];
-                var lineBounds = new LayoutRect(textStartX, lineY, Math.Max(lineWidth, markerWidth), _settings.LineHeight);
-                for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
-                {
-                    _runs.Add(lineRuns[runIndex]);
-                }
-
-                if (lineIndex == 0 && markerWidth > 0f)
-                {
-                    var markerRun = new DocumentLayoutRun
+                    while (scanIndex < plainText.Length && plainText[scanIndex] == '\n')
                     {
-                        Text = marker,
-                        Bounds = new LayoutRect(markerX, lineY, markerWidth, _settings.LineHeight),
+                        scanIndex++;
+                    }
+
+                    var lineText = layoutLines[lineIndex];
+                    if (scanIndex + lineText.Length > plainText.Length)
+                    {
+                        lineText = scanIndex < plainText.Length ? plainText[scanIndex..] : string.Empty;
+                    }
+
+                    var globalLineStart = _offset + scanIndex;
+                    var lineY = y + (lineIndex * _settings.LineHeight);
+                    var lineRuns = BuildLineRuns(
+                        segments,
+                        scanIndex,
+                        lineText.Length,
+                        textStartX,
+                        lineY,
+                        globalLineStart,
+                        isTableCell,
+                        _settings.LineHeight,
+                        _settings.Typography);
+                    var prefixWidths = BuildPrefixWidths(segments, scanIndex, lineText.Length, _settings.Typography);
+                    var lineWidth = prefixWidths[prefixWidths.Length - 1];
+                    var lineBounds = new LayoutRect(textStartX, lineY, Math.Max(lineWidth, markerWidth), _settings.LineHeight);
+                    for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
+                    {
+                        _runs.Add(lineRuns[runIndex]);
+                    }
+
+                    if (lineIndex == 0 && markerWidth > 0f)
+                    {
+                        var markerRun = new DocumentLayoutRun
+                        {
+                            Text = marker,
+                            Bounds = new LayoutRect(markerX, lineY, markerWidth, _settings.LineHeight),
+                            StartOffset = globalLineStart,
+                            Length = 0,
+                            Style = DocumentLayoutStyle.Default,
+                            IsListMarker = true,
+                            IsTableContent = isTableCell
+                        };
+                        _runs.Add(markerRun);
+                        lineRuns.Insert(0, markerRun);
+                    }
+
+                    for (var column = 0; column <= lineText.Length; column++)
+                    {
+                        var point = new Vector2(textStartX + prefixWidths[column], lineY);
+                        _caretPositions[globalLineStart + column] = point;
+                    }
+
+                    var builtLine = new DocumentLayoutLine
+                    {
+                        Index = _lineIndex++,
                         StartOffset = globalLineStart,
-                        Length = 0,
-                        Style = DocumentLayoutStyle.Default,
-                        IsListMarker = true,
-                        IsTableContent = isTableCell
+                        Length = lineText.Length,
+                        Text = lineText,
+                        TextStartX = textStartX,
+                        Bounds = lineBounds,
+                        Runs = lineRuns,
+                        PrefixWidths = prefixWidths
                     };
-                    _runs.Add(markerRun);
-                    lineRuns.Insert(0, markerRun);
+
+                    _lines.Add(builtLine);
+                    blockBottom = Math.Max(blockBottom, lineY + _settings.LineHeight);
+                    _contentWidth = Math.Max(_contentWidth, Math.Max(lineBounds.Width + lineBounds.X, markerX + markerWidth));
+                    scanIndex += lineText.Length;
                 }
-
-                for (var column = 0; column <= lineText.Length; column++)
+            }
+            else
+            {
+                var layoutLines = BuildStyledLines(segments, width, _settings.Wrapping, _settings.LineHeight, _settings.Typography);
+                var currentLineY = y;
+                for (var lineIndex = 0; lineIndex < layoutLines.Count; lineIndex++)
                 {
-                    var point = new Vector2(textStartX + prefixWidths[column], lineY);
-                    _caretPositions[globalLineStart + column] = point;
+                    var styledLine = layoutLines[lineIndex];
+                    var globalLineStart = _offset + styledLine.Start;
+                    var lineRuns = BuildLineRuns(
+                        segments,
+                        styledLine.Start,
+                        styledLine.Length,
+                        textStartX,
+                        currentLineY,
+                        globalLineStart,
+                        isTableCell,
+                        styledLine.Height,
+                        _settings.Typography);
+                    var prefixWidths = BuildPrefixWidths(segments, styledLine.Start, styledLine.Length, _settings.Typography);
+                    var lineBounds = new LayoutRect(textStartX, currentLineY, Math.Max(styledLine.Width, markerWidth), styledLine.Height);
+                    for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
+                    {
+                        _runs.Add(lineRuns[runIndex]);
+                    }
+
+                    if (lineIndex == 0 && markerWidth > 0f)
+                    {
+                        var markerRun = new DocumentLayoutRun
+                        {
+                            Text = marker,
+                            Bounds = new LayoutRect(markerX, currentLineY, markerWidth, styledLine.Height),
+                            StartOffset = globalLineStart,
+                            Length = 0,
+                            Style = DocumentLayoutStyle.Default,
+                            IsListMarker = true,
+                            IsTableContent = isTableCell
+                        };
+                        _runs.Add(markerRun);
+                        lineRuns.Insert(0, markerRun);
+                    }
+
+                    for (var column = 0; column <= styledLine.Length; column++)
+                    {
+                        var point = new Vector2(textStartX + prefixWidths[column], currentLineY);
+                        _caretPositions[globalLineStart + column] = point;
+                    }
+
+                    for (var localIndex = 0; localIndex < styledLine.Length; localIndex++)
+                    {
+                        var segment = segments[styledLine.Start + localIndex];
+                        if (segment.HostedChild == null)
+                        {
+                            continue;
+                        }
+
+                        var hostedHeight = Math.Max(1f, segment.HeightOverride);
+                        var hostedWidth = Math.Max(1f, segment.WidthOverride);
+                        var hostedY = currentLineY + Math.Max(0f, (styledLine.Height - hostedHeight) * 0.5f);
+                        _hostedElements.Add(
+                            new DocumentLayoutHostedElement
+                            {
+                                Child = segment.HostedChild,
+                                Bounds = new LayoutRect(
+                                    textStartX + prefixWidths[localIndex],
+                                    hostedY,
+                                    hostedWidth,
+                                    hostedHeight),
+                                StartOffset = globalLineStart + localIndex,
+                                Length = 1,
+                                IsBlock = false
+                            });
+                    }
+
+                    var builtLine = new DocumentLayoutLine
+                    {
+                        Index = _lineIndex++,
+                        StartOffset = globalLineStart,
+                        Length = styledLine.Length,
+                        Text = BuildText(segments, styledLine.Start, styledLine.Length),
+                        TextStartX = textStartX,
+                        Bounds = lineBounds,
+                        Runs = lineRuns,
+                        PrefixWidths = prefixWidths
+                    };
+
+                    _lines.Add(builtLine);
+                    blockBottom = Math.Max(blockBottom, currentLineY + styledLine.Height);
+                    _contentWidth = Math.Max(_contentWidth, Math.Max(lineBounds.Width + lineBounds.X, markerX + markerWidth));
+                    currentLineY += styledLine.Height;
                 }
-
-                var builtLine = new DocumentLayoutLine
-                {
-                    Index = _lineIndex++,
-                    StartOffset = globalLineStart,
-                    Length = lineText.Length,
-                    Text = lineText,
-                    TextStartX = textStartX,
-                    Bounds = lineBounds,
-                    Runs = lineRuns,
-                    PrefixWidths = prefixWidths
-                };
-
-                _lines.Add(builtLine);
-                blockBottom = Math.Max(blockBottom, lineY + _settings.LineHeight);
-                _contentWidth = Math.Max(_contentWidth, Math.Max(lineBounds.Width + lineBounds.X, markerX + markerWidth));
-                scanIndex += lineText.Length;
             }
 
             var blockHeight = Math.Max(_settings.LineHeight, blockBottom - blockTop);
@@ -609,6 +727,53 @@ public sealed class DocumentLayoutEngine
 
             return blockHeight;
         }
+
+        private void LayoutBlockContainer(
+            BlockUIContainer blockUiContainer,
+            string path,
+            float baseX,
+            int listDepth,
+            bool isTableCell,
+            bool isListItem)
+        {
+            var child = blockUiContainer.Child;
+            if (child == null)
+            {
+                return;
+            }
+
+            var x = baseX + (listDepth * _settings.ListIndent);
+            var maxWidth = ResolveMaxWidth(baseX, listDepth);
+            var desired = MeasureHostedElement(child, maxWidth);
+            var width = float.IsInfinity(maxWidth)
+                ? Math.Max(1f, desired.X)
+                : Math.Min(Math.Max(1f, desired.X), Math.Max(1f, maxWidth));
+            var height = Math.Max(_settings.LineHeight, desired.Y);
+            var rect = new LayoutRect(x, _cursorY, width, height);
+
+            _hostedElements.Add(
+                new DocumentLayoutHostedElement
+                {
+                    Child = child,
+                    Bounds = rect,
+                    StartOffset = _offset,
+                    Length = 0,
+                    IsBlock = true
+                });
+
+            _blocks.Add(
+                new DocumentLayoutBlockMetrics
+                {
+                    BlockPath = path,
+                    Bounds = rect,
+                    IsListItem = isListItem,
+                    IsTableCell = isTableCell
+                });
+
+            _contentWidth = Math.Max(_contentWidth, rect.X + rect.Width);
+            _cursorY += rect.Height;
+        }
+
         private float ResolveMaxWidth(float baseX, int listDepth, float extraOffset = 0f)
         {
             if (float.IsInfinity(_settings.AvailableWidth) || _settings.AvailableWidth <= 0f)
@@ -642,15 +807,34 @@ public sealed class DocumentLayoutEngine
             var end = start + length;
             while (index < end)
             {
+                if (chars[index].HostedChild != null)
+                {
+                    var hostedWidth = Math.Max(1f, chars[index].WidthOverride);
+                    runs.Add(
+                        new DocumentLayoutRun
+                        {
+                            Text = string.Empty,
+                            Bounds = new LayoutRect(cursor, y, hostedWidth, Math.Max(lineHeight, chars[index].HeightOverride)),
+                            StartOffset = globalStartOffset + (index - start),
+                            Length = 1,
+                            Style = chars[index].Style,
+                            IsListMarker = false,
+                            IsTableContent = isTableCell
+                        });
+                    cursor += hostedWidth;
+                    index++;
+                    continue;
+                }
+
                 var style = chars[index].Style;
                 var chunkStart = index;
-                while (index < end && chars[index].Style.Equals(style))
+                while (index < end && chars[index].HostedChild == null && chars[index].Style.Equals(style))
                 {
                     index++;
                 }
 
                 var text = BuildText(chars, chunkStart, index - chunkStart);
-                var width = UiTextRenderer.MeasureWidth(typography, text, ToStyleOverride(style));
+                var width = MeasureSegment(chars, chunkStart, index - chunkStart, typography);
                 var run = new DocumentLayoutRun
                 {
                     Text = text,
@@ -673,37 +857,259 @@ public sealed class DocumentLayoutEngine
             var widths = new float[length + 1];
             widths[0] = 0f;
             var current = 0f;
-            var index = 0;
-            while (index < length)
+            for (var index = 0; index < length; index++)
             {
-                var style = chars[start + index].Style;
-                var chunkStart = index;
-                while (index < length && chars[start + index].Style.Equals(style))
+                current += MeasureChar(chars[start + index], typography);
+                widths[index + 1] = current;
+            }
+
+            return widths;
+        }
+
+        private void MeasureHostedSegments(List<StyledChar> chars, float availableWidth)
+        {
+            var constraintWidth = (!float.IsFinite(availableWidth) || availableWidth <= 0f)
+                ? 2048f
+                : Math.Max(1f, availableWidth);
+            for (var index = 0; index < chars.Count; index++)
+            {
+                var segment = chars[index];
+                if (segment.HostedChild == null)
+                {
+                    continue;
+                }
+
+                var desired = MeasureHostedElement(segment.HostedChild, constraintWidth);
+                chars[index] = segment with
+                {
+                    WidthOverride = Math.Max(1f, desired.X),
+                    HeightOverride = Math.Max(_settings.LineHeight, desired.Y)
+                };
+            }
+        }
+
+        private Vector2 MeasureHostedElement(UIElement child, float availableWidth)
+        {
+            if (child is FrameworkElement frameworkElement)
+            {
+                frameworkElement.Measure(new Vector2(Math.Max(1f, availableWidth), float.PositiveInfinity));
+                return new Vector2(
+                    Math.Max(1f, frameworkElement.DesiredSize.X),
+                    Math.Max(_settings.LineHeight, frameworkElement.DesiredSize.Y));
+            }
+
+            var slot = child.LayoutSlot;
+            return new Vector2(Math.Max(1f, slot.Width), Math.Max(_settings.LineHeight, slot.Height));
+        }
+
+        private static bool ContainsHostedVisuals(IReadOnlyList<StyledChar> chars)
+        {
+            for (var index = 0; index < chars.Count; index++)
+            {
+                if (chars[index].HostedChild != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static float MeasureSegment(IReadOnlyList<StyledChar> chars, int start, int length, UiTypography typography)
+        {
+            var total = 0f;
+            for (var index = 0; index < length; index++)
+            {
+                total += MeasureChar(chars[start + index], typography);
+            }
+
+            return total;
+        }
+
+        private static float MeasureChar(StyledChar value, UiTypography typography)
+        {
+            if (value.WidthOverride > 0f)
+            {
+                return value.WidthOverride;
+            }
+
+            var character = value.Character == '\0' || value.Character == '\uFFFC'
+                ? ' '
+                : value.Character;
+            return UiTextRenderer.MeasureWidth(typography, character.ToString(), ToStyleOverride(value.Style));
+        }
+
+        private static float ResolveLineHeight(IReadOnlyList<StyledChar> chars, int start, int length, float defaultLineHeight)
+        {
+            var lineHeight = defaultLineHeight;
+            for (var index = 0; index < length; index++)
+            {
+                lineHeight = Math.Max(lineHeight, chars[start + index].HeightOverride);
+            }
+
+            return Math.Max(defaultLineHeight, lineHeight);
+        }
+
+        private static List<StyledLine> BuildStyledLines(
+            IReadOnlyList<StyledChar> chars,
+            float availableWidth,
+            TextWrapping wrapping,
+            float defaultLineHeight,
+            UiTypography typography)
+        {
+            var lines = new List<StyledLine>();
+            if (chars.Count == 0)
+            {
+                lines.Add(new StyledLine(0, 0, 0f, defaultLineHeight));
+                return lines;
+            }
+
+            var start = 0;
+            while (start <= chars.Count)
+            {
+                var end = start;
+                while (end < chars.Count && chars[end].Character != '\n')
+                {
+                    end++;
+                }
+
+                var logicalLength = end - start;
+                if (wrapping == TextWrapping.NoWrap || float.IsInfinity(availableWidth) || availableWidth <= 0f)
+                {
+                    var width = MeasureSegment(chars, start, logicalLength, typography);
+                    var height = ResolveLineHeight(chars, start, logicalLength, defaultLineHeight);
+                    lines.Add(new StyledLine(start, logicalLength, width, height));
+                }
+                else
+                {
+                    LayoutStyledLogicalLine(chars, start, logicalLength, typography, availableWidth, defaultLineHeight, lines);
+                }
+
+                if (end >= chars.Count)
+                {
+                    break;
+                }
+
+                start = end + 1;
+                if (start == chars.Count)
+                {
+                    lines.Add(new StyledLine(start, 0, 0f, defaultLineHeight));
+                    break;
+                }
+            }
+
+            return lines;
+        }
+
+        private static void LayoutStyledLogicalLine(
+            IReadOnlyList<StyledChar> chars,
+            int start,
+            int length,
+            UiTypography typography,
+            float availableWidth,
+            float defaultLineHeight,
+            List<StyledLine> lines)
+        {
+            if (length == 0)
+            {
+                lines.Add(new StyledLine(start, 0, 0f, defaultLineHeight));
+                return;
+            }
+
+            var initialLineCount = lines.Count;
+            var lineStart = start;
+            var lineLength = 0;
+            var lineWidth = 0f;
+            var lineHeight = defaultLineHeight;
+            var index = start;
+            var end = start + length;
+            while (index < end)
+            {
+                var tokenStart = index;
+                var tokenIsWhitespace = char.IsWhiteSpace(chars[index].Character) && chars[index].Character != '\uFFFC';
+                index++;
+                while (index < end && (char.IsWhiteSpace(chars[index].Character) && chars[index].Character != '\uFFFC') == tokenIsWhitespace)
                 {
                     index++;
                 }
 
-                var chunkLength = index - chunkStart;
-                var builder = new char[chunkLength];
-                for (var i = 0; i < chunkLength; i++)
+                var tokenLength = index - tokenStart;
+                if (tokenLength == 0)
                 {
-                    var value = chars[start + chunkStart + i].Character;
-                    builder[i] = value == '\0' ? ' ' : value;
+                    continue;
                 }
 
-                var styleOverride = ToStyleOverride(style);
-                for (var i = 0; i < chunkLength; i++)
+                var tokenWidth = MeasureSegment(chars, tokenStart, tokenLength, typography);
+                var tokenHeight = ResolveLineHeight(chars, tokenStart, tokenLength, defaultLineHeight);
+                if ((lineWidth + tokenWidth) <= availableWidth)
                 {
-                    widths[chunkStart + i + 1] = current + UiTextRenderer.MeasureWidth(
-                        typography,
-                        new string(builder, 0, i + 1),
-                        styleOverride);
+                    if (lineLength == 0)
+                    {
+                        lineStart = tokenStart;
+                    }
+
+                    lineLength += tokenLength;
+                    lineWidth += tokenWidth;
+                    lineHeight = Math.Max(lineHeight, tokenHeight);
+                    continue;
                 }
 
-                current += UiTextRenderer.MeasureWidth(typography, new string(builder), styleOverride);
+                if (lineLength > 0)
+                {
+                    lines.Add(new StyledLine(lineStart, lineLength, lineWidth, lineHeight));
+                    lineStart = tokenStart;
+                    lineLength = 0;
+                    lineWidth = 0f;
+                    lineHeight = defaultLineHeight;
+                    index = tokenStart;
+                    continue;
+                }
+
+                var remainingStart = tokenStart;
+                var remainingLength = tokenLength;
+                while (remainingLength > 0)
+                {
+                    var fitLength = FindLongestFittingStyledSegmentLength(chars, remainingStart, remainingLength, typography, availableWidth);
+                    if (fitLength <= 0)
+                    {
+                        fitLength = 1;
+                    }
+
+                    var fitWidth = MeasureSegment(chars, remainingStart, fitLength, typography);
+                    var fitHeight = ResolveLineHeight(chars, remainingStart, fitLength, defaultLineHeight);
+                    lines.Add(new StyledLine(remainingStart, fitLength, fitWidth, fitHeight));
+                    remainingStart += fitLength;
+                    remainingLength -= fitLength;
+                }
             }
 
-            return widths;
+            if (lineLength > 0 || lines.Count == initialLineCount)
+            {
+                lines.Add(new StyledLine(lineStart, lineLength, lineWidth, lineHeight));
+            }
+        }
+
+        private static int FindLongestFittingStyledSegmentLength(
+            IReadOnlyList<StyledChar> chars,
+            int start,
+            int length,
+            UiTypography typography,
+            float availableWidth)
+        {
+            var width = 0f;
+            var fitLength = 0;
+            for (var index = 0; index < length; index++)
+            {
+                width += MeasureChar(chars[start + index], typography);
+                if (width > availableWidth)
+                {
+                    break;
+                }
+
+                fitLength++;
+            }
+
+            return fitLength;
         }
 
         private static string BuildText(IReadOnlyList<StyledChar> chars, int start, int length)
@@ -766,12 +1172,12 @@ public sealed class DocumentLayoutEngine
                         : style;
                     foreach (var character in run.Text)
                     {
-                        buffer.Add(new StyledChar(character, runStyle));
+                        buffer.Add(new StyledChar(character, runStyle, null, 0f, 0f));
                     }
 
                     break;
                 case LineBreak:
-                    buffer.Add(new StyledChar('\n', style));
+                    buffer.Add(new StyledChar('\n', style, null, 0f, 0f));
                     break;
                 case Bold bold:
                     AppendSpanStyledText(bold, style with { IsBold = true }, buffer);
@@ -808,8 +1214,8 @@ public sealed class DocumentLayoutEngine
                 case Span span:
                     AppendSpanStyledText(span, style, buffer);
                     break;
-                case InlineUIContainer:
-                    buffer.Add(new StyledChar('\uFFFC', style));
+                case InlineUIContainer inlineUiContainer:
+                    buffer.Add(new StyledChar('\uFFFC', style, inlineUiContainer.Child, 0f, 0f));
                     break;
             }
         }
@@ -1053,7 +1459,14 @@ public sealed class DocumentLayoutEngine
             return total;
         }
 
-        private readonly record struct StyledChar(char Character, DocumentLayoutStyle Style);
+        private readonly record struct StyledChar(
+            char Character,
+            DocumentLayoutStyle Style,
+            UIElement? HostedChild,
+            float WidthOverride,
+            float HeightOverride);
+
+        private readonly record struct StyledLine(int Start, int Length, float Width, float Height);
 
         private readonly record struct TableCellPlacement(int RowIndex, int CellIndex, int StartColumn, int RowSpan, int ColumnSpan, TableCell Cell);
     }

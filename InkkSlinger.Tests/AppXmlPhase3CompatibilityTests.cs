@@ -299,22 +299,7 @@ public sealed class AppXmlPhase3CompatibilityTests
 
     private static void RestoreApplicationResources(ResourceSnapshot snapshot)
     {
-        var resources = UiApplication.Current.Resources;
-        resources.Clear();
-        foreach (var merged in resources.MergedDictionaries.ToList())
-        {
-            resources.RemoveMergedDictionary(merged);
-        }
-
-        foreach (var pair in snapshot.Entries)
-        {
-            resources[pair.Key] = pair.Value;
-        }
-
-        foreach (var merged in snapshot.MergedDictionaries)
-        {
-            resources.AddMergedDictionary(merged);
-        }
+        TestApplicationResources.Restore(snapshot.Entries, snapshot.MergedDictionaries);
     }
 
     private sealed class FakeWindowNativeAdapter : IWindowNativeAdapter

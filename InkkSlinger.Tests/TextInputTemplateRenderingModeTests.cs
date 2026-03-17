@@ -23,8 +23,11 @@ public sealed class TextInputTemplateRenderingModeTests
             var host = new StackPanel();
             var textBox = new TextBox { Text = "sample", Width = 240f, Height = 44f };
             var passwordBox = new PasswordBox { Password = "secret", Width = 240f, Height = 44f };
+            var richTextBox = new RichTextBox { Width = 240f, Height = 120f };
+            DocumentEditing.ReplaceAllText(richTextBox.Document, "rich sample");
             host.AddChild(textBox);
             host.AddChild(passwordBox);
+            host.AddChild(richTextBox);
 
             var uiRoot = new UiRoot(host);
             RunLayout(uiRoot, 640, 360);
@@ -32,12 +35,15 @@ public sealed class TextInputTemplateRenderingModeTests
 
             var textBoxTemplateRoot = Assert.Single(textBox.GetVisualChildren());
             var passwordBoxTemplateRoot = Assert.Single(passwordBox.GetVisualChildren());
+            var richTextBoxTemplateRoot = Assert.Single(richTextBox.GetVisualChildren());
             var retainedOrder = uiRoot.GetRetainedVisualOrderForTests();
 
             Assert.Contains(textBox, retainedOrder);
             Assert.Contains(passwordBox, retainedOrder);
+            Assert.Contains(richTextBox, retainedOrder);
             Assert.DoesNotContain(textBoxTemplateRoot, retainedOrder);
             Assert.DoesNotContain(passwordBoxTemplateRoot, retainedOrder);
+            Assert.DoesNotContain(richTextBoxTemplateRoot, retainedOrder);
         }
         finally
         {
@@ -77,22 +83,7 @@ public sealed class TextInputTemplateRenderingModeTests
 
     private static void RestoreApplicationResources(ResourceSnapshot snapshot)
     {
-        var resources = UiApplication.Current.Resources;
-        resources.Clear();
-        foreach (var merged in resources.MergedDictionaries.ToList())
-        {
-            resources.RemoveMergedDictionary(merged);
-        }
-
-        foreach (var pair in snapshot.Entries)
-        {
-            resources[pair.Key] = pair.Value;
-        }
-
-        foreach (var merged in snapshot.MergedDictionaries)
-        {
-            resources.AddMergedDictionary(merged);
-        }
+        TestApplicationResources.Restore(snapshot.Entries, snapshot.MergedDictionaries);
     }
 
     private sealed record ResourceSnapshot(

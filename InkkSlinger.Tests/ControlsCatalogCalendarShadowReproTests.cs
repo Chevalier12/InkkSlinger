@@ -245,22 +245,7 @@ public sealed class ControlsCatalogCalendarShadowReproTests
 
     private static void RestoreApplicationResources(ResourceSnapshot snapshot)
     {
-        var resources = UiApplication.Current.Resources;
-        resources.Clear();
-        foreach (var merged in resources.MergedDictionaries.ToList())
-        {
-            resources.RemoveMergedDictionary(merged);
-        }
-
-        foreach (var entry in snapshot.Entries)
-        {
-            resources[entry.Key] = entry.Value;
-        }
-
-        foreach (var dictionary in snapshot.MergedDictionaries)
-        {
-            resources.AddMergedDictionary(dictionary);
-        }
+        TestApplicationResources.Restore(snapshot.Entries, snapshot.MergedDictionaries);
     }
 
     private readonly record struct ResourceSnapshot(

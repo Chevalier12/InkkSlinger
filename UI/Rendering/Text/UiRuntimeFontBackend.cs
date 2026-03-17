@@ -27,6 +27,8 @@ internal interface IUiFontRasterizer : IDisposable
     UiTextMetrics Measure(UiResolvedTypeface typeface, float fontSize, string text, UiTextStyleOverride styleOverride);
 
     UiGlyphRasterized Rasterize(UiResolvedTypeface typeface, float fontSize, int codePoint, UiTextAntialiasMode antialiasMode);
+
+    float GetKerning(UiResolvedTypeface typeface, float fontSize, uint leftGlyphIndex, uint rightGlyphIndex);
 }
 
 internal sealed class WindowsInstalledFontCatalog : IUiFontCatalog
@@ -254,6 +256,7 @@ internal sealed unsafe class UiGlyphAtlas : IDisposable
                 return new UiGlyphEntry(
                     page.Texture,
                     sourceRect,
+                    rasterized.GlyphIndex,
                     rasterized.BearingX,
                     rasterized.BearingY,
                     rasterized.AdvanceX,
@@ -272,6 +275,7 @@ internal sealed unsafe class UiGlyphAtlas : IDisposable
         return new UiGlyphEntry(
             createdPage.Texture,
             rect,
+            rasterized.GlyphIndex,
             rasterized.BearingX,
             rasterized.BearingY,
             rasterized.AdvanceX,
@@ -409,7 +413,12 @@ internal sealed unsafe class FreeTypeFontRasterizer : IUiFontRasterizer
                 }
 
                 var verticalMetrics = ResolveVerticalMetrics(face, typeface.FontPath, pixelSize);
-                return new UiTextMetrics(width, verticalMetrics.Height, verticalMetrics.LineHeight);
+                return new UiTextMetrics(
+                    width,
+                    verticalMetrics.Height,
+                    verticalMetrics.LineHeight,
+                    verticalMetrics.Ascent,
+                    verticalMetrics.Descent);
             }
         }
         finally
@@ -451,6 +460,7 @@ internal sealed unsafe class FreeTypeFontRasterizer : IUiFontRasterizer
                     pixelData,
                     (int)(antialiasMode == UiTextAntialiasMode.Lcd ? bitmap.width / 3 : bitmap.width),
                     (int)bitmap.rows,
+                    glyphIndex,
                     face->glyph->bitmap_left,
                     face->glyph->bitmap_top,
                     face->glyph->advance.x / 64f,
@@ -485,6 +495,22 @@ internal sealed unsafe class FreeTypeFontRasterizer : IUiFontRasterizer
         {
             FT_Done_FreeType(_library);
             _library = null;
+        }
+    }
+
+    public float GetKerning(UiResolvedTypeface typeface, float fontSize, uint leftGlyphIndex, uint rightGlyphIndex)
+    {
+        if (leftGlyphIndex == 0 || rightGlyphIndex == 0)
+        {
+            return 0f;
+        }
+
+        lock (_syncRoot)
+        {
+            var face = GetFace(typeface.FontPath);
+            var pixelSize = ResolvePixelSize(fontSize);
+            EnsureFaceSize(face, typeface.FontPath, pixelSize);
+            return ResolveKerning(face, typeface.FontPath, pixelSize, leftGlyphIndex, rightGlyphIndex);
         }
     }
 
@@ -613,7 +639,7 @@ internal sealed unsafe class FreeTypeFontRasterizer : IUiFontRasterizer
         var lineHeight = face->size->metrics.height / 64f;
         var ascent = face->size->metrics.ascender / 64f;
         var descent = Math.Abs(face->size->metrics.descender / 64f);
-        cached = new UiFaceVerticalMetrics(ascent + descent, lineHeight);
+        cached = new UiFaceVerticalMetrics(ascent + descent, lineHeight, ascent, descent);
         _verticalMetricsCache[key] = cached;
         return cached;
     }
@@ -744,7 +770,9 @@ internal readonly record struct UiGlyphAdvanceEntry(
 
 internal readonly record struct UiFaceVerticalMetrics(
     float Height,
-    float LineHeight);
+    float LineHeight,
+    float Ascent,
+    float Descent);
 
 internal readonly record struct UiRuntimeFontBackendTimingSnapshot(
     long MeasureElapsedTicks,

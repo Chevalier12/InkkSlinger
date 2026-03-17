@@ -88,12 +88,15 @@ public readonly record struct UiTypography(
 internal readonly record struct UiTextMetrics(
     float Width,
     float Height,
-    float LineHeight);
+    float LineHeight,
+    float Ascent,
+    float Descent);
 
 internal readonly record struct UiGlyphRasterized(
     Color[] PixelData,
     int Width,
     int Height,
+    uint GlyphIndex,
     float BearingX,
     float BearingY,
     float AdvanceX,
@@ -115,6 +118,7 @@ internal readonly record struct UiResolvedTypeface(
 internal readonly record struct UiGlyphEntry(
     Texture2D Texture,
     Rectangle SourceRect,
+    uint GlyphIndex,
     float BearingX,
     float BearingY,
     float AdvanceX,

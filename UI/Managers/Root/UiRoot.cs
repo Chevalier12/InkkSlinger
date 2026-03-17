@@ -137,6 +137,8 @@ public sealed partial class UiRoot
 
     public static UiRoot? Current { get; private set; }
 
+    internal UIElement VisualRoot => _visualRoot;
+
     public AutomationManager Automation { get; }
 
     public bool UseRetainedRenderList { get; set; }

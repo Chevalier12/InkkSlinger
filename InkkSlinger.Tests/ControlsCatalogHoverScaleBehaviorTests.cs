@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -62,6 +63,37 @@ public sealed class ControlsCatalogHoverScaleBehaviorTests
 
         var transform = Assert.IsType<ScaleTransform>(button.RenderTransform);
         Assert.True(transform.ScaleX > 1f);
+    }
+
+    [Fact]
+    public void CatalogButtons_HoverChrome_IsNotClippedByButtonLayoutSlot()
+    {
+        var catalog = new ControlsCatalogView();
+        var host = Assert.IsType<StackPanel>(catalog.FindName("ControlButtonsHost"));
+        var button = Assert.IsType<Button>(host.Children[0]);
+
+        var uiRoot = new UiRoot(catalog);
+        RunLayout(uiRoot, 1200, 900, 16);
+
+        var buttonPoint = FindPointHittingTarget(catalog, button, 1200, 900);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(buttonPoint, pointerMoved: true));
+        for (var i = 0; i < 12; i++)
+        {
+            RunLayout(uiRoot, 1200, 900, 32 + (i * 16));
+        }
+
+        var chrome = Assert.IsType<Border>(Assert.Single(button.GetVisualChildren()));
+        var shadow = Assert.IsType<DropShadowEffect>(chrome.Effect);
+        Assert.True(shadow.BlurRadius > 0.001f || shadow.Opacity > 0.001f);
+
+        var tryGetClipRect = typeof(Button).GetMethod(
+            "TryGetClipRect",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(tryGetClipRect);
+
+        var args = new object[] { null! };
+        var hasClip = Assert.IsType<bool>(tryGetClipRect!.Invoke(button, args));
+        Assert.False(hasClip);
     }
 
     private static Vector2 FindPointHittingTarget(UIElement root, UIElement target, int width, int height)

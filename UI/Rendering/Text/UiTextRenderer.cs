@@ -171,16 +171,22 @@ internal static class UiTextRenderer
             var typeface = ResolveTypefaceCached(effectiveTypography);
             var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size * scaleY));
             var scaledTypography = effectiveTypography with { Size = effectiveTypography.Size * scaleY };
+            var metrics = GetTextMetrics(scaledTypography, text, UiTextStyleOverride.None);
 
             var currentX = transformedPosition.X;
-            var baselineY = transformedPosition.Y + GetLineHeight(scaledTypography);
+            var baselineY = transformedPosition.Y + metrics.Ascent;
             uint previousGlyphIndex = 0;
             foreach (var rune in text.EnumerateRunes())
             {
                 var glyph = ResolveGlyph(spriteBatch.GraphicsDevice, typeface, pixelSize, rune.Value, mode);
+                if (previousGlyphIndex != 0 && glyph.GlyphIndex != 0)
+                {
+                    currentX += _rasterizer.GetKerning(typeface, pixelSize, previousGlyphIndex, glyph.GlyphIndex);
+                }
+
                 DrawGlyph(spriteBatch, glyph, currentX, baselineY, color);
                 currentX += glyph.AdvanceX;
-                _ = previousGlyphIndex;
+                previousGlyphIndex = glyph.GlyphIndex;
             }
         }
         finally
@@ -318,6 +324,75 @@ internal static class UiTextRenderer
         _metricsCacheMissCount = 0;
         _lineHeightCacheHitCount = 0;
         _lineHeightCacheMissCount = 0;
+    }
+
+    internal static float GetBaselineOffsetForTests(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 0f;
+        }
+
+        return GetTextMetrics(typography.Apply(styleOverride), text, styleOverride).Ascent;
+    }
+
+    internal static float GetDrawWidthForTests(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 0f;
+        }
+
+        var effectiveTypography = typography.Apply(styleOverride);
+        var typeface = ResolveTypefaceCached(effectiveTypography);
+        var penX = 0f;
+        uint previousGlyphIndex = 0;
+        var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size));
+
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var glyph = _rasterizer.Rasterize(typeface, pixelSize, rune.Value, UiTextAntialiasMode.Grayscale);
+            if (previousGlyphIndex != 0 && glyph.GlyphIndex != 0)
+            {
+                penX += _rasterizer.GetKerning(typeface, pixelSize, previousGlyphIndex, glyph.GlyphIndex);
+            }
+
+            penX += glyph.AdvanceX;
+            previousGlyphIndex = glyph.GlyphIndex;
+        }
+
+        return penX;
+    }
+
+    internal static IReadOnlyList<Vector2> GetGlyphDrawPositionsForTests(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return Array.Empty<Vector2>();
+        }
+
+        var effectiveTypography = typography.Apply(styleOverride);
+        var typeface = ResolveTypefaceCached(effectiveTypography);
+        var penX = 0f;
+        var baselineY = GetTextMetrics(effectiveTypography, text, UiTextStyleOverride.None).Ascent;
+        uint previousGlyphIndex = 0;
+        var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size));
+        var positions = new List<Vector2>(text.Length);
+
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var glyph = _rasterizer.Rasterize(typeface, pixelSize, rune.Value, UiTextAntialiasMode.Grayscale);
+            if (previousGlyphIndex != 0 && glyph.GlyphIndex != 0)
+            {
+                penX += _rasterizer.GetKerning(typeface, pixelSize, previousGlyphIndex, glyph.GlyphIndex);
+            }
+
+            positions.Add(GetGlyphDrawPosition(penX, baselineY, glyph.BearingX, glyph.BearingY));
+            penX += glyph.AdvanceX;
+            previousGlyphIndex = glyph.GlyphIndex;
+        }
+
+        return positions;
     }
 
     private static UiResolvedTypeface ResolveTypefaceCached(UiTypography typography)
@@ -480,19 +555,23 @@ internal static class UiTextRenderer
         LcdAtlases.Clear();
     }
 
+    private static Vector2 GetGlyphDrawPosition(float penX, float baselineY, float bearingX, float bearingY)
+    {
+        return new Vector2(penX + bearingX, baselineY - bearingY);
+    }
+
     private static void DrawGlyph(SpriteBatch spriteBatch, UiGlyphEntry glyph, float penX, float baselineY, Color color)
     {
-        var destination = new Rectangle(
-            (int)MathF.Round(penX + glyph.BearingX),
-            (int)MathF.Round(baselineY - glyph.BearingY),
-            glyph.SourceRect.Width,
-            glyph.SourceRect.Height);
-        if (destination.Width <= 0 || destination.Height <= 0)
+        if (glyph.SourceRect.Width <= 0 || glyph.SourceRect.Height <= 0)
         {
             return;
         }
 
-        spriteBatch.Draw(glyph.Texture, destination, glyph.SourceRect, color);
+        spriteBatch.Draw(
+            glyph.Texture,
+            GetGlyphDrawPosition(penX, baselineY, glyph.BearingX, glyph.BearingY),
+            glyph.SourceRect,
+            color);
     }
 }
 

@@ -776,6 +776,11 @@ public class Control : FrameworkElement, ICommandSource
 
     protected virtual void OnResourceScopeChanged(object? sender, ResourceDictionaryChangedEventArgs e)
     {
+        if (ReferenceEquals(sender, UiApplication.Current.Resources) && !ShouldProcessApplicationResourceChange())
+        {
+            return;
+        }
+
         UpdateImplicitStyle();
     }
 
@@ -885,6 +890,12 @@ public class Control : FrameworkElement, ICommandSource
         }
 
         _styleResourceAncestors.Clear();
+    }
+
+    private bool ShouldProcessApplicationResourceChange()
+    {
+        var visualRoot = GetVisualRoot();
+        return UiRoot.Current != null && ReferenceEquals(visualRoot, UiRoot.Current.VisualRoot);
     }
 
     private bool ShouldTrackImplicitStyleScopes()

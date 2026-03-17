@@ -55,6 +55,16 @@ public partial class RichTextBox
         return false;
     }
 
+    private bool CanExecuteListStyleToggle()
+    {
+        if (IsReadOnly)
+        {
+            return false;
+        }
+
+        return ResolveSelectedParagraphs(Document, SelectionStart, SelectionLength, _caretIndex).Count > 0;
+    }
+
     private static bool ListItemHasVisibleContent(ListItem item)
     {
         for (var i = 0; i < item.Blocks.Count; i++)
@@ -149,6 +159,29 @@ public partial class RichTextBox
         return item.Parent is InkkSlinger.List list && list.Items.Remove(item);
     }
 
+    private void ExecuteToggleBullets()
+    {
+        ExecuteToggleListStyle(ordered: false, "ToggleBullets");
+    }
+
+    private void ExecuteToggleNumbering()
+    {
+        ExecuteToggleListStyle(ordered: true, "ToggleNumbering");
+    }
+
+    private void ExecuteToggleListStyle(bool ordered, string commandType)
+    {
+        if (IsReadOnly)
+        {
+            return;
+        }
+
+        ApplyStructuralEdit(
+            commandType,
+            GroupingPolicy.StructuralAtomic,
+            (doc, start, length, caret) => ToggleSelectedListStyle(doc, start, length, caret, ordered));
+    }
+
     private void ExecuteIncreaseListLevel()
     {
         if (IsReadOnly)
@@ -193,7 +226,7 @@ public partial class RichTextBox
                 }
 
                 if (paragraphsToListify.Count > 0 &&
-                    ConvertParagraphsToLists(paragraphsToListify))
+                    ConvertParagraphsToLists(paragraphsToListify, ordered: false))
                 {
                     changed = true;
                 }
@@ -326,7 +359,7 @@ public partial class RichTextBox
         return handled;
     }
 
-    private static bool ConvertParagraphsToLists(IReadOnlyList<Paragraph> paragraphs)
+    private static bool ConvertParagraphsToLists(IReadOnlyList<Paragraph> paragraphs, bool ordered)
     {
         if (paragraphs.Count == 0)
         {
@@ -384,7 +417,10 @@ public partial class RichTextBox
                     endCursor++;
                 }
 
-                var list = new InkkSlinger.List();
+                var list = new InkkSlinger.List
+                {
+                    IsOrdered = ordered
+                };
                 for (var i = endCursor - 1; i >= cursor; i--)
                 {
                     blocks.RemoveAt(indexed[i].Index);
@@ -404,6 +440,64 @@ public partial class RichTextBox
         }
 
         return changed;
+    }
+
+    private static bool ToggleSelectedListStyle(FlowDocument document, int selectionStart, int selectionLength, int caretOffset, bool ordered)
+    {
+        var selected = ResolveSelectedParagraphs(document, selectionStart, selectionLength, caretOffset);
+        if (selected.Count == 0)
+        {
+            return false;
+        }
+
+        var allSelectedInTargetStyle = true;
+        var paragraphsToConvert = new List<Paragraph>();
+        var listsToRetarget = new HashSet<InkkSlinger.List>();
+        for (var i = 0; i < selected.Count; i++)
+        {
+            var paragraph = selected[i].Paragraph;
+            if (paragraph.Parent is ListItem item && item.Parent is InkkSlinger.List list)
+            {
+                if (list.IsOrdered != ordered)
+                {
+                    allSelectedInTargetStyle = false;
+                    listsToRetarget.Add(list);
+                }
+
+                continue;
+            }
+
+            allSelectedInTargetStyle = false;
+            paragraphsToConvert.Add(paragraph);
+        }
+
+        if (allSelectedInTargetStyle)
+        {
+            var changed = false;
+            for (var i = 0; i < selected.Count; i++)
+            {
+                if (TryOutdentParagraph(selected[i].Paragraph))
+                {
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
+        var styleChanged = false;
+        foreach (var list in listsToRetarget)
+        {
+            if (list.IsOrdered == ordered)
+            {
+                continue;
+            }
+
+            list.IsOrdered = ordered;
+            styleChanged = true;
+        }
+
+        return ConvertParagraphsToLists(paragraphsToConvert, ordered) || styleChanged;
     }
 
     private static bool TryGetParagraphBlockCollection(TextElement owner, out IList<Block> blocks)

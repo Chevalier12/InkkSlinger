@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs - RichTextDocument</title>
+    <meta name="description" content="Rich document model reference covering FlowDocument structure, blocks, inlines, tables, hosted UI, selection semantics, and serialization.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./docs.css">
+</head>
+<body class="docs-page">
+    <div class="page-shell docs-shell">
+        <header class="site-header docs-header">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger Docs</strong>
+                    <span>RichTextDocument</span>
+                </span>
+            </a>
+            <div class="docs-header-controls">
+                <a class="header-link" href="./index.html">Docs</a>
+            </div>
+        </header>
+        <main class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Documentation tree">
+                <p class="sidebar-label">Docs tree</p>
+                <nav class="tree-nav">
+                    <ul>
+                        <li class="tree-node expanded"><a href="./index.html">Docs Home</a></li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">WPF Bootcamp</summary>
+                                <ul>
+                                    <li><a href="./wpf-bootcamp-overview.html">Overview</a></li>
+                                    <li><a href="./wpf-bootcamp-application-mental-model.html">Application mental model</a></li>
+                                    <li><a href="./wpf-bootcamp-xaml-fundamentals.html">XAML fundamentals</a></li>
+                                    <li><a href="./wpf-bootcamp-layout-deep-dive.html">Layout deep dive</a></li>
+                                    <li><a href="./wpf-bootcamp-controls-and-content-model.html">Controls and content model</a></li>
+                                    <li><a href="./wpf-bootcamp-dependency-properties-explained.html">Dependency properties explained</a></li>
+                                    <li><a href="./wpf-bootcamp-routed-events-and-commands.html">Routed events and commands</a></li>
+                                    <li><a href="./wpf-bootcamp-data-binding-fundamentals.html">Data binding fundamentals</a></li>
+                                    <li><a href="./wpf-bootcamp-mvvm-core-workflow.html">MVVM core workflow</a></li>
+                                    <li><a href="./wpf-bootcamp-collections-and-item-controls.html">Collections and item controls</a></li>
+                                    <li><a href="./wpf-bootcamp-styling-templates-and-reuse.html">Styling, templates, and reuse</a></li>
+                                    <li><a href="./wpf-bootcamp-validation-and-user-input.html">Validation and user input</a></li>
+                                    <li><a href="./wpf-bootcamp-navigation-and-application-composition.html">Navigation and application composition</a></li>
+                                    <li><a href="./wpf-bootcamp-final-walkthrough.html">Final walkthrough</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">Getting Started</summary>
+                                <ul>
+                                    <li><a href="./getting-started-wpf-mental-model.html">How WPF-style UI maps here</a></li>
+                                    <li><a href="./getting-started-hello-world-without-viewmodel.html">Hello World without a ViewModel</a></li>
+                                    <li><a href="./getting-started-hello-world-with-viewmodel.html">Hello World with a ViewModel</a></li>
+                                    <li><a href="./getting-started-hooking-view-into-monogame.html">Hooking the view into MonoGame</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">RenderSurface</summary>
+                                <ul>
+                                    <li><a href="./rendersurface-what-it-is.html">What it is</a></li>
+                                    <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
+                                    <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group" open>
+                                <summary class="tree-group-toggle">Controls</summary>
+                                <ul>
+                                    <li><a href="./controls-adorner-decorator.html">AdornerDecorator</a></li>
+                                    <li><a href="./controls-adorner-layer.html">AdornerLayer</a></li>
+                                    <li><a href="./controls-anchored-adorner.html">AnchoredAdorner</a></li>
+                                    <li><a href="./controls-border.html">Border</a></li>
+                                    <li><a href="./controls-button.html">Button</a></li>
+                                    <li><a href="./controls-calendar.html">Calendar</a></li>
+                                    <li><a href="./controls-calendar-day-button.html">CalendarDayButton</a></li>
+                                    <li><a href="./controls-canvas.html">Canvas</a></li>
+                                    <li><a href="./controls-check-box.html">CheckBox</a></li>
+                                    <li><a href="./controls-combo-box.html">ComboBox</a></li>
+                                    <li><a href="./controls-combo-box-item.html">ComboBoxItem</a></li>
+                                    <li><a href="./controls-content-control.html">ContentControl</a></li>
+                                    <li><a href="./controls-content-presenter.html">ContentPresenter</a></li>
+                                    <li><a href="./controls-context-menu.html">ContextMenu</a></li>
+                                    <li><a href="./controls-data-grid.html">DataGrid</a></li>
+                                    <li><a href="./controls-data-grid-cell.html">DataGridCell</a></li>
+                                    <li><a href="./controls-data-grid-column-header.html">DataGridColumnHeader</a></li>
+                                    <li><a href="./controls-data-grid-details-presenter.html">DataGridDetailsPresenter</a></li>
+                                    <li><a href="./controls-data-grid-row.html">DataGridRow</a></li>
+                                    <li><a href="./controls-data-grid-row-header.html">DataGridRowHeader</a></li>
+                                    <li><a href="./controls-date-picker.html">DatePicker</a></li>
+                                    <li><a href="./controls-decorator.html">Decorator</a></li>
+                                    <li><a href="./controls-dock-panel.html">DockPanel</a></li>
+                                    <li><a href="./controls-document-viewer.html">DocumentViewer</a></li>
+                                    <li><a href="./controls-ellipse-shape.html">EllipseShape</a></li>
+                                    <li><a href="./controls-expander.html">Expander</a></li>
+                                    <li><a href="./controls-frame.html">Frame</a></li>
+                                    <li><a href="./controls-grid.html">Grid</a></li>
+                                    <li><a href="./controls-grid-splitter.html">GridSplitter</a></li>
+                                    <li><a href="./controls-grid-view-row-presenter.html">GridViewRowPresenter</a></li>
+                                    <li><a href="./controls-group-box.html">GroupBox</a></li>
+                                    <li><a href="./controls-group-item.html">GroupItem</a></li>
+                                    <li><a href="./controls-headered-content-control.html">HeaderedContentControl</a></li>
+                                    <li><a href="./controls-headered-items-control.html">HeaderedItemsControl</a></li>
+                                    <li><a href="./controls-image.html">Image</a></li>
+                                    <li><a href="./controls-items-control.html">ItemsControl</a></li>
+                                    <li><a href="./controls-items-presenter.html">ItemsPresenter</a></li>
+                                    <li><a href="./controls-label.html">Label</a></li>
+                                    <li><a href="./controls-line-shape.html">LineShape</a></li>
+                                    <li><a href="./controls-list-box.html">ListBox</a></li>
+                                    <li><a href="./controls-list-box-item.html">ListBoxItem</a></li>
+                                    <li><a href="./controls-list-view.html">ListView</a></li>
+                                    <li><a href="./controls-list-view-item.html">ListViewItem</a></li>
+                                    <li><a href="./controls-menu.html">Menu</a></li>
+                                    <li><a href="./controls-menu-item.html">MenuItem</a></li>
+                                    <li><a href="./controls-page.html">Page</a></li>
+                                    <li><a href="./controls-password-box.html">PasswordBox</a></li>
+                                    <li><a href="./controls-path-shape.html">PathShape</a></li>
+                                    <li><a href="./controls-polygon-shape.html">PolygonShape</a></li>
+                                    <li><a href="./controls-polyline-shape.html">PolylineShape</a></li>
+                                    <li><a href="./controls-popup.html">Popup</a></li>
+                                    <li><a href="./controls-progress-bar.html">ProgressBar</a></li>
+                                    <li><a href="./controls-radio-button.html">RadioButton</a></li>
+                                    <li><a href="./controls-rectangle-shape.html">RectangleShape</a></li>
+                                    <li><a href="./controls-render-surface.html">RenderSurface</a></li>
+                                    <li><a href="./controls-repeat-button.html">RepeatButton</a></li>
+                                    <li><a href="./controls-resize-grip.html">ResizeGrip</a></li>
+                                    <li><a href="./controls-rich-text-box.html">RichTextBox</a></li>
+                                    <li><a class="active" href="./controls-rich-text-document.html">RichTextDocument</a></li>
+                                    <li><a href="./controls-scroll-bar.html">ScrollBar</a></li>
+                                    <li><a href="./controls-scroll-viewer.html">ScrollViewer</a></li>
+                                    <li><a href="./controls-separator.html">Separator</a></li>
+                                    <li><a href="./controls-slider.html">Slider</a></li>
+                                    <li><a href="./controls-stack-panel.html">StackPanel</a></li>
+                                    <li><a href="./controls-status-bar.html">StatusBar</a></li>
+                                    <li><a href="./controls-status-bar-item.html">StatusBarItem</a></li>
+                                    <li><a href="./controls-tab-control.html">TabControl</a></li>
+                                    <li><a href="./controls-tab-item.html">TabItem</a></li>
+                                    <li><a href="./controls-text-block.html">TextBlock</a></li>
+                                    <li><a href="./controls-text-box.html">TextBox</a></li>
+                                    <li><a href="./controls-thumb.html">Thumb</a></li>
+                                    <li><a href="./controls-toggle-button.html">ToggleButton</a></li>
+                                    <li><a href="./controls-tool-bar.html">ToolBar</a></li>
+                                    <li><a href="./controls-tool-bar-overflow-panel.html">ToolBarOverflowPanel</a></li>
+                                    <li><a href="./controls-tool-bar-panel.html">ToolBarPanel</a></li>
+                                    <li><a href="./controls-tool-bar-tray.html">ToolBarTray</a></li>
+                                    <li><a href="./controls-tool-tip.html">ToolTip</a></li>
+                                    <li><a href="./controls-tree-view.html">TreeView</a></li>
+                                    <li><a href="./controls-tree-view-item.html">TreeViewItem</a></li>
+                                    <li><a href="./controls-uniform-grid.html">UniformGrid</a></li>
+                                    <li><a href="./controls-user-control.html">UserControl</a></li>
+                                    <li><a href="./controls-viewbox.html">Viewbox</a></li>
+                                    <li><a href="./controls-virtualizing-stack-panel.html">VirtualizingStackPanel</a></li>
+                                    <li><a href="./controls-window.html">Window</a></li>
+                                    <li><a href="./controls-wrap-panel.html">WrapPanel</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+            <article class="docs-content">
+                <div class="doc-hero">
+                    <p class="eyebrow">Controls</p>
+                    <h1>RichTextDocument</h1>
+                    <p>This page is the model-side reference for the structured document tree hosted by <code>RichTextBox</code>. In current InkkSlinger code, the concrete document type is <code>FlowDocument</code>; this guide uses the term <code>RichTextDocument</code> as shorthand for that tree of blocks, inlines, tables, lists, hyperlinks, and hosted UI. For the editing surface itself, see <a href="./controls-rich-text-box.html">RichTextBox</a>.</p>
+                </div>
+                <section class="doc-section">
+                    <h2>Mental model</h2>
+                    <p><code>RichTextBox</code> is not a dressed-up <code>TextBox</code>. It is an editor for a tree-structured document. That distinction affects almost everything: what you bind, what gets copied to the clipboard, how formatting is preserved, how selection offsets are interpreted, and what happens when you insert or remove content.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>The host control</h3>
+                            <p><code>RichTextBox</code> owns focus, caret, selection, commands, scrolling, rendering, and routed events. It is the editing surface.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>The document</h3>
+                            <p><code>FlowDocument</code> is the content model. It stores paragraphs, runs, lists, tables, hyperlinks, and containers that survive editing and serialization.</p>
+                        </article>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Use the control when you need editing.</strong> Use the document model when you need to reason about content structure, import or export, selection semantics, or rich transformations.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>The smallest useful setup is a <code>RichTextBox</code> instance plus a <code>FlowDocument</code>. The control will coerce <code>null</code> back to a default document, so the surface always has a valid model.</p>
+                    <h3>Minimal editor</h3>
+                    <pre><code class="language-xml">&lt;RichTextBox Width="480"
+             Height="240"
+             Padding="8"
+             BorderThickness="1"
+             TextWrapping="Wrap" /&gt;</code></pre>
+                    <h3>Create and assign a document</h3>
+                    <pre><code class="language-csharp">var document = new FlowDocument();
+
+var paragraph = new Paragraph();
+paragraph.Inlines.Add(new Run("Rich document editing starts here."));
+
+document.Blocks.Add(paragraph);
+editor.Document = document;</code></pre>
+                    <h3>Read-only rich viewer</h3>
+                    <pre><code class="language-xml">&lt;RichTextBox Width="560"
+             Height="280"
+             IsReadOnly="True"
+             TextWrapping="Wrap"
+             VerticalScrollBarVisibility="Auto" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>RichTextDocument structure</h2>
+                    <p>The document is hierarchical. Top-level blocks define major layout regions. Inlines define styled text and inline content inside paragraphs or spans. Structural fidelity matters because editing operations try to preserve it instead of flattening everything into plain text.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Common block types</h3>
+                            <p><code>Paragraph</code>, <code>Section</code>, <code>List</code>, <code>Table</code>, and <code>BlockUIContainer</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Common inline types</h3>
+                            <p><code>Run</code>, <code>Bold</code>, <code>Italic</code>, <code>Underline</code>, <code>Hyperlink</code>, <code>LineBreak</code>, and <code>InlineUIContainer</code>.</p>
+                        </article>
+                    </div>
+                    <h3>Example document tree</h3>
+                    <pre><code class="language-text">FlowDocument
+  Paragraph
+    Run("Status: ")
+    Bold
+      Run("Ready")
+  List
+    ListItem
+      Paragraph
+        Run("Validate commands")
+    ListItem
+      Paragraph
+        Run("Export to Flow XML")
+  Table
+    TableRowGroup
+      TableRow
+        TableCell
+          Paragraph
+            Run("Owner")
+        TableCell
+          Paragraph
+            Run("Controls Catalog")</code></pre>
+                    <h3>Build that shape in code</h3>
+                    <pre><code class="language-csharp">var document = new FlowDocument();
+
+var header = new Paragraph();
+header.Inlines.Add(new Run("Status: "));
+var bold = new Bold();
+bold.Inlines.Add(new Run("Ready"));
+header.Inlines.Add(bold);
+document.Blocks.Add(header);
+
+var list = new InkkSlinger.List();
+list.Items.Add(CreateItem("Validate commands"));
+list.Items.Add(CreateItem("Export to Flow XML"));
+document.Blocks.Add(list);
+
+var table = new Table();
+var group = new TableRowGroup();
+var row = new TableRow();
+row.Cells.Add(CreateCell("Owner"));
+row.Cells.Add(CreateCell("Controls Catalog"));
+group.Rows.Add(row);
+table.RowGroups.Add(group);
+document.Blocks.Add(table);
+
+editor.Document = document;
+
+static ListItem CreateItem(string text)
+{
+    var item = new ListItem();
+    var paragraph = new Paragraph();
+    paragraph.Inlines.Add(new Run(text));
+    item.Blocks.Add(paragraph);
+    return item;
+}
+
+static TableCell CreateCell(string text)
+{
+    var cell = new TableCell();
+    var paragraph = new Paragraph();
+    paragraph.Inlines.Add(new Run(text));
+    cell.Blocks.Add(paragraph);
+    return cell;
+}</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Blocks in detail</h2>
+                    <p>Block elements define flow regions and vertical progression. If you are designing document templates, import pipelines, or structure-aware commands, block boundaries are the first thing to think about.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Paragraph</h3>
+                            <p>The default text block. Most typing, selection, formatting, and hyperlink work happens inside paragraphs.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Section</h3>
+                            <p>A grouping block for nested block collections. Useful when you want a document subtree that can move as a unit.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>List</h3>
+                            <p>Represents ordered or unordered sequences. List commands adjust level and can convert selected paragraphs into list items.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Table</h3>
+                            <p>Represents grid-like content using row groups, rows, and cells. Table editing commands insert, split, and merge around the active cell.</p>
+                        </article>
+                    </div>
+                    <h3>Ordered list example</h3>
+                    <pre><code class="language-csharp">var list = new InkkSlinger.List
+{
+    IsOrdered = true
+};
+
+list.Items.Add(CreateItem("Draft structure"));
+list.Items.Add(CreateItem("Review formatting"));
+list.Items.Add(CreateItem("Publish payload examples"));
+
+document.Blocks.Add(list);</code></pre>
+                    <h3>Table example</h3>
+                    <pre><code class="language-csharp">var table = new Table();
+var group = new TableRowGroup();
+
+group.Rows.Add(CreateRow("Format", "Purpose"));
+group.Rows.Add(CreateRow("Flow XML", "Preserves rich structure"));
+group.Rows.Add(CreateRow("Text", "Plain text interchange"));
+
+table.RowGroups.Add(group);
+document.Blocks.Add(table);
+
+static TableRow CreateRow(string left, string right)
+{
+    var row = new TableRow();
+    row.Cells.Add(CreateCell(left));
+    row.Cells.Add(CreateCell(right));
+    return row;
+}</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Inlines in detail</h2>
+                    <p>Inlines are where rich text semantics actually live. A single visible sentence may be composed of many inline nodes with different style, command, or navigation meaning.</p>
+                    <ul>
+                        <li><code>Run</code> stores literal text.</li>
+                        <li><code>Bold</code>, <code>Italic</code>, and <code>Underline</code> wrap nested inline collections.</li>
+                        <li><code>Hyperlink</code> combines text with navigation or command activation.</li>
+                        <li><code>LineBreak</code> inserts a soft line transition inside a paragraph without creating a new block.</li>
+                        <li><code>InlineUIContainer</code> reserves inline space for a hosted <code>UIElement</code>.</li>
+                    </ul>
+                    <h3>Inline formatting example</h3>
+                    <pre><code class="language-csharp">var paragraph = new Paragraph();
+
+paragraph.Inlines.Add(new Run("Deploy status: "));
+
+var italic = new Italic();
+italic.Inlines.Add(new Run("warming up"));
+paragraph.Inlines.Add(italic);
+
+paragraph.Inlines.Add(new Run(". Review the "));
+
+var link = new Hyperlink
+{
+    NavigateUri = "https://example.com/build/42"
+};
+link.Inlines.Add(new Run("build report"));
+paragraph.Inlines.Add(link);
+
+document.Blocks.Add(paragraph);</code></pre>
+                    <h3>Line break example</h3>
+                    <pre><code class="language-csharp">var paragraph = new Paragraph();
+paragraph.Inlines.Add(new Run("First line"));
+paragraph.Inlines.Add(new LineBreak());
+paragraph.Inlines.Add(new Run("Second line"));</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Hosted UI inside the document</h2>
+                    <p>The document model can host actual UI elements, both inline and as blocks. This is useful for document-embedded buttons, badges, status chips, or custom interactive widgets. Hosted children become part of the RichTextBox visual tree and are measured and arranged from document layout results.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Inline UI</h3>
+                            <p>Use <code>InlineUIContainer</code> when the hosted element should flow with surrounding text.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Block UI</h3>
+                            <p>Use <code>BlockUIContainer</code> when the hosted element should stand as its own block between paragraphs or sections.</p>
+                        </article>
+                    </div>
+                    <h3>Inline hosted button</h3>
+                    <pre><code class="language-csharp">var button = new Button
+{
+    Content = "Run",
+    Width = 72f,
+    Height = 18f
+};
+
+var paragraph = new Paragraph();
+paragraph.Inlines.Add(new Run("Action: "));
+paragraph.Inlines.Add(new InlineUIContainer
+{
+    Child = button
+});
+
+document.Blocks.Add(paragraph);</code></pre>
+                    <h3>Block hosted button</h3>
+                    <pre><code class="language-csharp">document.Blocks.Add(new BlockUIContainer
+{
+    Child = new Button
+    {
+        Content = "Apply",
+        Width = 84f,
+        Height = 20f
+    }
+});</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Selection, caret, and document offsets</h2>
+                    <p>The editor exposes both a rich document view and a flattened text-offset view. That is deliberate. Many input and command operations need fast integer offsets, while more advanced APIs work with document pointers and ranges.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Offset-based state</h3>
+                            <p><code>CaretIndex</code>, <code>SelectionStart</code>, and <code>SelectionLength</code> are integer offsets over the flattened document text.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Pointer-based state</h3>
+                            <p><code>CaretPosition</code>, <code>Selection</code>, <code>DocumentSelection</code>, and <code>SelectionRange</code> expose richer document-aware views.</p>
+                        </article>
+                    </div>
+                    <h3>Select by offset</h3>
+                    <pre><code class="language-csharp">editor.Select(12, 5);
+
+Console.WriteLine(editor.SelectionStart);   // 12
+Console.WriteLine(editor.SelectionLength);  // 5
+Console.WriteLine(editor.CaretIndex);       // 17</code></pre>
+                    <h3>Select by TextPointer</h3>
+                    <pre><code class="language-csharp">var start = DocumentPointers.CreateAtDocumentOffset(editor.Document, 0);
+var end = DocumentPointers.CreateAtDocumentOffset(editor.Document, 11);
+
+editor.Select(start, end);</code></pre>
+                    <h3>Hit test into the document</h3>
+                    <pre><code class="language-csharp">TextPointer? pointer = editor.GetPositionFromPoint(mousePosition, snapToText: true);
+if (pointer.HasValue)
+{
+    var offset = DocumentPointers.GetDocumentOffset(pointer.Value);
+    Console.WriteLine($"Hit offset: {offset}");
+}</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Editing model and mutations</h2>
+                    <p>Edits are structural, not just textual. Depending on the current content and command, RichTextBox may replace plain text, splice a rich fragment, adjust list depth, split or merge cells, or preserve inline wrappers while replacing only the selected text payload.</p>
+                    <ul>
+                        <li>Typing can preserve active inline style or current paragraph structure.</li>
+                        <li>Replacing the whole <code>Document</code> is different from loading into the current selection.</li>
+                        <li>Undo and redo operate through the document undo manager, not a plain string buffer.</li>
+                        <li>Read-only mode blocks mutations but keeps navigation, selection, scrolling, and hyperlink activation.</li>
+                    </ul>
+                    <h3>Whole-document replacement</h3>
+                    <pre><code class="language-csharp">var replacement = new FlowDocument();
+DocumentEditing.ReplaceAllText(replacement, "New document body");
+editor.Document = replacement;</code></pre>
+                    <h3>Selection-scoped load</h3>
+                    <pre><code class="language-csharp">using var stream = new MemoryStream(Encoding.UTF8.GetBytes("Inserted text"));
+editor.LoadSelection(stream, "Text");</code></pre>
+                    <h3>Whole-document load</h3>
+                    <pre><code class="language-csharp">using var stream = new MemoryStream(Encoding.UTF8.GetBytes(payload));
+editor.Load(stream, "Xaml");</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Commands and shortcuts</h2>
+                    <p>The control registers a broad routed command surface. That matters because toolbar buttons, keyboard shortcuts, and direct command execution all go through the same behavior gates.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Text editing</h3>
+                            <p>Backspace, Delete, paragraph breaks, line breaks, cut, copy, paste, undo, redo, word deletion, and selection commands are all routed.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Rich commands</h3>
+                            <p>Formatting, list toggles, indent changes, table commands, page navigation, paragraph navigation, and hyperlink activation are part of the same command system.</p>
+                        </article>
+                    </div>
+                    <h3>Formatting example</h3>
+                    <pre><code class="language-csharp">CommandManager.Execute(EditingCommands.ToggleBold, null, editor);
+CommandManager.Execute(EditingCommands.ToggleItalic, null, editor);
+CommandManager.Execute(EditingCommands.ToggleUnderline, null, editor);</code></pre>
+                    <h3>List and table example</h3>
+                    <pre><code class="language-csharp">CommandManager.Execute(EditingCommands.ToggleBullets, null, editor);
+CommandManager.Execute(EditingCommands.ToggleNumbering, null, editor);
+CommandManager.Execute(EditingCommands.InsertTable, null, editor);
+CommandManager.Execute(EditingCommands.SplitCell, null, editor);
+CommandManager.Execute(EditingCommands.MergeCells, null, editor);</code></pre>
+                    <h3>Navigation example</h3>
+                    <pre><code class="language-csharp">CommandManager.Execute(EditingCommands.MoveToDocumentStart, null, editor);
+CommandManager.Execute(EditingCommands.MoveDownByPage, null, editor);
+CommandManager.Execute(EditingCommands.SelectToDocumentEnd, null, editor);</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Clipboard and serialization formats</h2>
+                    <p>The document model supports both rich and plain interchange. This is one of the most important reasons to keep content as structured blocks and inlines instead of flattening early.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Rich formats</h3>
+                            <p><code>Flow XML</code>, <code>Xaml</code>, <code>XamlPackage</code>, and <code>Rich Text Format</code> preserve more structure and formatting.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Plain format</h3>
+                            <p><code>Text</code> and <code>UnicodeText</code> flatten the document to text while preserving line boundaries as normalized newlines.</p>
+                        </article>
+                    </div>
+                    <h3>Save the whole document</h3>
+                    <pre><code class="language-csharp">using var stream = new MemoryStream();
+editor.Save(stream, FlowDocumentSerializer.ClipboardFormat);
+
+stream.Position = 0;
+var xml = new StreamReader(stream).ReadToEnd();</code></pre>
+                    <h3>Save just the current selection</h3>
+                    <pre><code class="language-csharp">using var stream = new MemoryStream();
+editor.SaveSelection(stream, "Xaml");</code></pre>
+                    <h3>Round-trip plain text</h3>
+                    <pre><code class="language-csharp">using var stream = new MemoryStream(Encoding.UTF8.GetBytes("alpha\nbeta"));
+editor.Load(stream, "Text");</code></pre>
+                    <h3>Round-trip RTF</h3>
+                    <pre><code class="language-csharp">using var stream = new MemoryStream(Encoding.UTF8.GetBytes(@"{\rtf1\ansi line1\par line2}"));
+editor.Load(stream, "Rich Text Format");</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Hyperlinks, automation, and public events</h2>
+                    <p>Hyperlinks are document content, not overlay widgets. They participate in selection, read-only activation, and keyboard navigation. The editor also raises routed events for document, text, and selection changes and exposes automation patterns through its peer.</p>
+                    <ul>
+                        <li><code>DocumentChanged</code> fires when the active document is replaced or the current document mutates.</li>
+                        <li><code>TextChanged</code> tracks text-affecting edits.</li>
+                        <li><code>SelectionChanged</code> tracks caret and selection transitions.</li>
+                        <li><code>HyperlinkNavigate</code> bubbles the target URI when a hyperlink is activated.</li>
+                    </ul>
+                    <h3>Hyperlink event example</h3>
+                    <pre><code class="language-csharp">editor.HyperlinkNavigate += (_, args) =&gt;
+{
+    Console.WriteLine($"Navigate: {args.NavigateUri}");
+};</code></pre>
+                    <h3>Document and selection events</h3>
+                    <pre><code class="language-csharp">editor.DocumentChanged += (_, _) =&gt; Console.WriteLine("Document changed");
+editor.TextChanged += (_, _) =&gt; Console.WriteLine("Text changed");
+editor.SelectionChanged += (_, _) =&gt; Console.WriteLine("Selection changed");</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Scrolling, layout, and rendering</h2>
+                    <p>The control renders the document surface itself. Templates provide outer chrome, but the RichTextBox still owns document measurement, caret drawing, selection geometry, table borders, and hosted child placement.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Measurement</h3>
+                            <p>Desired size comes from the laid-out document plus padding and border thickness. With <code>TextWrapping="NoWrap"</code>, available text width becomes effectively infinite.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Template contract</h3>
+                            <p>The default template expects a <code>PART_ContentHost</code> placeholder so RichTextBox aligns with the other text-input controls while still retaining control-owned rich rendering.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li>Mouse wheel scrolling is internal to the editor surface.</li>
+                        <li>Caret visibility can move scroll offsets automatically.</li>
+                        <li>Hosted document children are measured and arranged from layout results.</li>
+                        <li>Selection and caret are clipped to the computed text rect.</li>
+                    </ul>
+                    <h3>Template example</h3>
+                    <pre><code class="language-xml">&lt;Style TargetType="{x:Type RichTextBox}"&gt;
+  &lt;Setter Property="Template"&gt;
+    &lt;Setter.Value&gt;
+      &lt;ControlTemplate TargetType="{x:Type RichTextBox}"&gt;
+        &lt;Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"&gt;
+          &lt;ScrollViewer x:Name="PART_ContentHost"
+                        Margin="{TemplateBinding Padding}"
+                        Focusable="False" /&gt;
+        &lt;/Border&gt;
+      &lt;/ControlTemplate&gt;
+    &lt;/Setter.Value&gt;
+  &lt;/Setter&gt;
+&lt;/Style&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Practical document recipes</h2>
+                    <h3>Release notes document</h3>
+                    <pre><code class="language-csharp">var document = new FlowDocument();
+
+var title = new Paragraph();
+var titleBold = new Bold();
+titleBold.Inlines.Add(new Run("Release 1.4"));
+title.Inlines.Add(titleBold);
+document.Blocks.Add(title);
+
+var summary = new Paragraph();
+summary.Inlines.Add(new Run("This release adds list toggles, table editing, and payload round-trips."));
+document.Blocks.Add(summary);
+
+var bullets = new InkkSlinger.List();
+bullets.Items.Add(CreateItem("Toggle bullets and numbering from the toolbar."));
+bullets.Items.Add(CreateItem("Export selections as XAML or Flow XML."));
+bullets.Items.Add(CreateItem("Preserve hyperlinks and inline formatting."));
+document.Blocks.Add(bullets);
+
+editor.Document = document;</code></pre>
+                    <h3>Status dashboard document</h3>
+                    <pre><code class="language-csharp">var document = new FlowDocument();
+document.Blocks.Add(CreateParagraph("Service dashboard"));
+document.Blocks.Add(CreateStatusTable(
+    ("API", "Healthy"),
+    ("Jobs", "Running"),
+    ("Queue", "12 pending")));
+
+static Paragraph CreateParagraph(string text)
+{
+    var paragraph = new Paragraph();
+    paragraph.Inlines.Add(new Run(text));
+    return paragraph;
+}
+
+static Table CreateStatusTable(params (string Left, string Right)[] rows)
+{
+    var table = new Table();
+    var group = new TableRowGroup();
+    foreach (var (left, right) in rows)
+    {
+        var row = new TableRow();
+        row.Cells.Add(CreateCell(left));
+        row.Cells.Add(CreateCell(right));
+        group.Rows.Add(row);
+    }
+
+    table.RowGroups.Add(group);
+    return table;
+}</code></pre>
+                    <h3>Embedded action document</h3>
+                    <pre><code class="language-csharp">var button = new Button
+{
+    Content = "Approve",
+    Width = 84f,
+    Height = 20f
+};
+
+button.Click += (_, _) =&gt; Console.WriteLine("Approved");
+
+var paragraph = new Paragraph();
+paragraph.Inlines.Add(new Run("Current step: "));
+paragraph.Inlines.Add(new InlineUIContainer { Child = button });
+
+var document = new FlowDocument();
+document.Blocks.Add(paragraph);
+editor.Document = document;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Rules and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Think in structure first.</strong> If the content needs lists, links, tables, or inline styling, build and transform the document tree directly instead of reconstructing it from plain strings later.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>The document is the source of truth.</strong> There is no simple <code>Text</code> dependency property. Plain text can be derived from the document, but the editor is not fundamentally string-based.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Whole-document and selection operations are different.</strong> <code>Load</code> replaces the document. <code>LoadSelection</code> replaces only the current selection and may preserve more surrounding structure.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Template chrome is not rendering ownership.</strong> Even with a <code>PART_ContentHost</code> template, RichTextBox still owns rich layout, scrolling, selection, caret, and hosted child placement.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Read-only is still interactive.</strong> It blocks mutation, but selection, scrolling, and hyperlink navigation remain live.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-rich-text-box.html">
+                        <span>Previous</span>
+                        <strong>RichTextBox</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-scroll-bar.html">
+                        <span>Next</span>
+                        <strong>ScrollBar</strong>
+                    </a>
+                </nav>
+            </article>
+        </main>
+    </div>
+    <script>
+        (function () {
+            var nav = document.querySelector('.tree-nav');
+            if (!nav) return;
+            var active = nav.querySelector('a.active');
+            if (active) {
+                var navTop = nav.getBoundingClientRect().top;
+                var itemTop = active.getBoundingClientRect().top;
+                var offset = itemTop - navTop;
+                var center = offset - nav.clientHeight / 2 + active.offsetHeight / 2;
+                nav.scrollTop = Math.max(0, center);
+            }
+        })();
+    </script>
+</body>
+</html>

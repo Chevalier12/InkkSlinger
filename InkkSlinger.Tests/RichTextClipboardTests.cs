@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Xna.Framework.Input;
 using Xunit;
 
@@ -58,6 +59,22 @@ public sealed class RichTextClipboardTests
     }
 
     [Fact]
+    public void PasteCanExecute_WithCachedClipboardText_DoesNotSyncExternalClipboard()
+    {
+        TextClipboard.ResetForTests();
+        TextClipboard.SetText("cached text");
+
+        var editor = CreateEditor(string.Empty);
+        var before = TextClipboard.GetSnapshot();
+
+        Assert.True(CommandManager.CanExecute(EditingCommands.Paste, null, editor));
+
+        var after = TextClipboard.GetSnapshot();
+        Assert.Equal(before.SyncCallCount, after.SyncCallCount);
+        Assert.Equal(before.SyncExternalReadCount, after.SyncExternalReadCount);
+    }
+
+    [Fact]
     public void SerializeRange_SlicesSelectedFormattedRun()
     {
         var document = new FlowDocument();
@@ -100,6 +117,19 @@ public sealed class RichTextClipboardTests
         Assert.Equal("Hello World", DocumentEditing.GetText(target.Document));
         var paragraph = Assert.IsType<Paragraph>(Assert.Single(target.Document.Blocks));
         Assert.IsType<Bold>(paragraph.Inlines[1]);
+    }
+
+    [Fact]
+    public void Paste_ReadsRichTextClipboardFormat()
+    {
+        TextClipboard.ResetForTests();
+
+        TextClipboard.SetData("Rich Text Format", @"{\rtf1\ansi alpha\par beta}");
+
+        var target = CreateEditor(string.Empty);
+        CommandManager.Execute(EditingCommands.Paste, null, target);
+
+        Assert.Equal("alpha\nbeta", DocumentEditing.GetText(target.Document));
     }
 
     [Fact]
@@ -155,6 +185,50 @@ public sealed class RichTextClipboardTests
 
         Assert.Contains(editor.Document.Blocks, static b => b is InkkSlinger.List);
         Assert.Contains(editor.Document.Blocks, static b => b is Table);
+    }
+
+    [Fact]
+    public void CanLoadAndSave_ShouldRecognizeKnownFormats()
+    {
+        var editor = CreateEditor("alpha");
+
+        Assert.True(editor.CanLoad(FlowDocumentSerializer.ClipboardFormat));
+        Assert.True(editor.CanLoad("Xaml"));
+        Assert.True(editor.CanLoad("XamlPackage"));
+        Assert.True(editor.CanLoad("Rich Text Format"));
+        Assert.True(editor.CanLoad("Text"));
+        Assert.True(editor.CanSave("UnicodeText"));
+        Assert.False(editor.CanLoad("Bitmap"));
+    }
+
+    [Fact]
+    public void SaveSelectionAndLoadSelection_Xaml_RoundTripFormatting()
+    {
+        var source = CreateEditorWithFormattedDocument();
+        source.HandleKeyDownFromInput(Keys.A, ModifierKeys.Control);
+
+        using var stream = new MemoryStream();
+        source.SaveSelection(stream, "Xaml");
+
+        var target = CreateEditor(string.Empty);
+        target.LoadSelection(stream, "Xaml");
+
+        Assert.Equal("Hello World", DocumentEditing.GetText(target.Document));
+        var paragraph = Assert.IsType<Paragraph>(Assert.Single(target.Document.Blocks));
+        Assert.IsType<Bold>(paragraph.Inlines[1]);
+    }
+
+    [Fact]
+    public void Load_RichTextFormat_ReplacesWholeDocument()
+    {
+        var editor = CreateEditor("seed");
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(@"{\rtf1\ansi line1\par line2}"));
+
+        editor.Load(stream, "Rich Text Format");
+
+        Assert.Equal("line1\nline2", DocumentEditing.GetText(editor.Document));
+        Assert.Equal(0, editor.SelectionLength);
+        Assert.Equal(0, editor.CaretIndex);
     }
 
     private static RichTextBox CreateEditor(string text)

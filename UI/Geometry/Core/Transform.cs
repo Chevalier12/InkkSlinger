@@ -177,9 +177,9 @@ public sealed class ScaleTransform : Transform
             return Matrix.CreateScale(ScaleX, ScaleY, 1f);
         }
 
-        return Matrix.CreateTranslation(-CenterX, -CenterY, 0f)
-               * Matrix.CreateScale(ScaleX, ScaleY, 1f)
-               * Matrix.CreateTranslation(CenterX, CenterY, 0f);
+         return Matrix.CreateTranslation(-CenterX, -CenterY, 0f)
+             * Matrix.CreateScale(ScaleX, ScaleY, 1f)
+             * Matrix.CreateTranslation(CenterX, CenterY, 0f);
     }
 }
 
@@ -228,9 +228,9 @@ public sealed class RotateTransform : Transform
             return Matrix.CreateRotationZ(radians);
         }
 
-        return Matrix.CreateTranslation(-CenterX, -CenterY, 0f)
-               * Matrix.CreateRotationZ(radians)
-               * Matrix.CreateTranslation(CenterX, CenterY, 0f);
+         return Matrix.CreateTranslation(-CenterX, -CenterY, 0f)
+             * Matrix.CreateRotationZ(radians)
+             * Matrix.CreateTranslation(CenterX, CenterY, 0f);
     }
 }
 
@@ -294,9 +294,9 @@ public sealed class SkewTransform : Transform
             return skew;
         }
 
-        return Matrix.CreateTranslation(-CenterX, -CenterY, 0f)
-               * skew
-               * Matrix.CreateTranslation(CenterX, CenterY, 0f);
+         return Matrix.CreateTranslation(-CenterX, -CenterY, 0f)
+             * skew
+             * Matrix.CreateTranslation(CenterX, CenterY, 0f);
     }
 }
 

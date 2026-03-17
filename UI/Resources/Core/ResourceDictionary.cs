@@ -10,6 +10,9 @@ public class ResourceDictionary : IDictionary<object, object>
     private readonly Dictionary<object, object> _resources = new();
     private readonly List<ResourceDictionary> _mergedDictionaries = new();
     private readonly ReadOnlyCollection<ResourceDictionary> _readonlyMergedDictionaries;
+    private int _notificationDeferralDepth;
+    private bool _hasDeferredChange;
+    private bool _suppressChangedNotifications;
 
     public ResourceDictionary()
     {
@@ -42,22 +45,53 @@ public class ResourceDictionary : IDictionary<object, object>
 
     public bool IsReadOnly => false;
 
+    public void ReplaceContents(
+        IEnumerable<KeyValuePair<object, object>> entries,
+        IEnumerable<ResourceDictionary>? mergedDictionaries = null,
+        bool notifyChanged = true)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+
+        var previousSuppression = _suppressChangedNotifications;
+        _suppressChangedNotifications = !notifyChanged;
+        try
+        {
+            using var _ = new NotificationDeferral(this);
+
+            ClearMergedDictionariesCore();
+            _resources.Clear();
+
+            foreach (var entry in entries)
+            {
+                _resources[entry.Key] = entry.Value;
+            }
+
+            if (mergedDictionaries != null)
+            {
+                foreach (var dictionary in mergedDictionaries)
+                {
+                    AddMergedDictionaryCore(dictionary);
+                }
+            }
+
+            if (notifyChanged)
+            {
+                _hasDeferredChange = true;
+            }
+        }
+        finally
+        {
+            _suppressChangedNotifications = previousSuppression;
+            if (!notifyChanged)
+            {
+                _hasDeferredChange = false;
+            }
+        }
+    }
+
     public void AddMergedDictionary(ResourceDictionary dictionary)
     {
-        ArgumentNullException.ThrowIfNull(dictionary);
-
-        if (ReferenceEquals(dictionary, this))
-        {
-            throw new InvalidOperationException("A ResourceDictionary cannot merge itself.");
-        }
-
-        if (dictionary.ContainsMergedDictionaryReference(this))
-        {
-            throw new InvalidOperationException("A ResourceDictionary merge cannot introduce a cycle.");
-        }
-
-        _mergedDictionaries.Add(dictionary);
-        dictionary.Changed += OnMergedDictionaryChanged;
+        AddMergedDictionaryCore(dictionary);
         OnChanged(new ResourceDictionaryChangedEventArgs(ResourceDictionaryChangeAction.MergeChanged, null));
     }
 
@@ -210,6 +244,90 @@ public class ResourceDictionary : IDictionary<object, object>
 
     private void OnChanged(ResourceDictionaryChangedEventArgs args)
     {
+        if (_suppressChangedNotifications)
+        {
+            return;
+        }
+
+        if (_notificationDeferralDepth > 0)
+        {
+            _hasDeferredChange = true;
+            return;
+        }
+
         Changed?.Invoke(this, args);
+    }
+
+    private void AddMergedDictionaryCore(ResourceDictionary dictionary)
+    {
+        ArgumentNullException.ThrowIfNull(dictionary);
+
+        if (ReferenceEquals(dictionary, this))
+        {
+            throw new InvalidOperationException("A ResourceDictionary cannot merge itself.");
+        }
+
+        if (dictionary.ContainsMergedDictionaryReference(this))
+        {
+            throw new InvalidOperationException("A ResourceDictionary merge cannot introduce a cycle.");
+        }
+
+        _mergedDictionaries.Add(dictionary);
+        dictionary.Changed += OnMergedDictionaryChanged;
+    }
+
+    private void ClearMergedDictionariesCore()
+    {
+        foreach (var dictionary in _mergedDictionaries)
+        {
+            dictionary.Changed -= OnMergedDictionaryChanged;
+        }
+
+        _mergedDictionaries.Clear();
+    }
+
+    private void BeginNotificationDeferral()
+    {
+        _notificationDeferralDepth++;
+    }
+
+    private void EndNotificationDeferral()
+    {
+        if (_notificationDeferralDepth == 0)
+        {
+            return;
+        }
+
+        _notificationDeferralDepth--;
+        if (_notificationDeferralDepth != 0 || !_hasDeferredChange || _suppressChangedNotifications)
+        {
+            return;
+        }
+
+        _hasDeferredChange = false;
+        Changed?.Invoke(this, new ResourceDictionaryChangedEventArgs(ResourceDictionaryChangeAction.MergeChanged, null));
+    }
+
+    private sealed class NotificationDeferral : IDisposable
+    {
+        private readonly ResourceDictionary _owner;
+        private bool _disposed;
+
+        public NotificationDeferral(ResourceDictionary owner)
+        {
+            _owner = owner;
+            _owner.BeginNotificationDeferral();
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _owner.EndNotificationDeferral();
+        }
     }
 }

@@ -1496,6 +1496,362 @@ public sealed class RichTextWpfParityGapTests
         Assert.Equal("abc", DocumentEditing.GetText(editor.Document));
     }
 
+    [Fact]
+    public void PublicSelectAndSelectAll_ShouldUpdateSelectionAndRaiseSelectionChanged()
+    {
+        var editor = CreateEditor("alpha beta");
+        var selectionChangedCount = 0;
+        editor.SelectionChanged += (_, _) => selectionChangedCount++;
+
+        editor.Select(6, 4);
+
+        Assert.Equal(6, editor.SelectionStart);
+        Assert.Equal(4, editor.SelectionLength);
+        Assert.Equal(10, editor.CaretIndex);
+        Assert.Equal(1, selectionChangedCount);
+
+        editor.SelectAll();
+
+        Assert.Equal(0, editor.SelectionStart);
+        Assert.Equal("alpha beta".Length, editor.SelectionLength);
+        Assert.Equal("alpha beta".Length, editor.CaretIndex);
+        Assert.Equal(2, selectionChangedCount);
+
+        editor.SelectAll();
+
+        Assert.Equal(2, selectionChangedCount);
+    }
+
+    [Fact]
+    public void TextInput_ShouldRaiseTextChanged()
+    {
+        var editor = CreateEditor("abc");
+        var textChangedCount = 0;
+        editor.TextChanged += (_, _) => textChangedCount++;
+        editor.Select(3, 0);
+
+        Assert.True(editor.HandleTextInputFromInput('d'));
+
+        Assert.Equal("abcd", DocumentEditing.GetText(editor.Document));
+        Assert.True(textChangedCount > 0);
+    }
+
+    [Fact]
+    public void TextInput_ShouldRaiseSingleTextChangedPerEdit()
+    {
+        var editor = CreateEditor("abc");
+        var textChangedCount = 0;
+        editor.TextChanged += (_, _) => textChangedCount++;
+        editor.Select(3, 0);
+
+        Assert.True(editor.HandleTextInputFromInput('d'));
+
+        Assert.Equal("abcd", DocumentEditing.GetText(editor.Document));
+        Assert.Equal(1, textChangedCount);
+    }
+
+    [Fact]
+    public void FormattingCommand_ShouldRaiseSingleTextChangedPerEdit()
+    {
+        var editor = CreateEditor("alpha");
+        var textChangedCount = 0;
+        editor.TextChanged += (_, _) => textChangedCount++;
+        editor.Select(0, 5);
+
+        CommandManager.Execute(EditingCommands.ToggleBold, null, editor);
+
+        Assert.Equal(1, textChangedCount);
+    }
+
+    [Fact]
+    public void ToggleNumbering_OnPlainParagraphSelection_ShouldCreateOrderedList()
+    {
+        var editor = CreateEditor("alpha\nbeta");
+
+        editor.Select(0, DocumentEditing.GetText(editor.Document).Length);
+        CommandManager.Execute(EditingCommands.ToggleNumbering, null, editor);
+
+        var list = Assert.IsType<InkkSlinger.List>(Assert.Single(editor.Document.Blocks));
+        Assert.True(list.IsOrdered);
+        Assert.Equal(2, list.Items.Count);
+    }
+
+    [Fact]
+    public void ToggleBullets_OnOrderedListSelection_ShouldRetargetListStyle()
+    {
+        var editor = CreateEditor(string.Empty);
+        editor.Document = BuildTwoItemListDocument();
+        ((InkkSlinger.List)editor.Document.Blocks[0]).IsOrdered = true;
+
+        editor.Select(0, 6);
+        CommandManager.Execute(EditingCommands.ToggleBullets, null, editor);
+
+        var list = Assert.IsType<InkkSlinger.List>(Assert.Single(editor.Document.Blocks));
+        Assert.False(list.IsOrdered);
+    }
+
+    [Fact]
+    public void ToggleNumbering_OnOrderedListSelection_ShouldOutdentSelection()
+    {
+        var editor = CreateEditor(string.Empty);
+        editor.Document = BuildTwoItemListDocument();
+        ((InkkSlinger.List)editor.Document.Blocks[0]).IsOrdered = true;
+
+        editor.Select(0, 6);
+        CommandManager.Execute(EditingCommands.ToggleNumbering, null, editor);
+
+        Assert.IsType<InkkSlinger.List>(editor.Document.Blocks[0]);
+        var outdentedParagraph = Assert.IsType<Paragraph>(editor.Document.Blocks[1]);
+        Assert.Equal("Item 1", FlowDocumentPlainText.GetInlineText(outdentedParagraph.Inlines));
+    }
+
+    [Fact]
+    public void PublicUndoRedo_ShouldTrackCanUndoAndCanRedo()
+    {
+        var editor = CreateEditor("abc");
+        editor.Select(3, 0);
+
+        Assert.False(editor.CanUndo);
+        Assert.False(editor.CanRedo);
+
+        Assert.True(editor.HandleTextInputFromInput('d'));
+
+        Assert.Equal("abcd", DocumentEditing.GetText(editor.Document));
+        Assert.True(editor.CanUndo);
+        Assert.False(editor.CanRedo);
+
+        editor.Undo();
+
+        Assert.Equal("abc", DocumentEditing.GetText(editor.Document));
+        Assert.False(editor.CanUndo);
+        Assert.True(editor.CanRedo);
+
+        editor.Redo();
+
+        Assert.Equal("abcd", DocumentEditing.GetText(editor.Document));
+        Assert.True(editor.CanUndo);
+        Assert.False(editor.CanRedo);
+    }
+
+    [Fact]
+    public void UndoRedo_ShouldEachRaiseSingleTextChanged()
+    {
+        var editor = CreateEditor("abc");
+        var textChangedCount = 0;
+        editor.TextChanged += (_, _) => textChangedCount++;
+        editor.Select(3, 0);
+
+        Assert.True(editor.HandleTextInputFromInput('d'));
+        Assert.Equal(1, textChangedCount);
+
+        textChangedCount = 0;
+        editor.Undo();
+        Assert.Equal("abc", DocumentEditing.GetText(editor.Document));
+        Assert.Equal(1, textChangedCount);
+
+        textChangedCount = 0;
+        editor.Redo();
+        Assert.Equal("abcd", DocumentEditing.GetText(editor.Document));
+        Assert.Equal(1, textChangedCount);
+    }
+
+    [Fact]
+    public void PublicClipboardMethods_ShouldDelegateToEditorCommands()
+    {
+        TextClipboard.ResetForTests();
+        var editor = CreateEditor("alpha");
+
+        editor.Select(0, 5);
+        editor.Copy();
+
+        Assert.True(TextClipboard.TryGetText(out var copied));
+        Assert.Equal("alpha", copied);
+
+        editor.Cut();
+
+        Assert.Equal(string.Empty, DocumentEditing.GetText(editor.Document));
+
+        TextClipboard.SetText("beta");
+        editor.Paste();
+
+        Assert.Equal("beta", DocumentEditing.GetText(editor.Document));
+    }
+
+    [Fact]
+    public void PointerSelectionApis_ShouldRoundTripDocumentOffsets()
+    {
+        var editor = CreateEditor("alpha beta");
+
+        editor.Select(6, 4);
+
+        Assert.Equal(6, editor.Selection.Start);
+        Assert.Equal(10, editor.Selection.End);
+        Assert.Equal(10, DocumentPointers.GetDocumentOffset(editor.CaretPosition));
+        Assert.Equal(6, DocumentPointers.GetDocumentOffset(editor.SelectionRange.Start));
+        Assert.Equal(10, DocumentPointers.GetDocumentOffset(editor.SelectionRange.End));
+        Assert.Equal(6, DocumentPointers.GetDocumentOffset(editor.DocumentSelection.Anchor));
+        Assert.Equal(10, DocumentPointers.GetDocumentOffset(editor.DocumentSelection.Active));
+    }
+
+    [Fact]
+    public void Select_WithDocumentPointers_ShouldUpdateSelection()
+    {
+        var editor = CreateEditor("alpha beta");
+        var anchor = DocumentPointers.CreateAtDocumentOffset(editor.Document, 0);
+        var moving = DocumentPointers.CreateAtDocumentOffset(editor.Document, 5);
+
+        editor.Select(anchor, moving);
+
+        Assert.Equal(0, editor.SelectionStart);
+        Assert.Equal(5, editor.SelectionLength);
+        Assert.Equal(5, editor.CaretIndex);
+    }
+
+    [Fact]
+    public void GetPositionFromPoint_ShouldHonorSnapToText()
+    {
+        var editor = CreateEditor("alpha beta");
+        var insidePoint = new Vector2(1f + 8f + UiTextRenderer.MeasureWidth("alpha", editor.FontSize), 1f + 5f + 2f);
+        var outsidePoint = new Vector2(-20f, -20f);
+
+        var inside = editor.GetPositionFromPoint(insidePoint, snapToText: false);
+        var outside = editor.GetPositionFromPoint(outsidePoint, snapToText: false);
+        var snapped = editor.GetPositionFromPoint(outsidePoint, snapToText: true);
+
+        Assert.True(inside.HasValue);
+        Assert.True(DocumentPointers.GetDocumentOffset(inside.Value) >= 4);
+        Assert.False(outside.HasValue);
+        Assert.True(snapped.HasValue);
+    }
+
+    [Fact]
+    public void ScrollContract_ShouldExposeOffsetsAndClampScrolling()
+    {
+        var editor = CreateEditor(string.Join("\n", Enumerable.Range(1, 30).Select(static i => $"line {i}")));
+
+        Assert.True(editor.ExtentHeight > editor.ViewportHeight);
+        Assert.True(editor.ScrollableHeight > 0f);
+        Assert.Equal(0f, editor.VerticalOffset);
+
+        editor.PageDown();
+        Assert.True(editor.VerticalOffset > 0f);
+
+        editor.ScrollToEnd();
+        Assert.True(Math.Abs(editor.ScrollableHeight - editor.VerticalOffset) <= 0.01f);
+
+        editor.ScrollToVerticalOffset(float.MaxValue);
+        Assert.True(Math.Abs(editor.ScrollableHeight - editor.VerticalOffset) <= 0.01f);
+
+        editor.ScrollToHome();
+        Assert.Equal(0f, editor.VerticalOffset);
+    }
+
+    [Fact]
+    public void UndoSettings_ShouldControlUndoAvailability()
+    {
+        var editor = CreateEditor(string.Empty);
+        editor.IsUndoEnabled = false;
+
+        Assert.True(editor.HandleTextInputFromInput('a'));
+        Assert.Equal("a", DocumentEditing.GetText(editor.Document));
+        Assert.False(editor.CanUndo);
+
+        editor.Undo();
+        Assert.Equal("a", DocumentEditing.GetText(editor.Document));
+
+        editor.IsUndoEnabled = true;
+        Assert.True(editor.HandleTextInputFromInput('b'));
+        Assert.True(editor.CanUndo);
+
+        editor.Undo();
+        Assert.Equal("a", DocumentEditing.GetText(editor.Document));
+    }
+
+    [Fact]
+    public void UndoLimitAndAcceptsInputFlags_ShouldAffectBehavior()
+    {
+        var editor = CreateEditor(string.Empty);
+        editor.AcceptsReturn = false;
+        editor.AcceptsTab = false;
+
+        Assert.False(editor.HandleKeyDownFromInput(Keys.Enter, ModifierKeys.None));
+        Assert.False(editor.HandleKeyDownFromInput(Keys.Tab, ModifierKeys.None));
+        Assert.Equal(string.Empty, DocumentEditing.GetText(editor.Document));
+
+        editor.AcceptsReturn = true;
+        editor.UndoLimit = 1;
+
+        Assert.True(editor.HandleTextInputFromInput('a'));
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Enter, ModifierKeys.None));
+        Assert.Equal("a\n", DocumentEditing.GetText(editor.Document));
+
+        editor.Undo();
+        Assert.Equal("a", DocumentEditing.GetText(editor.Document));
+        Assert.False(editor.CanUndo);
+    }
+
+    [Fact]
+    public void SelectionVisibilityProperties_ShouldRoundTripAndCoerce()
+    {
+        var editor = CreateEditor("abc");
+
+        Assert.False(editor.IsReadOnlyCaretVisible);
+        Assert.True(editor.IsInactiveSelectionHighlightEnabled);
+        Assert.Equal(1f, editor.SelectionOpacity);
+        Assert.Equal(Color.White, editor.SelectionTextBrush);
+
+        editor.IsReadOnlyCaretVisible = true;
+        editor.IsInactiveSelectionHighlightEnabled = false;
+        editor.SelectionOpacity = 1.5f;
+        editor.SelectionTextBrush = Color.Black;
+
+        Assert.True(editor.IsReadOnlyCaretVisible);
+        Assert.False(editor.IsInactiveSelectionHighlightEnabled);
+        Assert.Equal(1f, editor.SelectionOpacity);
+        Assert.Equal(Color.Black, editor.SelectionTextBrush);
+
+        editor.SelectionOpacity = -0.25f;
+
+        Assert.Equal(0f, editor.SelectionOpacity);
+    }
+
+    [Fact]
+    public void TemplateWithoutContentHost_ShouldThrowWhenTemplateIsAssigned()
+    {
+        var editor = new RichTextBox();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            editor.Template = new ControlTemplate(static _ => new Border())
+            {
+                TargetType = typeof(RichTextBox)
+            });
+
+        Assert.Contains("PART_ContentHost", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TemplateWithContentHost_ShouldBuildTemplateVisualTree()
+    {
+        var editor = new RichTextBox
+        {
+            Template = new ControlTemplate(static _ => new Border
+            {
+                Name = "RootBorder",
+                Child = new ScrollViewer
+                {
+                    Name = "PART_ContentHost",
+                    Focusable = false
+                }
+            })
+            {
+                TargetType = typeof(RichTextBox)
+            }
+        };
+
+        Assert.True(editor.ApplyTemplate());
+        Assert.IsType<Border>(Assert.Single(editor.GetVisualChildren()));
+    }
+
     private static RichTextBox CreateEditor(string text)
     {
         var editor = new RichTextBox();
@@ -1654,12 +2010,7 @@ public sealed class RichTextWpfParityGapTests
 
     private static void SetSelection(RichTextBox editor, int start, int length)
     {
-        var anchorField = typeof(RichTextBox).GetField("_selectionAnchor", BindingFlags.Instance | BindingFlags.NonPublic);
-        var caretField = typeof(RichTextBox).GetField("_caretIndex", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(anchorField);
-        Assert.NotNull(caretField);
-        anchorField!.SetValue(editor, start);
-        caretField!.SetValue(editor, start + length);
+        editor.Select(start, length);
     }
 
     private static void SetRawSelection(RichTextBox editor, int anchor, int caret)

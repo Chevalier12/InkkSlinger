@@ -106,14 +106,16 @@ public class TextBlock : FrameworkElement
             return Vector2.Zero;
         }
 
-        if (CanUseIntrinsicMeasure(availableSize.X))
+        var effectiveAvailableWidth = ResolveMeasureTextLayoutWidth(availableSize.X);
+
+        if (CanUseIntrinsicMeasure(effectiveAvailableWidth))
         {
             return ResolveIntrinsicNoWrapTextSize();
         }
 
         var availableWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
-            : availableSize.X;
+            : effectiveAvailableWidth;
 
         return ResolveLayout(availableWidth).Size;
     }
@@ -258,6 +260,27 @@ public class TextBlock : FrameworkElement
         _intrinsicNoWrapMeasureSize = size;
         _hasIntrinsicNoWrapMeasureCache = true;
         return size;
+    }
+
+    protected float ResolveMeasureTextLayoutWidth(float availableWidth)
+    {
+        if (TextWrapping == TextWrapping.NoWrap)
+        {
+            return float.PositiveInfinity;
+        }
+
+        var resolvedWidth = availableWidth;
+        if (!float.IsNaN(Width))
+        {
+            resolvedWidth = Width;
+        }
+
+        if (float.IsFinite(MaxWidth))
+        {
+            resolvedWidth = MathF.Min(resolvedWidth, MaxWidth);
+        }
+
+        return resolvedWidth;
     }
 
     private TextLayout.TextLayoutResult ResolveLayout(float width)

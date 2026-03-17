@@ -6,6 +6,11 @@ public static class AutomationPeerFactory
     {
         if (element is Control control)
         {
+            if (element is RichTextBox richTextBox)
+            {
+                return new RichTextBoxAutomationPeer(manager, richTextBox);
+            }
+
             return new GenericAutomationPeer(manager, control, MapControlType(element));
         }
 

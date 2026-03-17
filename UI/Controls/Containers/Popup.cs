@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -6,6 +7,8 @@ namespace InkkSlinger;
 
 public class Popup : ContentControl
 {
+    private static readonly List<Popup> OpenPopups = [];
+
     public static readonly DependencyProperty PlacementModeProperty =
         DependencyProperty.Register(
             nameof(PlacementMode),
@@ -271,6 +274,57 @@ public class Popup : ContentControl
 
     public bool IsOpen => _isOpen;
 
+    internal static Panel? ResolveOverlayHost(UIElement owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+
+        Panel? fallbackHost = null;
+        for (var current = owner;
+             current != null;
+             current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is Panel panel)
+            {
+                fallbackHost = panel;
+            }
+        }
+
+        return fallbackHost;
+    }
+
+    internal static void CloseAnchoredPopupsWithin(UIElement ancestor)
+    {
+        ArgumentNullException.ThrowIfNull(ancestor);
+
+        if (OpenPopups.Count == 0)
+        {
+            return;
+        }
+
+        Popup[] snapshot;
+        lock (OpenPopups)
+        {
+            snapshot = OpenPopups.ToArray();
+        }
+
+        for (var i = 0; i < snapshot.Length; i++)
+        {
+            var popup = snapshot[i];
+            if (!popup._isOpen || popup.PlacementMode == PopupPlacementMode.Absolute)
+            {
+                continue;
+            }
+
+            var placementTarget = popup.PlacementTarget;
+            if (placementTarget == null || !IsElementDescendantOf(placementTarget, ancestor))
+            {
+                continue;
+            }
+
+            popup.Close();
+        }
+    }
+
     public Popup()
     {
         HorizontalAlignment = HorizontalAlignment.Left;
@@ -292,6 +346,11 @@ public class Popup : ContentControl
         _host.LayoutUpdated += OnHostLayoutUpdated;
         host.AddChild(this);
         _isOpen = true;
+        lock (OpenPopups)
+        {
+            OpenPopups.Add(this);
+        }
+
         Activate();
         UpdatePlacement();
         UiRoot.Current?.NotifyOverlayVisualTreeMutation();
@@ -327,6 +386,11 @@ public class Popup : ContentControl
         _host.LayoutUpdated -= OnHostLayoutUpdated;
         _host = null;
         _isOpen = false;
+        lock (OpenPopups)
+        {
+            OpenPopups.Remove(this);
+        }
+
         _pendingFocusRestore = _focusBeforeOpen;
         _focusBeforeOpen = null;
         UiRoot.Current?.NotifyOverlayVisualTreeMutation();
@@ -742,6 +806,7 @@ public class Popup : ContentControl
 
         var computedLeft = Left;
         var computedTop = Top;
+        var hasPlacementTargetBounds = TryGetPlacementTargetBoundsRelativeToHost(out var targetBounds);
         switch (PlacementMode)
         {
             case PopupPlacementMode.Center:
@@ -749,10 +814,10 @@ public class Popup : ContentControl
                 computedTop = ((hostHeight - currentHeight) / 2f) + VerticalOffset;
                 break;
             case PopupPlacementMode.Top:
-                if (PlacementTarget != null)
+                if (hasPlacementTargetBounds)
                 {
-                    computedLeft = (PlacementTarget.LayoutSlot.X - _host.LayoutSlot.X) + HorizontalOffset;
-                    computedTop = (PlacementTarget.LayoutSlot.Y - _host.LayoutSlot.Y) - currentHeight + VerticalOffset;
+                    computedLeft = targetBounds.X + HorizontalOffset;
+                    computedTop = targetBounds.Y - currentHeight + VerticalOffset;
                 }
                 else
                 {
@@ -763,10 +828,10 @@ public class Popup : ContentControl
 
                 break;
             case PopupPlacementMode.Bottom:
-                if (PlacementTarget != null)
+                if (hasPlacementTargetBounds)
                 {
-                    computedLeft = (PlacementTarget.LayoutSlot.X - _host.LayoutSlot.X) + HorizontalOffset;
-                    computedTop = (PlacementTarget.LayoutSlot.Y - _host.LayoutSlot.Y) + PlacementTarget.LayoutSlot.Height + VerticalOffset;
+                    computedLeft = targetBounds.X + HorizontalOffset;
+                    computedTop = targetBounds.Y + targetBounds.Height + VerticalOffset;
                 }
                 else
                 {
@@ -776,10 +841,10 @@ public class Popup : ContentControl
 
                 break;
             case PopupPlacementMode.Left:
-                if (PlacementTarget != null)
+                if (hasPlacementTargetBounds)
                 {
-                    computedLeft = (PlacementTarget.LayoutSlot.X - _host.LayoutSlot.X) - currentWidth + HorizontalOffset;
-                    computedTop = (PlacementTarget.LayoutSlot.Y - _host.LayoutSlot.Y) + VerticalOffset;
+                    computedLeft = targetBounds.X - currentWidth + HorizontalOffset;
+                    computedTop = targetBounds.Y + VerticalOffset;
                 }
                 else
                 {
@@ -790,10 +855,10 @@ public class Popup : ContentControl
 
                 break;
             case PopupPlacementMode.Right:
-                if (PlacementTarget != null)
+                if (hasPlacementTargetBounds)
                 {
-                    computedLeft = (PlacementTarget.LayoutSlot.X - _host.LayoutSlot.X) + PlacementTarget.LayoutSlot.Width + HorizontalOffset;
-                    computedTop = (PlacementTarget.LayoutSlot.Y - _host.LayoutSlot.Y) + VerticalOffset;
+                    computedLeft = targetBounds.X + targetBounds.Width + HorizontalOffset;
+                    computedTop = targetBounds.Y + VerticalOffset;
                 }
                 else
                 {
@@ -854,6 +919,78 @@ public class Popup : ContentControl
         }
     }
 
+    private bool TryGetPlacementTargetBoundsRelativeToHost(out LayoutRect bounds)
+    {
+        bounds = default;
+        if (_host == null || PlacementTarget == null)
+        {
+            return false;
+        }
+
+        var hostOrigin = ResolveRenderedOrigin(_host);
+        var targetBounds = ResolveRenderedBounds(PlacementTarget);
+        bounds = new LayoutRect(
+            targetBounds.X - hostOrigin.X,
+            targetBounds.Y - hostOrigin.Y,
+            targetBounds.Width,
+            targetBounds.Height);
+        return true;
+    }
+
+    private static LayoutRect ResolveRenderedBounds(UIElement element)
+    {
+        var bounds = element.LayoutSlot;
+        if (!TryGetTransformFromThisToRoot(element, out var transform))
+        {
+            return bounds;
+        }
+
+        return TransformRect(bounds, transform);
+    }
+
+    private static Vector2 ResolveRenderedOrigin(UIElement element)
+    {
+        var origin = new Vector2(element.LayoutSlot.X, element.LayoutSlot.Y);
+        if (!TryGetTransformFromThisToRoot(element, out var transform))
+        {
+            return origin;
+        }
+
+        return Vector2.Transform(origin, transform);
+    }
+
+    private static bool TryGetTransformFromThisToRoot(UIElement? element, out Matrix transform)
+    {
+        transform = Matrix.Identity;
+        var hasTransform = false;
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (!current.TryGetLocalRenderTransformSnapshot(out var localTransform))
+            {
+                continue;
+            }
+
+            transform *= localTransform;
+            hasTransform = true;
+        }
+
+        return hasTransform;
+    }
+
+    private static LayoutRect TransformRect(LayoutRect rect, Matrix transform)
+    {
+        var topLeft = Vector2.Transform(new Vector2(rect.X, rect.Y), transform);
+        var topRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y), transform);
+        var bottomLeft = Vector2.Transform(new Vector2(rect.X, rect.Y + rect.Height), transform);
+        var bottomRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y + rect.Height), transform);
+
+        var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+        var maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+        var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+        var maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+        return new LayoutRect(minX, minY, maxX - minX, maxY - minY);
+    }
+
     private static float ResolveCurrentDimension(float explicitDimension, float actualDimension, float desiredDimension)
     {
         if (!float.IsNaN(explicitDimension) && explicitDimension > 0f)
@@ -881,6 +1018,7 @@ public class Popup : ContentControl
 
         return false;
     }
+
 }
 
 

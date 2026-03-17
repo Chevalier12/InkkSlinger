@@ -1648,6 +1648,37 @@ public sealed partial class UiRoot
         return true;
     }
 
+    private bool TryResolveClickTargetWithinTextInputSubtree(
+        UIElement candidate,
+        Vector2 pointerPosition,
+        out UIElement? target)
+    {
+        target = null;
+        if (candidate is not ITextInputControl)
+        {
+            return false;
+        }
+
+        _lastInputHitTestCount++;
+        _clickCpuResolveHitTestCount++;
+        var hit = VisualTreeHelper.HitTest(candidate, pointerPosition);
+        if (hit == null || ReferenceEquals(hit, candidate))
+        {
+            return false;
+        }
+
+        for (var current = hit; current != null && !ReferenceEquals(current, candidate); current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (IsKnownClickCapableElement(current))
+            {
+                target = current;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private bool TryResolveClickTargetFromCandidate(UIElement? candidate, Vector2 pointerPosition, out UIElement? target)
     {
         target = null;
@@ -1672,6 +1703,13 @@ public sealed partial class UiRoot
         if (candidate is TreeViewItem)
         {
             return false;
+        }
+
+        if (TryResolveClickTargetWithinTextInputSubtree(candidate, pointerPosition, out var descendantTarget) &&
+            descendantTarget != null)
+        {
+            target = descendantTarget;
+            return true;
         }
 
         for (var current = candidate; current != null; current = current.VisualParent ?? current.LogicalParent)

@@ -675,6 +675,11 @@ public class ScrollViewer : ContentControl
             verticalDelta <= 0.001f)
         {
         }
+
+        if (horizontalDelta > 0.001f || verticalDelta > 0.001f)
+        {
+            Popup.CloseAnchoredPopupsWithin(this);
+        }
     }
 
     private void RunWithinInputScrollMutation(Action action)

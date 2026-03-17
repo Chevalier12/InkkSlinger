@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -10,10 +11,17 @@ using System.Collections.Immutable;
 
 namespace InkkSlinger;
 
+[TemplatePart("PART_ContentHost", typeof(ScrollViewer))]
 public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBoundsHintProvider, IHyperlinkHoverHost, IUiRootUpdateParticipant
 {
+    private static readonly IReadOnlyList<object> EmptySelectionItems = Array.Empty<object>();
+
     public static readonly RoutedEvent DocumentChangedEvent =
         new(nameof(DocumentChanged), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent TextChangedEvent =
+        new(nameof(TextChanged), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent SelectionChangedEvent =
+        new(nameof(SelectionChanged), RoutingStrategy.Bubble);
     public static readonly RoutedEvent HyperlinkNavigateEvent =
         new(nameof(HyperlinkNavigate), RoutingStrategy.Bubble);
 
@@ -76,6 +84,24 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             typeof(RichTextBox),
             new FrameworkPropertyMetadata(TextWrapping.Wrap, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty HorizontalScrollBarVisibilityProperty =
+        DependencyProperty.Register(
+            nameof(HorizontalScrollBarVisibility),
+            typeof(ScrollBarVisibility),
+            typeof(RichTextBox),
+            new FrameworkPropertyMetadata(
+                ScrollBarVisibility.Auto,
+                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty VerticalScrollBarVisibilityProperty =
+        DependencyProperty.Register(
+            nameof(VerticalScrollBarVisibility),
+            typeof(ScrollBarVisibility),
+            typeof(RichTextBox),
+            new FrameworkPropertyMetadata(
+                ScrollBarVisibility.Auto,
+                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty SelectionBrushProperty =
         DependencyProperty.Register(
             nameof(SelectionBrush),
@@ -90,12 +116,92 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             typeof(RichTextBox),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty SelectionTextBrushProperty =
+        DependencyProperty.Register(
+            nameof(SelectionTextBrush),
+            typeof(Color),
+            typeof(RichTextBox),
+            new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty SelectionOpacityProperty =
+        DependencyProperty.Register(
+            nameof(SelectionOpacity),
+            typeof(float),
+            typeof(RichTextBox),
+            new FrameworkPropertyMetadata(
+                1f,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                coerceValueCallback: static (_, value) => value is float opacity
+                    ? Math.Clamp(opacity, 0f, 1f)
+                    : 1f));
+
     public static readonly DependencyProperty IsReadOnlyProperty =
         DependencyProperty.Register(
             nameof(IsReadOnly),
             typeof(bool),
             typeof(RichTextBox),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.None));
+
+    public static readonly DependencyProperty IsReadOnlyCaretVisibleProperty =
+        DependencyProperty.Register(
+            nameof(IsReadOnlyCaretVisible),
+            typeof(bool),
+            typeof(RichTextBox),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty IsInactiveSelectionHighlightEnabledProperty =
+        DependencyProperty.Register(
+            nameof(IsInactiveSelectionHighlightEnabled),
+            typeof(bool),
+            typeof(RichTextBox),
+            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty AcceptsReturnProperty =
+        DependencyProperty.Register(
+            nameof(AcceptsReturn),
+            typeof(bool),
+            typeof(RichTextBox),
+            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.None));
+
+    public static readonly DependencyProperty AcceptsTabProperty =
+        DependencyProperty.Register(
+            nameof(AcceptsTab),
+            typeof(bool),
+            typeof(RichTextBox),
+            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.None));
+
+    public static readonly DependencyProperty IsUndoEnabledProperty =
+        DependencyProperty.Register(
+            nameof(IsUndoEnabled),
+            typeof(bool),
+            typeof(RichTextBox),
+            new FrameworkPropertyMetadata(
+                true,
+                FrameworkPropertyMetadataOptions.None,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is RichTextBox richTextBox && args.NewValue is bool enabled)
+                    {
+                        richTextBox._undoManager.IsUndoEnabled = enabled;
+                    }
+                }));
+
+    public static readonly DependencyProperty UndoLimitProperty =
+        DependencyProperty.Register(
+            nameof(UndoLimit),
+            typeof(int),
+            typeof(RichTextBox),
+            new FrameworkPropertyMetadata(
+                -1,
+                FrameworkPropertyMetadataOptions.None,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is RichTextBox richTextBox && args.NewValue is int limit)
+                    {
+                        richTextBox._undoManager.UndoLimit = limit;
+                    }
+                },
+                coerceValueCallback: static (_, value) => value is int limit && limit >= -1 ? limit : -1));
 
     public new static readonly DependencyProperty IsMouseOverProperty =
         DependencyProperty.Register(
@@ -130,6 +236,9 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private LayoutRect _pendingRenderDirtyBoundsHint;
     private float _horizontalOffset;
     private float _verticalOffset;
+    private int _documentChangeBatchDepth;
+    private bool _hasPendingDocumentChangedEvent;
+    private bool _hasPendingTextChangedEvent;
     private DateTime _lastPointerDownUtc;
     private int _lastPointerDownIndex = -1;
     private int _pointerClickCount;
@@ -140,6 +249,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private bool _typingUnderlineActive;
     private ModifierKeys _activeKeyModifiers;
     private long _suppressSpaceTextInputUntilTicks;
+    private readonly List<UIElement> _documentHostedVisualChildren = new();
 
     private readonly Queue<RecentOperationEntry> _recentOperations = new();
     private int _recentOperationSequence;
@@ -150,8 +260,10 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private const string ClipboardRtfFormat = "Rich Text Format";
     private const string ClipboardXamlFormat = "Xaml";
     private const string ClipboardXamlPackageFormat = "XamlPackage";
+    private const string ClipboardTextFormat = "Text";
+    private const string ClipboardUnicodeTextFormat = "UnicodeText";
     private static readonly ImmutableHashSet<string> RichGuardedReplaceSelectionCommands =
-        ImmutableHashSet.Create(StringComparer.Ordinal, "InsertText", "InsertTextStyled", "Backspace", "DeleteForward", "DeleteSelection");
+        ImmutableHashSet.Create(StringComparer.Ordinal, "InsertText", "InsertTextStyled", "Backspace", "DeleteForward", "DeleteSelection", "DeletePreviousWord", "DeleteNextWord");
     private static readonly ImmutableHashSet<string> RichGuardedFragmentCommands =
         ImmutableHashSet.Create(StringComparer.Ordinal, "EnterParagraphBreak", "InsertTextStyled", "InsertText");
 
@@ -159,6 +271,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         SetValue(DocumentProperty, CreateDefaultDocument());
         _lastDocumentRichness = CaptureDocumentRichness(Document);
+        _undoManager.IsUndoEnabled = IsUndoEnabled;
+        _undoManager.UndoLimit = UndoLimit;
         RegisterEditingCommandBindings();
         RegisterEditingInputBindings();
     }
@@ -167,6 +281,18 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         add => AddHandler(DocumentChangedEvent, value);
         remove => RemoveHandler(DocumentChangedEvent, value);
+    }
+
+    public event EventHandler<RoutedSimpleEventArgs> TextChanged
+    {
+        add => AddHandler(TextChangedEvent, value);
+        remove => RemoveHandler(TextChangedEvent, value);
+    }
+
+    public event EventHandler<SelectionChangedEventArgs> SelectionChanged
+    {
+        add => AddHandler(SelectionChangedEvent, value);
+        remove => RemoveHandler(SelectionChangedEvent, value);
     }
 
     public event EventHandler<HyperlinkNavigateRoutedEventArgs> HyperlinkNavigate
@@ -217,6 +343,18 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         set => SetValue(TextWrappingProperty, value);
     }
 
+    public ScrollBarVisibility HorizontalScrollBarVisibility
+    {
+        get => GetValue<ScrollBarVisibility>(HorizontalScrollBarVisibilityProperty);
+        set => SetValue(HorizontalScrollBarVisibilityProperty, value);
+    }
+
+    public ScrollBarVisibility VerticalScrollBarVisibility
+    {
+        get => GetValue<ScrollBarVisibility>(VerticalScrollBarVisibilityProperty);
+        set => SetValue(VerticalScrollBarVisibilityProperty, value);
+    }
+
     public Color SelectionBrush
     {
         get => GetValue<Color>(SelectionBrushProperty);
@@ -229,10 +367,64 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         set => SetValue(CaretBrushProperty, value);
     }
 
+    public Color SelectionTextBrush
+    {
+        get => GetValue<Color>(SelectionTextBrushProperty);
+        set => SetValue(SelectionTextBrushProperty, value);
+    }
+
+    public float SelectionOpacity
+    {
+        get => GetValue<float>(SelectionOpacityProperty);
+        set => SetValue(SelectionOpacityProperty, value);
+    }
+
     public bool IsReadOnly
     {
         get => GetValue<bool>(IsReadOnlyProperty);
         set => SetValue(IsReadOnlyProperty, value);
+    }
+
+    public bool IsReadOnlyCaretVisible
+    {
+        get => GetValue<bool>(IsReadOnlyCaretVisibleProperty);
+        set => SetValue(IsReadOnlyCaretVisibleProperty, value);
+    }
+
+    public bool IsInactiveSelectionHighlightEnabled
+    {
+        get => GetValue<bool>(IsInactiveSelectionHighlightEnabledProperty);
+        set => SetValue(IsInactiveSelectionHighlightEnabledProperty, value);
+    }
+
+    public bool AcceptsReturn
+    {
+        get => GetValue<bool>(AcceptsReturnProperty);
+        set => SetValue(AcceptsReturnProperty, value);
+    }
+
+    public bool AcceptsTab
+    {
+        get => GetValue<bool>(AcceptsTabProperty);
+        set => SetValue(AcceptsTabProperty, value);
+    }
+
+    public bool IsSpellCheckEnabled
+    {
+        get => SpellCheck.GetIsEnabled(this);
+        set => SpellCheck.SetIsEnabled(this, value);
+    }
+
+    public bool IsUndoEnabled
+    {
+        get => GetValue<bool>(IsUndoEnabledProperty);
+        set => SetValue(IsUndoEnabledProperty, value);
+    }
+
+    public int UndoLimit
+    {
+        get => GetValue<int>(UndoLimitProperty);
+        set => SetValue(UndoLimitProperty, value);
     }
 
     public new bool IsMouseOver
@@ -249,9 +441,49 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     public int CaretIndex => _caretIndex;
 
+    public TextSelection Selection => new(_selectionAnchor, _caretIndex);
+
+    public TextPointer CaretPosition => CreateTextPointer(_caretIndex);
+
+    public DocumentTextSelection DocumentSelection => new(CreateTextPointer(_selectionAnchor), CreateTextPointer(_caretIndex));
+
+    public TextRange SelectionRange => DocumentSelection.ToRange();
+
     public int SelectionStart => Math.Min(_selectionAnchor, _caretIndex);
 
     public int SelectionLength => Math.Abs(_caretIndex - _selectionAnchor);
+
+    public bool CanUndo => _undoManager.CanUndo;
+
+    public bool CanRedo => _undoManager.CanRedo;
+
+    public float HorizontalOffset => GetScrollMetrics().HorizontalOffset;
+
+    public float VerticalOffset => GetScrollMetrics().VerticalOffset;
+
+    public float ViewportWidth => GetScrollMetrics().ViewportWidth;
+
+    public float ViewportHeight => GetScrollMetrics().ViewportHeight;
+
+    public float ExtentWidth => GetScrollMetrics().ExtentWidth;
+
+    public float ExtentHeight => GetScrollMetrics().ExtentHeight;
+
+    public float ScrollableWidth => GetScrollMetrics().ScrollableWidth;
+
+    public float ScrollableHeight => GetScrollMetrics().ScrollableHeight;
+
+    internal (float HorizontalOffset, float VerticalOffset, float ViewportWidth, float ViewportHeight, float ExtentWidth, float ExtentHeight) GetScrollMetricsSnapshot()
+    {
+        var metrics = GetScrollMetrics();
+        return (
+            metrics.HorizontalOffset,
+            metrics.VerticalOffset,
+            metrics.ViewportWidth,
+            metrics.ViewportHeight,
+            metrics.ExtentWidth,
+            metrics.ExtentHeight);
+    }
 
     public RichTextBoxPerformanceSnapshot GetPerformanceSnapshot()
     {
@@ -261,6 +493,247 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     public void ResetPerformanceSnapshot()
     {
         _perfTracker.Reset();
+    }
+
+    public void Undo()
+    {
+        ExecuteUndo();
+    }
+
+    public void Redo()
+    {
+        ExecuteRedo();
+    }
+
+    public void Copy()
+    {
+        ExecuteCopy();
+    }
+
+    public void Cut()
+    {
+        ExecuteCut();
+    }
+
+    public void Paste()
+    {
+        ExecutePaste();
+    }
+
+    public bool CanLoad(string dataFormat)
+    {
+        return IsSupportedDataFormat(dataFormat);
+    }
+
+    public bool CanSave(string dataFormat)
+    {
+        return IsSupportedDataFormat(dataFormat);
+    }
+
+    public void Load(Stream stream, string dataFormat)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (!CanLoad(dataFormat))
+        {
+            throw new NotSupportedException($"RichTextBox does not support loading format '{dataFormat}'.");
+        }
+
+        var payload = ReadStreamPayload(stream);
+        var document = DeserializeDocumentPayload(payload, dataFormat);
+        ApplyLoadedDocument(document, "LoadDocument");
+    }
+
+    public void Save(Stream stream, string dataFormat)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (!CanSave(dataFormat))
+        {
+            throw new NotSupportedException($"RichTextBox does not support saving format '{dataFormat}'.");
+        }
+
+        var payload = SerializeDocumentPayload(Document, dataFormat);
+        WriteStreamPayload(stream, payload);
+    }
+
+    public void LoadSelection(Stream stream, string dataFormat)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (IsReadOnly)
+        {
+            throw new InvalidOperationException("Cannot load selection when RichTextBox is read-only.");
+        }
+
+        if (!CanLoad(dataFormat))
+        {
+            throw new NotSupportedException($"RichTextBox does not support loading format '{dataFormat}'.");
+        }
+
+        var payload = ReadStreamPayload(stream);
+        if (IsRichFragmentFormat(dataFormat))
+        {
+            var fragment = DeserializeFragmentPayload(payload, dataFormat);
+            ReplaceSelectionWithFragment(fragment, "LoadSelection", GroupingPolicy.StructuralAtomic);
+            return;
+        }
+
+        var text = DeserializeTextPayload(payload, dataFormat);
+        ReplaceSelection(NormalizeNewlines(text), "LoadSelection", GroupingPolicy.StructuralAtomic);
+    }
+
+    public void SaveSelection(Stream stream, string dataFormat)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (!CanSave(dataFormat))
+        {
+            throw new NotSupportedException($"RichTextBox does not support saving format '{dataFormat}'.");
+        }
+
+        var payload = SerializeSelectionPayload(dataFormat);
+        WriteStreamPayload(stream, payload);
+    }
+
+    public int GetNextSpellingErrorCharacterIndex(int charIndex, LogicalDirection direction)
+    {
+        ValidateSpellCheckCharacterIndex(charIndex);
+        ValidateLogicalDirection(direction, nameof(direction));
+
+        return IsSpellCheckEnabled ? -1 : -1;
+    }
+
+    public TextPointer? GetNextSpellingErrorPosition(TextPointer position, LogicalDirection direction)
+    {
+        _ = ResolveDocumentOffset(position, nameof(position));
+        ValidateLogicalDirection(direction, nameof(direction));
+
+        return null;
+    }
+
+    public SpellingError? GetSpellingError(TextPointer position)
+    {
+        _ = ResolveDocumentOffset(position, nameof(position));
+        return null;
+    }
+
+    public TextRange? GetSpellingErrorRange(TextPointer position)
+    {
+        _ = ResolveDocumentOffset(position, nameof(position));
+        return null;
+    }
+
+    public void SelectAll()
+    {
+        ExecuteSelectAllCore();
+    }
+
+    public void Select(int start, int length)
+    {
+        var textLength = GetText().Length;
+        if (start < 0 || start > textLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start));
+        }
+
+        if (length < 0 || start + length > textLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length));
+        }
+
+        UpdateSelectionState(start, start + length, ensureCaretVisible: true);
+        _caretBlinkSeconds = 0f;
+        _isCaretVisible = true;
+        InvalidateVisualWithReason("Select");
+    }
+
+    public void Select(TextPointer anchorPosition, TextPointer movingPosition)
+    {
+        var anchorOffset = ResolveDocumentOffset(anchorPosition, nameof(anchorPosition));
+        var movingOffset = ResolveDocumentOffset(movingPosition, nameof(movingPosition));
+        UpdateSelectionState(anchorOffset, movingOffset, ensureCaretVisible: true);
+        _caretBlinkSeconds = 0f;
+        _isCaretVisible = true;
+        InvalidateVisualWithReason("Select");
+    }
+
+    public TextPointer? GetPositionFromPoint(Vector2 point, bool snapToText)
+    {
+        var textRect = GetTextRect();
+        if (textRect.Width <= 0f || textRect.Height <= 0f)
+        {
+            return null;
+        }
+
+        if (!snapToText &&
+            (point.X < textRect.X ||
+             point.Y < textRect.Y ||
+             point.X > textRect.X + textRect.Width ||
+             point.Y > textRect.Y + textRect.Height))
+        {
+            return null;
+        }
+
+        var offset = GetTextIndexFromPoint(point);
+        return CreateTextPointer(offset);
+    }
+
+    public void LineUp()
+    {
+        ScrollBy(0f, -UiTextRenderer.GetLineHeight(this, FontSize), "LineUp");
+    }
+
+    public void LineDown()
+    {
+        ScrollBy(0f, UiTextRenderer.GetLineHeight(this, FontSize), "LineDown");
+    }
+
+    public void LineLeft()
+    {
+        ScrollBy(-16f, 0f, "LineLeft");
+    }
+
+    public void LineRight()
+    {
+        ScrollBy(16f, 0f, "LineRight");
+    }
+
+    public void PageUp()
+    {
+        ScrollBy(0f, -Math.Max(0f, ViewportHeight), "PageUp");
+    }
+
+    public void PageDown()
+    {
+        ScrollBy(0f, Math.Max(0f, ViewportHeight), "PageDown");
+    }
+
+    public void PageLeft()
+    {
+        ScrollBy(-Math.Max(0f, ViewportWidth), 0f, "PageLeft");
+    }
+
+    public void PageRight()
+    {
+        ScrollBy(Math.Max(0f, ViewportWidth), 0f, "PageRight");
+    }
+
+    public void ScrollToHome()
+    {
+        SetScrollOffsets(0f, 0f, "ScrollToHome");
+    }
+
+    public void ScrollToEnd()
+    {
+        var metrics = GetScrollMetrics();
+        SetScrollOffsets(metrics.ScrollableWidth, metrics.ScrollableHeight, "ScrollToEnd");
+    }
+
+    public void ScrollToHorizontalOffset(float offset)
+    {
+        SetScrollOffsets(offset, _verticalOffset, "ScrollToHorizontalOffset");
+    }
+
+    public void ScrollToVerticalOffset(float offset)
+    {
+        SetScrollOffsets(_horizontalOffset, offset, "ScrollToVerticalOffset");
     }
 
     public bool HandleTextInputFromInput(char character)
@@ -393,10 +866,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
-        session.CommitTransaction();
-        _caretIndex = caretAfter;
-        _selectionAnchor = _caretIndex;
+        ExecuteDocumentChangeBatch(() =>
+        {
+            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
+            session.CommitTransaction();
+        });
+        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);
@@ -484,10 +959,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
-        session.CommitTransaction();
-        _caretIndex = caretAfter;
-        _selectionAnchor = _caretIndex;
+        ExecuteDocumentChangeBatch(() =>
+        {
+            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
+            session.CommitTransaction();
+        });
+        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);
@@ -720,10 +1197,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
-        session.CommitTransaction();
-        _caretIndex = caretAfter;
-        _selectionAnchor = _caretIndex;
+        ExecuteDocumentChangeBatch(() =>
+        {
+            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
+            session.CommitTransaction();
+        });
+        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);
@@ -1052,10 +1531,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     caretAfterTopLevel,
                     0,
                     commandType));
-            topLevelSession.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterTextTopLevel, beforeDocument, afterDocument));
-            topLevelSession.CommitTransaction();
-            _caretIndex = caretAfterTopLevel;
-            _selectionAnchor = _caretIndex;
+            ExecuteDocumentChangeBatch(() =>
+            {
+                topLevelSession.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterTextTopLevel, beforeDocument, afterDocument));
+                topLevelSession.CommitTransaction();
+            });
+            UpdateSelectionState(caretAfterTopLevel, caretAfterTopLevel, ensureCaretVisible: false);
             var elapsedTopLevelMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
             _perfTracker.RecordEdit(elapsedTopLevelMs);
             TraceInvariants(commandType);
@@ -1090,10 +1571,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     caretAfterBoundary,
                     0,
                     commandType));
-            boundarySession.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterTextBoundary, beforeDocument, afterDocument));
-            boundarySession.CommitTransaction();
-            _caretIndex = caretAfterBoundary;
-            _selectionAnchor = _caretIndex;
+            ExecuteDocumentChangeBatch(() =>
+            {
+                boundarySession.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterTextBoundary, beforeDocument, afterDocument));
+                boundarySession.CommitTransaction();
+            });
+            UpdateSelectionState(caretAfterBoundary, caretAfterBoundary, ensureCaretVisible: false);
             var elapsedBoundaryMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
             _perfTracker.RecordEdit(elapsedBoundaryMs);
             TraceInvariants(commandType);
@@ -1127,10 +1610,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
-        session.CommitTransaction();
-        _caretIndex = caretAfter;
-        _selectionAnchor = _caretIndex;
+        ExecuteDocumentChangeBatch(() =>
+        {
+            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
+            session.CommitTransaction();
+        });
+        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);
@@ -1338,27 +1823,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
             if (ctrl && key == Keys.Z)
             {
-                var handled = _undoManager.Undo();
-                if (handled)
-                {
-                    ClampSelectionToTextLength();
-                    TraceInvariants("Undo");
-                    InvalidateVisualWithReason("Undo");
-                }
-
+                var handled = ExecuteUndo();
                 return true;
             }
 
             if (ctrl && key == Keys.Y)
             {
-                var handled = _undoManager.Redo();
-                if (handled)
-                {
-                    ClampSelectionToTextLength();
-                    TraceInvariants("Redo");
-                    InvalidateVisualWithReason("Redo");
-                }
-
+                var handled = ExecuteRedo();
                 return true;
             }
 
@@ -1443,8 +1914,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var index = GetTextIndexFromPoint(adjustedPoint);
         _lastSelectionHitTestOffset = index;
         _pointerSelectionMoved = true;
-        _caretIndex = index;
-        EnsureCaretVisible();
+        UpdateSelectionState(_selectionAnchor, index, ensureCaretVisible: true);
         _caretBlinkSeconds = 0f;
         _isCaretVisible = true;
         InvalidateVisualWithReason("PointerDragSelection");
@@ -1478,18 +1948,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             return false;
         }
 
-        var textRect = GetTextRect();
-        var layout = BuildOrGetLayout(textRect.Width);
-        var previous = _verticalOffset;
-        _verticalOffset -= MathF.Sign(delta) * (UiTextRenderer.GetLineHeight(this, FontSize) * 3f);
-        ClampScrollOffsets(layout, textRect);
-        if (Math.Abs(previous - _verticalOffset) > 0.01f)
-        {
-            InvalidateVisualWithReason("MouseWheelScroll");
-            return true;
-        }
-
-        return false;
+        return ScrollBy(0f, -MathF.Sign(delta) * (UiTextRenderer.GetLineHeight(this, FontSize) * 3f), "MouseWheelScroll");
     }
 
     public void SetMouseOverFromInput(bool isMouseOver)
@@ -1575,14 +2034,22 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var desired = base.MeasureOverride(availableSize);
         var textWidth = TextWrapping == TextWrapping.NoWrap
             ? float.PositiveInfinity
             : Math.Max(0f, availableSize.X - Padding.Horizontal - (BorderThickness * 2f));
         var layout = BuildOrGetLayout(textWidth);
         _lastMeasuredLayout = layout;
-        return new Vector2(
-            layout.ContentWidth + Padding.Horizontal + (BorderThickness * 2f),
-            layout.ContentHeight + Padding.Vertical + (BorderThickness * 2f));
+        desired.X = Math.Max(desired.X, layout.ContentWidth + Padding.Horizontal + (BorderThickness * 2f));
+        desired.Y = Math.Max(desired.Y, layout.ContentHeight + Padding.Vertical + (BorderThickness * 2f));
+        return desired;
+    }
+
+    protected override Vector2 ArrangeOverride(Vector2 finalSize)
+    {
+        var arranged = base.ArrangeOverride(finalSize);
+        EnsureHostedDocumentChildLayout();
+        return arranged;
     }
 
     public override void Update(GameTime gameTime)
@@ -1618,11 +2085,18 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     protected override void OnRender(SpriteBatch spriteBatch)
     {
         var renderStartTicks = Stopwatch.GetTimestamp();
-        base.OnRender(spriteBatch);
-        UiDrawing.DrawFilledRect(spriteBatch, LayoutSlot, Background * Opacity);
-        if (BorderThickness > 0f)
+        var hasTemplateRoot = HasTemplateRoot;
+        if (hasTemplateRoot)
         {
-            UiDrawing.DrawRectStroke(spriteBatch, LayoutSlot, BorderThickness, BorderBrush * Opacity);
+            DrawTemplateVisualTree(spriteBatch);
+        }
+        else
+        {
+            UiDrawing.DrawFilledRect(spriteBatch, LayoutSlot, Background * Opacity);
+            if (BorderThickness > 0f)
+            {
+                UiDrawing.DrawRectStroke(spriteBatch, LayoutSlot, BorderThickness, BorderBrush * Opacity);
+            }
         }
 
         var textRect = GetTextRect();
@@ -1645,15 +2119,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 continue;
             }
 
-            UiTextRenderer.DrawString(
-                spriteBatch,
-                this,
-                run.Text,
-                position,
-                color * Opacity,
-                FontSize,
-                opaqueBackground: false,
-                styleOverride: ToStyleOverride(run.Style));
+            DrawRunText(spriteBatch, run, position, color);
 
             if (run.Style.IsUnderline)
             {
@@ -1666,14 +2132,97 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
 
         DrawTableBorders(spriteBatch, textRect, layout);
-        if (IsFocused && _isCaretVisible)
+        if (IsFocused && _isCaretVisible && (!IsReadOnly || IsReadOnlyCaretVisible))
         {
             DrawCaret(spriteBatch, textRect, layout);
+        }
+
+        if (hasTemplateRoot)
+        {
+            EnsureHostedDocumentChildLayout(textRect, layout);
+            for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
+            {
+                _documentHostedVisualChildren[i].Draw(spriteBatch);
+            }
         }
 
         CaptureDirtyHint(layout, textRect);
         _lastRenderedLayout = layout;
         _perfTracker.RecordRender(Stopwatch.GetElapsedTime(renderStartTicks).TotalMilliseconds);
+    }
+
+    protected override bool ShouldAutoDrawVisualChildren => !HasTemplateRoot;
+
+    public override IEnumerable<UIElement> GetVisualChildren()
+    {
+        foreach (var child in base.GetVisualChildren())
+        {
+            yield return child;
+        }
+
+        EnsureHostedDocumentChildLayout();
+        for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
+        {
+            yield return _documentHostedVisualChildren[i];
+        }
+    }
+
+    internal override int GetVisualChildCountForTraversal()
+    {
+        EnsureHostedDocumentChildLayout();
+        return base.GetVisualChildCountForTraversal() + _documentHostedVisualChildren.Count;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        EnsureHostedDocumentChildLayout();
+
+        var baseCount = base.GetVisualChildCountForTraversal();
+        if (index < baseCount)
+        {
+            return base.GetVisualChildAtForTraversal(index);
+        }
+
+        var hostedIndex = index - baseCount;
+        if ((uint)hostedIndex < (uint)_documentHostedVisualChildren.Count)
+        {
+            return _documentHostedVisualChildren[hostedIndex];
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
+    internal override IEnumerable<UIElement> GetRetainedRenderChildren()
+    {
+        if (HasTemplateRoot)
+        {
+            EnsureHostedDocumentChildLayout();
+            for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
+            {
+                yield return _documentHostedVisualChildren[i];
+            }
+
+            yield break;
+        }
+
+        foreach (var child in base.GetRetainedRenderChildren())
+        {
+            yield return child;
+        }
+
+        EnsureHostedDocumentChildLayout();
+        for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
+        {
+            yield return _documentHostedVisualChildren[i];
+        }
+    }
+
+    private void DrawTemplateVisualTree(SpriteBatch spriteBatch)
+    {
+        foreach (var child in base.GetVisualChildren())
+        {
+            child.Draw(spriteBatch);
+        }
     }
 
     private void OnDocumentPropertyChanged(FlowDocument? oldDocument, FlowDocument? newDocument)
@@ -1686,11 +2235,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         var active = newDocument ?? CreateDefaultDocument();
         active.Changed += OnDocumentChanged;
+        SyncHostedDocumentChildren();
         ApplyHyperlinkImplicitStyles();
         ClampSelectionToTextLength();
         _layoutCache.Invalidate();
         _lastMeasuredLayout = null;
         RaiseRoutedEventInternal(DocumentChangedEvent, new RoutedSimpleEventArgs(DocumentChangedEvent));
+        RaiseTextChangedEvent();
         InvalidateMeasure();
         InvalidateVisual();
         _lastDocumentRichness = CaptureDocumentRichness(Document);
@@ -1701,12 +2252,225 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         _ = sender;
         _ = e;
+        SyncHostedDocumentChildren();
         ApplyHyperlinkImplicitStyles();
         ClampSelectionToTextLength();
+        if (_documentChangeBatchDepth > 0)
+        {
+            _hasPendingDocumentChangedEvent = true;
+            _hasPendingTextChangedEvent = true;
+            return;
+        }
+
         _layoutCache.Invalidate();
+        _lastMeasuredLayout = null;
         RaiseRoutedEventInternal(DocumentChangedEvent, new RoutedSimpleEventArgs(DocumentChangedEvent));
+        RaiseTextChangedEvent();
         InvalidateMeasure();
         InvalidateVisual();
+        _lastDocumentRichness = CaptureDocumentRichness(Document);
+    }
+
+    private bool ExecuteUndo()
+    {
+        var handled = ExecuteDocumentChangeBatch(() => _undoManager.Undo());
+        if (!handled)
+        {
+            return false;
+        }
+
+        ClampSelectionToTextLength();
+        TraceInvariants("Undo");
+        InvalidateVisualWithReason("Undo");
+        return true;
+    }
+
+    private bool ExecuteRedo()
+    {
+        var handled = ExecuteDocumentChangeBatch(() => _undoManager.Redo());
+        if (!handled)
+        {
+            return false;
+        }
+
+        ClampSelectionToTextLength();
+        TraceInvariants("Redo");
+        InvalidateVisualWithReason("Redo");
+        return true;
+    }
+
+    private void UpdateSelectionState(int selectionAnchor, int caretIndex, bool ensureCaretVisible)
+    {
+        var previousStart = SelectionStart;
+        var previousLength = SelectionLength;
+        _selectionAnchor = selectionAnchor;
+        _caretIndex = caretIndex;
+        if (ensureCaretVisible)
+        {
+            EnsureCaretVisible();
+        }
+
+        RaiseSelectionChangedEventIfNeeded(previousStart, previousLength);
+    }
+
+    private void RaiseTextChangedEvent()
+    {
+        RaiseRoutedEventInternal(TextChangedEvent, new RoutedSimpleEventArgs(TextChangedEvent));
+    }
+
+    private void ExecuteDocumentChangeBatch(Action action)
+    {
+        BeginDocumentChangeBatch();
+        try
+        {
+            action();
+        }
+        finally
+        {
+            EndDocumentChangeBatch();
+        }
+    }
+
+    private T ExecuteDocumentChangeBatch<T>(Func<T> action)
+    {
+        BeginDocumentChangeBatch();
+        try
+        {
+            return action();
+        }
+        finally
+        {
+            EndDocumentChangeBatch();
+        }
+    }
+
+    private void BeginDocumentChangeBatch()
+    {
+        _documentChangeBatchDepth++;
+    }
+
+    private void EndDocumentChangeBatch()
+    {
+        if (_documentChangeBatchDepth <= 0)
+        {
+            return;
+        }
+
+        _documentChangeBatchDepth--;
+        if (_documentChangeBatchDepth == 0)
+        {
+            FlushPendingDocumentChangeEvents();
+        }
+    }
+
+    private void FlushPendingDocumentChangeEvents()
+    {
+        if (!_hasPendingDocumentChangedEvent && !_hasPendingTextChangedEvent)
+        {
+            return;
+        }
+
+        var raiseTextChanged = _hasPendingTextChangedEvent;
+        _hasPendingDocumentChangedEvent = false;
+        _hasPendingTextChangedEvent = false;
+        _layoutCache.Invalidate();
+        _lastMeasuredLayout = null;
+        RaiseRoutedEventInternal(DocumentChangedEvent, new RoutedSimpleEventArgs(DocumentChangedEvent));
+        if (raiseTextChanged)
+        {
+            RaiseTextChangedEvent();
+        }
+
+        InvalidateMeasure();
+        InvalidateVisual();
+        _lastDocumentRichness = CaptureDocumentRichness(Document);
+    }
+
+    private void RaiseSelectionChangedEventIfNeeded(int previousStart, int previousLength)
+    {
+        if (previousStart == SelectionStart && previousLength == SelectionLength)
+        {
+            return;
+        }
+
+        RaiseRoutedEventInternal(
+            SelectionChangedEvent,
+            new SelectionChangedEventArgs(SelectionChangedEvent, EmptySelectionItems, EmptySelectionItems));
+    }
+
+    private TextPointer CreateTextPointer(int offset)
+    {
+        return DocumentPointers.CreateAtDocumentOffset(Document, offset);
+    }
+
+    private int ResolveDocumentOffset(TextPointer position, string parameterName)
+    {
+        if (!DocumentPointers.TryGetDocumentOffset(Document, position, out var offset))
+        {
+            throw new ArgumentException("TextPointer must belong to the current RichTextBox document.", parameterName);
+        }
+
+        return offset;
+    }
+
+    private void ValidateSpellCheckCharacterIndex(int charIndex)
+    {
+        var textLength = GetText().Length;
+        if (charIndex < 0 || charIndex > textLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(charIndex));
+        }
+    }
+
+    private static void ValidateLogicalDirection(LogicalDirection direction, string parameterName)
+    {
+        if (direction is LogicalDirection.Backward or LogicalDirection.Forward)
+        {
+            return;
+        }
+
+        throw new ArgumentOutOfRangeException(parameterName);
+    }
+
+    private bool ScrollBy(float horizontalDelta, float verticalDelta, string reason)
+    {
+        return SetScrollOffsets(_horizontalOffset + horizontalDelta, _verticalOffset + verticalDelta, reason);
+    }
+
+    private bool SetScrollOffsets(float horizontalOffset, float verticalOffset, string reason)
+    {
+        var metrics = GetScrollMetrics();
+        var clampedHorizontal = Math.Clamp(horizontalOffset, 0f, metrics.ScrollableWidth);
+        var clampedVertical = Math.Clamp(verticalOffset, 0f, metrics.ScrollableHeight);
+        if (Math.Abs(clampedHorizontal - _horizontalOffset) <= 0.01f &&
+            Math.Abs(clampedVertical - _verticalOffset) <= 0.01f)
+        {
+            return false;
+        }
+
+        _horizontalOffset = clampedHorizontal;
+        _verticalOffset = clampedVertical;
+        InvalidateVisualWithReason(reason);
+        return true;
+    }
+
+    private RichTextBoxScrollMetrics GetScrollMetrics()
+    {
+        var textRect = GetTextRect();
+        if (textRect.Width <= 0f || textRect.Height <= 0f)
+        {
+            return new RichTextBoxScrollMetrics(_horizontalOffset, _verticalOffset, 0f, 0f, 0f, 0f);
+        }
+
+        var layout = BuildOrGetLayout(textRect.Width);
+        ClampScrollOffsets(layout, textRect);
+        return new RichTextBoxScrollMetrics(
+            _horizontalOffset,
+            _verticalOffset,
+            textRect.Width,
+            textRect.Height,
+            layout.ContentWidth,
+            layout.ContentHeight);
     }
 
     private static FlowDocument CreateDefaultDocument()
@@ -1727,6 +2491,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         CommandBindings.Add(new CommandBinding(EditingCommands.Backspace, (_, _) => ExecuteBackspace(), (_, args) => args.CanExecute = CanBackspace()));
         CommandBindings.Add(new CommandBinding(EditingCommands.Delete, (_, _) => ExecuteDelete(), (_, args) => args.CanExecute = CanDelete()));
+        CommandBindings.Add(new CommandBinding(EditingCommands.DeletePreviousWord, (_, _) => ExecuteDeletePreviousWord(), (_, args) => args.CanExecute = CanBackspace()));
+        CommandBindings.Add(new CommandBinding(EditingCommands.DeleteNextWord, (_, _) => ExecuteDeleteNextWord(), (_, args) => args.CanExecute = CanDelete()));
         CommandBindings.Add(new CommandBinding(EditingCommands.EnterParagraphBreak, (_, _) => ExecuteEnterParagraphBreak(), (_, args) => args.CanExecute = CanMutateText()));
         CommandBindings.Add(new CommandBinding(EditingCommands.EnterLineBreak, (_, _) => ExecuteEnterLineBreak(), (_, args) => args.CanExecute = CanMutateText()));
         CommandBindings.Add(new CommandBinding(EditingCommands.TabForward, (_, _) => ExecuteTabForward(), (_, args) => args.CanExecute = CanMutateText()));
@@ -1736,15 +2502,45 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         CommandBindings.Add(new CommandBinding(EditingCommands.Cut, (_, _) => ExecuteCut(), (_, args) => args.CanExecute = !IsReadOnly && SelectionLength > 0));
         CommandBindings.Add(new CommandBinding(EditingCommands.Paste, (_, _) => ExecutePaste(), (_, args) => args.CanExecute = !IsReadOnly && CanPasteFromClipboard()));
 
-        CommandBindings.Add(new CommandBinding(EditingCommands.SelectAll, (_, _) => ExecuteSelectAll(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectAll, (_, _) => ExecuteSelectAllCore(), (_, args) => args.CanExecute = true));
         CommandBindings.Add(new CommandBinding(EditingCommands.MoveLeftByCharacter, (_, _) => ExecuteMoveLeftByCharacter(), (_, args) => args.CanExecute = true));
         CommandBindings.Add(new CommandBinding(EditingCommands.MoveRightByCharacter, (_, _) => ExecuteMoveRightByCharacter(), (_, args) => args.CanExecute = true));
         CommandBindings.Add(new CommandBinding(EditingCommands.MoveLeftByWord, (_, _) => ExecuteMoveLeftByWord(), (_, args) => args.CanExecute = true));
         CommandBindings.Add(new CommandBinding(EditingCommands.MoveRightByWord, (_, _) => ExecuteMoveRightByWord(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectLeftByCharacter, (_, _) => ExecuteSelectLeftByCharacter(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectRightByCharacter, (_, _) => ExecuteSelectRightByCharacter(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectLeftByWord, (_, _) => ExecuteSelectLeftByWord(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectRightByWord, (_, _) => ExecuteSelectRightByWord(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveUpByLine, (_, _) => ExecuteMoveUpByLine(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveDownByLine, (_, _) => ExecuteMoveDownByLine(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveUpByPage, (_, _) => ExecuteMoveUpByPage(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveDownByPage, (_, _) => ExecuteMoveDownByPage(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveUpByParagraph, (_, _) => ExecuteMoveUpByParagraph(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveDownByParagraph, (_, _) => ExecuteMoveDownByParagraph(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveToLineStart, (_, _) => ExecuteMoveToLineStart(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveToLineEnd, (_, _) => ExecuteMoveToLineEnd(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveToParagraphStart, (_, _) => ExecuteMoveToParagraphStart(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveToParagraphEnd, (_, _) => ExecuteMoveToParagraphEnd(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveToDocumentStart, (_, _) => ExecuteMoveToDocumentStart(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.MoveToDocumentEnd, (_, _) => ExecuteMoveToDocumentEnd(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectUpByLine, (_, _) => ExecuteSelectUpByLine(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectDownByLine, (_, _) => ExecuteSelectDownByLine(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectUpByPage, (_, _) => ExecuteSelectUpByPage(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectDownByPage, (_, _) => ExecuteSelectDownByPage(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectUpByParagraph, (_, _) => ExecuteSelectUpByParagraph(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectDownByParagraph, (_, _) => ExecuteSelectDownByParagraph(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectToLineStart, (_, _) => ExecuteSelectToLineStart(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectToLineEnd, (_, _) => ExecuteSelectToLineEnd(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectToParagraphStart, (_, _) => ExecuteSelectToParagraphStart(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectToParagraphEnd, (_, _) => ExecuteSelectToParagraphEnd(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectToDocumentStart, (_, _) => ExecuteSelectToDocumentStart(), (_, args) => args.CanExecute = true));
+        CommandBindings.Add(new CommandBinding(EditingCommands.SelectToDocumentEnd, (_, _) => ExecuteSelectToDocumentEnd(), (_, args) => args.CanExecute = true));
 
         CommandBindings.Add(new CommandBinding(EditingCommands.ToggleBold, (_, _) => ExecuteToggleBold(), (_, args) => args.CanExecute = !IsReadOnly));
         CommandBindings.Add(new CommandBinding(EditingCommands.ToggleItalic, (_, _) => ExecuteToggleItalic(), (_, args) => args.CanExecute = !IsReadOnly));
         CommandBindings.Add(new CommandBinding(EditingCommands.ToggleUnderline, (_, _) => ExecuteToggleUnderline(), (_, args) => args.CanExecute = !IsReadOnly));
+        CommandBindings.Add(new CommandBinding(EditingCommands.ToggleBullets, (_, _) => ExecuteToggleBullets(), (_, args) => args.CanExecute = CanExecuteListStyleToggle()));
+        CommandBindings.Add(new CommandBinding(EditingCommands.ToggleNumbering, (_, _) => ExecuteToggleNumbering(), (_, args) => args.CanExecute = CanExecuteListStyleToggle()));
 
         CommandBindings.Add(new CommandBinding(EditingCommands.IncreaseListLevel, (_, _) => ExecuteIncreaseListLevel(), (_, args) => args.CanExecute = CanExecuteListLevelChange(increase: true)));
         CommandBindings.Add(new CommandBinding(EditingCommands.DecreaseListLevel, (_, _) => ExecuteDecreaseListLevel(), (_, args) => args.CanExecute = CanExecuteListLevelChange(increase: false)));
@@ -1764,6 +2560,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         AddEditingKeyBinding(Keys.Back, ModifierKeys.None, EditingCommands.Backspace);
         AddEditingKeyBinding(Keys.Delete, ModifierKeys.None, EditingCommands.Delete);
+        AddEditingKeyBinding(Keys.Back, ModifierKeys.Control, EditingCommands.DeletePreviousWord);
+        AddEditingKeyBinding(Keys.Delete, ModifierKeys.Control, EditingCommands.DeleteNextWord);
         AddEditingKeyBinding(Keys.Enter, ModifierKeys.None, EditingCommands.EnterParagraphBreak);
         AddEditingKeyBinding(Keys.Enter, ModifierKeys.Shift, EditingCommands.EnterLineBreak);
         AddEditingKeyBinding(Keys.Tab, ModifierKeys.None, EditingCommands.TabForward);
@@ -1778,10 +2576,30 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         AddEditingKeyBinding(Keys.Right, ModifierKeys.None, EditingCommands.MoveRightByCharacter);
         AddEditingKeyBinding(Keys.Left, ModifierKeys.Control, EditingCommands.MoveLeftByWord);
         AddEditingKeyBinding(Keys.Right, ModifierKeys.Control, EditingCommands.MoveRightByWord);
-        AddEditingKeyBinding(Keys.Left, ModifierKeys.Shift, EditingCommands.MoveLeftByCharacter);
-        AddEditingKeyBinding(Keys.Right, ModifierKeys.Shift, EditingCommands.MoveRightByCharacter);
-        AddEditingKeyBinding(Keys.Left, ModifierKeys.Control | ModifierKeys.Shift, EditingCommands.MoveLeftByWord);
-        AddEditingKeyBinding(Keys.Right, ModifierKeys.Control | ModifierKeys.Shift, EditingCommands.MoveRightByWord);
+        AddEditingKeyBinding(Keys.Up, ModifierKeys.None, EditingCommands.MoveUpByLine);
+        AddEditingKeyBinding(Keys.Down, ModifierKeys.None, EditingCommands.MoveDownByLine);
+        AddEditingKeyBinding(Keys.PageUp, ModifierKeys.None, EditingCommands.MoveUpByPage);
+        AddEditingKeyBinding(Keys.PageDown, ModifierKeys.None, EditingCommands.MoveDownByPage);
+        AddEditingKeyBinding(Keys.Up, ModifierKeys.Control, EditingCommands.MoveUpByParagraph);
+        AddEditingKeyBinding(Keys.Down, ModifierKeys.Control, EditingCommands.MoveDownByParagraph);
+        AddEditingKeyBinding(Keys.Home, ModifierKeys.None, EditingCommands.MoveToLineStart);
+        AddEditingKeyBinding(Keys.End, ModifierKeys.None, EditingCommands.MoveToLineEnd);
+        AddEditingKeyBinding(Keys.Home, ModifierKeys.Control, EditingCommands.MoveToDocumentStart);
+        AddEditingKeyBinding(Keys.End, ModifierKeys.Control, EditingCommands.MoveToDocumentEnd);
+        AddEditingKeyBinding(Keys.Left, ModifierKeys.Shift, EditingCommands.SelectLeftByCharacter);
+        AddEditingKeyBinding(Keys.Right, ModifierKeys.Shift, EditingCommands.SelectRightByCharacter);
+        AddEditingKeyBinding(Keys.Left, ModifierKeys.Control | ModifierKeys.Shift, EditingCommands.SelectLeftByWord);
+        AddEditingKeyBinding(Keys.Right, ModifierKeys.Control | ModifierKeys.Shift, EditingCommands.SelectRightByWord);
+        AddEditingKeyBinding(Keys.Up, ModifierKeys.Shift, EditingCommands.SelectUpByLine);
+        AddEditingKeyBinding(Keys.Down, ModifierKeys.Shift, EditingCommands.SelectDownByLine);
+        AddEditingKeyBinding(Keys.PageUp, ModifierKeys.Shift, EditingCommands.SelectUpByPage);
+        AddEditingKeyBinding(Keys.PageDown, ModifierKeys.Shift, EditingCommands.SelectDownByPage);
+        AddEditingKeyBinding(Keys.Up, ModifierKeys.Control | ModifierKeys.Shift, EditingCommands.SelectUpByParagraph);
+        AddEditingKeyBinding(Keys.Down, ModifierKeys.Control | ModifierKeys.Shift, EditingCommands.SelectDownByParagraph);
+        AddEditingKeyBinding(Keys.Home, ModifierKeys.Shift, EditingCommands.SelectToLineStart);
+        AddEditingKeyBinding(Keys.End, ModifierKeys.Shift, EditingCommands.SelectToLineEnd);
+        AddEditingKeyBinding(Keys.Home, ModifierKeys.Control | ModifierKeys.Shift, EditingCommands.SelectToDocumentStart);
+        AddEditingKeyBinding(Keys.End, ModifierKeys.Control | ModifierKeys.Shift, EditingCommands.SelectToDocumentEnd);
 
         AddEditingKeyBinding(Keys.B, ModifierKeys.Control, EditingCommands.ToggleBold);
         AddEditingKeyBinding(Keys.I, ModifierKeys.Control, EditingCommands.ToggleItalic);
@@ -1801,46 +2619,10 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private bool TryExecuteEditingCommandFromKey(Keys key, ModifierKeys modifiers)
     {
-        if (key == Keys.Up || key == Keys.Down)
+        if ((key == Keys.Enter && (modifiers & ModifierKeys.Control) == 0 && !AcceptsReturn) ||
+            (key == Keys.Tab && !AcceptsTab))
         {
-            if ((modifiers & ModifierKeys.Control) != 0)
-            {
-                return false;
-            }
-
-            var extend = (modifiers & ModifierKeys.Shift) != 0;
-            MoveCaretByLine(moveUp: key == Keys.Up, extendSelection: extend);
-            return true;
-        }
-
-        if (key == Keys.Home)
-        {
-            var shift = (modifiers & ModifierKeys.Shift) != 0;
-            if ((modifiers & ModifierKeys.Control) != 0)
-            {
-                SetCaret(0, shift);
-            }
-            else
-            {
-                MoveCaretToLineBoundary(moveToLineStart: true, extendSelection: shift);
-            }
-
-            return true;
-        }
-
-        if (key == Keys.End)
-        {
-            var shift = (modifiers & ModifierKeys.Shift) != 0;
-            if ((modifiers & ModifierKeys.Control) != 0)
-            {
-                SetCaret(GetText().Length, shift);
-            }
-            else
-            {
-                MoveCaretToLineBoundary(moveToLineStart: false, extendSelection: shift);
-            }
-
-            return true;
+            return false;
         }
 
         if (!HasEditingKeyBinding(key, modifiers))
@@ -2111,8 +2893,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
-        session.CommitTransaction();
+        ExecuteDocumentChangeBatch(() =>
+        {
+            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
+            session.CommitTransaction();
+        });
         _caretIndex = caretAfter;
         _selectionAnchor = _caretIndex;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
@@ -2198,7 +2983,10 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 return;
             }
             case InlineUIContainer:
-                append(new InlineUIContainer());
+                append(new InlineUIContainer
+                {
+                    Child = ((InlineUIContainer)inline).Child
+                });
                 return;
             default:
                 return;
@@ -2317,8 +3105,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             },
             postApply: (_, start, _, _) =>
             {
-                _caretIndex = start + 1;
-                _selectionAnchor = _caretIndex;
+                UpdateSelectionState(start + 1, start + 1, ensureCaretVisible: false);
             });
     }
 
@@ -2428,7 +3215,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             var deserializeStart = Stopwatch.GetTimestamp();
             try
             {
-                var fragment = FlowDocumentSerializer.DeserializeFragment(richPayload);
+                var fragment = DeserializeFragmentPayload(richPayload, richFormat);
                 deserializeMs = Stopwatch.GetElapsedTime(deserializeStart).TotalMilliseconds;
                 _perfTracker.RecordClipboardDeserialize(deserializeMs);
                 if (!richStructuredTarget && TryPasteRichFragment(fragment))
@@ -2612,10 +3399,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        DocumentEditing.ReplaceTextRange(Document, start, length, normalizedReplacement, session);
-        session.CommitTransaction();
-        _caretIndex = start + normalizedReplacement.Length;
-        _selectionAnchor = _caretIndex;
+        ExecuteDocumentChangeBatch(() =>
+        {
+            DocumentEditing.ReplaceTextRange(Document, start, length, normalizedReplacement, session);
+            session.CommitTransaction();
+        });
+        UpdateSelectionState(start + normalizedReplacement.Length, start + normalizedReplacement.Length, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);
@@ -2750,10 +3539,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeRawText, afterRawText, beforeDocument, afterDocument));
-        session.CommitTransaction();
-        _caretIndex = caretAfter;
-        _selectionAnchor = _caretIndex;
+        ExecuteDocumentChangeBatch(() =>
+        {
+            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeRawText, afterRawText, beforeDocument, afterDocument));
+            session.CommitTransaction();
+        });
+        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);
@@ -3151,6 +3942,260 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
     }
 
+    private void SyncHostedDocumentChildren()
+    {
+        var nextChildren = new List<UIElement>();
+        CollectHostedInlineChildren(Document, nextChildren);
+
+        for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
+        {
+            var child = _documentHostedVisualChildren[i];
+            if (nextChildren.Contains(child))
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(child.VisualParent, this))
+            {
+                child.SetVisualParent(null);
+            }
+
+            if (ReferenceEquals(child.LogicalParent, this))
+            {
+                child.SetLogicalParent(null);
+            }
+        }
+
+        for (var i = 0; i < nextChildren.Count; i++)
+        {
+            var child = nextChildren[i];
+            if (!ReferenceEquals(child.VisualParent, this))
+            {
+                child.SetVisualParent(this);
+            }
+
+            if (!ReferenceEquals(child.LogicalParent, this))
+            {
+                child.SetLogicalParent(this);
+            }
+        }
+
+        _documentHostedVisualChildren.Clear();
+        _documentHostedVisualChildren.AddRange(nextChildren);
+    }
+
+    private void EnsureHostedDocumentChildLayout()
+    {
+        var textRect = GetTextRect();
+        if (textRect.Width <= 0f || textRect.Height <= 0f)
+        {
+            return;
+        }
+
+        var layout = BuildOrGetLayout(textRect.Width);
+        ClampScrollOffsets(layout, textRect);
+        EnsureHostedDocumentChildLayout(textRect, layout);
+    }
+
+    private void EnsureHostedDocumentChildLayout(LayoutRect textRect, DocumentLayoutResult layout)
+    {
+        if (_documentHostedVisualChildren.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < layout.HostedElements.Count; i++)
+        {
+            var placement = layout.HostedElements[i];
+            var rect = new LayoutRect(
+                textRect.X + placement.Bounds.X - _horizontalOffset,
+                textRect.Y + placement.Bounds.Y - _verticalOffset,
+                placement.Bounds.Width,
+                placement.Bounds.Height);
+
+            if (placement.Child is FrameworkElement arrangedFrameworkChild)
+            {
+                arrangedFrameworkChild.Arrange(rect);
+            }
+            else
+            {
+                placement.Child.SetLayoutSlot(rect);
+            }
+        }
+    }
+
+    private static void CollectHostedInlineChildren(FlowDocument document, List<UIElement> children)
+    {
+        CollectHostedBlockChildren(document.Blocks, children);
+    }
+
+    private static void CollectHostedBlockChildren(IEnumerable<Block> blocks, List<UIElement> children)
+    {
+        foreach (var block in blocks)
+        {
+            switch (block)
+            {
+                case Paragraph paragraph:
+                    CollectHostedInlineChildren(paragraph.Inlines, children);
+                    break;
+                case BlockUIContainer blockUiContainer when blockUiContainer.Child != null:
+                    children.Add(blockUiContainer.Child);
+                    break;
+                case Section section:
+                    CollectHostedBlockChildren(section.Blocks, children);
+                    break;
+                case InkkSlinger.List list:
+                    for (var itemIndex = 0; itemIndex < list.Items.Count; itemIndex++)
+                    {
+                        CollectHostedBlockChildren(list.Items[itemIndex].Blocks, children);
+                    }
+
+                    break;
+                case Table table:
+                    for (var rowGroupIndex = 0; rowGroupIndex < table.RowGroups.Count; rowGroupIndex++)
+                    {
+                        var rowGroup = table.RowGroups[rowGroupIndex];
+                        for (var rowIndex = 0; rowIndex < rowGroup.Rows.Count; rowIndex++)
+                        {
+                            var row = rowGroup.Rows[rowIndex];
+                            for (var cellIndex = 0; cellIndex < row.Cells.Count; cellIndex++)
+                            {
+                                CollectHostedBlockChildren(row.Cells[cellIndex].Blocks, children);
+                            }
+                        }
+                    }
+
+                    break;
+            }
+        }
+    }
+
+    private static void CollectHostedInlineChildren(IEnumerable<Inline> inlines, List<UIElement> children)
+    {
+        foreach (var inline in inlines)
+        {
+            switch (inline)
+            {
+                case InlineUIContainer inlineUiContainer when inlineUiContainer.Child != null:
+                    children.Add(inlineUiContainer.Child);
+                    break;
+                case Span span:
+                    CollectHostedInlineChildren(span.Inlines, children);
+                    break;
+            }
+        }
+    }
+
+    private static List<HostedInlinePlacement> CollectHostedInlinePlacements(FlowDocument document)
+    {
+        var placements = new List<HostedInlinePlacement>();
+        var logicalBlocks = new List<TextElement>();
+        CollectHostedLogicalBlocks(document.Blocks, logicalBlocks);
+        var offset = 0;
+        for (var blockIndex = 0; blockIndex < logicalBlocks.Count; blockIndex++)
+        {
+            switch (logicalBlocks[blockIndex])
+            {
+                case Paragraph paragraph:
+                {
+                    var localOffset = 0;
+                    CollectHostedInlinePlacements(paragraph.Inlines, offset, ref localOffset, placements);
+                    offset += GetParagraphLogicalLength(paragraph);
+                    break;
+                }
+                case BlockUIContainer blockUiContainer:
+                    if (blockUiContainer.Child != null)
+                    {
+                        placements.Add(new HostedInlinePlacement(blockUiContainer.Child, offset));
+                    }
+
+                    offset += 1;
+                    break;
+            }
+
+            if (blockIndex < logicalBlocks.Count - 1)
+            {
+                offset++;
+            }
+        }
+
+        return placements;
+    }
+
+    private static void CollectHostedLogicalBlocks(IEnumerable<Block> blocks, List<TextElement> logicalBlocks)
+    {
+        foreach (var block in blocks)
+        {
+            switch (block)
+            {
+                case Paragraph paragraph:
+                    logicalBlocks.Add(paragraph);
+                    break;
+                case BlockUIContainer blockUiContainer:
+                    logicalBlocks.Add(blockUiContainer);
+                    break;
+                case Section section:
+                    CollectHostedLogicalBlocks(section.Blocks, logicalBlocks);
+                    break;
+                case InkkSlinger.List list:
+                    for (var itemIndex = 0; itemIndex < list.Items.Count; itemIndex++)
+                    {
+                        CollectHostedLogicalBlocks(list.Items[itemIndex].Blocks, logicalBlocks);
+                    }
+
+                    break;
+                case Table table:
+                    for (var rowGroupIndex = 0; rowGroupIndex < table.RowGroups.Count; rowGroupIndex++)
+                    {
+                        var rowGroup = table.RowGroups[rowGroupIndex];
+                        for (var rowIndex = 0; rowIndex < rowGroup.Rows.Count; rowIndex++)
+                        {
+                            var row = rowGroup.Rows[rowIndex];
+                            for (var cellIndex = 0; cellIndex < row.Cells.Count; cellIndex++)
+                            {
+                                CollectHostedLogicalBlocks(row.Cells[cellIndex].Blocks, logicalBlocks);
+                            }
+                        }
+                    }
+
+                    break;
+            }
+        }
+    }
+
+    private static void CollectHostedInlinePlacements(
+        IEnumerable<Inline> inlines,
+        int paragraphOffset,
+        ref int localOffset,
+        List<HostedInlinePlacement> placements)
+    {
+        foreach (var inline in inlines)
+        {
+            switch (inline)
+            {
+                case Run run:
+                    localOffset += run.Text.Length;
+                    break;
+                case LineBreak:
+                    localOffset++;
+                    break;
+                case InlineUIContainer inlineUiContainer:
+                    if (inlineUiContainer.Child != null)
+                    {
+                        placements.Add(new HostedInlinePlacement(inlineUiContainer.Child, paragraphOffset + localOffset));
+                    }
+
+                    localOffset++;
+                    break;
+                case Span span:
+                    CollectHostedInlinePlacements(span.Inlines, paragraphOffset, ref localOffset, placements);
+                    break;
+            }
+        }
+    }
+
+    private readonly record struct HostedInlinePlacement(UIElement Child, int Offset);
+
     private int GetTextIndexFromPoint(Vector2 point)
     {
         var textRect = GetTextRect();
@@ -3181,7 +4226,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private void DrawSelection(SpriteBatch spriteBatch, LayoutRect textRect, DocumentLayoutResult layout)
     {
-        if (SelectionLength <= 0)
+        if (SelectionLength <= 0 || (!IsFocused && !IsInactiveSelectionHighlightEnabled))
         {
             return;
         }
@@ -3194,7 +4239,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             UiDrawing.DrawFilledRect(
                 spriteBatch,
                 new LayoutRect(textRect.X + rect.X - _horizontalOffset, textRect.Y + rect.Y - _verticalOffset, rect.Width, rect.Height),
-                SelectionBrush * Opacity);
+                SelectionBrush * (Opacity * SelectionOpacity));
         }
 
         var line = ResolveLineForOffset(layout, _caretIndex);
@@ -3202,6 +4247,53 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             ? new LayoutRect(textRect.X + caret.X - _horizontalOffset, textRect.Y + caret.Y - _verticalOffset, 1f, Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize)))
             : default;
         _perfTracker.RecordSelectionGeometry(Stopwatch.GetElapsedTime(selectionStartTicks).TotalMilliseconds);
+    }
+
+    private void DrawRunText(SpriteBatch spriteBatch, DocumentLayoutRun run, Vector2 position, Color baseColor)
+    {
+        var overlapStart = Math.Max(SelectionStart, run.StartOffset);
+        var overlapEnd = Math.Min(SelectionStart + SelectionLength, run.StartOffset + run.Length);
+        var styleOverride = ToStyleOverride(run.Style);
+        if (SelectionLength <= 0 || overlapEnd <= overlapStart)
+        {
+            UiTextRenderer.DrawString(
+                spriteBatch,
+                this,
+                run.Text,
+                position,
+                baseColor * Opacity,
+                FontSize,
+                opaqueBackground: false,
+                styleOverride: styleOverride);
+            return;
+        }
+
+        var prefixLength = overlapStart - run.StartOffset;
+        var selectedLength = overlapEnd - overlapStart;
+        var prefixText = prefixLength > 0 ? run.Text[..prefixLength] : string.Empty;
+        var selectedText = selectedLength > 0 ? run.Text.Substring(prefixLength, selectedLength) : string.Empty;
+        var suffixText = (prefixLength + selectedLength) < run.Text.Length
+            ? run.Text[(prefixLength + selectedLength)..]
+            : string.Empty;
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize, styleOverride);
+        var currentX = position.X;
+
+        if (prefixText.Length > 0)
+        {
+            UiTextRenderer.DrawString(spriteBatch, typography, prefixText, new Vector2(currentX, position.Y), baseColor * Opacity);
+            currentX += UiTextRenderer.MeasureWidth(typography, prefixText);
+        }
+
+        if (selectedText.Length > 0)
+        {
+            UiTextRenderer.DrawString(spriteBatch, typography, selectedText, new Vector2(currentX, position.Y), SelectionTextBrush * Opacity);
+            currentX += UiTextRenderer.MeasureWidth(typography, selectedText);
+        }
+
+        if (suffixText.Length > 0)
+        {
+            UiTextRenderer.DrawString(spriteBatch, typography, suffixText, new Vector2(currentX, position.Y), baseColor * Opacity);
+        }
     }
 
     private static string NormalizeNewlines(string? text)
@@ -3250,6 +4342,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         if (TryGetNonEmptyClipboardData(snapshot, FlowDocumentSerializer.ClipboardFormat, out payload))
         {
             format = FlowDocumentSerializer.ClipboardFormat;
+            return true;
+        }
+
+        if (TryGetNonEmptyClipboardData(snapshot, ClipboardRtfFormat, out payload))
+        {
+            format = ClipboardRtfFormat;
             return true;
         }
 
@@ -3313,15 +4411,253 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         return sb.ToString();
     }
 
-    private bool CanPasteFromClipboard()
+    private void ApplyLoadedDocument(FlowDocument document, string reason)
     {
-        var snapshot = TextClipboard.CaptureSnapshot();
-        if (TryGetRichClipboardPayload(snapshot, out _, out _))
+        ExecuteDocumentChangeBatch(() => Document = document);
+        _typingBoldActive = false;
+        _typingItalicActive = false;
+        _typingUnderlineActive = false;
+        UpdateSelectionState(0, 0, ensureCaretVisible: false);
+        _caretBlinkSeconds = 0f;
+        _isCaretVisible = true;
+        EnsureCaretVisible();
+        InvalidateMeasure();
+        InvalidateVisualWithReason(reason);
+    }
+
+    private string SerializeSelectionPayload(string dataFormat)
+    {
+        var selectionEnd = SelectionStart + SelectionLength;
+        return NormalizeDataFormat(dataFormat) switch
         {
-            return true;
+            ClipboardXamlFormat or ClipboardXamlPackageFormat or FlowDocumentSerializer.ClipboardFormat =>
+                FlowDocumentSerializer.SerializeRange(Document, SelectionStart, selectionEnd),
+            ClipboardRtfFormat => BuildRtfFromPlainText(GetText().Substring(SelectionStart, SelectionLength)),
+            ClipboardTextFormat or ClipboardUnicodeTextFormat => NormalizeNewlines(GetText().Substring(SelectionStart, SelectionLength)),
+            _ => throw new NotSupportedException($"RichTextBox does not support saving format '{dataFormat}'.")
+        };
+    }
+
+    private static string SerializeDocumentPayload(FlowDocument document, string dataFormat)
+    {
+        return NormalizeDataFormat(dataFormat) switch
+        {
+            ClipboardXamlFormat or ClipboardXamlPackageFormat or FlowDocumentSerializer.ClipboardFormat => FlowDocumentSerializer.Serialize(document),
+            ClipboardRtfFormat => BuildRtfFromPlainText(DocumentEditing.GetText(document)),
+            ClipboardTextFormat or ClipboardUnicodeTextFormat => NormalizeNewlines(DocumentEditing.GetText(document)),
+            _ => throw new NotSupportedException($"RichTextBox does not support saving format '{dataFormat}'.")
+        };
+    }
+
+    private static FlowDocument DeserializeDocumentPayload(string payload, string dataFormat)
+    {
+        if (IsRichFragmentFormat(dataFormat))
+        {
+            return DeserializeFragmentPayload(payload, dataFormat);
         }
 
-        return snapshot.TryGetText(out _);
+        var text = DeserializeTextPayload(payload, dataFormat);
+        return CreateDocumentFromPlainText(text);
+    }
+
+    private static FlowDocument DeserializeFragmentPayload(string payload, string dataFormat)
+    {
+        return NormalizeDataFormat(dataFormat) switch
+        {
+            ClipboardXamlFormat or ClipboardXamlPackageFormat or FlowDocumentSerializer.ClipboardFormat => FlowDocumentSerializer.DeserializeFragment(payload),
+            ClipboardRtfFormat => CreateDocumentFromPlainText(ParseRtfToPlainText(payload)),
+            ClipboardTextFormat or ClipboardUnicodeTextFormat => CreateDocumentFromPlainText(payload),
+            _ => throw new NotSupportedException($"RichTextBox does not support loading format '{dataFormat}'.")
+        };
+    }
+
+    private static string DeserializeTextPayload(string payload, string dataFormat)
+    {
+        return NormalizeDataFormat(dataFormat) switch
+        {
+            ClipboardRtfFormat => ParseRtfToPlainText(payload),
+            ClipboardTextFormat or ClipboardUnicodeTextFormat => payload,
+            ClipboardXamlFormat or ClipboardXamlPackageFormat or FlowDocumentSerializer.ClipboardFormat => DocumentEditing.GetText(FlowDocumentSerializer.DeserializeFragment(payload)),
+            _ => throw new NotSupportedException($"RichTextBox does not support loading format '{dataFormat}'.")
+        };
+    }
+
+    private static string ReadStreamPayload(Stream stream)
+    {
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+        return reader.ReadToEnd();
+    }
+
+    private static void WriteStreamPayload(Stream stream, string payload)
+    {
+        if (stream.CanSeek)
+        {
+            stream.Position = 0;
+            stream.SetLength(0);
+        }
+
+        using var writer = new StreamWriter(stream, Encoding.UTF8, leaveOpen: true);
+        writer.Write(payload);
+        writer.Flush();
+        if (stream.CanSeek)
+        {
+            stream.Position = 0;
+        }
+    }
+
+    private static bool IsSupportedDataFormat(string? dataFormat)
+    {
+        var normalized = NormalizeDataFormat(dataFormat);
+        return normalized == FlowDocumentSerializer.ClipboardFormat ||
+               normalized == ClipboardXamlFormat ||
+               normalized == ClipboardXamlPackageFormat ||
+               normalized == ClipboardRtfFormat ||
+               normalized == ClipboardTextFormat ||
+               normalized == ClipboardUnicodeTextFormat;
+    }
+
+    private static bool IsRichFragmentFormat(string? dataFormat)
+    {
+        var normalized = NormalizeDataFormat(dataFormat);
+        return normalized == FlowDocumentSerializer.ClipboardFormat ||
+               normalized == ClipboardXamlFormat ||
+               normalized == ClipboardXamlPackageFormat ||
+               normalized == ClipboardRtfFormat;
+    }
+
+    private static string NormalizeDataFormat(string? dataFormat)
+    {
+        return string.IsNullOrWhiteSpace(dataFormat) ? string.Empty : dataFormat.Trim();
+    }
+
+    private static FlowDocument CreateDocumentFromPlainText(string text)
+    {
+        var document = CreateDefaultDocument();
+        DocumentEditing.ReplaceAllText(document, NormalizeNewlines(text));
+        return document;
+    }
+
+    private static string ParseRtfToPlainText(string rtf)
+    {
+        if (string.IsNullOrWhiteSpace(rtf))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(rtf.Length);
+        for (var i = 0; i < rtf.Length; i++)
+        {
+            var ch = rtf[i];
+            if (ch == '{' || ch == '}')
+            {
+                continue;
+            }
+
+            if (ch != '\\')
+            {
+                builder.Append(ch);
+                continue;
+            }
+
+            if (i + 1 >= rtf.Length)
+            {
+                break;
+            }
+
+            var next = rtf[++i];
+            if (next is '\\' or '{' or '}')
+            {
+                builder.Append(next);
+                continue;
+            }
+
+            if (next == '\'')
+            {
+                if (i + 2 < rtf.Length)
+                {
+                    var hex = rtf.Substring(i + 1, 2);
+                    if (byte.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value))
+                    {
+                        builder.Append((char)value);
+                    }
+
+                    i += 2;
+                }
+
+                continue;
+            }
+
+            if (!char.IsLetter(next))
+            {
+                if (next == '~')
+                {
+                    builder.Append(' ');
+                }
+
+                continue;
+            }
+
+            var keywordStart = i;
+            while (i < rtf.Length && char.IsLetter(rtf[i]))
+            {
+                i++;
+            }
+
+            var keyword = rtf.Substring(keywordStart, i - keywordStart);
+            var negative = false;
+            if (i < rtf.Length && rtf[i] == '-')
+            {
+                negative = true;
+                i++;
+            }
+
+            var numberStart = i;
+            while (i < rtf.Length && char.IsDigit(rtf[i]))
+            {
+                i++;
+            }
+
+            int? parameter = null;
+            if (i > numberStart && int.TryParse(rtf.Substring(numberStart, i - numberStart), out var parsed))
+            {
+                parameter = negative ? -parsed : parsed;
+            }
+
+            if (i < rtf.Length && rtf[i] == ' ')
+            {
+                // Consume the control-word delimiter.
+            }
+            else
+            {
+                i--;
+            }
+
+            switch (keyword)
+            {
+                case "par":
+                case "line":
+                    builder.Append('\n');
+                    break;
+                case "tab":
+                    builder.Append('\t');
+                    break;
+                case "u" when parameter.HasValue:
+                    builder.Append((char)(short)parameter.Value);
+                    if (i + 1 < rtf.Length)
+                    {
+                        i++;
+                    }
+
+                    break;
+            }
+        }
+
+        return NormalizeNewlines(builder.ToString());
+    }
+
+    private bool CanPasteFromClipboard()
+    {
+        return TextClipboard.HasPastePayloadFast();
     }
 
     private bool TryPasteRichFragment(FlowDocument fragment)
@@ -3373,11 +4709,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
-        session.CommitTransaction();
+        ExecuteDocumentChangeBatch(() =>
+        {
+            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
+            session.CommitTransaction();
+        });
 
-        _caretIndex = caretAfter;
-        _selectionAnchor = _caretIndex;
+        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(commandType);
@@ -3559,11 +4897,14 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 selectionStart,
                 0,
                 reason));
-        session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
-        session.CommitTransaction();
+        ExecuteDocumentChangeBatch(() =>
+        {
+            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
+            session.CommitTransaction();
+        });
 
         postApply?.Invoke(Document, selectionStart, selectionLength, _caretIndex);
-        _selectionAnchor = _caretIndex;
+        UpdateSelectionState(_caretIndex, _caretIndex, ensureCaretVisible: false);
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
         TraceInvariants(reason);
@@ -4005,10 +5346,10 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private DocumentLayoutResult BuildOrGetLayout(float availableWidth)
     {
-        var layoutLookupStart = Stopwatch.GetTimestamp();
         var normalizedWidth = TextWrapping == TextWrapping.NoWrap || availableWidth <= 0f
             ? float.PositiveInfinity
             : availableWidth;
+        var containsHostedVisualChildren = ContainsHostedDocumentChildren(Document);
         var text = GetText();
         var typography = UiTextRenderer.ResolveTypography(this, FontSize);
         var signature = HashCode.Combine(
@@ -4025,7 +5366,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             typography.GetHashCode(),
             lineHeight,
             Foreground);
-        if (_layoutCache.TryGet(key, out var cached))
+        if (!containsHostedVisualChildren && _layoutCache.TryGet(key, out var cached))
         {
             _perfTracker.RecordLayoutCacheHit();
             return cached;
@@ -4044,10 +5385,80 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             TableCellPadding: 4f,
             TableBorderThickness: 1f);
         var built = _layoutEngine.Layout(Document, settings);
-        _layoutCache.Store(key, built);
+        if (!containsHostedVisualChildren)
+        {
+            _layoutCache.Store(key, built);
+        }
         var buildMs = Stopwatch.GetElapsedTime(buildStart).TotalMilliseconds;
         _perfTracker.RecordLayoutBuild(buildMs);
         return built;
+    }
+
+    private static bool ContainsHostedDocumentChildren(FlowDocument document)
+    {
+        return ContainsHostedDocumentChildren(document.Blocks);
+    }
+
+    private static bool ContainsHostedDocumentChildren(IEnumerable<Block> blocks)
+    {
+        foreach (var block in blocks)
+        {
+            switch (block)
+            {
+                case Paragraph paragraph when ContainsHostedDocumentChildren(paragraph.Inlines):
+                    return true;
+                case BlockUIContainer blockUiContainer when blockUiContainer.Child != null:
+                    return true;
+                case Section section when ContainsHostedDocumentChildren(section.Blocks):
+                    return true;
+                case InkkSlinger.List list:
+                    for (var index = 0; index < list.Items.Count; index++)
+                    {
+                        if (ContainsHostedDocumentChildren(list.Items[index].Blocks))
+                        {
+                            return true;
+                        }
+                    }
+
+                    break;
+                case Table table:
+                    for (var rowGroupIndex = 0; rowGroupIndex < table.RowGroups.Count; rowGroupIndex++)
+                    {
+                        var rowGroup = table.RowGroups[rowGroupIndex];
+                        for (var rowIndex = 0; rowIndex < rowGroup.Rows.Count; rowIndex++)
+                        {
+                            var row = rowGroup.Rows[rowIndex];
+                            for (var cellIndex = 0; cellIndex < row.Cells.Count; cellIndex++)
+                            {
+                                if (ContainsHostedDocumentChildren(row.Cells[cellIndex].Blocks))
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsHostedDocumentChildren(IEnumerable<Inline> inlines)
+    {
+        foreach (var inline in inlines)
+        {
+            switch (inline)
+            {
+                case InlineUIContainer inlineUiContainer when inlineUiContainer.Child != null:
+                    return true;
+                case Span span when ContainsHostedDocumentChildren(span.Inlines):
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     private Color ResolveRunColor(DocumentLayoutStyle style)
@@ -4163,6 +5574,19 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         clipRect = LayoutSlot;
         return true;
+    }
+
+    private readonly record struct RichTextBoxScrollMetrics(
+        float HorizontalOffset,
+        float VerticalOffset,
+        float ViewportWidth,
+        float ViewportHeight,
+        float ExtentWidth,
+        float ExtentHeight)
+    {
+        public float ScrollableWidth => Math.Max(0f, ExtentWidth - ViewportWidth);
+
+        public float ScrollableHeight => Math.Max(0f, ExtentHeight - ViewportHeight);
     }
 }
 

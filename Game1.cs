@@ -100,16 +100,22 @@ public class Game1 : Game
             : 0;
     }
 
+    internal static bool ShouldDrawUiOnCurrentFrame(bool scheduledDraw, bool targetRecreated)
+    {
+        return scheduledDraw || targetRecreated;
+    }
+
     protected override void Draw(GameTime gameTime)
     {
         var viewport = EnsureViewportMatchesBackBuffer();
         var targetRecreated = EnsureUiCompositeTarget(viewport);
+        var shouldDrawUiThisFrame = ShouldDrawUiOnCurrentFrame(_shouldDrawUiThisFrame, targetRecreated);
         if (EnableExperimentalPartialRedraw && targetRecreated)
         {
             _uiRoot.ForceFullRedrawForSurfaceReset();
         }
 
-        if (_shouldDrawUiThisFrame)
+        if (shouldDrawUiThisFrame)
         {
             GraphicsDevice.SetRenderTarget(_uiCompositeTarget);
             if (!EnableExperimentalPartialRedraw)

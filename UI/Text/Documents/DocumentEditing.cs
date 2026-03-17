@@ -32,6 +32,51 @@ public sealed class DocumentUndoManager
     private static readonly TimeSpan TypingCoalesceWindow = TimeSpan.FromMilliseconds(400);
     private readonly Stack<IDocumentUndoUnit> _undo = [];
     private readonly Stack<IDocumentUndoUnit> _redo = [];
+    private bool _isUndoEnabled = true;
+    private int _undoLimit = -1;
+
+    public bool IsUndoEnabled
+    {
+        get => _isUndoEnabled;
+        set
+        {
+            if (_isUndoEnabled == value)
+            {
+                return;
+            }
+
+            _isUndoEnabled = value;
+            if (!value)
+            {
+                _undo.Clear();
+                _redo.Clear();
+            }
+        }
+    }
+
+    public int UndoLimit
+    {
+        get => _undoLimit;
+        set
+        {
+            if (value < -1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            if (_undoLimit == value)
+            {
+                return;
+            }
+
+            _undoLimit = value;
+            TrimUndoStackToLimit();
+            if (_undoLimit == 0)
+            {
+                _redo.Clear();
+            }
+        }
+    }
 
     public bool CanUndo => _undo.Count > 0;
 
@@ -48,22 +93,30 @@ public sealed class DocumentUndoManager
     public void Push(IDocumentUndoUnit unit)
     {
         ArgumentNullException.ThrowIfNull(unit);
+        if (!_isUndoEnabled || _undoLimit == 0)
+        {
+            _redo.Clear();
+            return;
+        }
+
         if (unit is DocumentOperationUndoUnit incoming &&
             _undo.TryPeek(out var top) &&
             top is DocumentOperationUndoUnit previous &&
             previous.TryCoalesceWith(incoming, TypingCoalesceWindow))
         {
             _redo.Clear();
+            TrimUndoStackToLimit();
             return;
         }
 
         _undo.Push(unit);
         _redo.Clear();
+        TrimUndoStackToLimit();
     }
 
     public bool Undo()
     {
-        if (_undo.Count == 0)
+        if (!_isUndoEnabled || _undo.Count == 0)
         {
             return false;
         }
@@ -76,7 +129,7 @@ public sealed class DocumentUndoManager
 
     public bool Redo()
     {
-        if (_redo.Count == 0)
+        if (!_isUndoEnabled || _redo.Count == 0)
         {
             return false;
         }
@@ -103,6 +156,22 @@ public sealed class DocumentUndoManager
         }
 
         return total;
+    }
+
+    private void TrimUndoStackToLimit()
+    {
+        if (_undoLimit < 0 || _undo.Count <= _undoLimit)
+        {
+            return;
+        }
+
+        var newestFirst = _undo.ToArray();
+        var keepCount = Math.Max(0, _undoLimit);
+        _undo.Clear();
+        for (var i = keepCount - 1; i >= 0; i--)
+        {
+            _undo.Push(newestFirst[i]);
+        }
     }
 }
 
@@ -179,7 +248,7 @@ public sealed class DocumentEditSession
                 DateTime.UtcNow,
                 _fallbackBeforeXml,
                 fallbackAfter));
-        Reset();
+            Reset();
     }
 
     public void RollbackTransaction()

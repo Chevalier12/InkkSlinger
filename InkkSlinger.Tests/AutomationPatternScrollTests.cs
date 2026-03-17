@@ -40,4 +40,27 @@ public sealed class AutomationPatternScrollTests
 
         uiRoot.Shutdown();
     }
+
+    [Fact]
+    public void RichTextBoxPeer_ExposesScrollPattern_AndSetScrollPercentMutatesOffsets()
+    {
+        var richTextBox = new RichTextBox();
+        DocumentEditing.ReplaceAllText(richTextBox.Document, string.Join("\n", System.Linq.Enumerable.Range(1, 30).Select(static i => $"Line {i}")));
+        richTextBox.SetLayoutSlot(new LayoutRect(0f, 0f, 140f, 80f));
+
+        var host = new Canvas();
+        host.AddChild(richTextBox);
+        var uiRoot = new UiRoot(host);
+
+        var peer = uiRoot.Automation.GetPeer(richTextBox);
+        Assert.NotNull(peer);
+        Assert.True(peer.TryGetPattern(AutomationPatternType.Scroll, out var pattern));
+
+        var scroll = Assert.IsAssignableFrom<IScrollProvider>(pattern);
+        scroll.SetScrollPercent(0f, 75f);
+
+        Assert.True(richTextBox.VerticalOffset > 0f);
+
+        uiRoot.Shutdown();
+    }
 }
