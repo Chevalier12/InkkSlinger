@@ -6,6 +6,8 @@ namespace InkkSlinger;
 
 public class ProgressBar : RangeBase, IUiRootUpdateParticipant
 {
+    private const float LayoutComparisonEpsilon = 0.0001f;
+
     public new static readonly DependencyProperty MinimumProperty = RangeBase.MinimumProperty;
 
     public new static readonly DependencyProperty MaximumProperty = RangeBase.MaximumProperty;
@@ -153,6 +155,9 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
         _track = GetTemplateChild("PART_Track") as FrameworkElement;
         _indicator = GetTemplateChild("PART_Indicator") as FrameworkElement;
         _glowRect = GetTemplateChild("PART_GlowRect") as FrameworkElement;
+
+        PrepareTemplatePartForDirectLayout(_indicator);
+        PrepareTemplatePartForDirectLayout(_glowRect);
 
         UpdateVisualStates();
         SyncTemplateParts();
@@ -453,12 +458,85 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
             return;
         }
 
-        element.HorizontalAlignment = HorizontalAlignment.Left;
-        element.VerticalAlignment = VerticalAlignment.Top;
-        element.Margin = new Thickness(x, y, 0f, 0f);
-        element.Width = MathF.Max(0f, width);
-        element.Height = MathF.Max(0f, height);
-        element.Arrange(track.LayoutSlot);
+        var coercedWidth = MathF.Max(0f, width);
+        var coercedHeight = MathF.Max(0f, height);
+        var targetRect = new LayoutRect(
+            track.LayoutSlot.X + x,
+            track.LayoutSlot.Y + y,
+            coercedWidth,
+            coercedHeight);
+
+        if (LayoutRectsClose(element.LayoutSlot, targetRect))
+        {
+            return;
+        }
+
+        element.Arrange(targetRect);
+        element.InvalidateVisual();
+    }
+
+    private static void PrepareTemplatePartForDirectLayout(FrameworkElement? element)
+    {
+        if (element == null)
+        {
+            return;
+        }
+
+        if (element.HorizontalAlignment != HorizontalAlignment.Stretch)
+        {
+            element.HorizontalAlignment = HorizontalAlignment.Stretch;
+        }
+
+        if (element.VerticalAlignment != VerticalAlignment.Stretch)
+        {
+            element.VerticalAlignment = VerticalAlignment.Stretch;
+        }
+
+        if (!ThicknessesClose(element.Margin, default))
+        {
+            element.Margin = default;
+        }
+
+        if (!float.IsNaN(element.Width))
+        {
+            element.Width = float.NaN;
+        }
+
+        if (!float.IsNaN(element.Height))
+        {
+            element.Height = float.NaN;
+        }
+    }
+
+    private static bool LayoutRectsClose(LayoutRect left, LayoutRect right)
+    {
+        return AreCloseForLayout(left.X, right.X) &&
+               AreCloseForLayout(left.Y, right.Y) &&
+               AreCloseForLayout(left.Width, right.Width) &&
+               AreCloseForLayout(left.Height, right.Height);
+    }
+
+    private static bool ThicknessesClose(Thickness left, Thickness right)
+    {
+        return AreCloseForLayout(left.Left, right.Left) &&
+               AreCloseForLayout(left.Top, right.Top) &&
+               AreCloseForLayout(left.Right, right.Right) &&
+               AreCloseForLayout(left.Bottom, right.Bottom);
+    }
+
+    private static bool AreCloseForLayout(float left, float right)
+    {
+        if (float.IsNaN(left) && float.IsNaN(right))
+        {
+            return true;
+        }
+
+        if (float.IsNaN(left) || float.IsNaN(right))
+        {
+            return false;
+        }
+
+        return MathF.Abs(left - right) <= LayoutComparisonEpsilon;
     }
 
 }

@@ -13,12 +13,14 @@ public sealed class ProgressBarBehaviorTests
         var (uiRoot, progressBar) = BuildTemplatedProgressBar();
         RunLayout(uiRoot, 240, 120);
 
+        var track = FindNamedVisualChild<FrameworkElement>(progressBar, "PART_Track");
         var indicator = FindNamedVisualChild<FrameworkElement>(progressBar, "PART_Indicator");
+        Assert.NotNull(track);
         Assert.NotNull(indicator);
         Assert.Equal(50f, indicator!.ActualWidth, 2);
         Assert.Equal(20f, indicator.ActualHeight, 2);
-        Assert.Equal(0f, indicator.Margin.Left, 2);
-        Assert.Equal(0f, indicator.Margin.Top, 2);
+        Assert.Equal(0f, GetRelativeLeft(track!, indicator), 2);
+        Assert.Equal(0f, GetRelativeTop(track, indicator), 2);
     }
 
     [Fact]
@@ -27,11 +29,13 @@ public sealed class ProgressBarBehaviorTests
         var (uiRoot, progressBar) = BuildTemplatedProgressBar(orientation: Orientation.Vertical, width: 20f, height: 200f, value: 25f);
         RunLayout(uiRoot, 120, 260);
 
+        var track = FindNamedVisualChild<FrameworkElement>(progressBar, "PART_Track");
         var indicator = FindNamedVisualChild<FrameworkElement>(progressBar, "PART_Indicator");
+        Assert.NotNull(track);
         Assert.NotNull(indicator);
         Assert.Equal(20f, indicator!.ActualWidth, 2);
         Assert.Equal(50f, indicator.ActualHeight, 2);
-        Assert.Equal(150f, indicator.Margin.Top, 2);
+        Assert.Equal(150f, GetRelativeTop(track!, indicator), 2);
     }
 
     [Fact]
@@ -40,24 +44,47 @@ public sealed class ProgressBarBehaviorTests
         var (uiRoot, progressBar) = BuildTemplatedProgressBar(isIndeterminate: true, value: 0f);
         RunLayout(uiRoot, 240, 120);
 
+        var track = FindNamedVisualChild<FrameworkElement>(progressBar, "PART_Track");
         var indicator = FindNamedVisualChild<FrameworkElement>(progressBar, "PART_Indicator");
         var glow = FindNamedVisualChild<FrameworkElement>(progressBar, "PART_GlowRect");
+        Assert.NotNull(track);
         Assert.NotNull(indicator);
         Assert.NotNull(glow);
 
-        var firstLeft = indicator!.Margin.Left;
-        var firstGlowLeft = glow!.Margin.Left;
+        var firstLeft = GetRelativeLeft(track!, indicator!);
+        var firstGlowLeft = GetRelativeLeft(track, glow!);
 
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(416), TimeSpan.FromMilliseconds(400)),
             new Viewport(0, 0, 240, 120));
 
-        Assert.NotEqual(firstLeft, indicator.Margin.Left);
-        Assert.NotEqual(firstGlowLeft, glow.Margin.Left);
+        Assert.NotEqual(firstLeft, GetRelativeLeft(track, indicator));
+        Assert.NotEqual(firstGlowLeft, GetRelativeLeft(track, glow));
         Assert.Equal(0.8f, glow.Opacity, 3);
 
         progressBar.IsIndeterminate = false;
         Assert.Equal(0f, glow.Opacity, 3);
+    }
+
+    [Fact]
+    public void IndeterminateUpdate_SchedulesRenderWithoutLayoutInvalidation()
+    {
+        var (uiRoot, progressBar) = BuildTemplatedProgressBar(isIndeterminate: true, value: 0f);
+        var viewport = new Viewport(0, 0, 240, 120);
+
+        RunLayout(uiRoot, 240, 120);
+        var initialMeasureInvalidationCount = uiRoot.MeasureInvalidationCount;
+        var initialArrangeInvalidationCount = uiRoot.ArrangeInvalidationCount;
+        var initialRenderInvalidationCount = uiRoot.RenderInvalidationCount;
+
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(432), TimeSpan.FromMilliseconds(16)),
+            viewport);
+
+        Assert.Equal(initialMeasureInvalidationCount, uiRoot.MeasureInvalidationCount);
+        Assert.Equal(initialArrangeInvalidationCount, uiRoot.ArrangeInvalidationCount);
+        Assert.True(uiRoot.RenderInvalidationCount > initialRenderInvalidationCount);
+        Assert.True(progressBar.IsIndeterminate);
     }
 
     [Fact]
@@ -244,5 +271,15 @@ public sealed class ProgressBarBehaviorTests
         Assert.Equal(expected, border.BorderThickness.Top, 3);
         Assert.Equal(expected, border.BorderThickness.Right, 3);
         Assert.Equal(expected, border.BorderThickness.Bottom, 3);
+    }
+
+    private static float GetRelativeLeft(FrameworkElement parent, FrameworkElement child)
+    {
+        return child.LayoutSlot.X - parent.LayoutSlot.X;
+    }
+
+    private static float GetRelativeTop(FrameworkElement parent, FrameworkElement child)
+    {
+        return child.LayoutSlot.Y - parent.LayoutSlot.Y;
     }
 }
