@@ -4,8 +4,14 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
-public class ProgressBar : Control, IUiRootUpdateParticipant
+public class ProgressBar : RangeBase, IUiRootUpdateParticipant
 {
+    public new static readonly DependencyProperty MinimumProperty = RangeBase.MinimumProperty;
+
+    public new static readonly DependencyProperty MaximumProperty = RangeBase.MaximumProperty;
+
+    public new static readonly DependencyProperty ValueProperty = RangeBase.ValueProperty;
+
     public static readonly DependencyProperty OrientationProperty =
         DependencyProperty.Register(
             nameof(Orientation),
@@ -14,69 +20,6 @@ public class ProgressBar : Control, IUiRootUpdateParticipant
             new FrameworkPropertyMetadata(
                 Orientation.Horizontal,
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
-
-    public static readonly DependencyProperty MinimumProperty =
-        DependencyProperty.Register(
-            nameof(Minimum),
-            typeof(float),
-            typeof(ProgressBar),
-            new FrameworkPropertyMetadata(
-                0f,
-                FrameworkPropertyMetadataOptions.AffectsRender,
-                propertyChangedCallback: static (dependencyObject, _) =>
-                {
-                    if (dependencyObject is ProgressBar progressBar)
-                    {
-                        progressBar.CoerceRangeAndValue();
-                    }
-                }));
-
-    public static readonly DependencyProperty MaximumProperty =
-        DependencyProperty.Register(
-            nameof(Maximum),
-            typeof(float),
-            typeof(ProgressBar),
-            new FrameworkPropertyMetadata(
-                100f,
-                FrameworkPropertyMetadataOptions.AffectsRender,
-                propertyChangedCallback: static (dependencyObject, _) =>
-                {
-                    if (dependencyObject is ProgressBar progressBar)
-                    {
-                        progressBar.CoerceRangeAndValue();
-                    }
-                }));
-
-    public static readonly DependencyProperty ValueProperty =
-        DependencyProperty.Register(
-            nameof(Value),
-            typeof(float),
-            typeof(ProgressBar),
-            new FrameworkPropertyMetadata(
-                0f,
-                FrameworkPropertyMetadataOptions.AffectsRender,
-                coerceValueCallback: static (dependencyObject, value) =>
-                {
-                    var numericValue = value is float v ? v : 0f;
-                    if (dependencyObject is not ProgressBar progressBar)
-                    {
-                        return numericValue;
-                    }
-
-                    var min = progressBar.Minimum;
-                    var max = progressBar.Maximum;
-                    if (numericValue < min)
-                    {
-                        return min;
-                    }
-
-                    if (numericValue > max)
-                    {
-                        return max;
-                    }
-
-                    return numericValue;
-                }));
 
     public static readonly DependencyProperty IsIndeterminateProperty =
         DependencyProperty.Register(
@@ -118,6 +61,19 @@ public class ProgressBar : Control, IUiRootUpdateParticipant
 
     private float _indeterminatePhase;
 
+    static ProgressBar()
+    {
+        MinimumProperty.OverrideMetadata(
+            typeof(ProgressBar),
+            CreateDerivedMetadata(MinimumProperty, 0f, FrameworkPropertyMetadataOptions.AffectsRender));
+        MaximumProperty.OverrideMetadata(
+            typeof(ProgressBar),
+            CreateDerivedMetadata(MaximumProperty, 100f, FrameworkPropertyMetadataOptions.AffectsRender));
+        ValueProperty.OverrideMetadata(
+            typeof(ProgressBar),
+            CreateDerivedMetadata(ValueProperty, 0f, FrameworkPropertyMetadataOptions.AffectsRender));
+    }
+
     public ProgressBar()
     {
         IsHitTestVisible = false;
@@ -127,24 +83,6 @@ public class ProgressBar : Control, IUiRootUpdateParticipant
     {
         get => GetValue<Orientation>(OrientationProperty);
         set => SetValue(OrientationProperty, value);
-    }
-
-    public float Minimum
-    {
-        get => GetValue<float>(MinimumProperty);
-        set => SetValue(MinimumProperty, value);
-    }
-
-    public float Maximum
-    {
-        get => GetValue<float>(MaximumProperty);
-        set => SetValue(MaximumProperty, value);
-    }
-
-    public float Value
-    {
-        get => GetValue<float>(ValueProperty);
-        set => SetValue(ValueProperty, value);
     }
 
     public bool IsIndeterminate
@@ -345,21 +283,4 @@ public class ProgressBar : Control, IUiRootUpdateParticipant
         return MathF.Max(0f, MathF.Min(1f, normalized));
     }
 
-    private void CoerceRangeAndValue()
-    {
-        var min = MathF.Min(Minimum, Maximum);
-        var max = MathF.Max(Minimum, Maximum);
-
-        if (MathF.Abs(min - Minimum) > 0.0001f)
-        {
-            SetValue(MinimumProperty, min);
-        }
-
-        if (MathF.Abs(max - Maximum) > 0.0001f)
-        {
-            SetValue(MaximumProperty, max);
-        }
-
-        Value = MathF.Max(min, MathF.Min(max, Value));
-    }
 }

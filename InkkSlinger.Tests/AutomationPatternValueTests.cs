@@ -61,4 +61,34 @@ public sealed class AutomationPatternValueTests
 
         uiRoot.Shutdown();
     }
+
+    [Fact]
+    public void SliderPeer_ExposesRangeValuePattern_AndCanSetValue()
+    {
+        var host = new Canvas();
+        var slider = new Slider
+        {
+            Minimum = 10f,
+            Maximum = 90f,
+            Value = 30f
+        };
+        host.AddChild(slider);
+        var uiRoot = new UiRoot(host);
+        var peer = uiRoot.Automation.GetPeer(slider);
+        Assert.NotNull(peer);
+
+        Assert.True(peer.TryGetPattern(AutomationPatternType.RangeValue, out var provider));
+        var rangeProvider = Assert.IsAssignableFrom<IRangeValueProvider>(provider);
+
+        Assert.False(rangeProvider.IsReadOnly);
+        Assert.Equal(10f, rangeProvider.Minimum);
+        Assert.Equal(90f, rangeProvider.Maximum);
+
+        rangeProvider.SetValue(75f);
+
+        Assert.Equal(75f, slider.Value);
+        Assert.Equal(75f, rangeProvider.Value);
+
+        uiRoot.Shutdown();
+    }
 }

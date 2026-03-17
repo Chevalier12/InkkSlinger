@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - Slider</title>
-    <meta name="description" content="Slider control reference.">
+    <meta name="description" content="Technical manual for the Slider control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -174,8 +174,385 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>Slider</h1>
-                    <p>WIP</p>
+                    <p><code>Slider</code> is a templated range control for selecting a numeric value by dragging a thumb, clicking along a track, or using the keyboard. It supports horizontal and vertical orientations, visible ticks, selection ranges, auto-tooltips, and WPF-style command-driven stepping.</p>
                 </div>
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>Use <code>Slider</code> when the user should set a numeric value by dragging a thumb or clicking along a track. It is a better fit than <code>ScrollBar</code> when the control represents a value such as volume, opacity, zoom, or a tuning parameter instead of a viewport moving through content.</p>
+                    <h3>Minimal horizontal slider</h3>
+                    <pre><code class="language-xml">&lt;Slider Width="240"
+        Minimum="0"
+        Maximum="100"
+        Value="35" /&gt;</code></pre>
+                    <h3>Vertical slider</h3>
+                    <pre><code class="language-xml">&lt;Slider Height="180"
+        Orientation="Vertical"
+        Minimum="-1"
+        Maximum="1"
+        Value="0.25" /&gt;</code></pre>
+                    <h3>Styled slider</h3>
+                    <pre><code class="language-xml">&lt;Slider Width="280"
+        Minimum="0"
+        Maximum="1"
+        Value="0.6"
+        Background="#0F1720"
+        TrackBrush="#2F475C"
+        ThumbBrush="#76D0FF"
+        BorderBrush="#4E6D85"
+        TrackThickness="6"
+        ThumbSize="18" /&gt;</code></pre>
+                    <div class="callout doc-callout">
+                        <p><strong>Choose the right range control:</strong> use <code>Slider</code> for selecting a value. Use <code>ScrollBar</code> when the range is a viewport offset through a larger extent, and use <code>ProgressBar</code> when the user should see progress without direct manipulation.</p>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Range model</h2>
+                    <p><code>Slider</code> inherits the shared range model used by the framework's other range controls. <code>Minimum</code>, <code>Maximum</code>, and <code>Value</code> are always kept in a legal state, and the effective value is what drives thumb position, tick snapping, automation, and routed change notifications.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Lower and upper bounds</h3>
+                            <p><code>Minimum</code> defaults to <code>0</code> and <code>Maximum</code> defaults to <code>10</code>. If you assign them in reverse order, the control coerces them back into ascending order.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Current value</h3>
+                            <p><code>Value</code> defaults to <code>0</code> and is clamped into the effective range every time it changes, whether the change comes from code, thumb drag, or track interaction.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Horizontal direction</h3>
+                            <p>For a horizontal slider, lower values render on the left and higher values render on the right.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Vertical direction</h3>
+                            <p>For a vertical slider, lower values render at the bottom and higher values render at the top. Dragging upward increases the value.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;Slider Width="260"
+        Minimum="-200"
+        Maximum="200"
+        Value="0" /&gt;</code></pre>
+                    <p>That slider places <code>0</code> in the center of the range. Moving the thumb right produces positive values. Moving it left produces negative values.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Interaction model</h2>
+                    <p><code>Slider</code> supports both pointer interaction and keyboard commands. Pointer input is routed through the thumb, track, and repeat-button regions inside the template. Keyboard input is exposed through command bindings so arrow keys, page keys, and home/end follow slider semantics automatically when the control has focus.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Thumb drag</h3>
+                            <p>Dragging begins only when the pointer goes down on the thumb itself. While dragging, the control tracks pointer movement and continuously updates <code>Value</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Track click</h3>
+                            <p>If the pointer goes down on the track outside the thumb and <code>IsMoveToPointEnabled</code> is <code>false</code>, the control moves the value by <code>LargeChange</code> toward the clicked side.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Move to point</h3>
+                            <p>If <code>IsMoveToPointEnabled</code> is <code>true</code>, clicking the track jumps the thumb to the clicked position instead of applying a page-sized step.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Keyboard stepping</h3>
+                            <p>Arrow keys use <code>SmallChange</code>, <code>PageUp</code> and <code>PageDown</code> use <code>LargeChange</code>, and <code>Home</code> and <code>End</code> jump directly to <code>Minimum</code> and <code>Maximum</code>.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-csharp">var slider = new Slider
+{
+    Width = 260f,
+    Minimum = 0f,
+    Maximum = 1f,
+    Value = 0.5f,
+    SmallChange = 0.05f,
+    LargeChange = 0.1f,
+    IsMoveToPointEnabled = true
+};
+
+slider.ValueChanged += (_, _) =&gt;
+{
+    selectionOpacity = slider.Value;
+};</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Ticks and snapping</h2>
+                    <p>The control supports both frequency-based ticks and explicit tick collections through <code>TickFrequency</code>, <code>Ticks</code>, and <code>IsSnapToTickEnabled</code>. Snapping is applied after value coercion, so direct assignment, keyboard input, and pointer interaction all land on the nearest effective tick when snapping is enabled.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Tick sources</h3>
+                            <p>If <code>Ticks</code> contains values, the slider snaps against that explicit list plus the range endpoints. If the collection is empty, <code>TickFrequency</code> generates evenly spaced ticks from <code>Minimum</code> to <code>Maximum</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Visible ticks</h3>
+                            <p><code>TickPlacement</code> renders tick marks above or below a horizontal slider, or on either side of a vertical slider. <code>TickPlacement.Both</code> renders mirrored tick bars.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;TextBlock Text="Selection opacity" Margin="0,0,0,6" /&gt;
+  &lt;Slider Width="260"
+          Minimum="0.15"
+          Maximum="1"
+          Value="0.65"
+          TickFrequency="0.05"
+          TickPlacement="Both"
+          IsSnapToTickEnabled="True"
+          AutoToolTipPlacement="TopLeft" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                    <p>This mirrors the pattern used in the rich text demo surface, where a slider snaps the editor's selection opacity to predictable increments.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Selection range and direction</h2>
+                    <p><code>Slider</code> can visualize a selected interval separately from the current thumb value. It can also reverse its direction without changing the numeric range itself, which is useful for alternative scrubbers and mirrored layouts.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Selection band</h3>
+                            <p>Set <code>IsSelectionRangeEnabled</code> to show a highlighted band inside the track. <code>SelectionStart</code> and <code>SelectionEnd</code> are coerced into the slider range and laid out against the resolved track geometry.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Horizontal reversal</h3>
+                            <p>On a horizontal slider, <code>IsDirectionReversed</code> swaps the usual left-to-right mapping so larger values appear on the left.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Vertical default</h3>
+                            <p>Vertical sliders follow WPF's default bottom-to-top value flow. Dragging upward increases the value unless <code>IsDirectionReversed</code> is set.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Auto-tooltips</h3>
+                            <p><code>AutoToolTipPlacement</code> shows a tooltip only while the thumb is being dragged. <code>AutoToolTipPrecision</code> controls the number formatting used for the displayed value.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;Slider Width="280"
+        Minimum="0"
+        Maximum="100"
+        Value="35"
+        TickPlacement="Both"
+        Ticks="0,10,20,40,60,80,100"
+        IsSnapToTickEnabled="True"
+        IsSelectionRangeEnabled="True"
+        SelectionStart="20"
+        SelectionEnd="80"
+        AutoToolTipPlacement="TopLeft" /&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Template structure</h2>
+                    <p><code>Slider</code> is a templated control. The default template is built around a root grid, a shared <code>Track</code>, a <code>Thumb</code>, track-side repeat regions, optional tick bars, and an optional selection range element. Custom templates can restyle the control, but they must preserve the required parts and their ownership rules.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Required parts</h3>
+                            <p><code>PART_Root</code>, <code>PART_Track</code>, <code>PART_Thumb</code>, <code>PART_DecreaseButton</code>, and <code>PART_IncreaseButton</code> are part of the default template contract.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Optional parts</h3>
+                            <p><code>PART_SelectionRange</code>, <code>PART_TopTickBar</code>, <code>PART_BottomTickBar</code>, <code>PART_LeftTickBar</code>, and <code>PART_RightTickBar</code> are optional, but the control will use them when present.</p>
+                        </article>
+                    </div>
+                    <ul>
+                        <li><code>PART_Thumb</code>, <code>PART_DecreaseButton</code>, <code>PART_IncreaseButton</code>, and <code>PART_SelectionRange</code> must live inside <code>PART_Track</code>.</li>
+                        <li>The track uses fixed-thumb slider layout rather than viewport-sized scrollbar layout.</li>
+                        <li>Tick bars sit outside the track and render against the same range, direction, and reserved thumb space.</li>
+                    </ul>
+                    <h3>Template example</h3>
+                    <pre><code class="language-xml">&lt;ControlTemplate TargetType="Slider"&gt;
+  &lt;Grid x:Name="PART_Root"&gt;
+    &lt;TickBar x:Name="PART_TopTickBar" /&gt;
+    &lt;Track x:Name="PART_Track"&gt;
+      &lt;Border x:Name="PART_SelectionRange" /&gt;
+      &lt;RepeatButton x:Name="PART_DecreaseButton" /&gt;
+      &lt;Thumb x:Name="PART_Thumb" /&gt;
+      &lt;RepeatButton x:Name="PART_IncreaseButton" /&gt;
+    &lt;/Track&gt;
+    &lt;TickBar x:Name="PART_BottomTickBar" /&gt;
+  &lt;/Grid&gt;
+&lt;/ControlTemplate&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Layout and sizing</h2>
+                    <p><code>Slider</code> participates in normal layout, but it also carries a few minimum expectations so the thumb and track remain usable when the parent does not constrain it tightly.</p>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Desired size</h3>
+                            <p>Unconstrained horizontal sliders ask for at least <code>120</code> units of width. Unconstrained vertical sliders ask for at least <code>120</code> units of height.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Track thickness</h3>
+                            <p><code>TrackThickness</code> defaults to <code>4</code> and is coerced to at least <code>1</code>. The track is centered inside the control's cross-axis slot.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Thumb size</h3>
+                            <p><code>ThumbSize</code> defaults to <code>14</code> and is coerced to at least <code>6</code>. The thumb stays fixed-size and its center can still reach the exact minimum and maximum positions.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Tick placement</h3>
+                            <p><code>TickPlacement</code> adds extra rows or columns around the track so ticks can render above, below, left, right, or on both sides of the control.</p>
+                        </article>
+                    </div>
+                    <pre><code class="language-xml">&lt;StackPanel Orientation="Horizontal"&gt;
+  &lt;Slider Width="240"
+          Height="30"
+          Minimum="0"
+          Maximum="100"
+          Value="35" /&gt;
+
+  &lt;Slider Width="28"
+          Height="180"
+      Margin="16,0,0,0"
+          Orientation="Vertical"
+          Minimum="0"
+          Maximum="100"
+          Value="65" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Property and event reference</h2>
+                    <div class="doc-grid two-up">
+                        <article class="doc-card">
+                            <h3>Range properties</h3>
+                            <p><code>Orientation</code>: <code>Horizontal</code> or <code>Vertical</code>. Default: <code>Horizontal</code>.</p>
+                            <p><code>Minimum</code>: lower bound of the range. Default: <code>0</code>.</p>
+                            <p><code>Maximum</code>: upper bound of the range. Default: <code>10</code>.</p>
+                            <p><code>Value</code>: current selected value. Default: <code>0</code>.</p>
+                            <p><code>IsDirectionReversed</code>: flips the rendered direction of the track. Default: <code>false</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Interaction properties</h3>
+                            <p><code>LargeChange</code>: amount applied for track clicks when move-to-point is disabled. Default: <code>1</code>.</p>
+                            <p><code>SmallChange</code>: keyboard and command step size. Default: <code>1</code>.</p>
+                            <p><code>IsMoveToPointEnabled</code>: when <code>true</code>, clicking the track jumps to that position. Default: <code>false</code>.</p>
+                            <p><code>Delay</code> / <code>Interval</code>: repeat timing for held track presses. Defaults: <code>250</code> / <code>100</code> milliseconds.</p>
+                            <p><code>ValueChanged</code>: routed event raised when the effective value changes.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Tick behavior</h3>
+                            <p><code>IsSnapToTickEnabled</code>: enables snapping to the nearest tick. Default: <code>false</code>.</p>
+                            <p><code>TickFrequency</code>: distance between ticks. Default: <code>1</code>.</p>
+                            <p><code>Ticks</code>: explicit tick collection used for snapping and tick rendering.</p>
+                            <p><code>TickPlacement</code>: controls where tick marks render. Default: <code>None</code>.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Selection and tooltip</h3>
+                            <p><code>IsSelectionRangeEnabled</code>: enables the selection-range visual band.</p>
+                            <p><code>SelectionStart</code> / <code>SelectionEnd</code>: selection range bounds, coerced into the slider range.</p>
+                            <p><code>AutoToolTipPlacement</code>: shows a drag-only tooltip above/below or left/right of the thumb. Default: <code>None</code>.</p>
+                            <p><code>AutoToolTipPrecision</code>: decimal precision used when formatting the tooltip value.</p>
+                        </article>
+                        <article class="doc-card">
+                            <h3>Rendering surface</h3>
+                            <p><code>Background</code>: template root fill. Default: <code>(20, 20, 20)</code>.</p>
+                            <p><code>TrackBrush</code>: track fill. Default: <code>(62, 62, 62)</code>.</p>
+                            <p><code>ThumbBrush</code>: thumb fill. Default: <code>(140, 140, 140)</code>.</p>
+                            <p><code>SelectionRangeBrush</code>: fill used for the selection range band.</p>
+                            <p><code>BorderBrush</code>: outline color for the track and thumb. Default: <code>(100, 100, 100)</code>.</p>
+                            <p><code>TrackThickness</code>: centered track thickness. Default: <code>4</code>.</p>
+                            <p><code>ThumbSize</code>: square thumb size. Default: <code>14</code>.</p>
+                        </article>
+                    </div>
+                </section>
+                <section class="doc-section">
+                    <h2>Patterns and examples</h2>
+                    <h3>Volume slider</h3>
+                    <pre><code class="language-xml">&lt;StackPanel&gt;
+  &lt;TextBlock Text="Master volume" Margin="0,0,0,6" /&gt;
+  &lt;Slider Width="280"
+          Minimum="0"
+          Maximum="1"
+          Value="0.72"
+          TickFrequency="0.05"
+          IsSnapToTickEnabled="True" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+                <h3>Keyboard-friendly range selector</h3>
+                <pre><code class="language-xml">&lt;Slider Width="280"
+        Minimum="0"
+        Maximum="100"
+        Value="40"
+        SmallChange="5"
+        LargeChange="20" /&gt;</code></pre>
+                <p>When this slider has focus, arrow keys step by <code>5</code>, page keys step by <code>20</code>, and home/end jump to the ends of the range.</p>
+                    <h3>Jump-to-position scrubber</h3>
+                    <pre><code class="language-xml">&lt;Slider Width="420"
+        Minimum="0"
+        Maximum="300"
+        Value="42"
+        LargeChange="15"
+        IsMoveToPointEnabled="True"
+        AutoToolTipPlacement="BottomRight"
+        TrackThickness="5"
+        ThumbSize="16" /&gt;</code></pre>
+                <h3>Selection-range slider</h3>
+                <pre><code class="language-xml">&lt;Slider Width="280"
+        Minimum="0"
+        Maximum="100"
+        Value="35"
+        TickPlacement="Both"
+        Ticks="0,10,20,40,60,80,100"
+        IsSnapToTickEnabled="True"
+        IsSelectionRangeEnabled="True"
+        SelectionStart="20"
+        SelectionEnd="80" /&gt;</code></pre>
+                    <h3>Vertical parameter control</h3>
+                    <pre><code class="language-xml">&lt;Border Width="48"
+        Height="220"
+        Padding="10"
+        Background="#111923"
+        BorderBrush="#34495B"
+        BorderThickness="1"&gt;
+  &lt;Slider Width="28"
+          Height="200"
+          Orientation="Vertical"
+          Minimum="0"
+          Maximum="100"
+          Value="80"
+          Background="#111923"
+          TrackBrush="#3E556B"
+          ThumbBrush="#F0B45A"
+          BorderBrush="#5B748C" /&gt;
+&lt;/Border&gt;</code></pre>
+                    <h3>Code-driven setup</h3>
+                    <pre><code class="language-csharp">var opacitySlider = new Slider
+{
+    Width = 260f,
+    Minimum = 0.15f,
+    Maximum = 1f,
+    TickFrequency = 0.05f,
+    IsSnapToTickEnabled = true,
+    Value = 0.65f,
+    Background = new Color(15, 23, 32),
+    TrackBrush = new Color(47, 71, 92),
+    ThumbBrush = new Color(118, 208, 255),
+    BorderBrush = new Color(78, 109, 133)
+};
+
+opacitySlider.ValueChanged += (_, _) =&gt;
+{
+    editor.SelectionOpacity = opacitySlider.Value;
+};</code></pre>
+                </section>
+                <section class="doc-section">
+                    <h2>Automation</h2>
+                    <p><code>Slider</code> participates in the framework automation surface as a writable range control. Its automation peer exposes <code>Minimum</code>, <code>Maximum</code>, and <code>Value</code>, and automation clients can set the current numeric value through the range-value provider.</p>
+                </section>
+                <section class="doc-section">
+                    <h2>Notes and pitfalls</h2>
+                    <div class="callout doc-callout">
+                        <p><strong>Tick snapping includes the endpoints.</strong> Whether ticks come from <code>TickFrequency</code> or an explicit <code>Ticks</code> collection, <code>Minimum</code> and <code>Maximum</code> are still considered valid snap candidates.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Selection range is visual only.</strong> <code>SelectionStart</code> and <code>SelectionEnd</code> do not clamp <code>Value</code>; they only control the highlighted interval drawn inside the track.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Styling properties resolve to colors, not brush objects.</strong> Use values that convert to <code>Color</code> for <code>Background</code>, <code>TrackBrush</code>, <code>ThumbBrush</code>, <code>SelectionRangeBrush</code>, and <code>BorderBrush</code>.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Template ownership matters.</strong> If you replace the template, keep the thumb and track-side repeat regions inside <code>PART_Track</code>; the control depends on that structure for layout and hit handling.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Vertical sliders already invert the underlying track direction.</strong> That is how the control preserves WPF-style bottom-to-top value flow by default. Setting <code>IsDirectionReversed</code> flips that behavior again.</p>
+                    </div>
+                </section>
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./controls-separator.html">
+                        <span>Previous</span>
+                        <strong>Separator</strong>
+                    </a>
+                    <a class="pager-link" href="./controls-stack-panel.html">
+                        <span>Next</span>
+                        <strong>StackPanel</strong>
+                    </a>
+                </nav>
             </article>
         </main>
     </div>

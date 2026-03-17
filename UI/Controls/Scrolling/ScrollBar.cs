@@ -7,7 +7,7 @@ namespace InkkSlinger;
 [TemplatePart("PART_Thumb", typeof(Thumb))]
 [TemplatePart("PART_LineUpButton", typeof(RepeatButton))]
 [TemplatePart("PART_LineDownButton", typeof(RepeatButton))]
-public class ScrollBar : Control
+public class ScrollBar : RangeBase
 {
     private const float ValueEpsilon = 0.01f;
     private static readonly Lazy<Style> DefaultScrollBarStyle = new(BuildDefaultScrollBarStyle);
@@ -18,8 +18,17 @@ public class ScrollBar : Control
     private float _thumbDragOriginTravel;
     private float _thumbDragAccumulatedDelta;
 
-    public static readonly RoutedEvent ValueChangedEvent =
-        new(nameof(ValueChanged), RoutingStrategy.Bubble);
+    public new static readonly RoutedEvent ValueChangedEvent = RangeBase.ValueChangedEvent;
+
+    public new static readonly DependencyProperty MinimumProperty = RangeBase.MinimumProperty;
+
+    public new static readonly DependencyProperty MaximumProperty = RangeBase.MaximumProperty;
+
+    public new static readonly DependencyProperty ValueProperty = RangeBase.ValueProperty;
+
+    public new static readonly DependencyProperty SmallChangeProperty = RangeBase.SmallChangeProperty;
+
+    public new static readonly DependencyProperty LargeChangeProperty = RangeBase.LargeChangeProperty;
 
     public static readonly DependencyProperty OrientationProperty =
         DependencyProperty.Register(
@@ -38,73 +47,6 @@ public class ScrollBar : Control
                     }
                 }));
 
-    public static readonly DependencyProperty MinimumProperty =
-        DependencyProperty.Register(
-            nameof(Minimum),
-            typeof(float),
-            typeof(ScrollBar),
-            new FrameworkPropertyMetadata(
-                0f,
-                FrameworkPropertyMetadataOptions.AffectsArrange,
-                propertyChangedCallback: static (dependencyObject, _) =>
-                {
-                    if (dependencyObject is ScrollBar scrollBar)
-                    {
-                        scrollBar.CoerceValueWithinRange();
-                        scrollBar.SyncTrackState();
-                    }
-                },
-                coerceValueCallback: static (_, value) => value is float numeric && float.IsFinite(numeric) ? numeric : 0f));
-
-    public static readonly DependencyProperty MaximumProperty =
-        DependencyProperty.Register(
-            nameof(Maximum),
-            typeof(float),
-            typeof(ScrollBar),
-            new FrameworkPropertyMetadata(
-                0f,
-                FrameworkPropertyMetadataOptions.AffectsArrange,
-                propertyChangedCallback: static (dependencyObject, _) =>
-                {
-                    if (dependencyObject is ScrollBar scrollBar)
-                    {
-                        scrollBar.CoerceValueWithinRange();
-                        scrollBar.SyncTrackState();
-                    }
-                },
-                coerceValueCallback: static (_, value) => value is float numeric && float.IsFinite(numeric) ? numeric : 0f));
-
-    public static readonly DependencyProperty ValueProperty =
-        DependencyProperty.Register(
-            nameof(Value),
-            typeof(float),
-            typeof(ScrollBar),
-            new FrameworkPropertyMetadata(
-                0f,
-                FrameworkPropertyMetadataOptions.AffectsArrange,
-                propertyChangedCallback: static (dependencyObject, args) =>
-                {
-                    if (dependencyObject is not ScrollBar scrollBar ||
-                        args.OldValue is not float oldValue ||
-                        args.NewValue is not float newValue)
-                    {
-                        return;
-                    }
-
-                    scrollBar.SyncTrackState();
-                    if (!AreClose(oldValue, newValue))
-                    {
-                        scrollBar.RaiseRoutedEvent(ValueChangedEvent, new RoutedSimpleEventArgs(ValueChangedEvent));
-                    }
-                },
-                coerceValueCallback: static (dependencyObject, value) =>
-                {
-                    var numeric = value is float v && float.IsFinite(v) ? v : 0f;
-                    return dependencyObject is ScrollBar scrollBar
-                        ? scrollBar.CoerceValue(numeric)
-                        : numeric;
-                }));
-
     public static readonly DependencyProperty ViewportSizeProperty =
         DependencyProperty.Register(
             nameof(ViewportSize),
@@ -117,29 +59,11 @@ public class ScrollBar : Control
                 {
                     if (dependencyObject is ScrollBar scrollBar)
                     {
-                        scrollBar.CoerceValueWithinRange();
+                        scrollBar.SetValue(ValueProperty, scrollBar.Value);
                         scrollBar.SyncTrackState();
                     }
                 },
                 coerceValueCallback: static (_, value) => value is float numeric && float.IsFinite(numeric) && numeric >= 0f ? numeric : 0f));
-
-    public static readonly DependencyProperty SmallChangeProperty =
-        DependencyProperty.Register(
-            nameof(SmallChange),
-            typeof(float),
-            typeof(ScrollBar),
-            new FrameworkPropertyMetadata(
-                16f,
-                coerceValueCallback: static (_, value) => value is float change && float.IsFinite(change) && change > 0f ? change : 16f));
-
-    public static readonly DependencyProperty LargeChangeProperty =
-        DependencyProperty.Register(
-            nameof(LargeChange),
-            typeof(float),
-            typeof(ScrollBar),
-            new FrameworkPropertyMetadata(
-                32f,
-                coerceValueCallback: static (_, value) => value is float change && float.IsFinite(change) && change > 0f ? change : 32f));
 
     public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
@@ -169,15 +93,28 @@ public class ScrollBar : Control
             typeof(ScrollBar),
             new FrameworkPropertyMetadata(Thickness.Empty));
 
+    static ScrollBar()
+    {
+        MinimumProperty.OverrideMetadata(
+            typeof(ScrollBar),
+            CreateDerivedMetadata(MinimumProperty, 0f, FrameworkPropertyMetadataOptions.AffectsArrange));
+        MaximumProperty.OverrideMetadata(
+            typeof(ScrollBar),
+            CreateDerivedMetadata(MaximumProperty, 0f, FrameworkPropertyMetadataOptions.AffectsArrange));
+        ValueProperty.OverrideMetadata(
+            typeof(ScrollBar),
+            CreateDerivedMetadata(ValueProperty, 0f, FrameworkPropertyMetadataOptions.AffectsArrange));
+        SmallChangeProperty.OverrideMetadata(
+            typeof(ScrollBar),
+            CreateDerivedMetadata(SmallChangeProperty, 16f, FrameworkPropertyMetadataOptions.None));
+        LargeChangeProperty.OverrideMetadata(
+            typeof(ScrollBar),
+            CreateDerivedMetadata(LargeChangeProperty, 32f, FrameworkPropertyMetadataOptions.None));
+    }
+
     public ScrollBar()
     {
         Focusable = false;
-    }
-
-    public event EventHandler<RoutedSimpleEventArgs> ValueChanged
-    {
-        add => AddHandler(ValueChangedEvent, value);
-        remove => RemoveHandler(ValueChangedEvent, value);
     }
 
     public Orientation Orientation
@@ -186,40 +123,10 @@ public class ScrollBar : Control
         set => SetValue(OrientationProperty, value);
     }
 
-    public float Minimum
-    {
-        get => GetValue<float>(MinimumProperty);
-        set => SetValue(MinimumProperty, value);
-    }
-
-    public float Maximum
-    {
-        get => GetValue<float>(MaximumProperty);
-        set => SetValue(MaximumProperty, value);
-    }
-
-    public float Value
-    {
-        get => GetValue<float>(ValueProperty);
-        set => SetValue(ValueProperty, value);
-    }
-
     public float ViewportSize
     {
         get => GetValue<float>(ViewportSizeProperty);
         set => SetValue(ViewportSizeProperty, value);
-    }
-
-    public float SmallChange
-    {
-        get => GetValue<float>(SmallChangeProperty);
-        set => SetValue(SmallChangeProperty, value);
-    }
-
-    public float LargeChange
-    {
-        get => GetValue<float>(LargeChangeProperty);
-        set => SetValue(LargeChangeProperty, value);
     }
 
     public new Color Background
@@ -289,6 +196,35 @@ public class ScrollBar : Control
     internal LayoutRect GetThumbRectForInput()
     {
         return _track?.GetThumbRect() ?? LayoutSlot;
+    }
+
+    protected override void OnMinimumChanged(float oldMinimum, float newMinimum)
+    {
+        base.OnMinimumChanged(oldMinimum, newMinimum);
+        SyncTrackState();
+    }
+
+    protected override void OnMaximumChanged(float oldMaximum, float newMaximum)
+    {
+        base.OnMaximumChanged(oldMaximum, newMaximum);
+        SyncTrackState();
+    }
+
+    protected override void OnValueChanged(float oldValue, float newValue)
+    {
+        base.OnValueChanged(oldValue, newValue);
+        SyncTrackState();
+    }
+
+    protected override float CoerceValueCore(float value)
+    {
+        var maxValue = Minimum + GetScrollableRange();
+        if (maxValue < Minimum)
+        {
+            maxValue = Minimum;
+        }
+
+        return MathF.Max(Minimum, MathF.Min(maxValue, value));
     }
 
     private void OnLineUpButtonClick(object? sender, RoutedSimpleEventArgs args)
@@ -370,7 +306,7 @@ public class ScrollBar : Control
             return;
         }
 
-        var coercedValue = CoerceValue(Value);
+        var coercedValue = CoerceValueCore(Value);
         if (!AreClose(Value, coercedValue))
         {
             SetValue(ValueProperty, coercedValue);
@@ -411,28 +347,6 @@ public class ScrollBar : Control
         }
 
         button.Content = nextText;
-    }
-
-    private void CoerceValueWithinRange()
-    {
-        var coerced = CoerceValue(Value);
-        if (AreClose(Value, coerced))
-        {
-            return;
-        }
-
-        SetValue(ValueProperty, coerced);
-    }
-
-    private float CoerceValue(float value)
-    {
-        var maxValue = Minimum + GetScrollableRange();
-        if (maxValue < Minimum)
-        {
-            maxValue = Minimum;
-        }
-
-        return MathF.Max(Minimum, MathF.Min(maxValue, value));
     }
 
     private float GetScrollableRange()
@@ -513,11 +427,6 @@ public class ScrollBar : Control
         }
 
         target.SetValue(property, value);
-    }
-
-    private static bool AreClose(float left, float right)
-    {
-        return MathF.Abs(left - right) <= ValueEpsilon;
     }
 
     private void RefreshTrackLayoutIfPossible()

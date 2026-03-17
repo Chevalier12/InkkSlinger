@@ -105,6 +105,11 @@ public static partial class XamlLoader
             return new SolidColorBrush(ParseColor(rawValue));
         }
 
+        if (targetType == typeof(DoubleCollection))
+        {
+            return DoubleCollection.Parse(rawValue);
+        }
+
         if (targetType == typeof(Thickness))
         {
             return ParseThickness(rawValue);

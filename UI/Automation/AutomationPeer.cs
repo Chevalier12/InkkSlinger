@@ -321,29 +321,11 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
 
     bool IRangeValueProvider.IsReadOnly => Owner is ProgressBar;
 
-    public float Minimum => Owner switch
-    {
-        Slider slider => slider.Minimum,
-        ScrollBar scrollBar => scrollBar.Minimum,
-        ProgressBar progressBar => progressBar.Minimum,
-        _ => 0f
-    };
+    public float Minimum => Owner is RangeBase rangeBase ? rangeBase.Minimum : 0f;
 
-    public float Maximum => Owner switch
-    {
-        Slider slider => slider.Maximum,
-        ScrollBar scrollBar => scrollBar.Maximum,
-        ProgressBar progressBar => progressBar.Maximum,
-        _ => 0f
-    };
+    public float Maximum => Owner is RangeBase rangeBase ? rangeBase.Maximum : 0f;
 
-    float IRangeValueProvider.Value => Owner switch
-    {
-        Slider slider => slider.Value,
-        ScrollBar scrollBar => scrollBar.Value,
-        ProgressBar progressBar => progressBar.Value,
-        _ => 0f
-    };
+    float IRangeValueProvider.Value => Owner is RangeBase rangeBase ? rangeBase.Value : 0f;
 
     public void SetValue(float value)
     {
@@ -607,7 +589,7 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
 
     private bool SupportsRangeValue()
     {
-        return Owner is Slider or ScrollBar or ProgressBar;
+        return Owner is RangeBase;
     }
 
     private bool SupportsSelection()

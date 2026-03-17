@@ -532,7 +532,11 @@
       <!-- ═══════════════════════════════════════════════════════════ -->
       <Style TargetType="{x:Type Slider}">
         <Setter Property="Foreground" Value="{StaticResource OrangePrimaryBrush}" />
-        <Setter Property="Background" Value="{StaticResource DarkElevatedBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="TrackBrush" Value="{StaticResource DarkElevatedBrush}" />
+        <Setter Property="ThumbBrush" Value="{StaticResource OrangePrimaryBrush}" />
+        <Setter Property="SelectionRangeBrush" Value="{StaticResource OrangeSubtleBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
       </Style>
 
       <!-- ═══════════════════════════════════════════════════════════ -->

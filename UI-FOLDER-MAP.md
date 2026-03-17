@@ -158,6 +158,7 @@ UI/
       RichTextBox.TableOperations.cs
       RichTextBoxPerformanceTracker.cs
       Slider.cs
+      SliderTypes.cs
       SpellCheck.cs
       TextBox.cs
     Items
@@ -196,11 +197,13 @@ UI/
       ImageSource.cs
       Label.cs
       ProgressBar.cs
+      RangeBase.cs
       RenderSurface.ManagedBackend.cs
       RenderSurface.cs
       Separator.cs
       Shape.cs
       SurfacePresenterBase.cs
+      TickBar.cs
       TextBlock.cs
     Scrolling
       IScrollTransformContent.cs
@@ -214,6 +217,7 @@ UI/
       SelectionModel.cs
       SelectionModelChangedEventArgs.cs
   Core
+    DoubleCollection.cs
     DependencyProperties
       DependencyObject.cs
       DependencyProperty.cs
