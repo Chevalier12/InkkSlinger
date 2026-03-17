@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -310,6 +312,79 @@ public sealed class ControlsCatalogRichTextBoxViewTests
     }
 
     [Fact]
+    public void UiRootInputPipeline_HoveringAppStyledHostedInlineButton_UpdatesButtonHoverStateWithoutClick()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+            FocusManager.ClearFocus();
+            FocusManager.ClearPointerCapture();
+
+            var hostedButton = new Button
+            {
+                Content = "Inline",
+                Width = 72f,
+                Height = 18f,
+                FontSize = 11f,
+                Padding = new Thickness(8f, 2f, 8f, 2f)
+            };
+
+            var document = new FlowDocument();
+            var paragraph = new Paragraph();
+            paragraph.Inlines.Add(new Run("Prefix "));
+            paragraph.Inlines.Add(new InlineUIContainer { Child = hostedButton });
+            paragraph.Inlines.Add(new Run(" suffix"));
+            document.Blocks.Add(paragraph);
+
+            var editor = new RichTextBox
+            {
+                Width = 420f,
+                Height = 180f,
+                Padding = new Thickness(8f),
+                BorderThickness = 1f
+            };
+            editor.Document = document;
+
+            var host = new Canvas
+            {
+                Width = 640f,
+                Height = 320f
+            };
+            host.AddChild(editor);
+            var uiRoot = new UiRoot(host);
+
+            RunLayout(uiRoot, 640, 320);
+            RunLayout(uiRoot, 640, 320);
+            RunLayout(uiRoot, 640, 320);
+
+            var ensureHostedDocumentChildLayout = typeof(RichTextBox).GetMethod("EnsureHostedDocumentChildLayout", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null, Type.EmptyTypes, null);
+            Assert.NotNull(ensureHostedDocumentChildLayout);
+            ensureHostedDocumentChildLayout!.Invoke(editor, null);
+
+            Assert.True(hostedButton.LayoutSlot.Width > 0f && hostedButton.LayoutSlot.Height > 0f);
+            Assert.NotNull(hostedButton.Template);
+
+            var editorPoint = new Vector2(editor.LayoutSlot.X + 24f, editor.LayoutSlot.Y + 24f);
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(editorPoint));
+            Assert.False(hostedButton.IsMouseOver);
+
+            var buttonPoint = GetCenter(hostedButton);
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(buttonPoint));
+            Assert.True(hostedButton.IsMouseOver, $"Expected hosted button hover after move. path={uiRoot.LastPointerResolvePathForDiagnostics}");
+
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(editorPoint));
+            Assert.False(hostedButton.IsMouseOver);
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+            FocusManager.ClearFocus();
+            FocusManager.ClearPointerCapture();
+        }
+    }
+
+    [Fact]
     public void UiRootInputPipeline_CachedRichTextBoxClickTarget_ShouldRetargetToHostedInlineButton()
     {
         var clickCount = 0;
@@ -496,6 +571,30 @@ public sealed class ControlsCatalogRichTextBoxViewTests
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
             new Viewport(0, 0, width, height));
+    }
+
+    private static void LoadRootAppResources()
+    {
+        var appPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "App.xml"));
+        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
+        XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+    }
+
+    private static ResourceSnapshot CaptureApplicationResources()
+    {
+        var resources = UiApplication.Current.Resources;
+        return new ResourceSnapshot(resources.ToList(), resources.MergedDictionaries.ToList());
+    }
+
+    private static void RestoreApplicationResources(ResourceSnapshot snapshot)
+    {
+        TestApplicationResources.Restore(snapshot.Entries, snapshot.MergedDictionaries);
     }
 
     private static void InvokeButtonClick(Button button)
@@ -744,6 +843,10 @@ public sealed class ControlsCatalogRichTextBoxViewTests
             return $"({rect.X:0.###},{rect.Y:0.###},{rect.Width:0.###},{rect.Height:0.###})";
         }
     }
+
+    private sealed record ResourceSnapshot(
+        List<KeyValuePair<object, object>> Entries,
+        List<ResourceDictionary> MergedDictionaries);
 
     private static void AssertButtonTextFitsInsideBounds(Button? button)
     {

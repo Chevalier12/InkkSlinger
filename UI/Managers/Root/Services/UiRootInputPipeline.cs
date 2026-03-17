@@ -590,6 +590,7 @@ public sealed partial class UiRoot
 
     private void UpdateHover(UIElement? hovered)
     {
+        hovered = ResolveHostedHoverTargetWithinTextInputSubtree(hovered);
         hovered = PromoteHoverTarget(hovered);
         var previousHovered = _inputState.HoveredElement;
         if (ReferenceEquals(previousHovered, hovered))
@@ -622,6 +623,22 @@ public sealed partial class UiRoot
         }
 
         UpdateToolTipHoverTarget(hovered);
+    }
+
+    private UIElement? ResolveHostedHoverTargetWithinTextInputSubtree(UIElement? hovered)
+    {
+        if (hovered == null)
+        {
+            return null;
+        }
+
+        if (!TryResolveHoverTargetWithinTextInputSubtree(hovered, _inputState.LastPointerPosition, out var hostedHoverTarget) ||
+            hostedHoverTarget == null)
+        {
+            return hovered;
+        }
+
+        return hostedHoverTarget;
     }
 
     private UIElement? PromoteHoverTarget(UIElement? hovered)
@@ -1654,22 +1671,72 @@ public sealed partial class UiRoot
         out UIElement? target)
     {
         target = null;
-        if (candidate is not ITextInputControl)
+        UIElement? textInputHost = null;
+        for (var current = candidate; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is ITextInputControl)
+            {
+                textInputHost = current;
+                break;
+            }
+        }
+
+        if (textInputHost == null)
         {
             return false;
         }
 
         _lastInputHitTestCount++;
         _clickCpuResolveHitTestCount++;
-        var hit = VisualTreeHelper.HitTest(candidate, pointerPosition);
-        if (hit == null || ReferenceEquals(hit, candidate))
+        var hit = VisualTreeHelper.HitTest(textInputHost, pointerPosition);
+        if (hit == null || ReferenceEquals(hit, textInputHost))
         {
             return false;
         }
 
-        for (var current = hit; current != null && !ReferenceEquals(current, candidate); current = current.VisualParent ?? current.LogicalParent)
+        for (var current = hit; current != null && !ReferenceEquals(current, textInputHost); current = current.VisualParent ?? current.LogicalParent)
         {
             if (IsKnownClickCapableElement(current))
+            {
+                target = current;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryResolveHoverTargetWithinTextInputSubtree(
+        UIElement candidate,
+        Vector2 pointerPosition,
+        out UIElement? target)
+    {
+        target = null;
+        UIElement? textInputHost = null;
+        for (var current = candidate; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is ITextInputControl)
+            {
+                textInputHost = current;
+                break;
+            }
+        }
+
+        if (textInputHost == null)
+        {
+            return false;
+        }
+
+        _lastInputHitTestCount++;
+        var hit = VisualTreeHelper.HitTest(textInputHost, pointerPosition);
+        if (hit == null || ReferenceEquals(hit, textInputHost))
+        {
+            return false;
+        }
+
+        for (var current = hit; current != null && !ReferenceEquals(current, textInputHost); current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (IsHoverHostElement(current))
             {
                 target = current;
                 return true;

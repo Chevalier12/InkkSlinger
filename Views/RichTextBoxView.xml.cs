@@ -904,8 +904,6 @@ public partial class RichTextBoxView : UserControl
         var button = new Button
         {
             Content = content,
-            Style = new Style(typeof(Button)),
-            Template = null,
             Width = width,
             Height = height,
             FontSize = fontSize,
