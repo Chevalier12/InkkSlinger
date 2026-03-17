@@ -1054,6 +1054,7 @@
   <xs:complexType name="gridType">
     <xs:complexContent>
       <xs:extension base="panelType">
+        <xs:attribute name="ShowGridLines" type="xs:boolean" />
         <xs:anyAttribute processContents="lax" />
       </xs:extension>
     </xs:complexContent>
@@ -1092,12 +1093,14 @@
     <xs:attribute name="Width" type="xs:string" />
     <xs:attribute name="MinWidth" type="xs:float" />
     <xs:attribute name="MaxWidth" type="xs:float" />
+    <xs:attribute name="SharedSizeGroup" type="xs:string" />
   </xs:complexType>
 
   <xs:complexType name="rowDefinitionType">
     <xs:attribute name="Height" type="xs:string" />
     <xs:attribute name="MinHeight" type="xs:float" />
     <xs:attribute name="MaxHeight" type="xs:float" />
+    <xs:attribute name="SharedSizeGroup" type="xs:string" />
   </xs:complexType>
 
   <xs:complexType name="stackPanelType">

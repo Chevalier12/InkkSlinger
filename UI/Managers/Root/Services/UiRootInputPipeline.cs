@@ -661,7 +661,7 @@ public sealed partial class UiRoot
 
     private static bool IsHoverHostElement(UIElement element)
     {
-        return element is ITextInputControl or Button or Thumb or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
+        return element is ITextInputControl or Button or Thumb or GridSplitter or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
     }
 
     private static void SetHoverState(UIElement? element, bool isMouseOver)
@@ -683,6 +683,11 @@ public sealed partial class UiRoot
             case Thumb thumb:
             {
                 thumb.SetMouseOverFromInput(isMouseOver);
+                return;
+            }
+            case GridSplitter gridSplitter:
+            {
+                gridSplitter.SetMouseOverFromInput(isMouseOver);
                 return;
             }
             case ListBoxItem listBoxItem:
@@ -926,6 +931,13 @@ public sealed partial class UiRoot
             var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
             _lastInputPointerMoveHandlerMs += elapsed;
         }
+        else if (_inputState.CapturedPointerElement is GridSplitter dragGridSplitter)
+        {
+            var handlerStart = Stopwatch.GetTimestamp();
+            dragGridSplitter.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+        }
         else if (_inputState.CapturedPointerElement is ScrollViewer dragScrollViewer)
         {
             var handlerStart = Stopwatch.GetTimestamp();
@@ -1116,6 +1128,11 @@ public sealed partial class UiRoot
         {
             CapturePointer(target);
         }
+        else if (button == MouseButton.Left && target is GridSplitter gridSplitter &&
+                 gridSplitter.HandlePointerDownFromInput(pointerPosition))
+        {
+            CapturePointer(target);
+        }
         else if (button == MouseButton.Left && target is Slider slider &&
                  slider.HandlePointerDownFromInput(pointerPosition))
         {
@@ -1204,6 +1221,10 @@ public sealed partial class UiRoot
         else if (_inputState.CapturedPointerElement is Thumb thumb && button == MouseButton.Left)
         {
             thumb.HandlePointerUpFromInput();
+        }
+        else if (_inputState.CapturedPointerElement is GridSplitter gridSplitter && button == MouseButton.Left)
+        {
+            gridSplitter.HandlePointerUpFromInput();
         }
         else if (_inputState.CapturedPointerElement is ScrollViewer scrollViewer && button == MouseButton.Left)
         {

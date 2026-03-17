@@ -329,6 +329,7 @@
                     </div>
                     <ul>
                         <li>Auto rows and columns can trigger an unconstrained first measure for children in those axes.</li>
+                        <li>When a constrained child spans auto and star definitions, Grid now keeps the first pass finite on that axis so common card and form layouts avoid unnecessary second measures.</li>
                         <li>If the first measurement already fits the final resolved space, Grid avoids remeasuring the child.</li>
                         <li>Min and max constraints are enforced on row and column definitions.</li>
                         <li>When the total requested size exceeds the available size, Grid reduces overflow in star definitions first, then auto, then pixel definitions, while respecting minimums.</li>
@@ -374,6 +375,29 @@ grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
 // After measure + arrange:
 float left = grid.ColumnDefinitions[0].ActualWidth;
 float right = grid.ColumnDefinitions[1].ActualWidth;</code></pre>
+                                        <h3>Shared size scopes across sibling grids</h3>
+                                        <p>Use <code>Grid.IsSharedSizeScope</code> on a common ancestor plus <code>SharedSizeGroup</code> on row or column definitions when separate grids need to align to the same measured size. This is the usual pattern for forms with repeated label columns.</p>
+                                        <pre><code class="language-xml">&lt;StackPanel Grid.IsSharedSizeScope="True"&gt;
+    &lt;Grid&gt;
+        &lt;Grid.ColumnDefinitions&gt;
+            &lt;ColumnDefinition Width="Auto" SharedSizeGroup="Label" /&gt;
+            &lt;ColumnDefinition Width="*" /&gt;
+        &lt;/Grid.ColumnDefinitions&gt;
+        &lt;TextBlock Text="Project" /&gt;
+        &lt;TextBox Grid.Column="1" /&gt;
+    &lt;/Grid&gt;
+
+    &lt;Grid Margin="0,8,0,0"&gt;
+        &lt;Grid.ColumnDefinitions&gt;
+            &lt;ColumnDefinition Width="Auto" SharedSizeGroup="Label" /&gt;
+            &lt;ColumnDefinition Width="*" /&gt;
+        &lt;/Grid.ColumnDefinitions&gt;
+        &lt;TextBlock Text="Build Configuration" /&gt;
+        &lt;TextBox Grid.Column="1" /&gt;
+    &lt;/Grid&gt;
+&lt;/StackPanel&gt;</code></pre>
+                                        <h3>Debugging with grid lines</h3>
+                                        <p>Set <code>ShowGridLines="True"</code> to draw lightweight layout guides around the resolved rows and columns. This is intended for diagnostics while tuning a layout, not as production chrome.</p>
                 </section>
                 <section class="doc-section">
                     <h2>Property reference</h2>
@@ -382,10 +406,12 @@ float right = grid.ColumnDefinitions[1].ActualWidth;</code></pre>
                             <h3>Grid surface</h3>
                             <p><code>ColumnDefinitions</code>: ordered collection of <code>ColumnDefinition</code> objects.</p>
                             <p><code>RowDefinitions</code>: ordered collection of <code>RowDefinition</code> objects.</p>
+                                                        <p><code>ShowGridLines</code>: draws debug row and column guides during render.</p>
                             <p><code>Children</code>: inherited from <code>Panel</code>; the visual elements arranged into cells.</p>
                         </article>
                         <article class="doc-card">
                             <h3>Attached properties</h3>
+                                                        <p><code>Grid.IsSharedSizeScope</code>: enables shared-size coordination for descendant grids.</p>
                             <p><code>Grid.Row</code>: target row index, default <code>0</code>.</p>
                             <p><code>Grid.Column</code>: target column index, default <code>0</code>.</p>
                             <p><code>Grid.RowSpan</code>: number of rows to span, default <code>1</code>.</p>
@@ -396,6 +422,7 @@ float right = grid.ColumnDefinitions[1].ActualWidth;</code></pre>
                         <article class="doc-card">
                             <h3>ColumnDefinition</h3>
                             <p><code>Width</code>: <code>GridLength</code> using pixel, auto, or star sizing.</p>
+                            <p><code>SharedSizeGroup</code>: optional shared measurement group name used inside a shared-size scope.</p>
                             <p><code>MinWidth</code>: lower size bound, clamped to zero or above.</p>
                             <p><code>MaxWidth</code>: upper size bound.</p>
                             <p><code>ActualWidth</code>: resolved width after arrange.</p>
@@ -403,6 +430,7 @@ float right = grid.ColumnDefinitions[1].ActualWidth;</code></pre>
                         <article class="doc-card">
                             <h3>RowDefinition</h3>
                             <p><code>Height</code>: <code>GridLength</code> using pixel, auto, or star sizing.</p>
+                            <p><code>SharedSizeGroup</code>: optional shared measurement group name used inside a shared-size scope.</p>
                             <p><code>MinHeight</code>: lower size bound, clamped to zero or above.</p>
                             <p><code>MaxHeight</code>: upper size bound.</p>
                             <p><code>ActualHeight</code>: resolved height after arrange.</p>
@@ -507,6 +535,9 @@ float right = grid.ColumnDefinitions[1].ActualWidth;</code></pre>
                     </div>
                     <div class="callout doc-callout">
                         <p><strong>Star sizing depends on finite available space.</strong> When the available width or height is unconstrained, star definitions do not magically pick a final size during the early measure phase. They resolve against constrained space during arrange or constrained measure.</p>
+                    </div>
+                    <div class="callout doc-callout">
+                        <p><strong>Shared sizing aligns definitions, not full grids.</strong> Shared groups propagate the largest measured size for the grouped row or column only. The rest of each grid still resolves independently.</p>
                     </div>
                     <div class="callout doc-callout">
                         <p><strong>Spans are clamped to the grid bounds.</strong> Oversized spans do not extend layout beyond the declared row or column count.</p>

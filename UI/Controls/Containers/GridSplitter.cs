@@ -1,6 +1,7 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
 
@@ -80,6 +81,8 @@ public class GridSplitter : Control
 
     public GridSplitter()
     {
+        Focusable = true;
+        AddHandler<KeyRoutedEventArgs>(UIElement.KeyDownEvent, OnKeyDown, handledEventsToo: true);
     }
 
     public GridResizeDirection ResizeDirection
@@ -159,6 +162,95 @@ public class GridSplitter : Control
         UiDrawing.DrawRectStroke(spriteBatch, slot, 1f, BorderBrush, Opacity);
     }
 
+    internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
+    {
+        if (!IsEnabled || !HitTest(pointerPosition))
+        {
+            return false;
+        }
+
+        FocusManager.SetFocus(this);
+        return BeginDrag(pointerPosition);
+    }
+
+    internal bool HandlePointerMoveFromInput(Vector2 pointerPosition)
+    {
+        if (!IsDragging)
+        {
+            return false;
+        }
+
+        var pointer = _activeDirection == GridResizeDirection.Columns ? pointerPosition.X : pointerPosition.Y;
+        var delta = Snap(pointer - _startPointer, DragIncrement);
+        ApplyResizeDelta(delta);
+        return MathF.Abs(delta) > 0.001f;
+    }
+
+    internal bool HandlePointerUpFromInput()
+    {
+        if (!IsDragging)
+        {
+            return false;
+        }
+
+        EndDrag(releaseCapture: true);
+        return true;
+    }
+
+    internal void SetMouseOverFromInput(bool isMouseOver)
+    {
+        if (IsMouseOver == isMouseOver)
+        {
+            return;
+        }
+
+        IsMouseOver = isMouseOver;
+    }
+
+    private void OnKeyDown(object? sender, KeyRoutedEventArgs args)
+    {
+        _ = sender;
+
+        if (!IsEnabled || VisualParent is not Grid grid)
+        {
+            return;
+        }
+
+        var direction = ResolveEffectiveResizeDirection();
+        if (!TryGetKeyboardResizeDelta(direction, args.Key, out var delta) ||
+            !TryResolveResizeTargets(grid, direction, out var indexA, out var indexB))
+        {
+            return;
+        }
+
+        FocusManager.SetFocus(this);
+
+        if (direction == GridResizeDirection.Columns)
+        {
+            ApplyResize(
+                grid,
+                direction,
+                indexA,
+                indexB,
+                ResolveColumnSize(grid, indexA),
+                ResolveColumnSize(grid, indexB),
+                delta);
+        }
+        else
+        {
+            ApplyResize(
+                grid,
+                direction,
+                indexA,
+                indexB,
+                ResolveRowSize(grid, indexA),
+                ResolveRowSize(grid, indexB),
+                delta);
+        }
+
+        args.Handled = true;
+    }
+
 
 
 
@@ -193,6 +285,29 @@ public class GridSplitter : Control
 
         IsDragging = true;
         return true;
+    }
+
+    private bool TryGetKeyboardResizeDelta(GridResizeDirection direction, Keys key, out float delta)
+    {
+        var step = KeyboardIncrement > 0f ? KeyboardIncrement : 1f;
+        switch (direction)
+        {
+            case GridResizeDirection.Columns when key == Keys.Left:
+                delta = -step;
+                return true;
+            case GridResizeDirection.Columns when key == Keys.Right:
+                delta = step;
+                return true;
+            case GridResizeDirection.Rows when key == Keys.Up:
+                delta = -step;
+                return true;
+            case GridResizeDirection.Rows when key == Keys.Down:
+                delta = step;
+                return true;
+            default:
+                delta = 0f;
+                return false;
+        }
     }
 
     private void EndDrag(bool releaseCapture)

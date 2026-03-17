@@ -63,7 +63,7 @@ public sealed class GridLayoutTests
     }
 
     [Fact]
-    public void Measure_WhenFirstPassWasUnconstrainedAndFinalSizeIsTighter_StillReMeasuresChild()
+    public void Measure_AutoAndStarSpan_WithFiniteConstraint_AvoidsSecondMeasure()
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -76,9 +76,27 @@ public sealed class GridLayoutTests
 
         grid.Measure(new Vector2(120f, 48f));
 
-        Assert.Equal(2, child.MeasureCallCount);
-        Assert.Equal(2, child.MeasureWorkCount);
+        Assert.Equal(1, child.MeasureCallCount);
+        Assert.Equal(1, child.MeasureWorkCount);
         Assert.Equal(120f, child.DesiredSize.X, 0.01f);
+    }
+
+    [Fact]
+    public void Measure_AutoAndStarSpan_UsesFiniteFirstPassConstraint()
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var child = new RecordingMeasureElement(new Vector2(320f, 18f));
+        Grid.SetColumnSpan(child, 2);
+        grid.AddChild(child);
+
+        grid.Measure(new Vector2(120f, 48f));
+
+        Assert.False(float.IsPositiveInfinity(child.FirstAvailableSize.X));
+        Assert.Equal(120f, child.FirstAvailableSize.X, 0.01f);
     }
 
     [Fact]
@@ -224,6 +242,95 @@ public sealed class GridLayoutTests
         Assert.True(days.DesiredSize.Y > 0f);
     }
 
+    [Fact]
+    public void Arrange_SharedSizeScope_SynchronizesColumnWidthsAcrossSiblingGrids()
+    {
+        var root = new StackPanel();
+        Grid.SetIsSharedSizeScope(root, true);
+
+        var firstGrid = CreateSharedWidthGrid(56f);
+        var secondGrid = CreateSharedWidthGrid(112f);
+
+        root.AddChild(firstGrid.Grid);
+        root.AddChild(secondGrid.Grid);
+
+        root.Measure(new Vector2(320f, 240f));
+        root.Arrange(new LayoutRect(0f, 0f, 320f, 240f));
+        root.UpdateLayout();
+
+        Assert.Equal(112f, firstGrid.SharedColumn.ActualWidth, 0.01f);
+        Assert.Equal(112f, secondGrid.SharedColumn.ActualWidth, 0.01f);
+    }
+
+    [Fact]
+    public void Arrange_SharedSizeScope_SynchronizesRowHeightsAcrossSiblingGrids()
+    {
+        var root = new StackPanel();
+        Grid.SetIsSharedSizeScope(root, true);
+
+        var firstGrid = CreateSharedHeightGrid(22f);
+        var secondGrid = CreateSharedHeightGrid(44f);
+
+        root.AddChild(firstGrid.Grid);
+        root.AddChild(secondGrid.Grid);
+
+        root.Measure(new Vector2(320f, 240f));
+        root.Arrange(new LayoutRect(0f, 0f, 320f, 240f));
+        root.UpdateLayout();
+
+        Assert.Equal(44f, firstGrid.SharedRow.ActualHeight, 0.01f);
+        Assert.Equal(44f, secondGrid.SharedRow.ActualHeight, 0.01f);
+    }
+
+    [Fact]
+    public void SharedSizeGroup_InvalidIdentifier_ThrowsArgumentException()
+    {
+        var column = new ColumnDefinition();
+        var row = new RowDefinition();
+
+        Assert.Throws<ArgumentException>(() => column.SharedSizeGroup = "123Bad");
+        Assert.Throws<ArgumentException>(() => row.SharedSizeGroup = "Bad-Group");
+    }
+
+    private static (Grid Grid, ColumnDefinition SharedColumn) CreateSharedWidthGrid(float labelWidth)
+    {
+        var grid = new Grid();
+        var sharedColumn = new ColumnDefinition
+        {
+            Width = GridLength.Auto,
+            SharedSizeGroup = "Label"
+        };
+
+        grid.ColumnDefinitions.Add(sharedColumn);
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        grid.AddChild(new FixedSizeElement(new Vector2(labelWidth, 18f)));
+
+        var value = new FixedSizeElement(new Vector2(40f, 18f));
+        Grid.SetColumn(value, 1);
+        grid.AddChild(value);
+
+        return (grid, sharedColumn);
+    }
+
+    private static (Grid Grid, RowDefinition SharedRow) CreateSharedHeightGrid(float rowHeight)
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80f) });
+
+        var sharedRow = new RowDefinition
+        {
+            Height = GridLength.Auto,
+            SharedSizeGroup = "Details"
+        };
+
+        grid.RowDefinitions.Add(sharedRow);
+        grid.AddChild(new FixedSizeElement(new Vector2(40f, rowHeight)));
+
+        return (grid, sharedRow);
+    }
+
     private sealed class FixedSizeElement : FrameworkElement
     {
         private readonly Vector2 _desiredSize;
@@ -235,6 +342,32 @@ public sealed class GridLayoutTests
 
         protected override Vector2 MeasureOverride(Vector2 availableSize)
         {
+            return new Vector2(
+                MathF.Min(_desiredSize.X, availableSize.X),
+                MathF.Min(_desiredSize.Y, availableSize.Y));
+        }
+    }
+
+    private sealed class RecordingMeasureElement : FrameworkElement
+    {
+        private readonly Vector2 _desiredSize;
+        private bool _capturedFirstMeasure;
+
+        public RecordingMeasureElement(Vector2 desiredSize)
+        {
+            _desiredSize = desiredSize;
+        }
+
+        public Vector2 FirstAvailableSize { get; private set; }
+
+        protected override Vector2 MeasureOverride(Vector2 availableSize)
+        {
+            if (!_capturedFirstMeasure)
+            {
+                FirstAvailableSize = availableSize;
+                _capturedFirstMeasure = true;
+            }
+
             return new Vector2(
                 MathF.Min(_desiredSize.X, availableSize.X),
                 MathF.Min(_desiredSize.Y, availableSize.Y));
