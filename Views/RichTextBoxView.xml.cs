@@ -835,16 +835,12 @@ public partial class RichTextBoxView : UserControl
         document.Blocks.Add(intro);
 
         var inlineParagraph = new Paragraph();
-        inlineParagraph.Inlines.Add(new Run("Inline tool: compact hosted button "));
+        inlineParagraph.Inlines.Add(new Run("Inline tool: hosted button "));
         inlineParagraph.Inlines.Add(new InlineUIContainer
         {
             Child = CreateEmbeddedButton(
                 "Inline",
-                "Inline hosted button clicked.",
-                width: 72f,
-                height: 18f,
-                fontSize: 11f,
-                padding: new Thickness(8f, 2f, 8f, 2f))
+            "Inline hosted button clicked.")
         });
         document.Blocks.Add(inlineParagraph);
 
@@ -854,11 +850,7 @@ public partial class RichTextBoxView : UserControl
 
         var blockButton = CreateEmbeddedButton(
             "Block",
-            "Block hosted button clicked.",
-            width: 84f,
-            height: 20f,
-            fontSize: 11f,
-            padding: new Thickness(10f, 3f, 10f, 3f));
+            "Block hosted button clicked.");
         document.Blocks.Add(new BlockUIContainer { Child = blockButton });
 
         return document;
@@ -895,27 +887,12 @@ public partial class RichTextBoxView : UserControl
 
     private Button CreateEmbeddedButton(
         string content,
-        string activity,
-        float width,
-        float height,
-        float fontSize,
-        Thickness padding)
+        string activity)
     {
         var button = new Button
         {
-            Content = content,
-            Width = width,
-            Height = height,
-            FontSize = fontSize,
-            Padding = padding,
-            BorderBrush = ResolveThemeColor("OrangePrimaryBrush", new Color(0xFF, 0x8C, 0x00)),
-            Foreground = ResolveThemeColor("OrangePrimaryBrush", new Color(0xFF, 0x8C, 0x00))
+            Content = content
         };
-
-        var minimumWidth = UiTextRenderer.MeasureWidth(button, content, button.FontSize) + button.Padding.Horizontal + (button.BorderThickness * 2f);
-        var minimumHeight = UiTextRenderer.GetLineHeight(button, button.FontSize) + button.Padding.Vertical + (button.BorderThickness * 2f);
-        button.Width = MathF.Max(button.Width, minimumWidth);
-        button.Height = MathF.Max(button.Height, minimumHeight);
 
         button.Click += (_, _) =>
         {

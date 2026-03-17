@@ -134,8 +134,17 @@ public sealed class DropShadowEffect : Effect
         }
 
         var blurSize = Math.Clamp((int)MathF.Ceiling(MathF.Min(blur, 32f)), 1, 32);
-        DrawBlurSlices(spriteBatch, shadowRect, blurSize, Color, effectiveOpacity);
-        UiDrawing.DrawFilledRect(spriteBatch, shadowRect, Color, effectiveOpacity);
+        var transformedShadowRect = UiDrawing.TransformRectBounds(spriteBatch, shadowRect);
+        var transformedExpandedRect = UiDrawing.TransformRectBounds(
+            spriteBatch,
+            new LayoutRect(
+                shadowRect.X - blurSize,
+                shadowRect.Y - blurSize,
+                shadowRect.Width + (blurSize * 2f),
+                shadowRect.Height + (blurSize * 2f)));
+        var rasterLayout = RasterizeShadowLayout(transformedShadowRect, transformedExpandedRect);
+        DrawBlurSlices(spriteBatch, blurSize, rasterLayout, Color, effectiveOpacity);
+        UiDrawing.DrawFilledRectPixels(spriteBatch, rasterLayout.Center, Color, effectiveOpacity);
     }
 
     internal override LayoutRect GetRenderBounds(UIElement element)
@@ -169,29 +178,44 @@ public sealed class DropShadowEffect : Effect
 
     private static void DrawBlurSlices(
         SpriteBatch spriteBatch,
-        LayoutRect shadowRect,
         int blurSize,
+        ShadowRasterLayout rasterLayout,
         Color color,
         float opacity)
     {
         var graphicsDevice = spriteBatch.GraphicsDevice;
-        var topRect = new LayoutRect(shadowRect.X, shadowRect.Y - blurSize, shadowRect.Width, blurSize);
-        var bottomRect = new LayoutRect(shadowRect.X, shadowRect.Y + shadowRect.Height, shadowRect.Width, blurSize);
-        var leftRect = new LayoutRect(shadowRect.X - blurSize, shadowRect.Y, blurSize, shadowRect.Height);
-        var rightRect = new LayoutRect(shadowRect.X + shadowRect.Width, shadowRect.Y, blurSize, shadowRect.Height);
-        var topLeftRect = new LayoutRect(shadowRect.X - blurSize, shadowRect.Y - blurSize, blurSize, blurSize);
-        var topRightRect = new LayoutRect(shadowRect.X + shadowRect.Width, shadowRect.Y - blurSize, blurSize, blurSize);
-        var bottomLeftRect = new LayoutRect(shadowRect.X - blurSize, shadowRect.Y + shadowRect.Height, blurSize, blurSize);
-        var bottomRightRect = new LayoutRect(shadowRect.X + shadowRect.Width, shadowRect.Y + shadowRect.Height, blurSize, blurSize);
+        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopEdge), rasterLayout.Top, color: color, opacity: opacity);
+        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomEdge), rasterLayout.Bottom, color: color, opacity: opacity);
+        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.LeftEdge), rasterLayout.Left, color: color, opacity: opacity);
+        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.RightEdge), rasterLayout.Right, color: color, opacity: opacity);
+        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopLeftCorner), rasterLayout.TopLeft, color: color, opacity: opacity);
+        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopRightCorner), rasterLayout.TopRight, color: color, opacity: opacity);
+        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomLeftCorner), rasterLayout.BottomLeft, color: color, opacity: opacity);
+        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomRightCorner), rasterLayout.BottomRight, color: color, opacity: opacity);
+    }
 
-        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopEdge), topRect, color: color, opacity: opacity);
-        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomEdge), bottomRect, color: color, opacity: opacity);
-        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.LeftEdge), leftRect, color: color, opacity: opacity);
-        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.RightEdge), rightRect, color: color, opacity: opacity);
-        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopLeftCorner), topLeftRect, color: color, opacity: opacity);
-        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopRightCorner), topRightRect, color: color, opacity: opacity);
-        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomLeftCorner), bottomLeftRect, color: color, opacity: opacity);
-        UiDrawing.DrawTexture(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomRightCorner), bottomRightRect, color: color, opacity: opacity);
+    private static ShadowRasterLayout RasterizeShadowLayout(LayoutRect transformedShadowRect, LayoutRect transformedExpandedRect)
+    {
+        var outerLeft = (int)MathF.Floor(transformedExpandedRect.X);
+        var outerTop = (int)MathF.Floor(transformedExpandedRect.Y);
+        var outerRight = (int)MathF.Ceiling(transformedExpandedRect.X + transformedExpandedRect.Width);
+        var outerBottom = (int)MathF.Ceiling(transformedExpandedRect.Y + transformedExpandedRect.Height);
+
+        var innerLeft = Math.Clamp((int)MathF.Round(transformedShadowRect.X), outerLeft, outerRight);
+        var innerTop = Math.Clamp((int)MathF.Round(transformedShadowRect.Y), outerTop, outerBottom);
+        var innerRight = Math.Clamp((int)MathF.Round(transformedShadowRect.X + transformedShadowRect.Width), innerLeft, outerRight);
+        var innerBottom = Math.Clamp((int)MathF.Round(transformedShadowRect.Y + transformedShadowRect.Height), innerTop, outerBottom);
+
+        return new ShadowRasterLayout(
+            new Rectangle(innerLeft, innerTop, Math.Max(0, innerRight - innerLeft), Math.Max(0, innerBottom - innerTop)),
+            new Rectangle(innerLeft, outerTop, Math.Max(0, innerRight - innerLeft), Math.Max(0, innerTop - outerTop)),
+            new Rectangle(innerLeft, innerBottom, Math.Max(0, innerRight - innerLeft), Math.Max(0, outerBottom - innerBottom)),
+            new Rectangle(outerLeft, innerTop, Math.Max(0, innerLeft - outerLeft), Math.Max(0, innerBottom - innerTop)),
+            new Rectangle(innerRight, innerTop, Math.Max(0, outerRight - innerRight), Math.Max(0, innerBottom - innerTop)),
+            new Rectangle(outerLeft, outerTop, Math.Max(0, innerLeft - outerLeft), Math.Max(0, innerTop - outerTop)),
+            new Rectangle(innerRight, outerTop, Math.Max(0, outerRight - innerRight), Math.Max(0, innerTop - outerTop)),
+            new Rectangle(outerLeft, innerBottom, Math.Max(0, innerLeft - outerLeft), Math.Max(0, outerBottom - innerBottom)),
+            new Rectangle(innerRight, innerBottom, Math.Max(0, outerRight - innerRight), Math.Max(0, outerBottom - innerBottom)));
     }
 
     private static Texture2D GetShadowTexture(GraphicsDevice graphicsDevice, int blurSize, ShadowTextureKind kind)
@@ -224,9 +248,7 @@ public sealed class DropShadowEffect : Effect
         var pixels = new Color[blurSize];
         for (var y = 0; y < blurSize; y++)
         {
-            var alpha = nearOpaqueAtEnd
-                ? (y + 1f) / blurSize
-                : (blurSize - y) / (float)blurSize;
+            var alpha = ComputeEdgeShadowAlpha(y, blurSize, nearOpaqueAtEnd);
             pixels[y] = Color.White * alpha;
         }
 
@@ -240,9 +262,7 @@ public sealed class DropShadowEffect : Effect
         var pixels = new Color[blurSize];
         for (var x = 0; x < blurSize; x++)
         {
-            var alpha = nearOpaqueAtEnd
-                ? (x + 1f) / blurSize
-                : (blurSize - x) / (float)blurSize;
+            var alpha = ComputeEdgeShadowAlpha(x, blurSize, nearOpaqueAtEnd);
             pixels[x] = Color.White * alpha;
         }
 
@@ -258,18 +278,11 @@ public sealed class DropShadowEffect : Effect
     {
         var texture = new Texture2D(graphicsDevice, blurSize, blurSize);
         var pixels = new Color[blurSize * blurSize];
-        var maxIndex = Math.Max(1, blurSize - 1);
         for (var y = 0; y < blurSize; y++)
         {
-            var normalizedY = nearRectYAtEnd
-                ? (maxIndex - y) / (float)maxIndex
-                : y / (float)maxIndex;
             for (var x = 0; x < blurSize; x++)
             {
-                var normalizedX = nearRectXAtEnd
-                    ? (maxIndex - x) / (float)maxIndex
-                    : x / (float)maxIndex;
-                var alpha = 1f - Math.Clamp(MathF.Max(normalizedX, normalizedY), 0f, 1f);
+                var alpha = ComputeCornerShadowAlpha(x, y, blurSize, nearRectXAtEnd, nearRectYAtEnd);
                 pixels[(y * blurSize) + x] = Color.White * alpha;
             }
         }
@@ -278,7 +291,44 @@ public sealed class DropShadowEffect : Effect
         return texture;
     }
 
+    private static float ComputeEdgeShadowAlpha(int index, int blurSize, bool nearOpaqueAtEnd)
+    {
+        if (blurSize <= 1)
+        {
+            return 1f;
+        }
+
+        var maxIndex = blurSize - 1;
+        var alpha = nearOpaqueAtEnd
+            ? index / (float)maxIndex
+            : (maxIndex - index) / (float)maxIndex;
+        return Math.Clamp(alpha, 0f, 1f);
+    }
+
+    private static float ComputeCornerShadowAlpha(
+        int x,
+        int y,
+        int blurSize,
+        bool nearRectXAtEnd,
+        bool nearRectYAtEnd)
+    {
+        var alphaX = ComputeEdgeShadowAlpha(x, blurSize, nearRectXAtEnd);
+        var alphaY = ComputeEdgeShadowAlpha(y, blurSize, nearRectYAtEnd);
+        return MathF.Min(alphaX, alphaY);
+    }
+
     private readonly record struct ShadowTextureCacheKey(GraphicsDevice GraphicsDevice, int BlurSize, ShadowTextureKind Kind);
+
+    private readonly record struct ShadowRasterLayout(
+        Rectangle Center,
+        Rectangle Top,
+        Rectangle Bottom,
+        Rectangle Left,
+        Rectangle Right,
+        Rectangle TopLeft,
+        Rectangle TopRight,
+        Rectangle BottomLeft,
+        Rectangle BottomRight);
 
     private static LayoutRect Union(LayoutRect left, LayoutRect right)
     {

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Xunit;
 
@@ -113,6 +114,65 @@ public sealed class EffectPhase2Tests
     }
 
     [Fact]
+    public void DropShadowEffect_EdgeAndCornerAlphaMatchAtJoinPixels()
+    {
+        var computeEdgeAlpha = typeof(DropShadowEffect).GetMethod(
+            "ComputeEdgeShadowAlpha",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        var computeCornerAlpha = typeof(DropShadowEffect).GetMethod(
+            "ComputeCornerShadowAlpha",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(computeEdgeAlpha);
+        Assert.NotNull(computeCornerAlpha);
+
+        const int blurSize = 12;
+        for (var offset = 0; offset < blurSize; offset++)
+        {
+            var leftEdgeAlpha = InvokeAlpha(computeEdgeAlpha!, offset, blurSize, true);
+            var bottomEdgeAlpha = InvokeAlpha(computeEdgeAlpha!, offset, blurSize, false);
+
+            var bottomLeftTopRow = InvokeCornerAlpha(computeCornerAlpha!, offset, 0, blurSize, true, false);
+            var bottomLeftRightColumn = InvokeCornerAlpha(computeCornerAlpha!, blurSize - 1, offset, blurSize, true, false);
+
+            Assert.Equal(leftEdgeAlpha, bottomLeftTopRow, 5);
+            Assert.Equal(bottomEdgeAlpha, bottomLeftRightColumn, 5);
+        }
+    }
+
+    [Fact]
+    public void UiDrawing_RasterizeBoundsOutward_KeepsAdjacentScaledRectsContinuous()
+    {
+        var rasterizeShadowLayout = typeof(DropShadowEffect).GetMethod(
+            "RasterizeShadowLayout",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(rasterizeShadowLayout);
+
+        var layout = rasterizeShadowLayout!.Invoke(
+            null,
+            [
+                new LayoutRect(85.41f, 93.62f, 114.78f, 25.31f),
+                new LayoutRect(73.05f, 81.26f, 139.50f, 50.03f)
+            ]);
+        Assert.NotNull(layout);
+
+        var center = GetRectangleProperty(layout!, "Center");
+        var top = GetRectangleProperty(layout, "Top");
+        var bottom = GetRectangleProperty(layout, "Bottom");
+        var left = GetRectangleProperty(layout, "Left");
+        var right = GetRectangleProperty(layout, "Right");
+        var topLeft = GetRectangleProperty(layout, "TopLeft");
+        var bottomLeft = GetRectangleProperty(layout, "BottomLeft");
+
+        Assert.Equal(center.Top, top.Bottom);
+        Assert.Equal(center.Bottom, bottom.Top);
+        Assert.Equal(center.Left, left.Right);
+        Assert.Equal(center.Right, right.Left);
+        Assert.Equal(top.Left, topLeft.Right);
+        Assert.Equal(left.Bottom, bottomLeft.Top);
+    }
+
+    [Fact]
     public void DrawSelf_RendersEffectBeforeControlContent()
     {
         var effect = new ProbeEffect();
@@ -167,5 +227,28 @@ public sealed class EffectPhase2Tests
         {
             return element.LayoutSlot;
         }
+    }
+
+    private static float InvokeAlpha(MethodInfo method, int index, int blurSize, bool nearOpaqueAtEnd)
+    {
+        return Assert.IsType<float>(method.Invoke(null, [index, blurSize, nearOpaqueAtEnd]));
+    }
+
+    private static float InvokeCornerAlpha(
+        MethodInfo method,
+        int x,
+        int y,
+        int blurSize,
+        bool nearRectXAtEnd,
+        bool nearRectYAtEnd)
+    {
+        return Assert.IsType<float>(method.Invoke(null, [x, y, blurSize, nearRectXAtEnd, nearRectYAtEnd]));
+    }
+
+    private static Rectangle GetRectangleProperty(object instance, string propertyName)
+    {
+        var property = instance.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
+        Assert.NotNull(property);
+        return Assert.IsType<Rectangle>(property!.GetValue(instance));
     }
 }

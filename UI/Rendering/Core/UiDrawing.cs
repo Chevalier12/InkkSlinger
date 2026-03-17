@@ -218,6 +218,34 @@ internal static class UiDrawing
         spriteBatch.Draw(texture, new Rectangle(x, y, width, height), sourceRect, tint);
     }
 
+    internal static void DrawFilledRectPixels(SpriteBatch spriteBatch, Rectangle rect, Color color, float opacity = 1f)
+    {
+        if (rect.Width <= 0 || rect.Height <= 0 || color.A == 0)
+        {
+            return;
+        }
+
+        var texture = GetSolidTexture(spriteBatch.GraphicsDevice);
+        spriteBatch.Draw(texture, rect, color * opacity);
+    }
+
+    internal static void DrawTexturePixels(
+        SpriteBatch spriteBatch,
+        Texture2D texture,
+        Rectangle destinationRect,
+        Rectangle? sourceRect = null,
+        Color? color = null,
+        float opacity = 1f)
+    {
+        if (destinationRect.Width <= 0 || destinationRect.Height <= 0)
+        {
+            return;
+        }
+
+        var tint = (color ?? Color.White) * opacity;
+        spriteBatch.Draw(texture, destinationRect, sourceRect, tint);
+    }
+
     public static void DrawRectStroke(
         SpriteBatch spriteBatch,
         LayoutRect rect,

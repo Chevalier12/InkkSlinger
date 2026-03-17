@@ -2103,47 +2103,56 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         var layout = BuildOrGetLayout(textRect.Width);
         ClampScrollOffsets(layout, textRect);
-        DrawSelection(spriteBatch, textRect, layout);
-        for (var i = 0; i < layout.Runs.Count; i++)
+
+        UiDrawing.PushClip(spriteBatch, textRect);
+        try
         {
-            var run = layout.Runs[i];
-            if (string.IsNullOrEmpty(run.Text))
+            DrawSelection(spriteBatch, textRect, layout);
+            for (var i = 0; i < layout.Runs.Count; i++)
             {
-                continue;
+                var run = layout.Runs[i];
+                if (string.IsNullOrEmpty(run.Text))
+                {
+                    continue;
+                }
+
+                var color = ResolveRunColor(run.Style);
+                var position = new Vector2(textRect.X + run.Bounds.X - _horizontalOffset, textRect.Y + run.Bounds.Y - _verticalOffset);
+                if (position.Y + run.Bounds.Height < textRect.Y || position.Y > textRect.Y + textRect.Height)
+                {
+                    continue;
+                }
+
+                DrawRunText(spriteBatch, run, position, color);
+
+                if (run.Style.IsUnderline)
+                {
+                    var underlineY = position.Y + run.Bounds.Height - 1f;
+                    UiDrawing.DrawFilledRect(
+                        spriteBatch,
+                        new LayoutRect(position.X, underlineY, Math.Max(1f, run.Bounds.Width), 1f),
+                        color * Opacity);
+                }
             }
 
-            var color = ResolveRunColor(run.Style);
-            var position = new Vector2(textRect.X + run.Bounds.X - _horizontalOffset, textRect.Y + run.Bounds.Y - _verticalOffset);
-            if (position.Y + run.Bounds.Height < textRect.Y || position.Y > textRect.Y + textRect.Height)
+            DrawTableBorders(spriteBatch, textRect, layout);
+            if (IsFocused && _isCaretVisible && (!IsReadOnly || IsReadOnlyCaretVisible))
             {
-                continue;
+                DrawCaret(spriteBatch, textRect, layout);
             }
 
-            DrawRunText(spriteBatch, run, position, color);
-
-            if (run.Style.IsUnderline)
+            if (hasTemplateRoot)
             {
-                var underlineY = position.Y + run.Bounds.Height - 1f;
-                UiDrawing.DrawFilledRect(
-                    spriteBatch,
-                    new LayoutRect(position.X, underlineY, Math.Max(1f, run.Bounds.Width), 1f),
-                    color * Opacity);
+                EnsureHostedDocumentChildLayout(textRect, layout);
+                for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
+                {
+                    _documentHostedVisualChildren[i].Draw(spriteBatch);
+                }
             }
         }
-
-        DrawTableBorders(spriteBatch, textRect, layout);
-        if (IsFocused && _isCaretVisible && (!IsReadOnly || IsReadOnlyCaretVisible))
+        finally
         {
-            DrawCaret(spriteBatch, textRect, layout);
-        }
-
-        if (hasTemplateRoot)
-        {
-            EnsureHostedDocumentChildLayout(textRect, layout);
-            for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
-            {
-                _documentHostedVisualChildren[i].Draw(spriteBatch);
-            }
+            UiDrawing.PopClip(spriteBatch);
         }
 
         CaptureDirtyHint(layout, textRect);
@@ -2196,12 +2205,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         if (HasTemplateRoot)
         {
-            EnsureHostedDocumentChildLayout();
-            for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
-            {
-                yield return _documentHostedVisualChildren[i];
-            }
-
             yield break;
         }
 

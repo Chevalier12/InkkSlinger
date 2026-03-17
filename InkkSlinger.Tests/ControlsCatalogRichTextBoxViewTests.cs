@@ -454,6 +454,60 @@ public sealed class ControlsCatalogRichTextBoxViewTests
     }
 
     [Fact]
+    public void RichTextBox_WithTemplateRoot_ShouldExcludeHostedInlineButtonFromRetainedRenderList()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var hostedButton = new Button
+            {
+                Content = "Inline",
+                Width = 96f,
+                Height = 28f
+            };
+
+            var document = new FlowDocument();
+            var paragraph = new Paragraph();
+            paragraph.Inlines.Add(new Run("Prefix "));
+            paragraph.Inlines.Add(new InlineUIContainer { Child = hostedButton });
+            paragraph.Inlines.Add(new Run(" suffix"));
+            document.Blocks.Add(paragraph);
+
+            var editor = new RichTextBox
+            {
+                Width = 420f,
+                Height = 180f,
+                Padding = new Thickness(8f),
+                BorderThickness = 1f,
+                Document = document
+            };
+
+            var host = new Canvas
+            {
+                Width = 640f,
+                Height = 320f
+            };
+            host.AddChild(editor);
+
+            var uiRoot = new UiRoot(host);
+            RunLayout(uiRoot, 640, 320);
+            RunLayout(uiRoot, 640, 320);
+            RunLayout(uiRoot, 640, 320);
+            uiRoot.SynchronizeRetainedRenderListForTests();
+
+            Assert.True(editor.ApplyTemplate());
+            Assert.DoesNotContain(hostedButton, editor.GetRetainedRenderChildren());
+            Assert.DoesNotContain(hostedButton, uiRoot.GetRetainedVisualOrderForTests());
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
+    [Fact]
     public void RichTextBoxView_PayloadFormatComboBox_WhenSidebarIsScrolled_ShouldCloseOnScroll()
     {
         var view = CreateView();
@@ -531,12 +585,12 @@ public sealed class ControlsCatalogRichTextBoxViewTests
     }
 
     [Fact]
-    public void RichTextBoxView_CreateEmbeddedButton_ShouldRenderTextWithinButtonBounds()
+    public void RichTextBoxView_CreateEmbeddedButton_ShouldNotApplyLocalStyleOverrides()
     {
         var view = CreateView();
 
-        AssertButtonTextFitsInsideBounds(CreateEmbeddedButton(view, "Inline", width: 72f, height: 18f, fontSize: 11f, padding: new Thickness(8f, 2f, 8f, 2f)));
-        AssertButtonTextFitsInsideBounds(CreateEmbeddedButton(view, "Block", width: 84f, height: 20f, fontSize: 11f, padding: new Thickness(10f, 3f, 10f, 3f)));
+        AssertNoLocalEmbeddedButtonStyleOverrides(CreateEmbeddedButton(view, "Inline"));
+        AssertNoLocalEmbeddedButtonStyleOverrides(CreateEmbeddedButton(view, "Block"));
     }
 
     private static RichTextBoxView CreateView()
@@ -848,41 +902,27 @@ public sealed class ControlsCatalogRichTextBoxViewTests
         List<KeyValuePair<object, object>> Entries,
         List<ResourceDictionary> MergedDictionaries);
 
-    private static void AssertButtonTextFitsInsideBounds(Button? button)
+    private static void AssertNoLocalEmbeddedButtonStyleOverrides(Button? button)
     {
         Assert.NotNull(button);
         var subject = button!;
-        var slot = new LayoutRect(0f, 0f, subject.Width, subject.Height);
-        var plan = subject.PrepareTextRenderPlanForTests(slot);
-        Assert.True(plan.HasValue, $"Expected embedded button to produce a text render plan. button={subject.GetContentText()}");
 
-        var layout = plan.Value.Layout;
-        var lineSpacing = plan.Value.LineSpacing;
-        for (var lineIndex = 0; lineIndex < plan.Value.LineDraws.Count; lineIndex++)
-        {
-            var line = plan.Value.LineDraws[lineIndex];
-            var width = Button.ResolveRenderedLineWidth(layout, lineIndex, line.Text, subject.FontSize);
-            var withinBounds =
-                line.Position.X >= slot.X &&
-                line.Position.X + width <= slot.X + slot.Width &&
-                line.Position.Y >= slot.Y &&
-                line.Position.Y + lineSpacing <= slot.Y + slot.Height;
-            Assert.True(
-                withinBounds,
-                $"Expected line to stay inside button bounds. button={subject.GetContentText()} slot=({slot.X:0.###},{slot.Y:0.###},{slot.Width:0.###},{slot.Height:0.###}) line=({line.Position.X:0.###},{line.Position.Y:0.###}) width={width:0.###} lineHeight={lineSpacing:0.###} lineRight={(line.Position.X + width):0.###} lineBottom={(line.Position.Y + lineSpacing):0.###}");
-        }
+        Assert.False(subject.HasLocalValue(FrameworkElement.WidthProperty));
+        Assert.False(subject.HasLocalValue(FrameworkElement.HeightProperty));
+        Assert.False(subject.HasLocalValue(FrameworkElement.FontSizeProperty));
+        Assert.False(subject.HasLocalValue(Button.PaddingProperty));
+        Assert.False(subject.HasLocalValue(Button.ForegroundProperty));
+        Assert.False(subject.HasLocalValue(Button.BorderBrushProperty));
+        Assert.False(subject.HasLocalValue(FrameworkElement.StyleProperty));
+        Assert.False(subject.HasLocalValue(Control.TemplateProperty));
     }
 
     private static Button CreateEmbeddedButton(
         RichTextBoxView view,
-        string content,
-        float width,
-        float height,
-        float fontSize,
-        Thickness padding)
+        string content)
     {
         var method = typeof(RichTextBoxView).GetMethod("CreateEmbeddedButton", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         Assert.NotNull(method);
-        return Assert.IsType<Button>(method!.Invoke(view, [content, string.Empty, width, height, fontSize, padding]));
+        return Assert.IsType<Button>(method!.Invoke(view, [content, string.Empty]));
     }
 }
