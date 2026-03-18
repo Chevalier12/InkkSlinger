@@ -72,7 +72,7 @@ public sealed class AppXmlPhase1CompatibilityTests
 
         var templateRoot = Assert.Single(button.GetVisualChildren());
         var border = Assert.IsType<Border>(templateRoot);
-        Assert.Equal(new Color(0x22, 0x33, 0x44), border.Background);
+        AssertBrushColor(new Color(0x22, 0x33, 0x44), border.Background);
         Assert.Equal(new Thickness(8f), border.Padding);
     }
 
@@ -110,13 +110,13 @@ public sealed class AppXmlPhase1CompatibilityTests
         var templateRoot = Assert.Single(button.GetVisualChildren());
         var border = Assert.IsType<Border>(templateRoot);
 
-        Assert.Equal(new Color(0xAA, 0x55, 0x00), border.Background);
+        AssertBrushColor(new Color(0xAA, 0x55, 0x00), border.Background);
         Assert.Equal(new Thickness(10f, 4f, 10f, 4f), border.Padding);
 
         button.Background = new Color(0x0F, 0x70, 0xCC);
         button.Padding = new Thickness(3f, 2f, 3f, 2f);
 
-        Assert.Equal(new Color(0x0F, 0x70, 0xCC), border.Background);
+        AssertBrushColor(new Color(0x0F, 0x70, 0xCC), border.Background);
         Assert.Equal(new Thickness(3f, 2f, 3f, 2f), border.Padding);
     }
 
@@ -148,10 +148,10 @@ public sealed class AppXmlPhase1CompatibilityTests
 
         var templateRoot = Assert.IsType<Grid>(Assert.Single(button.GetVisualChildren()));
         var nestedBorder = Assert.IsType<Border>(Assert.Single(templateRoot.GetVisualChildren()));
-        Assert.Equal(new Color(0x11, 0x99, 0x44), nestedBorder.Background);
+        AssertBrushColor(new Color(0x11, 0x99, 0x44), nestedBorder.Background);
 
         button.Background = new Color(0x77, 0x33, 0xBB);
-        Assert.Equal(new Color(0x77, 0x33, 0xBB), nestedBorder.Background);
+        AssertBrushColor(new Color(0x77, 0x33, 0xBB), nestedBorder.Background);
     }
 
     [Fact]
@@ -338,6 +338,12 @@ public sealed class AppXmlPhase1CompatibilityTests
 
         var templateRoot = Assert.IsType<Grid>(Assert.Single(button.GetVisualChildren()));
         Assert.Contains(templateRoot.GetVisualChildren(), child => child is GridViewRowPresenter);
+    }
+
+    private static void AssertBrushColor(Color expected, Brush? brush)
+    {
+        var actualBrush = Assert.IsAssignableFrom<Brush>(brush);
+        Assert.Equal(expected, actualBrush.ToColor());
     }
 
     private static ResourceSnapshot CaptureApplicationResources()

@@ -50,19 +50,19 @@ public sealed class CheckBoxTemplateInputTests
             var checkMark = FindDescendant<PathShape>(checkBox);
             Assert.Equal(Visibility.Collapsed, checkMark.Visibility);
 
-            var uncheckedBackground = checkGlyph.Background;
+            var uncheckedBackground = Assert.IsAssignableFrom<Brush>(checkGlyph.Background).ToColor();
             var checkedBackground = ResolveThemeColor("OrangePrimaryBrush");
 
             var point = Center(contentPresenter.LayoutSlot);
             ClickAt(uiRoot, point);
 
             Assert.True(checkBox.IsChecked);
-            Assert.Equal(checkedBackground, checkGlyph.Background);
+            Assert.Equal(checkedBackground, Assert.IsAssignableFrom<Brush>(checkGlyph.Background).ToColor());
             Assert.Equal(Visibility.Visible, checkMark.Visibility);
 
             ClickAt(uiRoot, point);
             Assert.False(checkBox.IsChecked);
-            Assert.Equal(uncheckedBackground, checkGlyph.Background);
+            Assert.Equal(uncheckedBackground, Assert.IsAssignableFrom<Brush>(checkGlyph.Background).ToColor());
             Assert.Equal(Visibility.Collapsed, checkMark.Visibility);
         }
         finally

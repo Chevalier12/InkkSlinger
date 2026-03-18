@@ -8,7 +8,6 @@ namespace InkkSlinger;
 
 public class Game1 : Game
 {
-    private static readonly bool EnableExperimentalPartialRedraw = true;
     private const int IdleThrottleSleepMilliseconds = 8;
     private readonly GraphicsDeviceManager _graphics;
     private readonly InkkSlinger.Window _window;
@@ -50,8 +49,6 @@ public class Game1 : Game
 
         _uiRoot = new UiRoot(_root)
         {
-            UseRetainedRenderList = EnableExperimentalPartialRedraw,
-            UseDirtyRegionRendering = EnableExperimentalPartialRedraw,
             UseConditionalDrawScheduling = true,
             UseSoftwareCursor = false
         };
@@ -110,7 +107,7 @@ public class Game1 : Game
         var viewport = EnsureViewportMatchesBackBuffer();
         var targetRecreated = EnsureUiCompositeTarget(viewport);
         var shouldDrawUiThisFrame = ShouldDrawUiOnCurrentFrame(_shouldDrawUiThisFrame, targetRecreated);
-        if (EnableExperimentalPartialRedraw && targetRecreated)
+        if (targetRecreated)
         {
             _uiRoot.ForceFullRedrawForSurfaceReset();
         }
@@ -123,11 +120,6 @@ public class Game1 : Game
             }
 
             GraphicsDevice.SetRenderTarget(_uiCompositeTarget);
-            if (!EnableExperimentalPartialRedraw)
-            {
-                GraphicsDevice.Clear(Color.CornflowerBlue);
-            }
-
             _uiRoot.Draw(_spriteBatch, gameTime);
             GraphicsDevice.SetRenderTarget(null);
         }
@@ -189,9 +181,6 @@ public class Game1 : Game
         }
 
         _uiCompositeTarget?.Dispose();
-        var usage = EnableExperimentalPartialRedraw
-            ? RenderTargetUsage.PreserveContents
-            : RenderTargetUsage.DiscardContents;
         _uiCompositeTarget = new RenderTarget2D(
             GraphicsDevice,
             Math.Max(1, viewport.Width),
@@ -200,7 +189,7 @@ public class Game1 : Game
             SurfaceFormat.Color,
             DepthFormat.None,
             0,
-            usage);
+            RenderTargetUsage.PreserveContents);
         return true;
     }
 

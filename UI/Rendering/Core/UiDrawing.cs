@@ -482,6 +482,45 @@ internal static class UiDrawing
             maxY = System.MathF.Max(maxY, point.Y);
         }
 
+        FillPolygon(spriteBatch, transformed, pointCount, minY, maxY, color, opacity);
+    }
+
+    public static void DrawFilledPolygon(
+        SpriteBatch spriteBatch,
+        ReadOnlySpan<Vector2> points,
+        Color color,
+        float opacity = 1f)
+    {
+        if (points.Length < 3 || color.A == 0)
+        {
+            return;
+        }
+
+        var pointCount = points.Length;
+        var transformed = GetPolygonVertexBuffer(spriteBatch.GraphicsDevice, pointCount);
+        var minY = float.PositiveInfinity;
+        var maxY = float.NegativeInfinity;
+        for (var i = 0; i < pointCount; i++)
+        {
+            var point = TransformPoint(spriteBatch, points[i]);
+            transformed[i] = point;
+            minY = System.MathF.Min(minY, point.Y);
+            maxY = System.MathF.Max(maxY, point.Y);
+        }
+
+        FillPolygon(spriteBatch, transformed, pointCount, minY, maxY, color, opacity);
+    }
+
+    private static void FillPolygon(
+        SpriteBatch spriteBatch,
+        Vector2[] transformed,
+        int pointCount,
+        float minY,
+        float maxY,
+        Color color,
+        float opacity)
+    {
+
         var scanMin = (int)System.MathF.Floor(minY);
         var scanMax = (int)System.MathF.Ceiling(maxY);
         var intersectionBuffer = GetPolygonIntersectionBuffer(spriteBatch.GraphicsDevice, pointCount);

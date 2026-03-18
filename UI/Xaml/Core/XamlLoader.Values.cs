@@ -115,6 +115,11 @@ public static partial class XamlLoader
             return ParseThickness(rawValue);
         }
 
+        if (targetType == typeof(CornerRadius))
+        {
+            return ParseCornerRadius(rawValue);
+        }
+
         if (targetType == typeof(GridLength))
         {
             return ParseGridLength(rawValue);
@@ -272,6 +277,63 @@ public static partial class XamlLoader
     }
 
 
+    private static CornerRadius BuildCornerRadiusObject(XElement element)
+    {
+        if (HasChildElements(element))
+        {
+            throw CreateXamlException("CornerRadius element does not support child elements.", element);
+        }
+
+        var text = (element.Value ?? string.Empty).Trim();
+        var hasAttributes = false;
+        var topLeft = 0f;
+        var topRight = 0f;
+        var bottomRight = 0f;
+        var bottomLeft = 0f;
+
+        if (TryGetOptionalAttributeFloatValue(element, nameof(CornerRadius.TopLeft), out var parsedTopLeft))
+        {
+            hasAttributes = true;
+            topLeft = parsedTopLeft;
+        }
+
+        if (TryGetOptionalAttributeFloatValue(element, nameof(CornerRadius.TopRight), out var parsedTopRight))
+        {
+            hasAttributes = true;
+            topRight = parsedTopRight;
+        }
+
+        if (TryGetOptionalAttributeFloatValue(element, nameof(CornerRadius.BottomRight), out var parsedBottomRight))
+        {
+            hasAttributes = true;
+            bottomRight = parsedBottomRight;
+        }
+
+        if (TryGetOptionalAttributeFloatValue(element, nameof(CornerRadius.BottomLeft), out var parsedBottomLeft))
+        {
+            hasAttributes = true;
+            bottomLeft = parsedBottomLeft;
+        }
+
+        if (hasAttributes)
+        {
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                throw CreateXamlException("CornerRadius element cannot mix text content with corner attributes.", element);
+            }
+
+            return new CornerRadius(topLeft, topRight, bottomRight, bottomLeft).ClampNonNegative();
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return CornerRadius.Empty;
+        }
+
+        return ParseCornerRadius(text);
+    }
+
+
     private static Color ParseColor(string value)
     {
         var trimmed = value.Trim().AsSpan();
@@ -329,6 +391,41 @@ public static partial class XamlLoader
         }
 
         throw CreateXamlException("Thickness must be one, two, or four comma-separated values.");
+    }
+
+
+    private static CornerRadius ParseCornerRadius(string value)
+    {
+        if (!TryParseFloatList(value.AsSpan(), out var parts))
+        {
+            throw CreateXamlException("CornerRadius must be one or four comma-separated values.");
+        }
+
+        if (parts.Length == 1)
+        {
+            return new CornerRadius(parts[0]).ClampNonNegative();
+        }
+
+        if (parts.Length == 4)
+        {
+            return new CornerRadius(parts[0], parts[1], parts[2], parts[3]).ClampNonNegative();
+        }
+
+        throw CreateXamlException("CornerRadius must be one or four comma-separated values.");
+    }
+
+
+    private static bool TryGetOptionalAttributeFloatValue(XElement element, string attributeName, out float value)
+    {
+        var attribute = element.Attribute(attributeName);
+        if (attribute == null)
+        {
+            value = 0f;
+            return false;
+        }
+
+        value = float.Parse(attribute.Value, CultureInfo.InvariantCulture);
+        return true;
     }
 
 

@@ -282,6 +282,7 @@ UI/
   Layout
     Types
       Alignment.cs
+      CornerRadius.cs
       Dock.cs
       LayoutRect.cs
       Orientation.cs

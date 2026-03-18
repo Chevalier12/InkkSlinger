@@ -110,15 +110,14 @@ public static class VisualTreeHelper
                 }
             }
 
+            var isWithinSelfBounds = true;
             if (root is FrameworkElement frameworkElement)
             {
+                var canOverflowToChildren = root is Panel || root is ItemsPresenter || root.GetVisualChildCountForTraversal() > 0;
                 var canUseSimpleSlotHit = !hasTransformInChain && !hasClipInChain;
                 if (canUseSimpleSlotHit)
                 {
-                    if (!FastBoundsHit(frameworkElement, position, accumulatedHorizontalOffset, accumulatedVerticalOffset))
-                    {
-                        return null;
-                    }
+                    isWithinSelfBounds = FastBoundsHit(frameworkElement, position, accumulatedHorizontalOffset, accumulatedVerticalOffset);
                 }
                 else
                 {
@@ -137,13 +136,15 @@ public static class VisualTreeHelper
                         transformedBounds = TransformRect(transformedBounds, nextAncestorTransformToRoot);
                     }
 
-                    if (!ContainsPoint(transformedBounds, probePoint))
-                    {
-                        return null;
-                    }
+                    isWithinSelfBounds = ContainsPoint(transformedBounds, probePoint);
+                }
+
+                if (!isWithinSelfBounds && !canOverflowToChildren)
+                {
+                    return null;
                 }
             }
-            else if (!root.HitTest(position))
+            else if (!(isWithinSelfBounds = root.HitTest(position)))
             {
                 return null;
             }
@@ -156,37 +157,87 @@ public static class VisualTreeHelper
                 nextVerticalOffset += scrollViewerForOffset.VerticalOffset;
             }
 
-        // Hot path: avoid per-node allocations and sorting (ItemsPresenter can have thousands of children).
-        if (root is Panel panel)
-        {
-            var ordered = panel.GetChildrenOrderedByZIndex();
-            if (ordered.Count >= 16 &&
-                TryHitTestMonotonicVerticalPanelChildren(
-                    panel,
-                    ordered,
+            // Hot path: avoid per-node allocations and sorting (ItemsPresenter can have thousands of children).
+            if (root is Panel panel)
+            {
+                var ordered = panel.GetChildrenOrderedByZIndex();
+                if (ordered.Count >= 16 &&
+                    TryHitTestMonotonicVerticalPanelChildren(
+                        panel,
+                        ordered,
+                        position,
+                        nextHorizontalOffset,
+                        nextVerticalOffset,
+                        collector,
+                        depth,
+                        nextAncestorTransformToRoot,
+                        hasNextAncestorTransformToRoot,
+                        currentRootToThisInverse,
+                        hasCurrentRootToThisInverse,
+                        hasClipInChain,
+                        out var indexedHit))
+                {
+                    return indexedHit;
+                }
+
+                for (var i = ordered.Count - 1; i >= 0; i--)
+                {
+                    var child = ordered[i];
+                    var hit = HitTestCore(
+                        child,
+                        position,
+                        ResolveChildHorizontalOffset(root, child, accumulatedHorizontalOffset, nextHorizontalOffset),
+                        ResolveChildVerticalOffset(root, child, accumulatedVerticalOffset, nextVerticalOffset),
+                        collector,
+                        depth + 1,
+                        nextAncestorTransformToRoot,
+                        hasNextAncestorTransformToRoot,
+                        currentRootToThisInverse,
+                        hasCurrentRootToThisInverse,
+                        hasClipInChain);
+                    if (hit != null)
+                    {
+                        return hit;
+                    }
+                }
+
+                return isWithinSelfBounds ? root : null;
+            }
+
+            if (isWithinSelfBounds &&
+                root is ItemsPresenter itemsPresenter &&
+                itemsPresenter.TryGetItemContainersForHitTest(out var itemContainers) &&
+                itemContainers.Count > 0)
+            {
+                var probeX = position.X + nextHorizontalOffset;
+                var probeY = position.Y + nextVerticalOffset;
+                var presenterSlot = itemsPresenter.LayoutSlot;
+                if (probeY < presenterSlot.Y ||
+                    probeY > presenterSlot.Y + presenterSlot.Height ||
+                    probeX < presenterSlot.X ||
+                    probeX > presenterSlot.X + presenterSlot.Width)
+                {
+                    return isWithinSelfBounds ? root : null;
+                }
+
+                var relativeY = probeY - presenterSlot.Y;
+                var averageHeight = itemsPresenter.DesiredSize.Y / itemContainers.Count;
+                if (!IsFinitePositive(averageHeight))
+                {
+                    averageHeight = 24f;
+                }
+
+                var candidate = (int)(relativeY / averageHeight);
+                candidate = Math.Clamp(candidate, 0, itemContainers.Count - 1);
+
+                candidate = FindCandidateIndexByY(itemContainers, probeY, candidate, isMonotonicByY: true);
+                candidate = RefineIndexByLayoutSlot(itemContainers, probeY, candidate);
+
+                var hit = HitTestCore(
+                    itemContainers[candidate],
                     position,
                     nextHorizontalOffset,
                     nextVerticalOffset,
-                    collector,
-                    depth,
-                    nextAncestorTransformToRoot,
-                    hasNextAncestorTransformToRoot,
-                    currentRootToThisInverse,
-                    hasCurrentRootToThisInverse,
-                    hasClipInChain,
-                    out var indexedHit))
-            {
-                return indexedHit;
-            }
-
-            for (var i = ordered.Count - 1; i >= 0; i--)
-            {
-                var child = ordered[i];
-                var hit = HitTestCore(
-                    child,
-                    position,
-                    ResolveChildHorizontalOffset(root, child, accumulatedHorizontalOffset, nextHorizontalOffset),
-                    ResolveChildVerticalOffset(root, child, accumulatedVerticalOffset, nextVerticalOffset),
                     collector,
                     depth + 1,
                     nextAncestorTransformToRoot,
@@ -196,244 +247,195 @@ public static class VisualTreeHelper
                     hasClipInChain);
                 if (hit != null)
                 {
+                    if (EnableHitTestTrace)
+                    {
+                        var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                        Console.WriteLine(
+                            $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                            $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=candidate hit={hit.GetType().Name} ms={ms:0.###}");
+                    }
+
                     return hit;
                 }
-            }
 
-            return root;
-        }
+                var scanned = 0;
+                var searchLeft = true;
+                var searchRight = true;
+                var left = candidate - 1;
+                var right = candidate + 1;
+                while (left >= 0 || right < itemContainers.Count)
+                {
+                    if (searchLeft && left >= 0)
+                    {
+                        if (TryGetVerticalRange(itemContainers[left], out _, out var leftBottom) &&
+                            probeY > leftBottom)
+                        {
+                            searchLeft = false;
+                        }
+                        else
+                        {
+                            scanned++;
+                            _itemsPresenterNeighborProbeCount++;
+                            hit = HitTestCore(
+                                itemContainers[left],
+                                position,
+                                nextHorizontalOffset,
+                                nextVerticalOffset,
+                                collector,
+                                depth + 1,
+                                nextAncestorTransformToRoot,
+                                hasNextAncestorTransformToRoot,
+                                currentRootToThisInverse,
+                                hasCurrentRootToThisInverse,
+                                hasClipInChain);
+                            if (hit != null)
+                            {
+                                if (EnableHitTestTrace)
+                                {
+                                    var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                                    Console.WriteLine(
+                                        $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                                        $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
+                                }
 
-        if (root is ItemsPresenter itemsPresenter &&
-            itemsPresenter.TryGetItemContainersForHitTest(out var itemContainers) &&
-            itemContainers.Count > 0)
-        {
-            var probeX = position.X + nextHorizontalOffset;
-            var probeY = position.Y + nextVerticalOffset;
-            var presenterSlot = itemsPresenter.LayoutSlot;
-            if (probeY < presenterSlot.Y ||
-                probeY > presenterSlot.Y + presenterSlot.Height ||
-                probeX < presenterSlot.X ||
-                probeX > presenterSlot.X + presenterSlot.Width)
-            {
-                return root;
-            }
+                                return hit;
+                            }
 
-            // Items are laid out vertically in order; use an approximate index to avoid scanning the full list.
-            var relativeY = probeY - presenterSlot.Y;
-            var averageHeight = itemsPresenter.DesiredSize.Y / itemContainers.Count;
-            if (!IsFinitePositive(averageHeight))
-            {
-                averageHeight = 24f;
-            }
+                            left--;
+                        }
+                    }
+                    else
+                    {
+                        searchLeft = false;
+                    }
 
-            var candidate = (int)(relativeY / averageHeight);
-            candidate = Math.Clamp(candidate, 0, itemContainers.Count - 1);
+                    if (searchRight && right < itemContainers.Count)
+                    {
+                        if (TryGetVerticalRange(itemContainers[right], out var rightTop, out _) &&
+                            probeY < rightTop)
+                        {
+                            searchRight = false;
+                        }
+                        else
+                        {
+                            scanned++;
+                            _itemsPresenterNeighborProbeCount++;
+                            hit = HitTestCore(
+                                itemContainers[right],
+                                position,
+                                nextHorizontalOffset,
+                                nextVerticalOffset,
+                                collector,
+                                depth + 1,
+                                nextAncestorTransformToRoot,
+                                hasNextAncestorTransformToRoot,
+                                currentRootToThisInverse,
+                                hasCurrentRootToThisInverse,
+                                hasClipInChain);
+                            if (hit != null)
+                            {
+                                if (EnableHitTestTrace)
+                                {
+                                    var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                                    Console.WriteLine(
+                                        $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                                        $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
+                                }
 
-            candidate = FindCandidateIndexByY(itemContainers, probeY, candidate, isMonotonicByY: true);
-            candidate = RefineIndexByLayoutSlot(itemContainers, probeY, candidate);
+                                return hit;
+                            }
 
-            var hit = HitTestCore(
-                itemContainers[candidate],
-                position,
-                nextHorizontalOffset,
-                nextVerticalOffset,
-                collector,
-                depth + 1,
-                nextAncestorTransformToRoot,
-                hasNextAncestorTransformToRoot,
-                currentRootToThisInverse,
-                hasCurrentRootToThisInverse,
-                hasClipInChain);
-            if (hit != null)
-            {
+                            right++;
+                        }
+                    }
+                    else
+                    {
+                        searchRight = false;
+                    }
+
+                    if (!searchLeft && !searchRight)
+                    {
+                        break;
+                    }
+                }
+
+                for (var i = 0; i <= left; i++)
+                {
+                    _itemsPresenterFullFallbackCount++;
+                    scanned++;
+                    hit = HitTestCore(
+                        itemContainers[i],
+                        position,
+                        nextHorizontalOffset,
+                        nextVerticalOffset,
+                        collector,
+                        depth + 1,
+                        nextAncestorTransformToRoot,
+                        hasNextAncestorTransformToRoot,
+                        currentRootToThisInverse,
+                        hasCurrentRootToThisInverse,
+                        hasClipInChain);
+                    if (hit != null)
+                    {
+                        if (EnableHitTestTrace)
+                        {
+                            var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                            Console.WriteLine(
+                                $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                                $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=full-fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
+                        }
+
+                        return hit;
+                    }
+                }
+
+                for (var i = right; i < itemContainers.Count; i++)
+                {
+                    _itemsPresenterFullFallbackCount++;
+                    scanned++;
+                    hit = HitTestCore(
+                        itemContainers[i],
+                        position,
+                        nextHorizontalOffset,
+                        nextVerticalOffset,
+                        collector,
+                        depth + 1,
+                        nextAncestorTransformToRoot,
+                        hasNextAncestorTransformToRoot,
+                        currentRootToThisInverse,
+                        hasCurrentRootToThisInverse,
+                        hasClipInChain);
+                    if (hit != null)
+                    {
+                        if (EnableHitTestTrace)
+                        {
+                            var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+                            Console.WriteLine(
+                                $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
+                                $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=full-fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
+                        }
+
+                        return hit;
+                    }
+                }
+
                 if (EnableHitTestTrace)
                 {
                     var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
                     Console.WriteLine(
                         $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                        $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=candidate hit={hit.GetType().Name} ms={ms:0.###}");
+                        $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit=root ms={ms:0.###}");
                 }
-                return hit;
+
+                return isWithinSelfBounds ? root : null;
             }
-
-            // Fallback: probe nearest neighbors around the predicted index and prune by Y-range when possible.
-            var scanned = 0;
-            var searchLeft = true;
-            var searchRight = true;
-            var left = candidate - 1;
-            var right = candidate + 1;
-            while (left >= 0 || right < itemContainers.Count)
-            {
-                if (searchLeft && left >= 0)
-                {
-                    if (TryGetVerticalRange(itemContainers[left], out _, out var leftBottom) &&
-                        probeY > leftBottom)
-                    {
-                        searchLeft = false;
-                    }
-                    else
-                    {
-                        scanned++;
-                        _itemsPresenterNeighborProbeCount++;
-                        hit = HitTestCore(
-                            itemContainers[left],
-                            position,
-                            nextHorizontalOffset,
-                            nextVerticalOffset,
-                            collector,
-                            depth + 1,
-                            nextAncestorTransformToRoot,
-                            hasNextAncestorTransformToRoot,
-                            currentRootToThisInverse,
-                            hasCurrentRootToThisInverse,
-                            hasClipInChain);
-                        if (hit != null)
-                        {
-                            if (EnableHitTestTrace)
-                            {
-                                var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                                Console.WriteLine(
-                                    $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                                    $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
-                            }
-
-                            return hit;
-                        }
-
-                        left--;
-                    }
-                }
-                else
-                {
-                    searchLeft = false;
-                }
-
-                if (searchRight && right < itemContainers.Count)
-                {
-                    if (TryGetVerticalRange(itemContainers[right], out var rightTop, out _) &&
-                        probeY < rightTop)
-                    {
-                        searchRight = false;
-                    }
-                    else
-                    {
-                        scanned++;
-                        _itemsPresenterNeighborProbeCount++;
-                        hit = HitTestCore(
-                            itemContainers[right],
-                            position,
-                            nextHorizontalOffset,
-                            nextVerticalOffset,
-                            collector,
-                            depth + 1,
-                            nextAncestorTransformToRoot,
-                            hasNextAncestorTransformToRoot,
-                            currentRootToThisInverse,
-                            hasCurrentRootToThisInverse,
-                            hasClipInChain);
-                        if (hit != null)
-                        {
-                            if (EnableHitTestTrace)
-                            {
-                                var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                                Console.WriteLine(
-                                    $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                                    $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
-                            }
-
-                            return hit;
-                        }
-
-                        right++;
-                    }
-                }
-                else
-                {
-                    searchRight = false;
-                }
-
-                if (!searchLeft && !searchRight)
-                {
-                    break;
-                }
-            }
-
-            for (var i = 0; i <= left; i++)
-            {
-                _itemsPresenterFullFallbackCount++;
-                scanned++;
-                hit = HitTestCore(
-                    itemContainers[i],
-                    position,
-                    nextHorizontalOffset,
-                    nextVerticalOffset,
-                    collector,
-                    depth + 1,
-                    nextAncestorTransformToRoot,
-                    hasNextAncestorTransformToRoot,
-                    currentRootToThisInverse,
-                    hasCurrentRootToThisInverse,
-                    hasClipInChain);
-                if (hit != null)
-                {
-                    if (EnableHitTestTrace)
-                    {
-                        var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                        Console.WriteLine(
-                            $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                            $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=full-fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
-                    }
-
-                    return hit;
-                }
-            }
-
-            for (var i = right; i < itemContainers.Count; i++)
-            {
-                _itemsPresenterFullFallbackCount++;
-                scanned++;
-                hit = HitTestCore(
-                    itemContainers[i],
-                    position,
-                    nextHorizontalOffset,
-                    nextVerticalOffset,
-                    collector,
-                    depth + 1,
-                    nextAncestorTransformToRoot,
-                    hasNextAncestorTransformToRoot,
-                    currentRootToThisInverse,
-                    hasCurrentRootToThisInverse,
-                    hasClipInChain);
-                if (hit != null)
-                {
-                    if (EnableHitTestTrace)
-                    {
-                        var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                        Console.WriteLine(
-                            $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                            $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=full-fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
-                    }
-
-                    return hit;
-                }
-            }
-
-            if (EnableHitTestTrace)
-            {
-                var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                Console.WriteLine(
-                    $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                    $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit=root ms={ms:0.###}");
-            }
-            return root;
-        }
 
             var traversalChildCount = root.GetVisualChildCountForTraversal();
             if (traversalChildCount >= 0)
             {
                 if (traversalChildCount == 0)
                 {
-                    return root;
+                    return isWithinSelfBounds ? root : null;
                 }
 
                 var minZ = int.MaxValue;
@@ -478,7 +480,7 @@ public static class VisualTreeHelper
                             }
                         }
 
-                        return root;
+                        return isWithinSelfBounds ? root : null;
                     }
                     finally
                     {
@@ -486,7 +488,6 @@ public static class VisualTreeHelper
                     }
                 }
 
-                // Common case: no ZIndex variance. Iterate in reverse draw order so later children win.
                 for (var i = traversalChildCount - 1; i >= 0; i--)
                 {
                     var child = root.GetVisualChildAtForTraversal(i);
@@ -508,7 +509,7 @@ public static class VisualTreeHelper
                     }
                 }
 
-                return root;
+                return isWithinSelfBounds ? root : null;
             }
 
             _legacyEnumerableFallbackCount++;
@@ -528,12 +529,11 @@ public static class VisualTreeHelper
 
                 if (childBuffer.Count == 0)
                 {
-                    return root;
+                    return isWithinSelfBounds ? root : null;
                 }
 
                 if (minZ != maxZ)
                 {
-                    // Only sort when ZIndex differs. Most trees have all-zero ZIndex and sorting becomes the dominant cost.
                     childBuffer.Sort(static (left, right) => CompareVisualChildrenByZIndex(left, right));
                     for (var i = 0; i < childBuffer.Count; i++)
                     {
@@ -556,10 +556,9 @@ public static class VisualTreeHelper
                         }
                     }
 
-                    return root;
+                    return isWithinSelfBounds ? root : null;
                 }
 
-                // Common case: no ZIndex variance. Iterate in reverse draw order so later children win.
                 for (var i = childBuffer.Count - 1; i >= 0; i--)
                 {
                     var child = childBuffer[i];
@@ -586,7 +585,7 @@ public static class VisualTreeHelper
                 ListPool<UIElement>.Return(childBuffer);
             }
 
-            return root;
+            return isWithinSelfBounds ? root : null;
         }
         finally
         {

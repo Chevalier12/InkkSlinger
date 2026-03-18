@@ -453,6 +453,11 @@ public static partial class XamlLoader
             return BuildColorObject(element);
         }
 
+        if (string.Equals(element.Name.LocalName, nameof(CornerRadius), StringComparison.Ordinal))
+        {
+            return BuildCornerRadiusObject(element);
+        }
+
         if (string.Equals(element.Name.LocalName, nameof(ResourceDictionary), StringComparison.Ordinal))
         {
             var dictionary = new ResourceDictionary();

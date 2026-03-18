@@ -13,6 +13,10 @@
     <xs:restriction base="xs:string" />
   </xs:simpleType>
 
+  <xs:simpleType name="cornerRadiusType">
+    <xs:restriction base="xs:string" />
+  </xs:simpleType>
+
   <xs:simpleType name="xamlValueType">
     <xs:restriction base="xs:string" />
   </xs:simpleType>
@@ -155,6 +159,7 @@
     </xs:sequence>
 
     <xs:attribute name="UseLayoutRounding" type="xs:boolean" />
+    <xs:attribute name="ClipToBounds" type="xs:boolean" />
     <xs:attribute name="AutomationProperties.Name" type="xs:string" />
     <xs:attribute name="AutomationProperties.AutomationId" type="xs:string" />
     <xs:attribute name="AutomationProperties.HelpText" type="xs:string" />
@@ -1177,10 +1182,11 @@
   <xs:complexType name="borderType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
-        <xs:attribute name="Background" type="colorType" />
-        <xs:attribute name="BorderBrush" type="colorType" />
+        <xs:attribute name="Background" type="xamlValueType" />
+        <xs:attribute name="BorderBrush" type="xamlValueType" />
         <xs:attribute name="BorderThickness" type="thicknessType" />
         <xs:attribute name="Padding" type="thicknessType" />
+        <xs:attribute name="CornerRadius" type="cornerRadiusType" />
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>

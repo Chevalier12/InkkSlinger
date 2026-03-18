@@ -72,6 +72,13 @@ public class UIElement : DependencyObject
             typeof(UIElement),
             new FrameworkPropertyMetadata(true));
 
+    public static readonly DependencyProperty ClipToBoundsProperty =
+        DependencyProperty.Register(
+            nameof(ClipToBounds),
+            typeof(bool),
+            typeof(UIElement),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty OpacityProperty =
         DependencyProperty.Register(
             nameof(Opacity),
@@ -204,6 +211,12 @@ public class UIElement : DependencyObject
     {
         get => GetValue<bool>(IsHitTestVisibleProperty);
         set => SetValue(IsHitTestVisibleProperty, value);
+    }
+
+    public bool ClipToBounds
+    {
+        get => GetValue<bool>(ClipToBoundsProperty);
+        set => SetValue(ClipToBoundsProperty, value);
     }
 
     public float Opacity
@@ -407,6 +420,12 @@ public class UIElement : DependencyObject
 
     protected virtual bool TryGetClipRect(out LayoutRect clipRect)
     {
+        if (ClipToBounds)
+        {
+            clipRect = LayoutSlot;
+            return true;
+        }
+
         clipRect = default;
         return false;
     }

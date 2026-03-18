@@ -7,6 +7,15 @@ namespace InkkSlinger;
 
 public class FrameworkElement : UIElement
 {
+    static FrameworkElement()
+    {
+        ClipToBoundsProperty.OverrideMetadata(
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(
+                false,
+                FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsRender));
+    }
+
     [ThreadStatic]
     private static List<long>? _activeMeasureChildTickStack;
 

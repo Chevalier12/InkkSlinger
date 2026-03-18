@@ -130,7 +130,7 @@ public sealed class XamlLoaderOptimizationTests
             Assert.True(root.ApplyTemplate());
 
             var chrome = Assert.IsType<Border>(Assert.Single(root.GetVisualChildren()));
-            Assert.Equal(new Microsoft.Xna.Framework.Color(100, 149, 237), chrome.Background);
+            AssertBrushColor(new Microsoft.Xna.Framework.Color(100, 149, 237), chrome.Background);
             Assert.Equal(new Thickness(9f, 4f, 3f, 2f), chrome.Padding);
         }
     }
@@ -149,7 +149,7 @@ public sealed class XamlLoaderOptimizationTests
         for (var i = 0; i < 20; i++)
         {
             var border = Assert.IsType<Border>(XamlLoader.LoadFromString(xaml));
-            Assert.Equal(new Microsoft.Xna.Framework.Color(100, 149, 237), border.Background);
+            AssertBrushColor(new Microsoft.Xna.Framework.Color(100, 149, 237), border.Background);
             Assert.Equal(new Thickness(21f, 3f, 4f, 9f), border.Padding);
 
             var transform = Assert.IsType<MatrixTransform>(border.RenderTransform);
@@ -370,5 +370,11 @@ public sealed class XamlLoaderOptimizationTests
         return (
             (int)stringMissesField.GetValue(result)!,
             (int)fileMissesField.GetValue(result)!);
+    }
+
+    private static void AssertBrushColor(Microsoft.Xna.Framework.Color expected, Brush? brush)
+    {
+        var actualBrush = Assert.IsAssignableFrom<Brush>(brush);
+        Assert.Equal(expected, actualBrush.ToColor());
     }
 }

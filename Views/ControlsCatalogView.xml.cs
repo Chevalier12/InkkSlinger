@@ -120,8 +120,20 @@ public partial class ControlsCatalogView : UserControl
             return;
         }
 
-        var current = target.GetValue<Color>(property);
-        if (remap.TryGetValue(current, out var replacement) && replacement != current)
+        var currentValue = target.GetValue(property);
+        var current = currentValue switch
+        {
+            Color color => color,
+            Brush brush => brush.ToColor(),
+            _ => (Color?)null
+        };
+
+        if (current == null)
+        {
+            return;
+        }
+
+        if (remap.TryGetValue(current.Value, out var replacement) && replacement != current.Value)
         {
             target.SetValue(property, replacement);
         }

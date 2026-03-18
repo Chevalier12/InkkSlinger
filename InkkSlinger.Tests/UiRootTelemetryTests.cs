@@ -9,6 +9,17 @@ namespace InkkSlinger.Tests;
 public class UiRootTelemetryTests
 {
     [Fact]
+    public void Constructor_EnablesRetainedRenderingAndDirtyRegionsByDefault()
+    {
+        var uiRoot = new UiRoot(new Panel());
+
+        Assert.True(uiRoot.UseRetainedRenderList);
+        Assert.True(uiRoot.UseDirtyRegionRendering);
+        Assert.True(uiRoot.GetMetricsSnapshot().UseRetainedRenderList);
+        Assert.True(uiRoot.GetMetricsSnapshot().UseDirtyRegionRendering);
+    }
+
+    [Fact]
     public void MetricsSnapshot_TracksLayoutAndDrawSkipCounters()
     {
         AnimationManager.Current.ResetForTests();
