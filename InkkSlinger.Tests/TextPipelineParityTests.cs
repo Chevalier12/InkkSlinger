@@ -122,6 +122,41 @@ public class TextPipelineParityTests
     }
 
     [Fact]
+    public void WrappedTextInput_BatchRenderingUsesNewlineAwareGlyphPositions()
+    {
+        var textBox = new TextBox
+        {
+            Text = "TextBox sampleadsfadsfadsfadsfadsfadsa",
+            TextWrapping = TextWrapping.Wrap,
+            Width = 160f,
+            Height = 220f
+        };
+
+        var wrappedLayout = TextLayout.LayoutForElement(textBox.Text, textBox, textBox.FontSize, 120f, TextWrapping.Wrap);
+        Assert.True(wrappedLayout.Lines.Count > 1);
+
+        var builder = new System.Text.StringBuilder();
+        for (var i = 0; i < wrappedLayout.Lines.Count; i++)
+        {
+            var line = wrappedLayout.Lines[i];
+            builder.Append(line);
+
+            if (i < wrappedLayout.Lines.Count - 1)
+            {
+                builder.Append('\n');
+            }
+        }
+
+        var positions = UiTextRenderer.GetGlyphDrawPositionsForTests(
+            UiTextRenderer.ResolveTypography(textBox, textBox.FontSize),
+            builder.ToString());
+
+        Assert.NotEmpty(positions);
+        var firstLineY = positions[0].Y;
+        Assert.Contains(positions, position => position.Y > firstLineY);
+    }
+
+    [Fact]
     public void TextLayout_GlobalMetrics_TrackCacheHitsMissesAndBuildModes()
     {
         TextLayout.ResetMetricsForTests();

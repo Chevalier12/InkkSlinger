@@ -12,8 +12,9 @@ public sealed partial class UiRoot
 
     private void DrawRetainedRenderListWithDirtyRegions(SpriteBatch spriteBatch)
     {
+        var dirtyCoverage = _dirtyRegions.GetDirtyAreaCoverage();
         LastDirtyRectCount = _dirtyRegions.IsFullFrameDirty ? 1 : _dirtyRegions.RegionCount;
-        LastDirtyAreaPercentage = _dirtyRegions.GetDirtyAreaCoverage();
+        LastDirtyAreaPercentage = dirtyCoverage;
 
         if (_dirtyRegions.IsFullFrameDirty || _dirtyRegions.RegionCount == 0)
         {
@@ -28,7 +29,13 @@ public sealed partial class UiRoot
             return;
         }
 
-        DrawRetainedRenderListForDirtyRegions(spriteBatch, _dirtyRegions.Regions);
+        if (!_dirtyRegions.TryGetDirtyBoundsEnvelope(out var dirtyBoundsEnvelope))
+        {
+            DrawRetainedRenderList(spriteBatch);
+            return;
+        }
+
+        DrawRetainedRenderListForDirtyRegions(spriteBatch, _dirtyRegions.Regions, dirtyBoundsEnvelope);
         LastDrawUsedPartialRedraw = true;
     }
 
@@ -42,7 +49,7 @@ public sealed partial class UiRoot
         _lastRetainedNodesDrawn += metrics.NodesDrawn;
     }
 
-    private void DrawRetainedRenderListForDirtyRegions(SpriteBatch spriteBatch, IReadOnlyList<LayoutRect> regions)
+    private void DrawRetainedRenderListForDirtyRegions(SpriteBatch spriteBatch, IReadOnlyList<LayoutRect> regions, LayoutRect regionsEnvelope)
     {
         for (var regionIndex = 0; regionIndex < regions.Count; regionIndex++)
         {
@@ -58,13 +65,13 @@ public sealed partial class UiRoot
             }
         }
 
-        var metrics = TraverseRetainedNodesWithinDirtyRegions(spriteBatch, regions);
+        var metrics = TraverseRetainedNodesWithinDirtyRegions(spriteBatch, regions, regionsEnvelope);
         _lastRetainedTraversalCount++;
         _lastRetainedNodesVisited += metrics.NodesVisited;
         _lastRetainedNodesDrawn += metrics.NodesDrawn;
     }
 
-    private RenderTraversalMetrics TraverseRetainedNodesWithinDirtyRegions(SpriteBatch spriteBatch, IReadOnlyList<LayoutRect> regions)
+    private RenderTraversalMetrics TraverseRetainedNodesWithinDirtyRegions(SpriteBatch spriteBatch, IReadOnlyList<LayoutRect> regions, LayoutRect regionsEnvelope)
     {
         var visited = 0;
         var drawn = 0;
@@ -83,6 +90,12 @@ public sealed partial class UiRoot
                     continue;
                 }
 
+                if (node.HasSubtreeBoundsSnapshot && !Intersects(node.SubtreeBoundsSnapshot, regionsEnvelope))
+                {
+                    nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
+                    continue;
+                }
+
                 if (node.HasSubtreeBoundsSnapshot && !IntersectsAny(node.SubtreeBoundsSnapshot, regions))
                 {
                     nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
@@ -91,6 +104,11 @@ public sealed partial class UiRoot
 
                 SyncRetainedDrawState(spriteBatch, node, ref clipPushCount);
                 var rendered = false;
+                if (node.HasBoundsSnapshot && !Intersects(node.BoundsSnapshot, regionsEnvelope))
+                {
+                    continue;
+                }
+
                 for (var regionIndex = 0; regionIndex < regions.Count; regionIndex++)
                 {
                     var dirtyRegion = regions[regionIndex];

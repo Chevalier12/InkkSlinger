@@ -26,15 +26,23 @@ public sealed partial class UiRoot
     private readonly HashSet<UIElement> _dirtyRenderSet = new();
     private readonly HashSet<UIElement> _dirtyRenderRootsRequireDeepSync = new();
     private readonly List<DirtyRenderWorkItem> _dirtyRenderWorkItems = new();
+    private readonly List<UIElement> _pendingAncestorMetadataRefreshRoots = new();
+    private readonly List<UIElement> _ancestorMetadataRefreshBuffer = new();
+    private readonly HashSet<UIElement> _ancestorMetadataRefreshSet = new();
     private readonly List<UIElement> _lastSynchronizedDirtyRenderRoots = new();
     private readonly List<DirtyRenderSpan> _lastSynchronizedDirtyRenderSpans = new();
     private readonly List<UIElement> _dirtyRenderCompactionBuffer = new();
-    private readonly List<UIElement> _dirtyRenderCoalescedBuffer = new();
     private readonly List<RenderNode> _activeRetainedDrawPath = new();
     private readonly List<UiUpdatePhase> _lastUpdatePhaseOrder = new(5);
     private readonly DirtyRegionTracker _dirtyRegions = new();
     private readonly InputManager _inputManager = new();
     private readonly InputDispatchState _inputState = new();
+    private readonly Dictionary<UIElement, CachedInputConnectionState> _inputConnectionCache = new();
+    private readonly Dictionary<UIElement, CachedInputAncestorChain> _inputAncestorCache = new();
+    private readonly List<UIElement> _inputAncestorBuilder = new();
+    private readonly List<UIElement> _openOverlayVisuals = new();
+    private readonly List<ContextMenu> _openContextMenus = new();
+    private readonly List<UiIndexedUpdateParticipant> _activeUpdateParticipants = new();
     private UIElement? _cachedClickTarget;
     private UIElement? _cachedPointerResolveTarget;
     private Vector2 _cachedPointerResolvePointerPosition;
@@ -112,15 +120,22 @@ public sealed partial class UiRoot
     private int _lastRetainedNodesDrawn;
     private int _lastRetainedClipPushCount;
     private int _lastRetainedTraversalCount;
+    private int _lastAncestorMetadataRefreshNodeCount;
     private int _lastSpriteBatchRestartCount;
     private int _dirtyRegionThresholdFallbackCount;
     private int _lastFrameUpdateParticipantCount;
+    private int _lastFrameUpdateParticipantRefreshCount;
     private int _lastDirtyRootCountAfterCoalescing;
     private int _lastMenuScopeBuildCount;
     private int _lastOverlayRegistryScanCount;
     private int _lastOverlayRegistryHitCount;
     private KeyboardMenuScope _activeKeyboardMenuScope;
     private bool _hasActiveKeyboardMenuScope;
+    private KeyboardMenuScope _cachedKeyboardMenuScope;
+    private bool _hasCachedKeyboardMenuScope;
+    private int _cachedKeyboardMenuScopeVisualIndexVersion = -1;
+    private UIElement? _cachedKeyboardMenuScopeFocusedElement;
+    private bool _activeUpdateParticipantsDirty = true;
 
     public UiRoot(UIElement visualRoot)
     {
@@ -302,12 +317,19 @@ public sealed partial class UiRoot
     {
         return new UiRootPerformanceTelemetrySnapshot(
             _lastFrameUpdateParticipantCount,
+            _lastFrameUpdateParticipantRefreshCount,
             _lastDirtyRootCountAfterCoalescing,
             _lastRetainedTraversalCount,
+            _lastAncestorMetadataRefreshNodeCount,
             _lastMenuScopeBuildCount,
             _lastOverlayRegistryScanCount,
             _lastOverlayRegistryHitCount,
             _visualIndex.Version);
+    }
+
+    internal (int ConnectionCacheEntryCount, int AncestorCacheEntryCount) GetInputCacheEntryCountsForTests()
+    {
+        return (_inputConnectionCache.Count, _inputAncestorCache.Count);
     }
 
     internal bool WouldUsePartialDirtyRedrawForTests()
@@ -550,12 +572,106 @@ public sealed partial class UiRoot
     private void MarkVisualIndexDirty()
     {
         _visualIndex.MarkDirty();
+        InvalidateKeyboardMenuScopeCache();
+        InvalidateActiveUpdateParticipants();
+    }
+
+    private void BumpInputCacheVersion()
+    {
+        _inputCacheVersion++;
+        _inputConnectionCache.Clear();
+        _inputAncestorCache.Clear();
+    }
+
+    private void InvalidateKeyboardMenuScopeCache()
+    {
+        _hasCachedKeyboardMenuScope = false;
+        _cachedKeyboardMenuScope = default;
+        _cachedKeyboardMenuScopeVisualIndexVersion = -1;
+        _cachedKeyboardMenuScopeFocusedElement = null;
+    }
+
+    private void InvalidateActiveUpdateParticipants()
+    {
+        _activeUpdateParticipantsDirty = true;
+    }
+
+    internal void NotifyMenuStateMutation()
+    {
+        InvalidateKeyboardMenuScopeCache();
+    }
+
+    internal void NotifyOverlayOpened(UIElement overlay)
+    {
+        RegisterOpenOverlay(overlay);
+        InvalidateOverlayInteractionCaches(clearOverlayOwnedHover: true);
+    }
+
+    internal void NotifyOverlayClosed(UIElement overlay)
+    {
+        UnregisterOpenOverlay(overlay);
+        InvalidateOverlayInteractionCaches(clearOverlayOwnedHover: true);
+    }
+
+    private void RegisterOpenOverlay(UIElement overlay)
+    {
+        for (var i = 0; i < _openOverlayVisuals.Count; i++)
+        {
+            if (ReferenceEquals(_openOverlayVisuals[i], overlay))
+            {
+                goto registerContextMenu;
+            }
+        }
+
+        _openOverlayVisuals.Add(overlay);
+
+registerContextMenu:
+        if (overlay is ContextMenu contextMenu)
+        {
+            _lastKnownOpenContextMenu = contextMenu;
+            for (var i = 0; i < _openContextMenus.Count; i++)
+            {
+                if (ReferenceEquals(_openContextMenus[i], contextMenu))
+                {
+                    return;
+                }
+            }
+
+            _openContextMenus.Add(contextMenu);
+        }
+    }
+
+    private void UnregisterOpenOverlay(UIElement overlay)
+    {
+        for (var i = _openOverlayVisuals.Count - 1; i >= 0; i--)
+        {
+            if (ReferenceEquals(_openOverlayVisuals[i], overlay))
+            {
+                _openOverlayVisuals.RemoveAt(i);
+            }
+        }
+
+        if (overlay is ContextMenu contextMenu)
+        {
+            for (var i = _openContextMenus.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(_openContextMenus[i], contextMenu))
+                {
+                    _openContextMenus.RemoveAt(i);
+                }
+            }
+
+            if (ReferenceEquals(_lastKnownOpenContextMenu, contextMenu))
+            {
+                _lastKnownOpenContextMenu = null;
+            }
+        }
     }
 
     private void BumpPointerResolveStateVersion()
     {
         _pointerResolveStateVersion++;
-        _inputCacheVersion++;
+        BumpInputCacheVersion();
     }
 
     private static void AccumulateVisualTreeMetrics(UIElement visual, int depth, ref VisualTreeMetricsAccumulator accumulator)
@@ -603,4 +719,8 @@ public sealed partial class UiRoot
         public long ArrangeInvalidationCount;
         public long RenderInvalidationCount;
     }
+
+    private readonly record struct CachedInputConnectionState(int Version, bool IsConnected);
+
+    private sealed record CachedInputAncestorChain(int Version, UIElement[] Chain);
 }

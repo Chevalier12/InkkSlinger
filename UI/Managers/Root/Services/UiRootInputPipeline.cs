@@ -102,9 +102,12 @@ public sealed partial class UiRoot
         _lastInputCaptureMs = Stopwatch.GetElapsedTime(captureStart).TotalMilliseconds;
         var dispatchStart = Stopwatch.GetTimestamp();
         ProcessInputDelta(delta);
-        var tooltipStart = Stopwatch.GetTimestamp();
-        TickToolTipLifecycle(gameTime.ElapsedGameTime.TotalMilliseconds);
-        _lastInputToolTipLifecycleMs = Stopwatch.GetElapsedTime(tooltipStart).TotalMilliseconds;
+        if (ShouldTickToolTipLifecycle())
+        {
+            var tooltipStart = Stopwatch.GetTimestamp();
+            TickToolTipLifecycle(gameTime.ElapsedGameTime.TotalMilliseconds);
+            _lastInputToolTipLifecycleMs = Stopwatch.GetElapsedTime(tooltipStart).TotalMilliseconds;
+        }
         _lastInputDispatchMs = Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
 
         var updateStart = Stopwatch.GetTimestamp();
@@ -163,9 +166,12 @@ public sealed partial class UiRoot
         _clickCpuResolveHitTestCount = 0;
         var dispatchStart = Stopwatch.GetTimestamp();
         ProcessInputDelta(delta);
-        var tooltipStart = Stopwatch.GetTimestamp();
-        TickToolTipLifecycle(Math.Max(0d, elapsedMs));
-        _lastInputToolTipLifecycleMs = Stopwatch.GetElapsedTime(tooltipStart).TotalMilliseconds;
+        if (ShouldTickToolTipLifecycle())
+        {
+            var tooltipStart = Stopwatch.GetTimestamp();
+            TickToolTipLifecycle(Math.Max(0d, elapsedMs));
+            _lastInputToolTipLifecycleMs = Stopwatch.GetElapsedTime(tooltipStart).TotalMilliseconds;
+        }
         _lastInputDispatchMs = Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
     }
 
@@ -757,6 +763,13 @@ public sealed partial class UiRoot
         CloseActiveToolTip();
     }
 
+    private bool ShouldTickToolTipLifecycle()
+    {
+        return _activeToolTip != null ||
+               _toolTipHoverTarget != null ||
+               _timeSinceToolTipClosedMs != double.PositiveInfinity;
+    }
+
     private void TickToolTipLifecycle(double elapsedMs)
     {
         if (_timeSinceToolTipClosedMs != double.PositiveInfinity)
@@ -1077,6 +1090,11 @@ public sealed partial class UiRoot
                                   (target is not ITextInputControl || focusedDataGrid.ShouldRetainFocusForInputTarget(target))
             ? focusedDataGrid
             : null;
+        var expanderTarget = target is Expander directExpander
+            ? directExpander
+            : (target != null && TryFindAncestor<Expander>(target, out var ancestorExpander)
+                ? ancestorExpander
+                : null);
 
         if (target is not Menu && target is not MenuItem)
         {
@@ -1139,24 +1157,10 @@ public sealed partial class UiRoot
             CapturePointer(target);
         }
         else if (button == MouseButton.Left &&
-                 ((target is Expander directExpander && directExpander.HandlePointerDownFromInput(pointerPosition)) ||
-                  (target != null &&
-                   TryFindAncestor<Expander>(target, out var owningExpander) &&
-                   owningExpander != null &&
-                   owningExpander.HandlePointerDownFromInput(pointerPosition))))
+                 expanderTarget != null &&
+                 expanderTarget.HandlePointerDownFromInput(pointerPosition))
         {
-            var expanderToCapture = target as Expander;
-            if (expanderToCapture == null &&
-                target != null &&
-                TryFindAncestor<Expander>(target, out var ancestorExpander))
-            {
-                expanderToCapture = ancestorExpander;
-            }
-
-            if (expanderToCapture != null)
-            {
-                CapturePointer(expanderToCapture);
-            }
+            CapturePointer(expanderTarget);
         }
         else if (button == MouseButton.Left && textInputTarget is ITextInputControl textInput)
         {
@@ -1466,7 +1470,7 @@ public sealed partial class UiRoot
         }
     }
 
-    private static bool PointerLikelyInsideElement(UIElement element, Vector2 pointerPosition)
+    private bool PointerLikelyInsideElement(UIElement element, Vector2 pointerPosition)
     {
         if (RequiresPrecisePointerContainmentCheck(element))
         {
@@ -1492,9 +1496,9 @@ public sealed partial class UiRoot
         return hovered.HitTest(pointerPosition);
     }
 
-    private static bool RequiresPrecisePointerContainmentCheck(UIElement element)
+    private bool RequiresPrecisePointerContainmentCheck(UIElement element)
     {
-        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        foreach (var current in GetInputAncestorChain(element))
         {
             if (current.TryGetLocalRenderTransformSnapshot(out _) ||
                 current.TryGetLocalClipSnapshot(out _))
@@ -1546,28 +1550,24 @@ public sealed partial class UiRoot
 
     private bool TryFindWheelCapableTargetAtPointer(Vector2 pointerPosition, out UIElement? target)
     {
-        EnsureVisualIndexCurrent();
-        var bestDepth = -1;
-        var bestPreorder = -1;
-        target = null;
-        var candidates = _visualIndex.WheelCapableVisuals;
-        for (var i = 0; i < candidates.Count; i++)
+        var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        if (hit != null)
         {
-            var candidate = candidates[i];
-            if (!_visualIndex.TryGetNode(candidate, out var node) || !candidate.HitTest(pointerPosition))
+            if (TryFindWheelTextInputAncestor(hit, out var textInput) && textInput != null)
             {
-                continue;
+                target = textInput;
+                return true;
             }
 
-            if (node.Depth > bestDepth || (node.Depth == bestDepth && node.PreorderIndex > bestPreorder))
+            if (TryFindAncestor<ScrollViewer>(hit, out var scrollViewer) && scrollViewer != null)
             {
-                bestDepth = node.Depth;
-                bestPreorder = node.PreorderIndex;
-                target = candidate;
+                target = scrollViewer;
+                return true;
             }
         }
 
-        return target != null;
+        target = null;
+        return false;
     }
 
     private void RefreshCachedWheelTargets(UIElement? hovered)
@@ -1692,17 +1692,7 @@ public sealed partial class UiRoot
         out UIElement? target)
     {
         target = null;
-        UIElement? textInputHost = null;
-        for (var current = candidate; current != null; current = current.VisualParent ?? current.LogicalParent)
-        {
-            if (current is ITextInputControl)
-            {
-                textInputHost = current;
-                break;
-            }
-        }
-
-        if (textInputHost == null)
+        if (!TryFindWheelTextInputAncestor(candidate, out var textInputHost) || textInputHost == null)
         {
             return false;
         }
@@ -1733,17 +1723,7 @@ public sealed partial class UiRoot
         out UIElement? target)
     {
         target = null;
-        UIElement? textInputHost = null;
-        for (var current = candidate; current != null; current = current.VisualParent ?? current.LogicalParent)
-        {
-            if (current is ITextInputControl)
-            {
-                textInputHost = current;
-                break;
-            }
-        }
-
-        if (textInputHost == null)
+        if (!TryFindWheelTextInputAncestor(candidate, out var textInputHost) || textInputHost == null)
         {
             return false;
         }
@@ -1800,7 +1780,7 @@ public sealed partial class UiRoot
             return true;
         }
 
-        for (var current = candidate; current != null; current = current.VisualParent ?? current.LogicalParent)
+        foreach (var current in GetInputAncestorChain(candidate))
         {
             if (IsKnownClickCapableElement(current))
             {
@@ -1968,9 +1948,17 @@ public sealed partial class UiRoot
 
     private bool IsElementConnectedToVisualRoot(UIElement element)
     {
+        if (_inputConnectionCache.TryGetValue(element, out var cachedState) &&
+            cachedState.Version == _inputCacheVersion)
+        {
+            return cachedState.IsConnected;
+        }
+
         EnsureVisualIndexCurrent();
-        return _visualIndex.TryGetNode(element, out _) &&
-               ReferenceEquals(element.GetVisualRoot(), _visualRoot);
+        var isConnected = _visualIndex.TryGetNode(element, out _) &&
+                          ReferenceEquals(element.GetVisualRoot(), _visualRoot);
+        _inputConnectionCache[element] = new CachedInputConnectionState(_inputCacheVersion, isConnected);
+        return isConnected;
     }
 
     private bool TryResolveItemsHostContainerTarget(
@@ -1991,7 +1979,7 @@ public sealed partial class UiRoot
 
         if (cachedAnchor != null &&
             IsElementConnectedToVisualRoot(cachedAnchor) &&
-            TryResolveItemsHostContainerTargetFromAnchor(cachedAnchor, pointerPosition, _visualRoot, out target, out cachedDetail))
+            TryResolveItemsHostContainerTargetFromAnchor(cachedAnchor, pointerPosition, out target, out cachedDetail))
         {
             detail = $"anchor=cached; {cachedDetail}";
             return true;
@@ -2002,7 +1990,7 @@ public sealed partial class UiRoot
         if (hoveredAnchor != null &&
             IsElementConnectedToVisualRoot(hoveredAnchor) &&
             !ReferenceEquals(cachedAnchor, hoveredAnchor) &&
-            TryResolveItemsHostContainerTargetFromAnchor(hoveredAnchor, pointerPosition, _visualRoot, out target, out hoveredDetail))
+            TryResolveItemsHostContainerTargetFromAnchor(hoveredAnchor, pointerPosition, out target, out hoveredDetail))
         {
             detail = $"anchor=hovered; {hoveredDetail}";
             return true;
@@ -2020,10 +2008,9 @@ public sealed partial class UiRoot
         return false;
     }
 
-    private static bool TryResolveItemsHostContainerTargetFromAnchor(
+    private bool TryResolveItemsHostContainerTargetFromAnchor(
         UIElement? anchor,
         Vector2 pointerPosition,
-        UIElement visualRoot,
         out UIElement? target,
         out string detail)
     {
@@ -2036,7 +2023,7 @@ public sealed partial class UiRoot
             return false;
         }
 
-        if (!ReferenceEquals(anchor.GetVisualRoot(), visualRoot))
+        if (!IsElementConnectedToVisualRoot(anchor))
         {
             detail = "anchor=detached";
             return false;
@@ -2050,7 +2037,7 @@ public sealed partial class UiRoot
             return false;
         }
 
-        if (!ReferenceEquals(container.GetVisualRoot(), visualRoot))
+        if (!IsElementConnectedToVisualRoot(container))
         {
             detail = $"container={container.GetType().Name} detached nearest={nearestMs:0.###}ms";
             return false;
@@ -2506,17 +2493,22 @@ public sealed partial class UiRoot
             return _hasCachedTopOverlayCandidate;
         }
 
-        EnsureVisualIndexCurrent();
-        _lastOverlayRegistryScanCount++;
         var hasCandidate = false;
         var bestDepth = int.MinValue;
         var bestZIndex = int.MinValue;
         var bestOrder = int.MinValue;
         var currentCandidate = default(OverlayCandidate);
-        var overlays = _visualIndex.OverlayVisuals;
-        for (var i = 0; i < overlays.Count; i++)
+        EnsureVisualIndexCurrent();
+        for (var i = _openOverlayVisuals.Count - 1; i >= 0; i--)
         {
-            var overlay = overlays[i];
+            var overlay = _openOverlayVisuals[i];
+            if (!IsOverlayCurrentlyOpen(overlay) || !IsElementConnectedToVisualRoot(overlay))
+            {
+                UnregisterOpenOverlay(overlay);
+                continue;
+            }
+
+            _lastOverlayRegistryScanCount++;
             if (!_visualIndex.TryGetNode(overlay, out var node))
             {
                 continue;
@@ -2658,6 +2650,16 @@ public sealed partial class UiRoot
         return new OverlayDismissResult(Dismissed: true, Consumed: consumePointerClick);
     }
 
+    private static bool IsOverlayCurrentlyOpen(UIElement overlay)
+    {
+        return overlay switch
+        {
+            Popup popup => popup.IsOpen,
+            ContextMenu contextMenu => contextMenu.IsOpen,
+            _ => false
+        };
+    }
+
     private static bool IsBetterOverlayCandidate(
         int depth,
         int zIndex,
@@ -2706,6 +2708,8 @@ public sealed partial class UiRoot
 
         var old = _inputState.FocusedElement;
         _inputState.FocusedElement = element;
+        InvalidateKeyboardMenuScopeCache();
+        InvalidateActiveUpdateParticipants();
         FocusManager.SetFocus(element);
         Automation.NotifyFocusChanged(old, element);
         
@@ -2816,11 +2820,23 @@ public sealed partial class UiRoot
     private KeyboardMenuScope BuildKeyboardMenuScope()
     {
         EnsureVisualIndexCurrent();
+        if (_hasCachedKeyboardMenuScope &&
+            _cachedKeyboardMenuScopeVisualIndexVersion == _visualIndex.Version &&
+            ReferenceEquals(_cachedKeyboardMenuScopeFocusedElement, _inputState.FocusedElement))
+        {
+            return _cachedKeyboardMenuScope;
+        }
+
         _lastMenuScopeBuildCount++;
         var allMenus = _visualIndex.Menus;
         if (allMenus.Count == 0)
         {
-            return new KeyboardMenuScope(Array.Empty<Menu>());
+            var emptyScope = new KeyboardMenuScope(Array.Empty<Menu>());
+            _cachedKeyboardMenuScope = emptyScope;
+            _hasCachedKeyboardMenuScope = true;
+            _cachedKeyboardMenuScopeVisualIndexVersion = _visualIndex.Version;
+            _cachedKeyboardMenuScopeFocusedElement = _inputState.FocusedElement;
+            return emptyScope;
         }
 
         var prioritized = new List<Menu>(allMenus.Count);
@@ -2844,7 +2860,12 @@ public sealed partial class UiRoot
             AddUniqueMenu(prioritized, allMenus[i]);
         }
 
-        return new KeyboardMenuScope(prioritized);
+        var scope = new KeyboardMenuScope(prioritized);
+        _cachedKeyboardMenuScope = scope;
+        _hasCachedKeyboardMenuScope = true;
+        _cachedKeyboardMenuScopeVisualIndexVersion = _visualIndex.Version;
+        _cachedKeyboardMenuScopeFocusedElement = _inputState.FocusedElement;
+        return scope;
     }
 
     private bool TryFindAnyMenuInMenuMode(IReadOnlyList<Menu> menus, out Menu menu)
@@ -3039,17 +3060,22 @@ public sealed partial class UiRoot
 
         var overlayCandidateStart = Stopwatch.GetTimestamp();
         EnsureVisualIndexCurrent();
-        _lastOverlayRegistryScanCount++;
-        var contextMenus = _visualIndex.ContextMenus;
         var found = false;
         var bestDepth = int.MinValue;
         var bestZIndex = int.MinValue;
         var bestOrder = int.MinValue;
         ContextMenu? bestMenu = null;
-        for (var i = 0; i < contextMenus.Count; i++)
+        for (var i = _openContextMenus.Count - 1; i >= 0; i--)
         {
-            var candidateMenu = contextMenus[i];
-            if (!candidateMenu.IsOpen || !_visualIndex.TryGetNode(candidateMenu, out var node))
+            var candidateMenu = _openContextMenus[i];
+            if (!candidateMenu.IsOpen || !IsElementConnectedToVisualRoot(candidateMenu))
+            {
+                UnregisterOpenOverlay(candidateMenu);
+                continue;
+            }
+
+            _lastOverlayRegistryScanCount++;
+            if (!_visualIndex.TryGetNode(candidateMenu, out var node))
             {
                 continue;
             }
@@ -3081,13 +3107,11 @@ public sealed partial class UiRoot
 
     private void CloseAllOpenContextMenus()
     {
-        EnsureVisualIndexCurrent();
-        var contextMenus = _visualIndex.ContextMenus;
-        for (var i = 0; i < contextMenus.Count; i++)
+        for (var i = _openContextMenus.Count - 1; i >= 0; i--)
         {
-            if (contextMenus[i].IsOpen)
+            if (_openContextMenus[i].IsOpen)
             {
-                contextMenus[i].Close();
+                _openContextMenus[i].Close();
             }
         }
 
@@ -3197,9 +3221,28 @@ public sealed partial class UiRoot
         };
     }
 
-    private static bool TryFindWheelTextInputAncestor(UIElement start, out UIElement? textInput)
+    private ReadOnlySpan<UIElement> GetInputAncestorChain(UIElement start)
     {
+        if (_inputAncestorCache.TryGetValue(start, out var cachedChain) &&
+            cachedChain.Version == _inputCacheVersion)
+        {
+            return cachedChain.Chain;
+        }
+
+        _inputAncestorBuilder.Clear();
         for (var current = start; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            _inputAncestorBuilder.Add(current);
+        }
+
+        var chain = _inputAncestorBuilder.ToArray();
+        _inputAncestorCache[start] = new CachedInputAncestorChain(_inputCacheVersion, chain);
+        return chain;
+    }
+
+    private bool TryFindWheelTextInputAncestor(UIElement start, out UIElement? textInput)
+    {
+        foreach (var current in GetInputAncestorChain(start))
         {
             if (current is ITextInputControl)
             {
@@ -3212,10 +3255,10 @@ public sealed partial class UiRoot
         return false;
     }
 
-    private static bool TryFindAncestor<TElement>(UIElement start, out TElement? result)
+    private bool TryFindAncestor<TElement>(UIElement start, out TElement? result)
         where TElement : UIElement
     {
-        for (var current = start; current != null; current = current.VisualParent ?? current.LogicalParent)
+        foreach (var current in GetInputAncestorChain(start))
         {
             if (current is TElement typed)
             {

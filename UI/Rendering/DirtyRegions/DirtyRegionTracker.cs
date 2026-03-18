@@ -9,6 +9,10 @@ internal sealed class DirtyRegionTracker
     private readonly int _maxRegionCount;
     private LayoutRect _viewport;
     private bool _hasViewport;
+    private LayoutRect _dirtyBoundsEnvelope;
+    private bool _hasDirtyBoundsEnvelope;
+    private double _dirtyArea;
+    private double _viewportArea;
 
     public DirtyRegionTracker(int maxRegionCount = 12)
     {
@@ -23,6 +27,12 @@ internal sealed class DirtyRegionTracker
 
     public IReadOnlyList<LayoutRect> Regions => _regions;
 
+    public bool TryGetDirtyBoundsEnvelope(out LayoutRect boundsEnvelope)
+    {
+        boundsEnvelope = _dirtyBoundsEnvelope;
+        return _hasDirtyBoundsEnvelope;
+    }
+
     public bool SetViewport(LayoutRect viewport)
     {
         var normalized = Normalize(viewport);
@@ -33,13 +43,29 @@ internal sealed class DirtyRegionTracker
 
         _hasViewport = true;
         _viewport = normalized;
-        for (var i = _regions.Count - 1; i >= 0; i--)
+        _viewportArea = Math.Max(0d, normalized.Width * normalized.Height);
+        if (IsFullFrameDirty || _regions.Count == 0)
         {
-            _regions[i] = ClipToViewport(_regions[i]);
-            if (!IsValid(_regions[i]))
+            if (!IsFullFrameDirty)
             {
-                _regions.RemoveAt(i);
+                ResetTrackedRegionState();
             }
+
+            return true;
+        }
+
+        var existingRegions = _regions.ToArray();
+        _regions.Clear();
+        ResetTrackedRegionState();
+        for (var i = 0; i < existingRegions.Length; i++)
+        {
+            var clippedRegion = ClipToViewport(existingRegions[i]);
+            if (!IsValid(clippedRegion))
+            {
+                continue;
+            }
+
+            AddDirtyRegionCore(clippedRegion);
         }
 
         return true;
@@ -49,6 +75,7 @@ internal sealed class DirtyRegionTracker
     {
         IsFullFrameDirty = true;
         _regions.Clear();
+        ResetTrackedRegionState();
         if (dueToFragmentation)
         {
             FullRedrawFallbackCount++;
@@ -59,6 +86,7 @@ internal sealed class DirtyRegionTracker
     {
         IsFullFrameDirty = false;
         _regions.Clear();
+        ResetTrackedRegionState();
     }
 
     public void AddDirtyRegion(LayoutRect region)
@@ -79,22 +107,7 @@ internal sealed class DirtyRegionTracker
             return;
         }
 
-        for (var i = _regions.Count - 1; i >= 0; i--)
-        {
-            if (!IntersectsOrTouches(_regions[i], candidate))
-            {
-                continue;
-            }
-
-            candidate = Union(_regions[i], candidate);
-            _regions.RemoveAt(i);
-        }
-
-        _regions.Add(candidate);
-        if (_regions.Count > _maxRegionCount)
-        {
-            MarkFullFrameDirty(dueToFragmentation: true);
-        }
+        AddDirtyRegionCore(candidate);
     }
 
     public double GetDirtyAreaCoverage()
@@ -104,25 +117,57 @@ internal sealed class DirtyRegionTracker
             return 1d;
         }
 
-        if (!_hasViewport || _viewport.Width <= 0f || _viewport.Height <= 0f)
+        if (!_hasViewport || _viewportArea <= 0d)
         {
             return 0d;
         }
 
-        var viewportArea = _viewport.Width * _viewport.Height;
-        if (viewportArea <= 0f)
+        return Math.Clamp(_dirtyArea / _viewportArea, 0d, 1d);
+    }
+
+    private void AddDirtyRegionCore(LayoutRect candidate)
+    {
+        for (var i = _regions.Count - 1; i >= 0; i--)
         {
-            return 0d;
+            var existingRegion = _regions[i];
+            if (Contains(existingRegion, candidate))
+            {
+                return;
+            }
+
+            if (!IntersectsOrTouches(existingRegion, candidate))
+            {
+                continue;
+            }
+
+            candidate = Union(existingRegion, candidate);
+            _dirtyArea -= GetArea(existingRegion);
+            _regions.RemoveAt(i);
         }
 
-        double dirtyArea = 0d;
-        for (var i = 0; i < _regions.Count; i++)
+        _regions.Add(candidate);
+        _dirtyArea += GetArea(candidate);
+        if (_hasDirtyBoundsEnvelope)
         {
-            var region = _regions[i];
-            dirtyArea += region.Width * region.Height;
+            _dirtyBoundsEnvelope = Union(_dirtyBoundsEnvelope, candidate);
+        }
+        else
+        {
+            _dirtyBoundsEnvelope = candidate;
+            _hasDirtyBoundsEnvelope = true;
         }
 
-        return Math.Clamp(dirtyArea / viewportArea, 0d, 1d);
+        if (_regions.Count > _maxRegionCount)
+        {
+            MarkFullFrameDirty(dueToFragmentation: true);
+        }
+    }
+
+    private void ResetTrackedRegionState()
+    {
+        _dirtyArea = 0d;
+        _dirtyBoundsEnvelope = default;
+        _hasDirtyBoundsEnvelope = false;
     }
 
     private LayoutRect ClipToViewport(LayoutRect region)
@@ -184,6 +229,14 @@ internal sealed class DirtyRegionTracker
                leftBottom >= right.Y;
     }
 
+    private static bool Contains(LayoutRect outer, LayoutRect inner)
+    {
+        return inner.X >= outer.X &&
+               inner.Y >= outer.Y &&
+               inner.X + inner.Width <= outer.X + outer.Width &&
+               inner.Y + inner.Height <= outer.Y + outer.Height;
+    }
+
     private static LayoutRect Union(LayoutRect left, LayoutRect right)
     {
         var x = MathF.Min(left.X, right.X);
@@ -191,6 +244,11 @@ internal sealed class DirtyRegionTracker
         var rightEdge = MathF.Max(left.X + left.Width, right.X + right.Width);
         var bottomEdge = MathF.Max(left.Y + left.Height, right.Y + right.Height);
         return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
+    }
+
+    private static double GetArea(LayoutRect rect)
+    {
+        return rect.Width * rect.Height;
     }
 
     private static bool AreEqual(LayoutRect left, LayoutRect right)

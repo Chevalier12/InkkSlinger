@@ -45,6 +45,7 @@ public sealed class RetainedRenderSyncRegressionTests
             visual => Assert.Same(root, visual),
             visual => Assert.Same(parent, visual),
             visual => Assert.Same(child, visual));
+        Assert.Equal(1, uiRoot.GetPerformanceTelemetrySnapshotForTests().DirtyRootCount);
         Assert.Equal(0, uiRoot.DirtyRenderQueueCount);
     }
 
@@ -69,6 +70,7 @@ public sealed class RetainedRenderSyncRegressionTests
         Assert.Equal(3, order.Count);
         Assert.Contains(first, order);
         Assert.Contains(second, order);
+        Assert.Equal(2, uiRoot.GetPerformanceTelemetrySnapshotForTests().DirtyRootCount);
         Assert.Equal(0, uiRoot.DirtyRenderQueueCount);
     }
 
@@ -270,6 +272,32 @@ public sealed class RetainedRenderSyncRegressionTests
 
         Assert.Equal(uiRoot.RetainedRenderNodeCount, uiRoot.GetRetainedNodeSubtreeEndIndexForTests(root));
         Assert.Equal(0, uiRoot.DirtyRenderQueueCount);
+    }
+
+    [Fact]
+    public void SiblingDirtyLeaves_SharedAncestorChain_IsRefreshedOncePerNode()
+    {
+        var root = new Panel();
+        var parent = new Panel();
+        var left = new Border();
+        var right = new Border();
+        parent.AddChild(left);
+        parent.AddChild(right);
+        root.AddChild(parent);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        left.InvalidateVisual();
+        right.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.Equal(2, perfSnapshot.DirtyRootCount);
+        Assert.Equal(2, perfSnapshot.AncestorMetadataRefreshNodeCount);
     }
 
     [Fact]

@@ -318,6 +318,59 @@ public class InputDispatchOptimizationTests
     }
 
     [Fact]
+    public void PointerClick_RenderOnlyOpacityInvalidation_PreservesPointerResolveCache()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 300f, 200f));
+        var button = new Button();
+        button.SetLayoutSlot(new LayoutRect(20f, 20f, 120f, 40f));
+        root.AddChild(button);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+
+        var pointerPosition = new Vector2(30f, 30f);
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: pointerPosition));
+        Assert.Equal("HitTest", uiRoot.LastPointerResolvePathForDiagnostics);
+
+        button.Opacity = 0.5f;
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: pointerPosition, leftPressed: true));
+
+        Assert.Equal("PointerResolveCacheReuse", uiRoot.LastPointerResolvePathForDiagnostics);
+        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+    }
+
+    [Fact]
+    public void PointerClick_RenderTransformInvalidation_DoesNotReuseStalePointerCache()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 400f, 200f));
+        var button = new Button();
+        button.SetLayoutSlot(new LayoutRect(20f, 20f, 120f, 40f));
+        root.AddChild(button);
+
+        var clickCount = 0;
+        button.Click += (_, _) => clickCount++;
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+
+        var stalePointerPosition = new Vector2(30f, 30f);
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: stalePointerPosition));
+        Assert.Equal("HitTest", uiRoot.LastPointerResolvePathForDiagnostics);
+
+        button.RenderTransform = new TranslateTransform { X = 180f, Y = 0f };
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: stalePointerPosition, leftPressed: true));
+        Assert.NotEqual("PointerResolveCacheReuse", uiRoot.LastPointerResolvePathForDiagnostics);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: stalePointerPosition, leftReleased: true));
+
+        Assert.Equal(0, clickCount);
+    }
+
+    [Fact]
     public void ListBox_ClickingDifferentItems_UpdatesSelectedIndex()
     {
         var root = new Panel();

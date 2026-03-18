@@ -214,6 +214,7 @@ public class Menu : ItemsControl
     internal void EnterMenuMode(MenuItem source, UIElement? previousFocus = null)
     {
         var topLevel = source.GetTopLevelAncestor();
+        var enteredMenuMode = !_isMenuMode;
         if (!_isMenuMode)
         {
             _focusBeforeMenuMode = previousFocus;
@@ -221,6 +222,11 @@ public class Menu : ItemsControl
 
         _isMenuMode = true;
         EnsureOnTopOfHost();
+        if (enteredMenuMode)
+        {
+            UiRoot.Current?.NotifyMenuStateMutation();
+        }
+
         _activeTopLevelItem = topLevel;
 
         foreach (var item in GetTopLevelItems())
@@ -236,13 +242,19 @@ public class Menu : ItemsControl
 
     internal void ExitMenuMode()
     {
+        var exitedMenuMode = _isMenuMode;
         _isMenuMode = false;
         _activeTopLevelItem = null;
         RestoreHostZIndex();
+        if (exitedMenuMode)
+        {
+            UiRoot.Current?.NotifyMenuStateMutation();
+        }
     }
 
     internal void CloseAllSubmenus(bool restoreFocus)
     {
+        var exitedMenuMode = _isMenuMode;
         foreach (var item in GetTopLevelItems())
         {
             item.CloseSubmenuRecursive(clearHighlight: true);
@@ -258,6 +270,10 @@ public class Menu : ItemsControl
         }
 
         _focusBeforeMenuMode = null;
+        if (exitedMenuMode)
+        {
+            UiRoot.Current?.NotifyMenuStateMutation();
+        }
     }
 
     internal void CloseAllSubmenus()

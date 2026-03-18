@@ -90,6 +90,7 @@ public sealed partial class UiRoot
     {
         if (_dirtyRenderSet.Contains(visual))
         {
+            TrackQueuedRenderMutation(visual);
             return;
         }
 
@@ -126,7 +127,11 @@ public sealed partial class UiRoot
                 _mustDrawNextFrame = true;
                 RenderInvalidationCount++;
                 _renderStateVersion++;
-                BumpPointerResolveStateVersion();
+                BumpInputCacheVersion();
+                if (RenderInvalidationAffectsPointerTargets(source, effectiveSource))
+                {
+                    _pointerResolveStateVersion++;
+                }
                 if (source is TextBox textBox && textBox.IsFocused)
                 {
                     _hasCaretBlinkInvalidation = true;
@@ -145,12 +150,51 @@ public sealed partial class UiRoot
             default:
                 throw new ArgumentOutOfRangeException(nameof(invalidationType), invalidationType, null);
         }
+
+        if (source is IUiRootUpdateParticipant || effectiveSource is IUiRootUpdateParticipant)
+        {
+            InvalidateActiveUpdateParticipants();
+        }
+    }
+
+    private void TrackQueuedRenderMutation(UIElement source)
+    {
+        if (!TryResolveInvalidationSource(source, allowRetainedAncestorFallback: true, out var effectiveSource) ||
+            effectiveSource == null)
+        {
+            return;
+        }
+
+        _hasRenderInvalidation = true;
+        _mustDrawNextFrame = true;
+        _renderStateVersion++;
+        BumpInputCacheVersion();
+        if (RenderInvalidationAffectsPointerTargets(source, effectiveSource))
+        {
+            _pointerResolveStateVersion++;
+        }
+
+        if (source is TextBox textBox && textBox.IsFocused)
+        {
+            _hasCaretBlinkInvalidation = true;
+        }
+
+        if (UseDirtyRegionRendering)
+        {
+            TrackDirtyBoundsForVisual(effectiveSource);
+        }
+
+        if (source is IUiRootUpdateParticipant || effectiveSource is IUiRootUpdateParticipant)
+        {
+            InvalidateActiveUpdateParticipants();
+        }
     }
 
     private bool TryResolveInvalidationSource(UIElement source, bool allowRetainedAncestorFallback, out UIElement? effectiveSource)
     {
         effectiveSource = null;
         var connectedToRoot = false;
+        EnsureVisualIndexCurrent();
 
         for (var current = source; current != null; current = current.GetInvalidationParent())
         {
@@ -159,7 +203,7 @@ public sealed partial class UiRoot
                 connectedToRoot = true;
             }
 
-            if (!IsPartOfVisualTree(current))
+            if (!TryGetIndexedVisualNodeCore(current, out _))
             {
                 continue;
             }
@@ -182,11 +226,36 @@ public sealed partial class UiRoot
         return allowRetainedAncestorFallback;
     }
 
+    private static bool RenderInvalidationAffectsPointerTargets(UIElement? source, UIElement? effectiveSource)
+    {
+        if (source == null || effectiveSource == null)
+        {
+            return true;
+        }
+
+        for (var current = source; current != null; current = current.GetInvalidationParent())
+        {
+            if (current.TryGetLocalRenderTransformSnapshot(out _) ||
+                current.TryGetLocalClipSnapshot(out _))
+            {
+                return true;
+            }
+
+            if (ReferenceEquals(current, effectiveSource))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     internal void NotifyVisualStructureChanged(UIElement element, UIElement? oldParent, UIElement? newParent)
     {
-        if (!IsPartOfVisualTree(element) &&
-            !IsPartOfVisualTree(oldParent) &&
-            !IsPartOfVisualTree(newParent) &&
+        EnsureVisualIndexCurrent();
+        if (!TryGetIndexedVisualNodeCore(element, out _) &&
+            !TryGetIndexedVisualNodeCore(oldParent, out _) &&
+            !TryGetIndexedVisualNodeCore(newParent, out _) &&
             !ReferenceEquals(element, _visualRoot))
         {
             return;

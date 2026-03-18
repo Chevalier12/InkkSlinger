@@ -83,6 +83,32 @@ public sealed class UiTextRendererRuntimeServicesTests
         }
     }
 
+    [Fact]
+    public void GlyphDrawPositions_Newline_ResetsXAndAdvancesY()
+    {
+        var catalog = new FakeCatalog();
+        var rasterizer = new FakeRasterizer();
+        UiTextRenderer.ConfigureRuntimeServicesForTests(catalog, rasterizer);
+
+        try
+        {
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal");
+
+            var positions = UiTextRenderer.GetGlyphDrawPositionsForTests(typography, "A\nBC");
+
+            Assert.Equal(3, positions.Count);
+            Assert.Equal(0f, positions[0].X, 3);
+            Assert.Equal(0f, positions[1].X, 3);
+            Assert.True(positions[1].Y > positions[0].Y);
+            Assert.Equal(5.25f, positions[2].X, 3);
+            Assert.True(positions[2].Y >= positions[1].Y);
+        }
+        finally
+        {
+            UiTextRenderer.ConfigureRuntimeServicesForTests();
+        }
+    }
+
     private sealed class FakeCatalog : IUiFontCatalog
     {
         public UiTypography LastTypography { get; private set; }

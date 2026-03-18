@@ -81,6 +81,22 @@ public class DirtyRegionTrackingTests
     }
 
     [Fact]
+    public void DirtyRegions_CoverageUpdatesWhenViewportChanges()
+    {
+        var tracker = new DirtyRegionTracker(maxRegionCount: 8);
+        tracker.SetViewport(new LayoutRect(0f, 0f, 100f, 100f));
+
+        tracker.AddDirtyRegion(new LayoutRect(0f, 0f, 10f, 10f));
+
+        Assert.Equal(0.01d, tracker.GetDirtyAreaCoverage(), 6);
+
+        tracker.SetViewport(new LayoutRect(0f, 0f, 10f, 10f));
+
+        Assert.Single(tracker.Regions);
+        Assert.Equal(1d, tracker.GetDirtyAreaCoverage(), 6);
+    }
+
+    [Fact]
     public void UiRoot_DirtyDiagnostics_ReflectDirtyRegionState()
     {
         var root = new Panel();
@@ -124,6 +140,31 @@ public class DirtyRegionTrackingTests
         Assert.Single(regions);
         Assert.Equal(10f, regions[0].X);
         Assert.Equal(20f, regions[0].Width);
+    }
+
+    [Fact]
+    public void UiRoot_PartialDirtyDecision_TracksViewportAdjustedCoverage()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 100f, 100f));
+        var child = new Border();
+        child.SetLayoutSlot(new LayoutRect(0f, 0f, 10f, 10f));
+        root.AddChild(child);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 100f, 100f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        child.InvalidateVisual();
+
+        Assert.True(uiRoot.WouldUsePartialDirtyRedrawForTests());
+        Assert.Equal(0.01d, uiRoot.GetDirtyCoverageForTests(), 6);
+
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 10f, 10f));
+
+        Assert.False(uiRoot.WouldUsePartialDirtyRedrawForTests());
+        Assert.Equal(1d, uiRoot.GetDirtyCoverageForTests(), 6);
     }
 
     [Fact]

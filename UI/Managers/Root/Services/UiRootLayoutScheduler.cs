@@ -18,8 +18,10 @@ public sealed partial class UiRoot
         LastDeferredOperationCount = 0;
         LayoutPasses = 0;
         _lastFrameUpdateParticipantCount = 0;
+        _lastFrameUpdateParticipantRefreshCount = 0;
         _lastDirtyRootCountAfterCoalescing = 0;
         _lastRetainedTraversalCount = 0;
+        _lastAncestorMetadataRefreshNodeCount = 0;
         _lastMenuScopeBuildCount = 0;
         _lastOverlayRegistryScanCount = 0;
         _lastOverlayRegistryHitCount = 0;

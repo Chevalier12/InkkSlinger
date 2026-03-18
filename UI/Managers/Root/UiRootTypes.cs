@@ -98,8 +98,10 @@ internal readonly record struct UiRenderTelemetrySnapshot(
 
 internal readonly record struct UiRootPerformanceTelemetrySnapshot(
     int FrameUpdateParticipantCount,
+    int FrameUpdateParticipantRefreshCount,
     int DirtyRootCount,
     int RetainedTraversalCount,
+    int AncestorMetadataRefreshNodeCount,
     int MenuScopeBuildCount,
     int OverlayRegistryScanCount,
     int OverlayRegistryHitCount,

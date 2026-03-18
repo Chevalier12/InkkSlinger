@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -146,6 +148,182 @@ public class UiRootTelemetryTests
     }
 
     [Fact]
+    public void PerformanceTelemetry_StableActiveUpdateParticipants_DoNotRefreshRegistryEachFrame()
+    {
+        var root = new Panel();
+        root.AddChild(new ProgressBar
+        {
+            IsIndeterminate = true
+        });
+
+        var uiRoot = new UiRoot(root);
+        var viewport = new Viewport(0, 0, 320, 180);
+
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), viewport);
+        var first = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.Equal(1, first.FrameUpdateParticipantCount);
+        Assert.Equal(1, first.FrameUpdateParticipantRefreshCount);
+
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(32), TimeSpan.FromMilliseconds(16)), viewport);
+        var second = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.Equal(1, second.FrameUpdateParticipantCount);
+        Assert.Equal(0, second.FrameUpdateParticipantRefreshCount);
+    }
+
+    [Fact]
+    public void PerformanceTelemetry_RenderOnlyParticipantActivation_RefreshesRegistryWhenVisualAlreadyDirty()
+    {
+        var root = new Panel();
+        var progressBar = new ProgressBar();
+        root.AddChild(progressBar);
+
+        var uiRoot = new UiRoot(root);
+        var viewport = new Viewport(0, 0, 320, 180);
+
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), viewport);
+        Assert.Equal(0, uiRoot.GetPerformanceTelemetrySnapshotForTests().FrameUpdateParticipantCount);
+
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.CompleteDrawStateForTests();
+        root.ClearRenderInvalidationRecursive();
+
+        progressBar.InvalidateVisual();
+        progressBar.IsIndeterminate = true;
+
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(32), TimeSpan.FromMilliseconds(16)), viewport);
+
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.Equal(1, perfSnapshot.FrameUpdateParticipantCount);
+        Assert.Equal(1, progressBar.UpdateCallCount);
+    }
+
+    [Fact]
+    public void PerformanceTelemetry_ContextMenuOpenState_ReusesMaintainedOverlayRegistry()
+    {
+        var host = new Canvas
+        {
+            Width = 320f,
+            Height = 200f
+        };
+        var button = new Button
+        {
+            Width = 120f,
+            Height = 36f,
+            Content = "Open"
+        };
+        host.AddChild(button);
+        Canvas.SetLeft(button, 24f);
+        Canvas.SetTop(button, 24f);
+
+        var contextMenu = new ContextMenu();
+        contextMenu.Items.Add(new MenuItem { Header = "Item" });
+
+        var uiRoot = new UiRoot(host);
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), new Viewport(0, 0, 320, 200));
+
+        contextMenu.OpenAt(host, 120f, 80f, button);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(125f, 85f), pointerMoved: true));
+
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.Equal(0, perfSnapshot.OverlayRegistryScanCount);
+        Assert.Equal("ContextMenuOpenHitTest", uiRoot.LastPointerResolvePathForDiagnostics);
+    }
+
+    [Fact]
+    public void PerformanceTelemetry_KeyboardMenuScope_ReusesStableScopeAcrossKeyEvents()
+    {
+        var root = new StackPanel();
+        var menu = new Menu();
+        var fileItem = new MenuItem { Header = "_File" };
+        fileItem.Items.Add(new MenuItem { Header = "Open" });
+        menu.Items.Add(fileItem);
+        var editor = new TextBox();
+        root.AddChild(menu);
+        root.AddChild(editor);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), new Viewport(0, 0, 400, 240));
+        uiRoot.SetFocusedElementForTests(editor);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.A));
+        Assert.Equal(1, uiRoot.GetPerformanceTelemetrySnapshotForTests().MenuScopeBuildCount);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.B));
+
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.Equal(1, perfSnapshot.MenuScopeBuildCount);
+        Assert.False(menu.IsMenuMode);
+    }
+
+    [Fact]
+    public void PerformanceTelemetry_MenuStateMutation_InvalidatesKeyboardMenuScopeCache()
+    {
+        var root = new Canvas
+        {
+            Width = 960f,
+            Height = 320f
+        };
+
+        var leftMenu = BuildMenu("_File", "_Edit", out _, out _);
+        root.AddChild(leftMenu);
+        Canvas.SetLeft(leftMenu, 20f);
+        Canvas.SetTop(leftMenu, 20f);
+
+        var rightMenu = BuildMenu("_File", "_Edit", out var rightFile, out _);
+        root.AddChild(rightMenu);
+        Canvas.SetLeft(rightMenu, 520f);
+        Canvas.SetTop(rightMenu, 20f);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), new Viewport(0, 0, 960, 320));
+        uiRoot.SetFocusedElementForTests(leftMenu);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.A));
+        Assert.Equal(1, uiRoot.GetPerformanceTelemetrySnapshotForTests().MenuScopeBuildCount);
+
+        rightMenu.EnterMenuMode(rightFile, leftMenu);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.B));
+
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.Equal(2, perfSnapshot.MenuScopeBuildCount);
+        Assert.True(rightMenu.IsMenuMode);
+    }
+
+    [Fact]
+    public void PerformanceTelemetry_InputCaches_ClearAfterStructureMutationVersionBump()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 200f));
+
+        var content = new StackPanel();
+        content.AddChild(new Border { Height = 40f });
+        content.AddChild(new Border { Height = 220f });
+
+        var scrollViewer = new ScrollViewer
+        {
+            Content = content,
+            Width = 180f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        root.AddChild(scrollViewer);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), new Viewport(0, 0, 320, 200));
+
+        uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(new Vector2(40f, 40f), wheelDelta: -120));
+
+        var populatedCounts = uiRoot.GetInputCacheEntryCountsForTests();
+        Assert.True(populatedCounts.ConnectionCacheEntryCount > 0 || populatedCounts.AncestorCacheEntryCount > 0);
+
+        root.RemoveChild(scrollViewer);
+
+        var clearedCounts = uiRoot.GetInputCacheEntryCountsForTests();
+        Assert.Equal(0, clearedCounts.ConnectionCacheEntryCount);
+        Assert.Equal(0, clearedCounts.AncestorCacheEntryCount);
+    }
+
+    [Fact]
     public void MetricsSnapshot_TracksRetainedTreeRebuildsAndStructureChanges()
     {
         var root = new Panel();
@@ -166,5 +344,116 @@ public class UiRootTelemetryTests
         Assert.True(snapshot.RetainedSubtreeSyncCount >= 1);
         Assert.True(snapshot.RetainedRenderNodeCount >= 2);
         Assert.True(snapshot.LastRetainedDirtyVisualCount >= 1);
+    }
+
+    [Fact]
+    public void PerformanceTelemetry_TracksAncestorMetadataRefreshWork()
+    {
+        var root = new Panel();
+        var parent = new Panel();
+        var left = new Border();
+        var right = new Border();
+        parent.AddChild(left);
+        parent.AddChild(right);
+        root.AddChild(parent);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        left.InvalidateVisual();
+        right.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.Equal(2, perfSnapshot.AncestorMetadataRefreshNodeCount);
+    }
+
+    private static InputDelta CreateKeyDownDelta(Keys key, KeyboardState? keyboard = null)
+    {
+        var state = keyboard ?? default;
+        var pointer = new Vector2(12f, 12f);
+        return new InputDelta
+        {
+            Previous = new InputSnapshot(default, default, pointer),
+            Current = new InputSnapshot(state, default, pointer),
+            PressedKeys = new List<Keys> { key },
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char>(),
+            PointerMoved = false,
+            WheelDelta = 0,
+            LeftPressed = false,
+            LeftReleased = false,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
+    }
+
+    private static InputDelta CreatePointerDelta(Vector2 pointer, bool pointerMoved)
+    {
+        return new InputDelta
+        {
+            Previous = new InputSnapshot(default, default, pointer),
+            Current = new InputSnapshot(default, default, pointer),
+            PressedKeys = new List<Keys>(),
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char>(),
+            PointerMoved = pointerMoved,
+            WheelDelta = 0,
+            LeftPressed = false,
+            LeftReleased = false,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
+    }
+
+    private static InputDelta CreatePointerWheelDelta(Vector2 pointer, int wheelDelta)
+    {
+        return new InputDelta
+        {
+            Previous = new InputSnapshot(default, default, pointer),
+            Current = new InputSnapshot(default, default, pointer),
+            PressedKeys = new List<Keys>(),
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char>(),
+            PointerMoved = false,
+            WheelDelta = wheelDelta,
+            LeftPressed = false,
+            LeftReleased = false,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
+    }
+
+    private static Menu BuildMenu(
+        string fileHeader,
+        string editHeader,
+        out MenuItem file,
+        out MenuItem edit)
+    {
+        var menu = new Menu
+        {
+            Width = 300f,
+            Height = 30f
+        };
+
+        file = new MenuItem { Header = fileHeader };
+        file.Items.Add(new MenuItem { Header = "New" });
+        file.Items.Add(new MenuItem { Header = "Open" });
+
+        edit = new MenuItem { Header = editHeader };
+        edit.Items.Add(new MenuItem { Header = "Undo" });
+
+        menu.Items.Add(file);
+        menu.Items.Add(edit);
+        return menu;
     }
 }

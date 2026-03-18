@@ -172,12 +172,26 @@ internal static class UiTextRenderer
             var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size * scaleY));
             var scaledTypography = effectiveTypography with { Size = effectiveTypography.Size * scaleY };
             var metrics = GetTextMetrics(scaledTypography, text, UiTextStyleOverride.None);
+            var lineHeight = GetLineHeight(scaledTypography);
 
             var currentX = transformedPosition.X;
             var baselineY = transformedPosition.Y + metrics.Ascent;
             uint previousGlyphIndex = 0;
             foreach (var rune in text.EnumerateRunes())
             {
+                if (rune.Value == '\r')
+                {
+                    continue;
+                }
+
+                if (rune.Value == '\n')
+                {
+                    currentX = transformedPosition.X;
+                    baselineY += lineHeight;
+                    previousGlyphIndex = 0;
+                    continue;
+                }
+
                 var glyph = ResolveGlyph(spriteBatch.GraphicsDevice, typeface, pixelSize, rune.Value, mode);
                 if (previousGlyphIndex != 0 && glyph.GlyphIndex != 0)
                 {
@@ -346,11 +360,25 @@ internal static class UiTextRenderer
         var effectiveTypography = typography.Apply(styleOverride);
         var typeface = ResolveTypefaceCached(effectiveTypography);
         var penX = 0f;
+        var maxWidth = 0f;
         uint previousGlyphIndex = 0;
         var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size));
 
         foreach (var rune in text.EnumerateRunes())
         {
+            if (rune.Value == '\r')
+            {
+                continue;
+            }
+
+            if (rune.Value == '\n')
+            {
+                maxWidth = MathF.Max(maxWidth, penX);
+                penX = 0f;
+                previousGlyphIndex = 0;
+                continue;
+            }
+
             var glyph = _rasterizer.Rasterize(typeface, pixelSize, rune.Value, UiTextAntialiasMode.Grayscale);
             if (previousGlyphIndex != 0 && glyph.GlyphIndex != 0)
             {
@@ -361,7 +389,7 @@ internal static class UiTextRenderer
             previousGlyphIndex = glyph.GlyphIndex;
         }
 
-        return penX;
+        return MathF.Max(maxWidth, penX);
     }
 
     internal static IReadOnlyList<Vector2> GetGlyphDrawPositionsForTests(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
@@ -375,12 +403,26 @@ internal static class UiTextRenderer
         var typeface = ResolveTypefaceCached(effectiveTypography);
         var penX = 0f;
         var baselineY = GetTextMetrics(effectiveTypography, text, UiTextStyleOverride.None).Ascent;
+        var lineHeight = GetLineHeight(effectiveTypography);
         uint previousGlyphIndex = 0;
         var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size));
         var positions = new List<Vector2>(text.Length);
 
         foreach (var rune in text.EnumerateRunes())
         {
+            if (rune.Value == '\r')
+            {
+                continue;
+            }
+
+            if (rune.Value == '\n')
+            {
+                penX = 0f;
+                baselineY += lineHeight;
+                previousGlyphIndex = 0;
+                continue;
+            }
+
             var glyph = _rasterizer.Rasterize(typeface, pixelSize, rune.Value, UiTextAntialiasMode.Grayscale);
             if (previousGlyphIndex != 0 && glyph.GlyphIndex != 0)
             {
