@@ -47,6 +47,14 @@ internal sealed class DataGridSelectionState
 
     public int SelectedColumnIndex { get; set; } = -1;
 
+    public HashSet<long> SelectedCellKeys { get; } = new();
+
+    public bool AllCellsSelected { get; set; }
+
+    public int CellAnchorRowIndex { get; set; } = -1;
+
+    public int CellAnchorColumnIndex { get; set; } = -1;
+
     public int CurrentRowIndex { get; set; } = -1;
 
     public int CurrentColumnIndex { get; set; } = -1;

@@ -197,25 +197,31 @@ internal static class ControlDemoSupport
 {
     internal sealed class DemoRow
     {
-        public required int Id { get; init; }
+        public required int Ticket { get; init; }
 
         public required string Name { get; init; }
+
+        public required string Team { get; init; }
+
+        public required string Priority { get; init; }
+
+        public required string Status { get; init; }
     }
 
     private static readonly DemoRow[] SampleDataGridRows =
     {
-        new() { Id = 1, Name = "Alpha" },
-        new() { Id = 2, Name = "Bravo" },
-        new() { Id = 3, Name = "Charlie" },
-        new() { Id = 4, Name = "Delta" },
-        new() { Id = 5, Name = "Echo" },
-        new() { Id = 6, Name = "Foxtrot" },
-        new() { Id = 7, Name = "Golf" },
-        new() { Id = 8, Name = "Hotel" },
-        new() { Id = 9, Name = "India" },
-        new() { Id = 10, Name = "Juliet" },
-        new() { Id = 11, Name = "Kilo" },
-        new() { Id = 12, Name = "Lima" },
+        new() { Ticket = 101, Name = "Alpha", Team = "Navigation", Priority = "High", Status = "Active" },
+        new() { Ticket = 104, Name = "Bravo", Team = "Input", Priority = "Medium", Status = "Paused" },
+        new() { Ticket = 108, Name = "Charlie", Team = "Layout", Priority = "High", Status = "Blocked" },
+        new() { Ticket = 112, Name = "Delta", Team = "Rendering", Priority = "Low", Status = "Active" },
+        new() { Ticket = 115, Name = "Echo", Team = "Styling", Priority = "Medium", Status = "Review" },
+        new() { Ticket = 118, Name = "Foxtrot", Team = "Automation", Priority = "Critical", Status = "Active" },
+        new() { Ticket = 121, Name = "Golf", Team = "Clipboard", Priority = "Low", Status = "Active" },
+        new() { Ticket = 124, Name = "Hotel", Team = "Selection", Priority = "High", Status = "Review" },
+        new() { Ticket = 127, Name = "India", Team = "Virtualization", Priority = "Medium", Status = "Active" },
+        new() { Ticket = 131, Name = "Juliet", Team = "Commanding", Priority = "Critical", Status = "Blocked" },
+        new() { Ticket = 136, Name = "Kilo", Team = "Accessibility", Priority = "Medium", Status = "Active" },
+        new() { Ticket = 142, Name = "Lima", Team = "Diagnostics", Priority = "Low", Status = "Planned" },
     };
 
     private static readonly IReadOnlyDictionary<string, Func<UIElement>> DefaultSampleFactories =
@@ -298,13 +304,16 @@ internal static class ControlDemoSupport
             ["WrapPanel"] = static () => new WrapPanel(),
         };
 
-    private static ObservableCollection<DemoRow> CreateSampleDataGridItemsSource()
+    internal static ObservableCollection<DemoRow> CreateSampleDataGridItemsSource()
     {
         var items = new ObservableCollection<DemoRow>(
             SampleDataGridRows.Select(static row => new DemoRow
             {
-                Id = row.Id,
-                Name = row.Name
+                Ticket = row.Ticket,
+                Name = row.Name,
+                Team = row.Team,
+                Priority = row.Priority,
+                Status = row.Status
             }));
         return items;
     }

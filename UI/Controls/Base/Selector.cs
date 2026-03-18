@@ -246,6 +246,11 @@ public class Selector : ItemsControl
         _selectionModel.SelectAll();
     }
 
+    protected void ClearSelectionInternal()
+    {
+        _selectionModel.Clear();
+    }
+
     protected bool IsSelectedIndexInternal(int index)
     {
         return _selectionModel.IsSelected(index);

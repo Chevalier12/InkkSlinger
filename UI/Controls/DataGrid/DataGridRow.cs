@@ -183,22 +183,35 @@ public class DataGridRow : Control
 
     internal void UpdateSelectionState(
         DataGridSelectionUnit selectionUnit,
-        int selectedRowIndex,
-        int selectedColumnIndex,
+        IReadOnlySet<int> selectedRowIndices,
+        IReadOnlySet<long> selectedCellKeys,
+        bool allCellsSelected,
         int currentRowIndex,
         int currentColumnIndex,
         bool areDetailsVisible)
     {
-        IsSelected = selectedRowIndex == RowIndex;
+        var isRowSelected = selectedRowIndices.Contains(RowIndex);
+        IsSelected = isRowSelected;
         SyncDetailsPresenter(Owner, Item, areDetailsVisible);
 
         for (var i = 0; i < _cells.Count; i++)
         {
-            var selected = selectionUnit == DataGridSelectionUnit.Cell
-                ? selectedRowIndex == RowIndex && selectedColumnIndex == i
-                : selectedRowIndex == RowIndex;
-            _cells[i].IsSelected = selected || (currentRowIndex == RowIndex && currentColumnIndex == i && selectionUnit == DataGridSelectionUnit.Cell);
+            var isCellSelected = selectedCellKeys.Contains(CreateCellSelectionKey(RowIndex, i));
+            var selected = selectionUnit switch
+            {
+                DataGridSelectionUnit.Cell => allCellsSelected || isCellSelected,
+                DataGridSelectionUnit.CellOrRowHeader => allCellsSelected || isRowSelected || isCellSelected,
+                _ => isRowSelected
+            };
+            var currentCellSelected = currentRowIndex == RowIndex && currentColumnIndex == i &&
+                                      (selectionUnit == DataGridSelectionUnit.Cell || selectionUnit == DataGridSelectionUnit.CellOrRowHeader);
+            _cells[i].IsSelected = selected || currentCellSelected;
         }
+    }
+
+    private static long CreateCellSelectionKey(int rowIndex, int columnIndex)
+    {
+        return ((long)rowIndex << 32) | (uint)columnIndex;
     }
 
     internal void RefreshCellContents()
@@ -305,6 +318,12 @@ public class DataGridRow : Control
     internal int ResolveCellIndexAtPoint(Vector2 point)
     {
         return ResolveCellIndex(point);
+    }
+
+    internal bool IsPointInRowHeader(Vector2 point)
+    {
+        var slot = _rowHeader.LayoutSlot;
+        return point.X >= slot.X && point.X <= slot.X + slot.Width && point.Y >= slot.Y && point.Y <= slot.Y + slot.Height;
     }
 
     private void SyncDetailsPresenter(DataGrid? owner, object? item, bool areDetailsVisible)

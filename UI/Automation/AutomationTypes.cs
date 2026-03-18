@@ -45,8 +45,19 @@ public enum AutomationPatternType
     RangeValue,
     Selection,
     SelectionItem,
+    Grid,
+    GridItem,
+    Table,
+    TableItem,
     ExpandCollapse,
     Scroll
+}
+
+public enum RowOrColumnMajor
+{
+    RowMajor,
+    ColumnMajor,
+    Indeterminate
 }
 
 public enum AutomationEventType
@@ -182,6 +193,44 @@ public interface ISelectionItemProvider
     void AddToSelection();
 
     void RemoveFromSelection();
+}
+
+public interface IGridProvider
+{
+    int RowCount { get; }
+
+    int ColumnCount { get; }
+
+    AutomationPeer? GetItem(int row, int column);
+}
+
+public interface IGridItemProvider
+{
+    int Row { get; }
+
+    int Column { get; }
+
+    int RowSpan { get; }
+
+    int ColumnSpan { get; }
+
+    AutomationPeer? ContainingGrid { get; }
+}
+
+public interface ITableProvider : IGridProvider
+{
+    RowOrColumnMajor RowOrColumnMajor { get; }
+
+    IReadOnlyList<AutomationPeer> GetColumnHeaders();
+
+    IReadOnlyList<AutomationPeer> GetRowHeaders();
+}
+
+public interface ITableItemProvider : IGridItemProvider
+{
+    IReadOnlyList<AutomationPeer> GetColumnHeaderItems();
+
+    IReadOnlyList<AutomationPeer> GetRowHeaderItems();
 }
 
 public interface IExpandCollapseProvider

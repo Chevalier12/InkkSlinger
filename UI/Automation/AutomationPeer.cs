@@ -342,7 +342,7 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
         }
     }
 
-    public bool CanSelectMultiple => Owner is Selector selector && selector.SelectionMode == SelectionMode.Multiple;
+    public bool CanSelectMultiple => Owner is Selector selector && (selector.SelectionMode == SelectionMode.Multiple || selector.SelectionMode == SelectionMode.Extended);
 
     public bool IsSelectionRequired => false;
 
@@ -376,6 +376,7 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
     public bool IsSelected => Owner switch
     {
         ListBoxItem listBoxItem => listBoxItem.IsSelected,
+        DataGridRow dataGridRow => dataGridRow.IsSelected,
         TreeViewItem treeViewItem => treeViewItem.IsSelected,
         TabItem tabItem => tabItem.IsSelected,
         _ => false
@@ -421,7 +422,7 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
             throw new InvalidOperationException("Selection item could not resolve its index.");
         }
 
-        if (selector.SelectionMode != SelectionMode.Multiple)
+        if (selector.SelectionMode != SelectionMode.Multiple && selector.SelectionMode != SelectionMode.Extended)
         {
             selector.SelectedIndex = index;
             return;
@@ -449,7 +450,7 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
             return;
         }
 
-        if (selector.SelectionMode != SelectionMode.Multiple)
+        if (selector.SelectionMode != SelectionMode.Multiple && selector.SelectionMode != SelectionMode.Extended)
         {
             selector.SelectedIndex = -1;
             return;
@@ -599,7 +600,7 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
 
     private bool SupportsSelectionItem()
     {
-        return Owner is ListBoxItem or ListViewItem or TreeViewItem or TabItem or ComboBoxItem;
+        return Owner is ListBoxItem or ListViewItem or TreeViewItem or TabItem or ComboBoxItem or DataGridRow;
     }
 
     private bool SupportsExpandCollapse()
@@ -666,6 +667,364 @@ internal sealed class GenericAutomationPeer : ControlAutomationPeer,
         }
 
         return -1;
+    }
+}
+
+internal sealed class DataGridAutomationPeer : ControlAutomationPeer,
+    ISelectionProvider,
+    IGridProvider,
+    ITableProvider,
+    IScrollProvider
+{
+    public DataGridAutomationPeer(AutomationManager manager, DataGrid owner)
+        : base(manager, owner)
+    {
+    }
+
+    private DataGrid Grid => (DataGrid)Owner;
+
+    public override AutomationControlType GetControlType()
+    {
+        return AutomationControlType.DataGrid;
+    }
+
+    public override bool TryGetPattern(AutomationPatternType patternType, out object? provider)
+    {
+        switch (patternType)
+        {
+            case AutomationPatternType.Selection:
+            case AutomationPatternType.Grid:
+            case AutomationPatternType.Table:
+                provider = this;
+                return true;
+            case AutomationPatternType.Scroll when TryGetScrollViewer(out _):
+                provider = this;
+                return true;
+            default:
+                provider = null;
+                return false;
+        }
+    }
+
+    public bool CanSelectMultiple => Grid.SelectionMode == DataGridSelectionMode.Extended;
+
+    public bool IsSelectionRequired => false;
+
+    public IReadOnlyList<AutomationPeer> GetSelection()
+    {
+        var selectedPeers = new List<AutomationPeer>();
+        if (Grid.SelectionUnit == DataGridSelectionUnit.FullRow)
+        {
+            AddSelectedRows(selectedPeers);
+            return selectedPeers;
+        }
+
+        if (Grid.SelectionUnit == DataGridSelectionUnit.Cell)
+        {
+            AddSelectedCells(selectedPeers);
+            return selectedPeers;
+        }
+
+        AddSelectedRows(selectedPeers);
+        AddSelectedCells(selectedPeers);
+        return selectedPeers;
+    }
+
+    public int RowCount => Grid.RowsForTesting.Count;
+
+    public int ColumnCount => Grid.Columns.Count;
+
+    public AutomationPeer? GetItem(int row, int column)
+    {
+        if (!Grid.TryGetAutomationCell(row, column, out var cell))
+        {
+            return null;
+        }
+
+        return Manager.GetPeer(cell);
+    }
+
+    public RowOrColumnMajor RowOrColumnMajor => RowOrColumnMajor.RowMajor;
+
+    public IReadOnlyList<AutomationPeer> GetColumnHeaders()
+    {
+        var headers = new List<AutomationPeer>();
+        var columnHeaders = Grid.ColumnHeadersForTesting;
+        for (var i = 0; i < columnHeaders.Count; i++)
+        {
+            var peer = Manager.GetPeer(columnHeaders[i]);
+            if (peer != null)
+            {
+                headers.Add(peer);
+            }
+        }
+
+        return headers;
+    }
+
+    public IReadOnlyList<AutomationPeer> GetRowHeaders()
+    {
+        var headers = new List<AutomationPeer>();
+        var rows = Grid.RowsForTesting;
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var peer = Manager.GetPeer(rows[i].RowHeaderForTesting);
+            if (peer != null)
+            {
+                headers.Add(peer);
+            }
+        }
+
+        return headers;
+    }
+
+    public bool HorizontallyScrollable => TryGetScrollViewer(out var viewer) && viewer.ExtentWidth > viewer.ViewportWidth + 0.01f;
+
+    public bool VerticallyScrollable => TryGetScrollViewer(out var viewer) && viewer.ExtentHeight > viewer.ViewportHeight + 0.01f;
+
+    public float HorizontalScrollPercent
+    {
+        get
+        {
+            if (!TryGetScrollViewer(out var viewer))
+            {
+                return 0f;
+            }
+
+            var range = MathF.Max(0f, viewer.ExtentWidth - viewer.ViewportWidth);
+            if (range <= 0.01f)
+            {
+                return 0f;
+            }
+
+            return (viewer.HorizontalOffset / range) * 100f;
+        }
+    }
+
+    public float VerticalScrollPercent
+    {
+        get
+        {
+            if (!TryGetScrollViewer(out var viewer))
+            {
+                return 0f;
+            }
+
+            var range = MathF.Max(0f, viewer.ExtentHeight - viewer.ViewportHeight);
+            if (range <= 0.01f)
+            {
+                return 0f;
+            }
+
+            return (viewer.VerticalOffset / range) * 100f;
+        }
+    }
+
+    public void SetScrollPercent(float horizontalPercent, float verticalPercent)
+    {
+        if (!TryGetScrollViewer(out var viewer))
+        {
+            throw new InvalidOperationException("DataGrid does not support scroll pattern.");
+        }
+
+        var clampedHorizontal = MathF.Max(0f, MathF.Min(100f, horizontalPercent));
+        var clampedVertical = MathF.Max(0f, MathF.Min(100f, verticalPercent));
+
+        var horizontalRange = MathF.Max(0f, viewer.ExtentWidth - viewer.ViewportWidth);
+        var verticalRange = MathF.Max(0f, viewer.ExtentHeight - viewer.ViewportHeight);
+
+        viewer.ScrollToHorizontalOffset((clampedHorizontal / 100f) * horizontalRange);
+        viewer.ScrollToVerticalOffset((clampedVertical / 100f) * verticalRange);
+    }
+
+    private void AddSelectedRows(List<AutomationPeer> peers)
+    {
+        var rows = Grid.RowsForTesting;
+        for (var i = 0; i < rows.Count; i++)
+        {
+            if (!rows[i].IsSelected)
+            {
+                continue;
+            }
+
+            var peer = Manager.GetPeer(rows[i]);
+            if (peer != null)
+            {
+                peers.Add(peer);
+            }
+        }
+    }
+
+    private void AddSelectedCells(List<AutomationPeer> peers)
+    {
+        var selectedCells = Grid.SelectedCells;
+        for (var i = 0; i < selectedCells.Count; i++)
+        {
+            if (!Grid.TryGetAutomationCell(selectedCells[i], out var cell))
+            {
+                continue;
+            }
+
+            var peer = Manager.GetPeer(cell);
+            if (peer != null)
+            {
+                peers.Add(peer);
+            }
+        }
+    }
+
+    private bool TryGetScrollViewer(out ScrollViewer viewer)
+    {
+        viewer = Grid.ScrollViewerForTesting;
+        return viewer != null;
+    }
+}
+
+internal sealed class DataGridCellAutomationPeer : ControlAutomationPeer,
+    ISelectionItemProvider,
+    IGridItemProvider,
+    ITableItemProvider
+{
+    public DataGridCellAutomationPeer(AutomationManager manager, DataGridCell owner)
+        : base(manager, owner)
+    {
+    }
+
+    private DataGridCell Cell => (DataGridCell)Owner;
+
+    public override AutomationControlType GetControlType()
+    {
+        return AutomationControlType.Custom;
+    }
+
+    public override bool TryGetPattern(AutomationPatternType patternType, out object? provider)
+    {
+        switch (patternType)
+        {
+            case AutomationPatternType.SelectionItem when GridOwner != null && GridOwner.SelectionUnit != DataGridSelectionUnit.FullRow:
+            case AutomationPatternType.GridItem:
+            case AutomationPatternType.TableItem:
+                provider = this;
+                return true;
+            default:
+                provider = null;
+                return false;
+        }
+    }
+
+    public bool IsSelected => Cell.IsSelected;
+
+    public AutomationPeer? SelectionContainer => GridOwner == null ? null : Manager.GetPeer(GridOwner);
+
+    public void Select()
+    {
+        var grid = GridOwner ?? throw new InvalidOperationException("Cell is not attached to a DataGrid.");
+        if (!TryGetCoordinates(out var row, out var column))
+        {
+            throw new InvalidOperationException("Cell could not resolve its coordinates.");
+        }
+
+        grid.CurrentCell = new DataGridCellInfo(grid.RowsForTesting[row].Item, grid.Columns[column]);
+    }
+
+    public void AddToSelection()
+    {
+        var grid = GridOwner ?? throw new InvalidOperationException("Cell is not attached to a DataGrid.");
+        if (grid.SelectionUnit == DataGridSelectionUnit.FullRow)
+        {
+            throw new InvalidOperationException("DataGrid is not in cell selection mode.");
+        }
+
+        if (!TryGetCoordinates(out var row, out var column))
+        {
+            throw new InvalidOperationException("Cell could not resolve its coordinates.");
+        }
+
+        if (!grid.TrySelectAutomationCell(row, column, addToSelection: true))
+        {
+            throw new InvalidOperationException("Cell could not be selected.");
+        }
+    }
+
+    public void RemoveFromSelection()
+    {
+        var grid = GridOwner;
+        if (grid == null)
+        {
+            return;
+        }
+
+        if (!TryGetCoordinates(out var row, out var column))
+        {
+            return;
+        }
+
+        _ = grid.TryRemoveAutomationCellSelection(row, column);
+    }
+
+    public int Row => TryGetCoordinates(out var row, out _) ? row : -1;
+
+    public int Column => TryGetCoordinates(out _, out var column) ? column : -1;
+
+    public int RowSpan => 1;
+
+    public int ColumnSpan => 1;
+
+    public AutomationPeer? ContainingGrid => GridOwner == null ? null : Manager.GetPeer(GridOwner);
+
+    public IReadOnlyList<AutomationPeer> GetColumnHeaderItems()
+    {
+        var grid = GridOwner;
+        if (grid == null || Column < 0 || Column >= grid.ColumnHeadersForTesting.Count)
+        {
+            return Array.Empty<AutomationPeer>();
+        }
+
+        var peer = Manager.GetPeer(grid.ColumnHeadersForTesting[Column]);
+        return peer == null ? Array.Empty<AutomationPeer>() : [peer];
+    }
+
+    public IReadOnlyList<AutomationPeer> GetRowHeaderItems()
+    {
+        var grid = GridOwner;
+        if (grid == null || Row < 0 || Row >= grid.RowsForTesting.Count)
+        {
+            return Array.Empty<AutomationPeer>();
+        }
+
+        var peer = Manager.GetPeer(grid.RowsForTesting[Row].RowHeaderForTesting);
+        return peer == null ? Array.Empty<AutomationPeer>() : [peer];
+    }
+
+    private DataGrid? GridOwner => FindAncestor<DataGrid>(Cell);
+
+    private bool TryGetCoordinates(out int row, out int column)
+    {
+        row = -1;
+        column = -1;
+        var rowOwner = FindAncestor<DataGridRow>(Cell);
+        if (rowOwner?.Owner == null)
+        {
+            return false;
+        }
+
+        row = rowOwner.RowIndex;
+        column = Cell.ColumnIndex;
+        return row >= 0 && column >= 0;
+    }
+
+    private static TElement? FindAncestor<TElement>(UIElement element)
+        where TElement : UIElement
+    {
+        for (var current = element.VisualParent ?? element.LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is TElement typed)
+            {
+                return typed;
+            }
+        }
+
+        return null;
     }
 }
 

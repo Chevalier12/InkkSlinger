@@ -35,7 +35,7 @@ public sealed class ControlsCatalogDataGridPreviewTests
         Assert.True(firstRowIndex >= 0 && firstRowIndex < firstCellIndex);
 
         var firstRow = dataGrid.RowsForTesting.First();
-        Assert.Equal("1", firstRow.Cells[0].Value?.ToString());
+        Assert.Equal("101", firstRow.Cells[0].Value?.ToString());
         Assert.Equal("Alpha", firstRow.Cells[1].Value?.ToString());
     }
 
@@ -101,7 +101,7 @@ public sealed class ControlsCatalogDataGridPreviewTests
         Assert.Equal(DependencyPropertyValueSource.Default, verticalBar.GetValueSource(UIElement.IsVisibleProperty));
         Assert.Equal(DependencyPropertyValueSource.Default, horizontalBar.GetValueSource(UIElement.IsVisibleProperty));
 
-        var header = Assert.Single(dataGrid.ColumnHeadersForTesting, static item => item.GetContentText() == "Id");
+        var header = Assert.Single(dataGrid.ColumnHeadersForTesting, static item => item.GetContentText() == "Ticket");
         AssertTypography(header, view);
         Assert.Equal(DependencyPropertyValueSource.Inherited, header.GetValueSource(FrameworkElement.FontFamilyProperty));
 

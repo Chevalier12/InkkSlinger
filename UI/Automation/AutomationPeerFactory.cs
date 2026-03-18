@@ -6,6 +6,16 @@ public static class AutomationPeerFactory
     {
         if (element is Control control)
         {
+            if (element is DataGrid dataGrid)
+            {
+                return new DataGridAutomationPeer(manager, dataGrid);
+            }
+
+            if (element is DataGridCell dataGridCell)
+            {
+                return new DataGridCellAutomationPeer(manager, dataGridCell);
+            }
+
             if (element is RichTextBox richTextBox)
             {
                 return new RichTextBoxAutomationPeer(manager, richTextBox);

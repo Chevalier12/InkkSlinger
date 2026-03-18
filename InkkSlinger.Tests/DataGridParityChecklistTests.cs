@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -30,6 +31,581 @@ public sealed class DataGridParityChecklistTests
         Assert.Equal(-1, grid.SelectedColumnIndex);
         Assert.Equal(2, grid.CurrentRowIndexForTesting);
         Assert.Equal(0, grid.CurrentColumnIndexForTesting);
+    }
+
+    [Fact]
+    public void RowSelection_SyncsSelectorSelectedItemSurface()
+    {
+        var (grid, uiRoot) = CreateGridHost();
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[1].Cells[1].LayoutSlot));
+
+        Assert.Equal(1, grid.SelectedIndex);
+        var selectedItem = Assert.IsType<Row>(grid.SelectedItem);
+        Assert.Equal(2, selectedItem.Id);
+        Assert.Single(grid.SelectedItems);
+        Assert.Same(grid.SelectedItem, grid.SelectedItems[0]);
+    }
+
+    [Fact]
+    public void ProgrammaticSelectorSelection_UpdatesDataGridSelectionState()
+    {
+        var (grid, uiRoot) = CreateGridHost();
+        RunLayout(uiRoot);
+
+        grid.SelectedIndex = 2;
+
+        Assert.Equal(2, grid.SelectedRowIndex);
+        Assert.Equal(2, grid.CurrentRowIndexForTesting);
+        Assert.Equal(0, grid.CurrentColumnIndexForTesting);
+        Assert.IsType<Row>(grid.SelectedItem);
+        Assert.Equal(grid.SelectedItem, grid.CurrentItem);
+        Assert.Same(grid.Columns[0], grid.CurrentColumn);
+    }
+
+    [Fact]
+    public void DataGridSelectionMode_MapsToSelectorSelectionMode()
+    {
+        var grid = new DataGrid();
+
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+
+        Assert.Equal(DataGridSelectionMode.Extended, grid.SelectionMode);
+        Assert.Equal(SelectionMode.Extended, ((Selector)grid).SelectionMode);
+    }
+
+    [Fact]
+    public void ExtendedSelection_CtrlClick_AddsMultipleRows()
+    {
+        var (grid, uiRoot) = CreateGridHost();
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[2].Cells[0].LayoutSlot), ModifierKeys.Control);
+
+        Assert.Equal(2, grid.SelectedItems.Count);
+        Assert.True(grid.RowsForTesting[0].IsSelected);
+        Assert.True(grid.RowsForTesting[2].IsSelected);
+        Assert.Equal(2, grid.CurrentRowIndexForTesting);
+    }
+
+    [Fact]
+    public void ExtendedSelection_ShiftClick_ExtendsRangeFromAnchor()
+    {
+        var (grid, uiRoot) = CreateGridHost();
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[2].Cells[0].LayoutSlot), ModifierKeys.Shift);
+
+        Assert.Equal(3, grid.SelectedItems.Count);
+        Assert.True(grid.RowsForTesting[0].IsSelected);
+        Assert.True(grid.RowsForTesting[1].IsSelected);
+        Assert.True(grid.RowsForTesting[2].IsSelected);
+    }
+
+    [Fact]
+    public void ExtendedSelection_ShiftDown_ExtendsRowSelectionFromCurrentAnchor()
+    {
+        var (grid, uiRoot) = CreateGridHost();
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        PressKey(uiRoot, Keys.Down, ModifierKeys.Shift);
+
+        Assert.Equal(2, grid.SelectedItems.Count);
+        Assert.True(grid.RowsForTesting[0].IsSelected);
+        Assert.True(grid.RowsForTesting[1].IsSelected);
+        Assert.Equal(1, grid.CurrentRowIndexForTesting);
+    }
+
+    [Fact]
+    public void CellSelection_CtrlA_SelectsAllCells()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        PressKey(uiRoot, Keys.A, ModifierKeys.Control);
+
+        Assert.Equal(6, grid.SelectedCells.Count);
+        Assert.Empty(grid.SelectedItems);
+        Assert.Equal(-1, grid.SelectedIndex);
+        Assert.All(grid.RowsForTesting, row => Assert.All(row.Cells, cell => Assert.True(cell.IsSelected)));
+    }
+
+    [Fact]
+    public void SelectAllCellsAndUnselectAllCells_UpdateCellSelectionApiSurface()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        grid.SelectAllCells();
+
+        Assert.Equal(6, grid.SelectedCells.Count);
+        Assert.Empty(grid.SelectedItems);
+        Assert.Equal(-1, grid.SelectedIndex);
+
+        grid.UnselectAllCells();
+
+        Assert.Empty(grid.SelectedCells);
+        Assert.Empty(grid.SelectedItems);
+        Assert.Equal(-1, grid.SelectedIndex);
+        Assert.Equal(-1, grid.SelectedRowIndex);
+    }
+
+    [Fact]
+    public void InheritedSelectAll_SelectsRowsInCellSelectionMode()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        grid.SelectAll();
+
+        Assert.Equal(3, grid.SelectedItems.Count);
+        Assert.Equal(6, grid.SelectedCells.Count);
+        Assert.Equal(0, grid.SelectedIndex);
+
+        grid.UnselectAll();
+
+        Assert.Empty(grid.SelectedItems);
+        Assert.Empty(grid.SelectedCells);
+        Assert.Equal(-1, grid.SelectedIndex);
+    }
+
+    [Fact]
+    public void InheritedSelectAll_WhenSelectionModeIsSingle_Throws()
+    {
+        var grid = new DataGrid();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => grid.SelectAll());
+
+        Assert.Equal("SelectAll requires multi-selection mode.", exception.Message);
+    }
+
+    [Fact]
+    public void FullRowSelection_CurrentCellAndSelectedCellsExposeRowAndClickedColumn()
+    {
+        var (grid, uiRoot) = CreateGridHost();
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[1].Cells[1].LayoutSlot));
+
+        Assert.True(grid.CurrentCell.IsValid);
+        Assert.Same(grid.CurrentItem, grid.CurrentCell.Item);
+        Assert.Same(grid.Columns[1], grid.CurrentCell.Column);
+        Assert.Equal(2, grid.SelectedCells.Count);
+        Assert.All(grid.SelectedCells, cell => Assert.Same(grid.CurrentItem, cell.Item));
+        Assert.Contains(grid.SelectedCells, cell => ReferenceEquals(cell.Column, grid.Columns[0]));
+        Assert.Contains(grid.SelectedCells, cell => ReferenceEquals(cell.Column, grid.Columns[1]));
+    }
+
+    [Fact]
+    public void CellSelection_CurrentCellAndSelectedCellsExposeOnlyActiveCell()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[2].Cells[1].LayoutSlot));
+
+        Assert.True(grid.CurrentCell.IsValid);
+        Assert.Same(grid.CurrentItem, grid.CurrentCell.Item);
+        Assert.Same(grid.Columns[1], grid.CurrentCell.Column);
+        Assert.Empty(grid.SelectedItems);
+        Assert.Equal(-1, grid.SelectedIndex);
+        var selectedCell = Assert.Single(grid.SelectedCells);
+        Assert.Equal(grid.CurrentCell, selectedCell);
+    }
+
+    [Fact]
+    public void CellSelection_CtrlClick_AddsMultipleCellsWithoutSelectingRows()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[1].Cells[1].LayoutSlot), ModifierKeys.Control);
+
+        Assert.Equal(2, grid.SelectedCells.Count);
+        Assert.Empty(grid.SelectedItems);
+        Assert.Equal(-1, grid.SelectedIndex);
+        Assert.Contains(grid.SelectedCells, cell => ReferenceEquals(cell.Item, grid.RowsForTesting[0].Item) && ReferenceEquals(cell.Column, grid.Columns[0]));
+        Assert.Contains(grid.SelectedCells, cell => ReferenceEquals(cell.Item, grid.RowsForTesting[1].Item) && ReferenceEquals(cell.Column, grid.Columns[1]));
+    }
+
+    [Fact]
+    public void CellSelection_ShiftClick_SelectsRectangularRange()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[1].Cells[1].LayoutSlot), ModifierKeys.Shift);
+
+        Assert.Equal(4, grid.SelectedCells.Count);
+        Assert.Empty(grid.SelectedItems);
+        Assert.All(grid.RowsForTesting.Take(2), row => Assert.All(row.Cells, cell => Assert.True(cell.IsSelected)));
+    }
+
+    [Fact]
+    public void ExtendedFullRowSelection_SelectedCellsSpanAllSelectedRows()
+    {
+        var (grid, uiRoot) = CreateGridHost();
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[2].Cells[0].LayoutSlot), ModifierKeys.Control);
+
+        Assert.Equal(4, grid.SelectedCells.Count);
+        Assert.Equal(2, grid.SelectedCells.Count(cell => ReferenceEquals(cell.Item, grid.RowsForTesting[0].Item)));
+        Assert.Equal(2, grid.SelectedCells.Count(cell => ReferenceEquals(cell.Item, grid.RowsForTesting[2].Item)));
+    }
+
+    [Fact]
+    public void CurrentCellChanged_RaisesWhenCurrentCellMoves()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        RunLayout(uiRoot);
+
+        var changeCount = 0;
+        grid.CurrentCellChanged += (_, _) => changeCount++;
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[1].LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+
+        Assert.Equal(2, changeCount);
+        Assert.Same(grid.Columns[0], grid.CurrentCell.Column);
+    }
+
+    [Fact]
+    public void SelectedCellsChanged_RaisesAddedAndRemovedCellsForCellSelection()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        RunLayout(uiRoot);
+
+        SelectedCellsChangedEventArgs? firstArgs = null;
+        SelectedCellsChangedEventArgs? secondArgs = null;
+        grid.SelectedCellsChanged += (_, args) =>
+        {
+            if (firstArgs == null)
+            {
+                firstArgs = args;
+            }
+            else
+            {
+                secondArgs = args;
+            }
+        };
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[1].LayoutSlot));
+
+        Assert.NotNull(firstArgs);
+        Assert.Empty(firstArgs!.RemovedCells);
+        Assert.Single(firstArgs.AddedCells);
+        Assert.Same(grid.RowsForTesting[0].Item, firstArgs.AddedCells[0].Item);
+        Assert.Same(grid.Columns[0], firstArgs.AddedCells[0].Column);
+
+        Assert.NotNull(secondArgs);
+        Assert.Single(secondArgs!.RemovedCells);
+        Assert.Single(secondArgs.AddedCells);
+        Assert.Same(grid.Columns[0], secondArgs.RemovedCells[0].Column);
+        Assert.Same(grid.Columns[1], secondArgs.AddedCells[0].Column);
+    }
+
+    [Fact]
+    public void SettingCurrentCell_UpdatesFullRowSelectionAndCurrentColumn()
+    {
+        var (grid, uiRoot) = CreateGridHost();
+        RunLayout(uiRoot);
+
+        var targetCell = new DataGridCellInfo(grid.RowsForTesting[2].Item, grid.Columns[1]);
+
+        grid.CurrentCell = targetCell;
+
+        Assert.Equal(2, grid.SelectedRowIndex);
+        Assert.Equal(-1, grid.SelectedColumnIndex);
+        Assert.Equal(2, grid.CurrentRowIndexForTesting);
+        Assert.Equal(1, grid.CurrentColumnIndexForTesting);
+        Assert.Equal(targetCell, grid.CurrentCell);
+    }
+
+    [Fact]
+    public void SettingCurrentCell_UpdatesCellSelectionProjection()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        RunLayout(uiRoot);
+
+        var targetCell = new DataGridCellInfo(grid.RowsForTesting[1].Item, grid.Columns[1]);
+
+        grid.CurrentCell = targetCell;
+
+        Assert.Equal(1, grid.SelectedRowIndex);
+        Assert.Equal(1, grid.SelectedColumnIndex);
+        Assert.Empty(grid.SelectedItems);
+        Assert.Equal(-1, grid.SelectedIndex);
+        Assert.Equal(targetCell, grid.CurrentCell);
+        Assert.Equal(targetCell, Assert.Single(grid.SelectedCells));
+    }
+
+    [Fact]
+    public void CommitEdit_CellUnitWithoutExit_KeepsEditorActiveAndUpdatesSource()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        var source = (ObservableCollection<Row>)grid.ItemsSource!;
+        RunLayout(uiRoot);
+
+        var cell = grid.RowsForTesting[0].Cells[0];
+        Click(uiRoot, GetCenter(cell.LayoutSlot));
+        PressKey(uiRoot, Keys.F2);
+
+        var editor = Assert.IsType<TextBox>(cell.EditingElement);
+        editor.Text = "42";
+
+        Assert.True(grid.CommitEdit(DataGridEditingUnit.Cell, exitEditingMode: false));
+
+        Assert.Same(editor, cell.EditingElement);
+        Assert.Equal(42, source[0].Id);
+        Assert.Equal(0, grid.EditingRowIndexForTesting);
+        Assert.Equal(0, grid.EditingColumnIndexForTesting);
+    }
+
+    [Fact]
+    public void CancelEdit_RowUnit_CancelsActiveEditor()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        RunLayout(uiRoot);
+
+        var cell = grid.RowsForTesting[0].Cells[0];
+        Click(uiRoot, GetCenter(cell.LayoutSlot));
+        Assert.True(grid.BeginEdit((RoutedEventArgs?)null));
+
+        var editor = Assert.IsType<TextBox>(cell.EditingElement);
+        editor.Text = "77";
+
+        Assert.True(grid.CancelEdit(DataGridEditingUnit.Row));
+        Assert.Null(cell.EditingElement);
+        Assert.Equal("1", cell.Content?.ToString());
+    }
+
+    [Fact]
+    public void Copy_FullRowSelection_WritesTabSeparatedRows()
+    {
+        TextClipboard.ResetForTests();
+        var (grid, uiRoot) = CreateGridHost();
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[1].Cells[0].LayoutSlot));
+
+        grid.Copy();
+
+        Assert.True(TextClipboard.TryGetText(out var copied));
+        Assert.Equal("2\tBravo", copied);
+    }
+
+    [Fact]
+    public void Copy_IncludeHeaderMode_WritesHeaderRow()
+    {
+        TextClipboard.ResetForTests();
+        var (grid, uiRoot) = CreateGridHost();
+        grid.ClipboardCopyMode = DataGridClipboardCopyMode.IncludeHeader;
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+
+        grid.Copy();
+
+        Assert.True(TextClipboard.TryGetText(out var copied));
+        Assert.Equal($"Id\tName{Environment.NewLine}1\tAlpha", copied);
+    }
+
+    [Fact]
+    public void CtrlC_CellSelection_WritesActiveCellOnly()
+    {
+        TextClipboard.ResetForTests();
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[2].Cells[1].LayoutSlot));
+        PressKey(uiRoot, Keys.C, ModifierKeys.Control);
+
+        Assert.True(TextClipboard.TryGetText(out var copied));
+        Assert.Equal("Charlie", copied);
+    }
+
+    [Fact]
+    public void Copy_CellSelectionRectangle_WritesTabSeparatedRectangle()
+    {
+        TextClipboard.ResetForTests();
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[1].Cells[1].LayoutSlot), ModifierKeys.Shift);
+
+        grid.Copy();
+
+        Assert.True(TextClipboard.TryGetText(out var copied));
+        Assert.Equal($"1\tAlpha{Environment.NewLine}2\tBravo", copied);
+    }
+
+    [Fact]
+    public void Copy_NoneMode_DoesNotWriteClipboard()
+    {
+        TextClipboard.ResetForTests();
+        var (grid, uiRoot) = CreateGridHost();
+        grid.ClipboardCopyMode = DataGridClipboardCopyMode.None;
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+
+        grid.Copy();
+
+        Assert.False(TextClipboard.TryGetText(out _));
+    }
+
+    [Fact]
+    public void ScrollIntoView_ItemAndColumn_UpdatesViewportOffsets()
+    {
+        var (grid, uiRoot) = CreateGridHost(width: 260f, height: 180f, itemCount: 40);
+        grid.Columns.Add(new DataGridColumn { Header = "City", BindingPath = nameof(Row.City), Width = 120f });
+        RunLayout(uiRoot, width: 320, height: 240);
+
+        var source = Assert.IsType<ObservableCollection<Row>>(grid.ItemsSource);
+        var targetItem = source[39];
+        var targetColumn = grid.Columns[2];
+
+        grid.ScrollIntoView(targetItem, targetColumn);
+        RunLayout(uiRoot, width: 320, height: 240);
+
+        Assert.True(grid.ScrollViewerForTesting.VerticalOffset > 0f);
+        Assert.True(grid.ScrollViewerForTesting.HorizontalOffset > 0f);
+    }
+
+    [Fact]
+    public void ExtendedSelection_CurrentRowPushesCollectionViewCurrentItem()
+    {
+        var rows = new ObservableCollection<Row>
+        {
+            new(1, "Alpha", "Rome"),
+            new(2, "Bravo", "Paris"),
+            new(3, "Charlie", "Berlin")
+        };
+        var source = new CollectionViewSource { Source = rows };
+        var grid = new DataGrid
+        {
+            ItemsSource = source,
+            Width = 500f,
+            Height = 260f,
+            SelectionMode = DataGridSelectionMode.Extended,
+            IsSynchronizedWithCurrentItem = true
+        };
+        grid.Columns.Add(new DataGridColumn { Header = "Id", BindingPath = nameof(Row.Id), Width = 120f });
+        grid.Columns.Add(new DataGridColumn { Header = "Name", BindingPath = nameof(Row.Name), Width = 120f });
+
+        var host = new Canvas { Width = 540f, Height = 320f };
+        host.AddChild(grid);
+        Canvas.SetLeft(grid, 10f);
+        Canvas.SetTop(grid, 10f);
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[2].Cells[0].LayoutSlot), ModifierKeys.Control);
+
+        Assert.Same(rows[2], source.View!.CurrentItem);
+        Assert.Equal(2, source.View.CurrentPosition);
+    }
+
+    [Fact]
+    public void ExtendedSelection_CurrentItemPullFromViewUpdatesCurrentRow()
+    {
+        var rows = new ObservableCollection<Row>
+        {
+            new(1, "Alpha", "Rome"),
+            new(2, "Bravo", "Paris"),
+            new(3, "Charlie", "Berlin")
+        };
+        var source = new CollectionViewSource { Source = rows };
+        var grid = new DataGrid
+        {
+            ItemsSource = source,
+            Width = 500f,
+            Height = 260f,
+            SelectionMode = DataGridSelectionMode.Extended,
+            IsSynchronizedWithCurrentItem = true
+        };
+        grid.Columns.Add(new DataGridColumn { Header = "Id", BindingPath = nameof(Row.Id), Width = 120f });
+        grid.Columns.Add(new DataGridColumn { Header = "Name", BindingPath = nameof(Row.Name), Width = 120f });
+
+        var host = new Canvas { Width = 540f, Height = 320f };
+        host.AddChild(grid);
+        Canvas.SetLeft(grid, 10f);
+        Canvas.SetTop(grid, 10f);
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[0].Cells[0].LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[2].Cells[0].LayoutSlot), ModifierKeys.Control);
+
+        Assert.True(source.View!.MoveCurrentTo(rows[1]));
+
+        Assert.Equal(1, grid.CurrentRowIndexForTesting);
+        Assert.Same(rows[1], grid.CurrentItem);
+        Assert.Equal(2, grid.SelectedItems.Count);
+    }
+
+    [Fact]
+    public void CellOrRowHeader_RowHeaderClick_SelectsWholeRow()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.CellOrRowHeader);
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[1].RowHeaderForTesting.LayoutSlot));
+
+        Assert.Equal(1, grid.SelectedRowIndex);
+        Assert.Equal(-1, grid.SelectedColumnIndex);
+        Assert.True(grid.RowsForTesting[1].IsSelected);
+        Assert.True(grid.RowsForTesting[1].Cells[0].IsSelected);
+        Assert.True(grid.RowsForTesting[1].Cells[1].IsSelected);
+    }
+
+    [Fact]
+    public void CellOrRowHeader_CellClick_ClearsRowSelectionAndKeepsOnlyCellSelection()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.CellOrRowHeader);
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[1].RowHeaderForTesting.LayoutSlot));
+        Click(uiRoot, GetCenter(grid.RowsForTesting[2].Cells[1].LayoutSlot));
+
+        Assert.Empty(grid.SelectedItems);
+        Assert.Equal(-1, grid.SelectedIndex);
+        Assert.False(grid.RowsForTesting[1].IsSelected);
+        Assert.Equal(new DataGridCellInfo(grid.RowsForTesting[2].Item, grid.Columns[1]), Assert.Single(grid.SelectedCells));
+    }
+
+    [Fact]
+    public void CellSelection_RowHeaderClick_DoesNotSelectFirstCell()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        RunLayout(uiRoot);
+
+        Click(uiRoot, GetCenter(grid.RowsForTesting[1].RowHeaderForTesting.LayoutSlot));
+
+        Assert.Equal(-1, grid.SelectedRowIndex);
+        Assert.Equal(-1, grid.SelectedColumnIndex);
     }
 
     [Fact]
@@ -365,19 +941,21 @@ public sealed class DataGridParityChecklistTests
         uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), new Viewport(0, 0, width, height));
     }
 
-    private static void Click(UiRoot uiRoot, Vector2 pointer)
+    private static void Click(UiRoot uiRoot, Vector2 pointer, ModifierKeys modifiers = ModifierKeys.None)
     {
-        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
-        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true));
-        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, modifiers: modifiers, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, modifiers: modifiers, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, modifiers: modifiers, leftReleased: true));
     }
 
-    private static void PressKey(UiRoot uiRoot, Keys key)
+    private static void PressKey(UiRoot uiRoot, Keys key, ModifierKeys modifiers = ModifierKeys.None)
     {
+        var previousKeyboard = CreateKeyboardState(modifiers);
+        var currentKeyboard = CreateKeyboardState(modifiers, key);
         uiRoot.RunInputDeltaForTests(new InputDelta
         {
-            Previous = new InputSnapshot(default, default, Vector2.Zero),
-            Current = new InputSnapshot(default, default, Vector2.Zero),
+            Previous = new InputSnapshot(previousKeyboard, default, Vector2.Zero),
+            Current = new InputSnapshot(currentKeyboard, default, Vector2.Zero),
             PressedKeys = [key],
             ReleasedKeys = [],
             TextInput = [],
@@ -412,12 +990,13 @@ public sealed class DataGridParityChecklistTests
         });
     }
 
-    private static InputDelta CreatePointerDelta(Vector2 pointer, bool pointerMoved = false, bool leftPressed = false, bool leftReleased = false)
+    private static InputDelta CreatePointerDelta(Vector2 pointer, ModifierKeys modifiers = ModifierKeys.None, bool pointerMoved = false, bool leftPressed = false, bool leftReleased = false)
     {
+        var keyboard = CreateKeyboardState(modifiers);
         return new InputDelta
         {
-            Previous = new InputSnapshot(default, default, pointer),
-            Current = new InputSnapshot(default, default, pointer),
+            Previous = new InputSnapshot(keyboard, default, pointer),
+            Current = new InputSnapshot(keyboard, default, pointer),
             PressedKeys = new List<Keys>(),
             ReleasedKeys = new List<Keys>(),
             TextInput = new List<char>(),
@@ -430,6 +1009,27 @@ public sealed class DataGridParityChecklistTests
             MiddlePressed = false,
             MiddleReleased = false
         };
+    }
+
+    private static KeyboardState CreateKeyboardState(ModifierKeys modifiers, params Keys[] additionalKeys)
+    {
+        var pressedKeys = new List<Keys>(additionalKeys.Length + 2);
+        if ((modifiers & ModifierKeys.Control) != 0)
+        {
+            pressedKeys.Add(Keys.LeftControl);
+        }
+
+        if ((modifiers & ModifierKeys.Shift) != 0)
+        {
+            pressedKeys.Add(Keys.LeftShift);
+        }
+
+        for (var i = 0; i < additionalKeys.Length; i++)
+        {
+            pressedKeys.Add(additionalKeys[i]);
+        }
+
+        return new KeyboardState(pressedKeys.ToArray());
     }
 
     private static Vector2 GetCenter(LayoutRect rect) => new(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));

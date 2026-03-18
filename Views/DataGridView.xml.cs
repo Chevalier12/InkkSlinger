@@ -1,4 +1,4 @@
-using System;
+using System.Collections;
 
 namespace InkkSlinger;
 
@@ -6,17 +6,12 @@ public partial class DataGridView : UserControl
 {
     public DataGridView()
     {
+        DemoRows = ControlDemoSupport.CreateSampleDataGridItemsSource();
         InitializeComponent();
-        var demoHost = this.FindName("DemoHost") as ContentControl;
-
-        if (demoHost is not null)
-        {
-            var sample = ControlDemoSupport.BuildSampleElement("DataGrid");
-            demoHost.Content = sample;
-        }
+        DataContext = this;
     }
+
+    public IEnumerable DemoRows { get; }
 }
-
-
 
 

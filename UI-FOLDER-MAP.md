@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-03-17 (full filesystem refresh)
+Generated: 2026-03-18 (full filesystem refresh)
 
 ```text
 UI/
@@ -94,6 +94,7 @@ UI/
       Decorator.cs
       FrameworkElement.cs
       ItemsControl.cs
+      MultiSelector.cs
       Panel.cs
       Selector.cs
       UIElement.cs
@@ -131,6 +132,7 @@ UI/
     DataGrid
       DataGrid.cs
       DataGridCell.cs
+      DataGridCellInfo.cs
       DataGridColumn.cs
       DataGridColumnHeader.cs
       DataGridColumnHeadersPresenter.cs

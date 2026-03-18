@@ -38,12 +38,17 @@ public sealed class ControlDemoDataGridSampleTests
         Assert.Contains(uiRoot.GetRetainedVisualOrderForTests(), static element => element is DataGridCell);
 
         var firstRow = rows[0];
-        Assert.Equal("1", firstRow.Cells[0].Value?.ToString());
+        Assert.Equal("101", firstRow.Cells[0].Value?.ToString());
         Assert.Equal("Alpha", firstRow.Cells[1].Value?.ToString());
+        Assert.Equal("Navigation", firstRow.Cells[2].Value?.ToString());
+        Assert.Equal("High", firstRow.Cells[3].Value?.ToString());
+        Assert.Equal("Active", firstRow.Cells[4].Value?.ToString());
 
         var lastRow = rows.Last();
-        Assert.Equal("12", lastRow.Cells[0].Value?.ToString());
+        Assert.Equal("142", lastRow.Cells[0].Value?.ToString());
         Assert.Equal("Lima", lastRow.Cells[1].Value?.ToString());
+        Assert.Equal("Diagnostics", lastRow.Cells[2].Value?.ToString());
+        Assert.Equal("Planned", lastRow.Cells[4].Value?.ToString());
         Assert.DoesNotContain(
             uiRoot.GetRetainedVisualOrderForTests(),
             static visual => visual is Label label &&
@@ -60,53 +65,6 @@ public sealed class ControlDemoDataGridSampleTests
         Assert.Equal(DependencyPropertyValueSource.Local, dataGrid.GetValueSource(DataGrid.BorderThicknessProperty));
         Assert.Equal(DataGridHeadersVisibility.Column, dataGrid.HeadersVisibility);
         Assert.Equal(DependencyPropertyValueSource.Local, dataGrid.GetValueSource(DataGrid.HeadersVisibilityProperty));
-    }
-
-    [Fact]
-    public void DataGridSample_ClickingColumnHeader_ShouldSortRows()
-    {
-        var element = ControlDemoSupport.BuildSampleElement("DataGrid");
-        var dataGrid = Assert.IsType<DataGrid>(element);
-
-        var host = new Canvas
-        {
-            Width = 900f,
-            Height = 500f
-        };
-        host.AddChild(dataGrid);
-        Canvas.SetLeft(dataGrid, 20f);
-        Canvas.SetTop(dataGrid, 20f);
-
-        var uiRoot = new UiRoot(host);
-        RunLayout(uiRoot, 900, 500);
-
-        var idHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.GetContentText() == "Id");
-        Assert.NotNull(idHeader);
-        var clickCount = 0;
-        idHeader!.Click += (_, _) => clickCount++;
-        var headerCenter = GetCenter(idHeader!.LayoutSlot);
-        var hit = VisualTreeHelper.HitTest(host, headerCenter);
-        Assert.True(
-            ReferenceEquals(hit, idHeader) ||
-            FindAncestor<DataGridColumnHeader>(hit) == idHeader,
-            $"Expected header hit target, got {hit?.GetType().Name ?? "null"}.");
-
-        uiRoot.RunInputDeltaForTests(CreatePointerDelta(headerCenter, pointerMoved: true));
-        uiRoot.RunInputDeltaForTests(CreatePointerDelta(headerCenter, leftPressed: true));
-        Assert.Same(idHeader, FocusManager.GetCapturedPointerElement());
-        uiRoot.RunInputDeltaForTests(CreatePointerDelta(headerCenter, leftReleased: true));
-        RunLayout(uiRoot, 900, 500);
-        Assert.Equal(1, clickCount);
-        Assert.Equal(DataGridSortDirection.Ascending, idHeader.SortDirection);
-        Click(uiRoot, headerCenter);
-        RunLayout(uiRoot, 900, 500);
-        Assert.Equal(DataGridSortDirection.Descending, idHeader.SortDirection);
-
-        var rows = dataGrid.RowsForTesting;
-        Assert.NotEmpty(rows);
-        Assert.Equal("12", rows[0].Cells[0].Value?.ToString());
-        Assert.Equal("Lima", rows[0].Cells[1].Value?.ToString());
-        Assert.Equal("1", rows[^1].Cells[0].Value?.ToString());
     }
 
     [Fact]
@@ -128,25 +86,25 @@ public sealed class ControlDemoDataGridSampleTests
         RunLayout(uiRoot, 900, 500);
 
         var nameHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.GetContentText() == "Name");
-        var idHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.GetContentText() == "Id");
+        var ticketHeader = FindFirstVisualChild<DataGridColumnHeader>(dataGrid, static header => header.GetContentText() == "Ticket");
         Assert.NotNull(nameHeader);
-        Assert.NotNull(idHeader);
+        Assert.NotNull(ticketHeader);
 
         Click(uiRoot, GetCenter(nameHeader!.LayoutSlot));
         RunLayout(uiRoot, 900, 500);
         Assert.Equal(DataGridSortDirection.Ascending, nameHeader.SortDirection);
         Assert.Equal("Alpha", dataGrid.RowsForTesting[0].Cells[1].Value?.ToString());
 
-        Click(uiRoot, GetCenter(idHeader!.LayoutSlot));
+        Click(uiRoot, GetCenter(ticketHeader!.LayoutSlot));
         RunLayout(uiRoot, 900, 500);
         Assert.Equal(DataGridSortDirection.None, nameHeader.SortDirection);
-        Assert.Equal(DataGridSortDirection.Ascending, idHeader.SortDirection);
-        Assert.Equal("1", dataGrid.RowsForTesting[0].Cells[0].Value?.ToString());
+        Assert.Equal(DataGridSortDirection.Ascending, ticketHeader.SortDirection);
+        Assert.Equal("101", dataGrid.RowsForTesting[0].Cells[0].Value?.ToString());
 
-        Click(uiRoot, GetCenter(idHeader.LayoutSlot));
+        Click(uiRoot, GetCenter(ticketHeader.LayoutSlot));
         RunLayout(uiRoot, 900, 500);
-        Assert.Equal(DataGridSortDirection.Descending, idHeader.SortDirection);
-        Assert.Equal("12", dataGrid.RowsForTesting[0].Cells[0].Value?.ToString());
+        Assert.Equal(DataGridSortDirection.Descending, ticketHeader.SortDirection);
+        Assert.Equal("142", dataGrid.RowsForTesting[0].Cells[0].Value?.ToString());
         Assert.Equal("Lima", dataGrid.RowsForTesting[0].Cells[1].Value?.ToString());
     }
 
@@ -182,7 +140,7 @@ public sealed class ControlDemoDataGridSampleTests
             .OrderBy(static row => row.LayoutSlot.Y)
             .First();
 
-        Assert.Equal("12", topVisibleRow.Cells[0].Value?.ToString());
+        Assert.Equal("142", topVisibleRow.Cells[0].Value?.ToString());
         Assert.Equal("Lima", topVisibleRow.Cells[1].Value?.ToString());
     }
 
@@ -252,6 +210,42 @@ public sealed class ControlDemoDataGridSampleTests
         var contentHeight = firstRow.LayoutSlot.Height;
 
         Assert.Equal(contentHeight, firstCell.LayoutSlot.Height, 0.5f);
+    }
+
+    [Fact]
+    public void DataGridView_UsesRicherInteractiveConfigurationThanRawSample()
+    {
+        var view = new DataGridView
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+
+        var host = new Canvas
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+        host.AddChild(view);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1200, 520);
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(view);
+        Assert.NotNull(dataGrid);
+    Assert.Null(FindFirstVisualChild<ContentControl>(view, static contentControl => string.Equals(contentControl.Name, "DemoHost", StringComparison.Ordinal)));
+
+        Assert.Equal(DataGridHeadersVisibility.All, dataGrid!.HeadersVisibility);
+        Assert.Equal(DataGridSelectionMode.Extended, dataGrid.SelectionMode);
+        Assert.Equal(DataGridSelectionUnit.FullRow, dataGrid.SelectionUnit);
+        Assert.Equal(DataGridClipboardCopyMode.IncludeHeader, dataGrid.ClipboardCopyMode);
+        Assert.True(dataGrid.CanUserReorderColumns);
+        Assert.Equal(1, dataGrid.FrozenColumnCount);
+
+        Click(uiRoot, GetCenter(dataGrid.RowsForTesting[0].RowHeaderForTesting.LayoutSlot));
+        RunLayout(uiRoot, 1200, 520);
+
+        Assert.True(dataGrid.RowsForTesting[0].DetailsPresenterForTesting.IsVisibleDetails);
     }
 
     [Fact]

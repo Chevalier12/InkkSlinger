@@ -1115,7 +1115,7 @@ public sealed partial class UiRoot
         if (button == MouseButton.Left &&
             target != null &&
             dataGridFocusTarget != null &&
-            dataGridFocusTarget.HandlePointerDownFromInput(target, pointerPosition, out var captureDataGrid))
+            dataGridFocusTarget.HandlePointerDownFromInput(target, pointerPosition, _inputState.CurrentModifiers, out var captureDataGrid))
         {
             if (captureDataGrid)
             {

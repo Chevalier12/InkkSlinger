@@ -1,9 +1,16 @@
 namespace InkkSlinger;
 
+public enum DataGridSelectionMode
+{
+    Single,
+    Extended
+}
+
 public enum DataGridSelectionUnit
 {
     FullRow,
-    Cell
+    Cell,
+    CellOrRowHeader
 }
 
 public enum DataGridSortDirection
@@ -19,6 +26,13 @@ public enum DataGridGridLinesVisibility
     Horizontal,
     Vertical,
     All
+}
+
+public enum DataGridClipboardCopyMode
+{
+    None,
+    ExcludeHeader,
+    IncludeHeader
 }
 
 public enum DataGridHeadersVisibility
@@ -40,6 +54,12 @@ public enum DataGridEditAction
 {
     Commit,
     Cancel
+}
+
+public enum DataGridEditingUnit
+{
+    Cell,
+    Row
 }
 
 public enum DataGridEditTriggerSource

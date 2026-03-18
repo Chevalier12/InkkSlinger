@@ -30,13 +30,13 @@ public sealed class AppStyledDataGridSampleTests
             Assert.NotEmpty(rows);
             var firstCell = Assert.IsType<DataGridCell>(rows[0].Cells[0]);
             Assert.Equal(new Color(0, 0, 0, 0), firstCell.Background);
-            Assert.Equal("1", firstCell.Value?.ToString());
-            Assert.Equal("1", firstCell.Content?.ToString());
+            Assert.Equal("101", firstCell.Value?.ToString());
+            Assert.Equal("101", firstCell.Content?.ToString());
 
             var border = Assert.IsType<Border>(Assert.Single(firstCell.GetVisualChildren()));
             var presenter = Assert.IsType<ContentPresenter>(Assert.Single(border.GetVisualChildren()));
             var label = Assert.IsType<Label>(Assert.Single(presenter.GetVisualChildren()));
-            Assert.Equal("1", label.GetContentText());
+            Assert.Equal("101", label.GetContentText());
         }
         finally
         {

@@ -1,6 +1,38 @@
 using System;
+using System.Collections.Generic;
 
 namespace InkkSlinger;
+
+public sealed class DataGridAutoGeneratingColumnEventArgs : EventArgs
+{
+    public DataGridAutoGeneratingColumnEventArgs(string propertyName, Type propertyType, DataGridColumn column)
+    {
+        PropertyName = propertyName;
+        PropertyType = propertyType;
+        Column = column;
+    }
+
+    public string PropertyName { get; }
+
+    public Type PropertyType { get; }
+
+    public DataGridColumn Column { get; set; }
+
+    public bool Cancel { get; set; }
+}
+
+public sealed class SelectedCellsChangedEventArgs : EventArgs
+{
+    public SelectedCellsChangedEventArgs(IReadOnlyList<DataGridCellInfo> removedCells, IReadOnlyList<DataGridCellInfo> addedCells)
+    {
+        RemovedCells = removedCells;
+        AddedCells = addedCells;
+    }
+
+    public IReadOnlyList<DataGridCellInfo> RemovedCells { get; }
+
+    public IReadOnlyList<DataGridCellInfo> AddedCells { get; }
+}
 
 public sealed class DataGridBeginningEditEventArgs : EventArgs
 {

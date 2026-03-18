@@ -41,6 +41,8 @@ internal sealed class DataGridRowsPresenter
         int startIndex,
         bool invalidateMeasure = true)
     {
+        var selectedRowIndices = owner.GetSelectedRowIndicesForVisualState();
+        var selectedCellKeys = owner.GetSelectedCellKeysForVisualState();
         var itemContainers = owner.GetItemContainersForPresenter();
         if (rows.Count == 0 || itemContainers.Count == 0)
         {
@@ -68,8 +70,9 @@ internal sealed class DataGridRowsPresenter
             row.RowBackground = (i % 2 == 1) ? owner.AlternatingRowBackground : owner.RowBackground;
             row.UpdateSelectionState(
                 owner.SelectionUnit,
-                owner.SelectedRowIndex,
-                owner.SelectedColumnIndex,
+                selectedRowIndices,
+                selectedCellKeys,
+                owner.AreAllCellsSelectedForVisualState,
                 owner.CurrentRowIndexForTesting,
                 owner.CurrentColumnIndexForTesting,
                 rows[i].AreDetailsVisible);
