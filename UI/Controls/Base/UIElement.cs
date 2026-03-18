@@ -361,15 +361,7 @@ public class UIElement : DependencyObject
 
         var hasClip = TryGetClipRect(out var clipRect);
         var hasTransform = TryGetLocalRenderTransform(out var localTransform, out _);
-        if (hasClip)
-        {
-            UiDrawing.PushClip(spriteBatch, clipRect);
-        }
-
-        if (hasTransform)
-        {
-            UiDrawing.PushTransform(spriteBatch, localTransform);
-        }
+        UiDrawing.PushLocalState(spriteBatch, hasTransform, localTransform, hasClip, clipRect);
 
         try
         {
@@ -393,15 +385,7 @@ public class UIElement : DependencyObject
         }
         finally
         {
-            if (hasTransform)
-            {
-                UiDrawing.PopTransform(spriteBatch);
-            }
-
-            if (hasClip)
-            {
-                UiDrawing.PopClip(spriteBatch);
-            }
+            UiDrawing.PopLocalState(spriteBatch, hasTransform, hasClip);
         }
     }
 

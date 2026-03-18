@@ -714,14 +714,14 @@ public sealed partial class UiRoot
         var hasLocalClip = visual.TryGetLocalClipSnapshot(out var localClipRect);
         var hasLocalTransform = visual.TryGetLocalRenderTransformSnapshot(out var localTransform);
         var localRenderStateSignature = 17;
-        if (hasLocalClip)
-        {
-            localRenderStateSignature = MixClipStepHash(localRenderStateSignature, localClipRect);
-        }
-
         if (hasLocalTransform)
         {
             localRenderStateSignature = MixTransformStepHash(localRenderStateSignature, localTransform);
+        }
+
+        if (hasLocalClip)
+        {
+            localRenderStateSignature = MixClipStepHash(localRenderStateSignature, localClipRect);
         }
 
         return new CapturedLocalRenderState(

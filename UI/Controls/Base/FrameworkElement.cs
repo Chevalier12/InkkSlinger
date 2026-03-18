@@ -458,6 +458,7 @@ public class FrameworkElement : UIElement
             var innerAvailable = new Vector2(
                 MathF.Max(0f, effectiveAvailableSize.X - margin.Horizontal),
                 MathF.Max(0f, effectiveAvailableSize.Y - margin.Vertical));
+            innerAvailable = ConstrainMeasureAvailableSize(innerAvailable);
 
             var measured = MeasureOverride(innerAvailable);
             measured = ApplyExplicitConstraints(measured);
@@ -529,6 +530,15 @@ public class FrameworkElement : UIElement
         if (!_isMeasureValid)
         {
             Measure(new Vector2(effectiveFinalRect.Width, effectiveFinalRect.Height));
+        }
+        else
+        {
+            var arrangeAvailableSize = new Vector2(effectiveFinalRect.Width, effectiveFinalRect.Height);
+            if (ShouldReMeasureForArrange(_previousAvailableSize, arrangeAvailableSize) &&
+                !CanReuseMeasureForAvailableSizeChange(_previousAvailableSize, arrangeAvailableSize))
+            {
+                Measure(arrangeAvailableSize);
+            }
         }
 
         var margin = Margin;
@@ -1034,6 +1044,30 @@ public class FrameworkElement : UIElement
         return new Vector2(width, height);
     }
 
+    private Vector2 ConstrainMeasureAvailableSize(Vector2 available)
+    {
+        return new Vector2(
+            ResolveMeasureConstraint(available.X, Width, MinWidth, MaxWidth),
+            ResolveMeasureConstraint(available.Y, Height, MinHeight, MaxHeight));
+    }
+
+    private static float ResolveMeasureConstraint(float available, float explicitSize, float min, float max)
+    {
+        var constraint = float.IsNaN(explicitSize) ? available : explicitSize;
+
+        if (float.IsFinite(max))
+        {
+            constraint = MathF.Min(constraint, max);
+        }
+
+        if (float.IsFinite(constraint))
+        {
+            constraint = MathF.Max(constraint, min);
+        }
+
+        return constraint;
+    }
+
     private static float Clamp(float value, float min, float max)
     {
         if (value < min)
@@ -1056,6 +1090,34 @@ public class FrameworkElement : UIElement
                MathF.Abs(left.Y - right.Y) <= epsilon &&
                MathF.Abs(left.Width - right.Width) <= epsilon &&
                MathF.Abs(left.Height - right.Height) <= epsilon;
+    }
+
+    private static bool AreSizesEqual(Vector2 left, Vector2 right)
+    {
+        const float epsilon = 0.0001f;
+        return MathF.Abs(left.X - right.X) <= epsilon &&
+               MathF.Abs(left.Y - right.Y) <= epsilon;
+    }
+
+    private static bool ShouldReMeasureForArrange(Vector2 measuredAvailableSize, Vector2 arrangedAvailableSize)
+    {
+        if (!float.IsFinite(measuredAvailableSize.X) ||
+            !float.IsFinite(measuredAvailableSize.Y) ||
+            !float.IsFinite(arrangedAvailableSize.X) ||
+            !float.IsFinite(arrangedAvailableSize.Y))
+        {
+            return false;
+        }
+
+        return IsFiniteShrink(measuredAvailableSize.X, arrangedAvailableSize.X) ||
+               IsFiniteShrink(measuredAvailableSize.Y, arrangedAvailableSize.Y);
+    }
+
+    private static bool IsFiniteShrink(float previous, float next)
+    {
+        return float.IsFinite(previous) &&
+               float.IsFinite(next) &&
+               next + 0.0001f < previous;
     }
 
     private static LayoutRect RoundLayoutRect(LayoutRect rect)

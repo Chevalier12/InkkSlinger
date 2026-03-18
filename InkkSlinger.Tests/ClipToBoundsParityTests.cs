@@ -1,4 +1,7 @@
+using System;
+using System.Runtime.CompilerServices;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -112,5 +115,50 @@ public sealed class ClipToBoundsParityTests
 
         var overflowPoint = new Vector2(110f, 20f);
         Assert.Same(child, VisualTreeHelper.HitTest(root, overflowPoint));
+    }
+
+    [Fact]
+    public void ClipToBounds_LocalRenderState_TransformsClipBeforeScissoring()
+    {
+        var graphicsDevice = (GraphicsDevice)RuntimeHelpers.GetUninitializedObject(typeof(GraphicsDevice));
+
+        try
+        {
+            UiDrawing.ConfigureDrawingStateForTests(
+                graphicsDevice,
+                new[]
+                {
+                    new Rectangle(0, 0, 500, 500)
+                },
+                Array.Empty<Matrix>());
+
+            var appliedClip = UiDrawing.PushLocalStateForTests(
+                graphicsDevice,
+                hasTransform: true,
+                Matrix.CreateTranslation(30f, 15f, 0f),
+                hasClip: true,
+                new LayoutRect(10f, 20f, 100f, 60f));
+
+            Assert.Equal(new Rectangle(40, 35, 100, 60), appliedClip);
+
+            var appliedState = UiDrawing.GetDrawingStateInfoForTests(graphicsDevice);
+            Assert.Equal(2, appliedState.ClipCount);
+            Assert.Equal(1, appliedState.TransformCount);
+
+            var restoredClip = UiDrawing.PopLocalStateForTests(
+                graphicsDevice,
+                hasTransform: true,
+                hasClip: true);
+
+            Assert.Equal(new Rectangle(0, 0, 500, 500), restoredClip);
+
+            var restoredState = UiDrawing.GetDrawingStateInfoForTests(graphicsDevice);
+            Assert.Equal(1, restoredState.ClipCount);
+            Assert.Equal(0, restoredState.TransformCount);
+        }
+        finally
+        {
+            UiDrawing.ReleaseDeviceResourcesForTests(graphicsDevice);
+        }
     }
 }

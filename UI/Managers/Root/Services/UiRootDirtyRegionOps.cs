@@ -145,29 +145,22 @@ public sealed partial class UiRoot
 
     private static void ApplyRetainedDrawNodeState(SpriteBatch spriteBatch, RenderNode node, ref int clipPushCount)
     {
+        UiDrawing.PushLocalState(
+            spriteBatch,
+            node.HasLocalTransform,
+            node.LocalTransform,
+            node.HasLocalClip,
+            node.LocalClipRect);
+
         if (node.HasLocalClip)
         {
-            UiDrawing.PushClip(spriteBatch, node.LocalClipRect);
             clipPushCount++;
-        }
-
-        if (node.HasLocalTransform)
-        {
-            UiDrawing.PushTransform(spriteBatch, node.LocalTransform);
         }
     }
 
     private static void PopRetainedDrawNodeState(SpriteBatch spriteBatch, RenderNode node)
     {
-        if (node.HasLocalTransform)
-        {
-            UiDrawing.PopTransform(spriteBatch);
-        }
-
-        if (node.HasLocalClip)
-        {
-            UiDrawing.PopClip(spriteBatch);
-        }
+        UiDrawing.PopLocalState(spriteBatch, node.HasLocalTransform, node.HasLocalClip);
     }
 
     private static bool ShouldUsePartialDirtyRedraw(int regionCount, double coverage)

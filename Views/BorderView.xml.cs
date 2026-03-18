@@ -113,8 +113,8 @@ public partial class BorderView : UserControl
 
         var stage = new Grid
         {
-            Width = 320f,
-            Height = 210f,
+            MaxWidth = 320f,
+            MinHeight = 210f,
             Background = new Color(14, 20, 28)
         };
         stage.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

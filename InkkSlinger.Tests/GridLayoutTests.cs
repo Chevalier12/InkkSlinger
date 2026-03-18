@@ -100,6 +100,29 @@ public sealed class GridLayoutTests
     }
 
     [Fact]
+    public void Arrange_NarrowerThanMeasuredWidth_RemeasuresWrappedTextForAutoRowHeight()
+    {
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var footer = new TextBlock
+        {
+            Text = "The badge is intentionally translated beyond the frame. ClipToBounds crops it to the Border layout slot, and that clip is rectangular rather than rounded.",
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        grid.AddChild(footer);
+
+        grid.Measure(new Vector2(320f, 200f));
+        var wideDesiredHeight = footer.DesiredSize.Y;
+
+        grid.Arrange(new LayoutRect(0f, 0f, 220f, 200f));
+
+        Assert.True(footer.DesiredSize.Y > wideDesiredHeight + 0.01f);
+        Assert.Equal(footer.DesiredSize.Y, footer.ActualHeight, 0.01f);
+    }
+
+    [Fact]
     public void Arrange_MixedAutoAndStarDefinitions_PreservesActualSizes()
     {
         var grid = new Grid
@@ -160,6 +183,31 @@ public sealed class GridLayoutTests
 
         Assert.Equal(90f, column.ActualWidth, 0.01f);
         Assert.Equal(40f, row.ActualHeight, 0.01f);
+    }
+
+    [Fact]
+    public void Measure_GridMaxWidth_ConstrainsWrappedChildBeforeHeightIsCalculated()
+    {
+        var grid = new Grid
+        {
+            MaxWidth = 220f
+        };
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var text = new TextBlock
+        {
+            Text = "The badge is intentionally translated beyond the frame. ClipToBounds crops it to the Border layout slot, and that clip is rectangular rather than rounded.",
+            TextWrapping = TextWrapping.Wrap
+        };
+        grid.AddChild(text);
+
+        var expectedLayout = TextLayout.LayoutForElement(text.Text, text, text.FontSize, 220f, TextWrapping.Wrap);
+
+        grid.Measure(new Vector2(900f, 260f));
+
+        Assert.True(grid.DesiredSize.X <= 220f + 0.01f);
+        Assert.Equal(expectedLayout.Size.Y, text.DesiredSize.Y, 3);
+        Assert.Equal(expectedLayout.Size.Y, grid.DesiredSize.Y, 3);
     }
 
     [Fact]

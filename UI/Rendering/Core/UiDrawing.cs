@@ -219,9 +219,94 @@ internal static class UiDrawing
             PolygonIntersectionBuffers.ContainsKey(graphicsDevice));
     }
 
+    internal static Rectangle GetCurrentClipForTests(GraphicsDevice graphicsDevice)
+    {
+        var stack = GetClipStack(graphicsDevice);
+        return stack.Count > 0 ? stack.Peek() : Rectangle.Empty;
+    }
+
+    internal static Rectangle PushLocalStateForTests(
+        GraphicsDevice graphicsDevice,
+        bool hasTransform,
+        Matrix localTransform,
+        bool hasClip,
+        LayoutRect clipRect)
+    {
+        PushLocalStateCore(graphicsDevice, null, hasTransform, localTransform, hasClip, clipRect);
+        return GetCurrentClipForTests(graphicsDevice);
+    }
+
+    internal static Rectangle PopLocalStateForTests(
+        GraphicsDevice graphicsDevice,
+        bool hasTransform,
+        bool hasClip)
+    {
+        PopLocalStateCore(graphicsDevice, null, hasTransform, hasClip);
+        return GetCurrentClipForTests(graphicsDevice);
+    }
+
+    internal static void PushLocalState(
+        SpriteBatch spriteBatch,
+        bool hasTransform,
+        Matrix localTransform,
+        bool hasClip,
+        LayoutRect clipRect)
+    {
+        PushLocalStateCore(spriteBatch.GraphicsDevice, spriteBatch, hasTransform, localTransform, hasClip, clipRect);
+    }
+
+    internal static void PopLocalState(
+        SpriteBatch spriteBatch,
+        bool hasTransform,
+        bool hasClip)
+    {
+        PopLocalStateCore(spriteBatch.GraphicsDevice, spriteBatch, hasTransform, hasClip);
+    }
+
     public static void PushTransform(SpriteBatch spriteBatch, Matrix transform)
     {
-        var stack = GetTransformStack(spriteBatch.GraphicsDevice);
+        PushTransformCore(spriteBatch.GraphicsDevice, transform);
+    }
+
+    private static void PushLocalStateCore(
+        GraphicsDevice graphicsDevice,
+        SpriteBatch? spriteBatch,
+        bool hasTransform,
+        Matrix localTransform,
+        bool hasClip,
+        LayoutRect clipRect)
+    {
+        if (hasTransform)
+        {
+            PushTransformCore(graphicsDevice, localTransform);
+        }
+
+        if (hasClip)
+        {
+            _ = PushClipCore(graphicsDevice, spriteBatch, clipRect, transformRect: true);
+        }
+    }
+
+    private static void PopLocalStateCore(
+        GraphicsDevice graphicsDevice,
+        SpriteBatch? spriteBatch,
+        bool hasTransform,
+        bool hasClip)
+    {
+        if (hasClip)
+        {
+            _ = PopClipCore(graphicsDevice, spriteBatch);
+        }
+
+        if (hasTransform)
+        {
+            PopTransformCore(graphicsDevice);
+        }
+    }
+
+    private static void PushTransformCore(GraphicsDevice graphicsDevice, Matrix transform)
+    {
+        var stack = GetTransformStack(graphicsDevice);
         var combined = stack.Count == 0
             ? transform
             : transform * stack.Peek();
@@ -230,7 +315,12 @@ internal static class UiDrawing
 
     public static void PopTransform(SpriteBatch spriteBatch)
     {
-        var stack = GetTransformStack(spriteBatch.GraphicsDevice);
+        PopTransformCore(spriteBatch.GraphicsDevice);
+    }
+
+    private static void PopTransformCore(GraphicsDevice graphicsDevice)
+    {
+        var stack = GetTransformStack(graphicsDevice);
         if (stack.Count > 0)
         {
             stack.Pop();
@@ -596,17 +686,20 @@ internal static class UiDrawing
 
     public static void PushClip(SpriteBatch spriteBatch, LayoutRect rect)
     {
-        PushClipCore(spriteBatch, rect, transformRect: true);
+        _ = PushClipCore(spriteBatch.GraphicsDevice, spriteBatch, rect, transformRect: true);
     }
 
     internal static void PushAbsoluteClip(SpriteBatch spriteBatch, LayoutRect rect)
     {
-        PushClipCore(spriteBatch, rect, transformRect: false);
+        _ = PushClipCore(spriteBatch.GraphicsDevice, spriteBatch, rect, transformRect: false);
     }
 
-    private static void PushClipCore(SpriteBatch spriteBatch, LayoutRect rect, bool transformRect)
+    private static Rectangle PushClipCore(
+        GraphicsDevice graphicsDevice,
+        SpriteBatch? spriteBatch,
+        LayoutRect rect,
+        bool transformRect)
     {
-        var graphicsDevice = spriteBatch.GraphicsDevice;
         var stack = GetClipStack(graphicsDevice);
         var clip = transformRect
             ? ToRectangle(TransformRect(graphicsDevice, rect))
@@ -627,16 +720,22 @@ internal static class UiDrawing
 
         stack.Push(clip);
         _frameClipPushCount++;
-        if (graphicsDevice.ScissorRectangle != clip)
+        if (spriteBatch != null && graphicsDevice.ScissorRectangle != clip)
         {
             FlushAndRestartBatch(spriteBatch);
             graphicsDevice.ScissorRectangle = clip;
         }
+
+        return clip;
     }
 
     public static void PopClip(SpriteBatch spriteBatch)
     {
-        var graphicsDevice = spriteBatch.GraphicsDevice;
+        _ = PopClipCore(spriteBatch.GraphicsDevice, spriteBatch);
+    }
+
+    private static Rectangle PopClipCore(GraphicsDevice graphicsDevice, SpriteBatch? spriteBatch)
+    {
         var stack = GetClipStack(graphicsDevice);
         if (stack.Count > 0)
         {
@@ -646,11 +745,13 @@ internal static class UiDrawing
         var nextClip = stack.Count > 0
             ? stack.Peek()
             : GetViewportRectangle(graphicsDevice);
-        if (graphicsDevice.ScissorRectangle != nextClip)
+        if (spriteBatch != null && graphicsDevice.ScissorRectangle != nextClip)
         {
             FlushAndRestartBatch(spriteBatch);
             graphicsDevice.ScissorRectangle = nextClip;
         }
+
+        return nextClip;
     }
 
     private static Stack<Rectangle> GetClipStack(GraphicsDevice graphicsDevice)
