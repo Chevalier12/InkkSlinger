@@ -12,10 +12,15 @@ internal static class UiDrawing
     private static readonly Dictionary<GraphicsDevice, Stack<Rectangle>> ClipStacks = new();
     private static readonly Dictionary<GraphicsDevice, Stack<Matrix>> TransformStacks = new();
     private static readonly Dictionary<GraphicsDevice, SpriteBatchState> ActiveBatchStates = new();
+    private static readonly Dictionary<GraphicsDevice, Vector2[]> PolygonVertexBuffers = new();
     private static readonly Dictionary<GraphicsDevice, float[]> PolygonIntersectionBuffers = new();
     private static readonly Dictionary<CircleCacheKey, Vector2[]> CirclePointTemplates = new();
     private static int _frameClipPushCount;
     private static int _frameSpriteBatchRestartCount;
+
+    internal readonly record struct DrawingStateSnapshot(
+        Rectangle[] ClipStack,
+        Matrix[] TransformStack);
 
     internal readonly record struct SuspendedSpriteBatchState(
         SpriteSortMode SortMode,
@@ -24,7 +29,8 @@ internal static class UiDrawing
         DepthStencilState DepthStencilState,
         RasterizerState RasterizerState,
         Rectangle ScissorRectangle,
-        RenderTargetBinding[] RenderTargets);
+        RenderTargetBinding[] RenderTargets,
+        DrawingStateSnapshot DrawingState);
 
     private readonly record struct SpriteBatchState(
         SpriteSortMode SortMode,
@@ -96,7 +102,8 @@ internal static class UiDrawing
             state.DepthStencilState,
             state.RasterizerState,
             graphicsDevice.ScissorRectangle,
-            graphicsDevice.GetRenderTargets());
+            graphicsDevice.GetRenderTargets(),
+            CaptureDrawingState(graphicsDevice));
 
         spriteBatch.End();
         ClearActiveBatchState(graphicsDevice);
@@ -116,6 +123,7 @@ internal static class UiDrawing
         }
 
         graphicsDevice.ScissorRectangle = suspendedState.ScissorRectangle;
+        RestoreDrawingState(graphicsDevice, suspendedState.DrawingState);
         spriteBatch.Begin(
             suspendedState.SortMode,
             suspendedState.BlendState,
@@ -139,6 +147,76 @@ internal static class UiDrawing
 
         var transformStack = GetTransformStack(graphicsDevice);
         transformStack.Clear();
+    }
+
+    internal static void ReleaseDeviceResources(GraphicsDevice? graphicsDevice)
+    {
+        if (graphicsDevice == null)
+        {
+            return;
+        }
+
+        ReleaseDeviceResourcesCore(graphicsDevice, disposeSolidTexture: true);
+    }
+
+    internal static void ReleaseDeviceResourcesForTests(GraphicsDevice graphicsDevice)
+    {
+        ReleaseDeviceResourcesCore(graphicsDevice, disposeSolidTexture: false);
+    }
+
+    internal static DrawingStateSnapshot CaptureDrawingStateForTests(GraphicsDevice graphicsDevice)
+    {
+        return CaptureDrawingState(graphicsDevice);
+    }
+
+    internal static void RestoreDrawingStateForTests(GraphicsDevice graphicsDevice, DrawingStateSnapshot snapshot)
+    {
+        RestoreDrawingState(graphicsDevice, snapshot);
+    }
+
+    internal static void ClearDrawingStateForTests(GraphicsDevice graphicsDevice)
+    {
+        GetClipStack(graphicsDevice).Clear();
+        GetTransformStack(graphicsDevice).Clear();
+    }
+
+    internal static void ConfigureDrawingStateForTests(
+        GraphicsDevice graphicsDevice,
+        IReadOnlyList<Rectangle> clips,
+        IReadOnlyList<Matrix> transforms,
+        bool includePolygonBuffer = false)
+    {
+        var clipStack = GetClipStack(graphicsDevice);
+        clipStack.Clear();
+        for (var i = 0; i < clips.Count; i++)
+        {
+            clipStack.Push(clips[i]);
+        }
+
+        var transformStack = GetTransformStack(graphicsDevice);
+        transformStack.Clear();
+        for (var i = 0; i < transforms.Count; i++)
+        {
+            transformStack.Push(transforms[i]);
+        }
+
+        if (includePolygonBuffer)
+        {
+            if (PolygonIntersectionBuffers.TryGetValue(graphicsDevice, out var existing))
+            {
+                ArrayPool<float>.Shared.Return(existing, clearArray: false);
+            }
+
+            PolygonIntersectionBuffers[graphicsDevice] = ArrayPool<float>.Shared.Rent(16);
+        }
+    }
+
+    internal static (int ClipCount, int TransformCount, bool HasPolygonBuffer) GetDrawingStateInfoForTests(GraphicsDevice graphicsDevice)
+    {
+        return (
+            GetClipStack(graphicsDevice).Count,
+            GetTransformStack(graphicsDevice).Count,
+            PolygonIntersectionBuffers.ContainsKey(graphicsDevice));
     }
 
     public static void PushTransform(SpriteBatch spriteBatch, Matrix transform)
@@ -392,10 +470,11 @@ internal static class UiDrawing
             return;
         }
 
-        var transformed = new Vector2[points.Count];
+        var pointCount = points.Count;
+        var transformed = GetPolygonVertexBuffer(spriteBatch.GraphicsDevice, pointCount);
         var minY = float.PositiveInfinity;
         var maxY = float.NegativeInfinity;
-        for (var i = 0; i < points.Count; i++)
+        for (var i = 0; i < pointCount; i++)
         {
             var point = TransformPoint(spriteBatch, points[i]);
             transformed[i] = point;
@@ -405,14 +484,14 @@ internal static class UiDrawing
 
         var scanMin = (int)System.MathF.Floor(minY);
         var scanMax = (int)System.MathF.Ceiling(maxY);
-        var intersectionBuffer = GetPolygonIntersectionBuffer(spriteBatch.GraphicsDevice, transformed.Length);
+        var intersectionBuffer = GetPolygonIntersectionBuffer(spriteBatch.GraphicsDevice, pointCount);
         for (var y = scanMin; y <= scanMax; y++)
         {
             var intersectionCount = 0;
-            for (var i = 0; i < transformed.Length; i++)
+            for (var i = 0; i < pointCount; i++)
             {
                 var a = transformed[i];
-                var b = transformed[(i + 1) % transformed.Length];
+                var b = transformed[(i + 1) % pointCount];
                 if (System.MathF.Abs(a.Y - b.Y) < 0.0001f)
                 {
                     continue;
@@ -565,6 +644,62 @@ internal static class UiDrawing
         return stack.Count == 0 ? Matrix.Identity : stack.Peek();
     }
 
+    private static DrawingStateSnapshot CaptureDrawingState(GraphicsDevice graphicsDevice)
+    {
+        return new DrawingStateSnapshot(
+            SnapshotStack(GetClipStack(graphicsDevice)),
+            SnapshotStack(GetTransformStack(graphicsDevice)));
+    }
+
+    private static void RestoreDrawingState(GraphicsDevice graphicsDevice, DrawingStateSnapshot snapshot)
+    {
+        RestoreStack(GetClipStack(graphicsDevice), snapshot.ClipStack);
+        RestoreStack(GetTransformStack(graphicsDevice), snapshot.TransformStack);
+    }
+
+    private static T[] SnapshotStack<T>(Stack<T> stack)
+    {
+        if (stack.Count == 0)
+        {
+            return Array.Empty<T>();
+        }
+
+        var snapshot = stack.ToArray();
+        Array.Reverse(snapshot);
+        return snapshot;
+    }
+
+    private static void RestoreStack<T>(Stack<T> stack, IReadOnlyList<T> snapshot)
+    {
+        stack.Clear();
+        for (var i = 0; i < snapshot.Count; i++)
+        {
+            stack.Push(snapshot[i]);
+        }
+    }
+
+    private static void ReleaseDeviceResourcesCore(GraphicsDevice graphicsDevice, bool disposeSolidTexture)
+    {
+        if (SolidTextures.Remove(graphicsDevice, out var texture) && disposeSolidTexture)
+        {
+            texture.Dispose();
+        }
+
+        if (PolygonVertexBuffers.Remove(graphicsDevice, out var vertexBuffer))
+        {
+            ArrayPool<Vector2>.Shared.Return(vertexBuffer, clearArray: false);
+        }
+
+        if (PolygonIntersectionBuffers.Remove(graphicsDevice, out var buffer))
+        {
+            ArrayPool<float>.Shared.Return(buffer, clearArray: false);
+        }
+
+        ClipStacks.Remove(graphicsDevice);
+        TransformStacks.Remove(graphicsDevice);
+        ActiveBatchStates.Remove(graphicsDevice);
+    }
+
     private static float[] GetPolygonIntersectionBuffer(GraphicsDevice graphicsDevice, int requiredSize)
     {
         if (PolygonIntersectionBuffers.TryGetValue(graphicsDevice, out var buffer) && buffer.Length >= requiredSize)
@@ -573,6 +708,28 @@ internal static class UiDrawing
         }
 
         return GrowPolygonIntersectionBuffer(graphicsDevice, Math.Max(requiredSize, 16));
+    }
+
+    private static Vector2[] GetPolygonVertexBuffer(GraphicsDevice graphicsDevice, int requiredSize)
+    {
+        if (PolygonVertexBuffers.TryGetValue(graphicsDevice, out var buffer) && buffer.Length >= requiredSize)
+        {
+            return buffer;
+        }
+
+        return GrowPolygonVertexBuffer(graphicsDevice, Math.Max(requiredSize, 16));
+    }
+
+    private static Vector2[] GrowPolygonVertexBuffer(GraphicsDevice graphicsDevice, int requiredSize)
+    {
+        var newBuffer = ArrayPool<Vector2>.Shared.Rent(requiredSize);
+        if (PolygonVertexBuffers.TryGetValue(graphicsDevice, out var existing))
+        {
+            ArrayPool<Vector2>.Shared.Return(existing, clearArray: false);
+        }
+
+        PolygonVertexBuffers[graphicsDevice] = newBuffer;
+        return newBuffer;
     }
 
     private static float[] GrowPolygonIntersectionBuffer(GraphicsDevice graphicsDevice, int requiredSize)

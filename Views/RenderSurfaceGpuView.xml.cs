@@ -117,9 +117,16 @@ public partial class RenderSurfaceGpuView : UserControl, IUiRootUpdateParticipan
         // Food glow
         var foodPulse = 0.55f + 0.45f * (float)Math.Sin(_totalElapsedSeconds * 4.0);
         var glowRadius = (int)(cellSize * (0.9f + 0.4f * foodPulse));
+        var segments = _viewModel.SnakeSegments;
+        var segmentCount = segments.Count;
         DrawGlow(spriteBatch, bounds, scaleX, scaleY, _viewModel.FoodPosition, glowRadius, _foodGlowColor, 0.18f * foodPulse);
 
-        // Switch back to alpha blend for solid elements
+        if (segmentCount > 0)
+        {
+            DrawGlow(spriteBatch, bounds, scaleX, scaleY, segments[0], cellSize, _snakeHeadGlow, 0.10f);
+        }
+
+        // Switch back to alpha blend for solid elements.
         spriteBatch.End();
         spriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
@@ -132,8 +139,6 @@ public partial class RenderSurfaceGpuView : UserControl, IUiRootUpdateParticipan
         DrawRoundedCell(spriteBatch, bounds, scaleX, scaleY, _viewModel.FoodPosition, _foodCoreColor, 1);
 
         // Snake segments
-        var segments = _viewModel.SnakeSegments;
-        var segmentCount = segments.Count;
 
         // Bridges between adjacent segments
         for (var i = 0; i < segmentCount - 1; i++)
@@ -157,28 +162,9 @@ public partial class RenderSurfaceGpuView : UserControl, IUiRootUpdateParticipan
             DrawRoundedCell(spriteBatch, bounds, scaleX, scaleY, segments[i], segColor, cornerRadius);
         }
 
-        // Head glow (additive)
+        // Eyes (alpha blend)
         if (segmentCount > 0)
         {
-            spriteBatch.End();
-            spriteBatch.Begin(
-                sortMode: SpriteSortMode.Deferred,
-                blendState: BlendState.Additive,
-                samplerState: SamplerState.LinearClamp,
-                depthStencilState: DepthStencilState.None,
-                rasterizerState: RasterizerState.CullNone);
-
-            DrawGlow(spriteBatch, bounds, scaleX, scaleY, segments[0], cellSize, _snakeHeadGlow, 0.10f);
-
-            spriteBatch.End();
-            spriteBatch.Begin(
-                sortMode: SpriteSortMode.Deferred,
-                blendState: BlendState.AlphaBlend,
-                samplerState: SamplerState.LinearClamp,
-                depthStencilState: DepthStencilState.None,
-                rasterizerState: RasterizerState.CullNone);
-
-            // Eyes (alpha blend)
             DrawEyes(spriteBatch, bounds, scaleX, scaleY, segments[0]);
         }
 

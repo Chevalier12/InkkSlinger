@@ -29,13 +29,7 @@ public sealed partial class UiRoot
             return;
         }
 
-        if (!_dirtyRegions.TryGetDirtyBoundsEnvelope(out var dirtyBoundsEnvelope))
-        {
-            DrawRetainedRenderList(spriteBatch);
-            return;
-        }
-
-        DrawRetainedRenderListForDirtyRegions(spriteBatch, _dirtyRegions.Regions, dirtyBoundsEnvelope);
+        DrawRetainedRenderListForDirtyRegions(spriteBatch, _dirtyRegions.Regions);
         LastDrawUsedPartialRedraw = true;
     }
 
@@ -49,7 +43,7 @@ public sealed partial class UiRoot
         _lastRetainedNodesDrawn += metrics.NodesDrawn;
     }
 
-    private void DrawRetainedRenderListForDirtyRegions(SpriteBatch spriteBatch, IReadOnlyList<LayoutRect> regions, LayoutRect regionsEnvelope)
+    private void DrawRetainedRenderListForDirtyRegions(SpriteBatch spriteBatch, IReadOnlyList<LayoutRect> regions)
     {
         for (var regionIndex = 0; regionIndex < regions.Count; regionIndex++)
         {
@@ -58,89 +52,18 @@ public sealed partial class UiRoot
             try
             {
                 UiDrawing.DrawFilledRect(spriteBatch, dirtyRegion, _clearColor);
+
+                var metrics = TraverseRetainedNodesWithinClip(spriteBatch, dirtyRegion);
+                _lastRetainedTraversalCount++;
+                _lastRetainedNodesVisited += metrics.NodesVisited;
+                _lastRetainedNodesDrawn += metrics.NodesDrawn;
+                _lastDirtyRegionTraversalCount++;
             }
             finally
             {
                 UiDrawing.PopClip(spriteBatch);
             }
         }
-
-        var metrics = TraverseRetainedNodesWithinDirtyRegions(spriteBatch, regions, regionsEnvelope);
-        _lastRetainedTraversalCount++;
-        _lastRetainedNodesVisited += metrics.NodesVisited;
-        _lastRetainedNodesDrawn += metrics.NodesDrawn;
-    }
-
-    private RenderTraversalMetrics TraverseRetainedNodesWithinDirtyRegions(SpriteBatch spriteBatch, IReadOnlyList<LayoutRect> regions, LayoutRect regionsEnvelope)
-    {
-        var visited = 0;
-        var drawn = 0;
-        var clipPushCount = 0;
-        _activeRetainedDrawPath.Clear();
-
-        try
-        {
-            for (var nodeIndex = 0; nodeIndex < _retainedRenderList.Count; nodeIndex++)
-            {
-                visited++;
-                var node = _retainedRenderList[nodeIndex];
-                if (!node.IsEffectivelyVisible)
-                {
-                    nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
-                    continue;
-                }
-
-                if (node.HasSubtreeBoundsSnapshot && !Intersects(node.SubtreeBoundsSnapshot, regionsEnvelope))
-                {
-                    nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
-                    continue;
-                }
-
-                if (node.HasSubtreeBoundsSnapshot && !IntersectsAny(node.SubtreeBoundsSnapshot, regions))
-                {
-                    nodeIndex = Math.Max(nodeIndex, node.SubtreeEndIndexExclusive - 1);
-                    continue;
-                }
-
-                SyncRetainedDrawState(spriteBatch, node, ref clipPushCount);
-                var rendered = false;
-                if (node.HasBoundsSnapshot && !Intersects(node.BoundsSnapshot, regionsEnvelope))
-                {
-                    continue;
-                }
-
-                for (var regionIndex = 0; regionIndex < regions.Count; regionIndex++)
-                {
-                    var dirtyRegion = regions[regionIndex];
-                    if (node.HasBoundsSnapshot && !Intersects(node.BoundsSnapshot, dirtyRegion))
-                    {
-                        continue;
-                    }
-
-                    UiDrawing.PushAbsoluteClip(spriteBatch, dirtyRegion);
-                    try
-                    {
-                        node.Visual.DrawSelf(spriteBatch);
-                        rendered = true;
-                    }
-                    finally
-                    {
-                        UiDrawing.PopClip(spriteBatch);
-                    }
-                }
-
-                if (rendered)
-                {
-                    drawn++;
-                }
-            }
-        }
-        finally
-        {
-            ResetRetainedDrawState(spriteBatch);
-        }
-
-        return new RenderTraversalMetrics(visited, drawn, clipPushCount);
     }
 
     private RenderTraversalMetrics TraverseRetainedNodesWithinClip(SpriteBatch? spriteBatch, LayoutRect clipRect, List<UIElement>? visuals = null)
@@ -340,19 +263,6 @@ public sealed partial class UiRoot
                left.X + left.Width > right.X &&
                left.Y < right.Y + right.Height &&
                left.Y + left.Height > right.Y;
-    }
-
-    private static bool IntersectsAny(LayoutRect bounds, IReadOnlyList<LayoutRect> regions)
-    {
-        for (var i = 0; i < regions.Count; i++)
-        {
-            if (Intersects(bounds, regions[i]))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static bool IntersectsOrTouches(LayoutRect left, LayoutRect right)

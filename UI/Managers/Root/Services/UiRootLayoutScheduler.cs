@@ -21,6 +21,7 @@ public sealed partial class UiRoot
         _lastFrameUpdateParticipantRefreshCount = 0;
         _lastDirtyRootCountAfterCoalescing = 0;
         _lastRetainedTraversalCount = 0;
+        _lastDirtyRegionTraversalCount = 0;
         _lastAncestorMetadataRefreshNodeCount = 0;
         _lastMenuScopeBuildCount = 0;
         _lastOverlayRegistryScanCount = 0;
@@ -76,7 +77,6 @@ public sealed partial class UiRoot
         _layoutRoot.Arrange(new LayoutRect(0f, 0f, viewport.Width, viewport.Height));
         LayoutPasses = 1;
         _layoutGeneration++;
-        BumpPointerResolveStateVersion();
         RefreshPointerTargetsAfterLayoutMutation();
         _hasCompletedInitialLayout = true;
         LayoutExecutedFrameCount++;

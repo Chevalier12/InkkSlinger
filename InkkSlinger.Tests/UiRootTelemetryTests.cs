@@ -290,6 +290,48 @@ public class UiRootTelemetryTests
     }
 
     [Fact]
+    public void PerformanceTelemetry_WheelOnlyInput_DoesNotRequeryCommands()
+    {
+        FocusManager.ClearFocus();
+        try
+        {
+            var root = new StackPanel();
+            var target = new TextBox();
+            var source = new Button();
+            root.AddChild(target);
+            root.AddChild(source);
+
+            var command = new RoutedCommand("Probe", typeof(UiRootTelemetryTests));
+            var canExecuteProbeCount = 0;
+            target.CommandBindings.Add(
+                new CommandBinding(
+                    command,
+                    (_, _) => { },
+                    (_, args) =>
+                    {
+                        canExecuteProbeCount++;
+                        args.CanExecute = true;
+                    }));
+
+            source.CommandTarget = target;
+            source.Command = command;
+
+            var uiRoot = new UiRoot(root);
+            uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), new Viewport(0, 0, 320, 200));
+
+            canExecuteProbeCount = 0;
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(new Vector2(24f, 24f), wheelDelta: -120));
+
+            Assert.Equal(0, canExecuteProbeCount);
+            Assert.True(source.IsEnabled);
+        }
+        finally
+        {
+            FocusManager.ClearFocus();
+        }
+    }
+
+    [Fact]
     public void PerformanceTelemetry_InputCaches_ClearAfterStructureMutationVersionBump()
     {
         var root = new Panel();
@@ -321,6 +363,78 @@ public class UiRootTelemetryTests
         var clearedCounts = uiRoot.GetInputCacheEntryCountsForTests();
         Assert.Equal(0, clearedCounts.ConnectionCacheEntryCount);
         Assert.Equal(0, clearedCounts.AncestorCacheEntryCount);
+    }
+
+    [Fact]
+    public void PerformanceTelemetry_RenderInvalidation_PreservesStructuralInputCaches()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 200f));
+
+        var content = new StackPanel();
+        content.AddChild(new Border { Height = 40f });
+        content.AddChild(new Border { Height = 220f });
+
+        var scrollViewer = new ScrollViewer
+        {
+            Content = content,
+            Width = 180f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        root.AddChild(scrollViewer);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), new Viewport(0, 0, 320, 200));
+
+        uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(new Vector2(40f, 40f), wheelDelta: -120));
+
+        var populatedCounts = uiRoot.GetInputCacheEntryCountsForTests();
+        Assert.True(populatedCounts.ConnectionCacheEntryCount > 0 || populatedCounts.AncestorCacheEntryCount > 0);
+
+        scrollViewer.Opacity = 0.5f;
+
+        var preservedCounts = uiRoot.GetInputCacheEntryCountsForTests();
+        Assert.Equal(populatedCounts.ConnectionCacheEntryCount, preservedCounts.ConnectionCacheEntryCount);
+        Assert.Equal(populatedCounts.AncestorCacheEntryCount, preservedCounts.AncestorCacheEntryCount);
+    }
+
+    [Fact]
+    public void PerformanceTelemetry_LayoutPass_PreservesStructuralInputCaches()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 200f));
+
+        var content = new StackPanel();
+        content.AddChild(new Border { Height = 40f });
+        content.AddChild(new Border { Height = 220f });
+
+        var scrollViewer = new ScrollViewer
+        {
+            Content = content,
+            Width = 180f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        root.AddChild(scrollViewer);
+
+        var uiRoot = new UiRoot(root);
+        var firstFrame = new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16));
+        var secondFrame = new GameTime(TimeSpan.FromMilliseconds(32), TimeSpan.FromMilliseconds(16));
+        var viewport = new Viewport(0, 0, 320, 200);
+        uiRoot.Update(firstFrame, viewport);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(new Vector2(40f, 40f), wheelDelta: -120));
+
+        var populatedCounts = uiRoot.GetInputCacheEntryCountsForTests();
+        Assert.True(populatedCounts.ConnectionCacheEntryCount > 0 || populatedCounts.AncestorCacheEntryCount > 0);
+
+        scrollViewer.Width = 200f;
+        uiRoot.Update(secondFrame, viewport);
+
+        var preservedCounts = uiRoot.GetInputCacheEntryCountsForTests();
+        Assert.Equal(populatedCounts.ConnectionCacheEntryCount, preservedCounts.ConnectionCacheEntryCount);
+        Assert.Equal(populatedCounts.AncestorCacheEntryCount, preservedCounts.AncestorCacheEntryCount);
     }
 
     [Fact]

@@ -357,11 +357,6 @@ public sealed partial class UiRoot
             return true;
         }
 
-        if (delta.WheelDelta != 0)
-        {
-            return true;
-        }
-
         if (delta.PressedKeys.Count > 0 || delta.ReleasedKeys.Count > 0 || delta.TextInput.Count > 0)
         {
             return true;
@@ -1954,9 +1949,7 @@ public sealed partial class UiRoot
             return cachedState.IsConnected;
         }
 
-        EnsureVisualIndexCurrent();
-        var isConnected = _visualIndex.TryGetNode(element, out _) &&
-                          ReferenceEquals(element.GetVisualRoot(), _visualRoot);
+        var isConnected = IsElementConnectedToVisualRootCore(element);
         _inputConnectionCache[element] = new CachedInputConnectionState(_inputCacheVersion, isConnected);
         return isConnected;
     }

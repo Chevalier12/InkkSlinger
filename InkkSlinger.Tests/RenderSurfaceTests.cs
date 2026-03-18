@@ -340,6 +340,38 @@ public sealed class RenderSurfaceTests
     }
 
     [Fact]
+    public void UiDrawing_StateSnapshot_RestoresClipAndTransformStacksAfterIsolation()
+    {
+        var graphicsDevice = CreateFakeGraphicsDevice();
+        UiDrawing.ConfigureDrawingStateForTests(
+            graphicsDevice,
+            new[]
+            {
+                new Rectangle(0, 0, 24, 24),
+                new Rectangle(4, 4, 16, 16)
+            },
+            new[]
+            {
+                Matrix.CreateTranslation(6f, 2f, 0f),
+                Matrix.CreateScale(1.25f, 1.25f, 1f)
+            });
+
+        var snapshot = UiDrawing.CaptureDrawingStateForTests(graphicsDevice);
+
+        UiDrawing.ClearDrawingStateForTests(graphicsDevice);
+        var cleared = UiDrawing.GetDrawingStateInfoForTests(graphicsDevice);
+        Assert.Equal(0, cleared.ClipCount);
+        Assert.Equal(0, cleared.TransformCount);
+
+        UiDrawing.RestoreDrawingStateForTests(graphicsDevice, snapshot);
+        var restored = UiDrawing.GetDrawingStateInfoForTests(graphicsDevice);
+        Assert.Equal(2, restored.ClipCount);
+        Assert.Equal(2, restored.TransformCount);
+
+        UiDrawing.ReleaseDeviceResourcesForTests(graphicsDevice);
+    }
+
+    [Fact]
     public void OverrideOnlyManagedSurface_UsesManagedModeWithoutSubscribers()
     {
         var renderSurface = new OverridingRenderSurface();

@@ -29,7 +29,7 @@ internal sealed class DefaultRenderSurfaceManagedBackend : IRenderSurfaceManaged
     private static readonly RasterizerState OffscreenRasterizerState = new()
     {
         CullMode = CullMode.None,
-        ScissorTestEnable = false
+        ScissorTestEnable = true
     };
 
     public IRenderSurfaceManagedSession Create(GraphicsDevice graphicsDevice, int pixelWidth, int pixelHeight)
@@ -92,6 +92,7 @@ internal sealed class DefaultRenderSurfaceManagedBackend : IRenderSurfaceManaged
             try
             {
                 GraphicsDevice.SetRenderTarget(_renderTarget);
+                UiDrawing.ResetState(GraphicsDevice);
                 GraphicsDevice.Clear(clearColor);
 
                 _spriteBatch.Begin(

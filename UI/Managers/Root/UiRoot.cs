@@ -120,6 +120,7 @@ public sealed partial class UiRoot
     private int _lastRetainedNodesDrawn;
     private int _lastRetainedClipPushCount;
     private int _lastRetainedTraversalCount;
+    private int _lastDirtyRegionTraversalCount;
     private int _lastAncestorMetadataRefreshNodeCount;
     private int _lastSpriteBatchRestartCount;
     private int _dirtyRegionThresholdFallbackCount;
@@ -305,6 +306,7 @@ public sealed partial class UiRoot
             _lastRetainedNodesVisited,
             _lastRetainedNodesDrawn,
             _lastRetainedTraversalCount,
+            _lastDirtyRegionTraversalCount,
             _lastDirtyRootCountAfterCoalescing,
             _dirtyRegionThresholdFallbackCount,
             Shape.GetRenderCacheHitCountForTests(),
@@ -379,6 +381,23 @@ public sealed partial class UiRoot
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
+    }
+
+    internal void RecordForcedDrawForSurfaceReset()
+    {
+        if (_scheduledDrawReasons != UiRedrawReason.None)
+        {
+            return;
+        }
+
+        if (DrawSkippedFrameCount > 0)
+        {
+            DrawSkippedFrameCount--;
+        }
+
+        DrawExecutedFrameCount++;
+        LastShouldDrawReasons = UiRedrawReason.Resize;
+        _scheduledDrawReasons = UiRedrawReason.Resize;
     }
 
     public void Update(GameTime gameTime, Viewport viewport)
@@ -572,6 +591,7 @@ public sealed partial class UiRoot
     private void MarkVisualIndexDirty()
     {
         _visualIndex.MarkDirty();
+        BumpInputCacheVersion();
         InvalidateKeyboardMenuScopeCache();
         InvalidateActiveUpdateParticipants();
     }
@@ -671,7 +691,13 @@ registerContextMenu:
     private void BumpPointerResolveStateVersion()
     {
         _pointerResolveStateVersion++;
-        BumpInputCacheVersion();
+    }
+
+    private bool IsElementConnectedToVisualRootCore(UIElement? element)
+    {
+        return element != null &&
+               (ReferenceEquals(element, _visualRoot) ||
+                ReferenceEquals(element.GetVisualRoot(), _visualRoot));
     }
 
     private static void AccumulateVisualTreeMetrics(UIElement visual, int depth, ref VisualTreeMetricsAccumulator accumulator)

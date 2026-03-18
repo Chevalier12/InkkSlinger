@@ -89,6 +89,7 @@ internal readonly record struct UiRenderTelemetrySnapshot(
     int RetainedNodesVisited,
     int RetainedNodesDrawn,
     int RetainedTraversalCount,
+    int DirtyRegionTraversalCount,
     int DirtyRootCount,
     int DirtyRegionThresholdFallbackCount,
     int ShapeCacheHitCount,

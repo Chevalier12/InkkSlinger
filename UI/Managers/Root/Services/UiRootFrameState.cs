@@ -24,6 +24,11 @@ public sealed partial class UiRoot
 
         if (!ReferenceEquals(_lastGraphicsDevice, graphicsDevice))
         {
+            if (_lastGraphicsDevice != null)
+            {
+                UiDrawing.ReleaseDeviceResources(_lastGraphicsDevice);
+            }
+
             reasons |= UiRedrawReason.Resize;
             _lastGraphicsDevice = graphicsDevice;
         }
@@ -127,7 +132,6 @@ public sealed partial class UiRoot
                 _mustDrawNextFrame = true;
                 RenderInvalidationCount++;
                 _renderStateVersion++;
-                BumpInputCacheVersion();
                 if (RenderInvalidationAffectsPointerTargets(source, effectiveSource))
                 {
                     _pointerResolveStateVersion++;
@@ -168,7 +172,6 @@ public sealed partial class UiRoot
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
         _renderStateVersion++;
-        BumpInputCacheVersion();
         if (RenderInvalidationAffectsPointerTargets(source, effectiveSource))
         {
             _pointerResolveStateVersion++;
@@ -193,14 +196,23 @@ public sealed partial class UiRoot
     private bool TryResolveInvalidationSource(UIElement source, bool allowRetainedAncestorFallback, out UIElement? effectiveSource)
     {
         effectiveSource = null;
-        var connectedToRoot = false;
-        EnsureVisualIndexCurrent();
-
+        UIElement? connectedFallback = null;
         for (var current = source; current != null; current = current.GetInvalidationParent())
         {
-            if (ReferenceEquals(current, _visualRoot))
+            if (allowRetainedAncestorFallback)
             {
-                connectedToRoot = true;
+                if (TryGetIndexedVisualNodeCore(current, out _))
+                {
+                    effectiveSource = current;
+                    return true;
+                }
+
+                if (IsElementConnectedToVisualRootCore(current))
+                {
+                    connectedFallback = current;
+                }
+
+                continue;
             }
 
             if (!TryGetIndexedVisualNodeCore(current, out _))
@@ -217,13 +229,13 @@ public sealed partial class UiRoot
             return true;
         }
 
-        if (!connectedToRoot)
+        if (allowRetainedAncestorFallback && connectedFallback != null)
         {
-            return false;
+            effectiveSource = connectedFallback;
+            return true;
         }
 
-        effectiveSource = allowRetainedAncestorFallback ? _visualRoot : null;
-        return allowRetainedAncestorFallback;
+        return false;
     }
 
     private static bool RenderInvalidationAffectsPointerTargets(UIElement? source, UIElement? effectiveSource)
@@ -252,11 +264,10 @@ public sealed partial class UiRoot
 
     internal void NotifyVisualStructureChanged(UIElement element, UIElement? oldParent, UIElement? newParent)
     {
-        EnsureVisualIndexCurrent();
-        if (!TryGetIndexedVisualNodeCore(element, out _) &&
-            !TryGetIndexedVisualNodeCore(oldParent, out _) &&
-            !TryGetIndexedVisualNodeCore(newParent, out _) &&
-            !ReferenceEquals(element, _visualRoot))
+        if (!ReferenceEquals(element, _visualRoot) &&
+            !IsElementConnectedToVisualRootCore(element) &&
+            !IsElementConnectedToVisualRootCore(oldParent) &&
+            !IsElementConnectedToVisualRootCore(newParent))
         {
             return;
         }

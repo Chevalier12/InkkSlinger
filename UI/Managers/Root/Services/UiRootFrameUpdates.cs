@@ -12,7 +12,7 @@ public sealed partial class UiRoot
         {
             var indexedParticipant = _activeUpdateParticipants[i];
             var participant = indexedParticipant.Participant;
-            if (!participant.IsFrameUpdateActive || !IsElementConnectedToVisualRoot(indexedParticipant.Visual))
+            if (!participant.IsFrameUpdateActive)
             {
                 _activeUpdateParticipants.RemoveAt(i);
                 continue;

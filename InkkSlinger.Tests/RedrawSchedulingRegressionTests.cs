@@ -71,6 +71,38 @@ public sealed class RedrawSchedulingRegressionTests
     }
 
     [Fact]
+    public void GraphicsDeviceChange_ReleasesPreviousUiDrawingDeviceCaches()
+    {
+        var uiRoot = new UiRoot(new Panel());
+        var viewport = new Viewport(0, 0, 800, 600);
+        var firstDevice = (GraphicsDevice)RuntimeHelpers.GetUninitializedObject(typeof(GraphicsDevice));
+        var secondDevice = (GraphicsDevice)RuntimeHelpers.GetUninitializedObject(typeof(GraphicsDevice));
+
+        _ = uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.Zero, TimeSpan.FromMilliseconds(16)),
+            viewport,
+            firstDevice);
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        UiDrawing.ConfigureDrawingStateForTests(
+            firstDevice,
+            new[] { new Rectangle(0, 0, 4, 4) },
+            new[] { Matrix.CreateTranslation(8f, 0f, 0f) },
+            includePolygonBuffer: true);
+
+        _ = uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            viewport,
+            secondDevice);
+
+        var drawingState = UiDrawing.GetDrawingStateInfoForTests(firstDevice);
+        Assert.Equal(0, drawingState.ClipCount);
+        Assert.Equal(0, drawingState.TransformCount);
+        Assert.False(drawingState.HasPolygonBuffer);
+    }
+
+    [Fact]
     public void IdleAfterStateReset_EmitsNoReasonsAndSkipsDraw()
     {
         var uiRoot = new UiRoot(new Panel());
@@ -89,6 +121,34 @@ public sealed class RedrawSchedulingRegressionTests
         Assert.False(shouldDraw);
         Assert.Equal(UiRedrawReason.None, uiRoot.LastShouldDrawReasons);
         Assert.Equal(1, uiRoot.DrawSkippedFrameCount);
+    }
+
+    [Fact]
+    public void ForcedSurfaceResetDraw_ReclassifiesScheduledSkipAsExecutedResizeDraw()
+    {
+        var uiRoot = new UiRoot(new Panel());
+        var viewport = new Viewport(0, 0, 800, 600);
+
+        _ = uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.Zero, TimeSpan.FromMilliseconds(16)),
+            viewport);
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        var shouldDraw = uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            viewport);
+
+        Assert.False(shouldDraw);
+        Assert.Equal(1, uiRoot.DrawExecutedFrameCount);
+        Assert.Equal(1, uiRoot.DrawSkippedFrameCount);
+
+        uiRoot.RecordForcedDrawForSurfaceReset();
+
+        Assert.Equal(2, uiRoot.DrawExecutedFrameCount);
+        Assert.Equal(0, uiRoot.DrawSkippedFrameCount);
+        Assert.Equal(UiRedrawReason.Resize, uiRoot.LastShouldDrawReasons);
+        Assert.Equal(UiRedrawReason.Resize, uiRoot.GetScheduledDrawReasonsForTests());
     }
 
     [Fact]

@@ -25,6 +25,7 @@ public sealed partial class UiRoot
         _lastRetainedNodesDrawn = 0;
         _lastRetainedClipPushCount = 0;
         _lastRetainedTraversalCount = 0;
+        _lastDirtyRegionTraversalCount = 0;
         _lastSpriteBatchRestartCount = 0;
         UiDrawing.ResetFrameTelemetry();
 

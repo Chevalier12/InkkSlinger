@@ -117,6 +117,11 @@ public class Game1 : Game
 
         if (shouldDrawUiThisFrame)
         {
+            if (targetRecreated && !_shouldDrawUiThisFrame)
+            {
+                _uiRoot.RecordForcedDrawForSurfaceReset();
+            }
+
             GraphicsDevice.SetRenderTarget(_uiCompositeTarget);
             if (!EnableExperimentalPartialRedraw)
             {
@@ -154,6 +159,7 @@ public class Game1 : Game
 
         _uiCompositeTarget?.Dispose();
         _uiCompositeTarget = null;
+        UiDrawing.ReleaseDeviceResources(GraphicsDevice);
         _uiRoot.Shutdown();
         _window.Dispose();
         base.OnExiting(sender, args);
