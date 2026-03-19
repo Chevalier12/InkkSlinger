@@ -212,6 +212,13 @@ public class Panel : FrameworkElement
     protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
     {
         var hasBaseTransform = base.TryGetLocalRenderTransform(out var baseTransform, out var baseInverseTransform);
+        if (this is VirtualizingStackPanel)
+        {
+            transform = baseTransform;
+            inverseTransform = baseInverseTransform;
+            return hasBaseTransform;
+        }
+
         if (!ScrollViewer.GetUseTransformContentScrolling(this))
         {
             transform = baseTransform;

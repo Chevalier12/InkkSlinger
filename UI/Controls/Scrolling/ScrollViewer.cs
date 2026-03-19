@@ -643,10 +643,17 @@ public class ScrollViewer : ContentControl
             !NeedsMeasure &&
             !NeedsArrange)
         {
-            if (ContentElement is VirtualizingStackPanel)
+            if (ContentElement is VirtualizingStackPanel virtualizingStackPanel)
             {
-                InvalidateMeasure();
-                InvalidateArrange();
+                if (virtualizingStackPanel.RequiresMeasureForViewerOwnedOffsetChange(beforeHorizontal, HorizontalOffset, beforeVertical, VerticalOffset))
+                {
+                    InvalidateMeasure();
+                    InvalidateArrange();
+                }
+                else
+                {
+                    InvalidateArrange();
+                }
             }
             else if (UsesTransformBasedContentScrolling())
             {

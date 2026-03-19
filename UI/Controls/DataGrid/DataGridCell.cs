@@ -157,7 +157,8 @@ public class DataGridCell : Control
         bool showHorizontalGridLine,
         bool showVerticalGridLine,
         Color horizontalGridLineBrush,
-        Color verticalGridLineBrush)
+        Color verticalGridLineBrush,
+        bool refreshContent = true)
     {
         _owner = owner;
         _rowState = rowState;
@@ -172,7 +173,10 @@ public class DataGridCell : Control
         ShowVerticalGridLine = showVerticalGridLine;
         HorizontalGridLineBrush = horizontalGridLineBrush;
         VerticalGridLineBrush = verticalGridLineBrush;
-        RefreshContentFromState();
+        if (refreshContent)
+        {
+            RefreshContentFromState();
+        }
     }
 
     internal void RefreshContentFromState()
@@ -332,6 +336,16 @@ public class DataGridCell : Control
             editor.Arrange(new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
         }
         return arranged;
+    }
+
+    protected override bool TryGetClipRect(out LayoutRect clipRect)
+    {
+        if (_owner != null && _owner.TryGetScrollableCellClipRect(ColumnIndex, out clipRect))
+        {
+            return true;
+        }
+
+        return base.TryGetClipRect(out clipRect);
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)

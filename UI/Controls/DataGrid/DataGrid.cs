@@ -192,6 +192,63 @@ public class DataGrid : MultiSelector
     internal float HorizontalOffsetForTesting => _rowsPresenter.ScrollViewer.HorizontalOffset;
     internal float EffectiveRowHeightForLayout => GetEffectiveRowHeight();
 
+    internal bool TryGetScrollableCellClipRect(int displayColumnIndex, out LayoutRect clipRect)
+    {
+        clipRect = default;
+        var displayColumns = GetDisplayColumns();
+        var frozenCount = Math.Clamp(FrozenColumnCount, 0, displayColumns.Count);
+        if (displayColumnIndex < frozenCount)
+        {
+            return false;
+        }
+
+        if (!_rowsPresenter.ScrollViewer.TryGetContentViewportClipRect(out var viewportRect))
+        {
+            return false;
+        }
+
+        var clipLeft = viewportRect.X + ResolveFrozenColumnsWidth();
+        var clipRight = viewportRect.X + viewportRect.Width;
+        if (clipRight <= clipLeft)
+        {
+            return false;
+        }
+
+        clipRect = new LayoutRect(clipLeft, viewportRect.Y, clipRight - clipLeft, viewportRect.Height);
+        return true;
+    }
+
+    internal bool TryGetScrollableHeaderClipRect(int displayColumnIndex, out LayoutRect clipRect)
+    {
+        clipRect = default;
+        var displayColumns = GetDisplayColumns();
+        var frozenCount = Math.Clamp(FrozenColumnCount, 0, displayColumns.Count);
+        if (displayColumnIndex < frozenCount)
+        {
+            return false;
+        }
+
+        var border = BorderThickness;
+        var innerX = LayoutSlot.X + border;
+        var innerY = LayoutSlot.Y + border;
+        var innerWidth = MathF.Max(0f, LayoutSlot.Width - (border * 2f));
+        var headerHeight = ColumnHeadersVisibleForLayout ? GetEffectiveColumnHeaderHeight() : 0f;
+        if (innerWidth <= 0f || headerHeight <= 0f)
+        {
+            return false;
+        }
+
+        var clipLeft = innerX + ResolveFrozenColumnsWidth();
+        var clipRight = innerX + innerWidth;
+        if (clipRight <= clipLeft)
+        {
+            return false;
+        }
+
+        clipRect = new LayoutRect(clipLeft, innerY, clipRight - clipLeft, headerHeight);
+        return true;
+    }
+
     protected override bool IncludeGeneratedChildrenInVisualTree => false;
     protected override bool CanReconcileProjectedContainersOnReset => true;
 
@@ -340,7 +397,7 @@ public class DataGrid : MultiSelector
         _cornerHeader.IsVisible = RowHeadersVisibleForLayout && ColumnHeadersVisibleForLayout;
         _cornerHeader.Arrange(new LayoutRect(innerX, innerY, rowHeaderWidth, headerHeight));
         _rowsPresenter.ScrollViewer.Arrange(new LayoutRect(innerX, innerY + headerHeight, innerWidth, MathF.Max(0f, innerHeight - headerHeight)));
-        _headersPresenter.ArrangeHeaders(this, innerX, innerY, rowHeaderWidth, headerHeight, Math.Clamp(FrozenColumnCount, 0, _state.Columns.Count), _rowsPresenter.ScrollViewer.HorizontalOffset, ColumnHeadersVisibleForLayout);
+        ArrangeHeadersForCurrentLayout();
         return finalSize;
     }
 
@@ -552,9 +609,18 @@ public class DataGrid : MultiSelector
         var dragged = _isPotentialReorder && _isDraggingColumn;
         var headerModifiers = _headerPointerModifiers;
         ResetHeaderPointerState();
-        if (!dragged) { SortByDisplayColumnIndex(sourceDisplayIndex, headerModifiers); return true; }
-        var targetDisplayIndex = ResolveHeaderDisplayIndexAtPointer(pointerPosition);
-        if (targetDisplayIndex >= 0 && targetDisplayIndex != sourceDisplayIndex) { MoveDisplayColumn(sourceDisplayIndex, targetDisplayIndex); }
+        if (!dragged)
+        {
+            var targetDisplayIndex = ResolveHeaderDisplayIndexAtPointer(pointerPosition);
+            if (targetDisplayIndex == sourceDisplayIndex)
+            {
+                SortByDisplayColumnIndex(sourceDisplayIndex, headerModifiers);
+            }
+
+            return true;
+        }
+        var dropTargetDisplayIndex = ResolveHeaderDisplayIndexAtPointer(pointerPosition);
+        if (dropTargetDisplayIndex >= 0 && dropTargetDisplayIndex != sourceDisplayIndex) { MoveDisplayColumn(sourceDisplayIndex, dropTargetDisplayIndex); }
         return true;
     }
 
@@ -1238,18 +1304,25 @@ public class DataGrid : MultiSelector
         }
         else if (shift)
         {
-            var anchorRowIndex = _state.Selection.CellAnchorRowIndex >= 0 ? _state.Selection.CellAnchorRowIndex : clampedRow;
-            var anchorColumnIndex = _state.Selection.CellAnchorColumnIndex >= 0 ? _state.Selection.CellAnchorColumnIndex : clampedColumn;
-            if (!ctrl)
+            if (ctrl && _state.Selection.AllCellsSelected)
             {
-                ClearExplicitCellSelection();
+                SetCellSelectionAnchor(clampedRow, clampedColumn);
             }
             else
             {
-                _state.Selection.AllCellsSelected = false;
-            }
+                var anchorRowIndex = _state.Selection.CellAnchorRowIndex >= 0 ? _state.Selection.CellAnchorRowIndex : clampedRow;
+                var anchorColumnIndex = _state.Selection.CellAnchorColumnIndex >= 0 ? _state.Selection.CellAnchorColumnIndex : clampedColumn;
+                if (!ctrl)
+                {
+                    ClearExplicitCellSelection();
+                }
+                else
+                {
+                    _state.Selection.AllCellsSelected = false;
+                }
 
-            AddSelectedCellRectangle(anchorRowIndex, anchorColumnIndex, clampedRow, clampedColumn);
+                AddSelectedCellRectangle(anchorRowIndex, anchorColumnIndex, clampedRow, clampedColumn);
+            }
         }
         else if (!isKeyboardNavigation && ctrl)
         {
@@ -1404,6 +1477,12 @@ public class DataGrid : MultiSelector
 
     private void RefreshGridState(bool refreshColumns, bool invalidateMeasure = true)
     {
+        var previousCurrentCell = GetCurrentCellInfo();
+        var previousSelectedCells = AllowsCellSelection(SelectionUnit)
+            ? BuildSelectedCellsSnapshot()
+            : new List<DataGridCellInfo>();
+        var previousAllCellsSelected = _state.Selection.AllCellsSelected;
+
         if (refreshColumns)
         {
             RefreshColumnStates();
@@ -1414,6 +1493,7 @@ public class DataGrid : MultiSelector
             SyncColumnStateSortDirectionsFromView();
         }
         RefreshRowStates();
+        RestoreSelectionAfterRowRefresh(previousCurrentCell, previousSelectedCells, previousAllCellsSelected);
         RefreshRowDetailsState();
         SyncSelectionStateFromProperties();
         SyncSelectorSelectionFromState();
@@ -1427,6 +1507,75 @@ public class DataGrid : MultiSelector
         }
         InvalidateArrange();
         InvalidateVisual();
+    }
+
+    private void RestoreSelectionAfterRowRefresh(DataGridCellInfo previousCurrentCell, IReadOnlyList<DataGridCellInfo> previousSelectedCells, bool previousAllCellsSelected)
+    {
+        ReplaceSelectionItemsInternal(_state.Rows.Select(static row => row.Item));
+        SyncSelectionStateFromSelector();
+
+        if (!AllowsCellSelection(SelectionUnit))
+        {
+            if (TryRemapCellInfo(previousCurrentCell, out var fallbackRowIndex, out var fallbackColumnIndex))
+            {
+                _state.Selection.CurrentRowIndex = fallbackRowIndex;
+                _state.Selection.CurrentColumnIndex = fallbackColumnIndex;
+            }
+
+            return;
+        }
+
+        var displayColumns = GetDisplayColumns();
+        if (previousAllCellsSelected && _state.Rows.Count > 0 && displayColumns.Count > 0)
+        {
+            _state.Selection.AllCellsSelected = true;
+            _state.Selection.SelectedCellKeys.Clear();
+        }
+        else
+        {
+            _state.Selection.AllCellsSelected = false;
+            _state.Selection.SelectedCellKeys.Clear();
+            for (var i = 0; i < previousSelectedCells.Count; i++)
+            {
+                if (TryRemapCellInfo(previousSelectedCells[i], out var rowIndex, out var columnIndex))
+                {
+                    AddSelectedCell(rowIndex, columnIndex);
+                }
+            }
+        }
+
+        if (TryRemapCellInfo(previousCurrentCell, out var currentRowIndex, out var currentColumnIndex))
+        {
+            _state.Selection.CurrentRowIndex = currentRowIndex;
+            _state.Selection.CurrentColumnIndex = currentColumnIndex;
+            _state.Selection.SelectedRowIndex = currentRowIndex;
+            _state.Selection.SelectedColumnIndex = _state.Selection.AllCellsSelected ? -1 : currentColumnIndex;
+            return;
+        }
+
+        if (_state.Selection.SelectedCellKeys.Count > 0)
+        {
+            var firstSelectedCellKey = _state.Selection.SelectedCellKeys.Min();
+            var rowIndex = DecodeRowIndex(firstSelectedCellKey);
+            var columnIndex = DecodeColumnIndex(firstSelectedCellKey);
+            _state.Selection.CurrentRowIndex = rowIndex;
+            _state.Selection.CurrentColumnIndex = columnIndex;
+            _state.Selection.SelectedRowIndex = rowIndex;
+            _state.Selection.SelectedColumnIndex = _state.Selection.AllCellsSelected ? -1 : columnIndex;
+            return;
+        }
+
+        if (_state.Rows.Count == 0)
+        {
+            _state.Selection.CurrentRowIndex = -1;
+            _state.Selection.SelectedRowIndex = -1;
+        }
+
+        if (displayColumns.Count == 0)
+        {
+            _state.Selection.CurrentColumnIndex = -1;
+            _state.Selection.SelectedColumnIndex = -1;
+        }
     }
 
     private void RefreshColumnStates()
@@ -1481,12 +1630,6 @@ public class DataGrid : MultiSelector
             }
 
             AutoGeneratedColumns?.Invoke(this, EventArgs.Empty);
-        }
-
-        if (_state.Columns.Count == 0)
-        {
-            var fallbackColumn = new DataGridColumn { Header = "Value", BindingPath = string.Empty, Width = float.NaN, DisplayIndex = 0 };
-            _state.Columns.Add(new DataGridColumnState { Column = fallbackColumn, DisplayIndex = 0, Width = fallbackColumn.GetResolvedWidth(), SortDirection = DataGridSortDirection.None });
         }
     }
 
@@ -1703,6 +1846,37 @@ public class DataGrid : MultiSelector
         {
             InvalidateArrange();
         }
+    }
+
+    private void ArrangeHeadersForCurrentLayout()
+    {
+        var border = BorderThickness;
+        var innerX = LayoutSlot.X + border;
+        var innerY = LayoutSlot.Y + border;
+        var rowHeaderWidth = RowHeadersVisibleForLayout ? RowHeaderWidth : 0f;
+        var headerHeight = ColumnHeadersVisibleForLayout ? GetEffectiveColumnHeaderHeight() : 0f;
+        _headersPresenter.ArrangeHeaders(
+            this,
+            innerX,
+            innerY,
+            rowHeaderWidth,
+            headerHeight,
+            Math.Clamp(FrozenColumnCount, 0, _state.Columns.Count),
+            _rowsPresenter.ScrollViewer.HorizontalOffset,
+            ColumnHeadersVisibleForLayout);
+    }
+
+    private float ResolveFrozenColumnsWidth()
+    {
+        var width = RowHeadersVisibleForLayout ? RowHeaderWidth : 0f;
+        var displayColumns = GetDisplayColumns();
+        var frozenCount = Math.Clamp(FrozenColumnCount, 0, displayColumns.Count);
+        for (var i = 0; i < frozenCount; i++)
+        {
+            width += displayColumns[i].Width;
+        }
+
+        return width;
     }
 
     private float GetEffectiveRowHeight() => MathF.Max(RowHeight, UiTextRenderer.GetLineHeight(this, FontSize) + 8f);
@@ -2396,6 +2570,17 @@ public class DataGrid : MultiSelector
         return false;
     }
 
+    private bool TryRemapCellInfo(DataGridCellInfo cellInfo, out int rowIndex, out int columnIndex)
+    {
+        rowIndex = -1;
+        columnIndex = -1;
+        if (!cellInfo.IsValid || !TryFindRowIndex(cellInfo.Item, out rowIndex) || !TryFindDisplayColumnIndex(cellInfo.Column, out columnIndex))
+        {
+            return false;
+        }
+        return true;
+    }
+
     private static bool AllowsCellSelection(DataGridSelectionUnit selectionUnit)
     {
         return selectionUnit == DataGridSelectionUnit.Cell || selectionUnit == DataGridSelectionUnit.CellOrRowHeader;
@@ -2531,7 +2716,7 @@ public class DataGrid : MultiSelector
 
         var rowTop = row.LayoutSlot.Y;
         var rowBottom = row.LayoutSlot.Y + row.LayoutSlot.Height;
-        var viewportTop = viewportRect.Y + _rowsPresenter.ScrollViewer.VerticalOffset;
+        var viewportTop = viewportRect.Y;
         var viewportBottom = viewportTop + viewportRect.Height;
         if (rowTop < viewportTop)
         {
@@ -2624,7 +2809,7 @@ public class DataGrid : MultiSelector
         for (var i = 0; i < displayColumns.Count; i++) { displayColumns[i].DisplayIndex = i; displayColumns[i].Column.DisplayIndex = i; }
         _displayColumnsCache = null;
         _headersPresenter.SyncHeaders(this, GetDisplayColumns(), OnColumnHeaderClick);
-        SyncRowsHost();
+        _rowsPresenter.ReorderColumns(this, _state.Rows, GetDisplayColumns());
         InvalidateArrange();
         InvalidateVisual();
     }

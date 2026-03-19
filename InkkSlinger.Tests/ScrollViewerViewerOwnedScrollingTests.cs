@@ -206,12 +206,16 @@ public class ScrollViewerViewerOwnedScrollingTests
 
         var firstChild = Assert.IsAssignableFrom<FrameworkElement>(virtualizingPanel.Children[0]);
         var childXBefore = firstChild.LayoutSlot.X;
+        uiRoot.ResetDirtyStateForTests();
 
         viewer.ScrollToHorizontalOffset(120f);
         RunLayout(uiRoot, 320, 200, 32);
 
         Assert.True(viewer.HorizontalOffset > 0f);
         Assert.True(firstChild.LayoutSlot.X < childXBefore);
+        Assert.False(viewer.NeedsMeasure);
+        Assert.Equal(0, uiRoot.MeasureInvalidationCount);
+        Assert.True(uiRoot.ArrangeInvalidationCount > 0);
     }
 
     [Fact]

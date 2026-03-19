@@ -112,6 +112,68 @@ public sealed class AppStyledDataGridSampleTests
         Assert.True(larger.DesiredSize.Y > smaller.DesiredSize.Y);
     }
 
+    [Fact]
+    public void AppStyledDataGridSample_HorizontalThumbDrag_KeepsTemplateLabelAlignedWithNameCell()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var view = new DataGridView
+            {
+                Width = 780f,
+                Height = 520f
+            };
+            var host = new Canvas
+            {
+                Width = 780f,
+                Height = 520f
+            };
+            host.AddChild(view);
+
+            var uiRoot = new UiRoot(host);
+            uiRoot.Update(
+                new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+                new Viewport(0, 0, 780, 520));
+
+            var dataGrid = FindDescendant<DataGrid>(view);
+            var row = dataGrid.RowsForTesting[0];
+            var ticketCell = Assert.IsType<DataGridCell>(row.Cells[0]);
+            var nameCell = Assert.IsType<DataGridCell>(dataGrid.RowsForTesting[0].Cells[1]);
+            var label = FindDescendant<Label>(nameCell);
+            Assert.True(nameCell.TryGetRenderBoundsInRootSpace(out var cellBoundsBefore));
+            Assert.True(label.TryGetRenderBoundsInRootSpace(out var labelBoundsBefore));
+            var labelOffsetBefore = labelBoundsBefore.X - cellBoundsBefore.X;
+            var horizontalBar = GetPrivateScrollBar(dataGrid.ScrollViewerForTesting, "_horizontalBar");
+            var thumb = FindDescendant<Thumb>(horizontalBar);
+            var thumbCenter = Center(thumb.LayoutSlot);
+            var rightPointer = new Vector2(horizontalBar.LayoutSlot.X + horizontalBar.LayoutSlot.Width - 2f, thumbCenter.Y);
+
+            Assert.True(thumb.HandlePointerDownFromInput(thumbCenter));
+            Assert.True(thumb.HandlePointerMoveFromInput(rightPointer));
+            uiRoot.Update(
+                new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+                new Viewport(0, 0, 780, 520));
+
+            Assert.True(dataGrid.ScrollViewerForTesting.HorizontalOffset > 0f);
+            Assert.True(nameCell.TryGetRenderBoundsInRootSpace(out var cellBoundsAfter));
+            Assert.True(label.TryGetRenderBoundsInRootSpace(out var labelBoundsAfter));
+            Assert.Equal(cellBoundsAfter.X + labelOffsetBefore, labelBoundsAfter.X);
+
+            var overlapPoint = new Vector2(
+                ticketCell.LayoutSlot.X + ticketCell.LayoutSlot.Width - 6f,
+                nameCell.LayoutSlot.Y + (nameCell.LayoutSlot.Height * 0.5f));
+            Assert.Same(ticketCell, FindAncestor<DataGridCell>(VisualTreeHelper.HitTest(host, overlapPoint)));
+
+            Assert.True(thumb.HandlePointerUpFromInput());
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
     private static Dictionary<object, object> CaptureApplicationResources()
     {
         return new Dictionary<object, object>(UiApplication.Current.Resources);
@@ -204,5 +266,26 @@ public sealed class AppStyledDataGridSampleTests
         }
 
         throw new InvalidOperationException($"Could not find descendant of type '{typeof(TElement).Name}'.");
+    }
+
+    private static TElement? FindAncestor<TElement>(UIElement? start)
+        where TElement : UIElement
+    {
+        for (var current = start; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is TElement match)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private static ScrollBar GetPrivateScrollBar(ScrollViewer viewer, string fieldName)
+    {
+        var field = typeof(ScrollViewer).GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<ScrollBar>(field!.GetValue(viewer));
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -161,6 +162,20 @@ public sealed class DataGridParityChecklistTests
     }
 
     [Fact]
+    public void CellSelection_CtrlShiftClickAfterSelectAllKeepsAllCellsSelected()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        grid.SelectionMode = DataGridSelectionMode.Extended;
+        RunLayout(uiRoot);
+
+        grid.SelectAllCells();
+        Click(uiRoot, GetCenter(grid.RowsForTesting[1].Cells[1].LayoutSlot), ModifierKeys.Control | ModifierKeys.Shift);
+
+        Assert.Equal(6, grid.SelectedCells.Count);
+        Assert.All(grid.RowsForTesting, row => Assert.All(row.Cells, cell => Assert.True(cell.IsSelected)));
+    }
+
+    [Fact]
     public void InheritedSelectAll_SelectsRowsInCellSelectionMode()
     {
         var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
@@ -222,6 +237,47 @@ public sealed class DataGridParityChecklistTests
         Assert.Equal(-1, grid.SelectedIndex);
         var selectedCell = Assert.Single(grid.SelectedCells);
         Assert.Equal(grid.CurrentCell, selectedCell);
+    }
+
+    [Fact]
+    public void FullRowSelection_SortKeepsSelectedItemAndCurrentCellOnSameDataItem()
+    {
+        var (grid, uiRoot) = CreateGridHost();
+        RunLayout(uiRoot);
+
+        var selectedCell = grid.RowsForTesting[0].Cells[1];
+        Click(uiRoot, GetCenter(selectedCell.LayoutSlot));
+        var currentCell = grid.CurrentCell;
+        var selectedItem = grid.SelectedItem;
+
+        grid.ColumnHeadersForTesting[1].RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
+        grid.ColumnHeadersForTesting[1].RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
+
+        Assert.Same(selectedItem, grid.SelectedItem);
+        Assert.Equal(2, grid.SelectedIndex);
+        Assert.Equal(2, grid.CurrentRowIndexForTesting);
+        Assert.Equal(1, grid.CurrentColumnIndexForTesting);
+        Assert.Equal(currentCell, grid.CurrentCell);
+    }
+
+    [Fact]
+    public void CellSelection_SortKeepsCurrentCellAndSelectedCellsOnSameDataItem()
+    {
+        var (grid, uiRoot) = CreateGridHost(selectionUnit: DataGridSelectionUnit.Cell);
+        RunLayout(uiRoot);
+
+        var selectedCell = grid.RowsForTesting[0].Cells[1];
+        Click(uiRoot, GetCenter(selectedCell.LayoutSlot));
+        var currentCell = grid.CurrentCell;
+
+        grid.ColumnHeadersForTesting[1].RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
+        grid.ColumnHeadersForTesting[1].RaiseRoutedEventInternal(Button.ClickEvent, new RoutedSimpleEventArgs(Button.ClickEvent));
+
+        Assert.True(grid.CurrentCell.IsValid);
+        Assert.Equal(2, grid.CurrentRowIndexForTesting);
+        Assert.Equal(1, grid.CurrentColumnIndexForTesting);
+        Assert.Equal(grid.CurrentCell, Assert.Single(grid.SelectedCells));
+        Assert.Equal(currentCell, grid.CurrentCell);
     }
 
     [Fact]
@@ -696,6 +752,34 @@ public sealed class DataGridParityChecklistTests
     }
 
     [Fact]
+    public void HeaderReorder_ReusesExistingVisibleCellsWithoutRowsHostMeasureInvalidation()
+    {
+        var (grid, uiRoot) = CreateGridHost();
+        grid.CanUserReorderColumns = true;
+        RunLayout(uiRoot);
+
+        var row = grid.RowsForTesting[0];
+        var originalFirstCell = row.Cells[0];
+        var originalSecondCell = row.Cells[1];
+        var rowsHostMeasureInvalidationsBefore = grid.RowsHostForTesting.MeasureInvalidationCount;
+
+        var secondHeader = grid.ColumnHeadersForTesting[1];
+        var firstHeader = grid.ColumnHeadersForTesting[0];
+        var dragStart = GetCenter(secondHeader.LayoutSlot);
+        var dragTarget = GetCenter(firstHeader.LayoutSlot);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(dragStart, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(dragStart, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(dragStart.X - 60f, dragStart.Y), pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(dragTarget, leftReleased: true));
+        RunLayout(uiRoot);
+
+        Assert.Same(originalSecondCell, row.Cells[0]);
+        Assert.Same(originalFirstCell, row.Cells[1]);
+        Assert.Equal(rowsHostMeasureInvalidationsBefore, grid.RowsHostForTesting.MeasureInvalidationCount);
+    }
+
+    [Fact]
     public void FrozenColumns_StayStationaryDuringHorizontalScroll()
     {
         var (grid, uiRoot) = CreateGridHost(width: 260f);
@@ -707,14 +791,81 @@ public sealed class DataGridParityChecklistTests
         RunLayout(uiRoot, width: 260, height: 300);
 
         var row = grid.RowsForTesting[0];
+        var rowHeaderX = row.RowHeaderForTesting.LayoutSlot.X;
         var frozenX = row.Cells[0].LayoutSlot.X;
         var scrollingX = row.Cells[1].LayoutSlot.X;
 
         grid.ScrollViewerForTesting.ScrollToHorizontalOffset(60f);
         RunLayout(uiRoot, width: 260, height: 300);
 
+        Assert.Equal(rowHeaderX, row.RowHeaderForTesting.LayoutSlot.X);
         Assert.Equal(frozenX, row.Cells[0].LayoutSlot.X);
         Assert.True(row.Cells[1].LayoutSlot.X < scrollingX);
+    }
+
+    [Fact]
+    public void HorizontalScroll_RepositionsHeadersWithoutGridLayoutInvalidation()
+    {
+        var (grid, uiRoot) = CreateGridHost(width: 260f);
+        grid.Columns.Clear();
+        grid.Columns.Add(new DataGridColumn { Header = "Id", BindingPath = nameof(Row.Id), Width = 120f });
+        grid.Columns.Add(new DataGridColumn { Header = "Name", BindingPath = nameof(Row.Name), Width = 120f });
+        grid.Columns.Add(new DataGridColumn { Header = "City", BindingPath = nameof(Row.City), Width = 120f });
+        grid.FrozenColumnCount = 1;
+        RunLayout(uiRoot, width: 260, height: 300);
+
+        var frozenHeaderX = grid.ColumnHeadersForTesting[0].LayoutSlot.X;
+        var scrollingHeaderX = grid.ColumnHeadersForTesting[1].LayoutSlot.X;
+        var gridMeasureInvalidationsBefore = grid.MeasureInvalidationCount;
+        var gridArrangeInvalidationsBefore = grid.ArrangeInvalidationCount;
+        var rootMeasureInvalidationsBefore = uiRoot.MeasureInvalidationCount;
+        var rootArrangeInvalidationsBefore = uiRoot.ArrangeInvalidationCount;
+
+        uiRoot.ResetDirtyStateForTests();
+        grid.ScrollViewerForTesting.ScrollToHorizontalOffset(60f);
+        RunLayout(uiRoot, width: 260, height: 300);
+
+        Assert.Equal(frozenHeaderX, grid.ColumnHeadersForTesting[0].LayoutSlot.X);
+        Assert.True(grid.ColumnHeadersForTesting[1].LayoutSlot.X < scrollingHeaderX);
+        Assert.Equal(gridMeasureInvalidationsBefore, grid.MeasureInvalidationCount);
+        Assert.True(grid.ArrangeInvalidationCount > gridArrangeInvalidationsBefore);
+        Assert.Equal(rootMeasureInvalidationsBefore, uiRoot.MeasureInvalidationCount);
+        Assert.True(uiRoot.ArrangeInvalidationCount > rootArrangeInvalidationsBefore);
+    }
+
+    [Fact]
+    public void HorizontalScrollBarThumbDrag_KeepsFrozenLanesAligned()
+    {
+        var (grid, uiRoot) = CreateGridHost(width: 260f, itemCount: 12);
+        grid.Columns.Clear();
+        grid.Columns.Add(new DataGridColumn { Header = "Ticket", BindingPath = nameof(Row.Id), Width = 96f });
+        grid.Columns.Add(new DataGridColumn { Header = "Name", BindingPath = nameof(Row.Name), Width = 160f });
+        grid.Columns.Add(new DataGridColumn { Header = "Team", BindingPath = nameof(Row.City), Width = 150f });
+        grid.Columns.Add(new DataGridColumn { Header = "Priority", BindingPath = nameof(Row.Name), Width = 110f });
+        grid.FrozenColumnCount = 1;
+        RunLayout(uiRoot, width: 260, height: 300);
+
+        var row = grid.RowsForTesting[0];
+        var rowHeaderX = row.RowHeaderForTesting.LayoutSlot.X;
+        var frozenHeaderX = grid.ColumnHeadersForTesting[0].LayoutSlot.X;
+        var frozenCellX = row.Cells[0].LayoutSlot.X;
+
+        var horizontalBar = GetPrivateScrollBar(grid.ScrollViewerForTesting, "_horizontalBar");
+        var thumbCenter = GetCenter(horizontalBar.GetThumbRectForInput());
+        var rightPointer = new Vector2(horizontalBar.LayoutSlot.X + horizontalBar.LayoutSlot.Width - 2f, thumbCenter.Y);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(thumbCenter, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(thumbCenter, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(rightPointer, pointerMoved: true));
+        RunLayout(uiRoot, width: 260, height: 300);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(rightPointer, leftReleased: true));
+        RunLayout(uiRoot, width: 260, height: 300);
+
+        Assert.True(grid.ScrollViewerForTesting.HorizontalOffset > 0f);
+        Assert.Equal(rowHeaderX, row.RowHeaderForTesting.LayoutSlot.X);
+        Assert.Equal(frozenHeaderX, grid.ColumnHeadersForTesting[0].LayoutSlot.X);
+        Assert.Equal(frozenCellX, row.Cells[0].LayoutSlot.X);
+        Assert.Equal(grid.ColumnHeadersForTesting[1].LayoutSlot.X, row.Cells[1].LayoutSlot.X);
     }
 
     [Fact]
@@ -1033,6 +1184,13 @@ public sealed class DataGridParityChecklistTests
     }
 
     private static Vector2 GetCenter(LayoutRect rect) => new(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
+
+    private static ScrollBar GetPrivateScrollBar(ScrollViewer viewer, string fieldName)
+    {
+        var field = typeof(ScrollViewer).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<ScrollBar>(field!.GetValue(viewer));
+    }
 
     private sealed class AlwaysInvalidRule : ValidationRule
     {

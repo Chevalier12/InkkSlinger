@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace InkkSlinger;
 
@@ -249,6 +250,12 @@ public class Selector : ItemsControl
     protected void ClearSelectionInternal()
     {
         _selectionModel.Clear();
+    }
+
+    protected void ReplaceSelectionItemsInternal(IEnumerable<object?> items)
+    {
+        _selectionModel.ReplaceItems(items.Select(item => item!));
+        SyncSelectionPropertiesFromModel();
     }
 
     protected bool IsSelectedIndexInternal(int index)

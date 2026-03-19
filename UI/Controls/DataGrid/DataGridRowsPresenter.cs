@@ -89,6 +89,48 @@ internal sealed class DataGridRowsPresenter
         }
     }
 
+    public void ReorderColumns(
+        DataGrid owner,
+        IReadOnlyList<DataGridRowState> rows,
+        IReadOnlyList<DataGridColumnState> displayColumns)
+    {
+        var selectedRowIndices = owner.GetSelectedRowIndicesForVisualState();
+        var selectedCellKeys = owner.GetSelectedCellKeysForVisualState();
+        var itemContainers = owner.GetItemContainersForPresenter();
+        if (rows.Count == 0 || itemContainers.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < itemContainers.Count; i++)
+        {
+            if (itemContainers[i] is not DataGridRow row)
+            {
+                continue;
+            }
+
+            row.ReorderColumns(
+                owner,
+                rows[i],
+                displayColumns,
+                owner.RowHeadersVisibleForLayout,
+                owner.HorizontalGridLinesVisibleForLayout,
+                owner.VerticalGridLinesVisibleForLayout,
+                owner.HorizontalGridLinesBrush,
+                owner.VerticalGridLinesBrush);
+            row.UpdateSelectionState(
+                owner.SelectionUnit,
+                selectedRowIndices,
+                selectedCellKeys,
+                owner.AreAllCellsSelectedForVisualState,
+                owner.CurrentRowIndexForTesting,
+                owner.CurrentColumnIndexForTesting,
+                rows[i].AreDetailsVisible);
+        }
+
+        RowsHost.InvalidateArrange();
+    }
+
     public IReadOnlyList<DataGridRow> GetRows(IReadOnlyList<UIElement> itemContainers)
     {
         var rows = new List<DataGridRow>();

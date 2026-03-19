@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -209,6 +210,85 @@ public class DataGridRow : Control
         }
     }
 
+    internal void ReorderColumns(
+        DataGrid owner,
+        DataGridRowState rowState,
+        IReadOnlyList<DataGridColumnState> columns,
+        bool showRowHeader,
+        bool showHorizontalGridLines,
+        bool showVerticalGridLines,
+        Color horizontalGridLineBrush,
+        Color verticalGridLineBrush)
+    {
+        if (_cells.Count != columns.Count || _columns.Count != columns.Count)
+        {
+            Configure(owner, rowState, columns, showRowHeader, showHorizontalGridLines, showVerticalGridLines, horizontalGridLineBrush, verticalGridLineBrush);
+            return;
+        }
+
+        var cellsByColumn = new Dictionary<DataGridColumn, DataGridCell>(columns.Count);
+        for (var i = 0; i < _cells.Count; i++)
+        {
+            var column = _cells[i].ColumnState?.Column;
+            if (column == null || !cellsByColumn.TryAdd(column, _cells[i]))
+            {
+                Configure(owner, rowState, columns, showRowHeader, showHorizontalGridLines, showVerticalGridLines, horizontalGridLineBrush, verticalGridLineBrush);
+                return;
+            }
+        }
+
+        var reorderedCells = new List<DataGridCell>(columns.Count);
+        var orderChanged = false;
+        for (var i = 0; i < columns.Count; i++)
+        {
+            if (!cellsByColumn.TryGetValue(columns[i].Column, out var cell))
+            {
+                Configure(owner, rowState, columns, showRowHeader, showHorizontalGridLines, showVerticalGridLines, horizontalGridLineBrush, verticalGridLineBrush);
+                return;
+            }
+
+            reorderedCells.Add(cell);
+            if (!ReferenceEquals(_cells[i], cell))
+            {
+                orderChanged = true;
+            }
+        }
+
+        Owner = owner;
+        RowIndex = rowState.RowIndex;
+        Item = rowState.Item;
+        _rowHeaderLaneCoordinator.ConfigureHeader(_rowHeader, owner, rowState, showRowHeader);
+        _columns.Clear();
+        _columns.AddRange(columns);
+        SyncDetailsPresenter(owner, rowState.Item, rowState.AreDetailsVisible);
+
+        if (orderChanged)
+        {
+            _cells.Clear();
+            _cells.AddRange(reorderedCells);
+        }
+
+        for (var i = 0; i < columns.Count; i++)
+        {
+            _cells[i].BindState(
+                owner,
+                rowState,
+                columns[i],
+                showHorizontalGridLines,
+                showVerticalGridLines,
+                horizontalGridLineBrush,
+                verticalGridLineBrush,
+                refreshContent: false);
+        }
+
+        if (orderChanged)
+        {
+            InvalidateArrange();
+        }
+
+        InvalidateVisual();
+    }
+
     private static long CreateCellSelectionKey(int rowIndex, int columnIndex)
     {
         return ((long)rowIndex << 32) | (uint)columnIndex;
@@ -263,11 +343,11 @@ public class DataGridRow : Control
         var rowHeaderWidth = _rowHeaderLaneCoordinator.ResolveWidth(Owner);
         var detailsHeight = _detailsPresenter.IsVisibleDetails ? _detailsPresenter.DesiredSize.Y : 0f;
         var rowHeight = MathF.Max(0f, finalSize.Y - detailsHeight);
+        var horizontalOffset = Owner?.HorizontalOffsetForTesting ?? 0f;
 
-        _rowHeaderLaneCoordinator.ArrangeHeader(_rowHeader, x, y, rowHeaderWidth, rowHeight);
+        _rowHeaderLaneCoordinator.ArrangeHeader(_rowHeader, x + horizontalOffset, y, rowHeaderWidth, rowHeight);
 
         var frozenCount = Math.Clamp(Owner?.FrozenColumnCount ?? 0, 0, _columns.Count);
-        var horizontalOffset = Owner?.HorizontalOffsetForTesting ?? 0f;
         var runningFrozenX = x + rowHeaderWidth + horizontalOffset;
         var runningScrollableX = x + rowHeaderWidth;
         for (var i = 0; i < _cells.Count; i++)

@@ -420,6 +420,62 @@ public sealed class ControlDemoDataGridSampleTests
             $"Expected last row to align with viewport bottom after scrollbar drag. LastRowBottom={lastRowBottom}, ViewportBottom={viewportBottom}, Offset={scrollViewer.VerticalOffset}, Extent={scrollViewer.ExtentHeight}, Viewport={scrollViewer.ViewportHeight}.");
     }
 
+    [Fact]
+    public void DataGridView_DraggingHorizontalScrollBar_KeepsFrozenLanesAligned()
+    {
+        var view = new DataGridView
+        {
+            Width = 780f,
+            Height = 520f
+        };
+
+        var host = new Canvas
+        {
+            Width = 780f,
+            Height = 520f
+        };
+        host.AddChild(view);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 780, 520);
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(view);
+        Assert.NotNull(dataGrid);
+
+        var scrollViewer = dataGrid!.ScrollViewerForTesting;
+        Assert.True(scrollViewer.ExtentWidth > scrollViewer.ViewportWidth);
+
+        var row = dataGrid.RowsForTesting[0];
+        var rowHeaderX = row.RowHeaderForTesting.LayoutSlot.X;
+        var frozenHeaderX = dataGrid.ColumnHeadersForTesting[0].LayoutSlot.X;
+        var frozenCellX = row.Cells[0].LayoutSlot.X;
+
+        var horizontalBar = GetPrivateScrollBar(scrollViewer, "_horizontalBar");
+        var thumb = FindFirstVisualChild<Thumb>(horizontalBar);
+        Assert.NotNull(thumb);
+
+        var thumbCenter = GetCenter(thumb!.LayoutSlot);
+        Assert.True(
+            thumbCenter.X >= horizontalBar.LayoutSlot.X &&
+            thumbCenter.X <= horizontalBar.LayoutSlot.X + horizontalBar.LayoutSlot.Width &&
+            thumbCenter.Y >= horizontalBar.LayoutSlot.Y &&
+            thumbCenter.Y <= horizontalBar.LayoutSlot.Y + horizontalBar.LayoutSlot.Height,
+            $"Expected horizontal thumb center to stay within the horizontal scrollbar bounds. Thumb={thumb.LayoutSlot}, CachedThumb={horizontalBar.GetThumbRectForInput()}, ScrollBar={horizontalBar.LayoutSlot}.");
+        var rightPointer = new Vector2(horizontalBar.LayoutSlot.X + horizontalBar.LayoutSlot.Width - 2f, thumbCenter.Y);
+
+        Assert.True(thumb.HandlePointerDownFromInput(thumbCenter));
+        Assert.True(thumb.HandlePointerMoveFromInput(rightPointer));
+        RunLayout(uiRoot, 780, 520);
+        Assert.True(thumb.HandlePointerUpFromInput());
+        RunLayout(uiRoot, 780, 520);
+
+        Assert.True(scrollViewer.HorizontalOffset > 0f);
+        Assert.Equal(rowHeaderX, row.RowHeaderForTesting.LayoutSlot.X);
+        Assert.Equal(frozenHeaderX, dataGrid.ColumnHeadersForTesting[0].LayoutSlot.X);
+        Assert.Equal(frozenCellX, row.Cells[0].LayoutSlot.X);
+        Assert.Equal(dataGrid.ColumnHeadersForTesting[1].LayoutSlot.X, row.Cells[1].LayoutSlot.X);
+    }
+
     private static TElement? FindFirstVisualChild<TElement>(UIElement root)
         where TElement : UIElement
     {

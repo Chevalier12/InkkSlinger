@@ -76,6 +76,16 @@ public class DataGridColumnHeader : Button
         return desired;
     }
 
+    protected override bool TryGetClipRect(out LayoutRect clipRect)
+    {
+        if (Owner != null && Owner.TryGetScrollableHeaderClipRect(ColumnIndex, out clipRect))
+        {
+            return true;
+        }
+
+        return base.TryGetClipRect(out clipRect);
+    }
+
     protected override void OnRender(SpriteBatch spriteBatch)
     {
         if (HasTemplateRoot)

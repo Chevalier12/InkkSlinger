@@ -423,6 +423,13 @@ public class VirtualizingStackPanel : Panel
     protected override bool TryGetLocalRenderTransform(out Matrix transform, out Matrix inverseTransform)
     {
         var hasBaseTransform = base.TryGetLocalRenderTransform(out var baseTransform, out var baseInverseTransform);
+        if (FindAncestorScrollViewer() != null)
+        {
+            transform = baseTransform;
+            inverseTransform = baseInverseTransform;
+            return hasBaseTransform;
+        }
+
         var offsetX = -HorizontalOffset;
         var offsetY = -VerticalOffset;
         if (AreClose(offsetX, 0f) && AreClose(offsetY, 0f))
@@ -528,6 +535,17 @@ public class VirtualizingStackPanel : Panel
         {
             InvalidateVisual();
         }
+    }
+
+    internal bool RequiresMeasureForViewerOwnedOffsetChange(
+        float oldHorizontalOffset,
+        float newHorizontalOffset,
+        float oldVerticalOffset,
+        float newVerticalOffset)
+    {
+        return Orientation == Orientation.Vertical
+            ? ShouldRelayoutForOffsetChange(oldVerticalOffset, newVerticalOffset, isVertical: true)
+            : ShouldRelayoutForOffsetChange(oldHorizontalOffset, newHorizontalOffset, isVertical: false);
     }
 
     public void SetVerticalOffset(float offset)
@@ -783,6 +801,11 @@ public class VirtualizingStackPanel : Panel
 
     private bool ShouldRelayoutForOffsetChange(float oldOffset, float newOffset, bool isVertical)
     {
+        if ((Orientation == Orientation.Vertical) != isVertical)
+        {
+            return false;
+        }
+
         if (!_isVirtualizationActive || Children.Count == 0 || AreClose(oldOffset, newOffset))
         {
             return false;
