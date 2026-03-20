@@ -141,7 +141,7 @@ public sealed partial class UiRoot
                     _hasCaretBlinkInvalidation = true;
                 }
 
-                if (UseDirtyRegionRendering)
+                if (UseDirtyRegionRendering && effectiveSource != null)
                 {
                     TrackDirtyBoundsForVisual(effectiveSource);
                 }

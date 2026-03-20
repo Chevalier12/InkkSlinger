@@ -6,7 +6,7 @@ namespace InkkSlinger.Tests;
 public sealed class DirtyBoundsEdgeRegressionTests
 {
     [Fact]
-    public void RenderInvalidation_WithNullSource_EscalatesToFullFrameDirty()
+    public void RenderInvalidation_WithNullSource_DoesNotEscalateToFullFrameDirty()
     {
         var uiRoot = new UiRoot(new Panel());
         uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 200f, 200f));
@@ -14,7 +14,7 @@ public sealed class DirtyBoundsEdgeRegressionTests
 
         uiRoot.NotifyInvalidation(UiInvalidationType.Render, null);
 
-        Assert.True(uiRoot.IsFullDirtyForTests());
+        Assert.False(uiRoot.IsFullDirtyForTests());
     }
 
     [Fact]
