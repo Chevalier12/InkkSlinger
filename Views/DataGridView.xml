@@ -178,7 +178,8 @@
                   BorderBrush="{StaticResource DarkBorderBrush}"
                   BorderThickness="1"
                   CornerRadius="6"
-                  Padding="10">
+              Padding="10"
+              IsHitTestVisible="False">
             <TextBlock Text="The hosted grid is stretched to behave like a real workspace surface rather than a thumbnail. Regression tests still guard header sorting, viewport width, and bottom-of-list scrolling." 
                        Foreground="{StaticResource TextSecondaryBrush}"
                        TextWrapping="Wrap" />

@@ -371,6 +371,45 @@ public sealed class ControlDemoDataGridSampleTests
     }
 
     [Fact]
+    public void DataGridView_WheelScroll_WhenAllRowsAreRealized_DoesNotInvalidateLayout()
+    {
+        var view = new DataGridView
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+
+        var host = new Canvas
+        {
+            Width = 1200f,
+            Height = 520f
+        };
+        host.AddChild(view);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1200, 520);
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(view);
+        Assert.NotNull(dataGrid);
+        Assert.Equal(12, dataGrid!.RealizedRowCountForTesting);
+
+        var scrollViewer = dataGrid.ScrollViewerForTesting;
+        var pointer = new Vector2(
+            scrollViewer.LayoutSlot.X + (scrollViewer.LayoutSlot.Width * 0.5f),
+            scrollViewer.LayoutSlot.Y + (scrollViewer.LayoutSlot.Height * 0.5f));
+        var measureInvalidationsBefore = uiRoot.MeasureInvalidationCount;
+        var arrangeInvalidationsBefore = uiRoot.ArrangeInvalidationCount;
+
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true, wheelDelta: -120));
+        RunLayout(uiRoot, 1200, 520);
+
+        Assert.True(scrollViewer.VerticalOffset > 0f);
+        Assert.Equal(measureInvalidationsBefore, uiRoot.MeasureInvalidationCount);
+        Assert.Equal(arrangeInvalidationsBefore, uiRoot.ArrangeInvalidationCount);
+    }
+
+    [Fact]
     public void DataGridView_DraggingVerticalScrollBarToBottom_ShouldNotLeaveBlankSpaceAfterLastRow()
     {
         var view = new DataGridView
@@ -461,12 +500,14 @@ public sealed class ControlDemoDataGridSampleTests
             thumbCenter.Y >= horizontalBar.LayoutSlot.Y &&
             thumbCenter.Y <= horizontalBar.LayoutSlot.Y + horizontalBar.LayoutSlot.Height,
             $"Expected horizontal thumb center to stay within the horizontal scrollbar bounds. Thumb={thumb.LayoutSlot}, CachedThumb={horizontalBar.GetThumbRectForInput()}, ScrollBar={horizontalBar.LayoutSlot}.");
+        Assert.Same(thumb, VisualTreeHelper.HitTest(host, thumbCenter));
         var rightPointer = new Vector2(horizontalBar.LayoutSlot.X + horizontalBar.LayoutSlot.Width - 2f, thumbCenter.Y);
 
-        Assert.True(thumb.HandlePointerDownFromInput(thumbCenter));
-        Assert.True(thumb.HandlePointerMoveFromInput(rightPointer));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(thumbCenter, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(thumbCenter, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(rightPointer, pointerMoved: true));
         RunLayout(uiRoot, 780, 520);
-        Assert.True(thumb.HandlePointerUpFromInput());
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(rightPointer, leftReleased: true));
         RunLayout(uiRoot, 780, 520);
 
         Assert.True(scrollViewer.HorizontalOffset > 0f);
@@ -474,6 +515,52 @@ public sealed class ControlDemoDataGridSampleTests
         Assert.Equal(frozenHeaderX, dataGrid.ColumnHeadersForTesting[0].LayoutSlot.X);
         Assert.Equal(frozenCellX, row.Cells[0].LayoutSlot.X);
         Assert.Equal(dataGrid.ColumnHeadersForTesting[1].LayoutSlot.X, row.Cells[1].LayoutSlot.X);
+    }
+
+    [Fact]
+    public void DataGridView_DraggingHorizontalScrollBar_DoesNotInvalidateWorkbenchLayout()
+    {
+        var view = new DataGridView
+        {
+            Width = 780f,
+            Height = 520f
+        };
+
+        var host = new Canvas
+        {
+            Width = 780f,
+            Height = 520f
+        };
+        host.AddChild(view);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 780, 520);
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(view);
+        Assert.NotNull(dataGrid);
+
+        var scrollViewer = dataGrid!.ScrollViewerForTesting;
+        var horizontalBar = GetPrivateScrollBar(scrollViewer, "_horizontalBar");
+        var thumb = FindFirstVisualChild<Thumb>(horizontalBar);
+        Assert.NotNull(thumb);
+
+        var thumbCenter = GetCenter(thumb!.LayoutSlot);
+        Assert.Same(thumb, VisualTreeHelper.HitTest(host, thumbCenter));
+        var rightPointer = new Vector2(horizontalBar.LayoutSlot.X + horizontalBar.LayoutSlot.Width - 2f, thumbCenter.Y);
+        var measureInvalidationsBefore = uiRoot.MeasureInvalidationCount;
+        var arrangeInvalidationsBefore = uiRoot.ArrangeInvalidationCount;
+
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(thumbCenter, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(thumbCenter, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(rightPointer, pointerMoved: true));
+        RunLayout(uiRoot, 780, 520);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(rightPointer, leftReleased: true));
+        RunLayout(uiRoot, 780, 520);
+
+        Assert.True(scrollViewer.HorizontalOffset > 0f);
+        Assert.Equal(measureInvalidationsBefore, uiRoot.MeasureInvalidationCount);
+        Assert.Equal(arrangeInvalidationsBefore, uiRoot.ArrangeInvalidationCount);
     }
 
     private static TElement? FindFirstVisualChild<TElement>(UIElement root)
@@ -566,4 +653,5 @@ public sealed class ControlDemoDataGridSampleTests
         Assert.NotNull(field);
         return Assert.IsType<ScrollBar>(field!.GetValue(viewer));
     }
+
 }

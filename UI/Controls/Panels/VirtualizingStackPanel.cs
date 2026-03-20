@@ -811,6 +811,11 @@ public class VirtualizingStackPanel : Panel
             return false;
         }
 
+        if (RealizedChildrenCount >= Children.Count)
+        {
+            return false;
+        }
+
         var viewportPrimary = isVertical ? _viewportHeight : _viewportWidth;
         if (!IsFinitePositive(viewportPrimary))
         {

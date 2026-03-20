@@ -652,7 +652,8 @@ public class ScrollViewer : ContentControl
                 }
                 else
                 {
-                    InvalidateArrange();
+                    ArrangeContentForCurrentOffsets();
+                    InvalidateVisual();
                 }
             }
             else if (UsesTransformBasedContentScrolling())

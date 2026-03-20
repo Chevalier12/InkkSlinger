@@ -828,9 +828,9 @@ public sealed class DataGridParityChecklistTests
         Assert.Equal(frozenHeaderX, grid.ColumnHeadersForTesting[0].LayoutSlot.X);
         Assert.True(grid.ColumnHeadersForTesting[1].LayoutSlot.X < scrollingHeaderX);
         Assert.Equal(gridMeasureInvalidationsBefore, grid.MeasureInvalidationCount);
-        Assert.True(grid.ArrangeInvalidationCount > gridArrangeInvalidationsBefore);
+        Assert.Equal(gridArrangeInvalidationsBefore, grid.ArrangeInvalidationCount);
         Assert.Equal(rootMeasureInvalidationsBefore, uiRoot.MeasureInvalidationCount);
-        Assert.True(uiRoot.ArrangeInvalidationCount > rootArrangeInvalidationsBefore);
+        Assert.Equal(rootArrangeInvalidationsBefore, uiRoot.ArrangeInvalidationCount);
     }
 
     [Fact]

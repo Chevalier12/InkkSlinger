@@ -202,3 +202,109 @@ public sealed class ScrollViewerWheelHoverRegressionTests
             new Viewport(0, 0, width, height));
     }
 }
+
+public sealed class WheelScrollLagMetricsTests
+{
+    [Fact]
+    public void WheelScrollLag_ManyTicksWhilePointerOverButtons_CapturesInstrumentation()
+    {
+        var (root, viewer) = BuildButtonScrollSurface();
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 280, 220, 16);
+
+        // Position pointer over a button inside the ScrollViewer
+        var pointer = new Vector2(viewer.LayoutSlot.X + 28f, viewer.LayoutSlot.Y + 26f);
+        MovePointer(uiRoot, pointer);
+
+        // Warm up - one wheel tick to prime cached targets
+        Wheel(uiRoot, pointer, delta: -120);
+        RunLayout(uiRoot, 280, 220, 16);
+
+        // Reset instrumentation counters by moving pointer away then back
+        MovePointer(uiRoot, new Vector2(0, 0));
+        MovePointer(uiRoot, pointer);
+
+        const int tickCount = 30;
+        for (var i = 0; i < tickCount; i++)
+        {
+            Wheel(uiRoot, pointer, delta: -120);
+            RunLayout(uiRoot, 280, 220, 16);
+        }
+
+        // Verify scroll happened
+        Assert.True(viewer.VerticalOffset > 0.01f);
+    }
+
+    private static (Panel Root, ScrollViewer Viewer) BuildButtonScrollSurface()
+    {
+        var root = new Panel();
+        var host = new StackPanel
+        {
+            Orientation = Orientation.Vertical
+        };
+
+        for (var i = 0; i < 10; i++)
+        {
+            host.AddChild(new Button
+            {
+                Content = $"Button {i}",
+                Height = 44f
+            });
+        }
+
+        var viewer = new ScrollViewer
+        {
+            Width = 220f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            LineScrollAmount = 64f,
+            Content = host
+        };
+
+        root.AddChild(viewer);
+        return (root, viewer);
+    }
+
+    private static void MovePointer(UiRoot uiRoot, Vector2 pointer)
+    {
+        uiRoot.RunInputDeltaForTests(CreateInputDelta(pointer, pointerMoved: true));
+    }
+
+    private static void Wheel(UiRoot uiRoot, Vector2 pointer, int delta)
+    {
+        uiRoot.RunInputDeltaForTests(CreateInputDelta(pointer, wheelDelta: delta));
+    }
+
+    private static InputDelta CreateInputDelta(
+        Vector2 pointer,
+        bool pointerMoved = false,
+        int wheelDelta = 0,
+        bool leftPressed = false,
+        bool leftReleased = false)
+    {
+        return new InputDelta
+        {
+            Previous = new InputSnapshot(default, default, pointer),
+            Current = new InputSnapshot(default, default, pointer),
+            PressedKeys = new List<Keys>(),
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char>(),
+            PointerMoved = pointerMoved,
+            WheelDelta = wheelDelta,
+            LeftPressed = leftPressed,
+            LeftReleased = leftReleased,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
+    }
+
+    private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
+    {
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
+            new Viewport(0, 0, width, height));
+    }
+}

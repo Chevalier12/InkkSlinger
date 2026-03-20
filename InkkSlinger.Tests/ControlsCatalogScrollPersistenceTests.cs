@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -65,6 +66,29 @@ public sealed class ControlsCatalogScrollPersistenceTests
             $"Expected left catalog scroll offset to persist after direct invoke. before={beforeInvokeOffset:0.###}, after={afterInvokeOffset:0.###}");
     }
 
+    [Fact]
+    public void SidebarWheelScroll_ShouldMoveCatalogScrollViewer()
+    {
+        var view = new ControlsCatalogView();
+        var uiRoot = new UiRoot(view);
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        var viewer = FindFirstVisualChild<ScrollViewer>(view);
+        Assert.NotNull(viewer);
+        var verticalBar = GetPrivateScrollBar(viewer!, "_verticalBar");
+        var beforeThumb = verticalBar.GetThumbRectForInput();
+
+        var pointer = new Vector2(viewer!.LayoutSlot.X + 24f, viewer.LayoutSlot.Y + 48f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, wheelDelta: -120));
+        RunLayout(uiRoot, 1280, 820, 32);
+
+        var afterThumb = verticalBar.GetThumbRectForInput();
+
+        Assert.True(viewer.VerticalOffset > 0f, $"Expected catalog sidebar wheel scroll to change offset, got {viewer.VerticalOffset:0.###}.");
+        Assert.True(afterThumb.Y > beforeThumb.Y + 0.01f, $"Expected catalog sidebar thumb to move after wheel scroll. before={beforeThumb}, after={afterThumb}");
+    }
+
     private static Vector2 GetVisibleCenter(LayoutRect slot, float verticalOffset)
     {
         var visibleY = slot.Y - verticalOffset;
@@ -80,6 +104,7 @@ public sealed class ControlsCatalogScrollPersistenceTests
     private static InputDelta CreatePointerDelta(
         Vector2 pointer,
         bool pointerMoved = false,
+        int wheelDelta = 0,
         bool leftPressed = false,
         bool leftReleased = false)
     {
@@ -91,7 +116,7 @@ public sealed class ControlsCatalogScrollPersistenceTests
             ReleasedKeys = new List<Keys>(),
             TextInput = new List<char>(),
             PointerMoved = pointerMoved || leftPressed || leftReleased,
-            WheelDelta = 0,
+            WheelDelta = wheelDelta,
             LeftPressed = leftPressed,
             LeftReleased = leftReleased,
             RightPressed = false,
@@ -119,6 +144,13 @@ public sealed class ControlsCatalogScrollPersistenceTests
         }
 
         return null;
+    }
+
+    private static ScrollBar GetPrivateScrollBar(ScrollViewer viewer, string fieldName)
+    {
+        var field = typeof(ScrollViewer).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<ScrollBar>(field!.GetValue(viewer));
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)

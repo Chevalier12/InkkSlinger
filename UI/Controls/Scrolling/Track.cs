@@ -62,28 +62,64 @@ public class Track : Panel
             nameof(Minimum),
             typeof(float),
             typeof(Track),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is Track track)
+                    {
+                        track.RefreshLayoutForStateChange();
+                    }
+                }));
 
     public static readonly DependencyProperty MaximumProperty =
         DependencyProperty.Register(
             nameof(Maximum),
             typeof(float),
             typeof(Track),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is Track track)
+                    {
+                        track.RefreshLayoutForStateChange();
+                    }
+                }));
 
     public static readonly DependencyProperty ValueProperty =
         DependencyProperty.Register(
             nameof(Value),
             typeof(float),
             typeof(Track),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is Track track)
+                    {
+                        track.RefreshLayoutForStateChange();
+                    }
+                }));
 
     public static readonly DependencyProperty ViewportSizeProperty =
         DependencyProperty.Register(
             nameof(ViewportSize),
             typeof(float),
             typeof(Track),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is Track track)
+                    {
+                        track.RefreshLayoutForStateChange();
+                    }
+                }));
 
     public static readonly DependencyProperty IsViewportSizedThumbProperty =
         DependencyProperty.Register(
@@ -97,7 +133,16 @@ public class Track : Panel
             nameof(IsDirectionReversed),
             typeof(bool),
             typeof(Track),
-            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                false,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is Track track)
+                    {
+                        track.RefreshLayoutForStateChange();
+                    }
+                }));
 
     public static readonly DependencyProperty ThumbLengthProperty =
         DependencyProperty.Register(
@@ -223,6 +268,44 @@ public class Track : Panel
     public static TrackPartRole GetPartRole(UIElement element)
     {
         return element.GetValue<TrackPartRole>(PartRoleProperty);
+    }
+
+    private void RefreshLayoutForStateChange()
+    {
+        if (LayoutSlot.Width <= 0f || LayoutSlot.Height <= 0f)
+        {
+            InvalidateArrange();
+            return;
+        }
+
+        ResolveParts(out var decreaseButton, out var thumb, out var increaseButton);
+
+        var finalSize = new Vector2(LayoutSlot.Width, LayoutSlot.Height);
+        if (Orientation == Orientation.Vertical)
+        {
+            ArrangeVertical(finalSize, decreaseButton, thumb, increaseButton);
+        }
+        else
+        {
+            ArrangeHorizontal(finalSize, decreaseButton, thumb, increaseButton);
+        }
+
+        for (var i = 0; i < Children.Count; i++)
+        {
+            if (Children[i] is not FrameworkElement child)
+            {
+                continue;
+            }
+
+            if (GetPartRole(child) == TrackPartRole.None)
+            {
+                child.Arrange(new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
+            }
+
+            child.InvalidateVisual();
+        }
+
+        InvalidateVisual();
     }
 
     public static void SetPartRole(UIElement element, TrackPartRole role)

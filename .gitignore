@@ -40,6 +40,9 @@ scripts/
 # Local agent instructions
 AGENTS.md
 agents.md
+CLAUDE.md
+.Claude/
+.claude/settings.local.json
 
 # Local diagnostics notes
 diagnostics-instrumentation-guide.md

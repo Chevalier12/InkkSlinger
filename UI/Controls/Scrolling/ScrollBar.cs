@@ -103,7 +103,7 @@ public class ScrollBar : RangeBase
             CreateDerivedMetadata(MaximumProperty, 0f, FrameworkPropertyMetadataOptions.AffectsArrange));
         ValueProperty.OverrideMetadata(
             typeof(ScrollBar),
-            CreateDerivedMetadata(ValueProperty, 0f, FrameworkPropertyMetadataOptions.AffectsArrange));
+            CreateDerivedMetadata(ValueProperty, 0f, FrameworkPropertyMetadataOptions.None));
         SmallChangeProperty.OverrideMetadata(
             typeof(ScrollBar),
             CreateDerivedMetadata(SmallChangeProperty, 16f, FrameworkPropertyMetadataOptions.None));

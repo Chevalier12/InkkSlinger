@@ -1840,9 +1840,17 @@ public class DataGrid : MultiSelector
     private void OnScrollViewerDependencyPropertyChanged(object? sender, DependencyPropertyChangedEventArgs args)
     {
         _ = sender;
-        if (args.Property == ScrollViewer.HorizontalOffsetProperty ||
-            args.Property == ScrollViewer.ViewportWidthProperty ||
-            args.Property == ScrollViewer.ViewportHeightProperty)
+        if (args.Property == ScrollViewer.HorizontalOffsetProperty)
+        {
+            if (LayoutSlot.Width > 0f &&
+                LayoutSlot.Height > 0f)
+            {
+                ArrangeHeadersForCurrentLayout();
+                InvalidateVisual();
+            }
+        }
+        else if (args.Property == ScrollViewer.ViewportWidthProperty ||
+                 args.Property == ScrollViewer.ViewportHeightProperty)
         {
             InvalidateArrange();
         }

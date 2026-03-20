@@ -1414,6 +1414,7 @@ public sealed partial class UiRoot
         }
 
         var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+
         UpdateHover(hoverTarget);
     }
 
