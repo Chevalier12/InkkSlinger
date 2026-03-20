@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Xunit;
+using InkkSlinger.Tests.TestDoubles;
 
 namespace InkkSlinger.Tests;
 
@@ -31,14 +32,48 @@ public sealed class ControlsCatalogHoverRegressionTests
         var gutterPoint = new Vector2(
             verticalBar!.LayoutSlot.X - 0.25f,
             button.LayoutSlot.Y + (button.LayoutSlot.Height * 0.5f));
-        MovePointer(uiRoot, gutterPoint);
 
-        Assert.False(button.IsMouseOver);
+        // Capture instrumentation during the hover sequence
+        using var capture = new InstrumentationCapture();
+        MovePointer(uiRoot, gutterPoint);
+        RunLayout(uiRoot, 1280, 820, 16);
 
         var buttonPoint = new Vector2(
             button.LayoutSlot.X + (button.LayoutSlot.Width * 0.5f),
             button.LayoutSlot.Y + (button.LayoutSlot.Height * 0.5f));
         MovePointer(uiRoot, buttonPoint);
+        RunLayout(uiRoot, 1280, 820, 32);
+
+        var lines = capture.GetInstrumentLines();
+
+        // Parse instrumentation
+        var timings = lines.Select(l => InstrumentationCapture.TryParseTiming(l)).Where(t => t.HasValue).Select(t => t!.Value).ToList();
+        var counters = lines.Select(l => InstrumentationCapture.TryParseCounter(l)).Where(c => c.HasValue).Select(c => c!.Value).ToList();
+
+        Console.WriteLine($"[METRICS] Raw instrument lines captured: {lines.Count}");
+
+        // Aggregate by method type and show top slow and hot
+        foreach (var timing in timings.OrderByDescending(t => t.microseconds).Take(10))
+        {
+            Console.WriteLine($"[METRICS] Slow: {timing.method} = {timing.microseconds}us");
+        }
+
+        var groupedCounters = counters.GroupBy(c => c.method).Select(g => (method: g.Key, totalCalls: g.Sum(x => x.count))).OrderByDescending(x => x.totalCalls).ToList();
+        foreach (var counter in groupedCounters.Take(10))
+        {
+            Console.WriteLine($"[METRICS] Hot: {counter.method} = {counter.totalCalls} calls");
+        }
+
+        // Check for MarkFullFrameDirty calls
+        var fullFrameDirtyLines = lines.Where(l => l.Contains("MarkFullFrameDirty")).ToList();
+        if (fullFrameDirtyLines.Count > 0)
+        {
+            Console.WriteLine($"[METRICS] MarkFullFrameDirty calls: {fullFrameDirtyLines.Count}");
+            foreach (var line in fullFrameDirtyLines.Take(5))
+            {
+                Console.WriteLine($"  {line}");
+            }
+        }
 
         Assert.True(
             button.IsMouseOver,

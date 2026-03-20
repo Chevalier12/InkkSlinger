@@ -145,6 +145,7 @@ public sealed partial class UiRoot
                 {
                     TrackDirtyBoundsForVisual(effectiveSource);
                 }
+
                 if (effectiveSource != null)
                 {
                     EnqueueDirtyRenderNode(effectiveSource);

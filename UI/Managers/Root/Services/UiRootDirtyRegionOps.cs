@@ -172,6 +172,15 @@ public sealed partial class UiRoot
 
     private void TrackDirtyBoundsForVisual(UIElement? visual)
     {
+        // Short-circuit before entering the full tracking cascade when the frame is
+        // already fully dirty. This avoids the AddDirtyRegion(2.5M+) call overhead
+        // when IsFullFrameDirty=true since the short-circuit return is only reached
+        // after entering the method body.
+        if (_dirtyRegions.IsFullFrameDirty)
+        {
+            return;
+        }
+
         if (visual == null || !IsPartOfVisualTree(visual))
         {
             _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
@@ -226,7 +235,8 @@ public sealed partial class UiRoot
 
             if (IntersectsOrTouches(oldBounds, newBounds))
             {
-                _dirtyRegions.AddDirtyRegion(Union(oldBounds, newBounds));
+                var union = Union(oldBounds, newBounds);
+                _dirtyRegions.AddDirtyRegion(union);
                 return;
             }
 
@@ -246,7 +256,6 @@ public sealed partial class UiRoot
             _dirtyRegions.AddDirtyRegion(newBounds);
             return;
         }
-
     }
 
 
