@@ -231,8 +231,15 @@ public sealed class WheelScrollLagMetricsTests
             RunLayout(uiRoot, 280, 220, 16);
         }
 
+        // Capture instrumentation via the public API
+        var metrics = ScrollViewer.GetScrollMetricsAndReset();
+
         // Verify scroll happened
         Assert.True(viewer.VerticalOffset > 0.01f);
+
+        // Verify instrumentation captured wheel events
+        Assert.True(metrics.WheelEvents > 0, $"Expected wheel events > 0, got {metrics.WheelEvents}");
+        Assert.True(metrics.SetOffsetCalls > 0, $"Expected SetOffsetCalls > 0, got {metrics.SetOffsetCalls}");
     }
 
     private static (Panel Root, ScrollViewer Viewer) BuildButtonScrollSurface()

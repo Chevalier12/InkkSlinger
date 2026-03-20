@@ -1271,15 +1271,13 @@ public sealed partial class UiRoot
 
     private void DispatchMouseWheel(UIElement? target, Vector2 pointerPosition, int delta)
     {
-        var wheelHitTestsBefore = _lastInputHitTestCount;
-        var wheelHandleMs = 0d;
         var resolvedTarget = target ?? _inputState.HoveredElement;
         if (resolvedTarget == null)
         {
             return;
         }
 
-        var dispatchStart = Stopwatch.GetTimestamp(); EnsureCachedWheelTargetsAreCurrent(pointerPosition);
+        EnsureCachedWheelTargetsAreCurrent(pointerPosition);
         if (_cachedWheelTextInputTarget != null)
         {
             resolvedTarget = _cachedWheelTextInputTarget;
@@ -1358,9 +1356,7 @@ public sealed partial class UiRoot
             var cachedViewer = _cachedWheelScrollViewerTarget;
             var beforeHorizontal = cachedViewer.HorizontalOffset;
             var beforeVertical = cachedViewer.VerticalOffset;
-            var wheelHandleStart = Stopwatch.GetTimestamp();
             var handled = cachedViewer.HandleMouseWheelFromInput(delta);
-            wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
             if (handled)
             {
                 RefreshHoverAfterWheelContentMutation(pointerPosition, cachedViewer);
@@ -1387,18 +1383,16 @@ public sealed partial class UiRoot
         {
             _cachedWheelScrollViewerTarget = scrollViewer;
             _cachedWheelTextInputTarget = null;
-            var beforeHorizontal = scrollViewer.HorizontalOffset;
-            var beforeVertical = scrollViewer.VerticalOffset;
-            var wheelHandleStart = Stopwatch.GetTimestamp();
             var handled = scrollViewer.HandleMouseWheelFromInput(delta);
-            wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
             if (handled)
             {
                 RefreshHoverAfterWheelContentMutation(pointerPosition, scrollViewer);
             }
+            else
+            {
+                RefreshHoverAfterWheel(pointerPosition);
+            }
         }
-
-        RefreshHoverAfterWheel(pointerPosition);
         TrackWheelPointerPosition(pointerPosition);
     }
 
@@ -1413,8 +1407,8 @@ public sealed partial class UiRoot
             return;
         }
 
+        _lastInputHitTestCount++;
         var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
-
         UpdateHover(hoverTarget);
     }
 

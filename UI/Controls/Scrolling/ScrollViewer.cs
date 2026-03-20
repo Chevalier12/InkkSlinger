@@ -595,7 +595,6 @@ public class ScrollViewer : ContentControl
 
     internal bool HandleMouseWheelFromInput(int delta)
     {
-        _diagWheelEvents++;
         if (!IsEnabled || delta == 0)
         {
             return false;
@@ -609,17 +608,11 @@ public class ScrollViewer : ContentControl
 
         var handled = MathF.Abs(beforeHorizontal - HorizontalOffset) > 0.001f ||
                       MathF.Abs(beforeVertical - VerticalOffset) > 0.001f;
-        if (handled)
-        {
-            _diagWheelHandled++;
-        }
-
         return handled;
     }
 
     private void SetOffsets(float horizontal, float vertical)
     {
-        _diagSetOffsetCalls++;
         var beforeHorizontal = HorizontalOffset;
         var beforeVertical = VerticalOffset;
         var maxHorizontal = MathF.Max(0f, ExtentWidth - ViewportWidth);
@@ -631,13 +624,6 @@ public class ScrollViewer : ContentControl
         SetIfChanged(VerticalOffsetProperty, nextVertical);
         var horizontalDelta = MathF.Abs(beforeHorizontal - HorizontalOffset);
         var verticalDelta = MathF.Abs(beforeVertical - VerticalOffset);
-
-        _diagHorizontalDelta += horizontalDelta;
-        _diagVerticalDelta += verticalDelta;
-        if (horizontalDelta <= 0.001f && verticalDelta <= 0.001f)
-        {
-            _diagSetOffsetNoOp++;
-        }
 
         if ((horizontalDelta > 0.001f || verticalDelta > 0.001f) &&
             !NeedsMeasure &&
