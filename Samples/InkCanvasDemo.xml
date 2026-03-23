@@ -1,0 +1,210 @@
+<!-- InkCanvasDemo.xml - InkCanvas XAML 使用示例 -->
+<!-- 版权声明：MIT License | Copyright (c) 2026 思捷娅科技 (SJYKJ) -->
+
+<Window 
+    x:Class="InkkSlinger.Samples.InkCanvasDemo"
+    Title="InkCanvas 演示" 
+    Width="800" 
+    Height="650"
+    BackgroundColor="#F0F0F0">
+    
+    <StackPanel Margin="20">
+        <!-- 标题 -->
+        <TextBlock 
+            Text="InkCanvas 手写输入演示" 
+            FontSize="24" 
+            FontWeight="Bold"
+            Margin="0,0,0,20"
+            HorizontalAlignment="Center"/>
+        
+        <!-- InkCanvas 主画布 -->
+        <InkCanvas 
+            x:Name="MainInkCanvas"
+            Width="700" 
+            Height="450"
+            BackgroundColor="White"
+            StrokeColor="Black"
+            StrokeWidth="3"
+            StrokeType="Hard"
+            IsDrawingEnabled="True"
+            ShowCursor="True"
+            Margin="0,0,0,20">
+            <InkCanvas.Clip>
+                <RectangleGeometry Rect="0,0,700,450"/>
+            </InkCanvas.Clip>
+        </InkCanvas>
+        
+        <!-- 工具栏 -->
+        <Border BackgroundColor="#E0E0E0" 
+                CornerRadius="5" 
+                Padding="15"
+                Margin="0,0,0,20">
+            <StackPanel Orientation="Horizontal">
+                
+                <!-- 文件操作 -->
+                <Button 
+                    x:Name="ClearButton"
+                    Content="🗑️ 清空" 
+                    Width="100"
+                    Height="35"
+                    Margin="0,0,10,0"
+                    Click="ClearButton_Click"/>
+                
+                <Button 
+                    x:Name="UndoButton"
+                    Content="↩️ 撤销" 
+                    Width="100"
+                    Height="35"
+                    Margin="0,0,10,0"
+                    Click="UndoButton_Click"/>
+                
+                <Button 
+                    x:Name="ExportButton"
+                    Content="📤 导出 SVG" 
+                    Width="120"
+                    Height="35"
+                    Margin="0,0,20,0"
+                    Click="ExportButton_Click"/>
+                
+                <Separator Width="20"/>
+                
+                <!-- 颜色选择 -->
+                <TextBlock 
+                    Text="颜色：" 
+                    VerticalAlignment="Center"
+                    Margin="0,0,5,0"/>
+                
+                <Button 
+                    x:Name="BlackColorBtn"
+                    Content="⬛"
+                    Width="35"
+                    Height="35"
+                    Margin="0,0,5,0"
+                    Click="ColorButton_Click"
+                    Tag="0,0,0"/>
+                
+                <Button 
+                    x:Name="RedColorBtn"
+                    Content="🟥"
+                    Width="35"
+                    Height="35"
+                    Margin="0,0,5,0"
+                    Click="ColorButton_Click"
+                    Tag="255,0,0"/>
+                
+                <Button 
+                    x:Name="BlueColorBtn"
+                    Content="🟦"
+                    Width="35"
+                    Height="35"
+                    Margin="0,0,5,0"
+                    Click="ColorButton_Click"
+                    Tag="0,0,255"/>
+                
+                <Button 
+                    x:Name="GreenColorBtn"
+                    Content="🟩"
+                    Width="35"
+                    Height="35"
+                    Margin="0,0,20,0"
+                    Click="ColorButton_Click"
+                    Tag="0,128,0"/>
+                
+                <Separator Width="20"/>
+                
+                <!-- 笔触类型 -->
+                <TextBlock 
+                    Text="笔触：" 
+                    VerticalAlignment="Center"
+                    Margin="0,0,5,0"/>
+                
+                <Button 
+                    x:Name="HardPenBtn"
+                    Content="✏️ 硬笔" 
+                    Width="80"
+                    Height="35"
+                    Margin="0,0,5,0"
+                    Click="StrokeTypeButton_Click"
+                    Tag="Hard"/>
+                
+                <Button 
+                    x:Name="BrushPenBtn"
+                    Content="🖌️ 毛笔" 
+                    Width="80"
+                    Height="35"
+                    Margin="0,0,5,0"
+                    Click="StrokeTypeButton_Click"
+                    Tag="Brush"/>
+                
+                <Button 
+                    x:Name="HighlighterBtn"
+                    Content="🖍️ 荧光" 
+                    Width="80"
+                    Height="35"
+                    Margin="0,0,20,0"
+                    Click="StrokeTypeButton_Click"
+                    Tag="Highlighter"/>
+                
+                <Separator Width="20"/>
+                
+                <!-- 笔触宽度 -->
+                <TextBlock 
+                    Text="粗细：" 
+                    VerticalAlignment="Center"
+                    Margin="0,0,5,0"/>
+                
+                <Slider 
+                    x:Name="WidthSlider"
+                    Minimum="1" 
+                    Maximum="20" 
+                    Value="3"
+                    Width="150"
+                    Height="35"
+                    ValueChanged="WidthSlider_ValueChanged"/>
+                
+                <TextBlock 
+                    x:Name="WidthValueText"
+                    Text="3"
+                    Width="30"
+                    VerticalAlignment="Center"
+                    Margin="5,0,0,0"/>
+            </StackPanel>
+        </Border>
+        
+        <!-- 状态栏 -->
+        <Border BackgroundColor="#F8F8F8" 
+                CornerRadius="5" 
+                Padding="10"
+                BorderColor="#CCCCCC"
+                BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="📊 笔触数：" FontWeight="Bold"/>
+                    <TextBlock x:Name="StrokeCountText" Text="0" Margin="5,0,0,0"/>
+                </StackPanel>
+                
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="🎨 当前颜色：" FontWeight="Bold"/>
+                    <Rectangle 
+                        x:Name="CurrentColorBox"
+                        Width="20" 
+                        Height="20" 
+                        Fill="Black"
+                        Margin="5,0,0,0"
+                        Stroke="Gray"/>
+                </StackPanel>
+                
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <TextBlock Text="✒️ 笔触类型：" FontWeight="Bold"/>
+                    <TextBlock x:Name="CurrentTypeText" Text="硬笔" Margin="5,0,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </StackPanel>
+</Window>
