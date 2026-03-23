@@ -127,6 +127,8 @@
         <xs:element ref="Page" />
         <xs:element ref="ScrollBar" />
         <xs:element ref="ScrollViewer" />
+        <xs:element ref="InkCanvas" />
+        <xs:element ref="InkPresenter" />
         <xs:element ref="Viewbox" />
         <xs:element ref="Separator" />
         <xs:element ref="Slider" />
@@ -143,6 +145,7 @@
         <xs:element ref="Popup" />
         <xs:element ref="ContextMenu" />
         <xs:element ref="ProgressBar" />
+        <xs:element ref="MediaElement" />
         <xs:element ref="DataGrid" />
         <xs:element ref="DataGridCell" />
         <xs:element ref="DataGridColumnHeader" />
@@ -1968,6 +1971,25 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="inkCanvasType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="EditingMode" type="xs:string" />
+        <xs:attribute name="UseCustomCursor" type="xs:boolean" />
+        <xs:attribute name="Background" type="colorType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="inkPresenterType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="StrokeColor" type="colorType" />
+        <xs:attribute name="StrokeThickness" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="viewboxType">
     <xs:complexContent>
       <xs:extension base="uiElementBaseType">
@@ -2180,6 +2202,21 @@
         <xs:attribute name="Foreground" type="colorType" />
         <xs:attribute name="BorderBrush" type="colorType" />
         <xs:attribute name="BorderThickness" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="mediaElementType">
+    <xs:complexContent>
+      <xs:extension base="uiElementBaseType">
+        <xs:attribute name="Source" type="xs:anyURI" />
+        <xs:attribute name="Volume" type="xs:float" />
+        <xs:attribute name="IsMuted" type="xs:boolean" />
+        <xs:attribute name="Stretch" type="xs:string" />
+        <xs:attribute name="Position" type="xs:string" />
+        <xs:attribute name="Duration" type="xs:string" />
+        <xs:attribute name="PlaybackRate" type="xs:float" />
+        <xs:attribute name="Background" type="colorType" />
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
@@ -2577,6 +2614,8 @@
   <xs:element name="Page" type="pageType" />
   <xs:element name="ScrollBar" type="scrollBarType" />
   <xs:element name="ScrollViewer" type="scrollViewerType" />
+  <xs:element name="InkCanvas" type="inkCanvasType" />
+  <xs:element name="InkPresenter" type="inkPresenterType" />
   <xs:element name="Viewbox" type="viewboxType" />
   <xs:element name="RenderSurface" type="renderSurfaceType" />
   <xs:element name="Separator" type="separatorType" />
@@ -2596,6 +2635,7 @@
   <xs:element name="Popup" type="popupType" />
   <xs:element name="ContextMenu" type="contextMenuType" />
   <xs:element name="ProgressBar" type="progressBarType" />
+  <xs:element name="MediaElement" type="mediaElementType" />
   <xs:element name="DataGrid" type="dataGridType" />
   <xs:element name="DataGridCell" type="dataGridCellType" />
   <xs:element name="DataGridColumnHeader" type="dataGridColumnHeaderType" />

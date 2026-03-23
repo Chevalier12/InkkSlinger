@@ -970,6 +970,13 @@ public sealed partial class UiRoot
             _lastInputPointerMoveHandlerMs += elapsed;
             _lastInputPointerMoveCapturedPopupHandlerMs += elapsed;
         }
+        else if (_inputState.CapturedPointerElement is InkCanvas dragInkCanvas)
+        {
+            var handlerStart = Stopwatch.GetTimestamp();
+            dragInkCanvas.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+        }
         else if (_inputState.CapturedPointerElement == null)
         {
             if (target is IHyperlinkHoverHost hyperlinkHoverHost)
@@ -1167,6 +1174,11 @@ public sealed partial class UiRoot
         {
             CapturePointer(scrollViewer);
         }
+        else if (button == MouseButton.Left && target is InkCanvas inkCanvas &&
+                 inkCanvas.HandlePointerDownFromInput(pointerPosition, extendSelection: false))
+        {
+            CapturePointer(inkCanvas);
+        }
     }
 
     private void DispatchMouseUp(UIElement? target, Vector2 pointerPosition, MouseButton button)
@@ -1244,6 +1256,10 @@ public sealed partial class UiRoot
             {
                 TrySynchronizePopupFocusRestore(popup);
             }
+        }
+        else if (_inputState.CapturedPointerElement is InkCanvas inkCanvas && button == MouseButton.Left)
+        {
+            inkCanvas.HandlePointerUpFromInput();
         }
         else if (_inputState.CapturedPointerElement == null && target is MenuItem menuItemTarget)
         {
