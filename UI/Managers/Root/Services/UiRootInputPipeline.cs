@@ -450,6 +450,14 @@ public sealed partial class UiRoot
             return FinalizePointerResolve("HoverNoInput", _inputState.HoveredElement, updatePointerCache: false);
         }
 
+        if (!requiresPreciseTarget &&
+            delta.PointerMoved &&
+            TryResolvePointerMoveWithinHoveredHostSubtree(pointerPosition, out var hoveredHostTarget) &&
+            hoveredHostTarget != null)
+        {
+            return FinalizePointerResolve("HoveredHostSubtreeHitTest", hoveredHostTarget, updatePointerCache: false);
+        }
+
         if (requiresPreciseTarget && !bypassClickTargetShortcuts)
         {
             if (TryResolveItemsHostContainerTarget(pointerPosition, out var fastContainerTarget, out _, out var skipCachedAnchorPaths) &&
@@ -1652,6 +1660,37 @@ public sealed partial class UiRoot
         return TryResolvePreciseClickTargetWithinAnchorSubtree(_inputState.HoveredElement, pointerPosition, out target, hoveredStrictMode: true);
     }
 
+    private bool TryResolvePointerMoveWithinHoveredHostSubtree(Vector2 pointerPosition, out UIElement? target)
+    {
+        target = null;
+        var hovered = _inputState.HoveredElement;
+        if (hovered == null || !IsElementConnectedToVisualRoot(hovered))
+        {
+            return false;
+        }
+
+        if (!TryGetHoverHostAnchor(hovered, out var hostAnchor) ||
+            hostAnchor == null ||
+            !IsElementConnectedToVisualRoot(hostAnchor) ||
+            !PointerLikelyInsideElement(hostAnchor, pointerPosition))
+        {
+            return false;
+        }
+
+        _lastInputHitTestCount++;
+        var hostHitTestStart = Stopwatch.GetTimestamp();
+        var hit = VisualTreeHelper.HitTest(hostAnchor, pointerPosition, out var metrics);
+        _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(hostHitTestStart).TotalMilliseconds;
+        _lastPointerResolveHitTestMetrics = metrics;
+        if (hit == null)
+        {
+            return false;
+        }
+
+        target = hit;
+        return true;
+    }
+
     private bool TryResolvePreciseClickTargetWithinAnchorSubtree(
         UIElement? anchor,
         Vector2 pointerPosition,
@@ -2259,6 +2298,40 @@ public sealed partial class UiRoot
         }
 
         return false;
+    }
+
+    private static bool TryGetHoverHostAnchor(UIElement? anchor, out UIElement? hostAnchor)
+    {
+        hostAnchor = null;
+        if (anchor == null)
+        {
+            return false;
+        }
+
+        if (anchor is Button or CalendarDayButton)
+        {
+            for (var current = anchor.VisualParent ?? anchor.LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
+            {
+                if (current is ScrollViewer)
+                {
+                    continue;
+                }
+
+                if (current is UniformGrid or StackPanel or ItemsPresenter)
+                {
+                    hostAnchor = current;
+                    return true;
+                }
+
+                if (current is Panel panel)
+                {
+                    hostAnchor = panel;
+                    return true;
+                }
+            }
+        }
+
+        return TryGetClickHostAnchor(anchor, out hostAnchor);
     }
 
     private static bool IsClickCapableElement(UIElement element)

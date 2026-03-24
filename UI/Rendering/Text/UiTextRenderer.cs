@@ -36,6 +36,14 @@ internal static class UiTextRenderer
     private static int _metricsCacheMissCount;
     private static int _lineHeightCacheHitCount;
     private static int _lineHeightCacheMissCount;
+    private static long _hottestDrawStringElapsedTicks;
+    private static string _hottestDrawStringText = "none";
+    private static string _hottestDrawStringTypography = "none";
+    private static long _hottestMeasureWidthElapsedTicks;
+    private static string _hottestMeasureWidthText = "none";
+    private static string _hottestMeasureWidthTypography = "none";
+    private static long _hottestLineHeightElapsedTicks;
+    private static string _hottestLineHeightTypography = "none";
 
     public static void SetDefaultTypography(string family, float size = 12f, string weight = "Normal", string style = "Normal")
     {
@@ -205,7 +213,9 @@ internal static class UiTextRenderer
         }
         finally
         {
-            _drawStringElapsedTicks += Stopwatch.GetTimestamp() - start;
+            var elapsedTicks = Stopwatch.GetTimestamp() - start;
+            _drawStringElapsedTicks += elapsedTicks;
+            RecordHottestDrawString(elapsedTicks, text, typography.Apply(styleOverride));
         }
     }
 
@@ -235,7 +245,9 @@ internal static class UiTextRenderer
         }
         finally
         {
-            _measureWidthElapsedTicks += Stopwatch.GetTimestamp() - start;
+            var elapsedTicks = Stopwatch.GetTimestamp() - start;
+            _measureWidthElapsedTicks += elapsedTicks;
+            RecordHottestMeasureWidth(elapsedTicks, text, typography.Apply(styleOverride));
         }
     }
 
@@ -303,7 +315,9 @@ internal static class UiTextRenderer
         }
         finally
         {
-            _getLineHeightElapsedTicks += Stopwatch.GetTimestamp() - start;
+            var elapsedTicks = Stopwatch.GetTimestamp() - start;
+            _getLineHeightElapsedTicks += elapsedTicks;
+            RecordHottestLineHeight(elapsedTicks, typography.Apply(styleOverride));
         }
     }
 
@@ -321,7 +335,15 @@ internal static class UiTextRenderer
             _metricsCacheHitCount,
             _metricsCacheMissCount,
             _lineHeightCacheHitCount,
-            _lineHeightCacheMissCount);
+            _lineHeightCacheMissCount,
+            _hottestDrawStringText,
+            _hottestDrawStringTypography,
+            TicksToMilliseconds(_hottestDrawStringElapsedTicks),
+            _hottestMeasureWidthText,
+            _hottestMeasureWidthTypography,
+            TicksToMilliseconds(_hottestMeasureWidthElapsedTicks),
+            _hottestLineHeightTypography,
+            TicksToMilliseconds(_hottestLineHeightElapsedTicks));
     }
 
     internal static void ResetTimingForTests()
@@ -338,6 +360,73 @@ internal static class UiTextRenderer
         _metricsCacheMissCount = 0;
         _lineHeightCacheHitCount = 0;
         _lineHeightCacheMissCount = 0;
+        _hottestDrawStringElapsedTicks = 0;
+        _hottestDrawStringText = "none";
+        _hottestDrawStringTypography = "none";
+        _hottestMeasureWidthElapsedTicks = 0;
+        _hottestMeasureWidthText = "none";
+        _hottestMeasureWidthTypography = "none";
+        _hottestLineHeightElapsedTicks = 0;
+        _hottestLineHeightTypography = "none";
+    }
+
+    private static void RecordHottestDrawString(long elapsedTicks, string text, UiTypography typography)
+    {
+        if (elapsedTicks <= _hottestDrawStringElapsedTicks)
+        {
+            return;
+        }
+
+        _hottestDrawStringElapsedTicks = elapsedTicks;
+        _hottestDrawStringText = SummarizeText(text);
+        _hottestDrawStringTypography = SummarizeTypography(typography);
+    }
+
+    private static void RecordHottestMeasureWidth(long elapsedTicks, string text, UiTypography typography)
+    {
+        if (elapsedTicks <= _hottestMeasureWidthElapsedTicks)
+        {
+            return;
+        }
+
+        _hottestMeasureWidthElapsedTicks = elapsedTicks;
+        _hottestMeasureWidthText = SummarizeText(text);
+        _hottestMeasureWidthTypography = SummarizeTypography(typography);
+    }
+
+    private static void RecordHottestLineHeight(long elapsedTicks, UiTypography typography)
+    {
+        if (elapsedTicks <= _hottestLineHeightElapsedTicks)
+        {
+            return;
+        }
+
+        _hottestLineHeightElapsedTicks = elapsedTicks;
+        _hottestLineHeightTypography = SummarizeTypography(typography);
+    }
+
+    private static string SummarizeText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return "empty";
+        }
+
+        var normalized = text.Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
+        return normalized.Length <= 32
+            ? normalized
+            : normalized[..32] + "...";
+    }
+
+    private static string SummarizeTypography(UiTypography typography)
+    {
+        return $"{typography.Family}|{typography.Size:0.###}|{typography.Weight}|{typography.Style}";
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 
     internal static float GetBaselineOffsetForTests(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
@@ -629,7 +718,15 @@ internal readonly record struct UiTextRendererTimingSnapshot(
     int MetricsCacheHitCount,
     int MetricsCacheMissCount,
     int LineHeightCacheHitCount,
-    int LineHeightCacheMissCount);
+    int LineHeightCacheMissCount,
+    string HottestDrawStringText,
+    string HottestDrawStringTypography,
+    double HottestDrawStringMilliseconds,
+    string HottestMeasureWidthText,
+    string HottestMeasureWidthTypography,
+    double HottestMeasureWidthMilliseconds,
+    string HottestLineHeightTypography,
+    double HottestLineHeightMilliseconds);
 
 internal readonly record struct UiTextMetricsCacheKey(
     UiTypography Typography,

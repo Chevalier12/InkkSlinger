@@ -190,7 +190,6 @@ public class Game1 : Game
 
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
-        WriteCalendarHoverDiagnosticsLog();
         _window.ClientSizeChanged -= OnClientSizeChanged;
         _window.NativeWindow.TextInput -= OnTextInput;
         _windowThemeBinding?.Dispose();
@@ -349,6 +348,7 @@ public class Game1 : Game
         var effect = DropShadowEffect.GetTimingSnapshotForTests();
         var text = UiTextRenderer.GetTimingSnapshotForTests();
         var layout = TextLayout.GetMetricsSnapshot();
+        var elementRender = UIElement.GetRenderTimingSnapshotForTests();
 
         _calendarHoverFrames.Add(new CalendarHoverRuntimeFrame(
             _calendarHoverFrames.Count,
@@ -414,6 +414,8 @@ public class Game1 : Game
             animation.ActiveStoryboardCount,
             animation.ActiveLaneCount,
             animation.HottestSetValuePathSummary,
+            animation.HottestSetValueWriteSummary,
+            animation.HottestSetValueWriteMilliseconds,
             freezable.OnChangedMilliseconds,
             freezable.EndBatchMilliseconds,
             invalidationBatch.FlushMilliseconds,
@@ -439,6 +441,12 @@ public class Game1 : Game
             effect.BlurPathCallCount,
             effect.CalendarDayRenderCallCount,
             effect.CalendarDayBlurPathCallCount,
+            TicksToMilliseconds(elementRender.RenderSelfElapsedTicks),
+            elementRender.RenderSelfCallCount,
+            elementRender.HottestRenderSelfType,
+            elementRender.HottestRenderSelfName,
+            elementRender.HottestRenderSelfMilliseconds,
+            elementRender.HottestRenderSelfTypeSummary,
             TicksToMilliseconds(text.DrawStringElapsedTicks),
             text.DrawStringCallCount,
             TicksToMilliseconds(text.MeasureWidthElapsedTicks),
@@ -447,6 +455,14 @@ public class Game1 : Game
             text.GetLineHeightCallCount,
             text.MetricsCacheHitCount,
             text.MetricsCacheMissCount,
+            text.HottestDrawStringText,
+            text.HottestDrawStringTypography,
+            text.HottestDrawStringMilliseconds,
+            text.HottestMeasureWidthText,
+            text.HottestMeasureWidthTypography,
+            text.HottestMeasureWidthMilliseconds,
+            text.HottestLineHeightTypography,
+            text.HottestLineHeightMilliseconds,
             TicksToMilliseconds(layout.LayoutElapsedTicks),
             TicksToMilliseconds(layout.BuildElapsedTicks),
             layout.BuildCount,
@@ -458,84 +474,6 @@ public class Game1 : Game
             activeCalendar.DayButtonsForTesting.Count));
 
         ResetCalendarHoverDiagnosticsFrameState();
-    }
-
-    private void WriteCalendarHoverDiagnosticsLog()
-    {
-        if (_calendarHoverFrames.Count == 0)
-        {
-            return;
-        }
-
-        var logPath = GetCalendarHoverDiagnosticsLogPath();
-        Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
-
-        var hottestDraw = _calendarHoverFrames.OrderByDescending(static frame => frame.UiDrawMs).First();
-        var hottestEffect = _calendarHoverFrames.OrderByDescending(static frame => frame.DropShadowRenderMs).First();
-        var hottestAnimation = _calendarHoverFrames.OrderByDescending(static frame => frame.AnimationComposeMs).First();
-        var lowestFps = _calendarHoverFrames
-            .Where(static frame => frame.Fps > 0d)
-            .OrderBy(static frame => frame.Fps)
-            .FirstOrDefault();
-        var averageFpsFrames = _calendarHoverFrames.Where(static frame => frame.Fps > 0d).ToList();
-        var averageFps = averageFpsFrames.Count == 0
-            ? 0d
-            : averageFpsFrames.Average(static frame => frame.Fps);
-        var minFps = lowestFps?.Fps ?? 0d;
-
-        var lines = new List<string>
-        {
-            "scenario=ControlsCatalog Calendar manual hover runtime diagnostics",
-            $"timestamp_utc={DateTime.UtcNow:O}",
-            $"log_path={logPath}",
-            "step_1=open Controls Catalog",
-            "step_2=click Calendar button",
-            "step_3=move pointer over CalendarDayButton cells and reproduce FPS drop",
-            "step_4=optionally return to sidebar buttons after stressing CalendarDayButton hover",
-            $"captured_frames={_calendarHoverFrames.Count}",
-            $"hovered_sidebar_button_frames={_calendarHoverFrames.Count(static frame => string.Equals(frame.HoverPhase, "SidebarButton", StringComparison.Ordinal))}",
-            $"hovered_calendar_day_frames={_calendarHoverFrames.Count(static frame => string.Equals(frame.HoveredType, nameof(CalendarDayButton), StringComparison.Ordinal))}",
-            $"min_fps={minFps:0.###}",
-            $"avg_fps={averageFps:0.###}",
-            $"max_ui_update_ms={_calendarHoverFrames.Max(static frame => frame.UiUpdateMs):0.###}",
-            $"max_ui_draw_ms={_calendarHoverFrames.Max(static frame => frame.UiDrawMs):0.###}",
-            $"max_input_phase_ms={_calendarHoverFrames.Max(static frame => frame.InputPhaseMs):0.###}",
-            $"max_binding_phase_ms={_calendarHoverFrames.Max(static frame => frame.BindingPhaseMs):0.###}",
-            $"max_layout_phase_ms={_calendarHoverFrames.Max(static frame => frame.LayoutPhaseMs):0.###}",
-            $"max_animation_phase_ms={_calendarHoverFrames.Max(static frame => frame.AnimationPhaseMs):0.###}",
-            $"max_render_scheduling_phase_ms={_calendarHoverFrames.Max(static frame => frame.RenderSchedulingPhaseMs):0.###}",
-            $"max_visual_update_ms={_calendarHoverFrames.Max(static frame => frame.VisualUpdateMs):0.###}",
-            $"max_update_participant_refresh_ms={_calendarHoverFrames.Max(static frame => frame.UpdateParticipantRefreshMs):0.###}",
-            $"max_update_participant_update_ms={_calendarHoverFrames.Max(static frame => frame.UpdateParticipantUpdateMs):0.###}",
-            $"max_framework_measure_ms={_calendarHoverFrames.Max(static frame => frame.FrameworkMeasureMs):0.###}",
-            $"max_framework_measure_exclusive_ms={_calendarHoverFrames.Max(static frame => frame.FrameworkMeasureExclusiveMs):0.###}",
-            $"max_framework_arrange_ms={_calendarHoverFrames.Max(static frame => frame.FrameworkArrangeMs):0.###}",
-            $"max_animation_compose_ms={_calendarHoverFrames.Max(static frame => frame.AnimationComposeMs):0.###}",
-            $"max_animation_compose_apply_ms={_calendarHoverFrames.Max(static frame => frame.AnimationComposeApplyMs):0.###}",
-            $"max_drop_shadow_render_ms={_calendarHoverFrames.Max(static frame => frame.DropShadowRenderMs):0.###}",
-            $"max_drop_shadow_blur_path_ms={_calendarHoverFrames.Max(static frame => frame.DropShadowBlurPathMs):0.###}",
-            $"max_calendar_day_render_ms={_calendarHoverFrames.Max(static frame => frame.CalendarDayRenderMs):0.###}",
-            $"max_button_render_ms={_calendarHoverFrames.Max(static frame => frame.ButtonRenderMs):0.###}",
-            $"max_text_draw_ms={_calendarHoverFrames.Max(static frame => frame.TextDrawMs):0.###}",
-            $"max_text_measure_ms={_calendarHoverFrames.Max(static frame => frame.TextMeasureWidthMs):0.###}",
-            $"max_pointer_resolve_hover_reuse_ms={_calendarHoverFrames.Max(static frame => frame.ResolveHoverReuseMs):0.###}",
-            $"max_pointer_resolve_final_hit_test_ms={_calendarHoverFrames.Max(static frame => frame.ResolveFinalHitTestMs):0.###}",
-            $"max_pointer_hit_test_nodes={_calendarHoverFrames.Max(static frame => frame.HitTestNodesVisited)}",
-            $"max_pointer_hit_test_depth={_calendarHoverFrames.Max(static frame => frame.HitTestMaxDepth)}",
-            $"max_pointer_hit_test_ms={_calendarHoverFrames.Max(static frame => frame.HitTestMs):0.###}",
-            $"max_freezable_onchanged_ms={_calendarHoverFrames.Max(static frame => frame.FreezableOnChangedMs):0.###}",
-            $"max_freezable_end_batch_ms={_calendarHoverFrames.Max(static frame => frame.FreezableEndBatchMs):0.###}",
-            $"max_freezable_batch_flush_ms={_calendarHoverFrames.Max(static frame => frame.FreezableBatchFlushMs):0.###}",
-            $"hottest_draw_frame={FormatRuntimeFrame(hottestDraw)}",
-            $"hottest_effect_frame={FormatRuntimeFrame(hottestEffect)}",
-            $"hottest_animation_frame={FormatRuntimeFrame(hottestAnimation)}"
-        };
-
-        lines.Add(string.Empty);
-        lines.Add("frames:");
-        lines.AddRange(_calendarHoverFrames.Select(FormatRuntimeFrame));
-
-        File.WriteAllLines(logPath, lines);
     }
 
     private static string FormatRuntimeFrame(CalendarHoverRuntimeFrame frame)
@@ -550,11 +488,13 @@ public class Game1 : Game
             $"beginMs={frame.AnimationBeginMs:0.###} startMs={frame.AnimationStartMs:0.###} composeMs={frame.AnimationComposeMs:0.###} composeCollectMs={frame.AnimationComposeCollectMs:0.###} " +
             $"composeSortMs={frame.AnimationComposeSortMs:0.###} composeMergeMs={frame.AnimationComposeMergeMs:0.###} composeApplyMs={frame.AnimationComposeApplyMs:0.###} composeBatchEndMs={frame.AnimationComposeBatchEndMs:0.###} " +
             $"activeStoryboards={frame.ActiveStoryboards} activeLanes={frame.ActiveLanes} freezableOnChangedMs={frame.FreezableOnChangedMs:0.###} freezableEndBatchMs={frame.FreezableEndBatchMs:0.###} freezableBatchFlushMs={frame.FreezableBatchFlushMs:0.###} freezableBatchFlushes={frame.FreezableBatchFlushCount} freezableBatchFlushTargets={frame.FreezableBatchFlushTargetCount} maxPendingBatchTargets={frame.FreezableBatchMaxPendingTargetCount} hottestFreezableOnChanged={frame.HottestFreezableOnChangedType}:{frame.HottestFreezableOnChangedMs:0.###} hottestFreezableEndBatch={frame.HottestFreezableEndBatchType}:{frame.HottestFreezableEndBatchMs:0.###} hottestSetValuePaths={frame.HottestSetValuePaths} " +
+            $"hottestSetValueWrite={frame.HottestSetValueWrite} hottestSetValueWriteMs={frame.HottestSetValueWriteMs:0.###} " +
             $"buttonRenderMs={frame.ButtonRenderMs:0.###} buttonChromeMs={frame.ButtonChromeMs:0.###} buttonTextPrepMs={frame.ButtonTextPreparationMs:0.###} buttonTextDrawMs={frame.ButtonTextDrawMs:0.###} buttonTextPrepCalls={frame.ButtonTextPreparationCalls} " +
             $"calendarDayRenderMs={frame.CalendarDayRenderMs:0.###} calendarDayRenderCalls={frame.CalendarDayRenderCalls} calendarDayNonEmptyCalls={frame.CalendarDayNonEmptyRenderCalls} " +
             $"dropShadowRenderMs={frame.DropShadowRenderMs:0.###} dropShadowBlurPathMs={frame.DropShadowBlurPathMs:0.###} dropShadowBlurSlicesMs={frame.DropShadowBlurSlicesMs:0.###} " +
             $"dropShadowCalls={frame.DropShadowRenderCalls} dropShadowBlurCalls={frame.DropShadowBlurPathCalls} calendarDayShadowCalls={frame.CalendarDayShadowRenderCalls} calendarDayShadowBlurCalls={frame.CalendarDayShadowBlurPathCalls} " +
-            $"textDrawMs={frame.TextDrawMs:0.###} textDrawCalls={frame.TextDrawCalls} textMeasureMs={frame.TextMeasureWidthMs:0.###} textMeasureCalls={frame.TextMeasureWidthCalls} lineHeightMs={frame.TextLineHeightMs:0.###} lineHeightCalls={frame.TextLineHeightCalls} textMetricsHits={frame.TextMetricsCacheHits} textMetricsMisses={frame.TextMetricsCacheMisses} " +
+            $"uiElementRenderMs={frame.UiElementRenderMs:0.###} uiElementRenderCalls={frame.UiElementRenderCalls} hottestUiElement={frame.HottestUiElementType}({frame.HottestUiElementName}):{frame.HottestUiElementMs:0.###} hottestUiElementTypes={frame.HottestUiElementTypes} " +
+            $"textDrawMs={frame.TextDrawMs:0.###} textDrawCalls={frame.TextDrawCalls} textMeasureMs={frame.TextMeasureWidthMs:0.###} textMeasureCalls={frame.TextMeasureWidthCalls} lineHeightMs={frame.TextLineHeightMs:0.###} lineHeightCalls={frame.TextLineHeightCalls} textMetricsHits={frame.TextMetricsCacheHits} textMetricsMisses={frame.TextMetricsCacheMisses} hottestTextDraw={frame.HottestTextDrawText}|{frame.HottestTextDrawTypography}:{frame.HottestTextDrawMs:0.###} hottestTextMeasure={frame.HottestTextMeasureText}|{frame.HottestTextMeasureTypography}:{frame.HottestTextMeasureMs:0.###} hottestLineHeight={frame.HottestLineHeightTypography}:{frame.HottestLineHeightMs:0.###} " +
             $"layoutMs={frame.TextLayoutMs:0.###} layoutBuildMs={frame.TextLayoutBuildMs:0.###} layoutBuilds={frame.TextLayoutBuildCount} layoutMisses={frame.TextLayoutCacheMissCount} " +
             $"retainedVisited={frame.RetainedNodesVisited} retainedDrawn={frame.RetainedNodesDrawn} retainedTraversals={frame.RetainedTraversalCount} dirtyTraversals={frame.DirtyRegionTraversalCount} dayButtonCount={frame.CalendarDayButtonCount}";
     }
@@ -681,28 +621,6 @@ public class Game1 : Game
         return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 
-    private static string GetCalendarHoverDiagnosticsLogPath()
-    {
-        var root = FindRepositoryRoot();
-        return Path.Combine(root, "artifacts", "diagnostics", "controls-catalog-calendar-hover-runtime.txt");
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current != null)
-        {
-            if (current.EnumerateFiles("InkkSlinger.sln").Any())
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new InvalidOperationException("Could not locate repository root.");
-    }
-
     private sealed record CalendarHoverRuntimeFrame(
         int FrameIndex,
         string HoveredType,
@@ -767,6 +685,8 @@ public class Game1 : Game
         int ActiveStoryboards,
         int ActiveLanes,
         string HottestSetValuePaths,
+        string HottestSetValueWrite,
+        double HottestSetValueWriteMs,
         double FreezableOnChangedMs,
         double FreezableEndBatchMs,
         double FreezableBatchFlushMs,
@@ -792,6 +712,12 @@ public class Game1 : Game
         int DropShadowBlurPathCalls,
         int CalendarDayShadowRenderCalls,
         int CalendarDayShadowBlurPathCalls,
+        double UiElementRenderMs,
+        int UiElementRenderCalls,
+        string HottestUiElementType,
+        string HottestUiElementName,
+        double HottestUiElementMs,
+        string HottestUiElementTypes,
         double TextDrawMs,
         int TextDrawCalls,
         double TextMeasureWidthMs,
@@ -800,6 +726,14 @@ public class Game1 : Game
         int TextLineHeightCalls,
         int TextMetricsCacheHits,
         int TextMetricsCacheMisses,
+        string HottestTextDrawText,
+        string HottestTextDrawTypography,
+        double HottestTextDrawMs,
+        string HottestTextMeasureText,
+        string HottestTextMeasureTypography,
+        double HottestTextMeasureMs,
+        string HottestLineHeightTypography,
+        double HottestLineHeightMs,
         double TextLayoutMs,
         double TextLayoutBuildMs,
         int TextLayoutBuildCount,

@@ -1078,6 +1078,11 @@ public class Calendar : UserControl
             return;
         }
 
+        if (UIElement.IsRetainedDrawPassForCurrentThread)
+        {
+            return;
+        }
+
         if (!_pendingManualRenderDiagnostics)
         {
             content.Draw(spriteBatch);

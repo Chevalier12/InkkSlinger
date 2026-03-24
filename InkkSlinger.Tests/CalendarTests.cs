@@ -231,6 +231,16 @@ public sealed class CalendarTests
     }
 
     [Fact]
+    public void Calendar_PublishesRetainedRenderChildren_ForRetainedTraversal()
+    {
+        var (uiRoot, calendar) = CreateFixture();
+        calendar.DisplayDate = new DateTime(2026, 3, 1);
+        RunLayout(uiRoot);
+
+        Assert.NotEmpty(calendar.GetRetainedRenderChildren());
+    }
+
+    [Fact]
     public void CalendarDayButtons_HoverMovesShadowToCurrentDate()
     {
         var backup = CaptureApplicationResources();

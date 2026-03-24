@@ -17,11 +17,19 @@ public class UIElement : DependencyObject
     private static int _freezableInvalidationBatchDepth;
     [ThreadStatic]
     private static HashSet<UIElement>? _batchedFreezableInvalidationTargets;
+    [ThreadStatic]
+    private static int _retainedSelfDrawDepth;
     private static int _freezableBatchFlushCount;
     private static int _freezableBatchFlushTargetCount;
     private static int _freezableBatchQueuedTargetCount;
     private static long _freezableBatchFlushElapsedTicks;
     private static int _freezableBatchMaxPendingTargetCount;
+    private static long _renderSelfElapsedTicks;
+    private static int _renderSelfCallCount;
+    private static long _hottestRenderSelfElapsedTicks;
+    private static string _hottestRenderSelfType = "none";
+    private static string _hottestRenderSelfName = string.Empty;
+    private static readonly Dictionary<string, (int Count, long Ticks)> RenderSelfByType = new(StringComparer.Ordinal);
     private static readonly object InheritablePropertyCacheLock = new();
     private static readonly Dictionary<Type, List<DependencyProperty>> InheritablePropertiesByType = new();
 
@@ -375,8 +383,10 @@ public class UIElement : DependencyObject
 
         try
         {
+            var renderStart = Stopwatch.GetTimestamp();
             Effect?.Render(this, spriteBatch, Opacity);
             OnRender(spriteBatch);
+            RecordRenderSelfTiming(this, Stopwatch.GetTimestamp() - renderStart);
             var currentClip = spriteBatch.GraphicsDevice.ScissorRectangle;
 
             if (ShouldAutoDrawVisualChildren)
@@ -402,13 +412,25 @@ public class UIElement : DependencyObject
     internal void DrawSelf(SpriteBatch spriteBatch)
     {
         _drawCallCount++;
-        Effect?.Render(this, spriteBatch, Opacity);
-        OnRender(spriteBatch);
+        var renderStart = Stopwatch.GetTimestamp();
+        _retainedSelfDrawDepth++;
+        try
+        {
+            Effect?.Render(this, spriteBatch, Opacity);
+            OnRender(spriteBatch);
+            RecordRenderSelfTiming(this, Stopwatch.GetTimestamp() - renderStart);
+        }
+        finally
+        {
+            _retainedSelfDrawDepth--;
+        }
     }
 
     protected virtual void OnRender(SpriteBatch spriteBatch)
     {
     }
+
+    internal static bool IsRetainedDrawPassForCurrentThread => _retainedSelfDrawDepth > 0;
 
     protected virtual bool ShouldAutoDrawVisualChildren => true;
 
@@ -1265,6 +1287,17 @@ public class UIElement : DependencyObject
             (double)_freezableBatchFlushElapsedTicks * 1000d / Stopwatch.Frequency);
     }
 
+    internal static UIElementRenderTimingSnapshot GetRenderTimingSnapshotForTests()
+    {
+        return new UIElementRenderTimingSnapshot(
+            _renderSelfElapsedTicks,
+            _renderSelfCallCount,
+            _hottestRenderSelfType,
+            _hottestRenderSelfName,
+            (double)_hottestRenderSelfElapsedTicks * 1000d / Stopwatch.Frequency,
+            SummarizeRenderSelfTypes(limit: 4));
+    }
+
     internal static void ResetFreezableInvalidationBatchTelemetryForTests()
     {
         _freezableBatchFlushCount = 0;
@@ -1272,6 +1305,55 @@ public class UIElement : DependencyObject
         _freezableBatchQueuedTargetCount = 0;
         _freezableBatchFlushElapsedTicks = 0L;
         _freezableBatchMaxPendingTargetCount = 0;
+        _renderSelfElapsedTicks = 0L;
+        _renderSelfCallCount = 0;
+        _hottestRenderSelfElapsedTicks = 0L;
+        _hottestRenderSelfType = "none";
+        _hottestRenderSelfName = string.Empty;
+        RenderSelfByType.Clear();
+    }
+
+    private static void RecordRenderSelfTiming(UIElement element, long ticks)
+    {
+        _renderSelfElapsedTicks += ticks;
+        _renderSelfCallCount++;
+
+        var typeName = element.GetType().Name;
+        if (RenderSelfByType.TryGetValue(typeName, out var existing))
+        {
+            RenderSelfByType[typeName] = (existing.Count + 1, existing.Ticks + ticks);
+        }
+        else
+        {
+            RenderSelfByType[typeName] = (1, ticks);
+        }
+
+        if (ticks <= _hottestRenderSelfElapsedTicks)
+        {
+            return;
+        }
+
+        _hottestRenderSelfElapsedTicks = ticks;
+        _hottestRenderSelfType = typeName;
+        _hottestRenderSelfName = element is FrameworkElement frameworkElement
+            ? frameworkElement.Name ?? string.Empty
+            : string.Empty;
+    }
+
+    private static string SummarizeRenderSelfTypes(int limit)
+    {
+        if (RenderSelfByType.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join(
+            ", ",
+            RenderSelfByType
+                .OrderByDescending(static pair => pair.Value.Ticks)
+                .Take(limit)
+                .Select(static pair =>
+                    $"{pair.Key}(n={pair.Value.Count},ms={(double)pair.Value.Ticks * 1000d / Stopwatch.Frequency:0.###})"));
     }
 
     private static bool TryInvertMatrix(Matrix matrix, out Matrix inverse)
@@ -1332,3 +1414,11 @@ public class UIElement : DependencyObject
         public Action<UIElement, RoutedEventArgs> Invoker { get; }
     }
 }
+
+internal readonly record struct UIElementRenderTimingSnapshot(
+    long RenderSelfElapsedTicks,
+    int RenderSelfCallCount,
+    string HottestRenderSelfType,
+    string HottestRenderSelfName,
+    double HottestRenderSelfMilliseconds,
+    string HottestRenderSelfTypeSummary);

@@ -173,6 +173,30 @@ public sealed class EffectPhase2Tests
     }
 
     [Fact]
+    public void DropShadowEffect_FullShadowPixels_KeepOpaqueCenterAndContinuousBlur()
+    {
+        var buildShadowPixels = typeof(DropShadowEffect).GetMethod(
+            "BuildShadowTexturePixels",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(buildShadowPixels);
+
+        const int innerWidth = 4;
+        const int innerHeight = 3;
+        const int blurSize = 3;
+        var pixels = Assert.IsType<Color[]>(buildShadowPixels!.Invoke(null, [innerWidth, innerHeight, blurSize]));
+        var outerWidth = innerWidth + (blurSize * 2);
+
+        var centerPixel = pixels[(blurSize * outerWidth) + blurSize];
+        var farCornerPixel = pixels[0];
+        var topEdgeNearCenterPixel = pixels[((blurSize - 1) * outerWidth) + blurSize];
+        var leftEdgeNearCenterPixel = pixels[(blurSize * outerWidth) + (blurSize - 1)];
+
+        Assert.Equal(255, centerPixel.A);
+        Assert.Equal(0, farCornerPixel.A);
+        Assert.Equal(topEdgeNearCenterPixel.A, leftEdgeNearCenterPixel.A);
+    }
+
+    [Fact]
     public void DrawSelf_RendersEffectBeforeControlContent()
     {
         var effect = new ProbeEffect();

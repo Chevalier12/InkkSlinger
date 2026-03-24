@@ -172,7 +172,9 @@ internal readonly record struct AnimationTelemetrySnapshot(
     double ComposeBatchEndMilliseconds,
     double SinkSetValueMilliseconds,
     double CleanupCompletedMilliseconds,
-    string HottestSetValuePathSummary);
+    string HottestSetValuePathSummary,
+    string HottestSetValueWriteSummary,
+    double HottestSetValueWriteMilliseconds);
 
 internal readonly record struct AnimationSinkTelemetrySnapshot(
     int DependencyPropertySetValueCount,

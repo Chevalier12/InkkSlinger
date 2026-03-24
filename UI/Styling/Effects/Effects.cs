@@ -26,6 +26,7 @@ public abstract class Effect : Freezable
 public sealed partial class DropShadowEffect : Effect
 {
     private static readonly Dictionary<ShadowTextureCacheKey, Texture2D> ShadowTextures = new();
+    private const float MinimumVisibleShadowAlpha = 0.12f;
     private static long _renderElapsedTicks;
     private static long _blurPathElapsedTicks;
     private static long _drawBlurSlicesElapsedTicks;
@@ -143,6 +144,12 @@ public sealed partial class DropShadowEffect : Effect
                 return;
             }
 
+            var effectiveShadowAlpha = (Color.A / 255f) * effectiveOpacity;
+            if (effectiveShadowAlpha <= MinimumVisibleShadowAlpha)
+            {
+                return;
+            }
+
             var shadowRect = new LayoutRect(slot.X, slot.Y + ShadowDepth, slot.Width, slot.Height);
             var blur = BlurRadius;
             if (blur <= 0.001f)
@@ -173,7 +180,6 @@ public sealed partial class DropShadowEffect : Effect
                 var drawSlicesStart = Stopwatch.GetTimestamp();
                 DrawBlurSlices(spriteBatch, blurSize, rasterLayout, Color, effectiveOpacity);
                 _drawBlurSlicesElapsedTicks += Stopwatch.GetTimestamp() - drawSlicesStart;
-                UiDrawing.DrawFilledRectPixels(spriteBatch, rasterLayout.Center, Color, effectiveOpacity);
             }
             finally
             {
@@ -223,14 +229,8 @@ public sealed partial class DropShadowEffect : Effect
         float opacity)
     {
         var graphicsDevice = spriteBatch.GraphicsDevice;
-        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopEdge), rasterLayout.Top, color: color, opacity: opacity);
-        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomEdge), rasterLayout.Bottom, color: color, opacity: opacity);
-        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.LeftEdge), rasterLayout.Left, color: color, opacity: opacity);
-        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.RightEdge), rasterLayout.Right, color: color, opacity: opacity);
-        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopLeftCorner), rasterLayout.TopLeft, color: color, opacity: opacity);
-        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.TopRightCorner), rasterLayout.TopRight, color: color, opacity: opacity);
-        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomLeftCorner), rasterLayout.BottomLeft, color: color, opacity: opacity);
-        UiDrawing.DrawTexturePixels(spriteBatch, GetShadowTexture(graphicsDevice, blurSize, ShadowTextureKind.BottomRightCorner), rasterLayout.BottomRight, color: color, opacity: opacity);
+        var shadowTexture = GetShadowTexture(graphicsDevice, rasterLayout.Center.Width, rasterLayout.Center.Height, blurSize);
+        UiDrawing.DrawTexturePixels(spriteBatch, shadowTexture, rasterLayout.Bounds, color: color, opacity: opacity);
     }
 
     private static ShadowRasterLayout RasterizeShadowLayout(LayoutRect transformedShadowRect, LayoutRect transformedExpandedRect)
@@ -246,6 +246,7 @@ public sealed partial class DropShadowEffect : Effect
         var innerBottom = Math.Clamp((int)MathF.Round(transformedShadowRect.Y + transformedShadowRect.Height), innerTop, outerBottom);
 
         return new ShadowRasterLayout(
+            new Rectangle(outerLeft, outerTop, Math.Max(0, outerRight - outerLeft), Math.Max(0, outerBottom - outerTop)),
             new Rectangle(innerLeft, innerTop, Math.Max(0, innerRight - innerLeft), Math.Max(0, innerBottom - innerTop)),
             new Rectangle(innerLeft, outerTop, Math.Max(0, innerRight - innerLeft), Math.Max(0, innerTop - outerTop)),
             new Rectangle(innerLeft, innerBottom, Math.Max(0, innerRight - innerLeft), Math.Max(0, outerBottom - innerBottom)),
@@ -257,77 +258,62 @@ public sealed partial class DropShadowEffect : Effect
             new Rectangle(innerRight, innerBottom, Math.Max(0, outerRight - innerRight), Math.Max(0, outerBottom - innerBottom)));
     }
 
-    private static Texture2D GetShadowTexture(GraphicsDevice graphicsDevice, int blurSize, ShadowTextureKind kind)
+    private static Texture2D GetShadowTexture(GraphicsDevice graphicsDevice, int innerWidth, int innerHeight, int blurSize)
     {
-        var key = new ShadowTextureCacheKey(graphicsDevice, blurSize, kind);
+        var key = new ShadowTextureCacheKey(graphicsDevice, innerWidth, innerHeight, blurSize);
         if (ShadowTextures.TryGetValue(key, out var cached))
         {
             return cached;
         }
 
-        var texture = kind switch
-        {
-            ShadowTextureKind.TopEdge => CreateVerticalGradientTexture(graphicsDevice, blurSize, nearOpaqueAtEnd: true),
-            ShadowTextureKind.BottomEdge => CreateVerticalGradientTexture(graphicsDevice, blurSize, nearOpaqueAtEnd: false),
-            ShadowTextureKind.LeftEdge => CreateHorizontalGradientTexture(graphicsDevice, blurSize, nearOpaqueAtEnd: true),
-            ShadowTextureKind.RightEdge => CreateHorizontalGradientTexture(graphicsDevice, blurSize, nearOpaqueAtEnd: false),
-            ShadowTextureKind.TopLeftCorner => CreateCornerGradientTexture(graphicsDevice, blurSize, nearRectXAtEnd: true, nearRectYAtEnd: true),
-            ShadowTextureKind.TopRightCorner => CreateCornerGradientTexture(graphicsDevice, blurSize, nearRectXAtEnd: false, nearRectYAtEnd: true),
-            ShadowTextureKind.BottomLeftCorner => CreateCornerGradientTexture(graphicsDevice, blurSize, nearRectXAtEnd: true, nearRectYAtEnd: false),
-            ShadowTextureKind.BottomRightCorner => CreateCornerGradientTexture(graphicsDevice, blurSize, nearRectXAtEnd: false, nearRectYAtEnd: false),
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
-        };
+        var outerWidth = Math.Max(1, innerWidth + (blurSize * 2));
+        var outerHeight = Math.Max(1, innerHeight + (blurSize * 2));
+        var texture = new Texture2D(graphicsDevice, outerWidth, outerHeight);
+        texture.SetData(BuildShadowTexturePixels(innerWidth, innerHeight, blurSize));
         ShadowTextures[key] = texture;
         return texture;
     }
 
-    private static Texture2D CreateVerticalGradientTexture(GraphicsDevice graphicsDevice, int blurSize, bool nearOpaqueAtEnd)
+    private static Color[] BuildShadowTexturePixels(int innerWidth, int innerHeight, int blurSize)
     {
-        var texture = new Texture2D(graphicsDevice, 1, blurSize);
-        var pixels = new Color[blurSize];
-        for (var y = 0; y < blurSize; y++)
+        var clampedInnerWidth = Math.Max(0, innerWidth);
+        var clampedInnerHeight = Math.Max(0, innerHeight);
+        var clampedBlurSize = Math.Max(1, blurSize);
+        var outerWidth = Math.Max(1, clampedInnerWidth + (clampedBlurSize * 2));
+        var outerHeight = Math.Max(1, clampedInnerHeight + (clampedBlurSize * 2));
+        var pixels = new Color[outerWidth * outerHeight];
+        for (var y = 0; y < outerHeight; y++)
         {
-            var alpha = ComputeEdgeShadowAlpha(y, blurSize, nearOpaqueAtEnd);
-            pixels[y] = Color.White * alpha;
-        }
-
-        texture.SetData(pixels);
-        return texture;
-    }
-
-    private static Texture2D CreateHorizontalGradientTexture(GraphicsDevice graphicsDevice, int blurSize, bool nearOpaqueAtEnd)
-    {
-        var texture = new Texture2D(graphicsDevice, blurSize, 1);
-        var pixels = new Color[blurSize];
-        for (var x = 0; x < blurSize; x++)
-        {
-            var alpha = ComputeEdgeShadowAlpha(x, blurSize, nearOpaqueAtEnd);
-            pixels[x] = Color.White * alpha;
-        }
-
-        texture.SetData(pixels);
-        return texture;
-    }
-
-    private static Texture2D CreateCornerGradientTexture(
-        GraphicsDevice graphicsDevice,
-        int blurSize,
-        bool nearRectXAtEnd,
-        bool nearRectYAtEnd)
-    {
-        var texture = new Texture2D(graphicsDevice, blurSize, blurSize);
-        var pixels = new Color[blurSize * blurSize];
-        for (var y = 0; y < blurSize; y++)
-        {
-            for (var x = 0; x < blurSize; x++)
+            for (var x = 0; x < outerWidth; x++)
             {
-                var alpha = ComputeCornerShadowAlpha(x, y, blurSize, nearRectXAtEnd, nearRectYAtEnd);
-                pixels[(y * blurSize) + x] = Color.White * alpha;
+                var alphaX = ComputeShadowAxisAlpha(x, clampedInnerWidth, clampedBlurSize);
+                var alphaY = ComputeShadowAxisAlpha(y, clampedInnerHeight, clampedBlurSize);
+                pixels[(y * outerWidth) + x] = Color.White * MathF.Min(alphaX, alphaY);
             }
         }
 
-        texture.SetData(pixels);
-        return texture;
+        return pixels;
+    }
+
+    private static float ComputeShadowAxisAlpha(int index, int innerLength, int blurSize)
+    {
+        if (blurSize <= 1)
+        {
+            return 1f;
+        }
+
+        if (index < blurSize)
+        {
+            return ComputeEdgeShadowAlpha(index, blurSize, nearOpaqueAtEnd: true);
+        }
+
+        var centerEnd = blurSize + innerLength;
+        if (index >= centerEnd)
+        {
+            return ComputeEdgeShadowAlpha(index - centerEnd, blurSize, nearOpaqueAtEnd: false);
+        }
+
+        return 1f;
     }
 
     private static float ComputeEdgeShadowAlpha(int index, int blurSize, bool nearOpaqueAtEnd)
@@ -356,9 +342,10 @@ public sealed partial class DropShadowEffect : Effect
         return MathF.Min(alphaX, alphaY);
     }
 
-    private readonly record struct ShadowTextureCacheKey(GraphicsDevice GraphicsDevice, int BlurSize, ShadowTextureKind Kind);
+    private readonly record struct ShadowTextureCacheKey(GraphicsDevice GraphicsDevice, int InnerWidth, int InnerHeight, int BlurSize);
 
     private readonly record struct ShadowRasterLayout(
+        Rectangle Bounds,
         Rectangle Center,
         Rectangle Top,
         Rectangle Bottom,
@@ -378,17 +365,6 @@ public sealed partial class DropShadowEffect : Effect
         return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
     }
 
-    private enum ShadowTextureKind
-    {
-        TopEdge,
-        BottomEdge,
-        LeftEdge,
-        RightEdge,
-        TopLeftCorner,
-        TopRightCorner,
-        BottomLeftCorner,
-        BottomRightCorner
-    }
 }
 
 internal readonly record struct DropShadowEffectTimingSnapshot(

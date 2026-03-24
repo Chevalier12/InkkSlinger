@@ -271,6 +271,39 @@ public class InputDispatchOptimizationTests
     }
 
     [Fact]
+    public void PointerMove_BetweenButtonsInSharedHost_UsesHoveredHostSubtreeHitTest()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 500f, 240f));
+
+        var host = new UniformGrid
+        {
+            Rows = 1,
+            Columns = 3
+        };
+        host.SetLayoutSlot(new LayoutRect(40f, 40f, 300f, 80f));
+
+        var first = new Button { Content = "One" };
+        var second = new Button { Content = "Two" };
+        var third = new Button { Content = "Three" };
+        host.AddChild(first);
+        host.AddChild(second);
+        host.AddChild(third);
+        root.AddChild(host);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 500, 240, 16);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: GetCenter(first.LayoutSlot)));
+        Assert.Equal("HitTest", uiRoot.LastPointerResolvePathForDiagnostics);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: GetCenter(second.LayoutSlot)));
+
+        Assert.Equal("HoveredHostSubtreeHitTest", uiRoot.LastPointerResolvePathForDiagnostics);
+        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
+    }
+
+    [Fact]
     public void ListHover_ManyItems_StaysLowHitTestRate()
     {
         var root = new Panel();
@@ -543,6 +576,11 @@ public class InputDispatchOptimizationTests
         }
 
         return null;
+    }
+
+    private static Vector2 GetCenter(LayoutRect rect)
+    {
+        return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)

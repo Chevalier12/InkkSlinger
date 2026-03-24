@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -142,6 +143,156 @@ public sealed class StoryboardScaleLaneReplacementTests
 
         Assert.True(telemetry.ActiveLaneCount <= 2, $"Expected only the hovered button hold-end lanes to remain active. ActiveLaneCount={telemetry.ActiveLaneCount}.");
         Assert.True(telemetry.ActiveStoryboardCount <= 1, $"Expected completed leave storyboards to be cleaned up. ActiveStoryboardCount={telemetry.ActiveStoryboardCount}.");
+    }
+
+    [Fact]
+    public void HoverSweepAcrossMultipleButtons_DoesNotSpendComposeSortOnAlreadyOrderedContributions()
+    {
+        const string xaml = """
+                            <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                              <UserControl.Resources>
+                                <Style x:Key="HoverScaleStyle" TargetType="{x:Type Button}">
+                                  <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                                  <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                      <ScaleTransform ScaleX="1" ScaleY="1" />
+                                    </Setter.Value>
+                                  </Setter>
+                                  <Style.Triggers>
+                                    <EventTrigger RoutedEvent="MouseEnter">
+                                      <BeginStoryboard>
+                                        <Storyboard>
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.3" Duration="0:0:0.15" />
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.3" Duration="0:0:0.15" />
+                                        </Storyboard>
+                                      </BeginStoryboard>
+                                    </EventTrigger>
+                                    <EventTrigger RoutedEvent="MouseLeave">
+                                      <BeginStoryboard>
+                                        <Storyboard>
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.0" Duration="0:0:0.15" />
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.0" Duration="0:0:0.15" />
+                                        </Storyboard>
+                                      </BeginStoryboard>
+                                    </EventTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </UserControl.Resources>
+                              <Canvas>
+                                <Button x:Name="Probe1" Style="{StaticResource HoverScaleStyle}" Width="80" Height="40" Canvas.Left="20" Canvas.Top="20" />
+                                <Button x:Name="Probe2" Style="{StaticResource HoverScaleStyle}" Width="80" Height="40" Canvas.Left="110" Canvas.Top="20" />
+                                <Button x:Name="Probe3" Style="{StaticResource HoverScaleStyle}" Width="80" Height="40" Canvas.Left="200" Canvas.Top="20" />
+                              </Canvas>
+                            </UserControl>
+                            """;
+
+        AnimationManager.Current.ResetForTests();
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 360, 120, 16);
+
+        var buttons = new[]
+        {
+            Assert.IsType<Button>(root.FindName("Probe1")),
+            Assert.IsType<Button>(root.FindName("Probe2")),
+            Assert.IsType<Button>(root.FindName("Probe3"))
+        };
+
+        AnimationManager.Current.ResetTelemetryForTests();
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(GetCenter(buttons[i]), pointerMoved: true));
+            RunLayout(uiRoot, 360, 120, 32 + (i * 16));
+        }
+
+        var telemetry = AnimationManager.Current.GetTelemetrySnapshotForTests();
+        Assert.Equal(0d, telemetry.ComposeSortMilliseconds, 3);
+    }
+
+    [Fact]
+    public void ValuesEqual_TreatsTinyFloatAnimationDeltasAsStable()
+    {
+        var valuesEqual = typeof(AnimationManager).GetMethod(
+            "ValuesEqual",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(valuesEqual);
+
+        var equal = Assert.IsType<bool>(valuesEqual!.Invoke(null, [1.0004f, 1.0009f]));
+        var different = Assert.IsType<bool>(valuesEqual.Invoke(null, [1.0f, 1.01f]));
+
+        Assert.True(equal);
+        Assert.False(different);
+    }
+
+    [Fact]
+    public void HoverSweepAcrossMultipleButtons_CollectPhaseStaysBounded()
+    {
+        const string xaml = """
+                            <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                              <UserControl.Resources>
+                                <Style x:Key="HoverScaleStyle" TargetType="{x:Type Button}">
+                                  <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                                  <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                      <ScaleTransform ScaleX="1" ScaleY="1" />
+                                    </Setter.Value>
+                                  </Setter>
+                                  <Style.Triggers>
+                                    <EventTrigger RoutedEvent="MouseEnter">
+                                      <BeginStoryboard>
+                                        <Storyboard>
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.3" Duration="0:0:0.15" />
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.3" Duration="0:0:0.15" />
+                                        </Storyboard>
+                                      </BeginStoryboard>
+                                    </EventTrigger>
+                                    <EventTrigger RoutedEvent="MouseLeave">
+                                      <BeginStoryboard>
+                                        <Storyboard>
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.0" Duration="0:0:0.15" />
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.0" Duration="0:0:0.15" />
+                                        </Storyboard>
+                                      </BeginStoryboard>
+                                    </EventTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </UserControl.Resources>
+                              <Canvas>
+                                <Button x:Name="Probe1" Style="{StaticResource HoverScaleStyle}" Width="80" Height="40" Canvas.Left="20" Canvas.Top="20" />
+                                <Button x:Name="Probe2" Style="{StaticResource HoverScaleStyle}" Width="80" Height="40" Canvas.Left="110" Canvas.Top="20" />
+                                <Button x:Name="Probe3" Style="{StaticResource HoverScaleStyle}" Width="80" Height="40" Canvas.Left="200" Canvas.Top="20" />
+                                <Button x:Name="Probe4" Style="{StaticResource HoverScaleStyle}" Width="80" Height="40" Canvas.Left="290" Canvas.Top="20" />
+                              </Canvas>
+                            </UserControl>
+                            """;
+
+        AnimationManager.Current.ResetForTests();
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 420, 120, 16);
+
+        var buttons = new[]
+        {
+            Assert.IsType<Button>(root.FindName("Probe1")),
+            Assert.IsType<Button>(root.FindName("Probe2")),
+            Assert.IsType<Button>(root.FindName("Probe3")),
+            Assert.IsType<Button>(root.FindName("Probe4"))
+        };
+
+        AnimationManager.Current.ResetTelemetryForTests();
+        for (var pass = 0; pass < 3; pass++)
+        {
+            for (var i = 0; i < buttons.Length; i++)
+            {
+                uiRoot.RunInputDeltaForTests(CreatePointerDelta(GetCenter(buttons[i]), pointerMoved: true));
+                RunLayout(uiRoot, 420, 120, 32 + (pass * 120) + (i * 16));
+            }
+        }
+
+        var telemetry = AnimationManager.Current.GetTelemetrySnapshotForTests();
+        Assert.True(telemetry.ComposeCollectMilliseconds < 5d, $"Compose collect unexpectedly high: {telemetry.ComposeCollectMilliseconds:0.###} ms");
     }
 
     private static void AdvanceFrames(UiRoot uiRoot, int width, int height, int startMs, int frameCount)
