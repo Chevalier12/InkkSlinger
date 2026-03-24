@@ -309,6 +309,9 @@ public class Game1 : Game
     private void ResetCalendarHoverDiagnosticsFrameState()
     {
         AnimationManager.Current.ResetTelemetryForTests();
+        Freezable.ResetTelemetryForTests();
+        UIElement.ResetFreezableInvalidationBatchTelemetryForTests();
+        VisualTreeHelper.ResetInstrumentationForTests();
         Button.ResetTimingForTests();
         CalendarDayButton.ResetTimingForTests();
         DropShadowEffect.ResetTimingForTests();
@@ -331,11 +334,16 @@ public class Game1 : Game
 
         var hovered = _uiRoot.GetHoveredElementForDiagnostics();
         var hoveredDayButton = FindAncestorOrSelf<CalendarDayButton>(hovered);
+        var hoveredButton = FindAncestorOrSelf<Button>(hovered);
         var hoveredPath = BuildTypePath(hovered);
         var animation = AnimationManager.Current.GetTelemetrySnapshotForTests();
         var input = _uiRoot.GetPointerMoveTelemetrySnapshotForTests();
         var render = _uiRoot.GetRenderTelemetrySnapshotForTests();
         var performance = _uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        var freezable = Freezable.GetTelemetrySnapshotForTests();
+        var invalidationBatch = UIElement.GetFreezableInvalidationBatchSnapshotForTests();
+        var hitTestInstrumentation = VisualTreeHelper.GetInstrumentationSnapshotForTests();
+        var hasHitTestMetrics = _uiRoot.TryGetLastPointerResolveHitTestMetricsForTests(out var hitTestMetrics);
         var button = Button.GetTimingSnapshotForTests();
         var dayButton = CalendarDayButton.GetTimingSnapshotForTests();
         var effect = DropShadowEffect.GetTimingSnapshotForTests();
@@ -346,6 +354,8 @@ public class Game1 : Game
             _calendarHoverFrames.Count,
             hovered?.GetType().Name ?? "null",
             hoveredDayButton?.DayText ?? string.Empty,
+            GetButtonText(hoveredButton),
+            ClassifyHoverPhase(hovered, hoveredDayButton, hoveredButton),
             hoveredPath,
             fps,
             _uiRoot.LastUpdateMs,
@@ -358,6 +368,27 @@ public class Game1 : Game
             performance.VisualUpdateMilliseconds,
             input.HoverUpdateMilliseconds,
             input.PointerTargetResolveMilliseconds,
+            input.PointerResolvePath,
+            input.PointerResolveHoverReuseCheckMilliseconds,
+            input.PointerResolveFinalHitTestMilliseconds,
+            hasHitTestMetrics ? hitTestMetrics.NodesVisited : 0,
+            hasHitTestMetrics ? hitTestMetrics.MaxDepth : 0,
+            hasHitTestMetrics ? hitTestMetrics.TotalMilliseconds : 0d,
+            hasHitTestMetrics ? hitTestMetrics.TopLevelSubtreeSummary : "none",
+            hasHitTestMetrics ? hitTestMetrics.HottestTypeSummary : "none",
+            hasHitTestMetrics ? hitTestMetrics.HottestNodeSummary : "none",
+            hasHitTestMetrics ? hitTestMetrics.TraversalSummary : "none",
+            hasHitTestMetrics ? hitTestMetrics.RejectSummary : "none",
+            hitTestInstrumentation.ItemsPresenterNeighborProbes,
+            hitTestInstrumentation.ItemsPresenterFullFallbackScans,
+            hitTestInstrumentation.LegacyEnumerableFallbacks,
+            hitTestInstrumentation.MonotonicPanelFastPathCount,
+            hitTestInstrumentation.SimpleSlotHitCount,
+            hitTestInstrumentation.TransformedBoundsHitCount,
+            hitTestInstrumentation.ClipRejectCount,
+            hitTestInstrumentation.VisibilityRejectCount,
+            hitTestInstrumentation.PanelTraversalCount,
+            hitTestInstrumentation.VisualTraversalZSortCount,
             input.PointerRouteMilliseconds,
             performance.FrameUpdateParticipantRefreshMilliseconds,
             performance.FrameUpdateParticipantUpdateMilliseconds,
@@ -383,6 +414,16 @@ public class Game1 : Game
             animation.ActiveStoryboardCount,
             animation.ActiveLaneCount,
             animation.HottestSetValuePathSummary,
+            freezable.OnChangedMilliseconds,
+            freezable.EndBatchMilliseconds,
+            invalidationBatch.FlushMilliseconds,
+            invalidationBatch.FlushCount,
+            invalidationBatch.FlushTargetCount,
+            invalidationBatch.MaxPendingTargetCount,
+            freezable.HottestOnChangedType,
+            freezable.HottestOnChangedMilliseconds,
+            freezable.HottestEndBatchType,
+            freezable.HottestEndBatchMilliseconds,
             TicksToMilliseconds(button.RenderElapsedTicks),
             TicksToMilliseconds(button.RenderChromeElapsedTicks),
             TicksToMilliseconds(button.RenderTextPreparationElapsedTicks),
@@ -450,7 +491,9 @@ public class Game1 : Game
             "step_1=open Controls Catalog",
             "step_2=click Calendar button",
             "step_3=move pointer over CalendarDayButton cells and reproduce FPS drop",
+            "step_4=optionally return to sidebar buttons after stressing CalendarDayButton hover",
             $"captured_frames={_calendarHoverFrames.Count}",
+            $"hovered_sidebar_button_frames={_calendarHoverFrames.Count(static frame => string.Equals(frame.HoverPhase, "SidebarButton", StringComparison.Ordinal))}",
             $"hovered_calendar_day_frames={_calendarHoverFrames.Count(static frame => string.Equals(frame.HoveredType, nameof(CalendarDayButton), StringComparison.Ordinal))}",
             $"min_fps={minFps:0.###}",
             $"avg_fps={averageFps:0.###}",
@@ -475,6 +518,14 @@ public class Game1 : Game
             $"max_button_render_ms={_calendarHoverFrames.Max(static frame => frame.ButtonRenderMs):0.###}",
             $"max_text_draw_ms={_calendarHoverFrames.Max(static frame => frame.TextDrawMs):0.###}",
             $"max_text_measure_ms={_calendarHoverFrames.Max(static frame => frame.TextMeasureWidthMs):0.###}",
+            $"max_pointer_resolve_hover_reuse_ms={_calendarHoverFrames.Max(static frame => frame.ResolveHoverReuseMs):0.###}",
+            $"max_pointer_resolve_final_hit_test_ms={_calendarHoverFrames.Max(static frame => frame.ResolveFinalHitTestMs):0.###}",
+            $"max_pointer_hit_test_nodes={_calendarHoverFrames.Max(static frame => frame.HitTestNodesVisited)}",
+            $"max_pointer_hit_test_depth={_calendarHoverFrames.Max(static frame => frame.HitTestMaxDepth)}",
+            $"max_pointer_hit_test_ms={_calendarHoverFrames.Max(static frame => frame.HitTestMs):0.###}",
+            $"max_freezable_onchanged_ms={_calendarHoverFrames.Max(static frame => frame.FreezableOnChangedMs):0.###}",
+            $"max_freezable_end_batch_ms={_calendarHoverFrames.Max(static frame => frame.FreezableEndBatchMs):0.###}",
+            $"max_freezable_batch_flush_ms={_calendarHoverFrames.Max(static frame => frame.FreezableBatchFlushMs):0.###}",
             $"hottest_draw_frame={FormatRuntimeFrame(hottestDraw)}",
             $"hottest_effect_frame={FormatRuntimeFrame(hottestEffect)}",
             $"hottest_animation_frame={FormatRuntimeFrame(hottestAnimation)}"
@@ -490,13 +541,15 @@ public class Game1 : Game
     private static string FormatRuntimeFrame(CalendarHoverRuntimeFrame frame)
     {
         return
-            $"frame={frame.FrameIndex:000} hovered={frame.HoveredType} day={frame.HoveredDayText} hoveredPath={frame.HoveredPath} fps={frame.Fps:0.###} " +
-            $"uiUpdateMs={frame.UiUpdateMs:0.###} uiDrawMs={frame.UiDrawMs:0.###} inputPhaseMs={frame.InputPhaseMs:0.###} bindingPhaseMs={frame.BindingPhaseMs:0.###} layoutPhaseMs={frame.LayoutPhaseMs:0.###} animationPhaseMs={frame.AnimationPhaseMs:0.###} renderSchedulingPhaseMs={frame.RenderSchedulingPhaseMs:0.###} visualUpdateMs={frame.VisualUpdateMs:0.###} hoverMs={frame.HoverMs:0.###} resolveMs={frame.ResolveMs:0.###} routeMs={frame.RouteMs:0.###} " +
+            $"frame={frame.FrameIndex:000} phase={frame.HoverPhase} hovered={frame.HoveredType} day={frame.HoveredDayText} button={frame.HoveredButtonText} hoveredPath={frame.HoveredPath} fps={frame.Fps:0.###} " +
+            $"uiUpdateMs={frame.UiUpdateMs:0.###} uiDrawMs={frame.UiDrawMs:0.###} inputPhaseMs={frame.InputPhaseMs:0.###} bindingPhaseMs={frame.BindingPhaseMs:0.###} layoutPhaseMs={frame.LayoutPhaseMs:0.###} animationPhaseMs={frame.AnimationPhaseMs:0.###} renderSchedulingPhaseMs={frame.RenderSchedulingPhaseMs:0.###} visualUpdateMs={frame.VisualUpdateMs:0.###} hoverMs={frame.HoverMs:0.###} resolveMs={frame.ResolveMs:0.###} resolveHoverReuseMs={frame.ResolveHoverReuseMs:0.###} resolveFinalHitTestMs={frame.ResolveFinalHitTestMs:0.###} routeMs={frame.RouteMs:0.###} " +
+            $"resolvePath={frame.ResolvePath} hitTestNodes={frame.HitTestNodesVisited} hitTestDepth={frame.HitTestMaxDepth} hitTestMs={frame.HitTestMs:0.###} hitTestTopSubtrees={frame.HitTestTopSubtreeSummary} hitTestHotTypes={frame.HitTestHottestTypeSummary} hitTestHotNode={frame.HitTestHottestNodeSummary} hitTestTraversal={frame.HitTestTraversalSummary} hitTestRejects={frame.HitTestRejectSummary} " +
+            $"hitTestNeighborProbes={frame.HitTestItemsPresenterNeighborProbes} hitTestFullFallbacks={frame.HitTestItemsPresenterFullFallbackScans} hitTestLegacyFallbacks={frame.HitTestLegacyEnumerableFallbacks} hitTestMonotonicFastPaths={frame.HitTestMonotonicPanelFastPathCount} hitTestSimpleSlot={frame.HitTestSimpleSlotHitCount} hitTestTransformedBounds={frame.HitTestTransformedBoundsHitCount} hitTestClipRejects={frame.HitTestClipRejectCount} hitTestHiddenRejects={frame.HitTestVisibilityRejectCount} hitTestPanels={frame.HitTestPanelTraversalCount} hitTestZSorts={frame.HitTestVisualTraversalZSortCount} " +
             $"updateParticipantRefreshMs={frame.UpdateParticipantRefreshMs:0.###} updateParticipantUpdateMs={frame.UpdateParticipantUpdateMs:0.###} hottestUpdateParticipant={frame.HottestUpdateParticipantType}:{frame.HottestUpdateParticipantMs:0.###} " +
             $"frameworkMeasureMs={frame.FrameworkMeasureMs:0.###} frameworkMeasureExclusiveMs={frame.FrameworkMeasureExclusiveMs:0.###} frameworkArrangeMs={frame.FrameworkArrangeMs:0.###} hottestMeasureElement={frame.HottestMeasureElementType}({frame.HottestMeasureElementName}):{frame.HottestMeasureElementMs:0.###} hottestArrangeElement={frame.HottestArrangeElementType}({frame.HottestArrangeElementName}):{frame.HottestArrangeElementMs:0.###} " +
             $"beginMs={frame.AnimationBeginMs:0.###} startMs={frame.AnimationStartMs:0.###} composeMs={frame.AnimationComposeMs:0.###} composeCollectMs={frame.AnimationComposeCollectMs:0.###} " +
             $"composeSortMs={frame.AnimationComposeSortMs:0.###} composeMergeMs={frame.AnimationComposeMergeMs:0.###} composeApplyMs={frame.AnimationComposeApplyMs:0.###} composeBatchEndMs={frame.AnimationComposeBatchEndMs:0.###} " +
-            $"activeStoryboards={frame.ActiveStoryboards} activeLanes={frame.ActiveLanes} hottestSetValuePaths={frame.HottestSetValuePaths} " +
+            $"activeStoryboards={frame.ActiveStoryboards} activeLanes={frame.ActiveLanes} freezableOnChangedMs={frame.FreezableOnChangedMs:0.###} freezableEndBatchMs={frame.FreezableEndBatchMs:0.###} freezableBatchFlushMs={frame.FreezableBatchFlushMs:0.###} freezableBatchFlushes={frame.FreezableBatchFlushCount} freezableBatchFlushTargets={frame.FreezableBatchFlushTargetCount} maxPendingBatchTargets={frame.FreezableBatchMaxPendingTargetCount} hottestFreezableOnChanged={frame.HottestFreezableOnChangedType}:{frame.HottestFreezableOnChangedMs:0.###} hottestFreezableEndBatch={frame.HottestFreezableEndBatchType}:{frame.HottestFreezableEndBatchMs:0.###} hottestSetValuePaths={frame.HottestSetValuePaths} " +
             $"buttonRenderMs={frame.ButtonRenderMs:0.###} buttonChromeMs={frame.ButtonChromeMs:0.###} buttonTextPrepMs={frame.ButtonTextPreparationMs:0.###} buttonTextDrawMs={frame.ButtonTextDrawMs:0.###} buttonTextPrepCalls={frame.ButtonTextPreparationCalls} " +
             $"calendarDayRenderMs={frame.CalendarDayRenderMs:0.###} calendarDayRenderCalls={frame.CalendarDayRenderCalls} calendarDayNonEmptyCalls={frame.CalendarDayNonEmptyRenderCalls} " +
             $"dropShadowRenderMs={frame.DropShadowRenderMs:0.###} dropShadowBlurPathMs={frame.DropShadowBlurPathMs:0.###} dropShadowBlurSlicesMs={frame.DropShadowBlurSlicesMs:0.###} " +
@@ -504,6 +557,49 @@ public class Game1 : Game
             $"textDrawMs={frame.TextDrawMs:0.###} textDrawCalls={frame.TextDrawCalls} textMeasureMs={frame.TextMeasureWidthMs:0.###} textMeasureCalls={frame.TextMeasureWidthCalls} lineHeightMs={frame.TextLineHeightMs:0.###} lineHeightCalls={frame.TextLineHeightCalls} textMetricsHits={frame.TextMetricsCacheHits} textMetricsMisses={frame.TextMetricsCacheMisses} " +
             $"layoutMs={frame.TextLayoutMs:0.###} layoutBuildMs={frame.TextLayoutBuildMs:0.###} layoutBuilds={frame.TextLayoutBuildCount} layoutMisses={frame.TextLayoutCacheMissCount} " +
             $"retainedVisited={frame.RetainedNodesVisited} retainedDrawn={frame.RetainedNodesDrawn} retainedTraversals={frame.RetainedTraversalCount} dirtyTraversals={frame.DirtyRegionTraversalCount} dayButtonCount={frame.CalendarDayButtonCount}";
+    }
+
+    private string ClassifyHoverPhase(UIElement? hovered, CalendarDayButton? hoveredDayButton, Button? hoveredButton)
+    {
+        if (hoveredDayButton != null)
+        {
+            return "CalendarDay";
+        }
+
+        if (hoveredButton != null && IsSidebarCatalogButton(hoveredButton))
+        {
+            return "SidebarButton";
+        }
+
+        return hovered?.GetType().Name ?? "null";
+    }
+
+    private bool IsSidebarCatalogButton(Button button)
+    {
+        if (_catalogView?.FindName("ControlButtonsHost") is not StackPanel sidebarHost)
+        {
+            return false;
+        }
+
+        for (var current = button as UIElement; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (ReferenceEquals(current, sidebarHost))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string GetButtonText(Button? button)
+    {
+        if (button?.Content is string text)
+        {
+            return text;
+        }
+
+        return string.Empty;
     }
 
     private bool TryGetActiveCalendar(out Calendar calendar)
@@ -611,6 +707,8 @@ public class Game1 : Game
         int FrameIndex,
         string HoveredType,
         string HoveredDayText,
+        string HoveredButtonText,
+        string HoverPhase,
         string HoveredPath,
         double Fps,
         double UiUpdateMs,
@@ -623,6 +721,27 @@ public class Game1 : Game
         double VisualUpdateMs,
         double HoverMs,
         double ResolveMs,
+        string ResolvePath,
+        double ResolveHoverReuseMs,
+        double ResolveFinalHitTestMs,
+        int HitTestNodesVisited,
+        int HitTestMaxDepth,
+        double HitTestMs,
+        string HitTestTopSubtreeSummary,
+        string HitTestHottestTypeSummary,
+        string HitTestHottestNodeSummary,
+        string HitTestTraversalSummary,
+        string HitTestRejectSummary,
+        int HitTestItemsPresenterNeighborProbes,
+        int HitTestItemsPresenterFullFallbackScans,
+        int HitTestLegacyEnumerableFallbacks,
+        int HitTestMonotonicPanelFastPathCount,
+        int HitTestSimpleSlotHitCount,
+        int HitTestTransformedBoundsHitCount,
+        int HitTestClipRejectCount,
+        int HitTestVisibilityRejectCount,
+        int HitTestPanelTraversalCount,
+        int HitTestVisualTraversalZSortCount,
         double RouteMs,
         double UpdateParticipantRefreshMs,
         double UpdateParticipantUpdateMs,
@@ -648,6 +767,16 @@ public class Game1 : Game
         int ActiveStoryboards,
         int ActiveLanes,
         string HottestSetValuePaths,
+        double FreezableOnChangedMs,
+        double FreezableEndBatchMs,
+        double FreezableBatchFlushMs,
+        int FreezableBatchFlushCount,
+        int FreezableBatchFlushTargetCount,
+        int FreezableBatchMaxPendingTargetCount,
+        string HottestFreezableOnChangedType,
+        double HottestFreezableOnChangedMs,
+        string HottestFreezableEndBatchType,
+        double HottestFreezableEndBatchMs,
         double ButtonRenderMs,
         double ButtonChromeMs,
         double ButtonTextPreparationMs,

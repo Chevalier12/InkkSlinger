@@ -139,10 +139,64 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         }
     }
 
+    [Fact]
+    public void CalendarPreview_HoverSweepThenSidebarSweep_WritesContaminationDiagnosticsLog()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var sidebarBaseline = MeasureSidebarSweep(includeCalendarPreview: false);
+            var sidebarWithCalendarOpen = MeasureSidebarSweep(includeCalendarPreview: true);
+            var sidebarAfterCalendarSweep = MeasureSidebarSweepAfterCalendarHover();
+
+            var logPath = GetDiagnosticsLogPath("controls-catalog-calendar-hover-sidebar-contamination");
+            var lines = new List<string>
+            {
+                "scenario=ControlsCatalog Calendar hover then sidebar hover contamination diagnostics",
+                $"timestamp_utc={DateTime.UtcNow:O}",
+                $"log_path={logPath}",
+                "step_1=open Controls Catalog",
+                "step_2=click Calendar button",
+                "step_3=rapidly sweep CalendarDayButton cells multiple times",
+                "step_4=immediately sweep visible sidebar buttons",
+                "step_5=compare sidebar hover baseline vs calendar-open vs post-calendar-hover"
+            };
+
+            lines.Add(string.Empty);
+            lines.Add("sidebar_baseline_summary:");
+            AppendSummaryLines(lines, sidebarBaseline);
+
+            lines.Add(string.Empty);
+            lines.Add("sidebar_with_calendar_open_summary:");
+            AppendSummaryLines(lines, sidebarWithCalendarOpen);
+
+            lines.Add(string.Empty);
+            lines.Add("sidebar_after_calendar_hover_summary:");
+            AppendSummaryLines(lines, sidebarAfterCalendarSweep);
+
+            lines.Add(string.Empty);
+            lines.Add($"contamination_inference={BuildSidebarContaminationInference(sidebarBaseline, sidebarWithCalendarOpen, sidebarAfterCalendarSweep)}");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+            File.WriteAllLines(logPath, lines);
+
+            Assert.True(File.Exists(logPath));
+            Assert.Contains("hotspot", lines.Last(static line => line.StartsWith("contamination_inference=", StringComparison.Ordinal)), StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
     private static HoverSweepSummary MeasureSidebarSweep(bool includeCalendarPreview)
     {
         AnimationManager.Current.ResetForTests();
         VisualTreeHelper.ResetInstrumentationForTests();
+        Freezable.ResetTelemetryForTests();
+        UIElement.ResetFreezableInvalidationBatchTelemetryForTests();
 
         var catalog = new ControlsCatalogView
         {
@@ -197,6 +251,92 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         return Summarize(metrics);
     }
 
+    private static HoverSweepSummary MeasureSidebarSweepAfterCalendarHover()
+    {
+        AnimationManager.Current.ResetForTests();
+        VisualTreeHelper.ResetInstrumentationForTests();
+        Freezable.ResetTelemetryForTests();
+        UIElement.ResetFreezableInvalidationBatchTelemetryForTests();
+
+        var catalog = new ControlsCatalogView
+        {
+            Width = ViewportWidth,
+            Height = ViewportHeight
+        };
+
+        var host = new Canvas
+        {
+            Width = ViewportWidth,
+            Height = ViewportHeight
+        };
+        host.AddChild(catalog);
+
+        var uiRoot = new UiRoot(host);
+        RunFrame(uiRoot, 16);
+
+        catalog.ShowControl("Calendar");
+        RunFrame(uiRoot, 32);
+
+        var previewHost = Assert.IsType<ContentControl>(catalog.FindName("PreviewHost"));
+        var previewRoot = Assert.IsAssignableFrom<UIElement>(previewHost.Content);
+        var calendar = Assert.IsType<Calendar>(FindFirstVisualChild<Calendar>(previewRoot));
+        var dayButtons = calendar.DayButtonsForTesting
+            .Select(static button => Assert.IsType<CalendarDayButton>(button))
+            .Where(static button => !string.IsNullOrEmpty(button.DayText))
+            .ToList();
+        Assert.NotEmpty(dayButtons);
+
+        var pointer = GetCenter(dayButtons[0].LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        for (var i = 0; i < 8; i++)
+        {
+            RunFrame(uiRoot, 48 + (i * 16));
+        }
+
+        PrimeRetainedRenderStateForDiagnostics(uiRoot);
+        AnimationManager.Current.ResetTelemetryForTests();
+        VisualTreeHelper.ResetInstrumentationForTests();
+        Freezable.ResetTelemetryForTests();
+        UIElement.ResetFreezableInvalidationBatchTelemetryForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, ViewportWidth, ViewportHeight));
+
+        var stepIndex = 0;
+        for (var pass = 0; pass < 3; pass++)
+        {
+            foreach (var button in dayButtons)
+            {
+                pointer = GetCenter(button.LayoutSlot);
+                _ = RunSweepStep(uiRoot, pointer, $"calendar-prelude:{pass + 1}:{button.DayText}", stepIndex++);
+            }
+        }
+
+        var sidebarViewer = FindSidebarScrollViewer(catalog);
+        var sidebarHost = Assert.IsType<StackPanel>(catalog.FindName("ControlButtonsHost"));
+        var visibleButtons = GetVisibleButtons(sidebarViewer, sidebarHost);
+        Assert.NotEmpty(visibleButtons);
+
+        var metrics = new List<HoverSweepStepMetrics>();
+        pointer = GetCenter(GetViewerViewportRect(sidebarViewer));
+        metrics.Add(RunSweepStep(uiRoot, pointer, "sidebar-after-calendar:center", stepIndex++));
+
+        for (var pass = 0; pass < 2; pass++)
+        {
+            foreach (var button in visibleButtons)
+            {
+                pointer = GetCenter(button.LayoutSlot);
+                metrics.Add(RunSweepStep(
+                    uiRoot,
+                    pointer,
+                    $"sidebar-after-calendar:pass-{pass + 1}:{button.GetContentText()}",
+                    stepIndex++));
+            }
+        }
+
+        return Summarize(metrics);
+    }
+
     private static void AppendSummaryLines(ICollection<string> lines, HoverSweepSummary summary)
     {
         lines.Add($"total_steps={summary.TotalSteps}");
@@ -204,6 +344,8 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         lines.Add($"total_routed_events={summary.TotalRoutedEvents}");
         lines.Add($"total_hover_update_ms={summary.TotalHoverUpdateMs:0.###}");
         lines.Add($"total_pointer_resolve_ms={summary.TotalPointerResolveMs:0.###}");
+        lines.Add($"total_pointer_resolve_hover_reuse_ms={summary.TotalPointerResolveHoverReuseMs:0.###}");
+        lines.Add($"total_pointer_resolve_final_hit_test_ms={summary.TotalPointerResolveFinalHitTestMs:0.###}");
         lines.Add($"total_begin_storyboard_calls={summary.TotalBeginStoryboardCalls}");
         lines.Add($"total_storyboard_starts={summary.TotalStoryboardStarts}");
         lines.Add($"total_lane_applications={summary.TotalLaneApplications}");
@@ -220,6 +362,12 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         lines.Add($"total_compose_batch_end_ms={summary.TotalComposeBatchEndMs:0.###}");
         lines.Add($"total_sink_setvalue_ms={summary.TotalSinkSetValueMs:0.###}");
         lines.Add($"total_cleanup_completed_ms={summary.TotalCleanupCompletedMs:0.###}");
+        lines.Add($"total_freezable_onchanged_ms={summary.TotalFreezableOnChangedMs:0.###}");
+        lines.Add($"total_freezable_end_batch_ms={summary.TotalFreezableEndBatchMs:0.###}");
+        lines.Add($"total_freezable_batch_flush_ms={summary.TotalFreezableBatchFlushMs:0.###}");
+        lines.Add($"total_freezable_batch_flushes={summary.TotalFreezableBatchFlushes}");
+        lines.Add($"total_freezable_batch_flush_targets={summary.TotalFreezableBatchFlushTargets}");
+        lines.Add($"max_freezable_batch_pending_targets={summary.MaxFreezableBatchPendingTargets}");
         lines.Add($"total_render_invalidations={summary.TotalRenderInvalidations}");
         lines.Add($"total_measure_invalidations={summary.TotalMeasureInvalidations}");
         lines.Add($"total_arrange_invalidations={summary.TotalArrangeInvalidations}");
@@ -237,6 +385,8 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         lines.Add($"max_active_storyboards={summary.MaxActiveStoryboards}");
         lines.Add($"max_active_lanes={summary.MaxActiveLanes}");
         lines.Add($"max_active_storyboard_entries={summary.MaxActiveStoryboardEntries}");
+        lines.Add($"hottest_freezable_onchanged_type={summary.HottestFreezableOnChangedType}:{summary.HottestFreezableOnChangedMs:0.###}");
+        lines.Add($"hottest_freezable_endbatch_type={summary.HottestFreezableEndBatchType}:{summary.HottestFreezableEndBatchMs:0.###}");
         lines.Add($"hottest_setvalue_paths={summary.HottestSetValuePaths}");
         lines.Add($"hottest_step={summary.HottestStepLabel}");
         lines.Add($"hottest_step_detail={summary.HottestStepDetail}");
@@ -265,12 +415,42 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         return "Logs did not isolate a single animation/write-back hotspot yet; collect narrower per-class instrumentation.";
     }
 
+    private static string BuildSidebarContaminationInference(
+        HoverSweepSummary sidebarBaseline,
+        HoverSweepSummary sidebarWithCalendarOpen,
+        HoverSweepSummary sidebarAfterCalendarHover)
+    {
+        var deltaHoverMs = sidebarAfterCalendarHover.TotalHoverUpdateMs - sidebarBaseline.TotalHoverUpdateMs;
+        var deltaResolveMs = sidebarAfterCalendarHover.TotalPointerResolveMs - sidebarBaseline.TotalPointerResolveMs;
+        var deltaResolveHoverReuseMs = sidebarAfterCalendarHover.TotalPointerResolveHoverReuseMs - sidebarBaseline.TotalPointerResolveHoverReuseMs;
+        var deltaResolveFinalHitTestMs = sidebarAfterCalendarHover.TotalPointerResolveFinalHitTestMs - sidebarBaseline.TotalPointerResolveFinalHitTestMs;
+        var deltaComposeApplyMs = sidebarAfterCalendarHover.TotalComposeApplyMs - sidebarBaseline.TotalComposeApplyMs;
+        var deltaBatchEndMs = sidebarAfterCalendarHover.TotalComposeBatchEndMs - sidebarBaseline.TotalComposeBatchEndMs;
+        var deltaFreezableEndBatchMs = sidebarAfterCalendarHover.TotalFreezableEndBatchMs - sidebarBaseline.TotalFreezableEndBatchMs;
+        var deltaFlushTargets = sidebarAfterCalendarHover.TotalFreezableBatchFlushTargets - sidebarBaseline.TotalFreezableBatchFlushTargets;
+        var deltaActiveLanes = sidebarAfterCalendarHover.MaxActiveLanes - sidebarBaseline.MaxActiveLanes;
+
+        if (deltaResolveMs > 5d &&
+            deltaResolveHoverReuseMs > 0d &&
+            deltaResolveFinalHitTestMs <= 1d &&
+            deltaFlushTargets > 0)
+        {
+            return
+                "Exact remaining hotspot: post-calendar sidebar hover spends extra time inside UiRoot.ResolvePointerTarget() before the final hit test, specifically in the hover-reuse eligibility path, while the animation/freezable side only increases secondarily because sidebar hover still animates the same button style. " +
+                $"baseline_to_post_hover_delta_hover_ms={deltaHoverMs:0.###}, delta_resolve_ms={deltaResolveMs:0.###}, delta_resolve_hover_reuse_ms={deltaResolveHoverReuseMs:0.###}, delta_resolve_final_hit_test_ms={deltaResolveFinalHitTestMs:0.###}, delta_compose_apply_ms={deltaComposeApplyMs:0.###}, delta_compose_batch_end_ms={deltaBatchEndMs:0.###}, delta_freezable_endbatch_ms={deltaFreezableEndBatchMs:0.###}, delta_flush_targets={deltaFlushTargets}, delta_active_lanes={deltaActiveLanes}, open_calendar_active_lanes={sidebarWithCalendarOpen.MaxActiveLanes}.";
+        }
+
+        return "Logs did not isolate a post-calendar sidebar contamination hotspot yet; collect narrower telemetry.";
+    }
+
     private static HoverSweepStepMetrics RunSweepStep(UiRoot uiRoot, Vector2 pointer, string label, int stepIndex)
     {
         var beforeVisualTree = uiRoot.GetVisualTreeMetricsSnapshot();
         var beforeAnimation = AnimationManager.Current.GetTelemetrySnapshotForTests();
         var beforeHitTest = VisualTreeHelper.GetInstrumentationSnapshotForTests();
         var beforeRender = uiRoot.GetRenderTelemetrySnapshotForTests();
+        var beforeFreezable = Freezable.GetTelemetrySnapshotForTests();
+        var beforeInvalidationBatch = UIElement.GetFreezableInvalidationBatchSnapshotForTests();
         _ = ScrollViewer.GetScrollMetricsAndReset();
         AnimationValueSink.ResetTelemetryForTests();
 
@@ -283,6 +463,8 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         var afterAnimation = AnimationManager.Current.GetTelemetrySnapshotForTests();
         var afterHitTest = VisualTreeHelper.GetInstrumentationSnapshotForTests();
         var afterRender = uiRoot.GetRenderTelemetrySnapshotForTests();
+        var afterFreezable = Freezable.GetTelemetrySnapshotForTests();
+        var afterInvalidationBatch = UIElement.GetFreezableInvalidationBatchSnapshotForTests();
         var scrollMetrics = ScrollViewer.GetScrollMetricsAndReset();
         var sinkTelemetry = AnimationValueSink.GetTelemetrySnapshotForTests();
         var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
@@ -308,6 +490,19 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
             afterAnimation.ComposeBatchEndMilliseconds - beforeAnimation.ComposeBatchEndMilliseconds,
             afterAnimation.SinkSetValueMilliseconds - beforeAnimation.SinkSetValueMilliseconds,
             afterAnimation.CleanupCompletedMilliseconds - beforeAnimation.CleanupCompletedMilliseconds,
+            afterFreezable.OnChangedMilliseconds - beforeFreezable.OnChangedMilliseconds,
+            afterFreezable.EndBatchMilliseconds - beforeFreezable.EndBatchMilliseconds,
+            afterInvalidationBatch.FlushMilliseconds - beforeInvalidationBatch.FlushMilliseconds,
+            afterInvalidationBatch.FlushCount - beforeInvalidationBatch.FlushCount,
+            afterInvalidationBatch.FlushTargetCount - beforeInvalidationBatch.FlushTargetCount,
+            afterInvalidationBatch.QueuedTargetCount - beforeInvalidationBatch.QueuedTargetCount,
+            afterInvalidationBatch.MaxPendingTargetCount,
+            pointerMove.PointerResolveHoverReuseCheckMilliseconds,
+            pointerMove.PointerResolveFinalHitTestMilliseconds,
+            afterFreezable.HottestOnChangedType,
+            afterFreezable.HottestOnChangedMilliseconds,
+            afterFreezable.HottestEndBatchType,
+            afterFreezable.HottestEndBatchMilliseconds,
             afterAnimation.HottestSetValuePathSummary,
             afterAnimation.ActiveStoryboardCount,
             afterAnimation.ActiveLaneCount,
@@ -360,6 +555,8 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
             steps.Sum(static step => step.PointerMove.RoutedEventCount),
             steps.Sum(static step => step.PointerMove.HoverUpdateMilliseconds),
             steps.Sum(static step => step.PointerMove.PointerTargetResolveMilliseconds),
+            steps.Sum(static step => step.PointerResolveHoverReuseMs),
+            steps.Sum(static step => step.PointerResolveFinalHitTestMs),
             steps.Sum(static step => step.BeginStoryboardCalls),
             steps.Sum(static step => step.StoryboardStarts),
             steps.Sum(static step => step.LaneApplicationCount),
@@ -376,6 +573,12 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
             steps.Sum(static step => step.ComposeBatchEndMs),
             steps.Sum(static step => step.SinkSetValueMs),
             steps.Sum(static step => step.CleanupCompletedMs),
+            steps.Sum(static step => step.FreezableOnChangedMs),
+            steps.Sum(static step => step.FreezableEndBatchMs),
+            steps.Sum(static step => step.FreezableBatchFlushMs),
+            steps.Sum(static step => step.FreezableBatchFlushCount),
+            steps.Sum(static step => step.FreezableBatchFlushTargetCount),
+            steps.Max(static step => step.FreezableBatchMaxPendingTargetCount),
             steps.Sum(static step => step.RenderInvalidationCount),
             steps.Sum(static step => step.MeasureInvalidationCount),
             steps.Sum(static step => step.ArrangeInvalidationCount),
@@ -393,9 +596,13 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
             steps.Max(static step => step.ActiveStoryboardCount),
             steps.Max(static step => step.ActiveLaneCount),
             steps.Max(static step => step.ActiveStoryboardEntryCount),
+            steps.OrderByDescending(static step => step.FreezableOnChangedMs).First().HottestFreezableOnChangedType,
+            steps.Max(static step => step.HottestFreezableOnChangedMs),
+            steps.OrderByDescending(static step => step.FreezableEndBatchMs).First().HottestFreezableEndBatchType,
+            steps.Max(static step => step.HottestFreezableEndBatchMs),
             hottestSetValuePaths,
             hottest.Label,
-            $"beginStoryboards={hottest.BeginStoryboardCalls}, laneApplications={hottest.LaneApplicationCount}, sinkValueSets={hottest.SinkValueSetCount}, beginMs={hottest.BeginStoryboardMs:0.###}, startMs={hottest.StoryboardStartMs:0.###}, updateMs={hottest.StoryboardUpdateMs:0.###}, composeMs={hottest.ComposeMs:0.###}, composeCollectMs={hottest.ComposeCollectMs:0.###}, composeSortMs={hottest.ComposeSortMs:0.###}, composeMergeMs={hottest.ComposeMergeMs:0.###}, composeApplyMs={hottest.ComposeApplyMs:0.###}, composeBatchBeginMs={hottest.ComposeBatchBeginMs:0.###}, composeBatchEndMs={hottest.ComposeBatchEndMs:0.###}, cleanupMs={hottest.CleanupCompletedMs:0.###}, setValueMs={hottest.SinkSetValueMs:0.###}, dirtyRegions={hottest.DirtyRegionCount}, dirtyCoverage={hottest.DirtyCoverage:0.###}, partialDirty={hottest.WouldUsePartialDirtyRedraw}, hottestSetValuePaths={hottest.HottestSetValuePathSummary}");
+            $"beginStoryboards={hottest.BeginStoryboardCalls}, laneApplications={hottest.LaneApplicationCount}, sinkValueSets={hottest.SinkValueSetCount}, beginMs={hottest.BeginStoryboardMs:0.###}, startMs={hottest.StoryboardStartMs:0.###}, updateMs={hottest.StoryboardUpdateMs:0.###}, composeMs={hottest.ComposeMs:0.###}, composeCollectMs={hottest.ComposeCollectMs:0.###}, composeSortMs={hottest.ComposeSortMs:0.###}, composeMergeMs={hottest.ComposeMergeMs:0.###}, composeApplyMs={hottest.ComposeApplyMs:0.###}, composeBatchBeginMs={hottest.ComposeBatchBeginMs:0.###}, composeBatchEndMs={hottest.ComposeBatchEndMs:0.###}, freezableOnChangedMs={hottest.FreezableOnChangedMs:0.###}, freezableEndBatchMs={hottest.FreezableEndBatchMs:0.###}, freezableBatchFlushMs={hottest.FreezableBatchFlushMs:0.###}, cleanupMs={hottest.CleanupCompletedMs:0.###}, setValueMs={hottest.SinkSetValueMs:0.###}, dirtyRegions={hottest.DirtyRegionCount}, dirtyCoverage={hottest.DirtyCoverage:0.###}, partialDirty={hottest.WouldUsePartialDirtyRedraw}, hottestSetValuePaths={hottest.HottestSetValuePathSummary}");
     }
 
     private static string FormatStep(HoverSweepStepMetrics step)
@@ -404,9 +611,9 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
             $"step={step.StepIndex:000} label={step.Label} pointer=({step.Pointer.X:0.##},{step.Pointer.Y:0.##}) " +
             $"resolvePath={step.PointerMove.PointerResolvePath} hitTests={step.PointerMove.HitTestCount} routedEvents={step.PointerMove.RoutedEventCount} " +
             $"scrollViewerWheel={step.ScrollViewer.WheelEvents} scrollViewerSetOffsets={step.ScrollViewer.SetOffsetCalls} " +
-            $"hoverMs={step.PointerMove.HoverUpdateMilliseconds:0.###} resolveMs={step.PointerMove.PointerTargetResolveMilliseconds:0.###} routeMs={step.PointerMove.PointerRouteMilliseconds:0.###} " +
+            $"hoverMs={step.PointerMove.HoverUpdateMilliseconds:0.###} resolveMs={step.PointerMove.PointerTargetResolveMilliseconds:0.###} resolveHoverReuseMs={step.PointerResolveHoverReuseMs:0.###} resolveFinalHitTestMs={step.PointerResolveFinalHitTestMs:0.###} routeMs={step.PointerMove.PointerRouteMilliseconds:0.###} " +
             $"dpSinkSets={step.SinkTelemetry.DependencyPropertySetValueCount} dpSinkMs={step.SinkTelemetry.DependencyPropertySetValueMilliseconds:0.###} clrSinkSets={step.SinkTelemetry.ClrPropertySetValueCount} clrSinkMs={step.SinkTelemetry.ClrPropertySetValueMilliseconds:0.###} " +
-            $"beginMs={step.BeginStoryboardMs:0.###} startMs={step.StoryboardStartMs:0.###} updateMs={step.StoryboardUpdateMs:0.###} composeMs={step.ComposeMs:0.###} composeCollectMs={step.ComposeCollectMs:0.###} composeSortMs={step.ComposeSortMs:0.###} composeMergeMs={step.ComposeMergeMs:0.###} composeApplyMs={step.ComposeApplyMs:0.###} composeBatchBeginMs={step.ComposeBatchBeginMs:0.###} composeBatchEndMs={step.ComposeBatchEndMs:0.###} cleanupMs={step.CleanupCompletedMs:0.###} setValueMs={step.SinkSetValueMs:0.###} hottestSetValuePaths={step.HottestSetValuePathSummary} " +
+            $"beginMs={step.BeginStoryboardMs:0.###} startMs={step.StoryboardStartMs:0.###} updateMs={step.StoryboardUpdateMs:0.###} composeMs={step.ComposeMs:0.###} composeCollectMs={step.ComposeCollectMs:0.###} composeSortMs={step.ComposeSortMs:0.###} composeMergeMs={step.ComposeMergeMs:0.###} composeApplyMs={step.ComposeApplyMs:0.###} composeBatchBeginMs={step.ComposeBatchBeginMs:0.###} composeBatchEndMs={step.ComposeBatchEndMs:0.###} freezableOnChangedMs={step.FreezableOnChangedMs:0.###} freezableEndBatchMs={step.FreezableEndBatchMs:0.###} freezableBatchFlushMs={step.FreezableBatchFlushMs:0.###} freezableBatchFlushes={step.FreezableBatchFlushCount} freezableBatchFlushTargets={step.FreezableBatchFlushTargetCount} queuedTargets={step.FreezableBatchQueuedTargetCount} maxPendingTargets={step.FreezableBatchMaxPendingTargetCount} cleanupMs={step.CleanupCompletedMs:0.###} setValueMs={step.SinkSetValueMs:0.###} hottestFreezableOnChanged={step.HottestFreezableOnChangedType}:{step.HottestFreezableOnChangedMs:0.###} hottestFreezableEndBatch={step.HottestFreezableEndBatchType}:{step.HottestFreezableEndBatchMs:0.###} hottestSetValuePaths={step.HottestSetValuePathSummary} " +
             $"beginStoryboards={step.BeginStoryboardCalls} storyboardStarts={step.StoryboardStarts} activeStoryboards={step.ActiveStoryboardCount} activeLanes={step.ActiveLaneCount} activeEntries={step.ActiveStoryboardEntryCount} " +
             $"composePasses={step.ComposePassCount} laneApplications={step.LaneApplicationCount} sinkValueSets={step.SinkValueSetCount} clearedLanes={step.ClearedLaneCount} " +
             $"dirtyRegions={step.DirtyRegionCount} dirtyCoverage={step.DirtyCoverage:0.###} partialDirty={step.WouldUsePartialDirtyRedraw} fullDirty={step.IsFullDirty} " +
@@ -585,6 +792,19 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         double ComposeBatchEndMs,
         double SinkSetValueMs,
         double CleanupCompletedMs,
+        double FreezableOnChangedMs,
+        double FreezableEndBatchMs,
+        double FreezableBatchFlushMs,
+        int FreezableBatchFlushCount,
+        int FreezableBatchFlushTargetCount,
+        int FreezableBatchQueuedTargetCount,
+        int FreezableBatchMaxPendingTargetCount,
+        double PointerResolveHoverReuseMs,
+        double PointerResolveFinalHitTestMs,
+        string HottestFreezableOnChangedType,
+        double HottestFreezableOnChangedMs,
+        string HottestFreezableEndBatchType,
+        double HottestFreezableEndBatchMs,
         string HottestSetValuePathSummary,
         int ActiveStoryboardCount,
         int ActiveLaneCount,
@@ -619,6 +839,8 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         int TotalRoutedEvents,
         double TotalHoverUpdateMs,
         double TotalPointerResolveMs,
+        double TotalPointerResolveHoverReuseMs,
+        double TotalPointerResolveFinalHitTestMs,
         int TotalBeginStoryboardCalls,
         int TotalStoryboardStarts,
         int TotalLaneApplications,
@@ -635,6 +857,12 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         double TotalComposeBatchEndMs,
         double TotalSinkSetValueMs,
         double TotalCleanupCompletedMs,
+        double TotalFreezableOnChangedMs,
+        double TotalFreezableEndBatchMs,
+        double TotalFreezableBatchFlushMs,
+        int TotalFreezableBatchFlushes,
+        int TotalFreezableBatchFlushTargets,
+        int MaxFreezableBatchPendingTargets,
         long TotalRenderInvalidations,
         long TotalMeasureInvalidations,
         long TotalArrangeInvalidations,
@@ -652,6 +880,10 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         int MaxActiveStoryboards,
         int MaxActiveLanes,
         int MaxActiveStoryboardEntries,
+        string HottestFreezableOnChangedType,
+        double HottestFreezableOnChangedMs,
+        string HottestFreezableEndBatchType,
+        double HottestFreezableEndBatchMs,
         string HottestSetValuePaths,
         string HottestStepLabel,
         string HottestStepDetail);

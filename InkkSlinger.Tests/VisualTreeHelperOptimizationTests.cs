@@ -119,6 +119,63 @@ public sealed class VisualTreeHelperOptimizationTests
         Assert.Equal(0, snapshot.LegacyEnumerableFallbacks);
     }
 
+    [Fact]
+    public void HitTest_SidebarProbe_WithHeavyPreviewSubtree_PrunesIrrelevantWrappers()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 960f, 640f));
+
+        var sidebarHost = new StackPanel();
+        sidebarHost.SetLayoutSlot(new LayoutRect(0f, 0f, 180f, 640f));
+        var sidebarBorder = new Border { Child = sidebarHost };
+        sidebarBorder.SetLayoutSlot(new LayoutRect(0f, 0f, 180f, 640f));
+
+        Button targetButton = null!;
+        for (var i = 0; i < 24; i++)
+        {
+            var button = new Button { Content = $"Sidebar {i}" };
+            button.SetLayoutSlot(new LayoutRect(12f, 12f + (i * 24f), 140f, 20f));
+            sidebarHost.AddChild(button);
+            if (i == 8)
+            {
+                targetButton = button;
+            }
+        }
+
+        var previewRoot = new Grid();
+        previewRoot.SetLayoutSlot(new LayoutRect(220f, 0f, 700f, 640f));
+        var previewBorder = new Border { Child = previewRoot };
+        previewBorder.SetLayoutSlot(new LayoutRect(220f, 0f, 700f, 640f));
+
+        for (var row = 0; row < 7; row++)
+        {
+            for (var column = 0; column < 6; column++)
+            {
+                var wrapper = new Border();
+                wrapper.SetLayoutSlot(new LayoutRect(250f + (column * 72f), 40f + (row * 56f), 64f, 48f));
+
+                var dayButton = new CalendarDayButton
+                {
+                    DayText = ((row * 6) + column + 1).ToString()
+                };
+                dayButton.SetLayoutSlot(wrapper.LayoutSlot);
+                wrapper.Child = dayButton;
+                previewRoot.AddChild(wrapper);
+            }
+        }
+
+        root.AddChild(sidebarBorder);
+        root.AddChild(previewBorder);
+
+        var probe = GetCenter(targetButton.LayoutSlot);
+
+        VisualTreeHelper.ResetInstrumentationForTests();
+        var hit = VisualTreeHelper.HitTest(root, probe, out var metrics);
+
+        Assert.Same(targetButton, FindAncestor<Button>(hit));
+        Assert.True(metrics.NodesVisited < 80, $"Expected hit test to prune preview subtree, visited {metrics.NodesVisited} nodes.");
+    }
+
     private static (Panel Root, ItemsPresenter Presenter, List<Border> Items) CreateItemsPresenterHost(int itemCount, float itemHeight)
     {
         var owner = new ItemsControl();

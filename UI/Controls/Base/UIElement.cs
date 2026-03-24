@@ -17,6 +17,11 @@ public class UIElement : DependencyObject
     private static int _freezableInvalidationBatchDepth;
     [ThreadStatic]
     private static HashSet<UIElement>? _batchedFreezableInvalidationTargets;
+    private static int _freezableBatchFlushCount;
+    private static int _freezableBatchFlushTargetCount;
+    private static int _freezableBatchQueuedTargetCount;
+    private static long _freezableBatchFlushElapsedTicks;
+    private static int _freezableBatchMaxPendingTargetCount;
     private static readonly object InheritablePropertyCacheLock = new();
     private static readonly Dictionary<Type, List<DependencyProperty>> InheritablePropertiesByType = new();
 
@@ -1202,6 +1207,7 @@ public class UIElement : DependencyObject
 
     internal static void EndFreezableInvalidationBatch()
     {
+        var startTicks = Stopwatch.GetTimestamp();
         if (_freezableInvalidationBatchDepth <= 0)
         {
             return;
@@ -1220,10 +1226,13 @@ public class UIElement : DependencyObject
 
         var pending = _batchedFreezableInvalidationTargets.ToArray();
         _batchedFreezableInvalidationTargets.Clear();
+        _freezableBatchFlushCount++;
+        _freezableBatchFlushTargetCount += pending.Length;
         for (var i = 0; i < pending.Length; i++)
         {
             pending[i].InvalidateVisual();
         }
+        _freezableBatchFlushElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private static bool TryQueueFreezableBatchInvalidation(UIElement element)
@@ -1233,8 +1242,36 @@ public class UIElement : DependencyObject
             return false;
         }
 
-        (_batchedFreezableInvalidationTargets ??= new HashSet<UIElement>()).Add(element);
+        var targets = _batchedFreezableInvalidationTargets ??= new HashSet<UIElement>();
+        if (targets.Add(element))
+        {
+            _freezableBatchQueuedTargetCount++;
+            if (targets.Count > _freezableBatchMaxPendingTargetCount)
+            {
+                _freezableBatchMaxPendingTargetCount = targets.Count;
+            }
+        }
+
         return true;
+    }
+
+    internal static UiFreezableInvalidationBatchSnapshot GetFreezableInvalidationBatchSnapshotForTests()
+    {
+        return new UiFreezableInvalidationBatchSnapshot(
+            _freezableBatchFlushCount,
+            _freezableBatchFlushTargetCount,
+            _freezableBatchQueuedTargetCount,
+            _freezableBatchMaxPendingTargetCount,
+            (double)_freezableBatchFlushElapsedTicks * 1000d / Stopwatch.Frequency);
+    }
+
+    internal static void ResetFreezableInvalidationBatchTelemetryForTests()
+    {
+        _freezableBatchFlushCount = 0;
+        _freezableBatchFlushTargetCount = 0;
+        _freezableBatchQueuedTargetCount = 0;
+        _freezableBatchFlushElapsedTicks = 0L;
+        _freezableBatchMaxPendingTargetCount = 0;
     }
 
     private static bool TryInvertMatrix(Matrix matrix, out Matrix inverse)

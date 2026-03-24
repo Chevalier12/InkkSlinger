@@ -14,6 +14,12 @@ public static class VisualTreeHelper
     private static int _itemsPresenterFullFallbackCount;
     private static int _legacyEnumerableFallbackCount;
     private static int _monotonicPanelFastPathCount;
+    private static int _simpleSlotHitCount;
+    private static int _transformedBoundsHitCount;
+    private static int _clipRejectCount;
+    private static int _visibilityRejectCount;
+    private static int _panelTraversalCount;
+    private static int _visualTraversalZSortCount;
     private static readonly ConditionalWeakTable<Panel, PanelMonotonicCacheEntry> PanelMonotonicCache = new();
     public static UIElement? HitTest(UIElement root, Vector2 position)
     {
@@ -96,6 +102,8 @@ public static class VisualTreeHelper
 
             if (!root.IsVisible || !root.IsEnabled || !root.IsHitTestVisible)
             {
+                collector?.RecordReject("HiddenOrDisabled");
+                _visibilityRejectCount++;
                 return null;
             }
 
@@ -106,6 +114,8 @@ public static class VisualTreeHelper
                     : localClipRect;
                 if (!ContainsPoint(clipRect, position))
                 {
+                    collector?.RecordReject("Clip");
+                    _clipRejectCount++;
                     return null;
                 }
             }
@@ -117,10 +127,14 @@ public static class VisualTreeHelper
                 var canUseSimpleSlotHit = !hasTransformInChain && !hasClipInChain;
                 if (canUseSimpleSlotHit)
                 {
+                    _simpleSlotHitCount++;
+                    collector?.RecordTraversal("SimpleSlotBounds");
                     isWithinSelfBounds = FastBoundsHit(frameworkElement, position, accumulatedHorizontalOffset, accumulatedVerticalOffset);
                 }
                 else
                 {
+                    _transformedBoundsHitCount++;
+                    collector?.RecordTraversal("TransformedBounds");
                     var probePoint = position;
                     if (MathF.Abs(accumulatedHorizontalOffset) > 0.01f ||
                         MathF.Abs(accumulatedVerticalOffset) > 0.01f)
@@ -141,11 +155,13 @@ public static class VisualTreeHelper
 
                 if (!isWithinSelfBounds && !canOverflowToChildren)
                 {
+                    collector?.RecordReject("OutsideSelfBounds");
                     return null;
                 }
             }
             else if (!(isWithinSelfBounds = root.HitTest(position)))
             {
+                collector?.RecordReject("LeafHitTestMiss");
                 return null;
             }
 
@@ -160,6 +176,8 @@ public static class VisualTreeHelper
             // Hot path: avoid per-node allocations and sorting (ItemsPresenter can have thousands of children).
             if (root is Panel panel)
             {
+                _panelTraversalCount++;
+                collector?.RecordTraversal("Panel");
                 var ordered = panel.GetChildrenOrderedByZIndex();
                 if (ordered.Count >= 16 &&
                     TryHitTestMonotonicVerticalPanelChildren(
@@ -183,6 +201,24 @@ public static class VisualTreeHelper
                 for (var i = ordered.Count - 1; i >= 0; i--)
                 {
                     var child = ordered[i];
+                    if (!ShouldTraverseChildSubtree(
+                            root,
+                            child,
+                            position,
+                            accumulatedHorizontalOffset,
+                            accumulatedVerticalOffset,
+                            nextHorizontalOffset,
+                            nextVerticalOffset,
+                            nextAncestorTransformToRoot,
+                            hasNextAncestorTransformToRoot,
+                            currentRootToThisInverse,
+                            hasCurrentRootToThisInverse,
+                            hasClipInChain,
+                            collector))
+                    {
+                        continue;
+                    }
+
                     var hit = HitTestCore(
                         child,
                         position,
@@ -209,6 +245,7 @@ public static class VisualTreeHelper
                 itemsPresenter.TryGetItemContainersForHitTest(out var itemContainers) &&
                 itemContainers.Count > 0)
             {
+                collector?.RecordTraversal("ItemsPresenter");
                 var probeX = position.X + nextHorizontalOffset;
                 var probeY = position.Y + nextVerticalOffset;
                 var presenterSlot = itemsPresenter.LayoutSlot;
@@ -450,6 +487,8 @@ public static class VisualTreeHelper
 
                 if (minZ != maxZ)
                 {
+                    _visualTraversalZSortCount++;
+                    collector?.RecordTraversal("VisualZSort");
                     var orderedIndices = ListPool<TraversalIndexEntry>.Rent();
                     try
                     {
@@ -462,6 +501,24 @@ public static class VisualTreeHelper
                         for (var i = 0; i < orderedIndices.Count; i++)
                         {
                             var child = root.GetVisualChildAtForTraversal(orderedIndices[i].Index);
+                            if (!ShouldTraverseChildSubtree(
+                                    root,
+                                    child,
+                                    position,
+                                    accumulatedHorizontalOffset,
+                                    accumulatedVerticalOffset,
+                                    nextHorizontalOffset,
+                                    nextVerticalOffset,
+                                    nextAncestorTransformToRoot,
+                                    hasNextAncestorTransformToRoot,
+                                    currentRootToThisInverse,
+                                    hasCurrentRootToThisInverse,
+                                    hasClipInChain,
+                                    collector))
+                            {
+                                continue;
+                            }
+
                             var hit = HitTestCore(
                                 child,
                                 position,
@@ -491,6 +548,24 @@ public static class VisualTreeHelper
                 for (var i = traversalChildCount - 1; i >= 0; i--)
                 {
                     var child = root.GetVisualChildAtForTraversal(i);
+                    if (!ShouldTraverseChildSubtree(
+                            root,
+                            child,
+                            position,
+                            accumulatedHorizontalOffset,
+                            accumulatedVerticalOffset,
+                            nextHorizontalOffset,
+                            nextVerticalOffset,
+                            nextAncestorTransformToRoot,
+                            hasNextAncestorTransformToRoot,
+                            currentRootToThisInverse,
+                            hasCurrentRootToThisInverse,
+                            hasClipInChain,
+                            collector))
+                    {
+                        continue;
+                    }
+
                     var hit = HitTestCore(
                         child,
                         position,
@@ -513,6 +588,7 @@ public static class VisualTreeHelper
             }
 
             _legacyEnumerableFallbackCount++;
+            collector?.RecordTraversal("LegacyEnumerableFallback");
             var childBuffer = ListPool<UIElement>.Rent();
             try
             {
@@ -562,6 +638,24 @@ public static class VisualTreeHelper
                 for (var i = childBuffer.Count - 1; i >= 0; i--)
                 {
                     var child = childBuffer[i];
+                    if (!ShouldTraverseChildSubtree(
+                            root,
+                            child,
+                            position,
+                            accumulatedHorizontalOffset,
+                            accumulatedVerticalOffset,
+                            nextHorizontalOffset,
+                            nextVerticalOffset,
+                            nextAncestorTransformToRoot,
+                            hasNextAncestorTransformToRoot,
+                            currentRootToThisInverse,
+                            hasCurrentRootToThisInverse,
+                            hasClipInChain,
+                            collector))
+                    {
+                        continue;
+                    }
+
                     var hit = HitTestCore(
                         child,
                         position,
@@ -731,6 +825,125 @@ public static class VisualTreeHelper
             if (!searchLower && !searchUpper)
             {
                 break;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ShouldTraverseChildSubtree(
+        UIElement parent,
+        UIElement child,
+        Vector2 position,
+        float accumulatedHorizontalOffset,
+        float accumulatedVerticalOffset,
+        float nextHorizontalOffset,
+        float nextVerticalOffset,
+        Matrix ancestorTransformToRoot,
+        bool hasAncestorTransformToRoot,
+        Matrix rootToAncestorInverse,
+        bool hasRootToAncestorInverse,
+        bool hasClipInAncestry,
+        HitTestMetricsCollector? collector)
+    {
+        if (!child.IsVisible || !child.IsEnabled || !child.IsHitTestVisible)
+        {
+            collector?.RecordReject("ChildHiddenOrDisabled");
+            return false;
+        }
+
+        if (child is not FrameworkElement frameworkChild)
+        {
+            return true;
+        }
+
+        var childHorizontalOffset = ResolveChildHorizontalOffset(parent, child, accumulatedHorizontalOffset, nextHorizontalOffset);
+        var childVerticalOffset = ResolveChildVerticalOffset(parent, child, accumulatedVerticalOffset, nextVerticalOffset);
+        var hasLocalTransform = child.TryGetLocalRenderTransformSnapshot(out var localTransform, out _);
+        var hasLocalClip = child.TryGetLocalClipSnapshot(out var localClipRect);
+        var hasTransformInChain = hasRootToAncestorInverse || hasLocalTransform;
+        var hasClipInChain = hasClipInAncestry || hasLocalClip;
+
+        if (hasLocalClip)
+        {
+            var childTransformToRoot = ancestorTransformToRoot;
+            var hasChildTransformToRoot = hasAncestorTransformToRoot;
+            if (hasLocalTransform)
+            {
+                childTransformToRoot = hasAncestorTransformToRoot
+                    ? localTransform * ancestorTransformToRoot
+                    : localTransform;
+                hasChildTransformToRoot = true;
+            }
+
+            var clipRect = hasChildTransformToRoot
+                ? TransformRect(localClipRect, childTransformToRoot)
+                : localClipRect;
+            if (!ContainsPoint(clipRect, position))
+            {
+                collector?.RecordReject("ChildClip");
+                return false;
+            }
+        }
+
+        var canUseSimpleSlotHit = !hasTransformInChain && !hasClipInChain;
+        var isWithinChildBounds = canUseSimpleSlotHit
+            ? FastBoundsHit(frameworkChild, position, childHorizontalOffset, childVerticalOffset)
+            : ContainsPoint(
+                hasLocalTransform && hasAncestorTransformToRoot
+                    ? TransformRect(frameworkChild.LayoutSlot, localTransform * ancestorTransformToRoot)
+                    : hasLocalTransform
+                        ? TransformRect(frameworkChild.LayoutSlot, localTransform)
+                        : hasAncestorTransformToRoot
+                            ? TransformRect(frameworkChild.LayoutSlot, ancestorTransformToRoot)
+                            : frameworkChild.LayoutSlot,
+                canUseSimpleSlotHit
+                    ? position
+                    : new Vector2(position.X + childHorizontalOffset, position.Y + childVerticalOffset));
+
+        if (isWithinChildBounds)
+        {
+            return true;
+        }
+
+        if (MayDescendantsOverflowOutsideBounds(child))
+        {
+            return true;
+        }
+
+        collector?.RecordReject("ChildOutsideSelfBounds");
+        return false;
+    }
+
+    private static bool MayDescendantsOverflowOutsideBounds(UIElement element)
+    {
+        if (element is Popup or ContextMenu or AdornerLayer or Adorner)
+        {
+            return true;
+        }
+
+        if (element.TryGetLocalRenderTransformSnapshot(out _, out _))
+        {
+            return true;
+        }
+
+        var childCount = element.GetVisualChildCountForTraversal();
+        if (childCount <= 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = element.GetVisualChildAtForTraversal(i);
+            if (child.TryGetLocalRenderTransformSnapshot(out _, out _))
+            {
+                return true;
+            }
+
+            if (child is Popup or ContextMenu or AdornerLayer or Adorner)
+            {
+                return true;
             }
         }
 
@@ -1055,7 +1268,13 @@ public static class VisualTreeHelper
             _itemsPresenterNeighborProbeCount,
             _itemsPresenterFullFallbackCount,
             _legacyEnumerableFallbackCount,
-            _monotonicPanelFastPathCount);
+            _monotonicPanelFastPathCount,
+            _simpleSlotHitCount,
+            _transformedBoundsHitCount,
+            _clipRejectCount,
+            _visibilityRejectCount,
+            _panelTraversalCount,
+            _visualTraversalZSortCount);
     }
 
     internal static void ResetInstrumentationForTests()
@@ -1064,6 +1283,12 @@ public static class VisualTreeHelper
         _itemsPresenterFullFallbackCount = 0;
         _legacyEnumerableFallbackCount = 0;
         _monotonicPanelFastPathCount = 0;
+        _simpleSlotHitCount = 0;
+        _transformedBoundsHitCount = 0;
+        _clipRejectCount = 0;
+        _visibilityRejectCount = 0;
+        _panelTraversalCount = 0;
+        _visualTraversalZSortCount = 0;
     }
 
     private static class ListPool<T>
@@ -1112,21 +1337,34 @@ internal readonly record struct HitTestInstrumentationSnapshot(
     int ItemsPresenterNeighborProbes,
     int ItemsPresenterFullFallbackScans,
     int LegacyEnumerableFallbacks,
-    int MonotonicPanelFastPathCount);
+    int MonotonicPanelFastPathCount,
+    int SimpleSlotHitCount,
+    int TransformedBoundsHitCount,
+    int ClipRejectCount,
+    int VisibilityRejectCount,
+    int PanelTraversalCount,
+    int VisualTraversalZSortCount);
 
 public readonly record struct HitTestMetrics(
     int NodesVisited,
     int MaxDepth,
     double TotalMilliseconds,
     string TopLevelSubtreeSummary,
-    string HottestTypeSummary);
+    string HottestTypeSummary,
+    string HottestNodeSummary,
+    string TraversalSummary,
+    string RejectSummary);
 
 internal sealed class HitTestMetricsCollector
 {
     private readonly Dictionary<string, (int Count, long Ticks)> _byType = new();
     private readonly Dictionary<string, long> _topLevelSubtreeTicks = new();
+    private readonly Dictionary<string, int> _traversalCounts = new();
+    private readonly Dictionary<string, int> _rejectCounts = new();
     private int _nodesVisited;
     private int _maxDepth;
+    private long _hottestNodeTicks;
+    private string _hottestNodeSummary = "none";
 
     internal long StartNode(UIElement element, int depth)
     {
@@ -1148,16 +1386,47 @@ internal sealed class HitTestMetricsCollector
             _byType[key] = (1, elapsedTicks);
         }
 
+        var elementSummary = DescribeElement(element);
+        if (elapsedTicks > _hottestNodeTicks)
+        {
+            _hottestNodeTicks = elapsedTicks;
+            _hottestNodeSummary = $"{elementSummary}@depth{depth}:{TicksToMs(elapsedTicks):0.###}ms";
+        }
+
         if (depth == 1)
         {
-            if (_topLevelSubtreeTicks.TryGetValue(key, out var ticks))
+            if (_topLevelSubtreeTicks.TryGetValue(elementSummary, out var ticks))
             {
-                _topLevelSubtreeTicks[key] = ticks + elapsedTicks;
+                _topLevelSubtreeTicks[elementSummary] = ticks + elapsedTicks;
             }
             else
             {
-                _topLevelSubtreeTicks[key] = elapsedTicks;
+                _topLevelSubtreeTicks[elementSummary] = elapsedTicks;
             }
+        }
+    }
+
+    internal void RecordTraversal(string kind)
+    {
+        if (_traversalCounts.TryGetValue(kind, out var count))
+        {
+            _traversalCounts[kind] = count + 1;
+        }
+        else
+        {
+            _traversalCounts[kind] = 1;
+        }
+    }
+
+    internal void RecordReject(string reason)
+    {
+        if (_rejectCounts.TryGetValue(reason, out var count))
+        {
+            _rejectCounts[reason] = count + 1;
+        }
+        else
+        {
+            _rejectCounts[reason] = 1;
         }
     }
 
@@ -1165,12 +1434,17 @@ internal sealed class HitTestMetricsCollector
     {
         var topLevelSummary = SummarizeTicks(_topLevelSubtreeTicks, limit: 3);
         var hottestTypesSummary = SummarizeTypes(limit: 3);
+        var traversalSummary = SummarizeCounts(_traversalCounts, limit: 6);
+        var rejectSummary = SummarizeCounts(_rejectCounts, limit: 6);
         return new HitTestMetrics(
             _nodesVisited,
             _maxDepth,
             totalMs,
             topLevelSummary,
-            hottestTypesSummary);
+            hottestTypesSummary,
+            _hottestNodeSummary,
+            traversalSummary,
+            rejectSummary);
     }
 
     private string SummarizeTypes(int limit)
@@ -1200,6 +1474,40 @@ internal sealed class HitTestMetricsCollector
             .Take(limit)
             .Select(kvp => $"{kvp.Key}={TicksToMs(kvp.Value):0.###}ms");
         return string.Join(", ", entries);
+    }
+
+    private static string SummarizeCounts(Dictionary<string, int> countsByKey, int limit)
+    {
+        if (countsByKey.Count == 0)
+        {
+            return "none";
+        }
+
+        var entries = countsByKey
+            .OrderByDescending(static kvp => kvp.Value)
+            .Take(limit)
+            .Select(kvp => $"{kvp.Key}={kvp.Value}");
+        return string.Join(", ", entries);
+    }
+
+    private static string DescribeElement(UIElement element)
+    {
+        if (element is FrameworkElement frameworkElement && !string.IsNullOrWhiteSpace(frameworkElement.Name))
+        {
+            return $"{element.GetType().Name}#{frameworkElement.Name}";
+        }
+
+        if (element is Button button && button.Content is string buttonText && !string.IsNullOrWhiteSpace(buttonText))
+        {
+            return $"{element.GetType().Name}[{buttonText}]";
+        }
+
+        if (element is CalendarDayButton dayButton && !string.IsNullOrWhiteSpace(dayButton.DayText))
+        {
+            return $"{element.GetType().Name}[{dayButton.DayText}]";
+        }
+
+        return element.GetType().Name;
     }
 
     private static double TicksToMs(long ticks)

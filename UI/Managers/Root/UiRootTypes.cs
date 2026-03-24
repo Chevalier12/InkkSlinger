@@ -179,3 +179,10 @@ internal readonly record struct AnimationSinkTelemetrySnapshot(
     double DependencyPropertySetValueMilliseconds,
     int ClrPropertySetValueCount,
     double ClrPropertySetValueMilliseconds);
+
+internal readonly record struct UiFreezableInvalidationBatchSnapshot(
+    int FlushCount,
+    int FlushTargetCount,
+    int QueuedTargetCount,
+    int MaxPendingTargetCount,
+    double FlushMilliseconds);
