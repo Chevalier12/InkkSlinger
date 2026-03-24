@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-03-18 (full filesystem refresh)
+Generated: 2026-03-23 (full filesystem refresh)
 
 ```text
 UI/
@@ -200,26 +200,25 @@ UI/
       Label.cs
       ProgressBar.cs
       RangeBase.cs
-      RenderSurface.ManagedBackend.cs
       RenderSurface.cs
+      RenderSurface.ManagedBackend.cs
       Separator.cs
       Shape.cs
       SurfacePresenterBase.cs
-      TickBar.cs
       TextBlock.cs
+      TickBar.cs
     Scrolling
       IScrollTransformContent.cs
       ScrollBar.cs
       ScrollBarVisibility.cs
-      Track.cs
       ScrollViewer.cs
+      Track.cs
       VirtualizationEnums.cs
     Selection
       SelectionMode.cs
       SelectionModel.cs
       SelectionModelChangedEventArgs.cs
   Core
-    DoubleCollection.cs
     DependencyProperties
       DependencyObject.cs
       DependencyProperty.cs
@@ -234,10 +233,9 @@ UI/
       NameScopeService.cs
     Threading
       Dispatcher.cs
+    DoubleCollection.cs
     Freezable.cs
   Diagnostics
-    CatalogDatagridOpenLag
-    DatagridSortClickLag
     XamlDiagnostic.cs
     XamlDiagnosticCode.cs
   Events
@@ -374,13 +372,13 @@ UI/
       AccessTextParser.cs
       TextLayout.cs
     Documents
-      LogicalDirection.cs
       Operations
         DocumentOperations.cs
       DocumentEditing.cs
       DocumentModel.cs
       DocumentPointers.cs
       FlowDocumentSerialization.cs
+      LogicalDirection.cs
       SpellingError.cs
     Editing
       TextClipboard.cs

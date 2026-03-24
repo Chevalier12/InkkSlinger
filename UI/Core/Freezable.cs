@@ -5,6 +5,8 @@ namespace InkkSlinger;
 public abstract class Freezable
 {
     private bool _isFrozen;
+    private int _batchUpdateDepth;
+    private bool _hasPendingChangedDuringBatch;
 
     internal event Action? Changed;
 
@@ -58,6 +60,12 @@ public abstract class Freezable
 
     protected void WritePostscript()
     {
+        if (_batchUpdateDepth > 0)
+        {
+            _hasPendingChangedDuringBatch = true;
+            return;
+        }
+
         OnChanged();
     }
 
@@ -100,5 +108,25 @@ public abstract class Freezable
         }
 
         return true;
+    }
+
+    internal void BeginBatchUpdate()
+    {
+        _batchUpdateDepth++;
+    }
+
+    internal void EndBatchUpdate()
+    {
+        if (_batchUpdateDepth <= 0)
+        {
+            return;
+        }
+
+        _batchUpdateDepth--;
+        if (_batchUpdateDepth == 0 && _hasPendingChangedDuringBatch)
+        {
+            _hasPendingChangedDuringBatch = false;
+            OnChanged();
+        }
     }
 }

@@ -279,7 +279,7 @@ public sealed partial class UiRoot
         BumpPointerResolveStateVersion();
         _renderListNeedsFullRebuild = true;
         _mustDrawNextFrame = true;
-        _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
+        MarkFullFrameDirty(UiFullDirtyReason.VisualStructureChanged);
         EnqueueDirtyRenderNode(element);
         Automation.NotifyVisualStructureChanged(element, oldParent, newParent);
     }

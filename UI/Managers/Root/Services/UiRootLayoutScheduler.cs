@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -19,6 +20,19 @@ public sealed partial class UiRoot
         LayoutPasses = 0;
         _lastFrameUpdateParticipantCount = 0;
         _lastFrameUpdateParticipantRefreshCount = 0;
+        _lastFrameUpdateParticipantRefreshMs = 0d;
+        _lastFrameUpdateParticipantUpdateMs = 0d;
+        _lastHottestFrameUpdateParticipantType = "none";
+        _lastHottestFrameUpdateParticipantMs = 0d;
+        _lastLayoutMeasureWorkMs = 0d;
+        _lastLayoutMeasureExclusiveWorkMs = 0d;
+        _lastLayoutArrangeWorkMs = 0d;
+        _lastHottestLayoutMeasureElementType = "none";
+        _lastHottestLayoutMeasureElementName = string.Empty;
+        _lastHottestLayoutMeasureElementMs = 0d;
+        _lastHottestLayoutArrangeElementType = "none";
+        _lastHottestLayoutArrangeElementName = string.Empty;
+        _lastHottestLayoutArrangeElementMs = 0d;
         _lastDirtyRootCountAfterCoalescing = 0;
         _lastRetainedTraversalCount = 0;
         _lastDirtyRegionTraversalCount = 0;
@@ -71,10 +85,13 @@ public sealed partial class UiRoot
             return;
         }
 
-        var measureStart = Stopwatch.GetTimestamp();
+        var beforeLayout = CaptureLayoutSamples(_layoutRoot);
         _layoutRoot.Measure(new Vector2(viewport.Width, viewport.Height));
-        var arrangeStart = Stopwatch.GetTimestamp();
+        var afterMeasure = CaptureLayoutSamples(_layoutRoot);
+        RecordLayoutMeasureTelemetry(beforeLayout, afterMeasure);
         _layoutRoot.Arrange(new LayoutRect(0f, 0f, viewport.Width, viewport.Height));
+        var afterArrange = CaptureLayoutSamples(_layoutRoot);
+        RecordLayoutArrangeTelemetry(afterMeasure, afterArrange);
         LayoutPasses = 1;
         _layoutGeneration++;
         RefreshPointerTargetsAfterLayoutMutation();
@@ -97,6 +114,102 @@ public sealed partial class UiRoot
 
         EnsureVisualIndexCurrent();
         SynchronizeRetainedRenderList();
+    }
+
+    private static Dictionary<FrameworkElement, LayoutElementSample> CaptureLayoutSamples(FrameworkElement root)
+    {
+        var samples = new Dictionary<FrameworkElement, LayoutElementSample>(ReferenceEqualityComparer.Instance);
+        var stack = new Stack<UIElement>();
+        stack.Push(root);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (current is FrameworkElement frameworkElement)
+            {
+                samples[frameworkElement] = new LayoutElementSample(
+                    frameworkElement.MeasureElapsedTicksForTests,
+                    frameworkElement.MeasureExclusiveElapsedTicksForTests,
+                    frameworkElement.ArrangeElapsedTicksForTests);
+            }
+
+            foreach (var child in current.GetVisualChildren())
+            {
+                stack.Push(child);
+            }
+        }
+
+        return samples;
+    }
+
+    private void RecordLayoutMeasureTelemetry(
+        IReadOnlyDictionary<FrameworkElement, LayoutElementSample> beforeLayout,
+        IReadOnlyDictionary<FrameworkElement, LayoutElementSample> afterMeasure)
+    {
+        long totalMeasureTicks = 0L;
+        long totalMeasureExclusiveTicks = 0L;
+        FrameworkElement? hottestMeasureElement = null;
+        long hottestMeasureTicks = 0L;
+
+        foreach (var pair in afterMeasure)
+        {
+            var before = beforeLayout.TryGetValue(pair.Key, out var beforeSample)
+                ? beforeSample
+                : default;
+            var measureDelta = Math.Max(0L, pair.Value.MeasureElapsedTicks - before.MeasureElapsedTicks);
+            var measureExclusiveDelta = Math.Max(0L, pair.Value.MeasureExclusiveElapsedTicks - before.MeasureExclusiveElapsedTicks);
+            totalMeasureTicks += measureDelta;
+            totalMeasureExclusiveTicks += measureExclusiveDelta;
+            if (measureDelta > hottestMeasureTicks)
+            {
+                hottestMeasureTicks = measureDelta;
+                hottestMeasureElement = pair.Key;
+            }
+        }
+
+        _lastLayoutMeasureWorkMs = TicksToMilliseconds(totalMeasureTicks);
+        _lastLayoutMeasureExclusiveWorkMs = TicksToMilliseconds(totalMeasureExclusiveTicks);
+        _lastHottestLayoutMeasureElementType = hottestMeasureElement?.GetType().Name ?? "none";
+        _lastHottestLayoutMeasureElementName = hottestMeasureElement?.Name ?? string.Empty;
+        _lastHottestLayoutMeasureElementMs = TicksToMilliseconds(hottestMeasureTicks);
+    }
+
+    private void RecordLayoutArrangeTelemetry(
+        IReadOnlyDictionary<FrameworkElement, LayoutElementSample> afterMeasure,
+        IReadOnlyDictionary<FrameworkElement, LayoutElementSample> afterArrange)
+    {
+        long totalArrangeTicks = 0L;
+        FrameworkElement? hottestArrangeElement = null;
+        long hottestArrangeTicks = 0L;
+
+        foreach (var pair in afterArrange)
+        {
+            var before = afterMeasure.TryGetValue(pair.Key, out var beforeSample)
+                ? beforeSample
+                : default;
+            var arrangeDelta = Math.Max(0L, pair.Value.ArrangeElapsedTicks - before.ArrangeElapsedTicks);
+            totalArrangeTicks += arrangeDelta;
+            if (arrangeDelta > hottestArrangeTicks)
+            {
+                hottestArrangeTicks = arrangeDelta;
+                hottestArrangeElement = pair.Key;
+            }
+        }
+
+        _lastLayoutArrangeWorkMs = TicksToMilliseconds(totalArrangeTicks);
+        _lastHottestLayoutArrangeElementType = hottestArrangeElement?.GetType().Name ?? "none";
+        _lastHottestLayoutArrangeElementName = hottestArrangeElement?.Name ?? string.Empty;
+        _lastHottestLayoutArrangeElementMs = TicksToMilliseconds(hottestArrangeTicks);
+    }
+
+    private readonly record struct LayoutElementSample(
+        long MeasureElapsedTicks,
+        long MeasureExclusiveElapsedTicks,
+        long ArrangeElapsedTicks);
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 }
 

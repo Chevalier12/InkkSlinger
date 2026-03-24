@@ -174,7 +174,7 @@ public sealed partial class UiRoot
     {
         if (visual == null || !IsPartOfVisualTree(visual))
         {
-            _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
+            MarkFullFrameDirty(UiFullDirtyReason.DetachedVisual);
             return;
         }
 

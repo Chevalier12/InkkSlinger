@@ -2,9 +2,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Diagnostics;
 
 namespace InkkSlinger;
 
@@ -475,7 +477,14 @@ internal readonly struct AnimationLaneKey : IEquatable<AnimationLaneKey>
 
 internal abstract class AnimationValueSink
 {
+    private static int _dependencyPropertySetValueCount;
+    private static long _dependencyPropertySetValueTicks;
+    private static int _clrPropertySetValueCount;
+    private static long _clrPropertySetValueTicks;
+
     public abstract AnimationLaneKey Key { get; }
+
+    public abstract object BatchTarget { get; }
 
     public abstract Type ValueType { get; }
 
@@ -484,6 +493,40 @@ internal abstract class AnimationValueSink
     public abstract void SetValue(object? value);
 
     public abstract void ClearValue(object? restoreValue);
+
+    protected static void RecordDependencyPropertySetValue(long ticks)
+    {
+        _dependencyPropertySetValueCount++;
+        _dependencyPropertySetValueTicks += ticks;
+    }
+
+    protected static void RecordClrPropertySetValue(long ticks)
+    {
+        _clrPropertySetValueCount++;
+        _clrPropertySetValueTicks += ticks;
+    }
+
+    internal static AnimationSinkTelemetrySnapshot GetTelemetrySnapshotForTests()
+    {
+        return new AnimationSinkTelemetrySnapshot(
+            _dependencyPropertySetValueCount,
+            TicksToMilliseconds(_dependencyPropertySetValueTicks),
+            _clrPropertySetValueCount,
+            TicksToMilliseconds(_clrPropertySetValueTicks));
+    }
+
+    internal static void ResetTelemetryForTests()
+    {
+        _dependencyPropertySetValueCount = 0;
+        _dependencyPropertySetValueTicks = 0;
+        _clrPropertySetValueCount = 0;
+        _clrPropertySetValueTicks = 0;
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
+    }
 }
 
 internal sealed class DependencyPropertyAnimationSink : AnimationValueSink
@@ -500,21 +543,33 @@ internal sealed class DependencyPropertyAnimationSink : AnimationValueSink
 
     public override AnimationLaneKey Key => new(Target, Property);
 
+    public override object BatchTarget => Target;
+
     public override Type ValueType => Property.PropertyType;
 
     public override object? GetValue() => Target.GetValue(Property);
 
-    public override void SetValue(object? value) => Target.SetAnimationValue(Property, value);
+    public override void SetValue(object? value)
+    {
+        var start = Stopwatch.GetTimestamp();
+        Target.SetAnimationValue(Property, value);
+        RecordDependencyPropertySetValue(Stopwatch.GetTimestamp() - start);
+    }
 
     public override void ClearValue(object? restoreValue) => Target.ClearAnimationValue(Property);
 }
 
 internal sealed class ClrPropertyAnimationSink : AnimationValueSink
 {
+    private static readonly object SetterCacheSync = new();
+    private static readonly Dictionary<PropertyInfo, Action<object, object?>> SetterCache = new();
+    private readonly Action<object, object?> _setter;
+
     public ClrPropertyAnimationSink(object target, PropertyInfo property)
     {
         Target = target;
         Property = property;
+        _setter = GetOrCreateSetter(property);
     }
 
     public object Target { get; }
@@ -523,15 +578,19 @@ internal sealed class ClrPropertyAnimationSink : AnimationValueSink
 
     public override AnimationLaneKey Key => new(Target, Property);
 
+    public override object BatchTarget => Target;
+
     public override Type ValueType => Property.PropertyType;
 
     public override object? GetValue() => Property.GetValue(Target);
 
     public override void SetValue(object? value)
     {
+        var start = Stopwatch.GetTimestamp();
         try
         {
-            Property.SetValue(Target, value);
+            _setter(Target, value);
+            RecordClrPropertySetValue(Stopwatch.GetTimestamp() - start);
         }
         catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException inner)
         {
@@ -548,4 +607,31 @@ internal sealed class ClrPropertyAnimationSink : AnimationValueSink
     }
 
     public override void ClearValue(object? restoreValue) => Property.SetValue(Target, restoreValue);
+
+    private static Action<object, object?> GetOrCreateSetter(PropertyInfo property)
+    {
+        lock (SetterCacheSync)
+        {
+            if (SetterCache.TryGetValue(property, out var cached))
+            {
+                return cached;
+            }
+        }
+
+        var targetParameter = Expression.Parameter(typeof(object), "target");
+        var valueParameter = Expression.Parameter(typeof(object), "value");
+
+        var typedTarget = Expression.Convert(targetParameter, property.DeclaringType!);
+        var typedValue = Expression.Convert(valueParameter, property.PropertyType);
+        var assign = Expression.Assign(Expression.Property(typedTarget, property), typedValue);
+        var lambda = Expression.Lambda<Action<object, object?>>(assign, targetParameter, valueParameter);
+        var compiled = lambda.Compile();
+
+        lock (SetterCacheSync)
+        {
+            SetterCache[property] = compiled;
+        }
+
+        return compiled;
+    }
 }

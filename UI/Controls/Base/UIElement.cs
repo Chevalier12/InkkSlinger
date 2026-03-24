@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -12,6 +13,10 @@ public class UIElement : DependencyObject
 
     [ThreadStatic]
     private static Stack<List<UIElement>>? _routePool;
+    [ThreadStatic]
+    private static int _freezableInvalidationBatchDepth;
+    [ThreadStatic]
+    private static HashSet<UIElement>? _batchedFreezableInvalidationTargets;
     private static readonly object InheritablePropertyCacheLock = new();
     private static readonly Dictionary<Type, List<DependencyProperty>> InheritablePropertiesByType = new();
 
@@ -1172,12 +1177,64 @@ public class UIElement : DependencyObject
 
     private void OnEffectChanged()
     {
+        if (TryQueueFreezableBatchInvalidation(this))
+        {
+            return;
+        }
+
         InvalidateVisual();
     }
 
     private void OnRenderTransformChanged()
     {
+        if (TryQueueFreezableBatchInvalidation(this))
+        {
+            return;
+        }
+
         InvalidateVisual();
+    }
+
+    internal static void BeginFreezableInvalidationBatch()
+    {
+        _freezableInvalidationBatchDepth++;
+    }
+
+    internal static void EndFreezableInvalidationBatch()
+    {
+        if (_freezableInvalidationBatchDepth <= 0)
+        {
+            return;
+        }
+
+        _freezableInvalidationBatchDepth--;
+        if (_freezableInvalidationBatchDepth != 0)
+        {
+            return;
+        }
+
+        if (_batchedFreezableInvalidationTargets == null || _batchedFreezableInvalidationTargets.Count == 0)
+        {
+            return;
+        }
+
+        var pending = _batchedFreezableInvalidationTargets.ToArray();
+        _batchedFreezableInvalidationTargets.Clear();
+        for (var i = 0; i < pending.Length; i++)
+        {
+            pending[i].InvalidateVisual();
+        }
+    }
+
+    private static bool TryQueueFreezableBatchInvalidation(UIElement element)
+    {
+        if (_freezableInvalidationBatchDepth <= 0)
+        {
+            return false;
+        }
+
+        (_batchedFreezableInvalidationTargets ??= new HashSet<UIElement>()).Add(element);
+        return true;
     }
 
     private static bool TryInvertMatrix(Matrix matrix, out Matrix inverse)

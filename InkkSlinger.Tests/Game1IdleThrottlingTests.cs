@@ -46,4 +46,30 @@ public sealed class Game1IdleThrottlingTests
 
         Assert.True(shouldDraw);
     }
+
+    [Fact]
+    public void FpsTitle_DoesNotUpdateBeforeOneSecond()
+    {
+        var shouldUpdate = Game1.TryBuildFpsWindowTitle(
+            "InkkSlinger Controls Catalog",
+            accumulatedFrameCount: 30,
+            accumulatedElapsedSeconds: 0.5d,
+            out var title);
+
+        Assert.False(shouldUpdate);
+        Assert.Equal("InkkSlinger Controls Catalog", title);
+    }
+
+    [Fact]
+    public void FpsTitle_FormatsFramesPerSecondAfterOneSecond()
+    {
+        var shouldUpdate = Game1.TryBuildFpsWindowTitle(
+            "InkkSlinger Controls Catalog",
+            accumulatedFrameCount: 120,
+            accumulatedElapsedSeconds: 2d,
+            out var title);
+
+        Assert.True(shouldUpdate);
+        Assert.Equal("InkkSlinger Controls Catalog | FPS: 60.0", title);
+    }
 }

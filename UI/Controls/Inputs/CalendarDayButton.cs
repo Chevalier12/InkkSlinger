@@ -1,12 +1,15 @@
 using System;
-using System.Collections.Generic;
-using Microsoft.Xna.Framework;
+using System.Diagnostics;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace InkkSlinger;
 
 public sealed class CalendarDayButton : Button
 {
+    private static long _renderElapsedTicks;
+    private static int _renderCallCount;
+    private static int _nonEmptyRenderCallCount;
+
     public static readonly DependencyProperty DayTextProperty =
         DependencyProperty.Register(
             nameof(DayText),
@@ -14,7 +17,8 @@ public sealed class CalendarDayButton : Button
             typeof(CalendarDayButton),
             new FrameworkPropertyMetadata(
                 string.Empty,
-                FrameworkPropertyMetadataOptions.AffectsRender));
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                propertyChangedCallback: static (d, args) => ((CalendarDayButton)d).OnDayTextChanged(args)));
 
     public string DayText
     {
@@ -22,63 +26,113 @@ public sealed class CalendarDayButton : Button
         set => SetValue(DayTextProperty, value);
     }
 
+    protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
+    {
+        base.OnDependencyPropertyChanged(args);
+
+        if (args.Property == ContentProperty && !_isSynchronizingDayTextToContent)
+        {
+            SyncDayTextFromContent(args.NewValue);
+        }
+    }
+
     protected override void OnRender(SpriteBatch spriteBatch)
     {
-        if (HasTemplateRoot)
-        {
-            DrawTemplateVisualTree(spriteBatch);
-        }
-        else
+        var start = Stopwatch.GetTimestamp();
+        _renderCallCount++;
+        try
         {
             base.OnRender(spriteBatch);
+            if (!string.IsNullOrEmpty(DayText))
+            {
+                _nonEmptyRenderCallCount++;
+            }
         }
+        finally
+        {
+            _renderElapsedTicks += Stopwatch.GetTimestamp() - start;
+        }
+    }
 
-        if (string.IsNullOrEmpty(DayText))
+    internal new static CalendarDayButtonTimingSnapshot GetTimingSnapshotForTests()
+    {
+        return new CalendarDayButtonTimingSnapshot(
+            _renderElapsedTicks,
+            _renderCallCount,
+            _nonEmptyRenderCallCount);
+    }
+
+    internal new static void ResetTimingForTests()
+    {
+        _renderElapsedTicks = 0;
+        _renderCallCount = 0;
+        _nonEmptyRenderCallCount = 0;
+    }
+
+    private bool _isSynchronizingDayTextToContent;
+
+    private void OnDayTextChanged(DependencyPropertyChangedEventArgs args)
+    {
+        var dayText = args.NewValue as string ?? string.Empty;
+        if (!_isSynchronizingDayTextToContent)
+        {
+            SyncContentFromDayText(dayText);
+        }
+    }
+
+    private void SyncContentFromDayText(string dayText)
+    {
+        if (Content is string contentText && string.Equals(contentText, dayText, StringComparison.Ordinal))
         {
             return;
         }
 
-        var slot = LayoutSlot;
-        var padding = Padding;
-        var left = slot.X + padding.Left + BorderThickness;
-        var right = slot.X + slot.Width - padding.Right - BorderThickness;
-        var top = slot.Y + padding.Top + BorderThickness;
-        var bottom = slot.Y + slot.Height - padding.Bottom - BorderThickness;
-        var maxTextWidth = MathF.Max(0f, right - left);
-        var maxTextHeight = MathF.Max(0f, bottom - top);
-        if (maxTextWidth <= 0f || maxTextHeight <= 0f)
+        if (Content == null && dayText.Length == 0)
         {
             return;
         }
 
-        var textWidth = UiTextRenderer.MeasureWidth(this, DayText, FontSize);
-        var lineHeight = UiTextRenderer.GetLineHeight(this, FontSize);
-        var position = new Vector2(
-            left + ((maxTextWidth - textWidth) / 2f),
-            top + ((maxTextHeight - lineHeight) / 2f));
-        UiTextRenderer.DrawString(spriteBatch, this, DayText, position, Foreground * Opacity, FontSize, opaqueBackground: true);
-    }
-
-    protected override bool ShouldAutoDrawVisualChildren => !HasTemplateRoot;
-
-    internal override IEnumerable<UIElement> GetRetainedRenderChildren()
-    {
-        if (HasTemplateRoot)
+        _isSynchronizingDayTextToContent = true;
+        try
         {
-            yield break;
+            Content = dayText;
         }
-
-        foreach (var child in base.GetRetainedRenderChildren())
+        finally
         {
-            yield return child;
+            _isSynchronizingDayTextToContent = false;
         }
     }
 
-    private void DrawTemplateVisualTree(SpriteBatch spriteBatch)
+    private void SyncDayTextFromContent(object? content)
     {
-        foreach (var child in base.GetVisualChildren())
+        if (content is not string contentText)
         {
-            child.Draw(spriteBatch);
+            if (content != null)
+            {
+                return;
+            }
+
+            contentText = string.Empty;
+        }
+
+        if (string.Equals(DayText, contentText, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _isSynchronizingDayTextToContent = true;
+        try
+        {
+            SetValue(DayTextProperty, contentText);
+        }
+        finally
+        {
+            _isSynchronizingDayTextToContent = false;
         }
     }
 }
+
+internal readonly record struct CalendarDayButtonTimingSnapshot(
+    long RenderElapsedTicks,
+    int RenderCallCount,
+    int NonEmptyRenderCallCount);

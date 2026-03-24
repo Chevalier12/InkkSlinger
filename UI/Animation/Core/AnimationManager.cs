@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -17,6 +18,25 @@ public sealed class AnimationManager
     private long _nextSequence;
     private int _nextStoryboardInstanceId;
     private TimeSpan _currentTime = TimeSpan.Zero;
+    private int _beginStoryboardCallCount;
+    private int _storyboardStartCount;
+    private int _composePassCount;
+    private int _laneApplicationCount;
+    private int _sinkValueSetCount;
+    private int _clearedLaneCount;
+    private long _beginStoryboardElapsedTicks;
+    private long _storyboardStartElapsedTicks;
+    private long _storyboardUpdateElapsedTicks;
+    private long _composeElapsedTicks;
+    private long _composeCollectElapsedTicks;
+    private long _composeSortElapsedTicks;
+    private long _composeMergeElapsedTicks;
+    private long _composeApplyElapsedTicks;
+    private long _composeBatchBeginElapsedTicks;
+    private long _composeBatchEndElapsedTicks;
+    private long _sinkSetValueElapsedTicks;
+    private long _cleanupCompletedElapsedTicks;
+    private readonly Dictionary<string, (int Count, long Ticks)> _setValueByPath = new(StringComparer.Ordinal);
 
     public static AnimationManager Current => Instance;
 
@@ -49,6 +69,7 @@ public sealed class AnimationManager
         _controllableByName.Clear();
         _nextSequence = 0L;
         _currentTime = TimeSpan.Zero;
+        ResetTelemetryForTests();
     }
 
     public void Update(GameTime gameTime)
@@ -59,13 +80,17 @@ public sealed class AnimationManager
             return;
         }
 
+        var updateStartTicks = Stopwatch.GetTimestamp();
         foreach (var instance in _storyboards)
         {
             instance.Update(_currentTime);
         }
+        _storyboardUpdateElapsedTicks += Stopwatch.GetTimestamp() - updateStartTicks;
 
         ComposeAndApplyActiveLanes();
+        var cleanupStartTicks = Stopwatch.GetTimestamp();
         CleanupCompletedStoryboards();
+        _cleanupCompletedElapsedTicks += Stopwatch.GetTimestamp() - cleanupStartTicks;
     }
 
     public void BeginStoryboard(
@@ -76,21 +101,33 @@ public sealed class AnimationManager
         bool isControllable,
         HandoffBehavior handoff)
     {
-        var instance = new StoryboardInstance(
-            this,
-            storyboard,
-            containingObject,
-            resolveTargetByName,
-            _currentTime,
-            controlName,
-            isControllable);
-
-        instance.Start(handoff);
-        _storyboards.Add(instance);
-        InvalidateFrozenLaneState(instance);
-        if (isControllable && !string.IsNullOrWhiteSpace(controlName))
+        var startTicks = Stopwatch.GetTimestamp();
+        _beginStoryboardCallCount++;
+        try
         {
-            _controllableByName[new StoryboardControlKey(containingObject, controlName)] = instance;
+            var instance = new StoryboardInstance(
+                this,
+                storyboard,
+                containingObject,
+                resolveTargetByName,
+                _currentTime,
+                controlName,
+                isControllable);
+
+            var storyboardStartTicks = Stopwatch.GetTimestamp();
+            instance.Start(handoff);
+            _storyboardStartElapsedTicks += Stopwatch.GetTimestamp() - storyboardStartTicks;
+            _storyboardStartCount++;
+            _storyboards.Add(instance);
+            InvalidateFrozenLaneState(instance);
+            if (isControllable && !string.IsNullOrWhiteSpace(controlName))
+            {
+                _controllableByName[new StoryboardControlKey(containingObject, controlName)] = instance;
+            }
+        }
+        finally
+        {
+            _beginStoryboardElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         }
     }
 
@@ -242,96 +279,128 @@ public sealed class AnimationManager
 
     private void ComposeAndApplyActiveLanes()
     {
-        var activeByLane = new Dictionary<AnimationLaneKey, List<LaneContribution>>();
-        foreach (var storyboard in _storyboards)
+        var composeStartTicks = Stopwatch.GetTimestamp();
+        _composePassCount++;
+        try
         {
-            foreach (var entry in storyboard.Entries)
+            var pendingWrites = new List<PendingAnimationWrite>();
+            var activeByLane = new Dictionary<AnimationLaneKey, List<LaneContribution>>();
+            var collectStartTicks = Stopwatch.GetTimestamp();
+            foreach (var storyboard in _storyboards)
             {
-                if (_appliedLanes.TryGetValue(entry.Key, out var appliedState) && appliedState.IsParkedFrozen)
+                foreach (var entry in storyboard.Entries)
                 {
+                    if (_appliedLanes.TryGetValue(entry.Key, out var appliedState) && appliedState.IsParkedFrozen)
+                    {
+                        continue;
+                    }
+
+                    if (!entry.TryGetContribution(out var contribution))
+                    {
+                        continue;
+                    }
+
+                    if (!activeByLane.TryGetValue(contribution.Key, out var lane))
+                    {
+                        lane = new List<LaneContribution>();
+                        activeByLane[contribution.Key] = lane;
+                    }
+
+                    lane.Add(contribution);
+                }
+            }
+            _composeCollectElapsedTicks += Stopwatch.GetTimestamp() - collectStartTicks;
+
+            var inactive = _appliedLanes.Keys.Where(k => !activeByLane.ContainsKey(k)).ToList();
+            foreach (var key in inactive)
+            {
+                var state = _appliedLanes[key];
+                if (state.IsParkedFrozen)
+                {
+                    if (state.HasLastAppliedValue && ValuesEqual(state.LastAppliedValue, state.BaseValue))
+                    {
+                        state.Sink.ClearValue(state.BaseValue);
+                        _clearedLaneCount++;
+                        _appliedLanes.Remove(key);
+                    }
+
                     continue;
                 }
 
-                if (!entry.TryGetContribution(out var contribution))
+                state.Sink.ClearValue(state.BaseValue);
+                _clearedLaneCount++;
+                _appliedLanes.Remove(key);
+            }
+
+            foreach (var pair in activeByLane)
+            {
+                var key = pair.Key;
+                var sortStartTicks = Stopwatch.GetTimestamp();
+                var laneContributions = pair.Value.OrderBy(c => c.Sequence).ToList();
+                _composeSortElapsedTicks += Stopwatch.GetTimestamp() - sortStartTicks;
+                var sink = laneContributions[0].Sink;
+                if (!_appliedLanes.TryGetValue(key, out var applied))
                 {
-                    continue;
+                    applied = new AppliedLaneState(sink, sink.GetValue());
+                    _appliedLanes[key] = applied;
                 }
 
-                if (!activeByLane.TryGetValue(contribution.Key, out var lane))
+                var hasTimeAdvancingContribution = laneContributions.Exists(static contribution => contribution.IsTimeAdvancing);
+                var contributionSignature = 0;
+                if (!hasTimeAdvancingContribution)
                 {
-                    lane = new List<LaneContribution>();
-                    activeByLane[contribution.Key] = lane;
+                    contributionSignature = ComputeContributionSignature(laneContributions);
+                    if (applied.HasFrozenContributionSignature && applied.FrozenContributionSignature == contributionSignature)
+                    {
+                        applied.IsParkedFrozen = true;
+                        continue;
+                    }
                 }
 
-                lane.Add(contribution);
-            }
-        }
-
-        var inactive = _appliedLanes.Keys.Where(k => !activeByLane.ContainsKey(k)).ToList();
-        foreach (var key in inactive)
-        {
-            var state = _appliedLanes[key];
-            if (state.IsParkedFrozen && HasLiveContributionForLane(key))
-            {
-                continue;
-            }
-
-            state.Sink.ClearValue(state.BaseValue);
-            _appliedLanes.Remove(key);
-        }
-
-        foreach (var pair in activeByLane)
-        {
-            var key = pair.Key;
-            var laneContributions = pair.Value.OrderBy(c => c.Sequence).ToList();
-            var sink = laneContributions[0].Sink;
-            if (!_appliedLanes.TryGetValue(key, out var applied))
-            {
-                applied = new AppliedLaneState(sink, sink.GetValue());
-                _appliedLanes[key] = applied;
-            }
-
-            var hasTimeAdvancingContribution = laneContributions.Exists(static contribution => contribution.IsTimeAdvancing);
-            var contributionSignature = 0;
-            if (!hasTimeAdvancingContribution)
-            {
-                contributionSignature = ComputeContributionSignature(laneContributions);
-                if (applied.HasFrozenContributionSignature && applied.FrozenContributionSignature == contributionSignature)
+                var mergeStartTicks = Stopwatch.GetTimestamp();
+                object? current = applied.BaseValue;
+                for (var i = 0; i < laneContributions.Count; i++)
                 {
+                    var contribution = laneContributions[i];
+                    current = i == 0
+                        ? contribution.Value
+                        : ComposeValue(current, contribution.OriginValue, contribution.Value);
+                }
+
+                var converted = ConvertForSinkType(current, sink.ValueType);
+                if (!applied.HasLastAppliedValue || !ValuesEqual(applied.LastAppliedValue, converted))
+                {
+                    pendingWrites.Add(new PendingAnimationWrite(
+                        sink,
+                        converted,
+                        laneContributions[0].TargetPropertyPath,
+                        applied));
+                }
+                _composeMergeElapsedTicks += Stopwatch.GetTimestamp() - mergeStartTicks;
+
+                _laneApplicationCount++;
+
+                if (hasTimeAdvancingContribution)
+                {
+                    applied.HasFrozenContributionSignature = false;
+                    applied.FrozenContributionSignature = 0;
+                    applied.IsParkedFrozen = false;
+                }
+                else
+                {
+                    applied.HasFrozenContributionSignature = true;
+                    applied.FrozenContributionSignature = contributionSignature;
                     applied.IsParkedFrozen = true;
-                    continue;
                 }
             }
 
-            object? current = applied.BaseValue;
-            for (var i = 0; i < laneContributions.Count; i++)
-            {
-                var contribution = laneContributions[i];
-                current = i == 0
-                    ? contribution.Value
-                    : ComposeValue(current, contribution.OriginValue, contribution.Value);
-            }
-
-            var converted = ConvertForSinkType(current, sink.ValueType);
-            if (!applied.HasLastAppliedValue || !ValuesEqual(applied.LastAppliedValue, converted))
-            {
-                sink.SetValue(converted);
-                applied.LastAppliedValue = converted;
-                applied.HasLastAppliedValue = true;
-            }
-
-            if (hasTimeAdvancingContribution)
-            {
-                applied.HasFrozenContributionSignature = false;
-                applied.FrozenContributionSignature = 0;
-                applied.IsParkedFrozen = false;
-            }
-            else
-            {
-                applied.HasFrozenContributionSignature = true;
-                applied.FrozenContributionSignature = contributionSignature;
-                applied.IsParkedFrozen = true;
-            }
+            var applyStartTicks = Stopwatch.GetTimestamp();
+            ApplyPendingWrites(pendingWrites);
+            _composeApplyElapsedTicks += Stopwatch.GetTimestamp() - applyStartTicks;
+        }
+        finally
+        {
+            _composeElapsedTicks += Stopwatch.GetTimestamp() - composeStartTicks;
         }
     }
 
@@ -361,6 +430,142 @@ public sealed class AnimationManager
         foreach (var entry in storyboard.Entries)
         {
             InvalidateFrozenLaneState(entry.Key);
+        }
+    }
+
+    internal AnimationTelemetrySnapshot GetTelemetrySnapshotForTests()
+    {
+        return new AnimationTelemetrySnapshot(
+            _beginStoryboardCallCount,
+            _storyboardStartCount,
+            _storyboards.Count,
+            _appliedLanes.Count,
+            _storyboards.Sum(static storyboard => storyboard.Entries.Count),
+            _composePassCount,
+            _laneApplicationCount,
+            _sinkValueSetCount,
+            _clearedLaneCount,
+            TicksToMilliseconds(_beginStoryboardElapsedTicks),
+            TicksToMilliseconds(_storyboardStartElapsedTicks),
+            TicksToMilliseconds(_storyboardUpdateElapsedTicks),
+            TicksToMilliseconds(_composeElapsedTicks),
+            TicksToMilliseconds(_composeCollectElapsedTicks),
+            TicksToMilliseconds(_composeSortElapsedTicks),
+            TicksToMilliseconds(_composeMergeElapsedTicks),
+            TicksToMilliseconds(_composeApplyElapsedTicks),
+            TicksToMilliseconds(_composeBatchBeginElapsedTicks),
+            TicksToMilliseconds(_composeBatchEndElapsedTicks),
+            TicksToMilliseconds(_sinkSetValueElapsedTicks),
+            TicksToMilliseconds(_cleanupCompletedElapsedTicks),
+            SummarizeSetValuePaths(limit: 4));
+    }
+
+    internal void ResetTelemetryForTests()
+    {
+        _beginStoryboardCallCount = 0;
+        _storyboardStartCount = 0;
+        _composePassCount = 0;
+        _laneApplicationCount = 0;
+        _sinkValueSetCount = 0;
+        _clearedLaneCount = 0;
+        _beginStoryboardElapsedTicks = 0;
+        _storyboardStartElapsedTicks = 0;
+        _storyboardUpdateElapsedTicks = 0;
+        _composeElapsedTicks = 0;
+        _composeCollectElapsedTicks = 0;
+        _composeSortElapsedTicks = 0;
+        _composeMergeElapsedTicks = 0;
+        _composeApplyElapsedTicks = 0;
+        _composeBatchBeginElapsedTicks = 0;
+        _composeBatchEndElapsedTicks = 0;
+        _sinkSetValueElapsedTicks = 0;
+        _cleanupCompletedElapsedTicks = 0;
+        _setValueByPath.Clear();
+    }
+
+    private void RecordSetValuePathTiming(string targetPropertyPath, long ticks)
+    {
+        if (_setValueByPath.TryGetValue(targetPropertyPath, out var entry))
+        {
+            _setValueByPath[targetPropertyPath] = (entry.Count + 1, entry.Ticks + ticks);
+            return;
+        }
+
+        _setValueByPath[targetPropertyPath] = (1, ticks);
+    }
+
+    private string SummarizeSetValuePaths(int limit)
+    {
+        if (_setValueByPath.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join(
+            ", ",
+            _setValueByPath
+                .OrderByDescending(static pair => pair.Value.Ticks)
+                .Take(limit)
+                .Select(pair => $"{pair.Key}(n={pair.Value.Count},ms={TicksToMilliseconds(pair.Value.Ticks):0.###})"));
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
+    }
+
+    private void ApplyPendingWrites(List<PendingAnimationWrite> pendingWrites)
+    {
+        if (pendingWrites.Count == 0)
+        {
+            return;
+        }
+
+        var batchedFreezables = new HashSet<Freezable>();
+        try
+        {
+            var batchBeginStartTicks = Stopwatch.GetTimestamp();
+            for (var i = 0; i < pendingWrites.Count; i++)
+            {
+                if (pendingWrites[i].Sink.BatchTarget is not Freezable freezable ||
+                    !batchedFreezables.Add(freezable))
+                {
+                    continue;
+                }
+
+                freezable.BeginBatchUpdate();
+            }
+            _composeBatchBeginElapsedTicks += Stopwatch.GetTimestamp() - batchBeginStartTicks;
+
+            for (var i = 0; i < pendingWrites.Count; i++)
+            {
+                var write = pendingWrites[i];
+                var setStartTicks = Stopwatch.GetTimestamp();
+                write.Sink.SetValue(write.Value);
+                var setElapsedTicks = Stopwatch.GetTimestamp() - setStartTicks;
+                _sinkSetValueElapsedTicks += setElapsedTicks;
+                RecordSetValuePathTiming(write.TargetPropertyPath, setElapsedTicks);
+                _sinkValueSetCount++;
+                write.AppliedState.LastAppliedValue = write.Value;
+                write.AppliedState.HasLastAppliedValue = true;
+            }
+        }
+        finally
+        {
+            UIElement.BeginFreezableInvalidationBatch();
+            var batchEndStartTicks = Stopwatch.GetTimestamp();
+            try
+            {
+                foreach (var freezable in batchedFreezables)
+                {
+                    freezable.EndBatchUpdate();
+                }
+            }
+            finally
+            {
+                UIElement.EndFreezableInvalidationBatch();
+            }
+            _composeBatchEndElapsedTicks += Stopwatch.GetTimestamp() - batchEndStartTicks;
         }
     }
 
@@ -597,6 +802,12 @@ public sealed class AnimationManager
 
         public bool IsParkedFrozen { get; set; }
     }
+
+    private readonly record struct PendingAnimationWrite(
+        AnimationValueSink Sink,
+        object? Value,
+        string TargetPropertyPath,
+        AppliedLaneState AppliedState);
 }
 
 internal sealed class StoryboardInstance
@@ -796,6 +1007,8 @@ internal sealed class StoryboardInstance
                 entry.Remove();
             }
         }
+
+        IsCompleted = _entries.All(static e => e.IsStopped);
     }
 
     public void RemoveLanes(IReadOnlyCollection<AnimationLaneKey> keys)
@@ -812,6 +1025,8 @@ internal sealed class StoryboardInstance
                 entry.Remove();
             }
         }
+
+        IsCompleted = _entries.All(static e => e.IsStopped);
     }
 
     private TimeSpan ResolveStoryboardDuration()
@@ -1041,6 +1256,7 @@ internal sealed class AnimationLaneEntry
         IsStopped = true;
         _isForcedFillHold = false;
         IsTimeAdvancing = false;
+        _latest = null;
     }
 
     public void Remove()
@@ -1048,6 +1264,7 @@ internal sealed class AnimationLaneEntry
         IsStopped = true;
         _isForcedFillHold = false;
         IsTimeAdvancing = false;
+        _latest = null;
     }
 
     public void Advance(TimeSpan now, TimeSpan pausedDuration)
@@ -1111,6 +1328,7 @@ internal sealed class AnimationLaneEntry
         {
             if (Animation.FillBehavior == FillBehavior.HoldEnd && totalActiveTicks > 0L)
             {
+                IsStopped = true;
                 IsTimeAdvancing = false;
                 var holdProgress = ComputeCycleProgress(totalActiveTicks, cycleTicks, Animation.AutoReverse);
                 var holdValue = ConvertForSink(Animation.GetCurrentValue(_originValue, _destinationValue, holdProgress));
@@ -1152,7 +1370,7 @@ internal sealed class AnimationLaneEntry
 
     public bool TryGetContribution(out LaneContribution contribution)
     {
-        if (_latest.HasValue && !IsStopped)
+        if (_latest.HasValue)
         {
             contribution = _latest.Value;
             return true;

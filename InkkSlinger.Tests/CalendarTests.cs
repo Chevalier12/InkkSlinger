@@ -204,14 +204,30 @@ public sealed class CalendarTests
             var dayButton = Assert.IsType<CalendarDayButton>(calendar.DayButtonsForTesting[0]);
             Assert.True(dayButton.ApplyTemplate());
             Assert.NotEmpty(dayButton.GetVisualChildren());
-            Assert.Empty(dayButton.GetRetainedRenderChildren());
             Assert.NotEmpty(dayButton.DayText);
-            Assert.NotEmpty(dayButton.DayText);
+            Assert.Equal(dayButton.DayText, Assert.IsType<string>(dayButton.Content));
         }
         finally
         {
             RestoreApplicationResources(backup);
         }
+    }
+
+    [Fact]
+    public void CalendarDayButtons_DayTextAndContentStayInSync()
+    {
+        var (uiRoot, calendar) = CreateFixture();
+        calendar.DisplayDate = new DateTime(2026, 3, 1);
+        RunLayout(uiRoot);
+
+        var dayButton = Assert.IsType<CalendarDayButton>(calendar.DayButtonsForTesting[0]);
+        Assert.Equal(dayButton.DayText, Assert.IsType<string>(dayButton.Content));
+
+        dayButton.DayText = "27";
+        Assert.Equal("27", Assert.IsType<string>(dayButton.Content));
+
+        dayButton.Content = "31";
+        Assert.Equal("31", dayButton.DayText);
     }
 
     [Fact]
@@ -257,6 +273,9 @@ public sealed class CalendarTests
             {
                 RunLayout(uiRoot, 256 + (i * 16));
             }
+
+            firstShadow = GetDayButtonShadow(firstButton);
+            secondShadow = GetDayButtonShadow(secondButton);
 
             Assert.False(firstButton.IsMouseOver);
             Assert.True(secondButton.IsMouseOver);

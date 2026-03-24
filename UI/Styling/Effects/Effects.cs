@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -22,9 +23,16 @@ public abstract class Effect : Freezable
     internal abstract LayoutRect GetRenderBounds(UIElement element);
 }
 
-public sealed class DropShadowEffect : Effect
+public sealed partial class DropShadowEffect : Effect
 {
     private static readonly Dictionary<ShadowTextureCacheKey, Texture2D> ShadowTextures = new();
+    private static long _renderElapsedTicks;
+    private static long _blurPathElapsedTicks;
+    private static long _drawBlurSlicesElapsedTicks;
+    private static int _renderCallCount;
+    private static int _blurPathCallCount;
+    private static int _calendarDayRenderCallCount;
+    private static int _calendarDayBlurPathCallCount;
 
     private Color _color = Color.Black;
     private float _shadowDepth;
@@ -113,38 +121,69 @@ public sealed class DropShadowEffect : Effect
 
     internal override void Render(UIElement element, SpriteBatch spriteBatch, float elementOpacity)
     {
+        var renderStart = Stopwatch.GetTimestamp();
         var slot = element.LayoutSlot;
-        if (slot.Width <= 0f || slot.Height <= 0f)
+        _renderCallCount++;
+        var isCalendarDayButton = element is CalendarDayButton;
+        if (isCalendarDayButton)
         {
-            return;
+            _calendarDayRenderCallCount++;
         }
 
-        var effectiveOpacity = Opacity * elementOpacity;
-        if (effectiveOpacity <= 0f || Color.A == 0)
+        try
         {
-            return;
-        }
+            if (slot.Width <= 0f || slot.Height <= 0f)
+            {
+                return;
+            }
 
-        var shadowRect = new LayoutRect(slot.X, slot.Y + ShadowDepth, slot.Width, slot.Height);
-        var blur = BlurRadius;
-        if (blur <= 0.001f)
+            var effectiveOpacity = Opacity * elementOpacity;
+            if (effectiveOpacity <= 0f || Color.A == 0)
+            {
+                return;
+            }
+
+            var shadowRect = new LayoutRect(slot.X, slot.Y + ShadowDepth, slot.Width, slot.Height);
+            var blur = BlurRadius;
+            if (blur <= 0.001f)
+            {
+                UiDrawing.DrawFilledRect(spriteBatch, shadowRect, Color, effectiveOpacity);
+                return;
+            }
+
+            var blurStart = Stopwatch.GetTimestamp();
+            _blurPathCallCount++;
+            if (isCalendarDayButton)
+            {
+                _calendarDayBlurPathCallCount++;
+            }
+
+            try
+            {
+                var blurSize = Math.Clamp((int)MathF.Ceiling(MathF.Min(blur, 32f)), 1, 32);
+                var transformedShadowRect = UiDrawing.TransformRectBounds(spriteBatch, shadowRect);
+                var transformedExpandedRect = UiDrawing.TransformRectBounds(
+                    spriteBatch,
+                    new LayoutRect(
+                        shadowRect.X - blurSize,
+                        shadowRect.Y - blurSize,
+                        shadowRect.Width + (blurSize * 2f),
+                        shadowRect.Height + (blurSize * 2f)));
+                var rasterLayout = RasterizeShadowLayout(transformedShadowRect, transformedExpandedRect);
+                var drawSlicesStart = Stopwatch.GetTimestamp();
+                DrawBlurSlices(spriteBatch, blurSize, rasterLayout, Color, effectiveOpacity);
+                _drawBlurSlicesElapsedTicks += Stopwatch.GetTimestamp() - drawSlicesStart;
+                UiDrawing.DrawFilledRectPixels(spriteBatch, rasterLayout.Center, Color, effectiveOpacity);
+            }
+            finally
+            {
+                _blurPathElapsedTicks += Stopwatch.GetTimestamp() - blurStart;
+            }
+        }
+        finally
         {
-            UiDrawing.DrawFilledRect(spriteBatch, shadowRect, Color, effectiveOpacity);
-            return;
+            _renderElapsedTicks += Stopwatch.GetTimestamp() - renderStart;
         }
-
-        var blurSize = Math.Clamp((int)MathF.Ceiling(MathF.Min(blur, 32f)), 1, 32);
-        var transformedShadowRect = UiDrawing.TransformRectBounds(spriteBatch, shadowRect);
-        var transformedExpandedRect = UiDrawing.TransformRectBounds(
-            spriteBatch,
-            new LayoutRect(
-                shadowRect.X - blurSize,
-                shadowRect.Y - blurSize,
-                shadowRect.Width + (blurSize * 2f),
-                shadowRect.Height + (blurSize * 2f)));
-        var rasterLayout = RasterizeShadowLayout(transformedShadowRect, transformedExpandedRect);
-        DrawBlurSlices(spriteBatch, blurSize, rasterLayout, Color, effectiveOpacity);
-        UiDrawing.DrawFilledRectPixels(spriteBatch, rasterLayout.Center, Color, effectiveOpacity);
     }
 
     internal override LayoutRect GetRenderBounds(UIElement element)
@@ -349,5 +388,40 @@ public sealed class DropShadowEffect : Effect
         TopRightCorner,
         BottomLeftCorner,
         BottomRightCorner
+    }
+}
+
+internal readonly record struct DropShadowEffectTimingSnapshot(
+    long RenderElapsedTicks,
+    long BlurPathElapsedTicks,
+    long DrawBlurSlicesElapsedTicks,
+    int RenderCallCount,
+    int BlurPathCallCount,
+    int CalendarDayRenderCallCount,
+    int CalendarDayBlurPathCallCount);
+
+public sealed partial class DropShadowEffect
+{
+    internal static DropShadowEffectTimingSnapshot GetTimingSnapshotForTests()
+    {
+        return new DropShadowEffectTimingSnapshot(
+            _renderElapsedTicks,
+            _blurPathElapsedTicks,
+            _drawBlurSlicesElapsedTicks,
+            _renderCallCount,
+            _blurPathCallCount,
+            _calendarDayRenderCallCount,
+            _calendarDayBlurPathCallCount);
+    }
+
+    internal static void ResetTimingForTests()
+    {
+        _renderElapsedTicks = 0;
+        _blurPathElapsedTicks = 0;
+        _drawBlurSlicesElapsedTicks = 0;
+        _renderCallCount = 0;
+        _blurPathCallCount = 0;
+        _calendarDayRenderCallCount = 0;
+        _calendarDayBlurPathCallCount = 0;
     }
 }

@@ -124,8 +124,27 @@ public sealed partial class UiRoot
     private int _lastAncestorMetadataRefreshNodeCount;
     private int _lastSpriteBatchRestartCount;
     private int _dirtyRegionThresholdFallbackCount;
+    private int _fullDirtyInitialStateCount;
+    private int _fullDirtyViewportChangeCount;
+    private int _fullDirtySurfaceResetCount;
+    private int _fullDirtyVisualStructureChangeCount;
+    private int _fullDirtyRetainedRebuildCount;
+    private int _fullDirtyDetachedVisualCount;
     private int _lastFrameUpdateParticipantCount;
     private int _lastFrameUpdateParticipantRefreshCount;
+    private double _lastFrameUpdateParticipantRefreshMs;
+    private double _lastFrameUpdateParticipantUpdateMs;
+    private string _lastHottestFrameUpdateParticipantType = "none";
+    private double _lastHottestFrameUpdateParticipantMs;
+    private double _lastLayoutMeasureWorkMs;
+    private double _lastLayoutMeasureExclusiveWorkMs;
+    private double _lastLayoutArrangeWorkMs;
+    private string _lastHottestLayoutMeasureElementType = "none";
+    private string _lastHottestLayoutMeasureElementName = string.Empty;
+    private double _lastHottestLayoutMeasureElementMs;
+    private string _lastHottestLayoutArrangeElementType = "none";
+    private string _lastHottestLayoutArrangeElementName = string.Empty;
+    private double _lastHottestLayoutArrangeElementMs;
     private int _lastDirtyRootCountAfterCoalescing;
     private int _lastMenuScopeBuildCount;
     private int _lastOverlayRegistryScanCount;
@@ -146,7 +165,7 @@ public sealed partial class UiRoot
         UseRetainedRenderList = EnableRetainedRenderListByDefault;
         UseDirtyRegionRendering = EnableDirtyRegionRenderingByDefault;
         UseConditionalDrawScheduling = EnableConditionalDrawByDefault;
-        _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
+        MarkFullFrameDirty(UiFullDirtyReason.InitialState);
         EnsureVisualIndexCurrent();
         Current = this;
     }
@@ -309,6 +328,12 @@ public sealed partial class UiRoot
             _lastDirtyRegionTraversalCount,
             _lastDirtyRootCountAfterCoalescing,
             _dirtyRegionThresholdFallbackCount,
+            _fullDirtyInitialStateCount,
+            _fullDirtyViewportChangeCount,
+            _fullDirtySurfaceResetCount,
+            _fullDirtyVisualStructureChangeCount,
+            _fullDirtyRetainedRebuildCount,
+            _fullDirtyDetachedVisualCount,
             Shape.GetRenderCacheHitCountForTests(),
             Shape.GetRenderCacheMissCountForTests(),
             TextLayout.GetMetricsSnapshot().CacheHitCount,
@@ -318,8 +343,27 @@ public sealed partial class UiRoot
     internal UiRootPerformanceTelemetrySnapshot GetPerformanceTelemetrySnapshotForTests()
     {
         return new UiRootPerformanceTelemetrySnapshot(
+            LastInputPhaseMs,
+            LastBindingPhaseMs,
+            LastLayoutPhaseMs,
+            LastAnimationPhaseMs,
+            LastRenderSchedulingPhaseMs,
+            _lastVisualUpdateMs,
             _lastFrameUpdateParticipantCount,
             _lastFrameUpdateParticipantRefreshCount,
+            _lastFrameUpdateParticipantRefreshMs,
+            _lastFrameUpdateParticipantUpdateMs,
+            _lastHottestFrameUpdateParticipantType,
+            _lastHottestFrameUpdateParticipantMs,
+            _lastLayoutMeasureWorkMs,
+            _lastLayoutMeasureExclusiveWorkMs,
+            _lastLayoutArrangeWorkMs,
+            _lastHottestLayoutMeasureElementType,
+            _lastHottestLayoutMeasureElementName,
+            _lastHottestLayoutMeasureElementMs,
+            _lastHottestLayoutArrangeElementType,
+            _lastHottestLayoutArrangeElementName,
+            _lastHottestLayoutArrangeElementMs,
             _lastDirtyRootCountAfterCoalescing,
             _lastRetainedTraversalCount,
             _lastAncestorMetadataRefreshNodeCount,
@@ -327,6 +371,31 @@ public sealed partial class UiRoot
             _lastOverlayRegistryScanCount,
             _lastOverlayRegistryHitCount,
             _visualIndex.Version);
+    }
+
+    internal UiPointerMoveTelemetrySnapshot GetPointerMoveTelemetrySnapshotForTests()
+    {
+        return new UiPointerMoveTelemetrySnapshot(
+            _lastInputPointerDispatchMs,
+            _lastInputPointerTargetResolveMs,
+            _lastInputHoverUpdateMs,
+            _lastInputPointerRouteMs,
+            _lastInputPointerMoveDispatchMs,
+            _lastInputPointerMoveRoutedEventsMs,
+            _lastInputPointerMoveHandlerMs,
+            _lastInputPointerMovePreviewEventMs,
+            _lastInputPointerMoveBubbleEventMs,
+            _lastInputPointerResolveHoverReuseCheckMs,
+            _lastInputPointerResolveFinalHitTestMs,
+            _lastInputHitTestCount,
+            _lastInputRoutedEventCount,
+            _lastInputPointerEventCount,
+            _lastPointerResolvePath);
+    }
+
+    internal UIElement? GetHoveredElementForDiagnostics()
+    {
+        return _inputState.HoveredElement;
     }
 
     internal (int ConnectionCacheEntryCount, int AncestorCacheEntryCount) GetInputCacheEntryCountsForTests()
@@ -380,7 +449,7 @@ public sealed partial class UiRoot
     {
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
-        _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
+        MarkFullFrameDirty(UiFullDirtyReason.SurfaceReset);
     }
 
     internal void RecordForcedDrawForSurfaceReset()
@@ -525,6 +594,45 @@ public sealed partial class UiRoot
         _mustDrawNextFrame = false;
         _scheduledDrawReasons = UiRedrawReason.None;
         ResetRetainedSyncTrackingState();
+    }
+
+    private void MarkFullFrameDirty(UiFullDirtyReason reason)
+    {
+        switch (reason)
+        {
+            case UiFullDirtyReason.InitialState:
+                _fullDirtyInitialStateCount++;
+                break;
+            case UiFullDirtyReason.ViewportChanged:
+                _fullDirtyViewportChangeCount++;
+                break;
+            case UiFullDirtyReason.SurfaceReset:
+                _fullDirtySurfaceResetCount++;
+                break;
+            case UiFullDirtyReason.VisualStructureChanged:
+                _fullDirtyVisualStructureChangeCount++;
+                break;
+            case UiFullDirtyReason.RetainedRebuild:
+                _fullDirtyRetainedRebuildCount++;
+                break;
+            case UiFullDirtyReason.DetachedVisual:
+                _fullDirtyDetachedVisualCount++;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(reason), reason, null);
+        }
+
+        _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
+    }
+
+    private enum UiFullDirtyReason
+    {
+        InitialState,
+        ViewportChanged,
+        SurfaceReset,
+        VisualStructureChanged,
+        RetainedRebuild,
+        DetachedVisual
     }
 
     internal void ApplyRenderInvalidationCleanupForTests()

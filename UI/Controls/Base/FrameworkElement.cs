@@ -196,6 +196,15 @@ public class FrameworkElement : UIElement
     private long _measureElapsedTicks;
     private long _measureExclusiveElapsedTicks;
     private long _arrangeElapsedTicks;
+    private static long _frameMeasureElapsedTicks;
+    private static long _frameMeasureExclusiveElapsedTicks;
+    private static long _frameArrangeElapsedTicks;
+    private static string _frameHottestMeasureElementType = "none";
+    private static string _frameHottestMeasureElementName = string.Empty;
+    private static long _frameHottestMeasureElapsedTicks;
+    private static string _frameHottestArrangeElementType = "none";
+    private static string _frameHottestArrangeElementName = string.Empty;
+    private static long _frameHottestArrangeElapsedTicks;
 
     public FrameworkElement()
     {
@@ -376,6 +385,33 @@ public class FrameworkElement : UIElement
 
     internal long ArrangeElapsedTicksForTests => _arrangeElapsedTicks;
 
+    internal static FrameworkLayoutTimingSnapshot GetFrameTimingSnapshotForTests()
+    {
+        return new FrameworkLayoutTimingSnapshot(
+            _frameMeasureElapsedTicks,
+            _frameMeasureExclusiveElapsedTicks,
+            _frameArrangeElapsedTicks,
+            _frameHottestMeasureElementType,
+            _frameHottestMeasureElementName,
+            _frameHottestMeasureElapsedTicks,
+            _frameHottestArrangeElementType,
+            _frameHottestArrangeElementName,
+            _frameHottestArrangeElapsedTicks);
+    }
+
+    internal static void ResetFrameTimingForTests()
+    {
+        _frameMeasureElapsedTicks = 0L;
+        _frameMeasureExclusiveElapsedTicks = 0L;
+        _frameArrangeElapsedTicks = 0L;
+        _frameHottestMeasureElementType = "none";
+        _frameHottestMeasureElementName = string.Empty;
+        _frameHottestMeasureElapsedTicks = 0L;
+        _frameHottestArrangeElementType = "none";
+        _frameHottestArrangeElementName = string.Empty;
+        _frameHottestArrangeElapsedTicks = 0L;
+    }
+
     internal NameScope? GetLocalNameScope()
     {
         return _nameScope;
@@ -488,7 +524,16 @@ public class FrameworkElement : UIElement
             measureChildTickStack.RemoveAt(lastIndex);
 
             _measureElapsedTicks += totalMeasureTicks;
-            _measureExclusiveElapsedTicks += Math.Max(0L, totalMeasureTicks - childMeasureTicks);
+            var exclusiveMeasureTicks = Math.Max(0L, totalMeasureTicks - childMeasureTicks);
+            _measureExclusiveElapsedTicks += exclusiveMeasureTicks;
+            _frameMeasureElapsedTicks += totalMeasureTicks;
+            _frameMeasureExclusiveElapsedTicks += exclusiveMeasureTicks;
+            if (totalMeasureTicks > _frameHottestMeasureElapsedTicks)
+            {
+                _frameHottestMeasureElapsedTicks = totalMeasureTicks;
+                _frameHottestMeasureElementType = GetType().Name;
+                _frameHottestMeasureElementName = Name;
+            }
 
             if (measureChildTickStack.Count > 0)
             {
@@ -523,7 +568,15 @@ public class FrameworkElement : UIElement
             RenderSize = Vector2.Zero;
             _isArrangeValid = true;
             ClearArrangeInvalidation();
-            _arrangeElapsedTicks += Stopwatch.GetTimestamp() - arrangeStart;
+            var invisibleArrangeTicks = Stopwatch.GetTimestamp() - arrangeStart;
+            _arrangeElapsedTicks += invisibleArrangeTicks;
+            _frameArrangeElapsedTicks += invisibleArrangeTicks;
+            if (invisibleArrangeTicks > _frameHottestArrangeElapsedTicks)
+            {
+                _frameHottestArrangeElapsedTicks = invisibleArrangeTicks;
+                _frameHottestArrangeElementType = GetType().Name;
+                _frameHottestArrangeElementName = Name;
+            }
             return;
         }
 
@@ -584,7 +637,15 @@ public class FrameworkElement : UIElement
         _isArrangeValid = true;
         ClearArrangeInvalidation();
         LayoutUpdated?.Invoke(this, EventArgs.Empty);
-        _arrangeElapsedTicks += Stopwatch.GetTimestamp() - arrangeStart;
+        var arrangeTicks = Stopwatch.GetTimestamp() - arrangeStart;
+        _arrangeElapsedTicks += arrangeTicks;
+        _frameArrangeElapsedTicks += arrangeTicks;
+        if (arrangeTicks > _frameHottestArrangeElapsedTicks)
+        {
+            _frameHottestArrangeElapsedTicks = arrangeTicks;
+            _frameHottestArrangeElementType = GetType().Name;
+            _frameHottestArrangeElementName = Name;
+        }
     }
 
     public override void InvalidateMeasure()
@@ -1175,3 +1236,14 @@ public class FrameworkElement : UIElement
     }
 
 }
+
+internal readonly record struct FrameworkLayoutTimingSnapshot(
+    long MeasureElapsedTicks,
+    long MeasureExclusiveElapsedTicks,
+    long ArrangeElapsedTicks,
+    string HottestMeasureElementType,
+    string HottestMeasureElementName,
+    long HottestMeasureElapsedTicks,
+    string HottestArrangeElementType,
+    string HottestArrangeElementName,
+    long HottestArrangeElapsedTicks);
