@@ -205,7 +205,8 @@ public sealed class CalendarTests
             Assert.True(dayButton.ApplyTemplate());
             Assert.NotEmpty(dayButton.GetVisualChildren());
             Assert.NotEmpty(dayButton.DayText);
-            Assert.Equal(dayButton.DayText, Assert.IsType<string>(dayButton.Content));
+            var dayTextPresenter = Assert.IsType<CalendarDayTextPresenter>(FindFirstVisualChild<CalendarDayTextPresenter>(dayButton));
+            Assert.Equal(dayButton.DayText, dayTextPresenter.Text);
         }
         finally
         {
@@ -221,13 +222,14 @@ public sealed class CalendarTests
         RunLayout(uiRoot);
 
         var dayButton = Assert.IsType<CalendarDayButton>(calendar.DayButtonsForTesting[0]);
-        Assert.Equal(dayButton.DayText, Assert.IsType<string>(dayButton.Content));
-
         dayButton.DayText = "27";
-        Assert.Equal("27", Assert.IsType<string>(dayButton.Content));
+        var dayTextPresenter = Assert.IsType<CalendarDayTextPresenter>(FindFirstVisualChild<CalendarDayTextPresenter>(dayButton));
+        Assert.Equal("27", dayButton.DayText);
+        Assert.Equal("27", dayTextPresenter.Text);
 
         dayButton.Content = "31";
         Assert.Equal("31", dayButton.DayText);
+        Assert.Equal("31", dayTextPresenter.Text);
     }
 
     [Fact]

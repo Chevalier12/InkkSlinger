@@ -146,7 +146,85 @@
 
       <Style TargetType="{x:Type Button}" BasedOn="{StaticResource BaseButtonStyle}" />
 
-      <Style TargetType="{x:Type CalendarDayButton}" BasedOn="{StaticResource BaseButtonStyle}" />
+      <Style TargetType="{x:Type CalendarDayButton}" BasedOn="{StaticResource BaseButtonStyle}">
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="{x:Type CalendarDayButton}">
+              <Border x:Name="border"
+                      Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}"
+                      CornerRadius="6"
+                      Padding="{TemplateBinding Padding}"
+                      SnapsToDevicePixels="True">
+                <Border.Effect>
+                  <DropShadowEffect x:Name="shadow"
+                                    Color="#FF8C00"
+                                    ShadowDepth="0"
+                                    BlurRadius="0"
+                                    Opacity="0" />
+                </Border.Effect>
+                <CalendarDayTextPresenter x:Name="PART_DayText"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          Text="{TemplateBinding DayText}" />
+              </Border>
+              <ControlTemplate.Triggers>
+                <EventTrigger RoutedEvent="MouseEnter">
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                      To="1.03" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                      To="1.03" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetName="shadow"
+                                      Storyboard.TargetProperty="BlurRadius"
+                                      To="12" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetName="shadow"
+                                      Storyboard.TargetProperty="Opacity"
+                                      To="0.5" Duration="0:0:0.15" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </EventTrigger>
+
+                <EventTrigger RoutedEvent="MouseLeave">
+                  <BeginStoryboard>
+                    <Storyboard>
+                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX"
+                                      To="1.0" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY"
+                                      To="1.0" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetName="shadow"
+                                      Storyboard.TargetProperty="BlurRadius"
+                                      To="0" Duration="0:0:0.15" />
+                      <DoubleAnimation Storyboard.TargetName="shadow"
+                                      Storyboard.TargetProperty="Opacity"
+                                      To="0" Duration="0:0:0.15" />
+                    </Storyboard>
+                  </BeginStoryboard>
+                </EventTrigger>
+
+                <Trigger Property="IsMouseOver" Value="True">
+                  <Setter TargetName="border" Property="Background" Value="#333333" />
+                  <Setter TargetName="border" Property="BorderBrush" Value="#FF8C00" />
+                  <Setter Property="Foreground" Value="#FFA940" />
+                </Trigger>
+
+                <Trigger Property="IsPressed" Value="True">
+                  <Setter TargetName="border" Property="Background" Value="#FF8C00" />
+                  <Setter TargetName="border" Property="BorderBrush" Value="#CC7000" />
+                  <Setter Property="Foreground" Value="#1A1A1A" />
+                </Trigger>
+
+                <Trigger Property="IsEnabled" Value="False">
+                  <Setter TargetName="border" Property="Background" Value="#242424" />
+                  <Setter TargetName="border" Property="BorderBrush" Value="#333333" />
+                  <Setter Property="Foreground" Value="#5A5A5A" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
 
       <!-- ═══════════════════════════════════════════════════════════ -->
       <!-- TEXTBOX                                                    -->

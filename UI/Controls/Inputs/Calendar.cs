@@ -1,5 +1,6 @@
 
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Globalization;
 using Microsoft.Xna.Framework;
@@ -184,6 +185,8 @@ public class Calendar : UserControl
     private int _calendarViewRefreshCount;
     private CalendarRefreshDiagnostics _lastRefreshDiagnostics;
     private CalendarRefreshDiagnostics _totalRefreshDiagnostics;
+    private CalendarRefreshTimingDiagnostics _lastRefreshTimingDiagnostics;
+    private CalendarRefreshTimingDiagnostics _totalRefreshTimingDiagnostics;
 
     public Calendar()
     {
@@ -886,6 +889,7 @@ public class Calendar : UserControl
 
     private void UpdateCalendarView()
     {
+        var refreshStart = Stopwatch.GetTimestamp();
         _hasPendingCalendarRefresh = false;
         _hasCompletedInitialCalendarRefresh = true;
         _calendarViewRefreshCount++;
@@ -903,13 +907,26 @@ public class Calendar : UserControl
         var dayButtonForegroundChangeCount = 0;
         var dayButtonBorderBrushChangeCount = 0;
         var navigationEnabledChangeCount = 0;
+        var monthLabelElapsedTicks = 0L;
+        var weekDayLabelsElapsedTicks = 0L;
+        var dayLoopElapsedTicks = 0L;
+        var dayButtonDateSetupElapsedTicks = 0L;
+        var dayButtonTextElapsedTicks = 0L;
+        var dayButtonEnabledElapsedTicks = 0L;
+        var dayButtonBackgroundElapsedTicks = 0L;
+        var dayButtonForegroundElapsedTicks = 0L;
+        var dayButtonBorderBrushElapsedTicks = 0L;
+        var navigationButtonsElapsedTicks = 0L;
 
+        var monthLabelStart = Stopwatch.GetTimestamp();
         if (SetLabelTextIfChanged(_monthLabel, displayMonth.ToString("Y", CultureInfo.CurrentCulture)))
         {
             monthLabelTextChangeCount++;
         }
+        monthLabelElapsedTicks = Stopwatch.GetTimestamp() - monthLabelStart;
 
         var shortestDayNames = CultureInfo.CurrentCulture.DateTimeFormat.ShortestDayNames;
+        var weekDayLabelsStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < _weekDayLabels.Length; i++)
         {
             var index = (((int)FirstDayOfWeek + i) % 7 + 7) % 7;
@@ -918,49 +935,67 @@ public class Calendar : UserControl
                 weekDayLabelTextChangeCount++;
             }
         }
+        weekDayLabelsElapsedTicks = Stopwatch.GetTimestamp() - weekDayLabelsStart;
 
         var offsetFromFirstDay = ((int)displayMonth.DayOfWeek - (int)FirstDayOfWeek + 7) % 7;
         var firstVisibleDate = displayMonth.AddDays(-offsetFromFirstDay);
         var today = DateTime.Today;
 
+        var dayLoopStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < _dayButtons.Length; i++)
         {
+            var dateSetupStart = Stopwatch.GetTimestamp();
             var date = firstVisibleDate.AddDays(i).Date;
             _dayButtonDates[i] = date;
+            dayButtonDateSetupElapsedTicks += Stopwatch.GetTimestamp() - dateSetupStart;
 
             var button = _dayButtons[i];
+            var dayTextStart = Stopwatch.GetTimestamp();
             if (SetButtonTextIfChanged(button, date.Day.ToString(CultureInfo.InvariantCulture)))
             {
                 dayButtonTextChangeCount++;
             }
+            dayButtonTextElapsedTicks += Stopwatch.GetTimestamp() - dayTextStart;
 
+            var dayStateStart = Stopwatch.GetTimestamp();
             var inDisplayMonth = date.Month == displayMonth.Month && date.Year == displayMonth.Year;
             var isPrimarySelected = _lastActiveDate.HasValue && _lastActiveDate.Value.Date == date;
             var isSelectedInRange = _selectedDateLookup.Contains(date);
             var isToday = date == today;
             var isEnabled = IsDateSelectable(date);
+            dayButtonDateSetupElapsedTicks += Stopwatch.GetTimestamp() - dayStateStart;
 
+            var dayEnabledStart = Stopwatch.GetTimestamp();
             if (SetButtonEnabledIfChanged(button, isEnabled))
             {
                 dayButtonEnabledChangeCount++;
             }
+            dayButtonEnabledElapsedTicks += Stopwatch.GetTimestamp() - dayEnabledStart;
 
+            var dayBackgroundStart = Stopwatch.GetTimestamp();
             if (SetButtonBackgroundIfChanged(button, ResolveDayButtonBackground(inDisplayMonth, isSelectedInRange, isPrimarySelected, isToday)))
             {
                 dayButtonBackgroundChangeCount++;
             }
+            dayButtonBackgroundElapsedTicks += Stopwatch.GetTimestamp() - dayBackgroundStart;
 
+            var dayForegroundStart = Stopwatch.GetTimestamp();
             if (SetButtonForegroundIfChanged(button, ResolveDayButtonForeground(inDisplayMonth, isEnabled, isSelectedInRange, isPrimarySelected)))
             {
                 dayButtonForegroundChangeCount++;
             }
+            dayButtonForegroundElapsedTicks += Stopwatch.GetTimestamp() - dayForegroundStart;
 
+            var dayBorderBrushStart = Stopwatch.GetTimestamp();
             if (SetButtonBorderBrushIfChanged(button, ResolveDayButtonBorderBrush(isSelectedInRange, isPrimarySelected, isToday)))
             {
                 dayButtonBorderBrushChangeCount++;
             }
+            dayButtonBorderBrushElapsedTicks += Stopwatch.GetTimestamp() - dayBorderBrushStart;
         }
+        dayLoopElapsedTicks = Stopwatch.GetTimestamp() - dayLoopStart;
 
+        var navigationButtonsStart = Stopwatch.GetTimestamp();
         if (SetButtonEnabledIfChanged(_previousMonthButton, CanDisplayMonth(displayMonth.AddMonths(-1))))
         {
             navigationEnabledChangeCount++;
@@ -970,6 +1005,7 @@ public class Calendar : UserControl
         {
             navigationEnabledChangeCount++;
         }
+        navigationButtonsElapsedTicks = Stopwatch.GetTimestamp() - navigationButtonsStart;
 
         _lastRefreshDiagnostics = new CalendarRefreshDiagnostics(
             dayButtonTextChangeCount,
@@ -981,6 +1017,19 @@ public class Calendar : UserControl
             monthLabelTextChangeCount,
             navigationEnabledChangeCount);
         _totalRefreshDiagnostics = _totalRefreshDiagnostics.Add(_lastRefreshDiagnostics);
+        _lastRefreshTimingDiagnostics = new CalendarRefreshTimingDiagnostics(
+            Stopwatch.GetTimestamp() - refreshStart,
+            monthLabelElapsedTicks,
+            weekDayLabelsElapsedTicks,
+            dayLoopElapsedTicks,
+            dayButtonDateSetupElapsedTicks,
+            dayButtonTextElapsedTicks,
+            dayButtonEnabledElapsedTicks,
+            dayButtonBackgroundElapsedTicks,
+            dayButtonForegroundElapsedTicks,
+            dayButtonBorderBrushElapsedTicks,
+            navigationButtonsElapsedTicks);
+        _totalRefreshTimingDiagnostics = _totalRefreshTimingDiagnostics.Add(_lastRefreshTimingDiagnostics);
     }
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
@@ -1205,13 +1254,17 @@ public class Calendar : UserControl
         return new CalendarDiagnosticsSnapshot(
             _calendarViewRefreshCount,
             _lastRefreshDiagnostics,
-            _totalRefreshDiagnostics);
+            _totalRefreshDiagnostics,
+            _lastRefreshTimingDiagnostics,
+            _totalRefreshTimingDiagnostics);
     }
 
     internal void ResetDiagnosticsForTests()
     {
         _lastRefreshDiagnostics = default;
         _totalRefreshDiagnostics = default;
+        _lastRefreshTimingDiagnostics = default;
+        _totalRefreshTimingDiagnostics = default;
     }
 
     private static Color ResolveDayButtonBackground(bool inDisplayMonth, bool isSelectedInRange, bool isPrimarySelected, bool isToday)
@@ -1619,9 +1672,11 @@ public class Calendar : UserControl
 internal readonly record struct CalendarDiagnosticsSnapshot(
     int RefreshCount,
     CalendarRefreshDiagnostics LastRefresh,
-    CalendarRefreshDiagnostics Total)
+    CalendarRefreshDiagnostics Total,
+    CalendarRefreshTimingDiagnostics LastRefreshTiming,
+    CalendarRefreshTimingDiagnostics TotalRefreshTiming)
 {
-    public static readonly CalendarDiagnosticsSnapshot Empty = new(0, default, default);
+    public static readonly CalendarDiagnosticsSnapshot Empty = new(0, default, default, default, default);
 }
 
 internal readonly record struct CalendarRefreshDiagnostics(
@@ -1645,5 +1700,35 @@ internal readonly record struct CalendarRefreshDiagnostics(
             WeekDayLabelTextChangeCount + other.WeekDayLabelTextChangeCount,
             MonthLabelTextChangeCount + other.MonthLabelTextChangeCount,
             NavigationEnabledChangeCount + other.NavigationEnabledChangeCount);
+    }
+}
+
+internal readonly record struct CalendarRefreshTimingDiagnostics(
+    long TotalElapsedTicks,
+    long MonthLabelElapsedTicks,
+    long WeekDayLabelsElapsedTicks,
+    long DayLoopElapsedTicks,
+    long DayButtonDateSetupElapsedTicks,
+    long DayButtonTextElapsedTicks,
+    long DayButtonEnabledElapsedTicks,
+    long DayButtonBackgroundElapsedTicks,
+    long DayButtonForegroundElapsedTicks,
+    long DayButtonBorderBrushElapsedTicks,
+    long NavigationButtonsElapsedTicks)
+{
+    public CalendarRefreshTimingDiagnostics Add(CalendarRefreshTimingDiagnostics other)
+    {
+        return new CalendarRefreshTimingDiagnostics(
+            TotalElapsedTicks + other.TotalElapsedTicks,
+            MonthLabelElapsedTicks + other.MonthLabelElapsedTicks,
+            WeekDayLabelsElapsedTicks + other.WeekDayLabelsElapsedTicks,
+            DayLoopElapsedTicks + other.DayLoopElapsedTicks,
+            DayButtonDateSetupElapsedTicks + other.DayButtonDateSetupElapsedTicks,
+            DayButtonTextElapsedTicks + other.DayButtonTextElapsedTicks,
+            DayButtonEnabledElapsedTicks + other.DayButtonEnabledElapsedTicks,
+            DayButtonBackgroundElapsedTicks + other.DayButtonBackgroundElapsedTicks,
+            DayButtonForegroundElapsedTicks + other.DayButtonForegroundElapsedTicks,
+            DayButtonBorderBrushElapsedTicks + other.DayButtonBorderBrushElapsedTicks,
+            NavigationButtonsElapsedTicks + other.NavigationButtonsElapsedTicks);
     }
 }
