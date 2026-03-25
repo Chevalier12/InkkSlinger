@@ -234,11 +234,14 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private readonly Dictionary<Hyperlink, Style?> _appliedImplicitHyperlinkStyles = new();
     private bool _hasPendingRenderDirtyBoundsHint;
     private LayoutRect _pendingRenderDirtyBoundsHint;
+    private bool _preserveRenderDirtyBoundsHint;
     private float _horizontalOffset;
     private float _verticalOffset;
     private int _documentChangeBatchDepth;
     private bool _hasPendingDocumentChangedEvent;
     private bool _hasPendingTextChangedEvent;
+    private bool _hasPendingDocumentMaintenanceWork;
+    private bool _suppressMeasureInvalidationForDocumentBatch;
     private DateTime _lastPointerDownUtc;
     private int _lastPointerDownIndex = -1;
     private int _pointerClickCount;
@@ -250,6 +253,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private ModifierKeys _activeKeyModifiers;
     private long _suppressSpaceTextInputUntilTicks;
     private readonly List<UIElement> _documentHostedVisualChildren = new();
+    private readonly HostedDocumentVisualHost _hostedDocumentVisualHost = new();
 
     private readonly Queue<RecentOperationEntry> _recentOperations = new();
     private int _recentOperationSequence;
@@ -839,48 +843,20 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var nextParagraphText = paragraphText.Remove(localStart, localLength).Insert(localStart, replacement);
 
         var editStart = Stopwatch.GetTimestamp();
-        var undoDepthBefore = _undoManager.UndoDepth;
-        var redoDepthBefore = _undoManager.RedoDepth;
-        var textLengthBefore = GetText().Length;
-        var beforeText = GetText();
-        var afterDocument = DocumentEditing.CloneDocument(Document);
-        var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
-        if (paragraphIndex >= paragraphs.Count)
-        {
-            return false;
-        }
-
-        var paragraph = paragraphs[paragraphIndex];
-        ReplaceParagraphTextPreservingSimpleWrappers(paragraph, nextParagraphText);
-        var afterText = DocumentEditing.GetText(afterDocument);
+        var beforeParagraph = DocumentEditing.CloneParagraph(entries[paragraphIndex].Paragraph);
+        var afterParagraph = DocumentEditing.CloneParagraph(entries[paragraphIndex].Paragraph);
+        ReplaceParagraphTextPreservingSimpleWrappers(afterParagraph, nextParagraphText);
         var caretAfter = start + replacement.Length;
-        var session = new DocumentEditSession(Document, _undoManager);
-        session.BeginTransaction(
+        return CommitParagraphReplacement(
             commandType,
             policy,
-            new DocumentEditContext(
-                _caretIndex,
-                caretAfter,
-                start,
-                length,
-                caretAfter,
-                0,
-                commandType));
-        ExecuteDocumentChangeBatch(() =>
-        {
-            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
-            session.CommitTransaction();
-        });
-        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
-        var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        _perfTracker.RecordEdit(elapsedMs);
-        TraceInvariants(commandType);
-        EnsureCaretVisible();
-        _caretBlinkSeconds = 0f;
-        _isCaretVisible = true;
-        InvalidateMeasure();
-        InvalidateVisualWithReason($"Edit:{commandType}");
-        return true;
+            start,
+            length,
+            caretAfter,
+            paragraphIndex,
+            beforeParagraph,
+            afterParagraph,
+            editStart);
     }
 
     private bool TryReplaceSelectionWithinParagraphPreservingInlineStyles(string replacement, string commandType, GroupingPolicy policy)
@@ -920,60 +896,33 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var localEnd = localStart + localLength;
 
         var editStart = Stopwatch.GetTimestamp();
-        var undoDepthBefore = _undoManager.UndoDepth;
-        var redoDepthBefore = _undoManager.RedoDepth;
-        var textLengthBefore = GetText().Length;
-        var beforeText = GetText();
-        var afterDocument = DocumentEditing.CloneDocument(Document);
-        var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
-        if (paragraphIndex >= paragraphs.Count)
-        {
-            return false;
-        }
-
-        var destination = paragraphs[paragraphIndex];
+        var sourceParagraph = entries[paragraphIndex].Paragraph;
+        var beforeParagraph = DocumentEditing.CloneParagraph(sourceParagraph);
+        var destination = new Paragraph();
         destination.Inlines.Clear();
-        AppendStyledInlineRangeFromParagraph(entries[paragraphIndex].Paragraph, 0, localStart, destination);
+        AppendStyledInlineRangeFromParagraph(sourceParagraph, 0, localStart, destination);
         if (!string.IsNullOrEmpty(replacement))
         {
             destination.Inlines.Add(new Run(replacement));
         }
 
-        AppendStyledInlineRangeFromParagraph(entries[paragraphIndex].Paragraph, localEnd, paragraphLength, destination);
+        AppendStyledInlineRangeFromParagraph(sourceParagraph, localEnd, paragraphLength, destination);
         if (destination.Inlines.Count == 0)
         {
             destination.Inlines.Add(new Run(string.Empty));
         }
 
-        var afterText = DocumentEditing.GetText(afterDocument);
         var caretAfter = start + replacement.Length;
-        var session = new DocumentEditSession(Document, _undoManager);
-        session.BeginTransaction(
+        return CommitParagraphReplacement(
             commandType,
             policy,
-            new DocumentEditContext(
-                _caretIndex,
-                caretAfter,
-                start,
-                length,
-                caretAfter,
-                0,
-                commandType));
-        ExecuteDocumentChangeBatch(() =>
-        {
-            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
-            session.CommitTransaction();
-        });
-        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
-        var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        _perfTracker.RecordEdit(elapsedMs);
-        TraceInvariants(commandType);
-        EnsureCaretVisible();
-        _caretBlinkSeconds = 0f;
-        _isCaretVisible = true;
-        InvalidateMeasure();
-        InvalidateVisualWithReason($"Edit:{commandType}");
-        return true;
+            start,
+            length,
+            caretAfter,
+            paragraphIndex,
+            beforeParagraph,
+            destination,
+            editStart);
     }
 
     private static void ReplaceParagraphTextPreservingSimpleWrappers(Paragraph paragraph, string text)
@@ -1063,10 +1012,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private bool TryInsertParagraphBreakWithinStructuredParagraph(string commandType, GroupingPolicy policy)
     {
         RecordOperation("StructuredEnter", "Begin");
+        var structuredEnterStart = Stopwatch.GetTimestamp();
         var start = SelectionStart;
         var length = SelectionLength;
         var end = start + length;
+        var collectEntriesStart = Stopwatch.GetTimestamp();
         var entries = CollectParagraphEntries(Document);
+        var collectEntriesMs = Stopwatch.GetElapsedTime(collectEntriesStart).TotalMilliseconds;
         if (entries.Count == 0)
         {
             RecordOperation("StructuredEnter", "NoParagraphEntries");
@@ -1109,25 +1061,41 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var rightText = postSelectionText[localStart..];
 
         var editStart = Stopwatch.GetTimestamp();
-        var undoDepthBefore = _undoManager.UndoDepth;
-        var redoDepthBefore = _undoManager.RedoDepth;
-        var textLengthBefore = GetText().Length;
-        var beforeText = GetText();
-        var afterDocument = DocumentEditing.CloneDocument(Document);
-        var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
-        if (paragraphIndex >= paragraphs.Count)
+        var sourceParagraph = entries[paragraphIndex].Paragraph;
+        var beforeParagraph = DocumentEditing.CloneParagraph(sourceParagraph);
+        var paragraph = sourceParagraph;
+        if (paragraph.Parent is ListItem && paragraph.Parent.Parent is InkkSlinger.List)
         {
-            RecordOperation("StructuredEnter", "ParagraphIndexOutOfRangeAfterClone");
-            return false;
-        }
+            var undoDepthBefore = _undoManager.UndoDepth;
+            var redoDepthBefore = _undoManager.RedoDepth;
+            var textLengthBefore = GetText().Length;
+            var beforeText = GetText();
+            var cloneDocumentStart = Stopwatch.GetTimestamp();
+            var afterDocument = DocumentEditing.CloneDocument(Document);
+            var cloneDocumentMs = Stopwatch.GetElapsedTime(cloneDocumentStart).TotalMilliseconds;
+            var enumerateParagraphsStart = Stopwatch.GetTimestamp();
+            var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
+            var enumerateParagraphsMs = Stopwatch.GetElapsedTime(enumerateParagraphsStart).TotalMilliseconds;
+            if (paragraphIndex >= paragraphs.Count)
+            {
+                RecordOperation("StructuredEnter", "ParagraphIndexOutOfRangeAfterClone");
+                return false;
+            }
 
-        var paragraph = paragraphs[paragraphIndex];
-        if (paragraph.Parent is ListItem listItem && listItem.Parent is InkkSlinger.List list)
-        {
-            if (TryApplyListEnterBehavior(paragraph, listItem, list, leftText, rightText, out afterDocument, out var caretAfter))
+            paragraph = paragraphs[paragraphIndex];
+            if (paragraph.Parent is not ListItem clonedListItem || clonedListItem.Parent is not InkkSlinger.List clonedList)
+            {
+                RecordOperation("StructuredEnter", "ListCloneParentResolutionFailed");
+                return false;
+            }
+
+            var listBehaviorStart = Stopwatch.GetTimestamp();
+            if (TryApplyListEnterBehavior(paragraph, clonedListItem, clonedList, leftText, rightText, out afterDocument, out var caretAfter))
             {
                 RecordOperation("StructuredEnter", "ListBehaviorApplied");
-                return CommitStructuredDocumentReplacement(
+                var prepareParagraphsMs = Stopwatch.GetElapsedTime(listBehaviorStart).TotalMilliseconds;
+                var commitStart = Stopwatch.GetTimestamp();
+                var committed = CommitStructuredDocumentReplacement(
                     commandType,
                     policy,
                     start,
@@ -1140,34 +1108,47 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     undoDepthBefore,
                     redoDepthBefore,
                     editStart);
+                _perfTracker.RecordStructuredEnter(
+                    collectEntriesMs,
+                    cloneDocumentMs,
+                    enumerateParagraphsMs,
+                    prepareParagraphsMs,
+                    Stopwatch.GetElapsedTime(commitStart).TotalMilliseconds,
+                    Stopwatch.GetElapsedTime(structuredEnterStart).TotalMilliseconds,
+                    usedDocumentReplacement: true);
+                return committed;
             }
 
             RecordOperation("StructuredEnter", "ListBehaviorRejected");
             return false;
         }
 
+        var prepareParagraphsStart = Stopwatch.GetTimestamp();
         var leftParagraph = CreateParagraphFromStyledRange(paragraph, 0, localStart);
         var rightParagraph = CreateParagraphFromStyledRange(paragraph, localStart + localLength, paragraphText.Length);
-        ReplaceParagraphInlines(paragraph, leftParagraph);
-        if (!InsertParagraphAfter(paragraph, rightParagraph))
-        {
-            RecordOperation("StructuredEnter", "InsertParagraphAfterFailed");
-            return false;
-        }
         RecordOperation("StructuredEnter", "ParagraphSplitApplied");
-        return CommitStructuredDocumentReplacement(
+        var prepareParagraphsMsFinal = Stopwatch.GetElapsedTime(prepareParagraphsStart).TotalMilliseconds;
+        var splitCommitStart = Stopwatch.GetTimestamp();
+        var splitCommitted = CommitParagraphSplit(
             commandType,
             policy,
             start,
             length,
             start + 1,
-            Document,
-            beforeText,
-            afterDocument,
-            textLengthBefore,
-            undoDepthBefore,
-            redoDepthBefore,
+            paragraphIndex,
+            beforeParagraph,
+            leftParagraph,
+            rightParagraph,
             editStart);
+        _perfTracker.RecordStructuredEnter(
+            collectEntriesMs,
+            0d,
+            0d,
+            prepareParagraphsMsFinal,
+            Stopwatch.GetElapsedTime(splitCommitStart).TotalMilliseconds,
+            Stopwatch.GetElapsedTime(structuredEnterStart).TotalMilliseconds,
+            usedDocumentReplacement: false);
+        return splitCommitted;
     }
 
     private bool CommitStructuredDocumentReplacement(
@@ -1197,7 +1178,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        ExecuteDocumentChangeBatch(() =>
+        ExecuteTextMutationBatch(() =>
         {
             session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, Document, afterDocument));
             session.CommitTransaction();
@@ -1209,8 +1190,147 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
         _isCaretVisible = true;
-        InvalidateMeasure();
-        InvalidateVisualWithReason($"Edit:{commandType}");
+        InvalidateAfterTextMutation(commandType);
+        return true;
+    }
+
+    private bool CommitParagraphReplacement(
+        string commandType,
+        GroupingPolicy policy,
+        int start,
+        int length,
+        int caretAfter,
+        int paragraphIndex,
+        Paragraph beforeParagraph,
+        Paragraph afterParagraph,
+        long editStart)
+    {
+        var session = new DocumentEditSession(Document, _undoManager);
+        session.BeginTransaction(
+            commandType,
+            policy,
+            new DocumentEditContext(
+                _caretIndex,
+                caretAfter,
+                start,
+                length,
+                caretAfter,
+                0,
+                commandType));
+        ExecuteTextMutationBatch(() =>
+        {
+            session.ApplyOperation(
+                new ReplaceParagraphOperation(
+                    paragraphIndex,
+                    DocumentEditing.GetParagraphText(beforeParagraph),
+                    DocumentEditing.GetParagraphText(afterParagraph),
+                    beforeParagraph,
+                    afterParagraph));
+            session.CommitTransaction();
+        });
+        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
+        var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
+        _perfTracker.RecordEdit(elapsedMs);
+        TraceInvariants(commandType);
+        EnsureCaretVisible();
+        _caretBlinkSeconds = 0f;
+        _isCaretVisible = true;
+        InvalidateAfterTextMutation(commandType);
+        return true;
+    }
+
+    private bool CommitParagraphSplit(
+        string commandType,
+        GroupingPolicy policy,
+        int start,
+        int length,
+        int caretAfter,
+        int paragraphIndex,
+        Paragraph beforeParagraph,
+        Paragraph currentParagraphAfterSplit,
+        Paragraph insertedParagraph,
+        long editStart)
+    {
+        var session = new DocumentEditSession(Document, _undoManager);
+        session.BeginTransaction(
+            commandType,
+            policy,
+            new DocumentEditContext(
+                _caretIndex,
+                caretAfter,
+                start,
+                length,
+                caretAfter,
+                0,
+                commandType));
+        ExecuteTextMutationBatch(() =>
+        {
+            session.ApplyOperation(
+                new SplitStructuredParagraphOperation(
+                    paragraphIndex,
+                    DocumentEditing.GetParagraphText(beforeParagraph),
+                    $"{DocumentEditing.GetParagraphText(currentParagraphAfterSplit)}\n{DocumentEditing.GetParagraphText(insertedParagraph)}",
+                    beforeParagraph,
+                    currentParagraphAfterSplit,
+                    insertedParagraph));
+            session.CommitTransaction();
+        });
+        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
+        var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
+        _perfTracker.RecordEdit(elapsedMs);
+        TraceInvariants(commandType);
+        EnsureCaretVisible();
+        _caretBlinkSeconds = 0f;
+        _isCaretVisible = true;
+        InvalidateAfterTextMutation(commandType);
+        return true;
+    }
+
+    private bool CommitParagraphMerge(
+        string commandType,
+        GroupingPolicy policy,
+        int start,
+        int length,
+        int caretAfter,
+        int previousParagraphIndex,
+        Paragraph beforePreviousParagraph,
+        Paragraph beforeCurrentParagraph,
+        Paragraph mergedParagraph,
+        long editStart)
+    {
+        var session = new DocumentEditSession(Document, _undoManager);
+        session.BeginTransaction(
+            commandType,
+            policy,
+            new DocumentEditContext(
+                _caretIndex,
+                caretAfter,
+                start,
+                length,
+                caretAfter,
+                0,
+                commandType));
+        ExecuteTextMutationBatch(() =>
+        {
+            session.ApplyOperation(
+                new MergeStructuredParagraphOperation(
+                    previousParagraphIndex,
+                    DocumentEditing.GetParagraphText(beforePreviousParagraph),
+                    DocumentEditing.GetParagraphText(beforeCurrentParagraph),
+                    DocumentEditing.GetParagraphText(mergedParagraph),
+                    beforePreviousParagraph,
+                    beforeCurrentParagraph,
+                    mergedParagraph));
+            session.CommitTransaction();
+        });
+        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
+        var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
+        _perfTracker.RecordEdit(elapsedMs);
+        TraceInvariants(commandType);
+        EnsureCaretVisible();
+        _caretBlinkSeconds = 0f;
+        _isCaretVisible = true;
+        InvalidateAfterTextMutation(commandType);
         return true;
     }
 
@@ -1494,6 +1614,29 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             return false;
         }
 
+        var sourceCurrent = entries[paragraphIndex].Paragraph;
+        if (TryGetImmediatePreviousParagraph(sourceCurrent, out var sourcePrevious))
+        {
+            var editStartLocal = Stopwatch.GetTimestamp();
+            var beforePreviousParagraph = DocumentEditing.CloneParagraph(sourcePrevious);
+            var beforeCurrentParagraph = DocumentEditing.CloneParagraph(sourceCurrent);
+            var mergedParagraph = DocumentEditing.CloneParagraph(sourcePrevious);
+            var caretAfterLocal = FindParagraphStartOffset(Document, sourcePrevious) + GetParagraphLogicalLength(sourcePrevious);
+            AppendParagraphContentPreservingStyles(mergedParagraph, sourceCurrent);
+            RecordOperation("StructuredBackspace", "SiblingParagraphMergeApplied");
+            return CommitParagraphMerge(
+                commandType,
+                policy,
+                Math.Max(0, caret - 1),
+                1,
+                caretAfterLocal,
+                paragraphIndex - 1,
+                beforePreviousParagraph,
+                beforeCurrentParagraph,
+                mergedParagraph,
+                editStartLocal);
+        }
+
         var editStart = Stopwatch.GetTimestamp();
         var undoDepthBefore = _undoManager.UndoDepth;
         var redoDepthBefore = _undoManager.RedoDepth;
@@ -1531,7 +1674,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     caretAfterTopLevel,
                     0,
                     commandType));
-            ExecuteDocumentChangeBatch(() =>
+            ExecuteTextMutationBatch(() =>
             {
                 topLevelSession.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterTextTopLevel, beforeDocument, afterDocument));
                 topLevelSession.CommitTransaction();
@@ -1543,8 +1686,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             EnsureCaretVisible();
             _caretBlinkSeconds = 0f;
             _isCaretVisible = true;
-            InvalidateMeasure();
-            InvalidateVisualWithReason($"Edit:{commandType}");
+            InvalidateAfterTextMutation(commandType);
             return true;
         }
 
@@ -1571,7 +1713,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     caretAfterBoundary,
                     0,
                     commandType));
-            ExecuteDocumentChangeBatch(() =>
+            ExecuteTextMutationBatch(() =>
             {
                 boundarySession.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterTextBoundary, beforeDocument, afterDocument));
                 boundarySession.CommitTransaction();
@@ -1583,8 +1725,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             EnsureCaretVisible();
             _caretBlinkSeconds = 0f;
             _isCaretVisible = true;
-            InvalidateMeasure();
-            InvalidateVisualWithReason($"Edit:{commandType}");
+            InvalidateAfterTextMutation(commandType);
             return true;
         }
 
@@ -1610,7 +1751,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        ExecuteDocumentChangeBatch(() =>
+        ExecuteTextMutationBatch(() =>
         {
             session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
             session.CommitTransaction();
@@ -1622,8 +1763,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
         _isCaretVisible = true;
-        InvalidateMeasure();
-        InvalidateVisualWithReason($"Edit:{commandType}");
+        InvalidateAfterTextMutation(commandType);
         return true;
     }
 
@@ -1764,6 +1904,27 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 previous = p;
                 return true;
             }
+        }
+
+        previous = null!;
+        return false;
+    }
+
+    private static bool TryGetImmediatePreviousParagraph(Paragraph paragraph, out Paragraph previous)
+    {
+        if (paragraph.Parent is FlowDocument document)
+        {
+            var index = document.Blocks.IndexOf(paragraph);
+            if (index > 0 && document.Blocks[index - 1] is Paragraph previousParagraph)
+            {
+                previous = previousParagraph;
+                return true;
+            }
+        }
+
+        if (TryGetPreviousSiblingParagraph(paragraph, out previous))
+        {
+            return true;
         }
 
         previous = null!;
@@ -2022,7 +2183,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     public override void InvalidateVisual()
     {
         _pendingInvalidationReason = "Unspecified";
-        _hasPendingRenderDirtyBoundsHint = false;
+        if (!_preserveRenderDirtyBoundsHint)
+        {
+            _hasPendingRenderDirtyBoundsHint = false;
+        }
+
         base.InvalidateVisual();
     }
 
@@ -2030,6 +2195,83 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         _pendingInvalidationReason = reason;
         InvalidateVisual();
+    }
+
+    private void InvalidateAfterTextMutation(string reason)
+    {
+        // Hosted document children only need a local placement refresh when the editor slot is stable.
+        if (ContainsHostedDocumentChildren(Document) &&
+            !TryRefreshHostedDocumentChildLayoutAfterTextMutation())
+        {
+            InvalidateArrange();
+        }
+
+        if (TryGetLocalizedTextDirtyBoundsHint(out var dirtyBounds))
+        {
+            InvalidateVisualWithDirtyBoundsHint(dirtyBounds, $"Edit:{reason}");
+            return;
+        }
+
+        InvalidateVisualWithDirtyBoundsHint(LayoutSlot, $"Edit:{reason}");
+    }
+
+    private void InvalidateAfterDocumentChange()
+    {
+        if (_suppressMeasureInvalidationForDocumentBatch)
+        {
+            if (ContainsHostedDocumentChildren(Document) &&
+                !TryRefreshHostedDocumentChildLayoutAfterTextMutation())
+            {
+                InvalidateArrange();
+            }
+        }
+        else
+        {
+            InvalidateMeasure();
+        }
+
+        if (TryGetLocalizedTextDirtyBoundsHint(out var dirtyBounds))
+        {
+            InvalidateVisualWithDirtyBoundsHint(dirtyBounds, "DocumentChange");
+            return;
+        }
+
+        InvalidateVisualWithDirtyBoundsHint(LayoutSlot, "DocumentChange");
+    }
+
+    private void InvalidateVisualWithDirtyBoundsHint(LayoutRect bounds, string reason)
+    {
+        _pendingInvalidationReason = reason;
+        _pendingRenderDirtyBoundsHint = NormalizeRect(bounds);
+        _hasPendingRenderDirtyBoundsHint = true;
+        _preserveRenderDirtyBoundsHint = true;
+        try
+        {
+            base.InvalidateVisual();
+        }
+        finally
+        {
+            _preserveRenderDirtyBoundsHint = false;
+        }
+    }
+
+    private bool TryRefreshHostedDocumentChildLayoutAfterTextMutation()
+    {
+        if (_documentHostedVisualChildren.Count == 0 || NeedsMeasure || NeedsArrange)
+        {
+            return false;
+        }
+
+        var textRect = GetTextRect();
+        if (textRect.Width <= 0f || textRect.Height <= 0f)
+        {
+            return false;
+        }
+
+        var layout = BuildOrGetLayout(textRect.Width);
+        ClampScrollOffsets(layout, textRect);
+        EnsureHostedDocumentChildLayout(textRect, layout);
+        return true;
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
@@ -2085,6 +2327,16 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     protected override void OnRender(SpriteBatch spriteBatch)
     {
         var renderStartTicks = Stopwatch.GetTimestamp();
+        var layoutResolveMs = 0d;
+        var selectionMs = 0d;
+        var runsMs = 0d;
+        var runCount = 0;
+        var runCharacterCount = 0;
+        var tableBordersMs = 0d;
+        var caretMs = 0d;
+        var hostedLayoutMs = 0d;
+        var hostedChildrenDrawMs = 0d;
+        var hostedChildrenDrawCount = 0;
         var hasTemplateRoot = HasTemplateRoot;
         if (hasTemplateRoot)
         {
@@ -2101,13 +2353,19 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         var textRect = GetTextRect();
 
+        var layoutResolveStart = Stopwatch.GetTimestamp();
         var layout = BuildOrGetLayout(textRect.Width);
         ClampScrollOffsets(layout, textRect);
+        layoutResolveMs = Stopwatch.GetElapsedTime(layoutResolveStart).TotalMilliseconds;
 
         UiDrawing.PushClip(spriteBatch, textRect);
         try
         {
+            var selectionStart = Stopwatch.GetTimestamp();
             DrawSelection(spriteBatch, textRect, layout);
+            selectionMs = Stopwatch.GetElapsedTime(selectionStart).TotalMilliseconds;
+
+            var runsStart = Stopwatch.GetTimestamp();
             for (var i = 0; i < layout.Runs.Count; i++)
             {
                 var run = layout.Runs[i];
@@ -2123,6 +2381,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     continue;
                 }
 
+                runCount++;
+                runCharacterCount += run.Text.Length;
                 DrawRunText(spriteBatch, run, position, color);
 
                 if (run.Style.IsUnderline)
@@ -2134,20 +2394,30 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                         color * Opacity);
                 }
             }
+            runsMs = Stopwatch.GetElapsedTime(runsStart).TotalMilliseconds;
 
+            var tableBordersStart = Stopwatch.GetTimestamp();
             DrawTableBorders(spriteBatch, textRect, layout);
+            tableBordersMs = Stopwatch.GetElapsedTime(tableBordersStart).TotalMilliseconds;
             if (IsFocused && _isCaretVisible && (!IsReadOnly || IsReadOnlyCaretVisible))
             {
+                var caretStart = Stopwatch.GetTimestamp();
                 DrawCaret(spriteBatch, textRect, layout);
+                caretMs = Stopwatch.GetElapsedTime(caretStart).TotalMilliseconds;
             }
 
             if (hasTemplateRoot)
             {
+                var hostedLayoutStart = Stopwatch.GetTimestamp();
                 EnsureHostedDocumentChildLayout(textRect, layout);
-                for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
+                hostedLayoutMs = Stopwatch.GetElapsedTime(hostedLayoutStart).TotalMilliseconds;
+                var hostedChildrenDrawStart = Stopwatch.GetTimestamp();
+                if (_documentHostedVisualChildren.Count > 0)
                 {
-                    _documentHostedVisualChildren[i].Draw(spriteBatch);
+                    hostedChildrenDrawCount = _documentHostedVisualChildren.Count;
+                    _hostedDocumentVisualHost.Draw(spriteBatch);
                 }
+                hostedChildrenDrawMs = Stopwatch.GetElapsedTime(hostedChildrenDrawStart).TotalMilliseconds;
             }
         }
         finally
@@ -2157,6 +2427,17 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         CaptureDirtyHint(layout, textRect);
         _lastRenderedLayout = layout;
+        _perfTracker.RecordRenderBreakdown(
+            layoutResolveMs,
+            selectionMs,
+            runsMs,
+            runCount,
+            runCharacterCount,
+            tableBordersMs,
+            caretMs,
+            hostedLayoutMs,
+            hostedChildrenDrawMs,
+            hostedChildrenDrawCount);
         _perfTracker.RecordRender(Stopwatch.GetElapsedTime(renderStartTicks).TotalMilliseconds);
     }
 
@@ -2169,10 +2450,10 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             yield return child;
         }
 
-        EnsureHostedDocumentChildLayout();
-        for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
+        if (_documentHostedVisualChildren.Count > 0)
         {
-            yield return _documentHostedVisualChildren[i];
+            EnsureHostedDocumentChildLayout();
+            yield return _hostedDocumentVisualHost;
         }
     }
 
@@ -2203,20 +2484,18 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     internal override IEnumerable<UIElement> GetRetainedRenderChildren()
     {
-        if (HasTemplateRoot)
+        if (!HasTemplateRoot)
         {
-            yield break;
+            foreach (var child in base.GetRetainedRenderChildren())
+            {
+                yield return child;
+            }
         }
 
-        foreach (var child in base.GetRetainedRenderChildren())
+        if (_documentHostedVisualChildren.Count > 0)
         {
-            yield return child;
-        }
-
-        EnsureHostedDocumentChildLayout();
-        for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
-        {
-            yield return _documentHostedVisualChildren[i];
+            EnsureHostedDocumentChildLayout();
+            yield return _hostedDocumentVisualHost;
         }
     }
 
@@ -2245,8 +2524,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _lastMeasuredLayout = null;
         RaiseRoutedEventInternal(DocumentChangedEvent, new RoutedSimpleEventArgs(DocumentChangedEvent));
         RaiseTextChangedEvent();
-        InvalidateMeasure();
-        InvalidateVisual();
+        InvalidateAfterDocumentChange();
         _lastDocumentRichness = CaptureDocumentRichness(Document);
         RecordOperation("DocumentPropertyChanged", $"blocks={Document.Blocks.Count}");
     }
@@ -2255,28 +2533,28 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         _ = sender;
         _ = e;
-        SyncHostedDocumentChildren();
-        ApplyHyperlinkImplicitStyles();
-        ClampSelectionToTextLength();
         if (_documentChangeBatchDepth > 0)
         {
             _hasPendingDocumentChangedEvent = true;
             _hasPendingTextChangedEvent = true;
+            _hasPendingDocumentMaintenanceWork = true;
             return;
         }
 
+        SyncHostedDocumentChildren();
+        ApplyHyperlinkImplicitStyles();
+        ClampSelectionToTextLength();
         _layoutCache.Invalidate();
         _lastMeasuredLayout = null;
         RaiseRoutedEventInternal(DocumentChangedEvent, new RoutedSimpleEventArgs(DocumentChangedEvent));
         RaiseTextChangedEvent();
-        InvalidateMeasure();
-        InvalidateVisual();
+        InvalidateAfterDocumentChange();
         _lastDocumentRichness = CaptureDocumentRichness(Document);
     }
 
     private bool ExecuteUndo()
     {
-        var handled = ExecuteDocumentChangeBatch(() => _undoManager.Undo());
+        var handled = ExecuteTextMutationBatch(() => _undoManager.Undo());
         if (!handled)
         {
             return false;
@@ -2290,7 +2568,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private bool ExecuteRedo()
     {
-        var handled = ExecuteDocumentChangeBatch(() => _undoManager.Redo());
+        var handled = ExecuteTextMutationBatch(() => _undoManager.Redo());
         if (!handled)
         {
             return false;
@@ -2347,6 +2625,34 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
     }
 
+    private void ExecuteTextMutationBatch(Action action)
+    {
+        var previous = _suppressMeasureInvalidationForDocumentBatch;
+        _suppressMeasureInvalidationForDocumentBatch = true;
+        try
+        {
+            ExecuteDocumentChangeBatch(action);
+        }
+        finally
+        {
+            _suppressMeasureInvalidationForDocumentBatch = previous;
+        }
+    }
+
+    private T ExecuteTextMutationBatch<T>(Func<T> action)
+    {
+        var previous = _suppressMeasureInvalidationForDocumentBatch;
+        _suppressMeasureInvalidationForDocumentBatch = true;
+        try
+        {
+            return ExecuteDocumentChangeBatch(action);
+        }
+        finally
+        {
+            _suppressMeasureInvalidationForDocumentBatch = previous;
+        }
+    }
+
     private void BeginDocumentChangeBatch()
     {
         _documentChangeBatchDepth++;
@@ -2376,6 +2682,14 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var raiseTextChanged = _hasPendingTextChangedEvent;
         _hasPendingDocumentChangedEvent = false;
         _hasPendingTextChangedEvent = false;
+        if (_hasPendingDocumentMaintenanceWork)
+        {
+            _hasPendingDocumentMaintenanceWork = false;
+            SyncHostedDocumentChildren();
+            ApplyHyperlinkImplicitStyles();
+            ClampSelectionToTextLength();
+        }
+
         _layoutCache.Invalidate();
         _lastMeasuredLayout = null;
         RaiseRoutedEventInternal(DocumentChangedEvent, new RoutedSimpleEventArgs(DocumentChangedEvent));
@@ -2384,8 +2698,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             RaiseTextChangedEvent();
         }
 
-        InvalidateMeasure();
-        InvalidateVisual();
+        InvalidateAfterDocumentChange();
         _lastDocumentRichness = CaptureDocumentRichness(Document);
     }
 
@@ -2896,7 +3209,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        ExecuteDocumentChangeBatch(() =>
+        ExecuteTextMutationBatch(() =>
         {
             session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
             session.CommitTransaction();
@@ -2909,8 +3222,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
         _isCaretVisible = true;
-        InvalidateMeasure();
-        InvalidateVisualWithReason($"Edit:{commandType}");
+        InvalidateAfterTextMutation(commandType);
         return true;
     }
 
@@ -3402,7 +3714,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        ExecuteDocumentChangeBatch(() =>
+        ExecuteTextMutationBatch(() =>
         {
             DocumentEditing.ReplaceTextRange(Document, start, length, normalizedReplacement, session);
             session.CommitTransaction();
@@ -3414,8 +3726,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
         _isCaretVisible = true;
-        InvalidateMeasure();
-        InvalidateVisualWithReason($"Edit:{commandType}");
+        InvalidateAfterTextMutation(commandType);
     }
 
     private void InsertTypingFormattedText(string text, string commandType)
@@ -3473,19 +3784,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var afterText = paragraphText[(localStart + localLength)..];
 
         var editStart = Stopwatch.GetTimestamp();
-        var undoDepthBefore = _undoManager.UndoDepth;
-        var redoDepthBefore = _undoManager.RedoDepth;
-        var textLengthBefore = GetText().Length;
-        var beforeDocument = DocumentEditing.CloneDocument(Document);
-        var beforeRawText = GetText();
-        var afterDocument = DocumentEditing.CloneDocument(Document);
-        var paragraphs = new List<Paragraph>(FlowDocumentPlainText.EnumerateParagraphs(afterDocument));
-        if (paragraphIndex >= paragraphs.Count)
-        {
-            return false;
-        }
-
-        var paragraph = paragraphs[paragraphIndex];
+        var beforeParagraph = DocumentEditing.CloneParagraph(entries[paragraphIndex].Paragraph);
+        var paragraph = new Paragraph();
         paragraph.Inlines.Clear();
         if (beforeText.Length > 0)
         {
@@ -3525,38 +3825,20 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             paragraph.Inlines.Add(new Run(string.Empty));
         }
 
-        var afterRawText = DocumentEditing.GetText(afterDocument);
         var caretAfter = start + text.Length;
         RecordOperation(
             "MutationRoute",
             $"InsertTextStyledStructured cmd={commandType} policy={policy} start={start} len={length} insLen={text.Length}");
-        var session = new DocumentEditSession(Document, _undoManager);
-        session.BeginTransaction(
+        return CommitParagraphReplacement(
             commandType,
             policy,
-            new DocumentEditContext(
-                _caretIndex,
-                caretAfter,
-                start,
-                length,
-                caretAfter,
-                0,
-                commandType));
-        ExecuteDocumentChangeBatch(() =>
-        {
-            session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeRawText, afterRawText, beforeDocument, afterDocument));
-            session.CommitTransaction();
-        });
-        UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
-        var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
-        _perfTracker.RecordEdit(elapsedMs);
-        TraceInvariants(commandType);
-        EnsureCaretVisible();
-        _caretBlinkSeconds = 0f;
-        _isCaretVisible = true;
-        InvalidateMeasure();
-        InvalidateVisualWithReason($"Edit:{commandType}");
-        return true;
+            start,
+            length,
+            caretAfter,
+            paragraphIndex,
+            beforeParagraph,
+            paragraph,
+            editStart);
     }
 
     private FlowDocument CreateTypingFragment(string text)
@@ -3958,7 +4240,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 continue;
             }
 
-            if (ReferenceEquals(child.VisualParent, this))
+            if (ReferenceEquals(child.VisualParent, _hostedDocumentVisualHost))
             {
                 child.SetVisualParent(null);
             }
@@ -3969,12 +4251,21 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             }
         }
 
+        if (nextChildren.Count > 0 && !ReferenceEquals(_hostedDocumentVisualHost.VisualParent, this))
+        {
+            _hostedDocumentVisualHost.SetVisualParent(this);
+        }
+        else if (nextChildren.Count == 0 && ReferenceEquals(_hostedDocumentVisualHost.VisualParent, this))
+        {
+            _hostedDocumentVisualHost.SetVisualParent(null);
+        }
+
         for (var i = 0; i < nextChildren.Count; i++)
         {
             var child = nextChildren[i];
-            if (!ReferenceEquals(child.VisualParent, this))
+            if (!ReferenceEquals(child.VisualParent, _hostedDocumentVisualHost))
             {
-                child.SetVisualParent(this);
+                child.SetVisualParent(_hostedDocumentVisualHost);
             }
 
             if (!ReferenceEquals(child.LogicalParent, this))
@@ -3985,6 +4276,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         _documentHostedVisualChildren.Clear();
         _documentHostedVisualChildren.AddRange(nextChildren);
+        _hostedDocumentVisualHost.SetChildren(_documentHostedVisualChildren);
     }
 
     private void EnsureHostedDocumentChildLayout()
@@ -4007,6 +4299,9 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             return;
         }
 
+        var hostedLayoutChanged = !AreLayoutRectsEquivalent(_hostedDocumentVisualHost.LayoutSlot, textRect);
+        _hostedDocumentVisualHost.SetLayoutSlot(textRect);
+
         for (var i = 0; i < layout.HostedElements.Count; i++)
         {
             var placement = layout.HostedElements[i];
@@ -4018,13 +4313,34 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
             if (placement.Child is FrameworkElement arrangedFrameworkChild)
             {
+                var previousSlot = arrangedFrameworkChild.LayoutSlot;
                 arrangedFrameworkChild.Arrange(rect);
+                hostedLayoutChanged |= !AreLayoutRectsEquivalent(previousSlot, arrangedFrameworkChild.LayoutSlot);
             }
             else
             {
+                var previousSlot = placement.Child.LayoutSlot;
                 placement.Child.SetLayoutSlot(rect);
+                hostedLayoutChanged |= !AreLayoutRectsEquivalent(previousSlot, placement.Child.LayoutSlot);
             }
         }
+
+        if (hostedLayoutChanged)
+        {
+            _hostedDocumentVisualHost.InvalidateVisual();
+            for (var i = 0; i < _documentHostedVisualChildren.Count; i++)
+            {
+                _documentHostedVisualChildren[i].InvalidateVisual();
+            }
+        }
+    }
+
+    private static bool AreLayoutRectsEquivalent(LayoutRect left, LayoutRect right)
+    {
+        return Math.Abs(left.X - right.X) < 0.01f &&
+               Math.Abs(left.Y - right.Y) < 0.01f &&
+               Math.Abs(left.Width - right.Width) < 0.01f &&
+               Math.Abs(left.Height - right.Height) < 0.01f;
     }
 
     private static void CollectHostedInlineChildren(FlowDocument document, List<UIElement> children)
@@ -4198,6 +4514,44 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     }
 
     private readonly record struct HostedInlinePlacement(UIElement Child, int Offset);
+
+    private sealed class HostedDocumentVisualHost : UIElement
+    {
+        private IReadOnlyList<UIElement> _children = Array.Empty<UIElement>();
+
+        public HostedDocumentVisualHost()
+        {
+            ClipToBounds = true;
+        }
+
+        public void SetChildren(IReadOnlyList<UIElement> children)
+        {
+            _children = children;
+        }
+
+        public override IEnumerable<UIElement> GetVisualChildren()
+        {
+            for (var i = 0; i < _children.Count; i++)
+            {
+                yield return _children[i];
+            }
+        }
+
+        internal override int GetVisualChildCountForTraversal()
+        {
+            return _children.Count;
+        }
+
+        internal override UIElement GetVisualChildAtForTraversal(int index)
+        {
+            if ((uint)index < (uint)_children.Count)
+            {
+                return _children[index];
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+    }
 
     private int GetTextIndexFromPoint(Vector2 point)
     {
@@ -4712,7 +5066,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
-        ExecuteDocumentChangeBatch(() =>
+        ExecuteTextMutationBatch(() =>
         {
             session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
             session.CommitTransaction();
@@ -4725,8 +5079,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
         _isCaretVisible = true;
-        InvalidateMeasure();
-        InvalidateVisualWithReason($"Edit:{commandType}");
+        InvalidateAfterTextMutation(commandType);
     }
 
     private static FlowDocument BuildDocumentWithFragment(FlowDocument current, FlowDocument fragment, int selectionStart, int selectionLength)
@@ -4900,7 +5253,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 selectionStart,
                 0,
                 reason));
-        ExecuteDocumentChangeBatch(() =>
+        ExecuteTextMutationBatch(() =>
         {
             session.ApplyOperation(new ReplaceDocumentOperation("Document", beforeText, afterText, beforeDocument, afterDocument));
             session.CommitTransaction();
@@ -4914,8 +5267,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         EnsureCaretVisible();
         _caretBlinkSeconds = 0f;
         _isCaretVisible = true;
-        InvalidateMeasure();
-        InvalidateVisualWithReason($"Edit:{reason}");
+        InvalidateAfterTextMutation(reason);
     }
 
     private static List<ParagraphSelectionEntry> ResolveSelectedParagraphs(FlowDocument document, int selectionStart, int selectionLength, int caretOffset)
@@ -5347,12 +5699,18 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
     }
 
+    private static string FormatRect(LayoutRect rect)
+    {
+        return $"({rect.X:0.##},{rect.Y:0.##},{rect.Width:0.##},{rect.Height:0.##})";
+    }
+
     private DocumentLayoutResult BuildOrGetLayout(float availableWidth)
     {
         var normalizedWidth = TextWrapping == TextWrapping.NoWrap || availableWidth <= 0f
             ? float.PositiveInfinity
             : availableWidth;
         var containsHostedVisualChildren = ContainsHostedDocumentChildren(Document);
+        var canReuseHostedLayoutCache = containsHostedVisualChildren && AreHostedDocumentChildrenLayoutStable();
         var text = GetText();
         var typography = UiTextRenderer.ResolveTypography(this, FontSize);
         var signature = HashCode.Combine(
@@ -5369,7 +5727,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             typography.GetHashCode(),
             lineHeight,
             Foreground);
-        if (!containsHostedVisualChildren && _layoutCache.TryGet(key, out var cached))
+        if ((!containsHostedVisualChildren || canReuseHostedLayoutCache) && _layoutCache.TryGet(key, out var cached))
         {
             _perfTracker.RecordLayoutCacheHit();
             return cached;
@@ -5388,13 +5746,28 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             TableCellPadding: 4f,
             TableBorderThickness: 1f);
         var built = _layoutEngine.Layout(Document, settings);
-        if (!containsHostedVisualChildren)
-        {
-            _layoutCache.Store(key, built);
-        }
+        _layoutCache.Store(key, built);
         var buildMs = Stopwatch.GetElapsedTime(buildStart).TotalMilliseconds;
         _perfTracker.RecordLayoutBuild(buildMs);
         return built;
+    }
+
+    private bool AreHostedDocumentChildrenLayoutStable()
+    {
+        for (var index = 0; index < _documentHostedVisualChildren.Count; index++)
+        {
+            if (_documentHostedVisualChildren[index] is not FrameworkElement frameworkElement)
+            {
+                return false;
+            }
+
+            if (frameworkElement.NeedsMeasure || frameworkElement.NeedsArrange)
+            {
+                return false;
+            }
+        }
+
+        return _documentHostedVisualChildren.Count > 0;
     }
 
     private static bool ContainsHostedDocumentChildren(FlowDocument document)
@@ -5498,9 +5871,35 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private void CaptureDirtyHint(DocumentLayoutResult current, LayoutRect textRect)
     {
-        if (_lastRenderedLayout == null || _lastRenderedLayout.Lines.Count == 0 || current.Lines.Count == 0)
+        if (!TryBuildLocalizedTextDirtyBoundsHint(current, textRect, out var dirtyBounds))
         {
             return;
+        }
+
+        _pendingRenderDirtyBoundsHint = dirtyBounds;
+        _hasPendingRenderDirtyBoundsHint = true;
+    }
+
+    private bool TryGetLocalizedTextDirtyBoundsHint(out LayoutRect bounds)
+    {
+        bounds = default;
+        var textRect = GetTextRect();
+        if (textRect.Width <= 0f || textRect.Height <= 0f)
+        {
+            return false;
+        }
+
+        var layout = BuildOrGetLayout(textRect.Width);
+        ClampScrollOffsets(layout, textRect);
+        return TryBuildLocalizedTextDirtyBoundsHint(layout, textRect, out bounds);
+    }
+
+    private bool TryBuildLocalizedTextDirtyBoundsHint(DocumentLayoutResult current, LayoutRect textRect, out LayoutRect bounds)
+    {
+        bounds = default;
+        if (_lastRenderedLayout == null || _lastRenderedLayout.Lines.Count == 0 || current.Lines.Count == 0)
+        {
+            return false;
         }
 
         var dirty = false;
@@ -5542,16 +5941,28 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         if (!dirty)
         {
-            return;
+            return false;
         }
 
         var local = new LayoutRect(minX, minY, Math.Max(1f, maxX - minX), Math.Max(1f, maxY - minY));
-        _pendingRenderDirtyBoundsHint = new LayoutRect(
+        var absolute = new LayoutRect(
             textRect.X + local.X - _horizontalOffset,
             textRect.Y + local.Y - _verticalOffset,
             local.Width,
             local.Height);
-        _hasPendingRenderDirtyBoundsHint = true;
+        absolute = IntersectRect(ExpandRect(absolute, 2f), textRect);
+        if (absolute.Width <= 0f || absolute.Height <= 0f)
+        {
+            return false;
+        }
+
+        if (TryProjectRectToRootSpace(absolute, out var rootSpaceBounds))
+        {
+            absolute = rootSpaceBounds;
+        }
+
+        bounds = NormalizeRect(absolute);
+        return bounds.Width > 0f && bounds.Height > 0f;
 
         void Include(LayoutRect rect)
         {
@@ -5572,6 +5983,80 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             Math.Max(0f, LayoutSlot.Height - (BorderThickness * 2f) - Padding.Vertical));
     }
 
+    private bool TryProjectRectToRootSpace(LayoutRect rect, out LayoutRect projectedRect)
+    {
+        projectedRect = rect;
+        var transform = Matrix.Identity;
+        var hasTransform = false;
+        for (var current = this as UIElement; current != null; current = current.VisualParent)
+        {
+            if (!current.TryGetLocalRenderTransformSnapshot(out var localTransform))
+            {
+                continue;
+            }
+
+            transform *= localTransform;
+            hasTransform = true;
+        }
+
+        if (!hasTransform)
+        {
+            return true;
+        }
+
+        var topLeft = Vector2.Transform(new Vector2(rect.X, rect.Y), transform);
+        var topRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y), transform);
+        var bottomLeft = Vector2.Transform(new Vector2(rect.X, rect.Y + rect.Height), transform);
+        var bottomRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y + rect.Height), transform);
+
+        var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+        var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+        var maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+        var maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+
+        projectedRect = new LayoutRect(minX, minY, MathF.Max(0f, maxX - minX), MathF.Max(0f, maxY - minY));
+        return projectedRect.Width > 0f && projectedRect.Height > 0f;
+    }
+
+    private static LayoutRect IntersectRect(LayoutRect left, LayoutRect right)
+    {
+        var x = MathF.Max(left.X, right.X);
+        var y = MathF.Max(left.Y, right.Y);
+        var rightEdge = MathF.Min(left.X + left.Width, right.X + right.Width);
+        var bottomEdge = MathF.Min(left.Y + left.Height, right.Y + right.Height);
+        return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
+    }
+
+    private static LayoutRect ExpandRect(LayoutRect rect, float padding)
+    {
+        var safePadding = MathF.Max(0f, padding);
+        return new LayoutRect(
+            rect.X - safePadding,
+            rect.Y - safePadding,
+            MathF.Max(0f, rect.Width + (safePadding * 2f)),
+            MathF.Max(0f, rect.Height + (safePadding * 2f)));
+    }
+
+    private static LayoutRect NormalizeRect(LayoutRect rect)
+    {
+        var x = rect.X;
+        var y = rect.Y;
+        var width = rect.Width;
+        var height = rect.Height;
+        if (width < 0f)
+        {
+            x += width;
+            width = -width;
+        }
+
+        if (height < 0f)
+        {
+            y += height;
+            height = -height;
+        }
+
+        return new LayoutRect(x, y, width, height);
+    }
 
     protected override bool TryGetClipRect(out LayoutRect clipRect)
     {
@@ -5605,6 +6090,16 @@ public readonly record struct RichTextBoxPerformanceSnapshot(
     double LastRenderMilliseconds,
     double AverageRenderMilliseconds,
     double MaxRenderMilliseconds,
+    double LastRenderLayoutResolveMilliseconds,
+    double LastRenderSelectionMilliseconds,
+    double LastRenderRunsMilliseconds,
+    int LastRenderRunCount,
+    int LastRenderRunCharacterCount,
+    double LastRenderTableBordersMilliseconds,
+    double LastRenderCaretMilliseconds,
+    double LastRenderHostedLayoutMilliseconds,
+    double LastRenderHostedChildrenDrawMilliseconds,
+    int LastRenderHostedChildrenDrawCount,
     int SelectionGeometrySampleCount,
     double LastSelectionGeometryMilliseconds,
     double AverageSelectionGeometryMilliseconds,
@@ -5621,6 +6116,14 @@ public readonly record struct RichTextBoxPerformanceSnapshot(
     double LastEditMilliseconds,
     double AverageEditMilliseconds,
     double MaxEditMilliseconds,
+    int StructuredEnterSampleCount,
+    double LastStructuredEnterParagraphEntryCollectionMilliseconds,
+    double LastStructuredEnterCloneDocumentMilliseconds,
+    double LastStructuredEnterParagraphEnumerationMilliseconds,
+    double LastStructuredEnterPrepareParagraphsMilliseconds,
+    double LastStructuredEnterCommitMilliseconds,
+    double LastStructuredEnterTotalMilliseconds,
+    bool LastStructuredEnterUsedDocumentReplacement,
     int UndoDepth,
     int RedoDepth,
     int UndoOperationCount,

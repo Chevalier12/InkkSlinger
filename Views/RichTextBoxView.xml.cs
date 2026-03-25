@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Diagnostics;
 using System.Text;
 using Microsoft.Xna.Framework;
 
@@ -8,6 +9,7 @@ namespace InkkSlinger;
 
 public partial class RichTextBoxView : UserControl
 {
+    private const double EditorUiRefreshDebounceMilliseconds = 300d;
     private const string ClipboardRtfFormat = "Rich Text Format";
     private const string ClipboardXamlFormat = "Xaml";
     private const string ClipboardXamlPackageFormat = "XamlPackage";
@@ -55,11 +57,11 @@ public partial class RichTextBoxView : UserControl
     private readonly Slider _selectionOpacitySlider;
     private readonly ComboBox _horizontalScrollComboBox;
     private readonly ComboBox _verticalScrollComboBox;
-    private readonly TextBlock _documentStatusLabel;
-    private readonly TextBlock _selectionStatusLabel;
-    private readonly TextBlock _viewportStatusLabel;
-    private readonly TextBlock _activityStatusLabel;
-    private readonly TextBlock _spellCheckStatusLabel;
+    private readonly TextBox _documentStatusLabel;
+    private readonly TextBox _selectionStatusLabel;
+    private readonly TextBox _viewportStatusLabel;
+    private readonly TextBox _activityStatusLabel;
+    private readonly TextBox _spellCheckStatusLabel;
 
     private Button? _undoButton;
     private Button? _redoButton;
@@ -76,8 +78,12 @@ public partial class RichTextBoxView : UserControl
     private bool _hasCompletedInitialPresetLoad;
     private bool _hasInitializedInteractiveSurface;
     private bool _hasQueuedEditorUiRefresh;
+    private bool _hasQueuedEditorCommandStateRefresh;
     private int _uiRefreshBatchDepth;
     private bool _uiRefreshPending;
+    private long _lastEditorUiChangeTicks;
+    private int _pendingEditorUiRefreshVersion;
+    private readonly RichTextBoxViewDiagnosticsTracker _diagnostics = new();
 
     public RichTextBoxView()
     {
@@ -105,11 +111,11 @@ public partial class RichTextBoxView : UserControl
         _selectionOpacitySlider = RequireElement<Slider>("SelectionOpacitySlider");
         _horizontalScrollComboBox = RequireElement<ComboBox>("HorizontalScrollComboBox");
         _verticalScrollComboBox = RequireElement<ComboBox>("VerticalScrollComboBox");
-        _documentStatusLabel = RequireElement<TextBlock>("DocumentStatusLabel");
-        _selectionStatusLabel = RequireElement<TextBlock>("SelectionStatusLabel");
-        _viewportStatusLabel = RequireElement<TextBlock>("ViewportStatusLabel");
-        _activityStatusLabel = RequireElement<TextBlock>("ActivityStatusLabel");
-        _spellCheckStatusLabel = RequireElement<TextBlock>("SpellCheckStatusLabel");
+        _documentStatusLabel = RequireElement<TextBox>("DocumentStatusLabel");
+        _selectionStatusLabel = RequireElement<TextBox>("SelectionStatusLabel");
+        _viewportStatusLabel = RequireElement<TextBox>("ViewportStatusLabel");
+        _activityStatusLabel = RequireElement<TextBox>("ActivityStatusLabel");
+        _spellCheckStatusLabel = RequireElement<TextBox>("SpellCheckStatusLabel");
 
         if (_hasCompletedInitialPresetLoad)
         {
@@ -521,6 +527,7 @@ public partial class RichTextBoxView : UserControl
 
     private void RequestUiRefresh()
     {
+        _diagnostics.RequestUiRefreshCount++;
         if (_uiRefreshBatchDepth > 0)
         {
             _uiRefreshPending = true;
@@ -532,12 +539,19 @@ public partial class RichTextBoxView : UserControl
 
     private void QueueEditorUiRefresh()
     {
+        QueueImmediateEditorCommandStateRefresh();
+        QueueDebouncedEditorStatusRefresh();
+    }
+
+    private void QueueImmediateEditorUiRefresh()
+    {
         if (_hasQueuedEditorUiRefresh)
         {
             return;
         }
 
         _hasQueuedEditorUiRefresh = true;
+        _diagnostics.QueuedEditorRefreshCount++;
         Dispatcher.EnqueueDeferred(() =>
         {
             _hasQueuedEditorUiRefresh = false;
@@ -545,17 +559,79 @@ public partial class RichTextBoxView : UserControl
         });
     }
 
-    private void RefreshEditorUiState()
+    private void QueueImmediateEditorCommandStateRefresh()
     {
-        if (_uiRefreshBatchDepth > 0)
+        if (_hasQueuedEditorCommandStateRefresh)
         {
-            _uiRefreshPending = true;
             return;
         }
 
-        var stats = DocumentStats.FromDocument(_editor.Document);
+        _hasQueuedEditorCommandStateRefresh = true;
+        Dispatcher.EnqueueDeferred(() =>
+        {
+            _hasQueuedEditorCommandStateRefresh = false;
+            if (_uiRefreshBatchDepth > 0)
+            {
+                _uiRefreshPending = true;
+                return;
+            }
+
+            UpdateEditorCommandStates();
+        });
+    }
+
+    private void QueueDebouncedEditorStatusRefresh()
+    {
+        _lastEditorUiChangeTicks = Stopwatch.GetTimestamp();
+        var version = ++_pendingEditorUiRefreshVersion;
+        if (_hasQueuedEditorUiRefresh)
+        {
+            return;
+        }
+
+        _hasQueuedEditorUiRefresh = true;
+        _diagnostics.QueuedEditorRefreshCount++;
+        Dispatcher.EnqueueDeferred(() => TryRunDebouncedEditorUiRefresh(version));
+    }
+
+    private void TryRunDebouncedEditorUiRefresh(int version)
+    {
+        if (version != _pendingEditorUiRefreshVersion)
+        {
+            Dispatcher.EnqueueDeferred(() => TryRunDebouncedEditorUiRefresh(_pendingEditorUiRefreshVersion));
+            return;
+        }
+
+        var debounceTicks = (long)Math.Ceiling((EditorUiRefreshDebounceMilliseconds / 1000d) * Stopwatch.Frequency);
+        var dueTicks = _lastEditorUiChangeTicks + debounceTicks;
+        if (Stopwatch.GetTimestamp() < dueTicks)
+        {
+            Dispatcher.EnqueueDeferred(() => TryRunDebouncedEditorUiRefresh(version));
+            return;
+        }
+
+        _hasQueuedEditorUiRefresh = false;
+        RefreshEditorUiState();
+    }
+
+    private void RefreshEditorUiState()
+    {
+        var start = Stopwatch.GetTimestamp();
+        if (_uiRefreshBatchDepth > 0)
+        {
+            _uiRefreshPending = true;
+            _diagnostics.RecordRefreshEditorUiState(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+            return;
+        }
+
+        var stats = ComputeDocumentStats();
+        var updateEditorStatesStart = Stopwatch.GetTimestamp();
         UpdateEditorCommandStates();
+        _diagnostics.RecordUpdateEditorCommandStates(Stopwatch.GetElapsedTime(updateEditorStatesStart).TotalMilliseconds);
+        var updateStatusStart = Stopwatch.GetTimestamp();
         UpdateStatusLabels(stats);
+        _diagnostics.RecordUpdateStatusLabels(Stopwatch.GetElapsedTime(updateStatusStart).TotalMilliseconds);
+        _diagnostics.RecordRefreshEditorUiState(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
     }
 
     private void PerformUiRefreshBatch(Action action)
@@ -578,13 +654,45 @@ public partial class RichTextBoxView : UserControl
 
     private void RefreshUiState()
     {
-        var stats = DocumentStats.FromDocument(_editor.Document);
+        var start = Stopwatch.GetTimestamp();
+        _pendingEditorUiRefreshVersion++;
+        _hasQueuedEditorUiRefresh = false;
+        var stats = ComputeDocumentStats();
         UpdateSelectionOpacityLabel();
+        var updateHeroSummaryStart = Stopwatch.GetTimestamp();
         UpdateHeroSummary(stats);
+        _diagnostics.RecordUpdateHeroSummary(Stopwatch.GetElapsedTime(updateHeroSummaryStart).TotalMilliseconds);
+        var updatePayloadMetaStart = Stopwatch.GetTimestamp();
         UpdatePayloadMeta();
+        _diagnostics.RecordUpdatePayloadMeta(Stopwatch.GetElapsedTime(updatePayloadMetaStart).TotalMilliseconds);
+        var updateCommandStatesStart = Stopwatch.GetTimestamp();
         UpdateCommandStates();
+        _diagnostics.RecordUpdateCommandStates(Stopwatch.GetElapsedTime(updateCommandStatesStart).TotalMilliseconds);
+        var updateStatusStart = Stopwatch.GetTimestamp();
         UpdateStatusLabels(stats);
+        _diagnostics.RecordUpdateStatusLabels(Stopwatch.GetElapsedTime(updateStatusStart).TotalMilliseconds);
+        var updatePresetHintsStart = Stopwatch.GetTimestamp();
         UpdatePresetHints();
+        _diagnostics.RecordUpdatePresetHints(Stopwatch.GetElapsedTime(updatePresetHintsStart).TotalMilliseconds);
+        _diagnostics.RecordRefreshUiState(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+    }
+
+    internal void ResetDiagnosticsForTests()
+    {
+        _diagnostics.Reset();
+    }
+
+    internal RichTextBoxViewDiagnosticsSnapshot GetDiagnosticsSnapshotForTests()
+    {
+        return _diagnostics.GetSnapshot();
+    }
+
+    private DocumentStats ComputeDocumentStats()
+    {
+        var start = Stopwatch.GetTimestamp();
+        var stats = DocumentStats.FromDocument(_editor.Document);
+        _diagnostics.RecordDocumentStats(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+        return stats;
     }
 
     private void UpdateSelectionOpacityLabel()
@@ -668,16 +776,31 @@ public partial class RichTextBoxView : UserControl
     private void UpdateStatusLabels(DocumentStats stats)
     {
         var scrollMetrics = _editor.GetScrollMetricsSnapshot();
-        _documentStatusLabel.Text =
-            $"Document: {stats.CharacterCount} chars | paragraphs {stats.ParagraphCount} | hyperlinks {stats.HyperlinkCount} | inline UI {stats.InlineUiCount} | block UI {stats.BlockUiCount}";
-        _selectionStatusLabel.Text =
-            $"Selection: start {_editor.SelectionStart} | length {_editor.SelectionLength} | caret {_editor.CaretIndex} | text changes {_textChangedCount} | selection changes {_selectionChangedCount}";
-        _viewportStatusLabel.Text =
-            $"Viewport: x {scrollMetrics.HorizontalOffset:0.##}/{scrollMetrics.ExtentWidth:0.##} | y {scrollMetrics.VerticalOffset:0.##}/{scrollMetrics.ExtentHeight:0.##} | view {scrollMetrics.ViewportWidth:0.##} x {scrollMetrics.ViewportHeight:0.##}";
-        _activityStatusLabel.Text = $"Activity: {_lastActivity} | hyperlink: {_lastNavigateUri}";
-        _spellCheckStatusLabel.Text = _editor.IsSpellCheckEnabled
+        SetTextIfChanged(
+            _documentStatusLabel,
+            $"Document: {stats.CharacterCount} chars | paragraphs {stats.ParagraphCount} | hyperlinks {stats.HyperlinkCount} | inline UI {stats.InlineUiCount} | block UI {stats.BlockUiCount}");
+        SetTextIfChanged(
+            _selectionStatusLabel,
+            $"Selection: start {_editor.SelectionStart} | length {_editor.SelectionLength} | caret {_editor.CaretIndex} | text changes {_textChangedCount} | selection changes {_selectionChangedCount}");
+        SetTextIfChanged(
+            _viewportStatusLabel,
+            $"Viewport: x {scrollMetrics.HorizontalOffset:0.##}/{scrollMetrics.ExtentWidth:0.##} | y {scrollMetrics.VerticalOffset:0.##}/{scrollMetrics.ExtentHeight:0.##} | view {scrollMetrics.ViewportWidth:0.##} x {scrollMetrics.ViewportHeight:0.##}");
+        SetTextIfChanged(_activityStatusLabel, $"Activity: {_lastActivity} | hyperlink: {_lastNavigateUri}");
+        SetTextIfChanged(
+            _spellCheckStatusLabel,
+            _editor.IsSpellCheckEnabled
             ? "SpellCheck API is enabled. This demo exposes the WPF-facing surface, but no live spelling engine is attached in this parity slice."
-            : "SpellCheck API is disabled. Enable it to exercise the public surface; spelling results remain empty because no engine is attached.";
+            : "SpellCheck API is disabled. Enable it to exercise the public surface; spelling results remain empty because no engine is attached.");
+    }
+
+    private static void SetTextIfChanged(TextBox textBox, string value)
+    {
+        if (string.Equals(textBox.Text, value, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        textBox.Text = value;
     }
 
     private void UpdatePresetHints()
@@ -957,6 +1080,28 @@ public partial class RichTextBoxView : UserControl
 
     private readonly record struct FormatOption(string Label, string Format);
 
+    internal readonly record struct RichTextBoxViewDiagnosticsSnapshot(
+        int RequestUiRefreshCount,
+        int QueuedEditorRefreshCount,
+        int RefreshUiStateCount,
+        double RefreshUiStateTotalMilliseconds,
+        int RefreshEditorUiStateCount,
+        double RefreshEditorUiStateTotalMilliseconds,
+        int DocumentStatsCount,
+        double DocumentStatsTotalMilliseconds,
+        int UpdateCommandStatesCount,
+        double UpdateCommandStatesTotalMilliseconds,
+        int UpdateEditorCommandStatesCount,
+        double UpdateEditorCommandStatesTotalMilliseconds,
+        int UpdateStatusLabelsCount,
+        double UpdateStatusLabelsTotalMilliseconds,
+        int UpdatePayloadMetaCount,
+        double UpdatePayloadMetaTotalMilliseconds,
+        int UpdateHeroSummaryCount,
+        double UpdateHeroSummaryTotalMilliseconds,
+        int UpdatePresetHintsCount,
+        double UpdatePresetHintsTotalMilliseconds);
+
     private readonly record struct DocumentStats(
         int BlockCount,
         int ParagraphCount,
@@ -1091,8 +1236,102 @@ public partial class RichTextBoxView : UserControl
             }
         }
     }
+
+    private sealed class RichTextBoxViewDiagnosticsTracker
+    {
+        public int RequestUiRefreshCount;
+        public int QueuedEditorRefreshCount;
+
+        private int _refreshUiStateCount;
+        private double _refreshUiStateTotalMilliseconds;
+        private int _refreshEditorUiStateCount;
+        private double _refreshEditorUiStateTotalMilliseconds;
+        private int _documentStatsCount;
+        private double _documentStatsTotalMilliseconds;
+        private int _updateCommandStatesCount;
+        private double _updateCommandStatesTotalMilliseconds;
+        private int _updateEditorCommandStatesCount;
+        private double _updateEditorCommandStatesTotalMilliseconds;
+        private int _updateStatusLabelsCount;
+        private double _updateStatusLabelsTotalMilliseconds;
+        private int _updatePayloadMetaCount;
+        private double _updatePayloadMetaTotalMilliseconds;
+        private int _updateHeroSummaryCount;
+        private double _updateHeroSummaryTotalMilliseconds;
+        private int _updatePresetHintsCount;
+        private double _updatePresetHintsTotalMilliseconds;
+
+        public void Reset()
+        {
+            RequestUiRefreshCount = 0;
+            QueuedEditorRefreshCount = 0;
+            _refreshUiStateCount = 0;
+            _refreshUiStateTotalMilliseconds = 0d;
+            _refreshEditorUiStateCount = 0;
+            _refreshEditorUiStateTotalMilliseconds = 0d;
+            _documentStatsCount = 0;
+            _documentStatsTotalMilliseconds = 0d;
+            _updateCommandStatesCount = 0;
+            _updateCommandStatesTotalMilliseconds = 0d;
+            _updateEditorCommandStatesCount = 0;
+            _updateEditorCommandStatesTotalMilliseconds = 0d;
+            _updateStatusLabelsCount = 0;
+            _updateStatusLabelsTotalMilliseconds = 0d;
+            _updatePayloadMetaCount = 0;
+            _updatePayloadMetaTotalMilliseconds = 0d;
+            _updateHeroSummaryCount = 0;
+            _updateHeroSummaryTotalMilliseconds = 0d;
+            _updatePresetHintsCount = 0;
+            _updatePresetHintsTotalMilliseconds = 0d;
+        }
+
+        public void RecordRefreshUiState(double elapsedMs) => Record(ref _refreshUiStateCount, ref _refreshUiStateTotalMilliseconds, elapsedMs);
+
+        public void RecordRefreshEditorUiState(double elapsedMs) => Record(ref _refreshEditorUiStateCount, ref _refreshEditorUiStateTotalMilliseconds, elapsedMs);
+
+        public void RecordDocumentStats(double elapsedMs) => Record(ref _documentStatsCount, ref _documentStatsTotalMilliseconds, elapsedMs);
+
+        public void RecordUpdateCommandStates(double elapsedMs) => Record(ref _updateCommandStatesCount, ref _updateCommandStatesTotalMilliseconds, elapsedMs);
+
+        public void RecordUpdateEditorCommandStates(double elapsedMs) => Record(ref _updateEditorCommandStatesCount, ref _updateEditorCommandStatesTotalMilliseconds, elapsedMs);
+
+        public void RecordUpdateStatusLabels(double elapsedMs) => Record(ref _updateStatusLabelsCount, ref _updateStatusLabelsTotalMilliseconds, elapsedMs);
+
+        public void RecordUpdatePayloadMeta(double elapsedMs) => Record(ref _updatePayloadMetaCount, ref _updatePayloadMetaTotalMilliseconds, elapsedMs);
+
+        public void RecordUpdateHeroSummary(double elapsedMs) => Record(ref _updateHeroSummaryCount, ref _updateHeroSummaryTotalMilliseconds, elapsedMs);
+
+        public void RecordUpdatePresetHints(double elapsedMs) => Record(ref _updatePresetHintsCount, ref _updatePresetHintsTotalMilliseconds, elapsedMs);
+
+        public RichTextBoxViewDiagnosticsSnapshot GetSnapshot()
+        {
+            return new RichTextBoxViewDiagnosticsSnapshot(
+                RequestUiRefreshCount,
+                QueuedEditorRefreshCount,
+                _refreshUiStateCount,
+                _refreshUiStateTotalMilliseconds,
+                _refreshEditorUiStateCount,
+                _refreshEditorUiStateTotalMilliseconds,
+                _documentStatsCount,
+                _documentStatsTotalMilliseconds,
+                _updateCommandStatesCount,
+                _updateCommandStatesTotalMilliseconds,
+                _updateEditorCommandStatesCount,
+                _updateEditorCommandStatesTotalMilliseconds,
+                _updateStatusLabelsCount,
+                _updateStatusLabelsTotalMilliseconds,
+                _updatePayloadMetaCount,
+                _updatePayloadMetaTotalMilliseconds,
+                _updateHeroSummaryCount,
+                _updateHeroSummaryTotalMilliseconds,
+                _updatePresetHintsCount,
+                _updatePresetHintsTotalMilliseconds);
+        }
+
+        private static void Record(ref int count, ref double totalMilliseconds, double elapsedMs)
+        {
+            count++;
+            totalMilliseconds += Math.Max(0d, elapsedMs);
+        }
+    }
 }
-
-
-
-

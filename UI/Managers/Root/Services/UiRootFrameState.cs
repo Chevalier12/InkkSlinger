@@ -104,12 +104,15 @@ public sealed partial class UiRoot
 
     internal void NotifyInvalidation(UiInvalidationType invalidationType, UIElement? source = null)
     {
+        RecordRenderInvalidationSources(source, effectiveSource: null);
         var effectiveSource = source;
         if (source != null &&
             !TryResolveInvalidationSource(source, invalidationType == UiInvalidationType.Render, out effectiveSource))
         {
             return;
         }
+
+        RecordRenderInvalidationSources(source, effectiveSource);
 
         switch (invalidationType)
         {
@@ -169,6 +172,8 @@ public sealed partial class UiRoot
             return;
         }
 
+        RecordRenderInvalidationSources(source, effectiveSource);
+
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
         _renderStateVersion++;
@@ -191,6 +196,18 @@ public sealed partial class UiRoot
         {
             InvalidateActiveUpdateParticipants();
         }
+    }
+
+    private void RecordRenderInvalidationSources(UIElement? requestedSource, UIElement? effectiveSource)
+    {
+        _lastRenderInvalidationRequestedSourceType = requestedSource?.GetType().Name ?? "none";
+        _lastRenderInvalidationRequestedSourceName = requestedSource is FrameworkElement requestedFrameworkElement
+            ? requestedFrameworkElement.Name
+            : string.Empty;
+        _lastRenderInvalidationEffectiveSourceType = effectiveSource?.GetType().Name ?? "none";
+        _lastRenderInvalidationEffectiveSourceName = effectiveSource is FrameworkElement effectiveFrameworkElement
+            ? effectiveFrameworkElement.Name
+            : string.Empty;
     }
 
     private bool TryResolveInvalidationSource(UIElement source, bool allowRetainedAncestorFallback, out UIElement? effectiveSource)

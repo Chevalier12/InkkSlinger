@@ -358,14 +358,12 @@ internal sealed class DocumentOperationUndoUnit : IDocumentUndoUnit
             return false;
         }
 
-        if (_operations.Length != 1 || incoming._operations.Length != 1 ||
-            _operations[0] is not ReplaceTextOperation first ||
-            incoming._operations[0] is not ReplaceTextOperation second)
+        if (_operations.Length != 1 || incoming._operations.Length != 1)
         {
             return false;
         }
 
-        if (!first.TryCoalesce(second, Policy, out var merged))
+        if (!TryCoalesceOperation(_operations[0], incoming._operations[0], Policy, out var merged))
         {
             return false;
         }
@@ -375,6 +373,32 @@ internal sealed class DocumentOperationUndoUnit : IDocumentUndoUnit
         TimestampUtc = incoming.TimestampUtc;
         Reason = incoming.Reason;
         return true;
+    }
+
+    private static bool TryCoalesceOperation(
+        IDocumentOperation current,
+        IDocumentOperation incoming,
+        GroupingPolicy policy,
+        out IDocumentOperation merged)
+    {
+        if (current is ReplaceTextOperation currentText &&
+            incoming is ReplaceTextOperation incomingText &&
+            currentText.TryCoalesce(incomingText, policy, out var mergedText))
+        {
+            merged = mergedText;
+            return true;
+        }
+
+        if (current is ReplaceParagraphOperation currentParagraph &&
+            incoming is ReplaceParagraphOperation incomingParagraph &&
+            currentParagraph.TryCoalesce(incomingParagraph, policy, out var mergedParagraph))
+        {
+            merged = mergedParagraph;
+            return true;
+        }
+
+        merged = current;
+        return false;
     }
 
     public void Undo()
@@ -581,6 +605,192 @@ public static class DocumentEditing
         }
 
         return clone;
+    }
+
+    internal static Paragraph CloneParagraph(Paragraph source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return (Paragraph)CloneBlock(source);
+    }
+
+    internal static void ReplaceParagraphAt(FlowDocument document, int paragraphIndex, Paragraph replacement)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(replacement);
+        var replacementClone = CloneParagraph(replacement);
+        var currentIndex = 0;
+        if (TryReplaceParagraphAt(document.Blocks, paragraphIndex, replacementClone, ref currentIndex))
+        {
+            return;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(paragraphIndex));
+    }
+
+    internal static void SplitParagraphAt(FlowDocument document, int paragraphIndex, Paragraph currentParagraphReplacement, Paragraph insertedParagraph)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(currentParagraphReplacement);
+        ArgumentNullException.ThrowIfNull(insertedParagraph);
+
+        var currentClone = CloneParagraph(currentParagraphReplacement);
+        var insertedClone = CloneParagraph(insertedParagraph);
+        var currentIndex = 0;
+        if (TryFindParagraphSlot(document.Blocks, paragraphIndex, ref currentIndex, out var ownerBlocks, out var ownerBlockIndex))
+        {
+            ownerBlocks[ownerBlockIndex] = currentClone;
+            ownerBlocks.Insert(ownerBlockIndex + 1, insertedClone);
+            return;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(paragraphIndex));
+    }
+
+    internal static void RestoreSplitParagraphAt(FlowDocument document, int paragraphIndex, Paragraph mergedParagraph)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(mergedParagraph);
+
+        var mergedClone = CloneParagraph(mergedParagraph);
+        var currentIndex = 0;
+        if (!TryFindParagraphSlot(document.Blocks, paragraphIndex, ref currentIndex, out var ownerBlocks, out var ownerBlockIndex))
+        {
+            throw new ArgumentOutOfRangeException(nameof(paragraphIndex));
+        }
+
+        ownerBlocks[ownerBlockIndex] = mergedClone;
+        if (ownerBlockIndex + 1 >= ownerBlocks.Count || ownerBlocks[ownerBlockIndex + 1] is not Paragraph)
+        {
+            throw new InvalidOperationException("Expected split paragraph successor during revert.");
+        }
+
+        ownerBlocks.RemoveAt(ownerBlockIndex + 1);
+    }
+
+    internal static string GetParagraphText(Paragraph paragraph)
+    {
+        ArgumentNullException.ThrowIfNull(paragraph);
+        return FlowDocumentPlainText.GetInlineText(paragraph.Inlines);
+    }
+
+    private static bool TryReplaceParagraphAt(IList<Block> blocks, int targetIndex, Paragraph replacement, ref int currentIndex)
+    {
+        for (var i = 0; i < blocks.Count; i++)
+        {
+            switch (blocks[i])
+            {
+                case Paragraph:
+                    if (currentIndex == targetIndex)
+                    {
+                        blocks[i] = replacement;
+                        return true;
+                    }
+
+                    currentIndex++;
+                    break;
+                case Section section:
+                    if (TryReplaceParagraphAt(section.Blocks, targetIndex, replacement, ref currentIndex))
+                    {
+                        return true;
+                    }
+
+                    break;
+                case List list:
+                    for (var itemIndex = 0; itemIndex < list.Items.Count; itemIndex++)
+                    {
+                        if (TryReplaceParagraphAt(list.Items[itemIndex].Blocks, targetIndex, replacement, ref currentIndex))
+                        {
+                            return true;
+                        }
+                    }
+
+                    break;
+                case Table table:
+                    for (var rowGroupIndex = 0; rowGroupIndex < table.RowGroups.Count; rowGroupIndex++)
+                    {
+                        var rowGroup = table.RowGroups[rowGroupIndex];
+                        for (var rowIndex = 0; rowIndex < rowGroup.Rows.Count; rowIndex++)
+                        {
+                            var row = rowGroup.Rows[rowIndex];
+                            for (var cellIndex = 0; cellIndex < row.Cells.Count; cellIndex++)
+                            {
+                                if (TryReplaceParagraphAt(row.Cells[cellIndex].Blocks, targetIndex, replacement, ref currentIndex))
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryFindParagraphSlot(
+        IList<Block> blocks,
+        int targetIndex,
+        ref int currentIndex,
+        out IList<Block> ownerBlocks,
+        out int ownerBlockIndex)
+    {
+        for (var i = 0; i < blocks.Count; i++)
+        {
+            switch (blocks[i])
+            {
+                case Paragraph:
+                    if (currentIndex == targetIndex)
+                    {
+                        ownerBlocks = blocks;
+                        ownerBlockIndex = i;
+                        return true;
+                    }
+
+                    currentIndex++;
+                    break;
+                case Section section:
+                    if (TryFindParagraphSlot(section.Blocks, targetIndex, ref currentIndex, out ownerBlocks, out ownerBlockIndex))
+                    {
+                        return true;
+                    }
+
+                    break;
+                case List list:
+                    for (var itemIndex = 0; itemIndex < list.Items.Count; itemIndex++)
+                    {
+                        if (TryFindParagraphSlot(list.Items[itemIndex].Blocks, targetIndex, ref currentIndex, out ownerBlocks, out ownerBlockIndex))
+                        {
+                            return true;
+                        }
+                    }
+
+                    break;
+                case Table table:
+                    for (var rowGroupIndex = 0; rowGroupIndex < table.RowGroups.Count; rowGroupIndex++)
+                    {
+                        var rowGroup = table.RowGroups[rowGroupIndex];
+                        for (var rowIndex = 0; rowIndex < rowGroup.Rows.Count; rowIndex++)
+                        {
+                            var row = rowGroup.Rows[rowIndex];
+                            for (var cellIndex = 0; cellIndex < row.Cells.Count; cellIndex++)
+                            {
+                                if (TryFindParagraphSlot(row.Cells[cellIndex].Blocks, targetIndex, ref currentIndex, out ownerBlocks, out ownerBlockIndex))
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        ownerBlocks = null!;
+        ownerBlockIndex = -1;
+        return false;
     }
 
     private static Block CloneBlock(Block block)

@@ -63,12 +63,61 @@ public sealed class RichTextPerformanceTests
         Assert.True(snapshot.UndoOperationCount >= 1);
     }
 
+    [Fact]
+    public void EmbeddedUiTyping_UsesParagraphLocalUndoOperation()
+    {
+        var editor = CreateEditorWithEmbeddedUi();
+        editor.Select(0, 0);
+        editor.ResetPerformanceSnapshot();
+
+        Assert.True(editor.HandleTextInputFromInput('a'));
+        Assert.True(editor.HandleTextInputFromInput('b'));
+        Assert.True(editor.HandleTextInputFromInput('c'));
+
+        var snapshot = editor.GetPerformanceSnapshot();
+        Assert.Equal(1, snapshot.UndoDepth);
+        Assert.Equal(1, snapshot.UndoOperationCount);
+        Assert.StartsWith("abc", DocumentEditing.GetText(editor.Document));
+        Assert.True(snapshot.EditSampleCount >= 3);
+    }
+
     private static RichTextBox CreateEditor(string text)
     {
         var editor = new RichTextBox();
         editor.SetLayoutSlot(new LayoutRect(0f, 0f, 520f, 280f));
         DocumentEditing.ReplaceAllText(editor.Document, text);
         editor.SetFocusedFromInput(true);
+        return editor;
+    }
+
+    private static RichTextBox CreateEditorWithEmbeddedUi()
+    {
+        var editor = new RichTextBox();
+        editor.SetLayoutSlot(new LayoutRect(0f, 0f, 520f, 280f));
+        editor.SetFocusedFromInput(true);
+
+        var document = new FlowDocument();
+        var intro = new Paragraph();
+        intro.Inlines.Add(new Run("Hosted UI proves that inline and block containers participate in layout and input."));
+        document.Blocks.Add(intro);
+
+        var inlineParagraph = new Paragraph();
+        inlineParagraph.Inlines.Add(new Run("Inline tool: hosted button "));
+        inlineParagraph.Inlines.Add(new InlineUIContainer
+        {
+            Child = new Button { Content = "Inline" }
+        });
+        document.Blocks.Add(inlineParagraph);
+
+        var blockParagraph = new Paragraph();
+        blockParagraph.Inlines.Add(new Run("Block host below."));
+        document.Blocks.Add(blockParagraph);
+        document.Blocks.Add(new BlockUIContainer
+        {
+            Child = new Button { Content = "Block" }
+        });
+
+        editor.Document = document;
         return editor;
     }
 }

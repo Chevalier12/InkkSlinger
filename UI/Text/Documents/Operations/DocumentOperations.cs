@@ -164,6 +164,152 @@ public sealed class ReplaceDocumentOperation : DocumentCloneOperation
     }
 }
 
+public sealed class ReplaceParagraphOperation : IDeterministicDocumentOperation
+{
+    private readonly Paragraph _beforeParagraph;
+    private readonly Paragraph _afterParagraph;
+
+    public ReplaceParagraphOperation(
+        int paragraphIndex,
+        string beforePayload,
+        string afterPayload,
+        Paragraph beforeParagraph,
+        Paragraph afterParagraph)
+    {
+        ParagraphIndex = Math.Max(0, paragraphIndex);
+        BeforePayload = beforePayload ?? string.Empty;
+        AfterPayload = afterPayload ?? string.Empty;
+        _beforeParagraph = DocumentEditing.CloneParagraph(beforeParagraph ?? throw new ArgumentNullException(nameof(beforeParagraph)));
+        _afterParagraph = DocumentEditing.CloneParagraph(afterParagraph ?? throw new ArgumentNullException(nameof(afterParagraph)));
+    }
+
+    public int ParagraphIndex { get; }
+
+    public string TargetPath => $"Document:Paragraph@{ParagraphIndex}";
+
+    public string BeforePayload { get; }
+
+    public string AfterPayload { get; }
+
+    public void Apply(FlowDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        DocumentEditing.ReplaceParagraphAt(document, ParagraphIndex, _afterParagraph);
+    }
+
+    public void Revert(FlowDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        DocumentEditing.ReplaceParagraphAt(document, ParagraphIndex, _beforeParagraph);
+    }
+
+    public bool TryCoalesce(ReplaceParagraphOperation next, GroupingPolicy policy, out ReplaceParagraphOperation merged)
+    {
+        ArgumentNullException.ThrowIfNull(next);
+        merged = this;
+
+        if (ParagraphIndex != next.ParagraphIndex || policy == GroupingPolicy.StructuralAtomic)
+        {
+            return false;
+        }
+
+        merged = new ReplaceParagraphOperation(
+            ParagraphIndex,
+            BeforePayload,
+            next.AfterPayload,
+            _beforeParagraph,
+            next._afterParagraph);
+        return true;
+    }
+}
+
+public sealed class SplitStructuredParagraphOperation : IDeterministicDocumentOperation
+{
+    private readonly Paragraph _beforeParagraph;
+    private readonly Paragraph _currentParagraphAfterSplit;
+    private readonly Paragraph _insertedParagraph;
+
+    public SplitStructuredParagraphOperation(
+        int paragraphIndex,
+        string beforePayload,
+        string afterPayload,
+        Paragraph beforeParagraph,
+        Paragraph currentParagraphAfterSplit,
+        Paragraph insertedParagraph)
+    {
+        ParagraphIndex = Math.Max(0, paragraphIndex);
+        BeforePayload = beforePayload ?? string.Empty;
+        AfterPayload = afterPayload ?? string.Empty;
+        _beforeParagraph = DocumentEditing.CloneParagraph(beforeParagraph ?? throw new ArgumentNullException(nameof(beforeParagraph)));
+        _currentParagraphAfterSplit = DocumentEditing.CloneParagraph(currentParagraphAfterSplit ?? throw new ArgumentNullException(nameof(currentParagraphAfterSplit)));
+        _insertedParagraph = DocumentEditing.CloneParagraph(insertedParagraph ?? throw new ArgumentNullException(nameof(insertedParagraph)));
+    }
+
+    public int ParagraphIndex { get; }
+
+    public string TargetPath => $"Document:ParagraphSplit@{ParagraphIndex}";
+
+    public string BeforePayload { get; }
+
+    public string AfterPayload { get; }
+
+    public void Apply(FlowDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        DocumentEditing.SplitParagraphAt(document, ParagraphIndex, _currentParagraphAfterSplit, _insertedParagraph);
+    }
+
+    public void Revert(FlowDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        DocumentEditing.RestoreSplitParagraphAt(document, ParagraphIndex, _beforeParagraph);
+    }
+}
+
+public sealed class MergeStructuredParagraphOperation : IDeterministicDocumentOperation
+{
+    private readonly Paragraph _beforePreviousParagraph;
+    private readonly Paragraph _beforeCurrentParagraph;
+    private readonly Paragraph _mergedParagraph;
+
+    public MergeStructuredParagraphOperation(
+        int previousParagraphIndex,
+        string beforePreviousPayload,
+        string beforeCurrentPayload,
+        string afterPayload,
+        Paragraph beforePreviousParagraph,
+        Paragraph beforeCurrentParagraph,
+        Paragraph mergedParagraph)
+    {
+        PreviousParagraphIndex = Math.Max(0, previousParagraphIndex);
+        BeforePayload = $"{beforePreviousPayload ?? string.Empty}\n{beforeCurrentPayload ?? string.Empty}";
+        AfterPayload = afterPayload ?? string.Empty;
+        _beforePreviousParagraph = DocumentEditing.CloneParagraph(beforePreviousParagraph ?? throw new ArgumentNullException(nameof(beforePreviousParagraph)));
+        _beforeCurrentParagraph = DocumentEditing.CloneParagraph(beforeCurrentParagraph ?? throw new ArgumentNullException(nameof(beforeCurrentParagraph)));
+        _mergedParagraph = DocumentEditing.CloneParagraph(mergedParagraph ?? throw new ArgumentNullException(nameof(mergedParagraph)));
+    }
+
+    public int PreviousParagraphIndex { get; }
+
+    public string TargetPath => $"Document:ParagraphMerge@{PreviousParagraphIndex}";
+
+    public string BeforePayload { get; }
+
+    public string AfterPayload { get; }
+
+    public void Apply(FlowDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        DocumentEditing.RestoreSplitParagraphAt(document, PreviousParagraphIndex, _mergedParagraph);
+    }
+
+    public void Revert(FlowDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        DocumentEditing.SplitParagraphAt(document, PreviousParagraphIndex, _beforePreviousParagraph, _beforeCurrentParagraph);
+    }
+}
+
 public sealed class ApplyInlineFormatOperation : DocumentCloneOperation
 {
     public ApplyInlineFormatOperation(

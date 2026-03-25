@@ -164,10 +164,16 @@
         </Grid>
       </Border>
 
-      <ScrollViewer Grid.Column="1"
-                    VerticalScrollBarVisibility="Auto"
-                    HorizontalScrollBarVisibility="Disabled">
-        <StackPanel>
+      <Grid Grid.Column="1">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+          <StackPanel>
           <Border Background="{StaticResource DarkSurfaceBrush}"
                   BorderBrush="{StaticResource DarkBorderBrush}"
                   BorderThickness="1"
@@ -265,49 +271,72 @@
               <ComboBox x:Name="VerticalScrollComboBox" Margin="0,4,0,0" />
             </StackPanel>
           </Border>
-
-          <Border Background="{StaticResource DarkSurfaceBrush}"
-                  BorderBrush="{StaticResource DarkBorderBrush}"
-                  BorderThickness="1"
-                  CornerRadius="8"
-                  Padding="12">
-            <StackPanel>
-              <Label Content="Live status"
-                     Foreground="{StaticResource TextPrimaryBrush}"
-                     FontWeight="SemiBold" />
-              <TextBlock x:Name="DocumentStatusLabel"
-                    Text="Document metrics appear here."
-                    Foreground="{StaticResource TextSecondaryBrush}"
-                         MaxWidth="300"
-                    TextWrapping="Wrap"
-                    Margin="0,4,0,4" />
-              <TextBlock x:Name="SelectionStatusLabel"
-                    Text="Selection metrics appear here."
-                    Foreground="{StaticResource TextSecondaryBrush}"
-                         MaxWidth="300"
-                    TextWrapping="Wrap"
-                    Margin="0,0,0,4" />
-              <TextBlock x:Name="ViewportStatusLabel"
-                    Text="Viewport metrics appear here."
-                    Foreground="{StaticResource TextSecondaryBrush}"
-                         MaxWidth="300"
-                    TextWrapping="Wrap"
-                    Margin="0,0,0,4" />
-              <TextBlock x:Name="ActivityStatusLabel"
-                    Text="Last activity appears here."
-                    Foreground="{StaticResource TextSecondaryBrush}"
-                         MaxWidth="300"
-                    TextWrapping="Wrap"
-                    Margin="0,0,0,4" />
-              <TextBlock x:Name="SpellCheckStatusLabel"
-                    Text="SpellCheck surface is available; no spelling engine is attached in this parity slice."
-                    Foreground="{StaticResource TextSecondaryBrush}"
-                         MaxWidth="300"
-                    TextWrapping="Wrap" />
-            </StackPanel>
-          </Border>
         </StackPanel>
-      </ScrollViewer>
+        </ScrollViewer>
+
+        <Border Grid.Row="1"
+                Background="{StaticResource DarkSurfaceBrush}"
+                BorderBrush="{StaticResource DarkBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12"
+                Margin="0,10,0,0">
+          <StackPanel>
+            <Label Content="Live status"
+                   Foreground="{StaticResource TextPrimaryBrush}"
+                   FontWeight="SemiBold" />
+            <TextBox x:Name="DocumentStatusLabel"
+                     Text="Document metrics appear here."
+                     IsReadOnly="True"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Background="{StaticResource DarkSurfaceBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxWidth="300"
+                     TextWrapping="Wrap"
+                     Margin="0,4,0,4" />
+            <TextBox x:Name="SelectionStatusLabel"
+                     Text="Selection metrics appear here."
+                     IsReadOnly="True"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Background="{StaticResource DarkSurfaceBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxWidth="300"
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,4" />
+            <TextBox x:Name="ViewportStatusLabel"
+                     Text="Viewport metrics appear here."
+                     IsReadOnly="True"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Background="{StaticResource DarkSurfaceBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxWidth="300"
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,4" />
+            <TextBox x:Name="ActivityStatusLabel"
+                     Text="Last activity appears here."
+                     IsReadOnly="True"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Background="{StaticResource DarkSurfaceBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxWidth="300"
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,4" />
+            <TextBox x:Name="SpellCheckStatusLabel"
+                     Text="SpellCheck surface is available; no spelling engine is attached in this parity slice."
+                     IsReadOnly="True"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Background="{StaticResource DarkSurfaceBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxWidth="300"
+                     TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+      </Grid>
     </Grid>
 
     <Border Grid.Row="3"

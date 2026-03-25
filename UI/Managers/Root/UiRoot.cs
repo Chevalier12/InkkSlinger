@@ -149,6 +149,16 @@ public sealed partial class UiRoot
     private int _lastMenuScopeBuildCount;
     private int _lastOverlayRegistryScanCount;
     private int _lastOverlayRegistryHitCount;
+    private string _lastRenderInvalidationRequestedSourceType = "none";
+    private string _lastRenderInvalidationRequestedSourceName = string.Empty;
+    private string _lastRenderInvalidationEffectiveSourceType = "none";
+    private string _lastRenderInvalidationEffectiveSourceName = string.Empty;
+    private string _lastDirtyBoundsVisualType = "none";
+    private string _lastDirtyBoundsVisualName = string.Empty;
+    private bool _lastDirtyBoundsUsedHint;
+    private LayoutRect _lastDirtyBounds;
+    private bool _hasLastDirtyBounds;
+    private readonly List<string> _dirtyBoundsEventTrace = new();
     private KeyboardMenuScope _activeKeyboardMenuScope;
     private bool _hasActiveKeyboardMenuScope;
     private KeyboardMenuScope _cachedKeyboardMenuScope;
@@ -338,6 +348,30 @@ public sealed partial class UiRoot
             Shape.GetRenderCacheMissCountForTests(),
             TextLayout.GetMetricsSnapshot().CacheHitCount,
             TextLayout.GetMetricsSnapshot().CacheMissCount);
+    }
+
+    internal UiRenderInvalidationDebugSnapshot GetRenderInvalidationDebugSnapshotForTests()
+    {
+        return new UiRenderInvalidationDebugSnapshot(
+            _lastRenderInvalidationRequestedSourceType,
+            _lastRenderInvalidationRequestedSourceName,
+            _lastRenderInvalidationEffectiveSourceType,
+            _lastRenderInvalidationEffectiveSourceName,
+            _lastDirtyBoundsVisualType,
+            _lastDirtyBoundsVisualName,
+            _lastDirtyBoundsUsedHint,
+            _lastDirtyBounds,
+            _hasLastDirtyBounds);
+    }
+
+    internal IReadOnlyList<string> GetDirtyBoundsEventTraceForTests()
+    {
+        return new List<string>(_dirtyBoundsEventTrace);
+    }
+
+    internal void ClearDirtyBoundsEventTraceForTests()
+    {
+        _dirtyBoundsEventTrace.Clear();
     }
 
     internal UiRootPerformanceTelemetrySnapshot GetPerformanceTelemetrySnapshotForTests()
@@ -553,6 +587,7 @@ public sealed partial class UiRoot
         _dirtyRegions.Clear();
         ClearDirtyRenderQueue();
         ResetRetainedSyncTrackingState();
+        _dirtyBoundsEventTrace.Clear();
     }
 
     internal void SynchronizeRetainedRenderListForTests()
@@ -587,6 +622,7 @@ public sealed partial class UiRoot
 
     internal void CompleteDrawStateForTests()
     {
+        _visualRoot.ClearRenderInvalidationRecursive();
         _hasMeasureInvalidation = false;
         _hasArrangeInvalidation = false;
         _hasRenderInvalidation = false;

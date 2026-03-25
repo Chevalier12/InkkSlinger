@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -67,7 +69,7 @@ public sealed class ControlsCatalogRichTextBoxViewTests
         var payloadPreview = Assert.IsType<TextBox>(view.FindName("PayloadPreviewTextBox"));
         Assert.Contains("<Table>", payloadPreview.Text ?? string.Empty, StringComparison.Ordinal);
 
-        var activityLabel = Assert.IsType<TextBlock>(view.FindName("ActivityStatusLabel"));
+        var activityLabel = Assert.IsType<TextBox>(view.FindName("ActivityStatusLabel"));
         Assert.Contains("Exported document", activityLabel.Text, StringComparison.Ordinal);
     }
 
@@ -93,7 +95,7 @@ public sealed class ControlsCatalogRichTextBoxViewTests
         var heroSummaryLabel = Assert.IsType<TextBlock>(view.FindName("HeroSummaryLabel"));
         Assert.Contains("Preset: Longform", heroSummaryLabel.Text, StringComparison.Ordinal);
 
-        var activityLabel = Assert.IsType<TextBlock>(view.FindName("ActivityStatusLabel"));
+        var activityLabel = Assert.IsType<TextBox>(view.FindName("ActivityStatusLabel"));
         Assert.Contains("Loaded Longform preset", activityLabel.Text, StringComparison.Ordinal);
     }
 
@@ -178,16 +180,39 @@ public sealed class ControlsCatalogRichTextBoxViewTests
         editor.Select(0, 0);
 
         Assert.True(editor.HandleTextInputFromInput('a'));
-        RunLayout(uiRoot, 1360, 860);
+        WaitForDeferredEditorStatusRefresh(
+            uiRoot,
+            () =>
+            {
+                var documentStatus = Assert.IsType<TextBox>(view.FindName("DocumentStatusLabel"));
+                return documentStatus.Text?.Contains("1 chars", StringComparison.Ordinal) == true;
+            });
 
         Assert.Equal("a", DocumentEditing.GetText(editor.Document));
 
-        var documentStatusLabel = Assert.IsType<TextBlock>(view.FindName("DocumentStatusLabel"));
+        var documentStatusLabel = Assert.IsType<TextBox>(view.FindName("DocumentStatusLabel"));
         Assert.Contains("1 chars", documentStatusLabel.Text, StringComparison.Ordinal);
 
-        var selectionStatusLabel = Assert.IsType<TextBlock>(view.FindName("SelectionStatusLabel"));
+        var selectionStatusLabel = Assert.IsType<TextBox>(view.FindName("SelectionStatusLabel"));
         Assert.Contains("caret 1", selectionStatusLabel.Text, StringComparison.Ordinal);
         Assert.Contains("Selection: start 1 | length 0", selectionStatusLabel.Text, StringComparison.Ordinal);
+    }
+
+    private static void WaitForDeferredEditorStatusRefresh(UiRoot uiRoot, Func<bool> condition)
+    {
+        var deadline = Stopwatch.GetTimestamp() + (long)(Stopwatch.Frequency * 1.5d);
+        while (Stopwatch.GetTimestamp() < deadline)
+        {
+            RunLayout(uiRoot, 1360, 860);
+            if (condition())
+            {
+                return;
+            }
+
+            Thread.Sleep(25);
+        }
+
+        Assert.True(condition(), "Timed out waiting for the deferred editor status refresh.");
     }
 
     [Fact]
@@ -200,11 +225,11 @@ public sealed class ControlsCatalogRichTextBoxViewTests
         RunLayout(uiRoot, 1360, 860);
         RunLayout(uiRoot, 1360, 860);
 
-        var documentStatusLabel = Assert.IsType<TextBlock>(view.FindName("DocumentStatusLabel"));
-        var selectionStatusLabel = Assert.IsType<TextBlock>(view.FindName("SelectionStatusLabel"));
-        var viewportStatusLabel = Assert.IsType<TextBlock>(view.FindName("ViewportStatusLabel"));
-        var activityStatusLabel = Assert.IsType<TextBlock>(view.FindName("ActivityStatusLabel"));
-        var spellCheckStatusLabel = Assert.IsType<TextBlock>(view.FindName("SpellCheckStatusLabel"));
+        var documentStatusLabel = Assert.IsType<TextBox>(view.FindName("DocumentStatusLabel"));
+        var selectionStatusLabel = Assert.IsType<TextBox>(view.FindName("SelectionStatusLabel"));
+        var viewportStatusLabel = Assert.IsType<TextBox>(view.FindName("ViewportStatusLabel"));
+        var activityStatusLabel = Assert.IsType<TextBox>(view.FindName("ActivityStatusLabel"));
+        var spellCheckStatusLabel = Assert.IsType<TextBox>(view.FindName("SpellCheckStatusLabel"));
 
         Assert.Equal(TextWrapping.Wrap, documentStatusLabel.TextWrapping);
         Assert.Equal(TextWrapping.Wrap, selectionStatusLabel.TextWrapping);

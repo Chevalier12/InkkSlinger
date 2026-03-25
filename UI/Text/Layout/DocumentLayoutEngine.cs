@@ -281,15 +281,61 @@ public readonly record struct DocumentLayoutSettings(
     float TableBorderThickness);
 public sealed class DocumentLayoutEngine
 {
+    private readonly Dictionary<UIElement, HostedMeasureCacheEntry> _hostedMeasureCache = [];
+
     public DocumentLayoutResult Layout(FlowDocument document, in DocumentLayoutSettings settings)
     {
         ArgumentNullException.ThrowIfNull(document);
-        var builder = new Builder(document, settings);
+        var builder = new Builder(this, document, settings);
         return builder.Build();
+    }
+
+    private readonly record struct HostedMeasureCacheEntry(
+        float AvailableWidth,
+        Vector2 DesiredSize);
+
+    private bool TryGetCachedHostedMeasure(FrameworkElement frameworkElement, float availableWidth, out Vector2 desiredSize)
+    {
+        desiredSize = default;
+        if (!_hostedMeasureCache.TryGetValue(frameworkElement, out var entry))
+        {
+            return false;
+        }
+
+        if (!CanReuseCachedHostedMeasure(entry, availableWidth))
+        {
+            return false;
+        }
+
+        desiredSize = frameworkElement.DesiredSize;
+        return desiredSize.X > 0f || desiredSize.Y > 0f || !frameworkElement.IsVisible;
+    }
+
+    private void StoreHostedMeasure(FrameworkElement frameworkElement, float availableWidth, Vector2 desiredSize)
+    {
+        _hostedMeasureCache[frameworkElement] = new HostedMeasureCacheEntry(availableWidth, desiredSize);
+    }
+
+    private static bool AreClose(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.01f;
+    }
+
+    private static bool CanReuseCachedHostedMeasure(HostedMeasureCacheEntry entry, float availableWidth)
+    {
+        if (AreClose(entry.AvailableWidth, availableWidth))
+        {
+            return true;
+        }
+
+        return entry.DesiredSize.X > 0f &&
+               entry.AvailableWidth + 0.01f >= entry.DesiredSize.X &&
+               availableWidth + 0.01f >= entry.DesiredSize.X;
     }
 
     private sealed class Builder
     {
+        private readonly DocumentLayoutEngine _owner;
         private readonly FlowDocument _document;
         private readonly DocumentLayoutSettings _settings;
         private readonly List<DocumentLayoutLine> _lines = [];
@@ -305,8 +351,9 @@ public sealed class DocumentLayoutEngine
         private float _cursorY;
         private float _contentWidth;
 
-        public Builder(FlowDocument document, in DocumentLayoutSettings settings)
+        public Builder(DocumentLayoutEngine owner, FlowDocument document, in DocumentLayoutSettings settings)
         {
+            _owner = owner;
             _document = document;
             _settings = settings;
             _paragraphCount = CountParagraphs(document);
@@ -892,10 +939,30 @@ public sealed class DocumentLayoutEngine
         {
             if (child is FrameworkElement frameworkElement)
             {
+                if (_owner.TryGetCachedHostedMeasure(frameworkElement, availableWidth, out var cachedDesired))
+                {
+                    return new Vector2(
+                        Math.Max(1f, cachedDesired.X),
+                        Math.Max(_settings.LineHeight, cachedDesired.Y));
+                }
+
                 frameworkElement.Measure(new Vector2(Math.Max(1f, availableWidth), float.PositiveInfinity));
+                var desired = frameworkElement.DesiredSize;
+                var measureWidth = availableWidth;
+                var tightenedWidth = Math.Max(1f, desired.X);
+                if (float.IsFinite(availableWidth) &&
+                    tightenedWidth + 0.01f < availableWidth &&
+                    !AreClose(tightenedWidth, availableWidth))
+                {
+                    frameworkElement.Measure(new Vector2(tightenedWidth, float.PositiveInfinity));
+                    desired = frameworkElement.DesiredSize;
+                    measureWidth = tightenedWidth;
+                }
+
+                _owner.StoreHostedMeasure(frameworkElement, measureWidth, desired);
                 return new Vector2(
-                    Math.Max(1f, frameworkElement.DesiredSize.X),
-                    Math.Max(_settings.LineHeight, frameworkElement.DesiredSize.Y));
+                    Math.Max(1f, desired.X),
+                    Math.Max(_settings.LineHeight, desired.Y));
             }
 
             var slot = child.LayoutSlot;
@@ -1570,6 +1637,7 @@ internal static class FlowDocumentPlainTextExtensions
                 yield break;
         }
     }
+
 }
 
 

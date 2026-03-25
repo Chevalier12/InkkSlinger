@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -12,6 +13,7 @@ namespace InkkSlinger;
 public class Game1 : Game
 {
     private const int IdleThrottleSleepMilliseconds = 8;
+    private const double FpsWindowTitleRefreshIntervalSeconds = 0.1d;
     private const string BaseWindowTitle = "InkkSlinger Controls Catalog";
     private const int MaxCalendarHoverDiagnosticsFrames = 480;
     private readonly GraphicsDeviceManager _graphics;
@@ -28,6 +30,7 @@ public class Game1 : Game
     private readonly List<CalendarHoverRuntimeFrame> _calendarHoverFrames = new(MaxCalendarHoverDiagnosticsFrames);
     private bool _calendarHoverDiagnosticsSessionStarted;
     private long _lastCalendarHoverFrameTimestamp;
+    private RichTextBoxTypingDiagnosticsSession? _richTextBoxTypingDiagnostics;
 
     public Game1()
     {
@@ -62,6 +65,7 @@ public class Game1 : Game
             UseConditionalDrawScheduling = true,
             UseSoftwareCursor = false
         };
+        _richTextBoxTypingDiagnostics = RichTextBoxTypingDiagnosticsSession.TryCreate();
 
         base.Initialize();
     }
@@ -148,6 +152,8 @@ public class Game1 : Game
             {
                 CaptureCalendarHoverDiagnosticsFrame(activeCalendar);
             }
+
+            _richTextBoxTypingDiagnostics?.TryCaptureAfterDraw(gameTime, _uiRoot, _catalogView);
         }
 
         if (_uiCompositeTarget != null)
@@ -175,7 +181,7 @@ public class Game1 : Game
         double accumulatedElapsedSeconds,
         out string title)
     {
-        if (accumulatedElapsedSeconds < 1d)
+        if (accumulatedElapsedSeconds < FpsWindowTitleRefreshIntervalSeconds)
         {
             title = baseTitle;
             return false;
@@ -194,6 +200,8 @@ public class Game1 : Game
         _window.NativeWindow.TextInput -= OnTextInput;
         _windowThemeBinding?.Dispose();
         _windowThemeBinding = null;
+        _richTextBoxTypingDiagnostics?.Dispose();
+        _richTextBoxTypingDiagnostics = null;
 
         _uiCompositeTarget?.Dispose();
         _uiCompositeTarget = null;
@@ -205,6 +213,7 @@ public class Game1 : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
+        _richTextBoxTypingDiagnostics?.TryCaptureBeforeInput(args.Character, _uiRoot, _catalogView);
         _uiRoot.EnqueueTextInput(args.Character);
     }
 
@@ -566,6 +575,29 @@ public class Game1 : Game
         return true;
     }
 
+    private static bool TryGetActiveRichTextBoxContext(
+        ControlsCatalogView? catalogView,
+        out RichTextBoxView view,
+        out RichTextBox editor)
+    {
+        view = null!;
+        editor = null!;
+        if (catalogView?.FindName("PreviewHost") is not ContentControl previewHost ||
+            previewHost.Content is not RichTextBoxView richTextBoxView)
+        {
+            return false;
+        }
+
+        if (richTextBoxView.FindName("Editor") is not RichTextBox richTextBox)
+        {
+            return false;
+        }
+
+        view = richTextBoxView;
+        editor = richTextBox;
+        return true;
+    }
+
     private static TElement? FindFirstVisualChild<TElement>(UIElement root)
         where TElement : UIElement
     {
@@ -743,4 +775,203 @@ public class Game1 : Game
         int RetainedTraversalCount,
         int DirtyRegionTraversalCount,
         int CalendarDayButtonCount);
+
+    private sealed class RichTextBoxTypingDiagnosticsSession : IDisposable
+    {
+        private const string DefaultLogRelativePath = "artifacts/diagnostics/controls-catalog-richtextbox-embedded-ui-manual-hotspot.txt";
+        private readonly string _logPath;
+        private readonly StreamWriter _writer;
+        private readonly Queue<PendingTypingSample> _pendingSamples = new();
+        private int _sampleIndex;
+        private long _lastFrameTimestamp;
+
+        private RichTextBoxTypingDiagnosticsSession(string logPath)
+        {
+            _logPath = Path.GetFullPath(logPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(_logPath)!);
+            _writer = new StreamWriter(_logPath, append: false, Encoding.UTF8)
+            {
+                AutoFlush = true
+            };
+
+            _writer.WriteLine($"scenario=Controls Catalog RichTextBox embedded UI manual typing draw hotspot diagnostics");
+            _writer.WriteLine($"timestamp_utc={DateTime.UtcNow:O}");
+            _writer.WriteLine($"log_path={_logPath}");
+            _writer.WriteLine("step_1=open Controls Catalog");
+            _writer.WriteLine("step_2=click RichTextBox button in sidebar");
+            _writer.WriteLine("step_3=click Embedded UI preset button");
+            _writer.WriteLine("step_4=click inside RichTextBox editor");
+            _writer.WriteLine("step_5=type one character at a time and let each frame render");
+            _writer.WriteLine();
+            _writer.WriteLine("samples:");
+        }
+
+        public static RichTextBoxTypingDiagnosticsSession? TryCreate()
+        {
+            var enabled = Environment.GetEnvironmentVariable("INKKSLINGER_RICHTEXTBOX_DIAGNOSTICS");
+            var logPath = Environment.GetEnvironmentVariable("INKKSLINGER_RICHTEXTBOX_DIAGNOSTICS_LOG");
+            if (!string.Equals(enabled, "1", StringComparison.Ordinal) &&
+                string.IsNullOrWhiteSpace(logPath))
+            {
+                return null;
+            }
+
+            return new RichTextBoxTypingDiagnosticsSession(
+                string.IsNullOrWhiteSpace(logPath)
+                    ? Path.Combine(Environment.CurrentDirectory, DefaultLogRelativePath)
+                    : logPath);
+        }
+
+        public void TryCaptureBeforeInput(char character, UiRoot uiRoot, ControlsCatalogView? catalogView)
+        {
+            if (!TryGetActiveRichTextBoxContext(catalogView, out var view, out var editor))
+            {
+                return;
+            }
+
+            if (!editor.IsFocused)
+            {
+                return;
+            }
+
+            var documentText = DocumentEditing.GetText(editor.Document);
+            var hasHostedUi = documentText.Contains('\uFFFC');
+            if (!hasHostedUi)
+            {
+                return;
+            }
+
+            _pendingSamples.Enqueue(
+                new PendingTypingSample(
+                    character,
+                    _sampleIndex++,
+                    Stopwatch.GetTimestamp(),
+                    documentText.Length,
+                    editor.CaretIndex,
+                    editor.GetPerformanceSnapshot(),
+                    view.GetDiagnosticsSnapshotForTests(),
+                    uiRoot.GetPerformanceTelemetrySnapshotForTests(),
+                    uiRoot.GetRenderTelemetrySnapshotForTests(),
+                    UiTextRenderer.GetTimingSnapshotForTests(),
+                    UIElement.GetRenderTimingSnapshotForTests(),
+                    Button.GetTimingSnapshotForTests(),
+                    TextLayout.GetMetricsSnapshot()));
+        }
+
+        public void TryCaptureAfterDraw(GameTime gameTime, UiRoot uiRoot, ControlsCatalogView? catalogView)
+        {
+            if (_pendingSamples.Count == 0)
+            {
+                return;
+            }
+
+            if (!TryGetActiveRichTextBoxContext(catalogView, out var view, out var editor))
+            {
+                _pendingSamples.Dequeue();
+                return;
+            }
+
+            var pending = _pendingSamples.Dequeue();
+            var now = Stopwatch.GetTimestamp();
+            var fps = _lastFrameTimestamp == 0
+                ? 0d
+                : (double)Stopwatch.Frequency / Math.Max(1L, now - _lastFrameTimestamp);
+            _lastFrameTimestamp = now;
+
+            var afterEditor = editor.GetPerformanceSnapshot();
+            var afterView = view.GetDiagnosticsSnapshotForTests();
+            var afterPerf = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+            var afterRender = uiRoot.GetRenderTelemetrySnapshotForTests();
+            var afterText = UiTextRenderer.GetTimingSnapshotForTests();
+            var afterElementRender = UIElement.GetRenderTimingSnapshotForTests();
+            var afterButton = Button.GetTimingSnapshotForTests();
+            var afterTextLayout = TextLayout.GetMetricsSnapshot();
+
+            _writer.WriteLine(
+                $"sample={pending.Index:000} char={EscapeChar(pending.Character)} fps={fps:0.###} " +
+                $"elapsed_since_key_ms={TicksToMilliseconds(now - pending.TimestampTicks):0.###} gameElapsedMs={gameTime.ElapsedGameTime.TotalMilliseconds:0.###} " +
+                $"textLenBefore={pending.TextLengthBefore} textLenAfter={DocumentEditing.GetText(editor.Document).Length} caretBefore={pending.CaretIndexBefore} caretAfter={editor.CaretIndex} " +
+                $"uiUpdateMs={uiRoot.LastUpdateMs:0.###} uiDrawMs={uiRoot.LastDrawMs:0.###} " +
+                $"bindingMs={afterPerf.BindingPhaseMilliseconds:0.###} " +
+                $"layoutMs={afterPerf.LayoutPhaseMilliseconds:0.###} " +
+                $"renderScheduleMs={afterPerf.RenderSchedulingPhaseMilliseconds:0.###} " +
+                $"frameworkMeasureWorkMs={afterPerf.LayoutMeasureWorkMilliseconds:0.###} " +
+                $"frameworkArrangeWorkMs={afterPerf.LayoutArrangeWorkMilliseconds:0.###} " +
+                $"dirtyRoots={afterRender.DirtyRootCount} " +
+                $"retainedTraversals={afterRender.RetainedTraversalCount} " +
+                $"retainedDrawn={afterRender.RetainedNodesDrawn} " +
+                $"textDrawMs={TicksToMilliseconds(afterText.DrawStringElapsedTicks - pending.TextBefore.DrawStringElapsedTicks):0.###} " +
+                $"textDrawCalls={afterText.DrawStringCallCount - pending.TextBefore.DrawStringCallCount} " +
+                $"textMeasureMs={TicksToMilliseconds(afterText.MeasureWidthElapsedTicks - pending.TextBefore.MeasureWidthElapsedTicks):0.###} " +
+                $"textMeasureCalls={afterText.MeasureWidthCallCount - pending.TextBefore.MeasureWidthCallCount} " +
+                $"textLayoutMs={TicksToMilliseconds(afterTextLayout.LayoutElapsedTicks - pending.TextLayoutBefore.LayoutElapsedTicks):0.###} " +
+                $"textLayoutBuildMs={TicksToMilliseconds(afterTextLayout.BuildElapsedTicks - pending.TextLayoutBefore.BuildElapsedTicks):0.###} " +
+                $"textLayoutBuilds={afterTextLayout.BuildCount - pending.TextLayoutBefore.BuildCount} " +
+                $"textLayoutMisses={afterTextLayout.CacheMissCount - pending.TextLayoutBefore.CacheMissCount} " +
+                $"uiElementRenderMs={TicksToMilliseconds(afterElementRender.RenderSelfElapsedTicks - pending.ElementRenderBefore.RenderSelfElapsedTicks):0.###} " +
+                $"uiElementRenderCalls={afterElementRender.RenderSelfCallCount - pending.ElementRenderBefore.RenderSelfCallCount} " +
+                $"buttonRenderMs={TicksToMilliseconds(afterButton.RenderElapsedTicks - pending.ButtonBefore.RenderElapsedTicks):0.###} " +
+                $"buttonChromeMs={TicksToMilliseconds(afterButton.RenderChromeElapsedTicks - pending.ButtonBefore.RenderChromeElapsedTicks):0.###} " +
+                $"buttonTextPrepMs={TicksToMilliseconds(afterButton.RenderTextPreparationElapsedTicks - pending.ButtonBefore.RenderTextPreparationElapsedTicks):0.###} " +
+                $"buttonTextDrawMs={TicksToMilliseconds(afterButton.RenderTextDrawDispatchElapsedTicks - pending.ButtonBefore.RenderTextDrawDispatchElapsedTicks):0.###} " +
+                $"buttonTextPrepCalls={afterButton.RenderTextPreparationCallCount - pending.ButtonBefore.RenderTextPreparationCallCount} " +
+                $"refreshEditorUiMs={afterView.RefreshEditorUiStateTotalMilliseconds - pending.ViewBefore.RefreshEditorUiStateTotalMilliseconds:0.###} " +
+                $"documentStatsMs={afterView.DocumentStatsTotalMilliseconds - pending.ViewBefore.DocumentStatsTotalMilliseconds:0.###} " +
+                $"updateStatusLabelsMs={afterView.UpdateStatusLabelsTotalMilliseconds - pending.ViewBefore.UpdateStatusLabelsTotalMilliseconds:0.###} " +
+                $"editorEditMs={afterEditor.LastEditMilliseconds:0.###} " +
+                $"editorRenderMs={afterEditor.LastRenderMilliseconds:0.###} " +
+                $"editorRenderLayoutResolveMs={afterEditor.LastRenderLayoutResolveMilliseconds:0.###} " +
+                $"editorRenderSelectionMs={afterEditor.LastRenderSelectionMilliseconds:0.###} " +
+                $"editorRenderRunsMs={afterEditor.LastRenderRunsMilliseconds:0.###} " +
+                $"editorRenderRunCount={afterEditor.LastRenderRunCount} " +
+                $"editorRenderRunChars={afterEditor.LastRenderRunCharacterCount} " +
+                $"editorRenderTableBordersMs={afterEditor.LastRenderTableBordersMilliseconds:0.###} " +
+                $"editorRenderCaretMs={afterEditor.LastRenderCaretMilliseconds:0.###} " +
+                $"editorRenderHostedLayoutMs={afterEditor.LastRenderHostedLayoutMilliseconds:0.###} " +
+                $"editorRenderHostedDrawMs={afterEditor.LastRenderHostedChildrenDrawMilliseconds:0.###} " +
+                $"editorRenderHostedDrawCount={afterEditor.LastRenderHostedChildrenDrawCount} " +
+                $"editorLayoutMisses={afterEditor.LayoutCacheMissCount - pending.EditorBefore.LayoutCacheMissCount} " +
+                $"editorLayoutBuilds={afterEditor.LayoutBuildSampleCount - pending.EditorBefore.LayoutBuildSampleCount} " +
+                $"hottestTextDraw={afterText.HottestDrawStringText}|{afterText.HottestDrawStringTypography}:{afterText.HottestDrawStringMilliseconds:0.###} " +
+                $"hottestUiElement={afterElementRender.HottestRenderSelfType}({afterElementRender.HottestRenderSelfName}):{afterElementRender.HottestRenderSelfMilliseconds:0.###} " +
+                $"hottestLayoutMeasure={afterPerf.HottestLayoutMeasureElementType}({afterPerf.HottestLayoutMeasureElementName}):{afterPerf.HottestLayoutMeasureElementMilliseconds:0.###}");
+        }
+
+        public void Dispose()
+        {
+            _writer.Dispose();
+        }
+
+        private static string EscapeChar(char value)
+        {
+            return value switch
+            {
+                '\r' => "\\r",
+                '\n' => "\\n",
+                '\t' => "\\t",
+                ' ' => "<space>",
+                _ => value.ToString()
+            };
+        }
+
+        private static double TicksToMilliseconds(long ticks)
+        {
+            return (double)ticks * 1000d / Stopwatch.Frequency;
+        }
+
+        private readonly record struct PendingTypingSample(
+            char Character,
+            int Index,
+            long TimestampTicks,
+            int TextLengthBefore,
+            int CaretIndexBefore,
+            RichTextBoxPerformanceSnapshot EditorBefore,
+            RichTextBoxView.RichTextBoxViewDiagnosticsSnapshot ViewBefore,
+            UiRootPerformanceTelemetrySnapshot RootPerfBefore,
+            UiRenderTelemetrySnapshot RenderBefore,
+            UiTextRendererTimingSnapshot TextBefore,
+            UIElementRenderTimingSnapshot ElementRenderBefore,
+            ButtonTimingSnapshot ButtonBefore,
+            TextLayout.TextLayoutMetricsSnapshot TextLayoutBefore);
+    }
 }

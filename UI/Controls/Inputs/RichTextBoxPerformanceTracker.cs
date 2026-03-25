@@ -16,6 +16,16 @@ internal sealed class RichTextBoxPerformanceTracker
     private double _renderTotalMs;
     private double _renderLastMs;
     private double _renderMaxMs;
+    private double _renderLayoutResolveLastMs;
+    private double _renderSelectionLastMs;
+    private double _renderRunsLastMs;
+    private int _renderRunCountLast;
+    private int _renderRunCharacterCountLast;
+    private double _renderTableBordersLastMs;
+    private double _renderCaretLastMs;
+    private double _renderHostedLayoutLastMs;
+    private double _renderHostedChildrenDrawLastMs;
+    private int _renderHostedChildrenDrawCountLast;
     private int _selectionGeometrySampleCount;
     private double _selectionGeometryTotalMs;
     private double _selectionGeometryLastMs;
@@ -32,6 +42,14 @@ internal sealed class RichTextBoxPerformanceTracker
     private double _editTotalMs;
     private double _editLastMs;
     private double _editMaxMs;
+    private int _structuredEnterSampleCount;
+    private double _structuredEnterLastParagraphEntryCollectionMs;
+    private double _structuredEnterLastCloneDocumentMs;
+    private double _structuredEnterLastParagraphEnumerationMs;
+    private double _structuredEnterLastPrepareParagraphsMs;
+    private double _structuredEnterLastCommitMs;
+    private double _structuredEnterLastTotalMs;
+    private bool _structuredEnterLastUsedDocumentReplacement;
 
     public RichTextBoxPerformanceSnapshot GetSnapshot(DocumentUndoManager undoManager)
     {
@@ -47,6 +65,16 @@ internal sealed class RichTextBoxPerformanceTracker
             _renderLastMs,
             Average(_renderTotalMs, _renderSampleCount),
             _renderMaxMs,
+            _renderLayoutResolveLastMs,
+            _renderSelectionLastMs,
+            _renderRunsLastMs,
+            _renderRunCountLast,
+            _renderRunCharacterCountLast,
+            _renderTableBordersLastMs,
+            _renderCaretLastMs,
+            _renderHostedLayoutLastMs,
+            _renderHostedChildrenDrawLastMs,
+            _renderHostedChildrenDrawCountLast,
             _selectionGeometrySampleCount,
             _selectionGeometryLastMs,
             Average(_selectionGeometryTotalMs, _selectionGeometrySampleCount),
@@ -63,6 +91,14 @@ internal sealed class RichTextBoxPerformanceTracker
             _editLastMs,
             Average(_editTotalMs, _editSampleCount),
             _editMaxMs,
+            _structuredEnterSampleCount,
+            _structuredEnterLastParagraphEntryCollectionMs,
+            _structuredEnterLastCloneDocumentMs,
+            _structuredEnterLastParagraphEnumerationMs,
+            _structuredEnterLastPrepareParagraphsMs,
+            _structuredEnterLastCommitMs,
+            _structuredEnterLastTotalMs,
+            _structuredEnterLastUsedDocumentReplacement,
             undoManager.UndoDepth,
             undoManager.RedoDepth,
             undoManager.UndoOperationCount,
@@ -81,6 +117,16 @@ internal sealed class RichTextBoxPerformanceTracker
         _renderTotalMs = 0d;
         _renderLastMs = 0d;
         _renderMaxMs = 0d;
+        _renderLayoutResolveLastMs = 0d;
+        _renderSelectionLastMs = 0d;
+        _renderRunsLastMs = 0d;
+        _renderRunCountLast = 0;
+        _renderRunCharacterCountLast = 0;
+        _renderTableBordersLastMs = 0d;
+        _renderCaretLastMs = 0d;
+        _renderHostedLayoutLastMs = 0d;
+        _renderHostedChildrenDrawLastMs = 0d;
+        _renderHostedChildrenDrawCountLast = 0;
         _selectionGeometrySampleCount = 0;
         _selectionGeometryTotalMs = 0d;
         _selectionGeometryLastMs = 0d;
@@ -97,6 +143,14 @@ internal sealed class RichTextBoxPerformanceTracker
         _editTotalMs = 0d;
         _editLastMs = 0d;
         _editMaxMs = 0d;
+        _structuredEnterSampleCount = 0;
+        _structuredEnterLastParagraphEntryCollectionMs = 0d;
+        _structuredEnterLastCloneDocumentMs = 0d;
+        _structuredEnterLastParagraphEnumerationMs = 0d;
+        _structuredEnterLastPrepareParagraphsMs = 0d;
+        _structuredEnterLastCommitMs = 0d;
+        _structuredEnterLastTotalMs = 0d;
+        _structuredEnterLastUsedDocumentReplacement = false;
     }
 
     public void RecordLayoutCacheHit() => _layoutCacheHitCount++;
@@ -119,6 +173,30 @@ internal sealed class RichTextBoxPerformanceTracker
         _renderTotalMs += bounded;
         _renderLastMs = bounded;
         _renderMaxMs = Math.Max(_renderMaxMs, bounded);
+    }
+
+    public void RecordRenderBreakdown(
+        double layoutResolveMs,
+        double selectionMs,
+        double runsMs,
+        int runCount,
+        int runCharacterCount,
+        double tableBordersMs,
+        double caretMs,
+        double hostedLayoutMs,
+        double hostedChildrenDrawMs,
+        int hostedChildrenDrawCount)
+    {
+        _renderLayoutResolveLastMs = Math.Max(0d, layoutResolveMs);
+        _renderSelectionLastMs = Math.Max(0d, selectionMs);
+        _renderRunsLastMs = Math.Max(0d, runsMs);
+        _renderRunCountLast = Math.Max(0, runCount);
+        _renderRunCharacterCountLast = Math.Max(0, runCharacterCount);
+        _renderTableBordersLastMs = Math.Max(0d, tableBordersMs);
+        _renderCaretLastMs = Math.Max(0d, caretMs);
+        _renderHostedLayoutLastMs = Math.Max(0d, hostedLayoutMs);
+        _renderHostedChildrenDrawLastMs = Math.Max(0d, hostedChildrenDrawMs);
+        _renderHostedChildrenDrawCountLast = Math.Max(0, hostedChildrenDrawCount);
     }
 
     public void RecordSelectionGeometry(double elapsedMs)
@@ -155,6 +233,25 @@ internal sealed class RichTextBoxPerformanceTracker
         _editTotalMs += bounded;
         _editLastMs = bounded;
         _editMaxMs = Math.Max(_editMaxMs, bounded);
+    }
+
+    public void RecordStructuredEnter(
+        double paragraphEntryCollectionMs,
+        double cloneDocumentMs,
+        double paragraphEnumerationMs,
+        double prepareParagraphsMs,
+        double commitMs,
+        double totalMs,
+        bool usedDocumentReplacement)
+    {
+        _structuredEnterSampleCount++;
+        _structuredEnterLastParagraphEntryCollectionMs = Math.Max(0d, paragraphEntryCollectionMs);
+        _structuredEnterLastCloneDocumentMs = Math.Max(0d, cloneDocumentMs);
+        _structuredEnterLastParagraphEnumerationMs = Math.Max(0d, paragraphEnumerationMs);
+        _structuredEnterLastPrepareParagraphsMs = Math.Max(0d, prepareParagraphsMs);
+        _structuredEnterLastCommitMs = Math.Max(0d, commitMs);
+        _structuredEnterLastTotalMs = Math.Max(0d, totalMs);
+        _structuredEnterLastUsedDocumentReplacement = usedDocumentReplacement;
     }
 
     private static void AppendSample(List<double> samples, double value)

@@ -172,8 +172,16 @@ public sealed partial class UiRoot
 
     private void TrackDirtyBoundsForVisual(UIElement? visual)
     {
+        _lastDirtyBoundsVisualType = visual?.GetType().Name ?? "none";
+        _lastDirtyBoundsVisualName = visual is FrameworkElement frameworkElement
+            ? frameworkElement.Name
+            : string.Empty;
+        _lastDirtyBoundsUsedHint = false;
+        _hasLastDirtyBounds = false;
+        _dirtyBoundsEventTrace.Add($"{_lastDirtyBoundsVisualType}#{_lastDirtyBoundsVisualName}:begin");
         if (visual == null || !IsPartOfVisualTree(visual))
         {
+            _dirtyBoundsEventTrace.Add($"{_lastDirtyBoundsVisualType}#{_lastDirtyBoundsVisualName}:detached");
             MarkFullFrameDirty(UiFullDirtyReason.DetachedVisual);
             return;
         }
@@ -181,6 +189,10 @@ public sealed partial class UiRoot
         if (visual is IRenderDirtyBoundsHintProvider dirtyHintProvider &&
             dirtyHintProvider.TryConsumeRenderDirtyBoundsHint(out var hintedBounds))
         {
+            _lastDirtyBoundsUsedHint = true;
+            _lastDirtyBounds = hintedBounds;
+            _hasLastDirtyBounds = true;
+            _dirtyBoundsEventTrace.Add($"{_lastDirtyBoundsVisualType}#{_lastDirtyBoundsVisualName}:hint:{hintedBounds.X:0.##},{hintedBounds.Y:0.##},{hintedBounds.Width:0.##},{hintedBounds.Height:0.##}");
             _dirtyRegions.AddDirtyRegion(hintedBounds);
             return;
         }
@@ -195,6 +207,21 @@ public sealed partial class UiRoot
         }
 
         var hasNewBounds = visual.TryGetRenderBoundsInRootSpace(out var newBounds);
+        if (hasNewBounds)
+        {
+            _lastDirtyBounds = newBounds;
+            _hasLastDirtyBounds = true;
+        }
+        else if (hasOldBounds)
+        {
+            _lastDirtyBounds = oldBounds;
+            _hasLastDirtyBounds = true;
+        }
+        _dirtyBoundsEventTrace.Add(
+            $"{_lastDirtyBoundsVisualType}#{_lastDirtyBoundsVisualName}:bounds:" +
+            $"{(hasOldBounds ? $"{oldBounds.X:0.##},{oldBounds.Y:0.##},{oldBounds.Width:0.##},{oldBounds.Height:0.##}" : "none")}" +
+            "->" +
+            $"{(hasNewBounds ? $"{newBounds.X:0.##},{newBounds.Y:0.##},{newBounds.Width:0.##},{newBounds.Height:0.##}" : "none")}");
         AddDirtyBounds(hasOldBounds, oldBounds, hasNewBounds, newBounds);
     }
 

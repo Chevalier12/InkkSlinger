@@ -103,6 +103,17 @@ internal readonly record struct UiRenderTelemetrySnapshot(
     int TextLayoutCacheHitCount,
     int TextLayoutCacheMissCount);
 
+internal readonly record struct UiRenderInvalidationDebugSnapshot(
+    string RequestedSourceType,
+    string RequestedSourceName,
+    string EffectiveSourceType,
+    string EffectiveSourceName,
+    string DirtyBoundsVisualType,
+    string DirtyBoundsVisualName,
+    bool DirtyBoundsUsedHint,
+    LayoutRect DirtyBounds,
+    bool HasDirtyBounds);
+
 internal readonly record struct UiRootPerformanceTelemetrySnapshot(
     double InputPhaseMilliseconds,
     double BindingPhaseMilliseconds,
