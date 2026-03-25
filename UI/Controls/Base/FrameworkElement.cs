@@ -668,6 +668,18 @@ public class FrameworkElement : UIElement
         base.InvalidateVisual();
     }
 
+    internal void InvalidateArrangeForDirectLayoutOnly(bool invalidateRender = true)
+    {
+        _isArrangeValid = false;
+        if (invalidateRender)
+        {
+            PrepareArrangeForDirectLayoutOnly();
+            return;
+        }
+
+        PrepareArrangeForDirectLayoutWithoutRenderInvalidation();
+    }
+
     public void UpdateLayout()
     {
         Dispatcher.VerifyAccess();

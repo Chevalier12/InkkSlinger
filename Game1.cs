@@ -31,6 +31,7 @@ public class Game1 : Game
     private bool _calendarHoverDiagnosticsSessionStarted;
     private long _lastCalendarHoverFrameTimestamp;
     private RichTextBoxTypingDiagnosticsSession? _richTextBoxTypingDiagnostics;
+    private ControlsCatalogSidebarScrollRuntimeDiagnosticsSession? _sidebarScrollRuntimeDiagnostics;
 
     public Game1()
     {
@@ -66,6 +67,7 @@ public class Game1 : Game
             UseSoftwareCursor = false
         };
         _richTextBoxTypingDiagnostics = RichTextBoxTypingDiagnosticsSession.TryCreate();
+        _sidebarScrollRuntimeDiagnostics = ControlsCatalogSidebarScrollRuntimeDiagnosticsSession.CreateDefault();
 
         base.Initialize();
     }
@@ -144,6 +146,7 @@ public class Game1 : Game
                 EnsureCalendarHoverDiagnosticsSessionStarted();
             }
 
+            _sidebarScrollRuntimeDiagnostics?.TryCaptureBeforeDraw(gameTime, _uiRoot, _catalogView);
             GraphicsDevice.SetRenderTarget(_uiCompositeTarget);
             _uiRoot.Draw(_spriteBatch, gameTime);
             GraphicsDevice.SetRenderTarget(null);
@@ -154,6 +157,7 @@ public class Game1 : Game
             }
 
             _richTextBoxTypingDiagnostics?.TryCaptureAfterDraw(gameTime, _uiRoot, _catalogView);
+            _sidebarScrollRuntimeDiagnostics?.TryCaptureAfterDraw(gameTime, _uiRoot, _catalogView);
         }
 
         if (_uiCompositeTarget != null)
@@ -202,6 +206,8 @@ public class Game1 : Game
         _windowThemeBinding = null;
         _richTextBoxTypingDiagnostics?.Dispose();
         _richTextBoxTypingDiagnostics = null;
+        _sidebarScrollRuntimeDiagnostics?.Dispose();
+        _sidebarScrollRuntimeDiagnostics = null;
 
         _uiCompositeTarget?.Dispose();
         _uiCompositeTarget = null;
@@ -973,5 +979,183 @@ public class Game1 : Game
             UIElementRenderTimingSnapshot ElementRenderBefore,
             ButtonTimingSnapshot ButtonBefore,
             TextLayout.TextLayoutMetricsSnapshot TextLayoutBefore);
+    }
+
+    private sealed class ControlsCatalogSidebarScrollRuntimeDiagnosticsSession : IDisposable
+    {
+        private const string DefaultLogRelativePath = "artifacts/diagnostics/controls-catalog-sidebar-scroll-manual-runtime-hotspot.txt";
+        private const int MaxLoggedFrames = 2400;
+        private readonly string _logPath;
+        private readonly StreamWriter _writer;
+        private int _frameIndex;
+        private long _lastFrameTimestamp;
+        private PendingSidebarDrawSample? _pendingSample;
+
+        private ControlsCatalogSidebarScrollRuntimeDiagnosticsSession(string logPath)
+        {
+            _logPath = Path.GetFullPath(logPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(_logPath)!);
+            _writer = new StreamWriter(_logPath, append: false, Encoding.UTF8)
+            {
+                AutoFlush = true
+            };
+
+            _writer.WriteLine("scenario=Controls Catalog sidebar scroll live runtime draw diagnostics");
+            _writer.WriteLine($"timestamp_utc={DateTime.UtcNow:O}");
+            _writer.WriteLine($"log_path={_logPath}");
+            _writer.WriteLine("step_1=open the app");
+            _writer.WriteLine("step_2=open Controls Catalog");
+            _writer.WriteLine("step_3=hover the sidebar vertical scrollbar");
+            _writer.WriteLine("step_4=scroll in the sidebar with and without ProgressBar view open");
+            _writer.WriteLine("step_5=close the app and inspect this log");
+            _writer.WriteLine();
+            _writer.WriteLine("frames:");
+        }
+
+        public static ControlsCatalogSidebarScrollRuntimeDiagnosticsSession CreateDefault()
+        {
+            return new ControlsCatalogSidebarScrollRuntimeDiagnosticsSession(
+                Path.Combine(Environment.CurrentDirectory, DefaultLogRelativePath));
+        }
+
+        public void TryCaptureBeforeDraw(GameTime gameTime, UiRoot uiRoot, ControlsCatalogView? catalogView)
+        {
+            if (_frameIndex >= MaxLoggedFrames ||
+                catalogView == null)
+            {
+                _pendingSample = null;
+                return;
+            }
+
+            var hovered = uiRoot.GetHoveredElementForDiagnostics();
+            var pointer = uiRoot.GetLastPointerPositionForDiagnostics();
+            var hoveredPath = BuildTypePath(hovered);
+            var selectedControl = catalogView.SelectedControlName;
+            var sidebarScrollViewer = FindSidebarScrollViewer(catalogView);
+            var hoveredScrollBar = FindAncestorOrSelf<ScrollBar>(hovered);
+            var isHoveredSidebarVerticalScrollBar =
+                hoveredScrollBar != null &&
+                hoveredScrollBar.Orientation == Orientation.Vertical &&
+                sidebarScrollViewer != null &&
+                IsDescendantOf(hoveredScrollBar, sidebarScrollViewer);
+
+            _pendingSample = new PendingSidebarDrawSample(
+                _frameIndex++,
+                gameTime.ElapsedGameTime.TotalMilliseconds,
+                selectedControl,
+                hovered?.GetType().Name ?? "null",
+                hoveredPath,
+                pointer,
+                isHoveredSidebarVerticalScrollBar,
+                uiRoot.GetPerformanceTelemetrySnapshotForTests(),
+                uiRoot.GetRenderTelemetrySnapshotForTests(),
+                UiTextRenderer.GetTimingSnapshotForTests(),
+                UIElement.GetRenderTimingSnapshotForTests(),
+                Button.GetTimingSnapshotForTests(),
+                TextLayout.GetMetricsSnapshot());
+        }
+
+        public void TryCaptureAfterDraw(GameTime gameTime, UiRoot uiRoot, ControlsCatalogView? catalogView)
+        {
+            if (_pendingSample == null || catalogView == null)
+            {
+                ScrollViewer.GetScrollMetricsAndReset();
+                return;
+            }
+
+            var pending = _pendingSample.Value;
+            _pendingSample = null;
+
+            var scroll = ScrollViewer.GetScrollMetricsAndReset();
+            var now = Stopwatch.GetTimestamp();
+            var fps = _lastFrameTimestamp == 0
+                ? 0d
+                : (double)Stopwatch.Frequency / Math.Max(1L, now - _lastFrameTimestamp);
+            _lastFrameTimestamp = now;
+
+            var perf = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+            var render = uiRoot.GetRenderTelemetrySnapshotForTests();
+            var text = UiTextRenderer.GetTimingSnapshotForTests();
+            var elementRender = UIElement.GetRenderTimingSnapshotForTests();
+            var button = Button.GetTimingSnapshotForTests();
+            var textLayout = TextLayout.GetMetricsSnapshot();
+            var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+
+            var previewRoot = catalogView.FindName("PreviewHost") as ContentControl;
+            var previewType = (previewRoot?.Content as UIElement)?.GetType().Name ?? "null";
+
+            _writer.WriteLine(
+                $"frame={pending.FrameIndex:0000} selected={pending.SelectedControlName} preview={previewType} fps={fps:0.###} drawMs={uiRoot.LastDrawMs:0.###} updateMs={uiRoot.LastUpdateMs:0.###} gameElapsedMs={gameTime.ElapsedGameTime.TotalMilliseconds:0.###} " +
+                $"pointer=({pending.PointerPosition.X:0.#},{pending.PointerPosition.Y:0.#}) hovered={pending.HoveredType} hoveredPath={pending.HoveredPath} hoveredSidebarVBar={pending.HoveredSidebarVerticalScrollBar} " +
+                $"wheelEvents={scroll.WheelEvents} wheelHandled={scroll.WheelHandled} setOffsetCalls={scroll.SetOffsetCalls} setOffsetNoOps={scroll.SetOffsetNoOpCalls} verticalDelta={scroll.TotalVerticalDelta:0.###} " +
+                $"inputMs={perf.InputPhaseMilliseconds:0.###} layoutMs={perf.LayoutPhaseMilliseconds:0.###} animationMs={perf.AnimationPhaseMilliseconds:0.###} renderScheduleMs={perf.RenderSchedulingPhaseMilliseconds:0.###} frameParticipants={perf.FrameUpdateParticipantCount} frameParticipantMs={perf.FrameUpdateParticipantUpdateMilliseconds:0.###} hottestParticipant={perf.HottestFrameUpdateParticipantType}:{perf.HottestFrameUpdateParticipantMilliseconds:0.###} " +
+                $"dirtyRoots={render.DirtyRootCount} dirtyFallbacks={render.DirtyRegionThresholdFallbackCount} spriteBatchRestarts={render.SpriteBatchRestartCount} clipPushes={render.ClipPushCount} retainedVisited={render.RetainedNodesVisited} retainedDrawn={render.RetainedNodesDrawn} retainedTraversals={render.RetainedTraversalCount} dirtyTraversals={render.DirtyRegionTraversalCount} " +
+                $"effectiveRenderSource={invalidation.EffectiveSourceType}#{invalidation.EffectiveSourceName} dirtyBoundsVisual={invalidation.DirtyBoundsVisualType}#{invalidation.DirtyBoundsVisualName} dirtyBoundsHint={invalidation.DirtyBoundsUsedHint} " +
+                $"textDrawMs={TicksToMilliseconds(text.DrawStringElapsedTicks - pending.TextBefore.DrawStringElapsedTicks):0.###} textDrawCalls={text.DrawStringCallCount - pending.TextBefore.DrawStringCallCount} textMeasureMs={TicksToMilliseconds(text.MeasureWidthElapsedTicks - pending.TextBefore.MeasureWidthElapsedTicks):0.###} textMeasureCalls={text.MeasureWidthCallCount - pending.TextBefore.MeasureWidthCallCount} lineHeightMs={TicksToMilliseconds(text.GetLineHeightElapsedTicks - pending.TextBefore.GetLineHeightElapsedTicks):0.###} lineHeightCalls={text.GetLineHeightCallCount - pending.TextBefore.GetLineHeightCallCount} " +
+                $"textLayoutMs={TicksToMilliseconds(textLayout.LayoutElapsedTicks - pending.TextLayoutBefore.LayoutElapsedTicks):0.###} textLayoutBuildMs={TicksToMilliseconds(textLayout.BuildElapsedTicks - pending.TextLayoutBefore.BuildElapsedTicks):0.###} textLayoutBuilds={textLayout.BuildCount - pending.TextLayoutBefore.BuildCount} textLayoutMisses={textLayout.CacheMissCount - pending.TextLayoutBefore.CacheMissCount} " +
+                $"uiElementRenderMs={TicksToMilliseconds(elementRender.RenderSelfElapsedTicks - pending.ElementRenderBefore.RenderSelfElapsedTicks):0.###} uiElementRenderCalls={elementRender.RenderSelfCallCount - pending.ElementRenderBefore.RenderSelfCallCount} hottestUiElement={elementRender.HottestRenderSelfType}({elementRender.HottestRenderSelfName}):{elementRender.HottestRenderSelfMilliseconds:0.###} hottestUiElementTypes={elementRender.HottestRenderSelfTypeSummary} " +
+                $"buttonRenderMs={TicksToMilliseconds(button.RenderElapsedTicks - pending.ButtonBefore.RenderElapsedTicks):0.###} buttonChromeMs={TicksToMilliseconds(button.RenderChromeElapsedTicks - pending.ButtonBefore.RenderChromeElapsedTicks):0.###} buttonTextPrepMs={TicksToMilliseconds(button.RenderTextPreparationElapsedTicks - pending.ButtonBefore.RenderTextPreparationElapsedTicks):0.###} buttonTextDrawMs={TicksToMilliseconds(button.RenderTextDrawDispatchElapsedTicks - pending.ButtonBefore.RenderTextDrawDispatchElapsedTicks):0.###} buttonTextPrepCalls={button.RenderTextPreparationCallCount - pending.ButtonBefore.RenderTextPreparationCallCount} buttonTextDrawCalls={button.RenderTextDrawDispatchCallCount - pending.ButtonBefore.RenderTextDrawDispatchCallCount} " +
+                $"textHotDraw={text.HottestDrawStringText}|{text.HottestDrawStringTypography}:{text.HottestDrawStringMilliseconds:0.###} textHotMeasure={text.HottestMeasureWidthText}|{text.HottestMeasureWidthTypography}:{text.HottestMeasureWidthMilliseconds:0.###}");
+        }
+
+        public void Dispose()
+        {
+            _writer.Dispose();
+        }
+
+        private readonly record struct PendingSidebarDrawSample(
+            int FrameIndex,
+            double GameElapsedMilliseconds,
+            string SelectedControlName,
+            string HoveredType,
+            string HoveredPath,
+            Vector2 PointerPosition,
+            bool HoveredSidebarVerticalScrollBar,
+            UiRootPerformanceTelemetrySnapshot PerfBefore,
+            UiRenderTelemetrySnapshot RenderBefore,
+            UiTextRendererTimingSnapshot TextBefore,
+            UIElementRenderTimingSnapshot ElementRenderBefore,
+            ButtonTimingSnapshot ButtonBefore,
+            TextLayout.TextLayoutMetricsSnapshot TextLayoutBefore);
+    }
+
+    private static ScrollViewer? FindSidebarScrollViewer(ControlsCatalogView catalog)
+    {
+        return FindFirstVisualChild<ScrollViewer>(catalog, viewer =>
+            viewer.Content is StackPanel host &&
+            string.Equals(host.Name, "ControlButtonsHost", StringComparison.Ordinal));
+    }
+
+    private static TElement? FindFirstVisualChild<TElement>(UIElement root, Func<TElement, bool> predicate)
+        where TElement : UIElement
+    {
+        if (root is TElement match && predicate(match))
+        {
+            return match;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindFirstVisualChild(child, predicate);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsDescendantOf(UIElement element, UIElement ancestor)
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

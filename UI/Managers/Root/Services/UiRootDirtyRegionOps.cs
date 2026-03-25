@@ -8,6 +8,7 @@ namespace InkkSlinger;
 public sealed partial class UiRoot
 {
     private const double DirtyRegionCoverageFallbackThreshold = 0.20d;
+    private const double DirtyRegionCoverageFallbackThresholdForMultipleRegions = 0.12d;
     private const int DirtyRegionCountFallbackThreshold = 4;
 
     private void DrawRetainedRenderListWithDirtyRegions(SpriteBatch spriteBatch)
@@ -165,9 +166,15 @@ public sealed partial class UiRoot
 
     private static bool ShouldUsePartialDirtyRedraw(int regionCount, double coverage)
     {
-        return regionCount > 0 &&
-               regionCount <= DirtyRegionCountFallbackThreshold &&
-               coverage <= DirtyRegionCoverageFallbackThreshold;
+        if (regionCount <= 0 || regionCount > DirtyRegionCountFallbackThreshold)
+        {
+            return false;
+        }
+
+        var coverageThreshold = regionCount == 1
+            ? DirtyRegionCoverageFallbackThreshold
+            : DirtyRegionCoverageFallbackThresholdForMultipleRegions;
+        return coverage <= coverageThreshold;
     }
 
     private void TrackDirtyBoundsForVisual(UIElement? visual)

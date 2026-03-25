@@ -432,6 +432,11 @@ public sealed partial class UiRoot
         return _inputState.HoveredElement;
     }
 
+    internal Vector2 GetLastPointerPositionForDiagnostics()
+    {
+        return _inputState.LastPointerPosition;
+    }
+
     internal (int ConnectionCacheEntryCount, int AncestorCacheEntryCount) GetInputCacheEntryCountsForTests()
     {
         return (_inputConnectionCache.Count, _inputAncestorCache.Count);

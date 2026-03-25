@@ -65,6 +65,8 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
     private FrameworkElement? _track;
     private FrameworkElement? _indicator;
     private FrameworkElement? _glowRect;
+    private TranslateTransform? _indicatorTranslateTransform;
+    private TranslateTransform? _glowTranslateTransform;
 
     static ProgressBar()
     {
@@ -155,9 +157,12 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
         _track = GetTemplateChild("PART_Track") as FrameworkElement;
         _indicator = GetTemplateChild("PART_Indicator") as FrameworkElement;
         _glowRect = GetTemplateChild("PART_GlowRect") as FrameworkElement;
+        _indicatorTranslateTransform = null;
+        _glowTranslateTransform = null;
 
         PrepareTemplatePartForDirectLayout(_indicator);
         PrepareTemplatePartForDirectLayout(_glowRect);
+        UpdateTrackClipState();
 
         UpdateVisualStates();
         SyncTemplateParts();
@@ -282,6 +287,11 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
             args.Property == MinimumProperty ||
             args.Property == MaximumProperty)
         {
+            if (args.Property == IsIndeterminateProperty)
+            {
+                UpdateTrackClipState();
+            }
+
             SyncTemplateParts();
         }
     }
@@ -421,6 +431,23 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
             var segmentWidth = MathF.Max(6f, trackWidth * chunkRatio);
             var travel = trackWidth + segmentWidth;
             var startX = (_indeterminatePhase * travel) - segmentWidth;
+            if (TrySyncIndeterminateTemplatePartsWithTransforms(
+                    _indicator,
+                    ref _indicatorTranslateTransform,
+                    _glowRect,
+                    ref _glowTranslateTransform,
+                    segmentWidth,
+                    trackHeight,
+                    startX,
+                    0f,
+                    MathF.Max(4f, segmentWidth * glowRatio),
+                    trackHeight,
+                    startX + ((segmentWidth - MathF.Max(4f, segmentWidth * glowRatio)) / 2f),
+                    0f))
+            {
+                return;
+            }
+
             var endX = startX + segmentWidth;
             var visibleStartX = MathF.Max(0f, startX);
             var visibleEndX = MathF.Min(trackWidth, endX);
@@ -432,12 +459,30 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
             var visibleGlowStartX = MathF.Max(0f, glowX);
             var visibleGlowEndX = MathF.Min(trackWidth, glowEndX);
             SetElementRect(_track, _glowRect, visibleGlowStartX, 0f, MathF.Max(0f, visibleGlowEndX - visibleGlowStartX), trackHeight);
+
             return;
         }
 
         var segmentHeight = MathF.Max(6f, trackHeight * chunkRatio);
         var travelHeight = trackHeight + segmentHeight;
         var startY = trackHeight - (_indeterminatePhase * travelHeight);
+        if (TrySyncIndeterminateTemplatePartsWithTransforms(
+                _indicator,
+                ref _indicatorTranslateTransform,
+                _glowRect,
+                ref _glowTranslateTransform,
+                trackWidth,
+                segmentHeight,
+                0f,
+                startY,
+                trackWidth,
+                MathF.Max(4f, segmentHeight * glowRatio),
+                0f,
+                startY + ((segmentHeight - MathF.Max(4f, segmentHeight * glowRatio)) / 2f)))
+        {
+            return;
+        }
+
         var endY = startY + segmentHeight;
         var visibleStartY = MathF.Max(0f, startY);
         var visibleEndY = MathF.Min(trackHeight, endY);
@@ -473,6 +518,116 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
 
         element.Arrange(targetRect);
         element.InvalidateVisual();
+    }
+
+    private static void ArrangeElementRect(FrameworkElement? track, FrameworkElement? element, float x, float y, float width, float height)
+    {
+        if (track == null || element == null)
+        {
+            return;
+        }
+
+        var coercedWidth = MathF.Max(0f, width);
+        var coercedHeight = MathF.Max(0f, height);
+        var targetRect = new LayoutRect(
+            track.LayoutSlot.X + x,
+            track.LayoutSlot.Y + y,
+            coercedWidth,
+            coercedHeight);
+
+        if (LayoutRectsClose(element.LayoutSlot, targetRect))
+        {
+            return;
+        }
+
+        element.Arrange(targetRect);
+    }
+
+    private void UpdateTrackClipState()
+    {
+        if (_track == null)
+        {
+            return;
+        }
+
+        if (_track.ClipToBounds == IsIndeterminate)
+        {
+            return;
+        }
+
+        _track.ClipToBounds = IsIndeterminate;
+    }
+
+    private static bool TrySyncIndeterminateTemplatePartsWithTransforms(
+        FrameworkElement? indicator,
+        ref TranslateTransform? indicatorTransform,
+        FrameworkElement? glow,
+        ref TranslateTransform? glowTransform,
+        float indicatorWidth,
+        float indicatorHeight,
+        float indicatorTranslateX,
+        float indicatorTranslateY,
+        float glowWidth,
+        float glowHeight,
+        float glowTranslateX,
+        float glowTranslateY)
+    {
+        if (!TryGetOrCreateTranslateTransform(indicator, ref indicatorTransform) ||
+            !TryGetOrCreateTranslateTransform(glow, ref glowTransform))
+        {
+            return false;
+        }
+
+        if (indicator?.VisualParent is not FrameworkElement track)
+        {
+            return false;
+        }
+
+        ArrangeElementRect(track, indicator, 0f, 0f, indicatorWidth, indicatorHeight);
+        ArrangeElementRect(track, glow, 0f, 0f, glowWidth, glowHeight);
+
+        UIElement.BeginFreezableInvalidationBatch();
+        try
+        {
+            indicatorTransform!.X = indicatorTranslateX;
+            indicatorTransform.Y = indicatorTranslateY;
+            glowTransform!.X = glowTranslateX;
+            glowTransform.Y = glowTranslateY;
+        }
+        finally
+        {
+            UIElement.EndFreezableInvalidationBatch();
+        }
+
+        return true;
+    }
+
+    private static bool TryGetOrCreateTranslateTransform(FrameworkElement? element, ref TranslateTransform? transform)
+    {
+        if (element == null)
+        {
+            return false;
+        }
+
+        if (transform != null)
+        {
+            return true;
+        }
+
+        if (element.RenderTransform is TranslateTransform existingTranslate)
+        {
+            transform = existingTranslate;
+            return true;
+        }
+
+        if (element.RenderTransform != null)
+        {
+            return false;
+        }
+
+        transform = new TranslateTransform();
+        element.RenderTransform = transform;
+        return true;
     }
 
     private static void PrepareTemplatePartForDirectLayout(FrameworkElement? element)

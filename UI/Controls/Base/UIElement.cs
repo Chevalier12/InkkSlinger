@@ -1111,6 +1111,16 @@ public class UIElement : DependencyObject
         NeedsArrange = false;
     }
 
+    internal void PrepareArrangeForDirectLayoutOnly()
+    {
+        PrepareArrangeForDirectLayoutCore(invalidateRender: true);
+    }
+
+    internal void PrepareArrangeForDirectLayoutWithoutRenderInvalidation()
+    {
+        PrepareArrangeForDirectLayoutCore(invalidateRender: false);
+    }
+
     internal void ClearRenderInvalidationShallow()
     {
         NeedsRender = false;
@@ -1141,6 +1151,29 @@ public class UIElement : DependencyObject
             }
 
             current.SubtreeDirty = true;
+        }
+    }
+
+    private void PrepareArrangeForDirectLayoutCore(bool invalidateRender)
+    {
+        Dispatcher.VerifyAccess();
+        if (NeedsArrange)
+        {
+            if (invalidateRender)
+            {
+                InvalidateVisual();
+            }
+
+            return;
+        }
+
+        NeedsArrange = true;
+        _arrangeInvalidationCount++;
+        _layoutVersionStamp++;
+        MarkSubtreeDirty();
+        if (invalidateRender)
+        {
+            InvalidateVisual();
         }
     }
 

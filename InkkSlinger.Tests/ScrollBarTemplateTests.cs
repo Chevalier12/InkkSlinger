@@ -169,6 +169,28 @@ public sealed class ScrollBarTemplateTests
         Assert.True(MathF.Abs(scrollBar.Value - 70f) <= 0.01f);
     }
 
+    [Fact]
+    public void TrackValueMutation_UsesLocalizedDirtyBoundsHint()
+    {
+        var (uiRoot, _, scrollBar) = BuildStandaloneScrollBar();
+        RunLayout(uiRoot, 160, 240);
+
+        var track = FindNamedVisualChild<Track>(scrollBar, "PART_Track");
+        Assert.NotNull(track);
+
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 160f, 240f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.CompleteDrawStateForTests();
+
+        track!.Value = 35f;
+
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+
+        Assert.Single(dirtyRegions);
+        Assert.True(dirtyRegions[0].Height < track.LayoutSlot.Height, $"Expected a localized dirty region, got {dirtyRegions[0]} for track height {track.LayoutSlot.Height}.");
+    }
+
     private static (UiRoot UiRoot, Canvas Host, ScrollBar ScrollBar) BuildStandaloneScrollBar()
     {
         var host = new Canvas

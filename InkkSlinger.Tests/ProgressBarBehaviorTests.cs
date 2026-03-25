@@ -51,15 +51,15 @@ public sealed class ProgressBarBehaviorTests
         Assert.NotNull(indicator);
         Assert.NotNull(glow);
 
-        var firstLeft = GetRelativeLeft(track!, indicator!);
-        var firstGlowLeft = GetRelativeLeft(track, glow!);
+        var firstLeft = GetAnimatedRelativeLeft(track!, indicator!);
+        var firstGlowLeft = GetAnimatedRelativeLeft(track, glow!);
 
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(416), TimeSpan.FromMilliseconds(400)),
             new Viewport(0, 0, 240, 120));
 
-        Assert.NotEqual(firstLeft, GetRelativeLeft(track, indicator));
-        Assert.NotEqual(firstGlowLeft, GetRelativeLeft(track, glow));
+        Assert.NotEqual(firstLeft, GetAnimatedRelativeLeft(track, indicator));
+        Assert.NotEqual(firstGlowLeft, GetAnimatedRelativeLeft(track, glow));
         Assert.Equal(0.8f, glow.Opacity, 3);
 
         progressBar.IsIndeterminate = false;
@@ -85,6 +85,46 @@ public sealed class ProgressBarBehaviorTests
         Assert.Equal(initialArrangeInvalidationCount, uiRoot.ArrangeInvalidationCount);
         Assert.True(uiRoot.RenderInvalidationCount > initialRenderInvalidationCount);
         Assert.True(progressBar.IsIndeterminate);
+    }
+
+    [Fact]
+    public void IndeterminateUpdate_UsesTwoAnimatedTemplatePartDirtyRoots()
+    {
+        var (uiRoot, progressBar) = BuildTemplatedProgressBar(isIndeterminate: true, value: 0f);
+        var viewport = new Viewport(0, 0, 240, 120);
+
+        RunLayout(uiRoot, 240, 120);
+        uiRoot.ResetDirtyStateForTests();
+        progressBar.ClearRenderInvalidationRecursive();
+
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(432), TimeSpan.FromMilliseconds(16)),
+            viewport);
+
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        var invalidationSnapshot = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+
+        Assert.Equal(2, perfSnapshot.DirtyRootCount);
+        Assert.True(
+            invalidationSnapshot.EffectiveSourceName is "PART_Indicator" or "PART_GlowRect",
+            $"Unexpected effective render source: {invalidationSnapshot.EffectiveSourceName}");
+    }
+
+    [Fact]
+    public void TrackClipToBounds_IsEnabledOnlyForIndeterminateState()
+    {
+        var (uiRoot, progressBar) = BuildTemplatedProgressBar(isIndeterminate: false, value: 25f);
+        RunLayout(uiRoot, 240, 120);
+
+        var track = FindNamedVisualChild<FrameworkElement>(progressBar, "PART_Track");
+        Assert.NotNull(track);
+        Assert.False(track!.ClipToBounds);
+
+        progressBar.IsIndeterminate = true;
+        Assert.True(track.ClipToBounds);
+
+        progressBar.IsIndeterminate = false;
+        Assert.False(track.ClipToBounds);
     }
 
     [Fact]
@@ -281,5 +321,15 @@ public sealed class ProgressBarBehaviorTests
     private static float GetRelativeTop(FrameworkElement parent, FrameworkElement child)
     {
         return child.LayoutSlot.Y - parent.LayoutSlot.Y;
+    }
+
+    private static float GetAnimatedRelativeLeft(FrameworkElement parent, FrameworkElement child)
+    {
+        return GetRelativeLeft(parent, child) + GetTranslateX(child);
+    }
+
+    private static float GetTranslateX(FrameworkElement element)
+    {
+        return element.RenderTransform is TranslateTransform translate ? translate.X : 0f;
     }
 }

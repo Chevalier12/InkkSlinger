@@ -9,6 +9,7 @@ public partial class ControlsCatalogView : UserControl
     private StackPanel? _controlButtonsHost;
     private Label? _selectedControlLabel;
     private ContentControl? _previewHost;
+    private string _selectedControlName = string.Empty;
 
     public ControlsCatalogView()
     {
@@ -47,6 +48,7 @@ public partial class ControlsCatalogView : UserControl
 
     internal void ShowControl(string controlName)
     {
+        _selectedControlName = controlName;
         if (_selectedControlLabel != null)
         {
             _selectedControlLabel.Content = $"Selected: {GetDisplayName(controlName)}";
@@ -59,6 +61,8 @@ public partial class ControlsCatalogView : UserControl
             _previewHost.Content = view;
         }
     }
+
+    internal string SelectedControlName => _selectedControlName;
 
     private static UserControl CreateView(string controlName)
     {

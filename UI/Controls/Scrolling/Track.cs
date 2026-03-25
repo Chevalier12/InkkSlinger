@@ -12,7 +12,7 @@ public enum TrackPartRole
     IncreaseButton
 }
 
-public class Track : Panel
+public class Track : Panel, IRenderDirtyBoundsHintProvider
 {
     private const float DefaultThumbMinLength = 14f;
     private const float MinimumThumbRatio = 0.05f;
@@ -62,28 +62,64 @@ public class Track : Panel
             nameof(Minimum),
             typeof(float),
             typeof(Track),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.None,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is Track track)
+                    {
+                        track.RefreshLayoutForStateMutation();
+                    }
+                }));
 
     public static readonly DependencyProperty MaximumProperty =
         DependencyProperty.Register(
             nameof(Maximum),
             typeof(float),
             typeof(Track),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.None,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is Track track)
+                    {
+                        track.RefreshLayoutForStateMutation();
+                    }
+                }));
 
     public static readonly DependencyProperty ValueProperty =
         DependencyProperty.Register(
             nameof(Value),
             typeof(float),
             typeof(Track),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.None,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is Track track)
+                    {
+                        track.RefreshLayoutForStateMutation();
+                    }
+                }));
 
     public static readonly DependencyProperty ViewportSizeProperty =
         DependencyProperty.Register(
             nameof(ViewportSize),
             typeof(float),
             typeof(Track),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                0f,
+                FrameworkPropertyMetadataOptions.None,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is Track track)
+                    {
+                        track.RefreshLayoutForStateMutation();
+                    }
+                }));
 
     public static readonly DependencyProperty IsViewportSizedThumbProperty =
         DependencyProperty.Register(
@@ -97,7 +133,16 @@ public class Track : Panel
             nameof(IsDirectionReversed),
             typeof(bool),
             typeof(Track),
-            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                false,
+                FrameworkPropertyMetadataOptions.None,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is Track track)
+                    {
+                        track.RefreshLayoutForStateMutation();
+                    }
+                }));
 
     public static readonly DependencyProperty ThumbLengthProperty =
         DependencyProperty.Register(
@@ -147,6 +192,9 @@ public class Track : Panel
     private LayoutRect _thumbRect;
     private LayoutRect _decreaseRegionRect;
     private LayoutRect _increaseRegionRect;
+    private bool _hasPendingRenderDirtyBoundsHint;
+    private bool _preserveRenderDirtyBoundsHint;
+    private LayoutRect _pendingRenderDirtyBoundsHint;
 
     public Orientation Orientation
     {
@@ -331,6 +379,16 @@ public class Track : Panel
         return ContainsPoint(_increaseRegionRect, point);
     }
 
+    public override void InvalidateVisual()
+    {
+        if (!_preserveRenderDirtyBoundsHint)
+        {
+            _hasPendingRenderDirtyBoundsHint = false;
+        }
+
+        base.InvalidateVisual();
+    }
+
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         ResolveParts(out var decreaseButton, out var thumb, out var increaseButton);
@@ -388,7 +446,7 @@ public class Track : Panel
                 continue;
             }
 
-            child.Arrange(new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
+            ArrangePartIfNeeded(child, new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
         }
 
         return finalSize;
@@ -420,8 +478,8 @@ public class Track : Panel
             var decreaseLength = MathF.Min(slotHeight, ResolveArrangedButtonLength(decreaseButton, slotWidth, isVertical: true));
             var increaseLength = MathF.Min(MathF.Max(0f, slotHeight - decreaseLength), ResolveArrangedButtonLength(increaseButton, slotWidth, isVertical: true));
 
-            decreaseButton?.Arrange(new LayoutRect(slot.X, slot.Y, slotWidth, decreaseLength));
-            increaseButton?.Arrange(new LayoutRect(slot.X, slot.Y + slotHeight - increaseLength, slotWidth, increaseLength));
+            ArrangePartIfNeeded(decreaseButton, new LayoutRect(slot.X, slot.Y, slotWidth, decreaseLength));
+            ArrangePartIfNeeded(increaseButton, new LayoutRect(slot.X, slot.Y + slotHeight - increaseLength, slotWidth, increaseLength));
 
             _trackRect = CreateCenteredTrackRect(
                 new LayoutRect(slot.X, slot.Y + decreaseLength, slotWidth, MathF.Max(0f, slotHeight - decreaseLength - increaseLength)),
@@ -438,7 +496,7 @@ public class Track : Panel
 
             _decreaseRegionRect = IsDirectionReversed ? trackEndRegionRect : trackStartRegionRect;
             _increaseRegionRect = IsDirectionReversed ? trackStartRegionRect : trackEndRegionRect;
-            thumb?.Arrange(_thumbRect);
+            ArrangePartIfNeeded(thumb, _thumbRect);
             return;
         }
 
@@ -456,9 +514,9 @@ public class Track : Panel
         _decreaseRegionRect = IsDirectionReversed ? endButtonRect : startButtonRect;
         _increaseRegionRect = IsDirectionReversed ? startButtonRect : endButtonRect;
 
-        decreaseButton?.Arrange(_decreaseRegionRect);
-        increaseButton?.Arrange(_increaseRegionRect);
-        thumb?.Arrange(_thumbRect);
+        ArrangePartIfNeeded(decreaseButton, _decreaseRegionRect);
+        ArrangePartIfNeeded(increaseButton, _increaseRegionRect);
+        ArrangePartIfNeeded(thumb, _thumbRect);
     }
 
     private void ArrangeHorizontal(
@@ -476,8 +534,8 @@ public class Track : Panel
             var decreaseLength = MathF.Min(slotWidth, ResolveArrangedButtonLength(decreaseButton, slotHeight, isVertical: false));
             var increaseLength = MathF.Min(MathF.Max(0f, slotWidth - decreaseLength), ResolveArrangedButtonLength(increaseButton, slotHeight, isVertical: false));
 
-            decreaseButton?.Arrange(new LayoutRect(slot.X, slot.Y, decreaseLength, slotHeight));
-            increaseButton?.Arrange(new LayoutRect(slot.X + slotWidth - increaseLength, slot.Y, increaseLength, slotHeight));
+            ArrangePartIfNeeded(decreaseButton, new LayoutRect(slot.X, slot.Y, decreaseLength, slotHeight));
+            ArrangePartIfNeeded(increaseButton, new LayoutRect(slot.X + slotWidth - increaseLength, slot.Y, increaseLength, slotHeight));
 
             _trackRect = CreateCenteredTrackRect(
                 new LayoutRect(slot.X + decreaseLength, slot.Y, MathF.Max(0f, slotWidth - decreaseLength - increaseLength), slotHeight),
@@ -494,7 +552,7 @@ public class Track : Panel
 
             _decreaseRegionRect = IsDirectionReversed ? trackEndRegionRect : trackStartRegionRect;
             _increaseRegionRect = IsDirectionReversed ? trackStartRegionRect : trackEndRegionRect;
-            thumb?.Arrange(_thumbRect);
+            ArrangePartIfNeeded(thumb, _thumbRect);
             return;
         }
 
@@ -512,9 +570,9 @@ public class Track : Panel
         _decreaseRegionRect = IsDirectionReversed ? endButtonRect : startButtonRect;
         _increaseRegionRect = IsDirectionReversed ? startButtonRect : endButtonRect;
 
-        decreaseButton?.Arrange(_decreaseRegionRect);
-        increaseButton?.Arrange(_increaseRegionRect);
-        thumb?.Arrange(_thumbRect);
+        ArrangePartIfNeeded(decreaseButton, _decreaseRegionRect);
+        ArrangePartIfNeeded(increaseButton, _increaseRegionRect);
+        ArrangePartIfNeeded(thumb, _thumbRect);
     }
 
     private LayoutRect CreateCenteredTrackRect(LayoutRect slot, float slotWidth, float slotHeight, bool isVertical)
@@ -772,4 +830,210 @@ public class Track : Panel
                point.Y >= rect.Y &&
                point.Y <= rect.Y + rect.Height;
     }
+
+    private static void ArrangePartIfNeeded(FrameworkElement? element, LayoutRect targetRect)
+    {
+        if (element == null)
+        {
+            return;
+        }
+
+        if (!element.NeedsArrange &&
+            AreRectsClose(element.LayoutSlot, targetRect))
+        {
+            return;
+        }
+
+        element.Arrange(targetRect);
+    }
+
+    bool IRenderDirtyBoundsHintProvider.TryConsumeRenderDirtyBoundsHint(out LayoutRect bounds)
+    {
+        if (!_hasPendingRenderDirtyBoundsHint)
+        {
+            bounds = default;
+            return false;
+        }
+
+        bounds = _pendingRenderDirtyBoundsHint;
+        _hasPendingRenderDirtyBoundsHint = false;
+        return true;
+    }
+
+    private void RefreshLayoutForStateMutation()
+    {
+        if (NeedsMeasure)
+        {
+            InvalidateVisual();
+            return;
+        }
+
+        var before = CaptureRenderMutationSnapshot();
+
+        InvalidateArrangeForDirectLayoutOnly(invalidateRender: false);
+        Arrange(LayoutSlot);
+
+        var after = CaptureRenderMutationSnapshot();
+        if (TryBuildRenderMutationDirtyBounds(before, after, out var dirtyBounds))
+        {
+            InvalidateVisualWithDirtyBoundsHint(dirtyBounds);
+            return;
+        }
+
+        InvalidateVisual();
+    }
+
+    private void InvalidateVisualWithDirtyBoundsHint(LayoutRect dirtyBounds)
+    {
+        _pendingRenderDirtyBoundsHint = NormalizeRect(dirtyBounds);
+        _hasPendingRenderDirtyBoundsHint = true;
+        _preserveRenderDirtyBoundsHint = true;
+        try
+        {
+            base.InvalidateVisual();
+        }
+        finally
+        {
+            _preserveRenderDirtyBoundsHint = false;
+        }
+    }
+
+    private TrackRenderMutationSnapshot CaptureRenderMutationSnapshot()
+    {
+        ResolveParts(out var decreaseButton, out var thumb, out var increaseButton);
+        return new TrackRenderMutationSnapshot(
+            _trackRect,
+            decreaseButton?.LayoutSlot ?? default,
+            decreaseButton != null,
+            thumb?.LayoutSlot ?? default,
+            thumb != null,
+            increaseButton?.LayoutSlot ?? default,
+            increaseButton != null);
+    }
+
+    private static bool TryBuildRenderMutationDirtyBounds(
+        TrackRenderMutationSnapshot before,
+        TrackRenderMutationSnapshot after,
+        out LayoutRect dirtyBounds)
+    {
+        var hasDirtyBounds = false;
+        dirtyBounds = default;
+
+        if (!AreRectsClose(before.TrackRect, after.TrackRect))
+        {
+            AddRectToUnion(before.TrackRect, ref hasDirtyBounds, ref dirtyBounds);
+            AddRectToUnion(after.TrackRect, ref hasDirtyBounds, ref dirtyBounds);
+        }
+
+        AddPartBoundsIfChanged(before.HasDecreasePart, before.DecreasePartRect, after.HasDecreasePart, after.DecreasePartRect, ref hasDirtyBounds, ref dirtyBounds);
+        AddPartBoundsIfChanged(before.HasThumbPart, before.ThumbPartRect, after.HasThumbPart, after.ThumbPartRect, ref hasDirtyBounds, ref dirtyBounds);
+        AddPartBoundsIfChanged(before.HasIncreasePart, before.IncreasePartRect, after.HasIncreasePart, after.IncreasePartRect, ref hasDirtyBounds, ref dirtyBounds);
+
+        if (!hasDirtyBounds)
+        {
+            AddRectToUnion(after.TrackRect, ref hasDirtyBounds, ref dirtyBounds);
+        }
+
+        return hasDirtyBounds;
+    }
+
+    private static void AddPartBoundsIfChanged(
+        bool hasBefore,
+        LayoutRect beforeRect,
+        bool hasAfter,
+        LayoutRect afterRect,
+        ref bool hasDirtyBounds,
+        ref LayoutRect dirtyBounds)
+    {
+        if (hasBefore == hasAfter &&
+            (!hasBefore || AreRectsClose(beforeRect, afterRect)))
+        {
+            return;
+        }
+
+        if (hasBefore)
+        {
+            AddRectToUnion(beforeRect, ref hasDirtyBounds, ref dirtyBounds);
+        }
+
+        if (hasAfter)
+        {
+            AddRectToUnion(afterRect, ref hasDirtyBounds, ref dirtyBounds);
+        }
+    }
+
+    private static void AddRectToUnion(LayoutRect rect, ref bool hasDirtyBounds, ref LayoutRect dirtyBounds)
+    {
+        if (rect.Width <= 0f || rect.Height <= 0f)
+        {
+            return;
+        }
+
+        if (!hasDirtyBounds)
+        {
+            dirtyBounds = rect;
+            hasDirtyBounds = true;
+            return;
+        }
+
+        dirtyBounds = UnionRects(dirtyBounds, rect);
+    }
+
+    private static LayoutRect NormalizeRect(LayoutRect rect)
+    {
+        var x = rect.X;
+        var y = rect.Y;
+        var width = rect.Width;
+        var height = rect.Height;
+        if (width < 0f)
+        {
+            x += width;
+            width = -width;
+        }
+
+        if (height < 0f)
+        {
+            y += height;
+            height = -height;
+        }
+
+        var right = x + width;
+        var bottom = y + height;
+        var snappedX = MathF.Floor(x);
+        var snappedY = MathF.Floor(y);
+        var snappedRight = MathF.Ceiling(right);
+        var snappedBottom = MathF.Ceiling(bottom);
+        return new LayoutRect(
+            snappedX,
+            snappedY,
+            MathF.Max(0f, snappedRight - snappedX),
+            MathF.Max(0f, snappedBottom - snappedY));
+    }
+
+    private static LayoutRect UnionRects(LayoutRect left, LayoutRect right)
+    {
+        var x = MathF.Min(left.X, right.X);
+        var y = MathF.Min(left.Y, right.Y);
+        var rightEdge = MathF.Max(left.X + left.Width, right.X + right.Width);
+        var bottomEdge = MathF.Max(left.Y + left.Height, right.Y + right.Height);
+        return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
+    }
+
+    private static bool AreRectsClose(LayoutRect left, LayoutRect right)
+    {
+        const float epsilon = 0.0001f;
+        return MathF.Abs(left.X - right.X) <= epsilon &&
+               MathF.Abs(left.Y - right.Y) <= epsilon &&
+               MathF.Abs(left.Width - right.Width) <= epsilon &&
+               MathF.Abs(left.Height - right.Height) <= epsilon;
+    }
+
+    private readonly record struct TrackRenderMutationSnapshot(
+        LayoutRect TrackRect,
+        LayoutRect DecreasePartRect,
+        bool HasDecreasePart,
+        LayoutRect ThumbPartRect,
+        bool HasThumbPart,
+        LayoutRect IncreasePartRect,
+        bool HasIncreasePart);
 }

@@ -93,6 +93,33 @@ public sealed class RenderingPerformanceOptimizationTests
     }
 
     [Fact]
+    public void DirtyRegionStrategy_FallsBackToFullRedraw_ForMultipleMediumCoverageRegions()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 100f, 100f));
+
+        var left = new Border();
+        left.SetLayoutSlot(new LayoutRect(0f, 0f, 30f, 30f));
+        root.AddChild(left);
+
+        var right = new Border();
+        right.SetLayoutSlot(new LayoutRect(60f, 0f, 30f, 30f));
+        root.AddChild(right);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 100f, 100f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        left.InvalidateVisual();
+        right.InvalidateVisual();
+
+        Assert.Equal(2, uiRoot.GetDirtyRegionsSnapshotForTests().Count);
+        Assert.Equal(0.18d, uiRoot.GetDirtyCoverageForTests(), 6);
+        Assert.False(uiRoot.WouldUsePartialDirtyRedrawForTests());
+    }
+
+    [Fact]
     public void ShapeRenderCache_InvalidatesOnRenderAndLayoutChanges()
     {
         Shape.ResetRenderCacheMetricsForTests();
