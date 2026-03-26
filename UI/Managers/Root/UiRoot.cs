@@ -104,6 +104,19 @@ public sealed partial class UiRoot
     private int _lastRetainedTraversalCount;
     private int _lastDirtyRegionTraversalCount;
     private int _lastAncestorMetadataRefreshNodeCount;
+    private double _lastRetainedQueueCompactionMs;
+    private double _lastRetainedCandidateCoalescingMs;
+    private double _lastRetainedSubtreeUpdateMs;
+    private double _lastRetainedShallowSyncMs;
+    private double _lastRetainedDeepSyncMs;
+    private double _lastRetainedAncestorRefreshMs;
+    private int _lastRetainedForceDeepSyncCount;
+    private int _lastRetainedForcedDeepDowngradeBlockedCount;
+    private int _lastRetainedShallowSuccessCount;
+    private int _lastRetainedShallowRejectRenderStateCount;
+    private int _lastRetainedShallowRejectVisibilityCount;
+    private int _lastRetainedShallowRejectStructureCount;
+    private int _lastRetainedOverlapForcedDeepCount;
     private int _lastSpriteBatchRestartCount;
     private double _lastSpriteBatchRestartMs;
     private double _lastDrawClearMs;
@@ -397,6 +410,19 @@ public sealed partial class UiRoot
             _lastDirtyRootCountAfterCoalescing,
             _lastRetainedTraversalCount,
             _lastAncestorMetadataRefreshNodeCount,
+            _lastRetainedQueueCompactionMs,
+            _lastRetainedCandidateCoalescingMs,
+            _lastRetainedSubtreeUpdateMs,
+            _lastRetainedShallowSyncMs,
+            _lastRetainedDeepSyncMs,
+            _lastRetainedAncestorRefreshMs,
+            _lastRetainedForceDeepSyncCount,
+            _lastRetainedForcedDeepDowngradeBlockedCount,
+            _lastRetainedShallowSuccessCount,
+            _lastRetainedShallowRejectRenderStateCount,
+            _lastRetainedShallowRejectVisibilityCount,
+            _lastRetainedShallowRejectStructureCount,
+            _lastRetainedOverlapForcedDeepCount,
             _lastMenuScopeBuildCount,
             _lastOverlayRegistryScanCount,
             _lastOverlayRegistryHitCount,

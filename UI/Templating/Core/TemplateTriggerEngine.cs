@@ -6,6 +6,25 @@ namespace InkkSlinger;
 
 internal sealed class TemplateTriggerEngine
 {
+    private static long s_applyCallCount;
+    private static long s_applyTicks;
+    private static long s_reapplyCallCount;
+    private static long s_reapplyTicks;
+    private static long s_triggerMatchCount;
+    private static long s_matchedTriggerCount;
+    private static long s_triggerMatchTicks;
+    private static long s_setterResolveCount;
+    private static long s_setterResolveTicks;
+    private static long s_setTemplateTriggerValueCount;
+    private static long s_setTemplateTriggerValueTicks;
+    private static long s_clearTemplateTriggerValueCount;
+    private static long s_clearTemplateTriggerValueTicks;
+    private static long s_applyActionsTicks;
+    private static long s_invokeActionsCount;
+    private static long s_invokeActionsTicks;
+    private static long s_prewarmStoryboardTicks;
+    private static long s_prewarmSetterTicks;
+
     private readonly Control _owner;
     private readonly Func<string, object?> _resolveTargetByName;
     private readonly List<TriggerBase> _attachedTriggers = new();
@@ -28,8 +47,55 @@ internal sealed class TemplateTriggerEngine
         _resolveTargetByName = resolveTargetByName;
     }
 
+    internal static void ResetTelemetryForTests()
+    {
+        s_applyCallCount = 0;
+        s_applyTicks = 0;
+        s_reapplyCallCount = 0;
+        s_reapplyTicks = 0;
+        s_triggerMatchCount = 0;
+        s_matchedTriggerCount = 0;
+        s_triggerMatchTicks = 0;
+        s_setterResolveCount = 0;
+        s_setterResolveTicks = 0;
+        s_setTemplateTriggerValueCount = 0;
+        s_setTemplateTriggerValueTicks = 0;
+        s_clearTemplateTriggerValueCount = 0;
+        s_clearTemplateTriggerValueTicks = 0;
+        s_applyActionsTicks = 0;
+        s_invokeActionsCount = 0;
+        s_invokeActionsTicks = 0;
+        s_prewarmStoryboardTicks = 0;
+        s_prewarmSetterTicks = 0;
+    }
+
+    internal static TemplateTriggerTelemetrySnapshot GetTelemetrySnapshotForTests()
+    {
+        return new TemplateTriggerTelemetrySnapshot(
+            s_applyCallCount,
+            TicksToMilliseconds(s_applyTicks),
+            s_reapplyCallCount,
+            TicksToMilliseconds(s_reapplyTicks),
+            s_triggerMatchCount,
+            s_matchedTriggerCount,
+            TicksToMilliseconds(s_triggerMatchTicks),
+            s_setterResolveCount,
+            TicksToMilliseconds(s_setterResolveTicks),
+            s_setTemplateTriggerValueCount,
+            TicksToMilliseconds(s_setTemplateTriggerValueTicks),
+            s_clearTemplateTriggerValueCount,
+            TicksToMilliseconds(s_clearTemplateTriggerValueTicks),
+            TicksToMilliseconds(s_applyActionsTicks),
+            s_invokeActionsCount,
+            TicksToMilliseconds(s_invokeActionsTicks),
+            TicksToMilliseconds(s_prewarmStoryboardTicks),
+            TicksToMilliseconds(s_prewarmSetterTicks));
+    }
+
     public void Apply(IReadOnlyList<TriggerBase> triggers)
     {
+        s_applyCallCount++;
+        var applyStart = Stopwatch.GetTimestamp();
         Clear();
 
         foreach (var trigger in triggers)
@@ -63,9 +129,16 @@ internal sealed class TemplateTriggerEngine
             _owner.ResourceScopeInvalidated += _resourceScopeHandler;
         }
 
+        var prewarmStoryboardStart = Stopwatch.GetTimestamp();
         PrewarmStoryboardMetadata();
+        s_prewarmStoryboardTicks += Stopwatch.GetTimestamp() - prewarmStoryboardStart;
+
+        var prewarmSetterStart = Stopwatch.GetTimestamp();
         PrewarmSetterValues();
+        s_prewarmSetterTicks += Stopwatch.GetTimestamp() - prewarmSetterStart;
+
         Reapply();
+        s_applyTicks += Stopwatch.GetTimestamp() - applyStart;
     }
 
     public void Clear()
@@ -111,6 +184,8 @@ internal sealed class TemplateTriggerEngine
             return;
         }
 
+        s_reapplyCallCount++;
+        var reapplyStart = Stopwatch.GetTimestamp();
         _isApplying = true;
         try
         {
@@ -123,33 +198,45 @@ internal sealed class TemplateTriggerEngine
 
                 foreach (var trigger in _attachedTriggers)
                 {
+                    var triggerMatchStart = Stopwatch.GetTimestamp();
                     var isMatch = trigger.IsMatch(_owner);
+                    s_triggerMatchTicks += Stopwatch.GetTimestamp() - triggerMatchStart;
+                    s_triggerMatchCount++;
                     _matchesScratch[trigger] = isMatch;
                     if (!isMatch)
                     {
                         continue;
                     }
 
+                    s_matchedTriggerCount++;
+
                     foreach (var setter in trigger.Setters)
                     {
+                        var setterResolveStart = Stopwatch.GetTimestamp();
                         var target = ResolveTarget(setter.TargetName);
                         if (target == null)
                         {
+                            s_setterResolveTicks += Stopwatch.GetTimestamp() - setterResolveStart;
                             continue;
                         }
 
                         if (_preparedSetterValues.TryGetValue((setter, target), out var preparedValue))
                         {
                             _desiredScratch[(target, setter.Property)] = preparedValue;
+                            s_setterResolveCount++;
+                            s_setterResolveTicks += Stopwatch.GetTimestamp() - setterResolveStart;
                             continue;
                         }
 
                         if (!ResourceReferenceResolver.TryResolve(target, setter.Property, setter.Value, out var resolvedValue))
                         {
+                            s_setterResolveTicks += Stopwatch.GetTimestamp() - setterResolveStart;
                             continue;
                         }
 
                         _desiredScratch[(target, setter.Property)] = PrepareSetterAssignmentValue(resolvedValue);
+                        s_setterResolveCount++;
+                        s_setterResolveTicks += Stopwatch.GetTimestamp() - setterResolveStart;
                     }
                 }
 
@@ -157,8 +244,11 @@ internal sealed class TemplateTriggerEngine
                 {
                     if (!_desiredScratch.ContainsKey(active.Key))
                     {
+                        var clearStart = Stopwatch.GetTimestamp();
                         active.Key.Target.ClearTemplateTriggerValue(active.Key.Property);
-                        TrackRenderInvalidationTarget(active.Key.Target, active.Key.Property, changedRenderTargets);
+                        s_clearTemplateTriggerValueCount++;
+                        s_clearTemplateTriggerValueTicks += Stopwatch.GetTimestamp() - clearStart;
+                        TrackRenderInvalidationTarget(_owner, active.Key.Target, active.Key.Property, changedRenderTargets);
                     }
                 }
 
@@ -169,8 +259,11 @@ internal sealed class TemplateTriggerEngine
                         continue;
                     }
 
+                    var setStart = Stopwatch.GetTimestamp();
                     pair.Key.Target.SetTemplateTriggerValue(pair.Key.Property, pair.Value);
-                    TrackRenderInvalidationTarget(pair.Key.Target, pair.Key.Property, changedRenderTargets);
+                    s_setTemplateTriggerValueCount++;
+                    s_setTemplateTriggerValueTicks += Stopwatch.GetTimestamp() - setStart;
+                    TrackRenderInvalidationTarget(_owner, pair.Key.Target, pair.Key.Property, changedRenderTargets);
                 }
 
                 _activeTriggerValues.Clear();
@@ -179,7 +272,9 @@ internal sealed class TemplateTriggerEngine
                     _activeTriggerValues[pair.Key] = pair.Value;
                 }
 
+                var applyActionsStart = Stopwatch.GetTimestamp();
                 ApplyActions(_matchesScratch);
+                s_applyActionsTicks += Stopwatch.GetTimestamp() - applyActionsStart;
 
                 foreach (var changedTarget in changedRenderTargets)
                 {
@@ -190,6 +285,7 @@ internal sealed class TemplateTriggerEngine
         }
         finally
         {
+            s_reapplyTicks += Stopwatch.GetTimestamp() - reapplyStart;
             _isApplying = false;
         }
     }
@@ -220,6 +316,7 @@ internal sealed class TemplateTriggerEngine
 
     private void InvokeActions(IEnumerable<TriggerAction> actions)
     {
+        var invokeStart = Stopwatch.GetTimestamp();
         var context = new TriggerActionContext(
             _owner,
             _owner,
@@ -227,8 +324,11 @@ internal sealed class TemplateTriggerEngine
 
         foreach (var action in actions)
         {
+            s_invokeActionsCount++;
             action.Invoke(context);
         }
+
+        s_invokeActionsTicks += Stopwatch.GetTimestamp() - invokeStart;
     }
 
     private void PrewarmStoryboardMetadata()
@@ -296,6 +396,7 @@ internal sealed class TemplateTriggerEngine
     }
 
     private static void TrackRenderInvalidationTarget(
+        Control owner,
         DependencyObject target,
         DependencyProperty property,
         ISet<UIElement> changedRenderTargets)
@@ -311,7 +412,20 @@ internal sealed class TemplateTriggerEngine
             return;
         }
 
-        changedRenderTargets.Add(uiElement);
+        changedRenderTargets.Add(ResolveRenderInvalidationTarget(owner, uiElement));
+    }
+
+    private static UIElement ResolveRenderInvalidationTarget(Control owner, UIElement target)
+    {
+        for (var current = target; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, owner))
+            {
+                return owner;
+            }
+        }
+
+        return target;
     }
 
     private DependencyObject? ResolveTarget(string targetName)
@@ -331,4 +445,29 @@ internal sealed class TemplateTriggerEngine
         return resolved;
     }
 
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
+    }
+
 }
+
+internal readonly record struct TemplateTriggerTelemetrySnapshot(
+    long ApplyCallCount,
+    double ApplyMilliseconds,
+    long ReapplyCallCount,
+    double ReapplyMilliseconds,
+    long TriggerMatchCount,
+    long MatchedTriggerCount,
+    double TriggerMatchMilliseconds,
+    long SetterResolveCount,
+    double SetterResolveMilliseconds,
+    long SetTemplateTriggerValueCount,
+    double SetTemplateTriggerValueMilliseconds,
+    long ClearTemplateTriggerValueCount,
+    double ClearTemplateTriggerValueMilliseconds,
+    double ApplyActionsMilliseconds,
+    long InvokeActionsCount,
+    double InvokeActionsMilliseconds,
+    double PrewarmStoryboardMilliseconds,
+    double PrewarmSetterMilliseconds);

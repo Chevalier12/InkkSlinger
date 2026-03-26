@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -7,6 +8,13 @@ namespace InkkSlinger;
 
 public class ScrollViewer : ContentControl
 {
+    private enum ScrollOffsetUpdateSource
+    {
+        External,
+        HorizontalScrollBar,
+        VerticalScrollBar,
+    }
+
     private const float ContentScrollBarGap = 1f;
     public static readonly DependencyProperty UseTransformContentScrollingProperty =
         DependencyProperty.RegisterAttached(
@@ -141,6 +149,9 @@ public class ScrollViewer : ContentControl
     private static int _diagSetOffsetNoOp;
     private static float _diagVerticalDelta;
     private static float _diagHorizontalDelta;
+    private static int _diagVerticalValueChangedCallCount;
+    private static long _diagVerticalValueChangedElapsedTicks;
+    private static long _diagVerticalValueChangedSetOffsetsElapsedTicks;
 
     public ScrollViewer()
     {
@@ -354,6 +365,18 @@ public class ScrollViewer : ContentControl
         _diagSetOffsetNoOp = 0;
         _diagHorizontalDelta = 0f;
         _diagVerticalDelta = 0f;
+        return snapshot;
+    }
+
+    internal static ScrollViewerValueChangedTelemetrySnapshot GetValueChangedTelemetryAndReset()
+    {
+        var snapshot = new ScrollViewerValueChangedTelemetrySnapshot(
+            _diagVerticalValueChangedCallCount,
+            (double)_diagVerticalValueChangedElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_diagVerticalValueChangedSetOffsetsElapsedTicks * 1000d / Stopwatch.Frequency);
+        _diagVerticalValueChangedCallCount = 0;
+        _diagVerticalValueChangedElapsedTicks = 0L;
+        _diagVerticalValueChangedSetOffsetsElapsedTicks = 0L;
         return snapshot;
     }
 
@@ -605,7 +628,15 @@ public class ScrollViewer : ContentControl
         var beforeVertical = VerticalOffset;
         var amount = MathF.Max(1f, LineScrollAmount);
         var direction = delta > 0 ? -1f : 1f;
-        RunWithinInputScrollMutation(() => SetOffsets(HorizontalOffset, VerticalOffset + (direction * amount)));
+        BeginInputScrollMutation();
+        try
+        {
+            SetOffsets(HorizontalOffset, VerticalOffset + (direction * amount));
+        }
+        finally
+        {
+            EndInputScrollMutation();
+        }
 
         var handled = MathF.Abs(beforeHorizontal - HorizontalOffset) > 0.001f ||
                       MathF.Abs(beforeVertical - VerticalOffset) > 0.001f;
@@ -617,7 +648,7 @@ public class ScrollViewer : ContentControl
         return handled;
     }
 
-    private void SetOffsets(float horizontal, float vertical)
+    private void SetOffsets(float horizontal, float vertical, ScrollOffsetUpdateSource updateSource = ScrollOffsetUpdateSource.External)
     {
         _diagSetOffsetCalls++;
         var beforeHorizontal = HorizontalOffset;
@@ -626,26 +657,31 @@ public class ScrollViewer : ContentControl
         var maxVertical = MathF.Max(0f, ExtentHeight - ViewportHeight);
         var nextHorizontal = MathF.Max(0f, MathF.Min(maxHorizontal, horizontal));
         var nextVertical = MathF.Max(0f, MathF.Min(maxVertical, vertical));
-
-        SetIfChanged(HorizontalOffsetProperty, nextHorizontal);
-        SetIfChanged(VerticalOffsetProperty, nextVertical);
-        var horizontalDelta = MathF.Abs(beforeHorizontal - HorizontalOffset);
-        var verticalDelta = MathF.Abs(beforeVertical - VerticalOffset);
+        var horizontalDelta = MathF.Abs(beforeHorizontal - nextHorizontal);
+        var verticalDelta = MathF.Abs(beforeVertical - nextVertical);
 
         _diagHorizontalDelta += horizontalDelta;
         _diagVerticalDelta += verticalDelta;
         if (horizontalDelta <= 0.001f && verticalDelta <= 0.001f)
         {
             _diagSetOffsetNoOp++;
+            if (updateSource == ScrollOffsetUpdateSource.External)
+            {
+                UpdateScrollBarValues();
+            }
+
+            return;
         }
 
-        if ((horizontalDelta > 0.001f || verticalDelta > 0.001f) &&
-            !NeedsMeasure &&
+        SetIfChanged(HorizontalOffsetProperty, nextHorizontal);
+        SetIfChanged(VerticalOffsetProperty, nextVertical);
+
+        if (!NeedsMeasure &&
             !NeedsArrange)
         {
             if (ContentElement is VirtualizingStackPanel virtualizingStackPanel)
             {
-                if (virtualizingStackPanel.RequiresMeasureForViewerOwnedOffsetChange(beforeHorizontal, HorizontalOffset, beforeVertical, VerticalOffset))
+                if (virtualizingStackPanel.RequiresMeasureForViewerOwnedOffsetChange(beforeHorizontal, nextHorizontal, beforeVertical, nextVertical))
                 {
                     InvalidateMeasure();
                     InvalidateArrange();
@@ -669,30 +705,30 @@ public class ScrollViewer : ContentControl
             }
         }
 
-        UpdateScrollBarValues();
-        if (_inputScrollMutationDepth > 0 &&
-            horizontalDelta <= 0.001f &&
-            verticalDelta <= 0.001f)
+        switch (updateSource)
         {
+            case ScrollOffsetUpdateSource.External:
+                UpdateScrollBarValues();
+                break;
+            case ScrollOffsetUpdateSource.HorizontalScrollBar:
+                UpdateVerticalScrollBarValue();
+                break;
+            case ScrollOffsetUpdateSource.VerticalScrollBar:
+                UpdateHorizontalScrollBarValue();
+                break;
         }
 
-        if (horizontalDelta > 0.001f || verticalDelta > 0.001f)
-        {
-            Popup.CloseAnchoredPopupsWithin(this);
-        }
+        Popup.CloseAnchoredPopupsWithin(this);
     }
 
-    private void RunWithinInputScrollMutation(Action action)
+    private void BeginInputScrollMutation()
     {
         _inputScrollMutationDepth++;
-        try
-        {
-            action();
-        }
-        finally
-        {
-            _inputScrollMutationDepth--;
-        }
+    }
+
+    private void EndInputScrollMutation()
+    {
+        _inputScrollMutationDepth--;
     }
 
     private void ArrangeContentForCurrentOffsets()
@@ -808,6 +844,32 @@ public class ScrollViewer : ContentControl
         }
     }
 
+    private void UpdateHorizontalScrollBarValue()
+    {
+        _suppressInternalScrollBarValueChange = true;
+        try
+        {
+            SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, HorizontalOffset);
+        }
+        finally
+        {
+            _suppressInternalScrollBarValueChange = false;
+        }
+    }
+
+    private void UpdateVerticalScrollBarValue()
+    {
+        _suppressInternalScrollBarValueChange = true;
+        try
+        {
+            SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
+        }
+        finally
+        {
+            _suppressInternalScrollBarValueChange = false;
+        }
+    }
+
     private void OnHorizontalScrollBarValueChanged(object? sender, RoutedSimpleEventArgs args)
     {
         _ = sender;
@@ -817,19 +879,41 @@ public class ScrollViewer : ContentControl
             return;
         }
 
-        RunWithinInputScrollMutation(() => SetOffsets(_horizontalBar.Value, VerticalOffset));
+        BeginInputScrollMutation();
+        try
+        {
+            SetOffsets(_horizontalBar.Value, VerticalOffset, ScrollOffsetUpdateSource.HorizontalScrollBar);
+        }
+        finally
+        {
+            EndInputScrollMutation();
+        }
     }
 
     private void OnVerticalScrollBarValueChanged(object? sender, RoutedSimpleEventArgs args)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         _ = sender;
         _ = args;
         if (_suppressInternalScrollBarValueChange)
         {
+            _diagVerticalValueChangedElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
-        RunWithinInputScrollMutation(() => SetOffsets(HorizontalOffset, _verticalBar.Value));
+        var setOffsetsStartTicks = Stopwatch.GetTimestamp();
+        BeginInputScrollMutation();
+        try
+        {
+            SetOffsets(HorizontalOffset, _verticalBar.Value, ScrollOffsetUpdateSource.VerticalScrollBar);
+        }
+        finally
+        {
+            EndInputScrollMutation();
+        }
+        _diagVerticalValueChangedSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - setOffsetsStartTicks;
+        _diagVerticalValueChangedCallCount++;
+        _diagVerticalValueChangedElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void SetIfChanged(DependencyProperty property, float value, string? diagnosticsCounterName = null)
@@ -921,4 +1005,9 @@ public readonly record struct ScrollViewerScrollMetricsSnapshot(
     int SetOffsetNoOpCalls,
     float TotalHorizontalDelta,
     float TotalVerticalDelta);
+
+internal readonly record struct ScrollViewerValueChangedTelemetrySnapshot(
+    int VerticalValueChangedCallCount,
+    double VerticalValueChangedMilliseconds,
+    double VerticalValueChangedSetOffsetsMilliseconds);
 

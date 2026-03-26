@@ -985,9 +985,11 @@ public class Game1 : Game
     {
         private const string DefaultLogRelativePath = "artifacts/diagnostics/controls-catalog-sidebar-scroll-manual-runtime-hotspot.txt";
         private const int MaxLoggedFrames = 2400;
+        private const double LoggedFrameFpsThreshold = 45d;
         private readonly string _logPath;
         private readonly StreamWriter _writer;
         private int _frameIndex;
+        private int _loggedFrameCount;
         private long _lastFrameTimestamp;
         private PendingSidebarDrawSample? _pendingSample;
 
@@ -1008,6 +1010,7 @@ public class Game1 : Game
             _writer.WriteLine("step_3=hover the sidebar vertical scrollbar");
             _writer.WriteLine("step_4=scroll in the sidebar with and without ProgressBar view open");
             _writer.WriteLine("step_5=close the app and inspect this log");
+            _writer.WriteLine($"logging_filter=only frames with fps < {LoggedFrameFpsThreshold:0.###}");
             _writer.WriteLine();
             _writer.WriteLine("frames:");
         }
@@ -1068,10 +1071,16 @@ public class Game1 : Game
 
             var scroll = ScrollViewer.GetScrollMetricsAndReset();
             var now = Stopwatch.GetTimestamp();
-            var fps = _lastFrameTimestamp == 0
+            var hasPreviousFrame = _lastFrameTimestamp != 0;
+            var fps = !hasPreviousFrame
                 ? 0d
                 : (double)Stopwatch.Frequency / Math.Max(1L, now - _lastFrameTimestamp);
             _lastFrameTimestamp = now;
+
+            if (!hasPreviousFrame || fps >= LoggedFrameFpsThreshold)
+            {
+                return;
+            }
 
             var perf = uiRoot.GetPerformanceTelemetrySnapshotForTests();
             var render = uiRoot.GetRenderTelemetrySnapshotForTests();
@@ -1107,6 +1116,7 @@ public class Game1 : Game
             var previewRoot = catalogView.FindName("PreviewHost") as ContentControl;
             var previewType = (previewRoot?.Content as UIElement)?.GetType().Name ?? "null";
 
+            _loggedFrameCount++;
             _writer.WriteLine(
                 $"frame={pending.FrameIndex:0000} selected={pending.SelectedControlName} preview={previewType} fps={fps:0.###} drawMs={uiRoot.LastDrawMs:0.###} updateMs={uiRoot.LastUpdateMs:0.###} gameElapsedMs={gameTime.ElapsedGameTime.TotalMilliseconds:0.###} " +
                 $"pointer=({pending.PointerPosition.X:0.#},{pending.PointerPosition.Y:0.#}) hovered={pending.HoveredType} hoveredPath={pending.HoveredPath} hoveredSidebarVBar={pending.HoveredSidebarVerticalScrollBar} " +
@@ -1125,6 +1135,8 @@ public class Game1 : Game
 
         public void Dispose()
         {
+            _writer.WriteLine();
+            _writer.WriteLine($"logged_low_fps_frames={_loggedFrameCount}");
             _writer.Dispose();
         }
 

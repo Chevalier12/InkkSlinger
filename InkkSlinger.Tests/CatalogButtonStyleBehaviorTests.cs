@@ -10,7 +10,7 @@ namespace InkkSlinger.Tests;
 public sealed class CatalogButtonStyleBehaviorTests
 {
     [Fact]
-    public void TemplateHoverTrigger_TargetedBorderInvalidatesWithoutDirtyingButtonOwner()
+    public void TemplateHoverTrigger_TargetedBorderInvalidatesTemplatedButtonOwner()
     {
         const string xaml = """
                             <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
@@ -65,7 +65,13 @@ public sealed class CatalogButtonStyleBehaviorTests
         uiRoot.SynchronizeRetainedRenderListForTests();
 
         Assert.True(button.IsMouseOver);
-        Assert.Equal("Border#border", uiRoot.GetLastSynchronizedDirtyRootSummaryForTests());
+        var invalidationSnapshot = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+
+        Assert.Equal("Button", invalidationSnapshot.EffectiveSourceType);
+        Assert.Equal("Probe", invalidationSnapshot.EffectiveSourceName);
+        Assert.Equal("Button", invalidationSnapshot.DirtyBoundsVisualType);
+        Assert.Equal("Probe", invalidationSnapshot.DirtyBoundsVisualName);
+        Assert.Equal("Button#Probe", uiRoot.GetLastSynchronizedDirtyRootSummaryForTests());
     }
 
     [Fact]

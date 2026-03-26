@@ -356,8 +356,8 @@ public class ScrollViewerViewerOwnedScrollingTests
         var firstHandled = viewer.HandleMouseWheelFromInput(-120);
         var renderInvalidationsAfterFirst = uiRoot.RenderInvalidationCount;
         Assert.True(firstHandled);
-        Assert.True(content.NeedsRender);
         Assert.True(renderInvalidationsAfterFirst > renderInvalidationsBefore);
+        Assert.NotEmpty(uiRoot.GetDirtyRegionsSnapshotForTests());
 
         var offsetAfterFirst = viewer.VerticalOffset;
         var secondHandled = viewer.HandleMouseWheelFromInput(-120);
@@ -366,10 +366,48 @@ public class ScrollViewerViewerOwnedScrollingTests
 
         Assert.True(secondHandled);
         Assert.True(viewer.VerticalOffset > offsetAfterFirst);
-        Assert.True(content.NeedsRender);
         Assert.True(secondDelta > 0,
             $"Expected repeated transform-scroll updates to keep contributing render invalidation bookkeeping before the next frame. secondDelta={secondDelta}.");
         Assert.NotEmpty(uiRoot.GetDirtyRegionsSnapshotForTests());
+    }
+
+    [Fact]
+    public void TransformDefault_RetainedDrawOrderTracksScrolledContentBeforeResize()
+    {
+        var root = new Panel();
+        var content = CreateTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            LineScrollAmount = 30f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.True(viewer.HandleMouseWheelFromInput(-120));
+        }
+
+        Assert.True(viewer.VerticalOffset > 100f);
+        Assert.True(viewer.TryGetContentViewportClipRect(out var clip));
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var firstChild = Assert.IsType<Border>(content.Children[0]);
+        var visibleChild = Assert.IsType<Border>(content.Children[6]);
+        var order = uiRoot.GetRetainedDrawOrderForClipForTests(clip);
+
+        Assert.DoesNotContain(firstChild, order);
+        Assert.Contains(visibleChild, order);
     }
 
     [Fact]

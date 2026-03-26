@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -11,6 +12,13 @@ public class ScrollBar : RangeBase
 {
     private const float ValueEpsilon = 0.01f;
     private static readonly Lazy<Style> DefaultScrollBarStyle = new(BuildDefaultScrollBarStyle);
+    private static int _diagOnThumbDragDeltaCallCount;
+    private static long _diagOnThumbDragDeltaElapsedTicks;
+    private static long _diagOnThumbDragDeltaValueSetElapsedTicks;
+    private static long _diagOnValueChangedBaseElapsedTicks;
+    private static long _diagOnValueChangedSyncTrackStateElapsedTicks;
+    private static long _diagSyncTrackStateElapsedTicks;
+    private static long _diagRefreshTrackLayoutElapsedTicks;
     private Track? _track;
     private Thumb? _thumb;
     private RepeatButton? _lineUpButton;
@@ -212,8 +220,13 @@ public class ScrollBar : RangeBase
 
     protected override void OnValueChanged(float oldValue, float newValue)
     {
+        var baseStartTicks = Stopwatch.GetTimestamp();
         base.OnValueChanged(oldValue, newValue);
+        _diagOnValueChangedBaseElapsedTicks += Stopwatch.GetTimestamp() - baseStartTicks;
+
+        var syncStartTicks = Stopwatch.GetTimestamp();
         SyncTrackState();
+        _diagOnValueChangedSyncTrackStateElapsedTicks += Stopwatch.GetTimestamp() - syncStartTicks;
     }
 
     protected override float CoerceValueCore(float value)
@@ -284,10 +297,16 @@ public class ScrollBar : RangeBase
             return;
         }
 
+        var startTicks = Stopwatch.GetTimestamp();
         _thumbDragAccumulatedDelta += Orientation == Orientation.Vertical
             ? args.VerticalChange
             : args.HorizontalChange;
+
+        var valueSetStartTicks = Stopwatch.GetTimestamp();
         Value = _track.GetValueFromThumbTravel(_thumbDragOriginTravel + _thumbDragAccumulatedDelta);
+        _diagOnThumbDragDeltaValueSetElapsedTicks += Stopwatch.GetTimestamp() - valueSetStartTicks;
+        _diagOnThumbDragDeltaCallCount++;
+        _diagOnThumbDragDeltaElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         args.Handled = true;
     }
 
@@ -301,8 +320,10 @@ public class ScrollBar : RangeBase
 
     private void SyncTrackState()
     {
+        var startTicks = Stopwatch.GetTimestamp();
         if (_track == null)
         {
+            _diagSyncTrackStateElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
@@ -318,6 +339,7 @@ public class ScrollBar : RangeBase
         SetIfChanged(Track.ValueProperty, _track, coercedValue);
         SetIfChanged(Track.ViewportSizeProperty, _track, ViewportSize);
         RefreshTrackLayoutIfPossible();
+        _diagSyncTrackStateElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void UpdateDefaultLineButtonText()
@@ -431,23 +453,53 @@ public class ScrollBar : RangeBase
 
     private void RefreshTrackLayoutIfPossible()
     {
+        var startTicks = Stopwatch.GetTimestamp();
         if (_track is not FrameworkElement track)
         {
+            _diagRefreshTrackLayoutElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
         var slot = track.LayoutSlot;
         if (slot.Width <= 0f || slot.Height <= 0f)
         {
+            _diagRefreshTrackLayoutElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
         if (!track.NeedsMeasure && !track.NeedsArrange)
         {
+            _diagRefreshTrackLayoutElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
         track.Arrange(slot);
+        _diagRefreshTrackLayoutElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+    }
+
+    internal static ScrollBarThumbDragTelemetrySnapshot GetThumbDragTelemetryAndReset()
+    {
+        var snapshot = new ScrollBarThumbDragTelemetrySnapshot(
+            _diagOnThumbDragDeltaCallCount,
+            TicksToMilliseconds(_diagOnThumbDragDeltaElapsedTicks),
+            TicksToMilliseconds(_diagOnThumbDragDeltaValueSetElapsedTicks),
+            TicksToMilliseconds(_diagOnValueChangedBaseElapsedTicks),
+            TicksToMilliseconds(_diagOnValueChangedSyncTrackStateElapsedTicks),
+            TicksToMilliseconds(_diagSyncTrackStateElapsedTicks),
+            TicksToMilliseconds(_diagRefreshTrackLayoutElapsedTicks));
+        _diagOnThumbDragDeltaCallCount = 0;
+        _diagOnThumbDragDeltaElapsedTicks = 0L;
+        _diagOnThumbDragDeltaValueSetElapsedTicks = 0L;
+        _diagOnValueChangedBaseElapsedTicks = 0L;
+        _diagOnValueChangedSyncTrackStateElapsedTicks = 0L;
+        _diagSyncTrackStateElapsedTicks = 0L;
+        _diagRefreshTrackLayoutElapsedTicks = 0L;
+        return snapshot;
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 
     private static Style BuildDefaultScrollBarStyle()
@@ -516,3 +568,12 @@ public class ScrollBar : RangeBase
         };
     }
 }
+
+internal readonly record struct ScrollBarThumbDragTelemetrySnapshot(
+    int OnThumbDragDeltaCallCount,
+    double OnThumbDragDeltaMilliseconds,
+    double OnThumbDragDeltaValueSetMilliseconds,
+    double OnValueChangedBaseMilliseconds,
+    double OnValueChangedSyncTrackStateMilliseconds,
+    double SyncTrackStateMilliseconds,
+    double RefreshTrackLayoutMilliseconds);

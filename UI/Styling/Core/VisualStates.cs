@@ -70,14 +70,26 @@ public sealed class VisualStateGroup
                 continue;
             }
 
-            ApplySetters(context, state);
+            var transitionStart = System.Diagnostics.Stopwatch.GetTimestamp();
+            var applySettersStart = System.Diagnostics.Stopwatch.GetTimestamp();
+            var setterMutationCounts = ApplySetters(context, state);
+            var applySettersTicks = System.Diagnostics.Stopwatch.GetTimestamp() - applySettersStart;
 
+            var storyboardStart = System.Diagnostics.Stopwatch.GetTimestamp();
             if (context.Scope != null)
             {
                 _activeStoryboard?.Remove(context.Scope);
                 _activeStoryboard = state.Storyboard;
                 _activeStoryboard?.Begin(context.Scope, isControllable: true, HandoffBehavior.SnapshotAndReplace);
             }
+
+            var storyboardTicks = System.Diagnostics.Stopwatch.GetTimestamp() - storyboardStart;
+            VisualStateManager.RecordGroupTransition(
+                System.Diagnostics.Stopwatch.GetTimestamp() - transitionStart,
+                applySettersTicks,
+                storyboardTicks,
+                setterMutationCounts.SetCount,
+                setterMutationCounts.ClearCount);
 
             CurrentStateName = stateName;
             return true;
@@ -104,8 +116,10 @@ public sealed class VisualStateGroup
         CurrentStateName = null;
     }
 
-    private void ApplySetters(TriggerActionContext context, VisualState state)
+    private (int SetCount, int ClearCount) ApplySetters(TriggerActionContext context, VisualState state)
     {
+        var setCount = 0;
+        var clearCount = 0;
         var desiredValues = new Dictionary<(DependencyObject Target, DependencyProperty Property), object?>();
         for (var i = 0; i < state.Setters.Count; i++)
         {
@@ -130,6 +144,7 @@ public sealed class VisualStateGroup
             if (!desiredValues.ContainsKey(pair.Key))
             {
                 pair.Key.Target.ClearTemplateTriggerValue(pair.Key.Property);
+                clearCount++;
             }
         }
 
@@ -141,6 +156,7 @@ public sealed class VisualStateGroup
             }
 
             pair.Key.Target.SetTemplateTriggerValue(pair.Key.Property, pair.Value);
+            setCount++;
         }
 
         _activeValues.Clear();
@@ -148,6 +164,8 @@ public sealed class VisualStateGroup
         {
             _activeValues[pair.Key] = pair.Value;
         }
+
+        return (setCount, clearCount);
     }
 
     private static DependencyObject? ResolveTarget(TriggerActionContext context, string? targetName)

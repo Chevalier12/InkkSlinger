@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -6,6 +7,10 @@ namespace InkkSlinger;
 
 public class Thumb : Control
 {
+    private static int _diagHandlePointerMoveCallCount;
+    private static long _diagHandlePointerMoveElapsedTicks;
+    private static long _diagRaiseDragDeltaElapsedTicks;
+
     public static readonly RoutedEvent DragStartedEvent =
         new(nameof(DragStarted), RoutingStrategy.Bubble);
 
@@ -152,17 +157,39 @@ public class Thumb : Control
             return false;
         }
 
+        var startTicks = Stopwatch.GetTimestamp();
         var delta = pointerPosition - _lastPointerPosition;
         _lastPointerPosition = pointerPosition;
 
+        var raiseStartTicks = Stopwatch.GetTimestamp();
         RaiseRoutedEvent(
             DragDeltaEvent,
             new DragDeltaEventArgs(
                 DragDeltaEvent,
                 delta.X,
                 delta.Y));
+        _diagRaiseDragDeltaElapsedTicks += Stopwatch.GetTimestamp() - raiseStartTicks;
+        _diagHandlePointerMoveCallCount++;
+        _diagHandlePointerMoveElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
 
         return MathF.Abs(delta.X) > 0.001f || MathF.Abs(delta.Y) > 0.001f;
+    }
+
+    internal static ThumbDragTelemetrySnapshot GetDragTelemetryAndReset()
+    {
+        var snapshot = new ThumbDragTelemetrySnapshot(
+            _diagHandlePointerMoveCallCount,
+            TicksToMilliseconds(_diagHandlePointerMoveElapsedTicks),
+            TicksToMilliseconds(_diagRaiseDragDeltaElapsedTicks));
+        _diagHandlePointerMoveCallCount = 0;
+        _diagHandlePointerMoveElapsedTicks = 0L;
+        _diagRaiseDragDeltaElapsedTicks = 0L;
+        return snapshot;
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 
     internal bool HandlePointerUpFromInput()
@@ -200,3 +227,8 @@ public class Thumb : Control
             new DragCompletedEventArgs(DragCompletedEvent, total.X, total.Y, canceled));
     }
 }
+
+internal readonly record struct ThumbDragTelemetrySnapshot(
+    int HandlePointerMoveCallCount,
+    double HandlePointerMoveMilliseconds,
+    double RaiseDragDeltaMilliseconds);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -66,6 +67,7 @@ public sealed partial class UiRoot
 
     private void CompactDirtyRenderQueueForSync()
     {
+        var compactionStart = Stopwatch.GetTimestamp();
         _dirtyRenderRootsRequireDeepSync.Clear();
         _dirtyRenderWorkItems.Clear();
         _dirtyRenderCandidates.Clear();
@@ -80,6 +82,7 @@ public sealed partial class UiRoot
         if (_dirtyRenderCompactionBuffer.Count == 0)
         {
             _lastDirtyRootCountAfterCoalescing = 0;
+            _lastRetainedQueueCompactionMs += Stopwatch.GetElapsedTime(compactionStart).TotalMilliseconds;
             return;
         }
 
@@ -115,13 +118,17 @@ public sealed partial class UiRoot
                 _dirtyRenderRootsRequireDeepSync.Contains(candidate)));
         }
 
+        var coalesceStart = Stopwatch.GetTimestamp();
         CoalesceDirtyRenderCandidates();
+        _lastRetainedCandidateCoalescingMs += Stopwatch.GetElapsedTime(coalesceStart).TotalMilliseconds;
 
         _lastDirtyRootCountAfterCoalescing = _dirtyRenderWorkItems.Count;
         for (var i = 0; i < _dirtyRenderWorkItems.Count; i++)
         {
             _lastCoalescedDirtyRenderRoots.Add(_dirtyRenderWorkItems[i].Visual);
         }
+
+        _lastRetainedQueueCompactionMs += Stopwatch.GetElapsedTime(compactionStart).TotalMilliseconds;
     }
 
     private void CoalesceDirtyRenderCandidates()
@@ -161,6 +168,19 @@ public sealed partial class UiRoot
         if (last.RenderNodeIndex >= 0 &&
             candidate.RenderNodeIndex < last.SubtreeEndIndexExclusive)
         {
+            if (!last.RequiresDeepSync &&
+                !candidate.RequiresDeepSync &&
+                ShouldKeepTrackOverlapAsSeparateWorkItems(last.Visual, candidate.Visual))
+            {
+                _dirtyRenderWorkItems.Add(new DirtyRenderWorkItem(
+                    candidate.Visual,
+                    candidate.RenderNodeIndex,
+                    candidate.SubtreeEndIndexExclusive,
+                    false));
+                return;
+            }
+
+            _lastRetainedOverlapForcedDeepCount++;
             _dirtyRenderWorkItems[lastIndex] = last with { RequiresDeepSync = true };
             return;
         }
@@ -170,6 +190,29 @@ public sealed partial class UiRoot
             candidate.RenderNodeIndex,
             candidate.SubtreeEndIndexExclusive,
             candidate.RequiresDeepSync));
+    }
+
+    private static bool ShouldKeepTrackOverlapAsSeparateWorkItems(UIElement first, UIElement second)
+    {
+        return HasTrackBetween(first, second) || HasTrackBetween(second, first);
+    }
+
+    private static bool HasTrackBetween(UIElement descendant, UIElement ancestor)
+    {
+        for (var current = descendant; current != null; current = current.VisualParent)
+        {
+            if (current is Track)
+            {
+                return true;
+            }
+
+            if (ReferenceEquals(current, ancestor))
+            {
+                break;
+            }
+        }
+
+        return false;
     }
 
     private void ClearDirtyRenderQueue()
@@ -220,7 +263,9 @@ public sealed partial class UiRoot
             var dirtyItem = _dirtyRenderWorkItems[i];
             var dirtyVisual = dirtyItem.Visual;
             var forceDeepSync = dirtyItem.RequiresDeepSync;
+            var updateSubtreeStart = Stopwatch.GetTimestamp();
             UpdateRenderNodeSubtree(dirtyVisual, forceDeepSync, out var ancestorRefreshRoot);
+            _lastRetainedSubtreeUpdateMs += Stopwatch.GetElapsedTime(updateSubtreeStart).TotalMilliseconds;
             _retainedSubtreeSyncCount++;
             if (_renderListNeedsFullRebuild)
             {
@@ -252,7 +297,9 @@ public sealed partial class UiRoot
         _lastCompletedSynchronizedDirtyRenderRoots.Clear();
         _lastCompletedSynchronizedDirtyRenderRoots.AddRange(_lastSynchronizedDirtyRenderRoots);
 
+        var ancestorRefreshStart = Stopwatch.GetTimestamp();
         RefreshQueuedAncestorNodeSubtreeMetadata();
+        _lastRetainedAncestorRefreshMs += Stopwatch.GetElapsedTime(ancestorRefreshStart).TotalMilliseconds;
         if (_renderListNeedsFullRebuild)
         {
             _lastRetainedSyncUsedFullRebuild = true;
@@ -394,7 +441,13 @@ public sealed partial class UiRoot
 
         if (forceDeepSync)
         {
+            _lastRetainedForceDeepSyncCount++;
             var canDowngradeForcedDeep = CanSafelyDowngradeForcedDeepSync(dirtySubtreeRoot);
+            if (!canDowngradeForcedDeep)
+            {
+                _lastRetainedForcedDeepDowngradeBlockedCount++;
+            }
+
             if (canDowngradeForcedDeep && TryUpdateRenderNodeSubtreeShallow(dirtySubtreeRoot, out shallowRejectReason, out shallowMetadataChanged))
             {
                 if (shallowMetadataChanged)
@@ -413,7 +466,9 @@ public sealed partial class UiRoot
             parentNode = _retainedRenderList[parentNodeIndex];
         }
 
+        var deepSyncStart = Stopwatch.GetTimestamp();
         _ = UpdateRenderNodeSubtreeRecursive(dirtySubtreeRoot, parentNode);
+        _lastRetainedDeepSyncMs += Stopwatch.GetElapsedTime(deepSyncStart).TotalMilliseconds;
         if (_renderListNeedsFullRebuild)
         {
             return;
@@ -428,12 +483,15 @@ public sealed partial class UiRoot
 
     private bool TryUpdateRenderNodeSubtreeShallow(UIElement visual, out ShallowSyncRejectReason rejectReason, out bool subtreeMetadataChanged)
     {
+        var shallowStart = Stopwatch.GetTimestamp();
         rejectReason = ShallowSyncRejectReason.None;
         subtreeMetadataChanged = false;
         if (!_renderNodeIndices.TryGetValue(visual, out var renderNodeIndex))
         {
             _renderListNeedsFullRebuild = true;
             rejectReason = ShallowSyncRejectReason.StructureMismatch;
+            _lastRetainedShallowRejectStructureCount++;
+            _lastRetainedShallowSyncMs += Stopwatch.GetElapsedTime(shallowStart).TotalMilliseconds;
             return false;
         }
 
@@ -448,6 +506,8 @@ public sealed partial class UiRoot
         if (!TryBuildUpdatedNodeWithCurrentChildren(visual, previous, parentNode, out var updated))
         {
             rejectReason = ShallowSyncRejectReason.StructureMismatch;
+            _lastRetainedShallowRejectStructureCount++;
+            _lastRetainedShallowSyncMs += Stopwatch.GetElapsedTime(shallowStart).TotalMilliseconds;
             return false;
         }
 
@@ -463,12 +523,24 @@ public sealed partial class UiRoot
             rejectReason = previous.IsEffectivelyVisible != updated.IsEffectivelyVisible
                 ? ShallowSyncRejectReason.EffectiveVisibilityChanged
                 : ShallowSyncRejectReason.RenderStateChanged;
+            if (rejectReason == ShallowSyncRejectReason.EffectiveVisibilityChanged)
+            {
+                _lastRetainedShallowRejectVisibilityCount++;
+            }
+            else if (rejectReason == ShallowSyncRejectReason.RenderStateChanged)
+            {
+                _lastRetainedShallowRejectRenderStateCount++;
+            }
+
+            _lastRetainedShallowSyncMs += Stopwatch.GetElapsedTime(shallowStart).TotalMilliseconds;
             return false;
         }
 
         subtreeMetadataChanged = !HasEquivalentSubtreeMetadata(previous, updated);
         RecordBoundsDelta(previous, updated);
         _retainedRenderList[renderNodeIndex] = updated;
+        _lastRetainedShallowSuccessCount++;
+        _lastRetainedShallowSyncMs += Stopwatch.GetElapsedTime(shallowStart).TotalMilliseconds;
         return true;
     }
 

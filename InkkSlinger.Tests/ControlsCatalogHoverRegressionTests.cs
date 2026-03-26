@@ -46,6 +46,51 @@ public sealed class ControlsCatalogHoverRegressionTests
     }
 
     [Fact]
+    public void HoveringScrolledSidebarButton_InvalidatesTemplatedButtonOwner()
+    {
+        var view = new ControlsCatalogView();
+        var uiRoot = new UiRoot(view);
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        var viewer = FindFirstVisualChild<ScrollViewer>(view);
+        Assert.NotNull(viewer);
+
+        viewer!.ScrollToVerticalOffset(320f);
+        RunLayout(uiRoot, 1280, 820, 32);
+
+        var host = Assert.IsType<StackPanel>(view.FindName("ControlButtonsHost"));
+        var viewport = GetViewerViewportRect(viewer);
+
+        var verticalBar = viewer.GetVisualChildren()
+            .OfType<ScrollBar>()
+            .FirstOrDefault(static bar => bar.Orientation == Orientation.Vertical && bar.IsVisible);
+        Assert.NotNull(verticalBar);
+
+        var (button, buttonPoint) = FindVisibleSidebarButtonHit(view, host, viewport, verticalBar!.LayoutSlot.X);
+
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        view.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        var gutterPoint = new Vector2(
+            verticalBar!.LayoutSlot.X - 0.25f,
+            button.LayoutSlot.Y + (button.LayoutSlot.Height * 0.5f));
+        MovePointer(uiRoot, gutterPoint);
+
+        MovePointer(uiRoot, buttonPoint);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var invalidationSnapshot = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRootSummary = uiRoot.GetLastSynchronizedDirtyRootSummaryForTests();
+
+        Assert.True(button.IsMouseOver);
+        Assert.Equal("ScrollViewer", invalidationSnapshot.EffectiveSourceType);
+        Assert.Equal("ScrollViewer", invalidationSnapshot.DirtyBoundsVisualType);
+        Assert.Equal("ScrollViewer", dirtyRootSummary);
+    }
+
+    [Fact]
     public void HoveringFromListBoxIntoSidebarButton_ShouldActivateSidebarHover()
     {
         var root = new Canvas
@@ -115,6 +160,52 @@ public sealed class ControlsCatalogHoverRegressionTests
     private static void MovePointer(UiRoot uiRoot, Vector2 point)
     {
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(point, pointerMoved: true));
+    }
+
+    private static LayoutRect GetViewerViewportRect(ScrollViewer viewer)
+    {
+        if (viewer.TryGetContentViewportClipRect(out var viewport))
+        {
+            return viewport;
+        }
+
+        throw new InvalidOperationException("Sidebar ScrollViewer did not expose a viewport.");
+    }
+
+    private static bool Intersects(LayoutRect left, LayoutRect right)
+    {
+        return left.X < right.X + right.Width &&
+               right.X < left.X + left.Width &&
+               left.Y < right.Y + right.Height &&
+               right.Y < left.Y + left.Height;
+    }
+
+    private static (Button Button, Vector2 Point) FindVisibleSidebarButtonHit(
+        UIElement root,
+        StackPanel host,
+        LayoutRect viewport,
+        float scrollbarLeft)
+    {
+        var minX = Math.Max(0, (int)MathF.Floor(viewport.X));
+        var maxX = Math.Max(minX, (int)MathF.Ceiling(MathF.Min(scrollbarLeft - 1f, viewport.X + viewport.Width)));
+        var minY = Math.Max(0, (int)MathF.Floor(viewport.Y));
+        var maxY = Math.Max(minY, (int)MathF.Ceiling(viewport.Y + viewport.Height));
+
+        for (var y = minY; y < maxY; y += 2)
+        {
+            for (var x = minX; x < maxX; x += 2)
+            {
+                var point = new Vector2(x, y);
+                var hit = VisualTreeHelper.HitTest(root, point);
+                var button = FindAncestor<Button>(hit);
+                if (button != null && host.Children.OfType<Button>().Contains(button))
+                {
+                    return (button, point);
+                }
+            }
+        }
+
+        throw new InvalidOperationException("Could not locate visible sidebar button hit point.");
     }
 
     private static InputDelta CreatePointerDelta(

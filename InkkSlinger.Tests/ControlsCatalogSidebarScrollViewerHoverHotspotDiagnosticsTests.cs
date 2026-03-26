@@ -19,6 +19,9 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
     {
         AnimationManager.Current.ResetForTests();
         VisualTreeHelper.ResetInstrumentationForTests();
+        Style.ResetTelemetryForTests();
+        TemplateTriggerEngine.ResetTelemetryForTests();
+        VisualStateManager.ResetTelemetryForTests();
 
         var catalog = new ControlsCatalogView();
         var uiRoot = new UiRoot(catalog);
@@ -74,6 +77,22 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
         lines.Add($"total_sink_value_sets={summary.TotalSinkValueSets}");
         lines.Add($"total_begin_storyboard_ms={summary.TotalBeginStoryboardMs:0.###}");
         lines.Add($"total_storyboard_start_ms={summary.TotalStoryboardStartMs:0.###}");
+        lines.Add($"total_style_apply_ms={summary.TotalStyleApplyMs:0.###}");
+        lines.Add($"total_style_apply_triggers_ms={summary.TotalStyleApplyTriggersMs:0.###}");
+        lines.Add($"total_style_trigger_action_ms={summary.TotalStyleApplyTriggerActionsMs:0.###}");
+        lines.Add($"total_style_invoke_actions_ms={summary.TotalStyleInvokeActionsMs:0.###}");
+        lines.Add($"total_style_trigger_matches={summary.TotalStyleTriggerMatches}");
+        lines.Add($"total_style_trigger_sets={summary.TotalStyleTriggerSets}");
+        lines.Add($"total_template_reapply_ms={summary.TotalTemplateReapplyMs:0.###}");
+        lines.Add($"total_template_match_ms={summary.TotalTemplateTriggerMatchMs:0.###}");
+        lines.Add($"total_template_setter_resolve_ms={summary.TotalTemplateSetterResolveMs:0.###}");
+        lines.Add($"total_template_actions_ms={summary.TotalTemplateInvokeActionsMs:0.###}");
+        lines.Add($"total_template_sets={summary.TotalTemplateSetValues}");
+        lines.Add($"total_visualstate_go_to_state_ms={summary.TotalVisualStateGoToStateMs:0.###}");
+        lines.Add($"total_visualstate_group_transition_ms={summary.TotalVisualStateGroupTransitionMs:0.###}");
+        lines.Add($"total_visualstate_apply_setters_ms={summary.TotalVisualStateApplySettersMs:0.###}");
+        lines.Add($"total_visualstate_storyboard_ms={summary.TotalVisualStateStoryboardMs:0.###}");
+        lines.Add($"total_visualstate_sets={summary.TotalVisualStateSetValues}");
         lines.Add($"total_compose_ms={summary.TotalComposeMs:0.###}");
         lines.Add($"total_compose_collect_ms={summary.TotalComposeCollectMs:0.###}");
         lines.Add($"total_compose_sort_ms={summary.TotalComposeSortMs:0.###}");
@@ -115,6 +134,9 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
         var beforeAnimation = AnimationManager.Current.GetTelemetrySnapshotForTests();
         var beforeHitTest = VisualTreeHelper.GetInstrumentationSnapshotForTests();
         var beforeRender = uiRoot.GetRenderTelemetrySnapshotForTests();
+        var beforeStyle = Style.GetTelemetrySnapshotForTests();
+        var beforeTemplateTrigger = TemplateTriggerEngine.GetTelemetrySnapshotForTests();
+        var beforeVisualState = VisualStateManager.GetTelemetrySnapshotForTests();
         _ = ScrollViewer.GetScrollMetricsAndReset();
         AnimationValueSink.ResetTelemetryForTests();
 
@@ -129,6 +151,9 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
         var afterRender = uiRoot.GetRenderTelemetrySnapshotForTests();
         var scrollMetrics = ScrollViewer.GetScrollMetricsAndReset();
         var sinkTelemetry = AnimationValueSink.GetTelemetrySnapshotForTests();
+        var afterStyle = Style.GetTelemetrySnapshotForTests();
+        var afterTemplateTrigger = TemplateTriggerEngine.GetTelemetrySnapshotForTests();
+        var afterVisualState = VisualStateManager.GetTelemetrySnapshotForTests();
 
         return new HoverSweepStepMetrics(
             stepIndex,
@@ -150,6 +175,22 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
             afterAnimation.ComposeBatchEndMilliseconds - beforeAnimation.ComposeBatchEndMilliseconds,
             afterAnimation.SinkSetValueMilliseconds - beforeAnimation.SinkSetValueMilliseconds,
             afterAnimation.HottestSetValuePathSummary,
+            afterStyle.ApplyMilliseconds - beforeStyle.ApplyMilliseconds,
+            afterStyle.ApplyTriggersMilliseconds - beforeStyle.ApplyTriggersMilliseconds,
+            afterStyle.ApplyTriggerActionsMilliseconds - beforeStyle.ApplyTriggerActionsMilliseconds,
+            afterStyle.InvokeActionsMilliseconds - beforeStyle.InvokeActionsMilliseconds,
+            afterStyle.TriggerMatchCount - beforeStyle.TriggerMatchCount,
+            afterStyle.SetStyleTriggerValueCount - beforeStyle.SetStyleTriggerValueCount,
+            afterTemplateTrigger.ReapplyMilliseconds - beforeTemplateTrigger.ReapplyMilliseconds,
+            afterTemplateTrigger.TriggerMatchMilliseconds - beforeTemplateTrigger.TriggerMatchMilliseconds,
+            afterTemplateTrigger.SetterResolveMilliseconds - beforeTemplateTrigger.SetterResolveMilliseconds,
+            afterTemplateTrigger.InvokeActionsMilliseconds - beforeTemplateTrigger.InvokeActionsMilliseconds,
+            afterTemplateTrigger.SetTemplateTriggerValueCount - beforeTemplateTrigger.SetTemplateTriggerValueCount,
+            afterVisualState.GoToStateMilliseconds - beforeVisualState.GoToStateMilliseconds,
+            afterVisualState.GroupGoToStateMilliseconds - beforeVisualState.GroupGoToStateMilliseconds,
+            afterVisualState.GroupApplySettersMilliseconds - beforeVisualState.GroupApplySettersMilliseconds,
+            afterVisualState.GroupStoryboardMilliseconds - beforeVisualState.GroupStoryboardMilliseconds,
+            afterVisualState.SetTemplateTriggerValueCount - beforeVisualState.SetTemplateTriggerValueCount,
             afterAnimation.ActiveStoryboardCount,
             afterAnimation.ActiveLaneCount,
             afterAnimation.ComposePassCount - beforeAnimation.ComposePassCount,
@@ -182,6 +223,18 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
         var totalPointerResolveMs = steps.Sum(static step => step.PointerMove.PointerTargetResolveMilliseconds);
         var totalBeginStoryboardMs = steps.Sum(static step => step.BeginStoryboardMs);
         var totalStoryboardStartMs = steps.Sum(static step => step.StoryboardStartMs);
+        var totalStyleApplyMs = steps.Sum(static step => step.StyleApplyMs);
+        var totalStyleApplyTriggersMs = steps.Sum(static step => step.StyleApplyTriggersMs);
+        var totalStyleApplyTriggerActionsMs = steps.Sum(static step => step.StyleApplyTriggerActionsMs);
+        var totalStyleInvokeActionsMs = steps.Sum(static step => step.StyleInvokeActionsMs);
+        var totalTemplateReapplyMs = steps.Sum(static step => step.TemplateReapplyMs);
+        var totalTemplateTriggerMatchMs = steps.Sum(static step => step.TemplateTriggerMatchMs);
+        var totalTemplateSetterResolveMs = steps.Sum(static step => step.TemplateSetterResolveMs);
+        var totalTemplateInvokeActionsMs = steps.Sum(static step => step.TemplateInvokeActionsMs);
+        var totalVisualStateGoToStateMs = steps.Sum(static step => step.VisualStateGoToStateMs);
+        var totalVisualStateGroupTransitionMs = steps.Sum(static step => step.VisualStateGroupTransitionMs);
+        var totalVisualStateApplySettersMs = steps.Sum(static step => step.VisualStateApplySettersMs);
+        var totalVisualStateStoryboardMs = steps.Sum(static step => step.VisualStateStoryboardMs);
         var totalComposeMs = steps.Sum(static step => step.ComposeMs);
         var totalComposeCollectMs = steps.Sum(static step => step.ComposeCollectMs);
         var totalComposeSortMs = steps.Sum(static step => step.ComposeSortMs);
@@ -226,6 +279,22 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
             totalSinkValueSets,
             totalBeginStoryboardMs,
             totalStoryboardStartMs,
+            totalStyleApplyMs,
+            totalStyleApplyTriggersMs,
+            totalStyleApplyTriggerActionsMs,
+            totalStyleInvokeActionsMs,
+            steps.Sum(static step => step.StyleTriggerMatchCount),
+            steps.Sum(static step => step.StyleTriggerSetCount),
+            totalTemplateReapplyMs,
+            totalTemplateTriggerMatchMs,
+            totalTemplateSetterResolveMs,
+            totalTemplateInvokeActionsMs,
+            steps.Sum(static step => step.TemplateSetValueCount),
+            totalVisualStateGoToStateMs,
+            totalVisualStateGroupTransitionMs,
+            totalVisualStateApplySettersMs,
+            totalVisualStateStoryboardMs,
+            steps.Sum(static step => step.VisualStateSetValueCount),
             totalComposeMs,
             totalComposeCollectMs,
             totalComposeSortMs,
@@ -248,7 +317,7 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
             hottestSetValuePaths,
             hotspotInference,
             hottest.Label,
-            $"beginStoryboards={hottest.BeginStoryboardCalls}, laneApplications={hottest.LaneApplicationCount}, sinkValueSets={hottest.SinkValueSetCount}, dpSinkSets={hottest.SinkTelemetry.DependencyPropertySetValueCount}, clrSinkSets={hottest.SinkTelemetry.ClrPropertySetValueCount}, dpSinkMs={hottest.SinkTelemetry.DependencyPropertySetValueMilliseconds:0.###}, clrSinkMs={hottest.SinkTelemetry.ClrPropertySetValueMilliseconds:0.###}, beginMs={hottest.BeginStoryboardMs:0.###}, startMs={hottest.StoryboardStartMs:0.###}, composeMs={hottest.ComposeMs:0.###}, composeCollectMs={hottest.ComposeCollectMs:0.###}, composeSortMs={hottest.ComposeSortMs:0.###}, composeMergeMs={hottest.ComposeMergeMs:0.###}, composeApplyMs={hottest.ComposeApplyMs:0.###}, composeBatchBeginMs={hottest.ComposeBatchBeginMs:0.###}, composeBatchEndMs={hottest.ComposeBatchEndMs:0.###}, setValueMs={hottest.SinkSetValueMs:0.###}, hottestSetValuePaths={hottest.HottestSetValuePathSummary}");
+            $"beginStoryboards={hottest.BeginStoryboardCalls}, laneApplications={hottest.LaneApplicationCount}, sinkValueSets={hottest.SinkValueSetCount}, dpSinkSets={hottest.SinkTelemetry.DependencyPropertySetValueCount}, clrSinkSets={hottest.SinkTelemetry.ClrPropertySetValueCount}, dpSinkMs={hottest.SinkTelemetry.DependencyPropertySetValueMilliseconds:0.###}, clrSinkMs={hottest.SinkTelemetry.ClrPropertySetValueMilliseconds:0.###}, beginMs={hottest.BeginStoryboardMs:0.###}, startMs={hottest.StoryboardStartMs:0.###}, styleApplyMs={hottest.StyleApplyMs:0.###}, styleApplyTriggersMs={hottest.StyleApplyTriggersMs:0.###}, templateReapplyMs={hottest.TemplateReapplyMs:0.###}, visualStateGoToStateMs={hottest.VisualStateGoToStateMs:0.###}, visualStateStoryboardMs={hottest.VisualStateStoryboardMs:0.###}, composeMs={hottest.ComposeMs:0.###}, composeCollectMs={hottest.ComposeCollectMs:0.###}, composeSortMs={hottest.ComposeSortMs:0.###}, composeMergeMs={hottest.ComposeMergeMs:0.###}, composeApplyMs={hottest.ComposeApplyMs:0.###}, composeBatchBeginMs={hottest.ComposeBatchBeginMs:0.###}, composeBatchEndMs={hottest.ComposeBatchEndMs:0.###}, setValueMs={hottest.SinkSetValueMs:0.###}, hottestSetValuePaths={hottest.HottestSetValuePathSummary}");
     }
 
     private static string FormatStep(HoverSweepStepMetrics step)
@@ -259,6 +328,7 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
             $"scrollViewerWheel={step.ScrollViewer.WheelEvents} scrollViewerSetOffsets={step.ScrollViewer.SetOffsetCalls} " +
             $"hoverMs={step.PointerMove.HoverUpdateMilliseconds:0.###} resolveMs={step.PointerMove.PointerTargetResolveMilliseconds:0.###} routeMs={step.PointerMove.PointerRouteMilliseconds:0.###} " +
             $"dpSinkSets={step.SinkTelemetry.DependencyPropertySetValueCount} dpSinkMs={step.SinkTelemetry.DependencyPropertySetValueMilliseconds:0.###} clrSinkSets={step.SinkTelemetry.ClrPropertySetValueCount} clrSinkMs={step.SinkTelemetry.ClrPropertySetValueMilliseconds:0.###} " +
+            $"styleApplyMs={step.StyleApplyMs:0.###} styleApplyTriggersMs={step.StyleApplyTriggersMs:0.###} styleTriggerActionsMs={step.StyleApplyTriggerActionsMs:0.###} styleInvokeActionsMs={step.StyleInvokeActionsMs:0.###} styleTriggerMatches={step.StyleTriggerMatchCount} styleTriggerSets={step.StyleTriggerSetCount} templateReapplyMs={step.TemplateReapplyMs:0.###} templateMatchMs={step.TemplateTriggerMatchMs:0.###} templateSetterResolveMs={step.TemplateSetterResolveMs:0.###} templateInvokeActionsMs={step.TemplateInvokeActionsMs:0.###} templateSets={step.TemplateSetValueCount} visualStateGoToStateMs={step.VisualStateGoToStateMs:0.###} visualStateGroupTransitionMs={step.VisualStateGroupTransitionMs:0.###} visualStateApplySettersMs={step.VisualStateApplySettersMs:0.###} visualStateStoryboardMs={step.VisualStateStoryboardMs:0.###} visualStateSets={step.VisualStateSetValueCount} " +
             $"beginMs={step.BeginStoryboardMs:0.###} startMs={step.StoryboardStartMs:0.###} composeMs={step.ComposeMs:0.###} composeCollectMs={step.ComposeCollectMs:0.###} composeSortMs={step.ComposeSortMs:0.###} composeMergeMs={step.ComposeMergeMs:0.###} composeApplyMs={step.ComposeApplyMs:0.###} composeBatchBeginMs={step.ComposeBatchBeginMs:0.###} composeBatchEndMs={step.ComposeBatchEndMs:0.###} setValueMs={step.SinkSetValueMs:0.###} hottestSetValuePaths={step.HottestSetValuePathSummary} " +
             $"beginStoryboards={step.BeginStoryboardCalls} storyboardStarts={step.StoryboardStarts} activeStoryboards={step.ActiveStoryboardCount} activeLanes={step.ActiveLaneCount} " +
             $"composePasses={step.ComposePassCount} laneApplications={step.LaneApplicationCount} sinkValueSets={step.SinkValueSetCount} clearedLanes={step.ClearedLaneCount} " +
@@ -401,6 +471,22 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
         double ComposeBatchEndMs,
         double SinkSetValueMs,
         string HottestSetValuePathSummary,
+        double StyleApplyMs,
+        double StyleApplyTriggersMs,
+        double StyleApplyTriggerActionsMs,
+        double StyleInvokeActionsMs,
+        long StyleTriggerMatchCount,
+        long StyleTriggerSetCount,
+        double TemplateReapplyMs,
+        double TemplateTriggerMatchMs,
+        double TemplateSetterResolveMs,
+        double TemplateInvokeActionsMs,
+        long TemplateSetValueCount,
+        double VisualStateGoToStateMs,
+        double VisualStateGroupTransitionMs,
+        double VisualStateApplySettersMs,
+        double VisualStateStoryboardMs,
+        long VisualStateSetValueCount,
         int ActiveStoryboardCount,
         int ActiveLaneCount,
         int ComposePassCount,
@@ -428,6 +514,22 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
         int TotalSinkValueSets,
         double TotalBeginStoryboardMs,
         double TotalStoryboardStartMs,
+        double TotalStyleApplyMs,
+        double TotalStyleApplyTriggersMs,
+        double TotalStyleApplyTriggerActionsMs,
+        double TotalStyleInvokeActionsMs,
+        long TotalStyleTriggerMatches,
+        long TotalStyleTriggerSets,
+        double TotalTemplateReapplyMs,
+        double TotalTemplateTriggerMatchMs,
+        double TotalTemplateSetterResolveMs,
+        double TotalTemplateInvokeActionsMs,
+        long TotalTemplateSetValues,
+        double TotalVisualStateGoToStateMs,
+        double TotalVisualStateGroupTransitionMs,
+        double TotalVisualStateApplySettersMs,
+        double TotalVisualStateStoryboardMs,
+        long TotalVisualStateSetValues,
         double TotalComposeMs,
         double TotalComposeCollectMs,
         double TotalComposeSortMs,

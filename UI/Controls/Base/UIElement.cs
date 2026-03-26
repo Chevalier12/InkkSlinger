@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -26,6 +27,15 @@ public class UIElement : DependencyObject
     private static int _freezableBatchQueuedTargetCount;
     private static long _freezableBatchFlushElapsedTicks;
     private static int _freezableBatchMaxPendingTargetCount;
+    private static int _valueChangedRaiseCount;
+    private static long _valueChangedRaiseElapsedTicks;
+    private static long _valueChangedRouteBuildElapsedTicks;
+    private static long _valueChangedRouteTraverseElapsedTicks;
+    private static long _valueChangedClassHandlerElapsedTicks;
+    private static long _valueChangedInstanceDispatchElapsedTicks;
+    private static long _valueChangedInstancePrepareElapsedTicks;
+    private static long _valueChangedInstanceInvokeElapsedTicks;
+    private static int _valueChangedMaxRouteLength;
     private static long _renderSelfElapsedTicks;
     private static int _renderSelfCallCount;
     private static long _hottestRenderSelfElapsedTicks;
@@ -768,12 +778,29 @@ public class UIElement : DependencyObject
 
     protected void RaiseRoutedEvent(RoutedEvent routedEvent, RoutedEventArgs args)
     {
+        var trackValueChanged = string.Equals(routedEvent.Name, "ValueChanged", StringComparison.Ordinal);
+        var valueChangedStartTicks = trackValueChanged ? Stopwatch.GetTimestamp() : 0L;
         args.OriginalSource ??= this;
         if (routedEvent.RoutingStrategy == RoutingStrategy.Direct)
         {
             var classHandlerMilliseconds = 0d;
             var instanceHandlerMilliseconds = 0d;
-            InvokeRoutedEvent(this, routedEvent, args, ref classHandlerMilliseconds, ref instanceHandlerMilliseconds);
+            var instancePrepareMilliseconds = 0d;
+            var instanceInvokeMilliseconds = 0d;
+            InvokeRoutedEvent(this, routedEvent, args, ref classHandlerMilliseconds, ref instanceHandlerMilliseconds, ref instancePrepareMilliseconds, ref instanceInvokeMilliseconds);
+            if (trackValueChanged)
+            {
+                _valueChangedRaiseCount++;
+                _valueChangedRaiseElapsedTicks += Stopwatch.GetTimestamp() - valueChangedStartTicks;
+                _valueChangedClassHandlerElapsedTicks += MillisecondsToTicks(classHandlerMilliseconds);
+                _valueChangedInstanceDispatchElapsedTicks += MillisecondsToTicks(instanceHandlerMilliseconds);
+                _valueChangedInstancePrepareElapsedTicks += MillisecondsToTicks(instancePrepareMilliseconds);
+                _valueChangedInstanceInvokeElapsedTicks += MillisecondsToTicks(instanceInvokeMilliseconds);
+                if (_valueChangedMaxRouteLength < 1)
+                {
+                    _valueChangedMaxRouteLength = 1;
+                }
+            }
             return;
         }
 
@@ -781,30 +808,70 @@ public class UIElement : DependencyObject
         var routeBuildStart = Stopwatch.GetTimestamp();
         var classHandlerElapsedMilliseconds = 0d;
         var instanceHandlerElapsedMilliseconds = 0d;
+        var instancePrepareElapsedMilliseconds = 0d;
+        var instanceInvokeElapsedMilliseconds = 0d;
+        var routeBuildElapsedTicks = 0L;
+        var routeTraverseElapsedTicks = 0L;
         try
         {
+            if (CanDispatchRoutedEventOnSourceOnly(this, routedEvent))
+            {
+                var sourceOnlyTraverseStart = Stopwatch.GetTimestamp();
+                InvokeRoutedEvent(this, routedEvent, args, ref classHandlerElapsedMilliseconds, ref instanceHandlerElapsedMilliseconds, ref instancePrepareElapsedMilliseconds, ref instanceInvokeElapsedMilliseconds);
+                routeTraverseElapsedTicks = Stopwatch.GetTimestamp() - sourceOnlyTraverseStart;
+                return;
+            }
+
             BuildRoute(this, route);
-            var routeBuildMilliseconds = Stopwatch.GetElapsedTime(routeBuildStart).TotalMilliseconds;
+            routeBuildElapsedTicks = Stopwatch.GetTimestamp() - routeBuildStart;
             var routeTraverseStart = Stopwatch.GetTimestamp();
 
             if (routedEvent.RoutingStrategy == RoutingStrategy.Tunnel)
             {
                 for (var i = route.Count - 1; i >= 0; i--)
                 {
-                    InvokeRoutedEvent(route[i], routedEvent, args, ref classHandlerElapsedMilliseconds, ref instanceHandlerElapsedMilliseconds);
+                    if (!HasAnyRoutedEventHandlers(route[i], routedEvent))
+                    {
+                        continue;
+                    }
+
+                    InvokeRoutedEvent(route[i], routedEvent, args, ref classHandlerElapsedMilliseconds, ref instanceHandlerElapsedMilliseconds, ref instancePrepareElapsedMilliseconds, ref instanceInvokeElapsedMilliseconds);
                 }
-
-                return;
             }
-
-            for (var i = 0; i < route.Count; i++)
+            else
             {
-                InvokeRoutedEvent(route[i], routedEvent, args, ref classHandlerElapsedMilliseconds, ref instanceHandlerElapsedMilliseconds);
+                for (var i = 0; i < route.Count; i++)
+                {
+                    if (!HasAnyRoutedEventHandlers(route[i], routedEvent))
+                    {
+                        continue;
+                    }
+
+                    InvokeRoutedEvent(route[i], routedEvent, args, ref classHandlerElapsedMilliseconds, ref instanceHandlerElapsedMilliseconds, ref instancePrepareElapsedMilliseconds, ref instanceInvokeElapsedMilliseconds);
+                }
             }
+
+            routeTraverseElapsedTicks = Stopwatch.GetTimestamp() - routeTraverseStart;
 
         }
         finally
         {
+            if (trackValueChanged)
+            {
+                _valueChangedRaiseCount++;
+                _valueChangedRaiseElapsedTicks += Stopwatch.GetTimestamp() - valueChangedStartTicks;
+                _valueChangedRouteBuildElapsedTicks += routeBuildElapsedTicks;
+                _valueChangedRouteTraverseElapsedTicks += routeTraverseElapsedTicks;
+                _valueChangedClassHandlerElapsedTicks += MillisecondsToTicks(classHandlerElapsedMilliseconds);
+                _valueChangedInstanceDispatchElapsedTicks += MillisecondsToTicks(instanceHandlerElapsedMilliseconds);
+                _valueChangedInstancePrepareElapsedTicks += MillisecondsToTicks(instancePrepareElapsedMilliseconds);
+                _valueChangedInstanceInvokeElapsedTicks += MillisecondsToTicks(instanceInvokeElapsedMilliseconds);
+                if (route.Count > _valueChangedMaxRouteLength)
+                {
+                    _valueChangedMaxRouteLength = route.Count;
+                }
+            }
+
             ReturnRoute(route);
         }
     }
@@ -929,24 +996,52 @@ public class UIElement : DependencyObject
         RoutedEvent routedEvent,
         RoutedEventArgs args,
         ref double classHandlerMilliseconds,
-        ref double instanceHandlerMilliseconds)
+        ref double instanceHandlerMilliseconds,
+        ref double instancePrepareMilliseconds,
+        ref double instanceInvokeMilliseconds)
     {
         args.Source = target;
-        target.DispatchRoutedEvent(routedEvent, args, ref classHandlerMilliseconds, ref instanceHandlerMilliseconds);
+        target.DispatchRoutedEvent(routedEvent, args, ref classHandlerMilliseconds, ref instanceHandlerMilliseconds, ref instancePrepareMilliseconds, ref instanceInvokeMilliseconds);
     }
 
     private void DispatchRoutedEvent(
         RoutedEvent routedEvent,
         RoutedEventArgs args,
         ref double classHandlerMilliseconds,
-        ref double instanceHandlerMilliseconds)
+        ref double instanceHandlerMilliseconds,
+        ref double instancePrepareMilliseconds,
+        ref double instanceInvokeMilliseconds)
     {
         var classHandlerStart = Stopwatch.GetTimestamp();
         EventManager.InvokeClassHandlers(this, routedEvent, args);
         classHandlerMilliseconds += Stopwatch.GetElapsedTime(classHandlerStart).TotalMilliseconds;
         var instanceHandlerStart = Stopwatch.GetTimestamp();
-        InvokeInstanceHandlers(routedEvent, args);
+        InvokeInstanceHandlers(routedEvent, args, ref instancePrepareMilliseconds, ref instanceInvokeMilliseconds);
         instanceHandlerMilliseconds += Stopwatch.GetElapsedTime(instanceHandlerStart).TotalMilliseconds;
+    }
+
+    private static bool HasAnyRoutedEventHandlers(UIElement target, RoutedEvent routedEvent)
+    {
+        return target.GetRoutedHandlerCountForEvent(routedEvent) > 0 ||
+               EventManager.HasClassHandlers(target.GetType(), routedEvent);
+    }
+
+    private static bool CanDispatchRoutedEventOnSourceOnly(UIElement target, RoutedEvent routedEvent)
+    {
+        if (!HasAnyRoutedEventHandlers(target, routedEvent))
+        {
+            return false;
+        }
+
+        for (var current = target.VisualParent; current != null; current = current.VisualParent)
+        {
+            if (HasAnyRoutedEventHandlers(current, routedEvent))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static int CountClassHandlers(List<UIElement> route, RoutedEvent routedEvent)
@@ -971,25 +1066,60 @@ public class UIElement : DependencyObject
         return count;
     }
 
-    private void InvokeInstanceHandlers(RoutedEvent routedEvent, RoutedEventArgs args)
+    private void InvokeInstanceHandlers(RoutedEvent routedEvent, RoutedEventArgs args, ref double instancePrepareMilliseconds, ref double instanceInvokeMilliseconds)
     {
+        var prepareStart = Stopwatch.GetTimestamp();
         if (!_routedHandlers.TryGetValue(routedEvent, out var handlers))
         {
+            instancePrepareMilliseconds += Stopwatch.GetElapsedTime(prepareStart).TotalMilliseconds;
+            return;
+        }
+
+        var handlerCount = handlers.Count;
+        if (handlerCount == 0)
+        {
+            instancePrepareMilliseconds += Stopwatch.GetElapsedTime(prepareStart).TotalMilliseconds;
+            return;
+        }
+
+        if (handlerCount == 1)
+        {
+            var handlerEntry = handlers[0];
+            instancePrepareMilliseconds += Stopwatch.GetElapsedTime(prepareStart).TotalMilliseconds;
+            if (!args.Handled || handlerEntry.HandledEventsToo)
+            {
+                var invokeStart = Stopwatch.GetTimestamp();
+                handlerEntry.Invoker(this, args);
+                instanceInvokeMilliseconds += Stopwatch.GetElapsedTime(invokeStart).TotalMilliseconds;
+            }
+
             return;
         }
 
         // Handlers are allowed to add/remove routed handlers while events dispatch.
         // Iterate over a snapshot to avoid collection-modified exceptions.
-        var snapshot = handlers.ToArray();
-        foreach (var handlerEntry in snapshot)
+        var snapshot = ArrayPool<RoutedHandlerEntry>.Shared.Rent(handlerCount);
+        try
         {
-            if (args.Handled && !handlerEntry.HandledEventsToo)
+            handlers.CopyTo(snapshot, 0);
+            instancePrepareMilliseconds += Stopwatch.GetElapsedTime(prepareStart).TotalMilliseconds;
+            for (var i = 0; i < handlerCount; i++)
             {
-                continue;
-            }
+                var handlerEntry = snapshot[i];
+                if (args.Handled && !handlerEntry.HandledEventsToo)
+                {
+                    continue;
+                }
 
-            var handlerStart = Stopwatch.GetTimestamp();
-            handlerEntry.Invoker(this, args);
+                var invokeStart = Stopwatch.GetTimestamp();
+                handlerEntry.Invoker(this, args);
+                instanceInvokeMilliseconds += Stopwatch.GetElapsedTime(invokeStart).TotalMilliseconds;
+            }
+        }
+        finally
+        {
+            Array.Clear(snapshot, 0, handlerCount);
+            ArrayPool<RoutedHandlerEntry>.Shared.Return(snapshot, clearArray: false);
         }
     }
 
@@ -1341,6 +1471,30 @@ public class UIElement : DependencyObject
             SummarizeRenderSelfTypes(limit: 4));
     }
 
+    internal static ValueChangedRoutedEventTelemetrySnapshot GetValueChangedRoutedEventTelemetryAndReset()
+    {
+        var snapshot = new ValueChangedRoutedEventTelemetrySnapshot(
+            _valueChangedRaiseCount,
+            (double)_valueChangedRaiseElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_valueChangedRouteBuildElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_valueChangedRouteTraverseElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_valueChangedClassHandlerElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_valueChangedInstanceDispatchElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_valueChangedInstancePrepareElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_valueChangedInstanceInvokeElapsedTicks * 1000d / Stopwatch.Frequency,
+            _valueChangedMaxRouteLength);
+        _valueChangedRaiseCount = 0;
+        _valueChangedRaiseElapsedTicks = 0L;
+        _valueChangedRouteBuildElapsedTicks = 0L;
+        _valueChangedRouteTraverseElapsedTicks = 0L;
+        _valueChangedClassHandlerElapsedTicks = 0L;
+        _valueChangedInstanceDispatchElapsedTicks = 0L;
+        _valueChangedInstancePrepareElapsedTicks = 0L;
+        _valueChangedInstanceInvokeElapsedTicks = 0L;
+        _valueChangedMaxRouteLength = 0;
+        return snapshot;
+    }
+
     internal static void ResetFreezableInvalidationBatchTelemetryForTests()
     {
         _freezableBatchFlushCount = 0;
@@ -1348,6 +1502,15 @@ public class UIElement : DependencyObject
         _freezableBatchQueuedTargetCount = 0;
         _freezableBatchFlushElapsedTicks = 0L;
         _freezableBatchMaxPendingTargetCount = 0;
+        _valueChangedRaiseCount = 0;
+        _valueChangedRaiseElapsedTicks = 0L;
+        _valueChangedRouteBuildElapsedTicks = 0L;
+        _valueChangedRouteTraverseElapsedTicks = 0L;
+        _valueChangedClassHandlerElapsedTicks = 0L;
+        _valueChangedInstanceDispatchElapsedTicks = 0L;
+        _valueChangedInstancePrepareElapsedTicks = 0L;
+        _valueChangedInstanceInvokeElapsedTicks = 0L;
+        _valueChangedMaxRouteLength = 0;
         _lastFreezableBatchFlushTargetSummary = "none";
         _renderSelfElapsedTicks = 0L;
         _renderSelfCallCount = 0;
@@ -1478,6 +1641,11 @@ public class UIElement : DependencyObject
 
         public Action<UIElement, RoutedEventArgs> Invoker { get; }
     }
+
+    private static long MillisecondsToTicks(double milliseconds)
+    {
+        return (long)Math.Round(milliseconds * Stopwatch.Frequency / 1000d);
+    }
 }
 
 internal readonly record struct UIElementRenderTimingSnapshot(
@@ -1487,3 +1655,14 @@ internal readonly record struct UIElementRenderTimingSnapshot(
     string HottestRenderSelfName,
     double HottestRenderSelfMilliseconds,
     string HottestRenderSelfTypeSummary);
+
+internal readonly record struct ValueChangedRoutedEventTelemetrySnapshot(
+    int RaiseCount,
+    double RaiseMilliseconds,
+    double RouteBuildMilliseconds,
+    double RouteTraverseMilliseconds,
+    double ClassHandlerMilliseconds,
+    double InstanceDispatchMilliseconds,
+    double InstancePrepareMilliseconds,
+    double InstanceInvokeMilliseconds,
+    int MaxRouteLength);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace InkkSlinger;
@@ -7,6 +8,19 @@ namespace InkkSlinger;
 public class Style
 {
     private static readonly ConditionalWeakTable<DependencyObject, StyleInstanceState> States = new();
+    private static long s_applyCallCount;
+    private static long s_applyTicks;
+    private static long s_applySettersTicks;
+    private static long s_applyTriggersTicks;
+    private static long s_collectTriggeredValuesTicks;
+    private static long s_triggerMatchCount;
+    private static long s_matchedTriggerCount;
+    private static long s_setStyleValueCount;
+    private static long s_setStyleTriggerValueCount;
+    private static long s_clearStyleTriggerValueCount;
+    private static long s_applyTriggerActionsTicks;
+    private static long s_invokeActionsCount;
+    private static long s_invokeActionsTicks;
 
     private readonly List<SetterBase> _setters = new();
     private readonly List<TriggerBase> _triggers = new();
@@ -24,6 +38,41 @@ public class Style
 
     public IList<TriggerBase> Triggers => _triggers;
 
+    internal static void ResetTelemetryForTests()
+    {
+        s_applyCallCount = 0;
+        s_applyTicks = 0;
+        s_applySettersTicks = 0;
+        s_applyTriggersTicks = 0;
+        s_collectTriggeredValuesTicks = 0;
+        s_triggerMatchCount = 0;
+        s_matchedTriggerCount = 0;
+        s_setStyleValueCount = 0;
+        s_setStyleTriggerValueCount = 0;
+        s_clearStyleTriggerValueCount = 0;
+        s_applyTriggerActionsTicks = 0;
+        s_invokeActionsCount = 0;
+        s_invokeActionsTicks = 0;
+    }
+
+    internal static StyleTelemetrySnapshot GetTelemetrySnapshotForTests()
+    {
+        return new StyleTelemetrySnapshot(
+            s_applyCallCount,
+            TicksToMilliseconds(s_applyTicks),
+            TicksToMilliseconds(s_applySettersTicks),
+            TicksToMilliseconds(s_applyTriggersTicks),
+            TicksToMilliseconds(s_collectTriggeredValuesTicks),
+            s_triggerMatchCount,
+            s_matchedTriggerCount,
+            s_setStyleValueCount,
+            s_setStyleTriggerValueCount,
+            s_clearStyleTriggerValueCount,
+            TicksToMilliseconds(s_applyTriggerActionsTicks),
+            s_invokeActionsCount,
+            TicksToMilliseconds(s_invokeActionsTicks));
+    }
+
     public void Apply(DependencyObject target)
     {
         if (!TargetType.IsInstanceOfType(target))
@@ -31,6 +80,8 @@ public class Style
             throw new InvalidOperationException($"Style target type {TargetType.Name} does not match {target.GetType().Name}.");
         }
 
+        s_applyCallCount++;
+        var applyStart = Stopwatch.GetTimestamp();
         var state = States.GetValue(target, _ => new StyleInstanceState());
         if (state.IsApplyingStyle)
         {
@@ -50,7 +101,9 @@ public class Style
                 DetachTriggers(target, state);
                 AttachResourceScopeHandler(target, state);
 
+                var applySettersStart = Stopwatch.GetTimestamp();
                 ApplySettersRecursive(target, state);
+                s_applySettersTicks += Stopwatch.GetTimestamp() - applySettersStart;
                 var activeTriggers = new List<TriggerBase>();
                 CollectTriggersRecursive(activeTriggers);
                 CollectConditionProperties(activeTriggers, state.ConditionProperties);
@@ -78,6 +131,7 @@ public class Style
         }
         finally
         {
+            s_applyTicks += Stopwatch.GetTimestamp() - applyStart;
             state.IsApplyingStyle = false;
         }
     }
@@ -123,6 +177,7 @@ public class Style
                 }
 
                 target.SetStyleValue(setter.Property, StyleValueCloneUtility.CloneForAssignment(resolvedValue));
+                s_setStyleValueCount++;
                 state.AppliedStyleProperties.Add(setter.Property);
                 continue;
             }
@@ -155,6 +210,7 @@ public class Style
             return;
         }
 
+        var applyTriggersStart = Stopwatch.GetTimestamp();
         state.IsApplyingTriggers = true;
         try
         {
@@ -164,13 +220,16 @@ public class Style
 
                 var desiredValues = new Dictionary<DependencyProperty, object?>();
                 var currentTriggerMatches = new Dictionary<TriggerBase, bool>();
+                var collectTriggeredValuesStart = Stopwatch.GetTimestamp();
                 CollectTriggeredValues(target, state.AttachedTriggers, desiredValues, currentTriggerMatches);
+                s_collectTriggeredValuesTicks += Stopwatch.GetTimestamp() - collectTriggeredValuesStart;
 
                 foreach (var pair in state.ActiveTriggerValues)
                 {
                     if (!desiredValues.ContainsKey(pair.Key))
                     {
                         target.ClearStyleTriggerValue(pair.Key);
+                        s_clearStyleTriggerValueCount++;
                     }
                 }
 
@@ -183,6 +242,7 @@ public class Style
                     }
 
                     target.SetStyleTriggerValue(desired.Key, StyleValueCloneUtility.CloneForAssignment(desired.Value));
+                    s_setStyleTriggerValueCount++;
                 }
 
                 state.ActiveTriggerValues.Clear();
@@ -191,12 +251,15 @@ public class Style
                     state.ActiveTriggerValues[desired.Key] = desired.Value;
                 }
 
+                var applyTriggerActionsStart = Stopwatch.GetTimestamp();
                 ApplyTriggerActions(target, state, currentTriggerMatches);
+                s_applyTriggerActionsTicks += Stopwatch.GetTimestamp() - applyTriggerActionsStart;
             }
             while (state.ReapplyPending);
         }
         finally
         {
+            s_applyTriggersTicks += Stopwatch.GetTimestamp() - applyTriggersStart;
             state.IsApplyingTriggers = false;
         }
     }
@@ -210,11 +273,14 @@ public class Style
         foreach (var trigger in triggers)
         {
             var isMatch = trigger.IsMatch(target);
+            s_triggerMatchCount++;
             triggerMatches[trigger] = isMatch;
             if (!isMatch)
             {
                 continue;
             }
+
+            s_matchedTriggerCount++;
 
             foreach (var setter in trigger.Setters)
             {
@@ -292,6 +358,7 @@ public class Style
 
     private static void InvokeActions(IEnumerable<TriggerAction> actions, DependencyObject target)
     {
+        var invokeActionsStart = Stopwatch.GetTimestamp();
         var scope = target as FrameworkElement;
         var context = new TriggerActionContext(
             target,
@@ -308,8 +375,11 @@ public class Style
 
         foreach (var action in actions)
         {
+            s_invokeActionsCount++;
             action.Invoke(context);
         }
+
+        s_invokeActionsTicks += Stopwatch.GetTimestamp() - invokeActionsStart;
     }
 
     private void CollectTriggersRecursive(ICollection<TriggerBase> accumulator)
@@ -511,4 +581,24 @@ public class Style
 
         public List<(UIElement Element, RoutedEvent RoutedEvent, EventHandler<RoutedEventArgs> Handler)> AppliedEventHandlers { get; } = new();
     }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
+    }
 }
+
+internal readonly record struct StyleTelemetrySnapshot(
+    long ApplyCallCount,
+    double ApplyMilliseconds,
+    double ApplySettersMilliseconds,
+    double ApplyTriggersMilliseconds,
+    double CollectTriggeredValuesMilliseconds,
+    long TriggerMatchCount,
+    long MatchedTriggerCount,
+    long SetStyleValueCount,
+    long SetStyleTriggerValueCount,
+    long ClearStyleTriggerValueCount,
+    double ApplyTriggerActionsMilliseconds,
+    long InvokeActionsCount,
+    double InvokeActionsMilliseconds);

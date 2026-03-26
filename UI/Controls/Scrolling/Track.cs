@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -69,7 +70,7 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
                 {
                     if (dependencyObject is Track track)
                     {
-                        track.RefreshLayoutForStateMutation();
+                        track.OnStateMutationChanged(TrackStateMutationSource.Minimum);
                     }
                 }));
 
@@ -85,7 +86,7 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
                 {
                     if (dependencyObject is Track track)
                     {
-                        track.RefreshLayoutForStateMutation();
+                        track.OnStateMutationChanged(TrackStateMutationSource.Maximum);
                     }
                 }));
 
@@ -101,7 +102,7 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
                 {
                     if (dependencyObject is Track track)
                     {
-                        track.RefreshLayoutForStateMutation();
+                        track.OnStateMutationChanged(TrackStateMutationSource.Value);
                     }
                 }));
 
@@ -117,7 +118,7 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
                 {
                     if (dependencyObject is Track track)
                     {
-                        track.RefreshLayoutForStateMutation();
+                        track.OnStateMutationChanged(TrackStateMutationSource.ViewportSize);
                     }
                 }));
 
@@ -140,7 +141,7 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
                 {
                     if (dependencyObject is Track track)
                     {
-                        track.RefreshLayoutForStateMutation();
+                        track.OnStateMutationChanged(TrackStateMutationSource.IsDirectionReversed);
                     }
                 }));
 
@@ -195,6 +196,38 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
     private bool _hasPendingRenderDirtyBoundsHint;
     private bool _preserveRenderDirtyBoundsHint;
     private LayoutRect _pendingRenderDirtyBoundsHint;
+    private static int _diagGetValueFromThumbTravelCallCount;
+    private static long _diagGetValueFromThumbTravelElapsedTicks;
+    private static int _diagRefreshLayoutForStateMutationCallCount;
+    private static long _diagRefreshLayoutForStateMutationElapsedTicks;
+    private static int _diagRefreshLayoutValueMutationCallCount;
+    private static long _diagRefreshLayoutValueMutationElapsedTicks;
+    private static int _diagRefreshLayoutViewportMutationCallCount;
+    private static long _diagRefreshLayoutViewportMutationElapsedTicks;
+    private static int _diagRefreshLayoutMinimumMutationCallCount;
+    private static long _diagRefreshLayoutMinimumMutationElapsedTicks;
+    private static int _diagRefreshLayoutMaximumMutationCallCount;
+    private static long _diagRefreshLayoutMaximumMutationElapsedTicks;
+    private static int _diagRefreshLayoutDirectionMutationCallCount;
+    private static long _diagRefreshLayoutDirectionMutationElapsedTicks;
+    private static int _diagRefreshLayoutNeedsMeasureFallbackCount;
+    private static long _diagRefreshLayoutNeedsMeasureFallbackElapsedTicks;
+    private static long _diagRefreshLayoutCaptureSnapshotElapsedTicks;
+    private static long _diagRefreshLayoutInvalidateArrangeElapsedTicks;
+    private static long _diagRefreshLayoutArrangeElapsedTicks;
+    private static long _diagRefreshLayoutDirtyBoundsElapsedTicks;
+    private static int _diagRefreshLayoutDirtyBoundsHintCount;
+    private static int _diagRefreshLayoutVisualFallbackCount;
+    private static long _diagRefreshLayoutVisualInvalidationElapsedTicks;
+
+    private enum TrackStateMutationSource
+    {
+        Minimum,
+        Maximum,
+        Value,
+        ViewportSize,
+        IsDirectionReversed
+    }
 
     public Orientation Orientation
     {
@@ -297,9 +330,12 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
     internal float GetValueFromThumbTravel(float thumbTravel)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var scrollableRange = GetScrollableRange();
         if (scrollableRange <= ValueEpsilon)
         {
+            _diagGetValueFromThumbTravelCallCount++;
+            _diagGetValueFromThumbTravelElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return Minimum;
         }
 
@@ -308,6 +344,8 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         var maxTravel = MathF.Max(0f, trackLength - thumbLength);
         if (maxTravel <= ValueEpsilon)
         {
+            _diagGetValueFromThumbTravelCallCount++;
+            _diagGetValueFromThumbTravelElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return Minimum;
         }
 
@@ -318,7 +356,62 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
             normalized = 1f - normalized;
         }
 
-        return ClampValue(Minimum + (normalized * scrollableRange));
+        var value = ClampValue(Minimum + (normalized * scrollableRange));
+        _diagGetValueFromThumbTravelCallCount++;
+        _diagGetValueFromThumbTravelElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        return value;
+    }
+
+    internal static TrackThumbTravelTelemetrySnapshot GetThumbTravelTelemetryAndReset()
+    {
+        var snapshot = new TrackThumbTravelTelemetrySnapshot(
+            _diagGetValueFromThumbTravelCallCount,
+            (double)_diagGetValueFromThumbTravelElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagRefreshLayoutForStateMutationCallCount,
+            (double)_diagRefreshLayoutForStateMutationElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagRefreshLayoutValueMutationCallCount,
+            (double)_diagRefreshLayoutValueMutationElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagRefreshLayoutViewportMutationCallCount,
+            (double)_diagRefreshLayoutViewportMutationElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagRefreshLayoutMinimumMutationCallCount,
+            (double)_diagRefreshLayoutMinimumMutationElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagRefreshLayoutMaximumMutationCallCount,
+            (double)_diagRefreshLayoutMaximumMutationElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagRefreshLayoutDirectionMutationCallCount,
+            (double)_diagRefreshLayoutDirectionMutationElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagRefreshLayoutNeedsMeasureFallbackCount,
+            (double)_diagRefreshLayoutNeedsMeasureFallbackElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_diagRefreshLayoutCaptureSnapshotElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_diagRefreshLayoutInvalidateArrangeElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_diagRefreshLayoutArrangeElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_diagRefreshLayoutDirtyBoundsElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagRefreshLayoutDirtyBoundsHintCount,
+            _diagRefreshLayoutVisualFallbackCount,
+            (double)_diagRefreshLayoutVisualInvalidationElapsedTicks * 1000d / Stopwatch.Frequency);
+        _diagGetValueFromThumbTravelCallCount = 0;
+        _diagGetValueFromThumbTravelElapsedTicks = 0L;
+        _diagRefreshLayoutForStateMutationCallCount = 0;
+        _diagRefreshLayoutForStateMutationElapsedTicks = 0L;
+        _diagRefreshLayoutValueMutationCallCount = 0;
+        _diagRefreshLayoutValueMutationElapsedTicks = 0L;
+        _diagRefreshLayoutViewportMutationCallCount = 0;
+        _diagRefreshLayoutViewportMutationElapsedTicks = 0L;
+        _diagRefreshLayoutMinimumMutationCallCount = 0;
+        _diagRefreshLayoutMinimumMutationElapsedTicks = 0L;
+        _diagRefreshLayoutMaximumMutationCallCount = 0;
+        _diagRefreshLayoutMaximumMutationElapsedTicks = 0L;
+        _diagRefreshLayoutDirectionMutationCallCount = 0;
+        _diagRefreshLayoutDirectionMutationElapsedTicks = 0L;
+        _diagRefreshLayoutNeedsMeasureFallbackCount = 0;
+        _diagRefreshLayoutNeedsMeasureFallbackElapsedTicks = 0L;
+        _diagRefreshLayoutCaptureSnapshotElapsedTicks = 0L;
+        _diagRefreshLayoutInvalidateArrangeElapsedTicks = 0L;
+        _diagRefreshLayoutArrangeElapsedTicks = 0L;
+        _diagRefreshLayoutDirtyBoundsElapsedTicks = 0L;
+        _diagRefreshLayoutDirtyBoundsHintCount = 0;
+        _diagRefreshLayoutVisualFallbackCount = 0;
+        _diagRefreshLayoutVisualInvalidationElapsedTicks = 0L;
+        return snapshot;
     }
 
     internal float GetValueFromPoint(Vector2 point, bool useThumbCenterOffset)
@@ -860,27 +953,87 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         return true;
     }
 
+    private void OnStateMutationChanged(TrackStateMutationSource source)
+    {
+        var startTicks = Stopwatch.GetTimestamp();
+        RefreshLayoutForStateMutation();
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+
+        switch (source)
+        {
+            case TrackStateMutationSource.Minimum:
+                _diagRefreshLayoutMinimumMutationCallCount++;
+                _diagRefreshLayoutMinimumMutationElapsedTicks += elapsedTicks;
+                break;
+            case TrackStateMutationSource.Maximum:
+                _diagRefreshLayoutMaximumMutationCallCount++;
+                _diagRefreshLayoutMaximumMutationElapsedTicks += elapsedTicks;
+                break;
+            case TrackStateMutationSource.Value:
+                _diagRefreshLayoutValueMutationCallCount++;
+                _diagRefreshLayoutValueMutationElapsedTicks += elapsedTicks;
+                break;
+            case TrackStateMutationSource.ViewportSize:
+                _diagRefreshLayoutViewportMutationCallCount++;
+                _diagRefreshLayoutViewportMutationElapsedTicks += elapsedTicks;
+                break;
+            case TrackStateMutationSource.IsDirectionReversed:
+                _diagRefreshLayoutDirectionMutationCallCount++;
+                _diagRefreshLayoutDirectionMutationElapsedTicks += elapsedTicks;
+                break;
+        }
+    }
+
     private void RefreshLayoutForStateMutation()
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagRefreshLayoutForStateMutationCallCount++;
+
         if (NeedsMeasure)
         {
+            var invalidateVisualStartTicks = Stopwatch.GetTimestamp();
             InvalidateVisual();
+            _diagRefreshLayoutVisualInvalidationElapsedTicks += Stopwatch.GetTimestamp() - invalidateVisualStartTicks;
+            _diagRefreshLayoutNeedsMeasureFallbackCount++;
+            _diagRefreshLayoutNeedsMeasureFallbackElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _diagRefreshLayoutForStateMutationElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
+        var captureStartTicks = Stopwatch.GetTimestamp();
         var before = CaptureRenderMutationSnapshot();
+        _diagRefreshLayoutCaptureSnapshotElapsedTicks += Stopwatch.GetTimestamp() - captureStartTicks;
 
+        var invalidateArrangeStartTicks = Stopwatch.GetTimestamp();
         InvalidateArrangeForDirectLayoutOnly(invalidateRender: false);
-        Arrange(LayoutSlot);
+        _diagRefreshLayoutInvalidateArrangeElapsedTicks += Stopwatch.GetTimestamp() - invalidateArrangeStartTicks;
 
+        var arrangeStartTicks = Stopwatch.GetTimestamp();
+        Arrange(LayoutSlot);
+        _diagRefreshLayoutArrangeElapsedTicks += Stopwatch.GetTimestamp() - arrangeStartTicks;
+
+        captureStartTicks = Stopwatch.GetTimestamp();
         var after = CaptureRenderMutationSnapshot();
+        _diagRefreshLayoutCaptureSnapshotElapsedTicks += Stopwatch.GetTimestamp() - captureStartTicks;
+
+        var dirtyBoundsStartTicks = Stopwatch.GetTimestamp();
         if (TryBuildRenderMutationDirtyBounds(before, after, out var dirtyBounds))
         {
+            _diagRefreshLayoutDirtyBoundsElapsedTicks += Stopwatch.GetTimestamp() - dirtyBoundsStartTicks;
+            var invalidateVisualStartTicks = Stopwatch.GetTimestamp();
             InvalidateVisualWithDirtyBoundsHint(dirtyBounds);
+            _diagRefreshLayoutVisualInvalidationElapsedTicks += Stopwatch.GetTimestamp() - invalidateVisualStartTicks;
+            _diagRefreshLayoutDirtyBoundsHintCount++;
+            _diagRefreshLayoutForStateMutationElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
+        _diagRefreshLayoutDirtyBoundsElapsedTicks += Stopwatch.GetTimestamp() - dirtyBoundsStartTicks;
+        var fallbackInvalidateVisualStartTicks = Stopwatch.GetTimestamp();
         InvalidateVisual();
+        _diagRefreshLayoutVisualInvalidationElapsedTicks += Stopwatch.GetTimestamp() - fallbackInvalidateVisualStartTicks;
+        _diagRefreshLayoutVisualFallbackCount++;
+        _diagRefreshLayoutForStateMutationElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void InvalidateVisualWithDirtyBoundsHint(LayoutRect dirtyBounds)
@@ -1037,3 +1190,28 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         LayoutRect IncreasePartRect,
         bool HasIncreasePart);
 }
+
+internal readonly record struct TrackThumbTravelTelemetrySnapshot(
+    int GetValueFromThumbTravelCallCount,
+    double GetValueFromThumbTravelMilliseconds,
+    int RefreshLayoutForStateMutationCallCount,
+    double RefreshLayoutForStateMutationMilliseconds,
+    int RefreshLayoutValueMutationCallCount,
+    double RefreshLayoutValueMutationMilliseconds,
+    int RefreshLayoutViewportMutationCallCount,
+    double RefreshLayoutViewportMutationMilliseconds,
+    int RefreshLayoutMinimumMutationCallCount,
+    double RefreshLayoutMinimumMutationMilliseconds,
+    int RefreshLayoutMaximumMutationCallCount,
+    double RefreshLayoutMaximumMutationMilliseconds,
+    int RefreshLayoutDirectionMutationCallCount,
+    double RefreshLayoutDirectionMutationMilliseconds,
+    int RefreshLayoutNeedsMeasureFallbackCount,
+    double RefreshLayoutNeedsMeasureFallbackMilliseconds,
+    double RefreshLayoutCaptureSnapshotMilliseconds,
+    double RefreshLayoutInvalidateArrangeMilliseconds,
+    double RefreshLayoutArrangeMilliseconds,
+    double RefreshLayoutDirtyBoundsMilliseconds,
+    int RefreshLayoutDirtyBoundsHintCount,
+    int RefreshLayoutVisualFallbackCount,
+    double RefreshLayoutVisualInvalidationMilliseconds);
