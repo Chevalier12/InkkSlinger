@@ -224,6 +224,35 @@ public sealed class ButtonPerformanceRegressionTests
     }
 
     [Fact]
+    public void PrepareTextRenderPlan_ReusesCachedPlan_WhenLayoutAndTextAreStable()
+    {
+        TextLayout.ResetMetricsForTests();
+        UiTextRenderer.ResetTimingForTests();
+        Button.ResetTimingForTests();
+
+        var button = new Button
+        {
+            Content = "^",
+            Width = 32f,
+            Height = 24f,
+            Padding = new Thickness(0f),
+            BorderThickness = 0f,
+            FontSize = 8f
+        };
+
+        var firstPlan = button.PrepareTextRenderPlanForTests(new LayoutRect(0f, 0f, 32f, 24f));
+        var secondPlan = button.PrepareTextRenderPlanForTests(new LayoutRect(0f, 0f, 32f, 24f));
+        var buttonTiming = Button.GetTimingSnapshotForTests();
+        var textMetrics = TextLayout.GetMetricsSnapshot();
+
+        Assert.True(firstPlan.HasValue);
+        Assert.True(secondPlan.HasValue);
+        Assert.Equal(firstPlan.Value.LineDraws[0].Text, secondPlan.Value.LineDraws[0].Text);
+        Assert.Equal(1, buttonTiming.RenderTextPreparationCallCount);
+        Assert.Equal(1, textMetrics.BuildCount);
+    }
+
+    [Fact]
     public void PrepareTextRenderPlans_ForFortyTwoButtons_TextVsNoText_ShowsPreparationCostGap()
     {
         var withText = MeasureRenderPreparation(buttonCount: 42, includeText: true);

@@ -27,6 +27,11 @@ public sealed partial class UiRoot
     private int _cachedTopOverlayCandidateVersion = -1;
     private bool _cachedTopOverlayCandidateHasValue;
     private bool _hasCachedTopOverlayCandidate;
+    private readonly HashSet<Menu> _keyboardMenuScopeDedupSet = new(ReferenceEqualityComparer.Instance);
+    private ContextMenu? _cachedTopContextMenu;
+    private int _cachedTopContextMenuVersion = -1;
+    private bool _cachedTopContextMenuHasValue;
+    private bool _hasCachedTopContextMenu;
     private bool _suppressNextLeftReleaseAfterOverlayDismiss;
     private bool _suppressNextRightReleaseAfterOverlayDismiss;
     private bool _suppressCurrentLeftPressGesture;
@@ -37,65 +42,11 @@ public sealed partial class UiRoot
     private double _toolTipHoverElapsedMs;
     private double _activeToolTipElapsedMs;
     private double _timeSinceToolTipClosedMs = double.PositiveInfinity;
-    private double _lastInputPointerMoveCapturedDataGridHandlerMs;
-    private double _lastInputPointerMoveCapturedTextInputHandlerMs;
-    private double _lastInputPointerMoveCapturedScrollViewerHandlerMs;
-    private double _lastInputPointerMoveCapturedSliderHandlerMs;
-    private double _lastInputPointerMoveCapturedPopupHandlerMs;
-    private double _lastInputPointerMoveHyperlinkHandlerMs;
-    private double _lastInputPointerMoveContextMenuItemHandlerMs;
-    private double _lastInputPointerMoveMenuItemHandlerMs;
-    private double _lastInputPointerMoveMenuFocusRestoreMs;
-    private double _lastInputPointerRouteOuterContextMenuProbeMs;
-    private double _lastInputPointerRouteOuterGateMs;
-    private double _lastInputPointerRouteOuterDispatchCallMs;
-    private int _lastInputPointerRouteDispatchCount;
 
     private void RunInputAndEventsPhase(GameTime gameTime)
     {
-        _lastInputHitTestCount = 0;
-        _lastInputRoutedEventCount = 0;
-        _lastInputKeyEventCount = 0;
-        _lastInputTextEventCount = 0;
-        _lastInputPointerEventCount = 0;
-        _lastInputCaptureMs = 0d;
-        _lastInputDispatchMs = 0d;
-        _lastInputPointerDispatchMs = 0d;
-        _lastInputPointerTargetResolveMs = 0d;
-        _lastInputHoverUpdateMs = 0d;
-        _lastInputPointerRouteMs = 0d;
-        _lastInputPointerMoveDispatchMs = 0d;
-        _lastInputPointerMoveRoutedEventsMs = 0d;
-        _lastInputPointerMoveHandlerMs = 0d;
-        _lastInputPointerMovePreviewEventMs = 0d;
-        _lastInputPointerMoveBubbleEventMs = 0d;
-        _lastInputPointerMoveCapturedDataGridHandlerMs = 0d;
-        _lastInputPointerMoveCapturedTextInputHandlerMs = 0d;
-        _lastInputPointerMoveCapturedScrollViewerHandlerMs = 0d;
-        _lastInputPointerMoveCapturedSliderHandlerMs = 0d;
-        _lastInputPointerMoveCapturedPopupHandlerMs = 0d;
-        _lastInputPointerMoveHyperlinkHandlerMs = 0d;
-        _lastInputPointerMoveContextMenuItemHandlerMs = 0d;
-        _lastInputPointerMoveMenuItemHandlerMs = 0d;
-        _lastInputPointerMoveMenuFocusRestoreMs = 0d;
-        _lastInputPointerRouteOuterContextMenuProbeMs = 0d;
-        _lastInputPointerRouteOuterGateMs = 0d;
-        _lastInputPointerRouteOuterDispatchCallMs = 0d;
-        _lastInputPointerRouteDispatchCount = 0;
-        _lastInputPointerResolveContextMenuCheckMs = 0d;
-        _lastInputPointerResolveContextMenuOverlayCandidateMs = 0d;
-        _lastInputPointerResolveContextMenuCachedMenuMs = 0d;
-        _lastInputPointerResolveHoverReuseCheckMs = 0d;
-        _lastInputPointerResolveFinalHitTestMs = 0d;
-        _lastInputToolTipLifecycleMs = 0d;
-        _lastInputCommandRequeryMs = 0d;
-        _lastInputKeyDispatchMs = 0d;
-        _lastInputTextDispatchMs = 0d;
+        ResetInputPhaseTelemetry(includeVisualUpdate: true);
         _lastVisualUpdateMs = 0d;
-        _clickCpuResolveCachedCount = 0;
-        _clickCpuResolveCapturedCount = 0;
-        _clickCpuResolveHoveredCount = 0;
-        _clickCpuResolveHitTestCount = 0;
 
         var captureStart = Stopwatch.GetTimestamp();
         var delta = _inputManager.Capture();
@@ -122,48 +73,7 @@ public sealed partial class UiRoot
 
     internal void RunInputDeltaForTests(InputDelta delta, double elapsedMs)
     {
-        _lastInputHitTestCount = 0;
-        _lastInputRoutedEventCount = 0;
-        _lastInputKeyEventCount = 0;
-        _lastInputTextEventCount = 0;
-        _lastInputPointerEventCount = 0;
-        _lastInputCaptureMs = 0d;
-        _lastInputDispatchMs = 0d;
-        _lastInputPointerDispatchMs = 0d;
-        _lastInputPointerTargetResolveMs = 0d;
-        _lastInputHoverUpdateMs = 0d;
-        _lastInputPointerRouteMs = 0d;
-        _lastInputPointerMoveDispatchMs = 0d;
-        _lastInputPointerMoveRoutedEventsMs = 0d;
-        _lastInputPointerMoveHandlerMs = 0d;
-        _lastInputPointerMovePreviewEventMs = 0d;
-        _lastInputPointerMoveBubbleEventMs = 0d;
-        _lastInputPointerMoveCapturedDataGridHandlerMs = 0d;
-        _lastInputPointerMoveCapturedTextInputHandlerMs = 0d;
-        _lastInputPointerMoveCapturedScrollViewerHandlerMs = 0d;
-        _lastInputPointerMoveCapturedSliderHandlerMs = 0d;
-        _lastInputPointerMoveCapturedPopupHandlerMs = 0d;
-        _lastInputPointerMoveHyperlinkHandlerMs = 0d;
-        _lastInputPointerMoveContextMenuItemHandlerMs = 0d;
-        _lastInputPointerMoveMenuItemHandlerMs = 0d;
-        _lastInputPointerMoveMenuFocusRestoreMs = 0d;
-        _lastInputPointerRouteOuterContextMenuProbeMs = 0d;
-        _lastInputPointerRouteOuterGateMs = 0d;
-        _lastInputPointerRouteOuterDispatchCallMs = 0d;
-        _lastInputPointerRouteDispatchCount = 0;
-        _lastInputPointerResolveContextMenuCheckMs = 0d;
-        _lastInputPointerResolveContextMenuOverlayCandidateMs = 0d;
-        _lastInputPointerResolveContextMenuCachedMenuMs = 0d;
-        _lastInputPointerResolveHoverReuseCheckMs = 0d;
-        _lastInputPointerResolveFinalHitTestMs = 0d;
-        _lastInputToolTipLifecycleMs = 0d;
-        _lastInputCommandRequeryMs = 0d;
-        _lastInputKeyDispatchMs = 0d;
-        _lastInputTextDispatchMs = 0d;
-        _clickCpuResolveCachedCount = 0;
-        _clickCpuResolveCapturedCount = 0;
-        _clickCpuResolveHoveredCount = 0;
-        _clickCpuResolveHitTestCount = 0;
+        ResetInputPhaseTelemetry(includeVisualUpdate: false);
         var dispatchStart = Stopwatch.GetTimestamp();
         ProcessInputDelta(delta);
         if (ShouldTickToolTipLifecycle())
@@ -173,6 +83,15 @@ public sealed partial class UiRoot
             _lastInputToolTipLifecycleMs = Stopwatch.GetElapsedTime(tooltipStart).TotalMilliseconds;
         }
         _lastInputDispatchMs = Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
+    }
+
+    private void ResetInputPhaseTelemetry(bool includeVisualUpdate)
+    {
+        _inputTelemetry = default;
+        if (includeVisualUpdate)
+        {
+            _lastVisualUpdateMs = 0d;
+        }
     }
 
     private void ProcessInputDelta(InputDelta delta)
@@ -1298,8 +1217,7 @@ public sealed partial class UiRoot
         }
 
         var hasCachedWheelTarget = _cachedWheelTextInputTarget != null || _cachedWheelScrollViewerTarget != null;
-        var hasWheelCapableAncestor = TryFindWheelTextInputAncestor(resolvedTarget, out _) ||
-                                      TryFindAncestor<ScrollViewer>(resolvedTarget, out _);
+        var hasWheelCapableAncestor = TryFindWheelAncestors(resolvedTarget, out _, out _);
         var pointerInsideResolvedTarget = PointerLikelyInsideElement(resolvedTarget, pointerPosition);
         var pointerInsideCachedTarget =
             (_cachedWheelTextInputTarget != null && PointerLikelyInsideElement(_cachedWheelTextInputTarget, pointerPosition)) ||
@@ -1381,28 +1299,30 @@ public sealed partial class UiRoot
             return;
         }
 
-        if (TryFindWheelTextInputAncestor(resolvedTarget, out var textInput) &&
-            textInput != null &&
-            TryHandleTextInputWheel(textInput, delta))
+        if (TryFindWheelAncestors(resolvedTarget, out var textInput, out var scrollViewer))
         {
-            _cachedWheelTextInputTarget = textInput;
-            _cachedWheelScrollViewerTarget = null;
-            TrackWheelPointerPosition(pointerPosition);
-            return;
-        }
-
-        if (TryFindAncestor<ScrollViewer>(resolvedTarget, out var scrollViewer) && scrollViewer != null)
-        {
-            _cachedWheelScrollViewerTarget = scrollViewer;
-            _cachedWheelTextInputTarget = null;
-            var beforeHorizontal = scrollViewer.HorizontalOffset;
-            var beforeVertical = scrollViewer.VerticalOffset;
-            var wheelHandleStart = Stopwatch.GetTimestamp();
-            var handled = scrollViewer.HandleMouseWheelFromInput(delta);
-            wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
-            if (handled)
+            if (textInput != null &&
+                TryHandleTextInputWheel(textInput, delta))
             {
-                RefreshHoverAfterWheelContentMutation(pointerPosition, scrollViewer);
+                _cachedWheelTextInputTarget = textInput;
+                _cachedWheelScrollViewerTarget = null;
+                TrackWheelPointerPosition(pointerPosition);
+                return;
+            }
+
+            if (scrollViewer != null)
+            {
+                _cachedWheelScrollViewerTarget = scrollViewer;
+                _cachedWheelTextInputTarget = null;
+                var beforeHorizontal = scrollViewer.HorizontalOffset;
+                var beforeVertical = scrollViewer.VerticalOffset;
+                var wheelHandleStart = Stopwatch.GetTimestamp();
+                var handled = scrollViewer.HandleMouseWheelFromInput(delta);
+                wheelHandleMs = Stopwatch.GetElapsedTime(wheelHandleStart).TotalMilliseconds;
+                if (handled)
+                {
+                    RefreshHoverAfterWheelContentMutation(pointerPosition, scrollViewer);
+                }
             }
         }
 
@@ -1444,6 +1364,11 @@ public sealed partial class UiRoot
         _hasCachedPointerResolveTarget = false;
         _cachedPointerResolveTarget = null;
 
+        if (ShouldPreserveHoverHostDuringWheelContentMutation(pointerPosition, mutationRoot))
+        {
+            return;
+        }
+
         UIElement? hoverTarget = null;
         if (mutationRoot != null && IsElementConnectedToVisualRoot(mutationRoot))
         {
@@ -1456,6 +1381,42 @@ public sealed partial class UiRoot
         }
 
         UpdateHover(hoverTarget);
+    }
+
+    private bool ShouldPreserveHoverHostDuringWheelContentMutation(Vector2 pointerPosition, UIElement? mutationRoot)
+    {
+        if (mutationRoot is not ScrollViewer scrollViewer ||
+            !ReferenceEquals(_cachedWheelScrollViewerTarget, scrollViewer))
+        {
+            return false;
+        }
+
+        var hovered = _inputState.HoveredElement;
+        if (hovered == null ||
+            !IsElementConnectedToVisualRoot(hovered) ||
+            !ShouldDeferWheelDrivenHoverRefresh(hovered))
+        {
+            return false;
+        }
+
+        if (_hasLastWheelPointerPosition &&
+            Vector2.DistanceSquared(_lastWheelPointerPosition, pointerPosition) > WheelPointerMoveThresholdSquared)
+        {
+            return false;
+        }
+
+        if (!TryFindAncestor<ScrollViewer>(hovered, out var hoveredScrollViewer) ||
+            !ReferenceEquals(hoveredScrollViewer, scrollViewer))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool ShouldDeferWheelDrivenHoverRefresh(UIElement element)
+    {
+        return element is Button or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
     }
 
     private void EnsureCachedWheelTargetsAreCurrent(Vector2 pointerPosition)
@@ -1554,19 +1515,11 @@ public sealed partial class UiRoot
     private bool TryFindWheelCapableTargetAtPointer(Vector2 pointerPosition, out UIElement? target)
     {
         var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
-        if (hit != null)
+        if (hit != null &&
+            TryFindWheelAncestors(hit, out var textInput, out var scrollViewer))
         {
-            if (TryFindWheelTextInputAncestor(hit, out var textInput) && textInput != null)
-            {
-                target = textInput;
-                return true;
-            }
-
-            if (TryFindAncestor<ScrollViewer>(hit, out var scrollViewer) && scrollViewer != null)
-            {
-                target = scrollViewer;
-                return true;
-            }
+            target = textInput ?? scrollViewer;
+            return target != null;
         }
 
         target = null;
@@ -1585,16 +1538,19 @@ public sealed partial class UiRoot
             return;
         }
 
-        if (TryFindWheelTextInputAncestor(hovered, out var textInput) && textInput != null)
+        if (TryFindWheelAncestors(hovered, out var textInput, out var scrollViewer))
         {
-            _cachedWheelTextInputTarget = textInput;
-            return;
-        }
+            if (textInput != null)
+            {
+                _cachedWheelTextInputTarget = textInput;
+                return;
+            }
 
-        if (TryFindAncestor<ScrollViewer>(hovered, out var scrollViewer) && scrollViewer != null)
-        {
-            _cachedWheelScrollViewerTarget = scrollViewer;
-            return;
+            if (scrollViewer != null)
+            {
+                _cachedWheelScrollViewerTarget = scrollViewer;
+                return;
+            }
         }
     }
 
@@ -1982,14 +1938,13 @@ public sealed partial class UiRoot
 
     private bool IsElementConnectedToVisualRoot(UIElement element)
     {
-        if (_inputConnectionCache.TryGetValue(element, out var cachedState) &&
-            cachedState.Version == _inputCacheVersion)
+        if (_inputConnectionCache.TryGetValue(element, out var cachedState))
         {
             return cachedState.IsConnected;
         }
 
         var isConnected = IsElementConnectedToVisualRootCore(element);
-        _inputConnectionCache[element] = new CachedInputConnectionState(_inputCacheVersion, isConnected);
+        _inputConnectionCache[element] = new CachedInputConnectionState(isConnected);
         return isConnected;
     }
 
@@ -2641,6 +2596,10 @@ public sealed partial class UiRoot
         _hasCachedTopOverlayCandidate = false;
         _cachedTopOverlayCandidate = default;
         _cachedTopOverlayCandidateVersion = -1;
+        _cachedTopContextMenu = null;
+        _cachedTopContextMenuVersion = -1;
+        _cachedTopContextMenuHasValue = false;
+        _hasCachedTopContextMenu = false;
     }
 
     internal void NotifyOverlayVisualTreeMutation()
@@ -2906,27 +2865,30 @@ public sealed partial class UiRoot
         }
 
         var prioritized = new List<Menu>(allMenus.Count);
+        var seenMenus = _keyboardMenuScopeDedupSet;
+        seenMenus.Clear();
         if (TryFindAnyMenuInMenuMode(allMenus, out var activeMenuMode))
         {
-            AddUniqueMenu(prioritized, activeMenuMode);
+            AddUniqueMenu(prioritized, seenMenus, activeMenuMode);
         }
 
         if (TryFindAncestorMenuOfFocusedElement(out var focusedAncestorMenu))
         {
-            AddUniqueMenu(prioritized, focusedAncestorMenu);
+            AddUniqueMenu(prioritized, seenMenus, focusedAncestorMenu);
         }
 
         if (TryFindHighestZVisibleMenu(allMenus, out var highestZMenu))
         {
-            AddUniqueMenu(prioritized, highestZMenu);
+            AddUniqueMenu(prioritized, seenMenus, highestZMenu);
         }
 
         for (var i = 0; i < allMenus.Count; i++)
         {
-            AddUniqueMenu(prioritized, allMenus[i]);
+            AddUniqueMenu(prioritized, seenMenus, allMenus[i]);
         }
 
         var scope = new KeyboardMenuScope(prioritized);
+        seenMenus.Clear();
         _cachedKeyboardMenuScope = scope;
         _hasCachedKeyboardMenuScope = true;
         _cachedKeyboardMenuScopeVisualIndexVersion = _visualIndex.Version;
@@ -2999,17 +2961,12 @@ public sealed partial class UiRoot
         return found;
     }
 
-    private static void AddUniqueMenu(List<Menu> menus, Menu menu)
+    private static void AddUniqueMenu(List<Menu> menus, HashSet<Menu> seenMenus, Menu menu)
     {
-        for (var i = 0; i < menus.Count; i++)
+        if (seenMenus.Add(menu))
         {
-            if (ReferenceEquals(menus[i], menu))
-            {
-                return;
-            }
+            menus.Add(menu);
         }
-
-        menus.Add(menu);
     }
 
     private void TrySynchronizeMenuFocusRestore(Menu menu)
@@ -3125,6 +3082,21 @@ public sealed partial class UiRoot
         }
 
         var overlayCandidateStart = Stopwatch.GetTimestamp();
+        if (_cachedTopContextMenuHasValue &&
+            _cachedTopContextMenuVersion == _overlayCandidateVersion)
+        {
+            _lastInputPointerResolveContextMenuOverlayCandidateMs += Stopwatch.GetElapsedTime(overlayCandidateStart).TotalMilliseconds;
+            if (_hasCachedTopContextMenu && _cachedTopContextMenu != null)
+            {
+                contextMenu = _cachedTopContextMenu;
+                _lastKnownOpenContextMenu = contextMenu;
+                return true;
+            }
+
+            contextMenu = null!;
+            return false;
+        }
+
         EnsureVisualIndexCurrent();
         var found = false;
         var bestDepth = int.MinValue;
@@ -3162,11 +3134,19 @@ public sealed partial class UiRoot
             _lastOverlayRegistryHitCount++;
             _lastInputPointerResolveContextMenuOverlayCandidateMs += Stopwatch.GetElapsedTime(overlayCandidateStart).TotalMilliseconds;
             _lastKnownOpenContextMenu = bestMenu;
+            _cachedTopContextMenu = bestMenu;
+            _cachedTopContextMenuVersion = _overlayCandidateVersion;
+            _cachedTopContextMenuHasValue = true;
+            _hasCachedTopContextMenu = true;
             contextMenu = bestMenu;
             return true;
         }
 
         _lastInputPointerResolveContextMenuOverlayCandidateMs += Stopwatch.GetElapsedTime(overlayCandidateStart).TotalMilliseconds;
+        _cachedTopContextMenu = null;
+        _cachedTopContextMenuVersion = _overlayCandidateVersion;
+        _cachedTopContextMenuHasValue = true;
+        _hasCachedTopContextMenu = false;
         contextMenu = null!;
         return false;
     }
@@ -3289,8 +3269,7 @@ public sealed partial class UiRoot
 
     private ReadOnlySpan<UIElement> GetInputAncestorChain(UIElement start)
     {
-        if (_inputAncestorCache.TryGetValue(start, out var cachedChain) &&
-            cachedChain.Version == _inputCacheVersion)
+        if (_inputAncestorCache.TryGetValue(start, out var cachedChain))
         {
             return cachedChain.Chain;
         }
@@ -3302,8 +3281,26 @@ public sealed partial class UiRoot
         }
 
         var chain = _inputAncestorBuilder.ToArray();
-        _inputAncestorCache[start] = new CachedInputAncestorChain(_inputCacheVersion, chain);
+        _inputAncestorCache[start] = new CachedInputAncestorChain(chain);
         return chain;
+    }
+
+    private bool TryFindWheelAncestors(UIElement start, out UIElement? textInput, out ScrollViewer? scrollViewer)
+    {
+        textInput = null;
+        scrollViewer = null;
+        foreach (var current in GetInputAncestorChain(start))
+        {
+            if (current is ITextInputControl)
+            {
+                textInput = current;
+                return true;
+            }
+
+            scrollViewer ??= current as ScrollViewer;
+        }
+
+        return scrollViewer != null;
     }
 
     private bool TryFindWheelTextInputAncestor(UIElement start, out UIElement? textInput)

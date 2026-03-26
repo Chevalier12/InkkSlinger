@@ -96,6 +96,7 @@ public sealed class ProgressBarBehaviorTests
         RunLayout(uiRoot, 240, 120);
         uiRoot.ResetDirtyStateForTests();
         progressBar.ClearRenderInvalidationRecursive();
+        UIElement.ResetFreezableInvalidationBatchTelemetryForTests();
 
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(432), TimeSpan.FromMilliseconds(16)),
@@ -103,11 +104,13 @@ public sealed class ProgressBarBehaviorTests
 
         var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
         var invalidationSnapshot = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var batchSnapshot = UIElement.GetFreezableInvalidationBatchSnapshotForTests();
 
-        Assert.Equal(2, perfSnapshot.DirtyRootCount);
-        Assert.True(
-            invalidationSnapshot.EffectiveSourceName is "PART_Indicator" or "PART_GlowRect",
-            $"Unexpected effective render source: {invalidationSnapshot.EffectiveSourceName}");
+        Assert.Equal(1, perfSnapshot.DirtyRootCount);
+        Assert.Equal("PART_Track", invalidationSnapshot.EffectiveSourceName);
+        Assert.Equal(1, batchSnapshot.FlushCount);
+        Assert.Equal(2, batchSnapshot.FlushTargetCount);
+        Assert.Equal(2, batchSnapshot.QueuedTargetCount);
     }
 
     [Fact]

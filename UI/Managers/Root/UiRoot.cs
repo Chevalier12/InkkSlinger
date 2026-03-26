@@ -12,6 +12,7 @@ public sealed partial class UiRoot
     private const bool EnableRetainedRenderListByDefault = true;
     private const bool EnableDirtyRegionRenderingByDefault = true;
     private const bool EnableConditionalDrawByDefault = true;
+    private const int InputCacheTrimFloor = 256;
     private static readonly RasterizerState UiRasterizerState = new()
     {
         ScissorTestEnable = true
@@ -26,11 +27,14 @@ public sealed partial class UiRoot
     private readonly HashSet<UIElement> _dirtyRenderSet = new();
     private readonly HashSet<UIElement> _dirtyRenderRootsRequireDeepSync = new();
     private readonly List<DirtyRenderWorkItem> _dirtyRenderWorkItems = new();
+    private readonly List<IndexedDirtyRenderCandidate> _dirtyRenderCandidates = new();
     private readonly List<UIElement> _pendingAncestorMetadataRefreshRoots = new();
     private readonly List<UIElement> _ancestorMetadataRefreshBuffer = new();
     private readonly HashSet<UIElement> _ancestorMetadataRefreshSet = new();
     private readonly List<UIElement> _lastSynchronizedDirtyRenderRoots = new();
+    private readonly List<UIElement> _lastCompletedSynchronizedDirtyRenderRoots = new();
     private readonly List<DirtyRenderSpan> _lastSynchronizedDirtyRenderSpans = new();
+    private readonly List<UIElement> _lastCoalescedDirtyRenderRoots = new();
     private readonly List<UIElement> _dirtyRenderCompactionBuffer = new();
     private readonly List<RenderNode> _activeRetainedDrawPath = new();
     private readonly List<UiUpdatePhase> _lastUpdatePhaseOrder = new(5);
@@ -40,9 +44,17 @@ public sealed partial class UiRoot
     private readonly Dictionary<UIElement, CachedInputConnectionState> _inputConnectionCache = new();
     private readonly Dictionary<UIElement, CachedInputAncestorChain> _inputAncestorCache = new();
     private readonly List<UIElement> _inputAncestorBuilder = new();
+    private readonly Stack<UIElement> _inputCacheInvalidationTraversalStack = new();
+    private readonly HashSet<UIElement> _inputCacheInvalidationVisited = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<FrameworkElement, LayoutElementSample> _layoutSamplesBeforeMeasure = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<FrameworkElement, LayoutElementSample> _layoutSamplesAfterMeasure = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<FrameworkElement, LayoutElementSample> _layoutSamplesAfterArrange = new(ReferenceEqualityComparer.Instance);
+    private readonly Stack<UIElement> _layoutSampleTraversalStack = new();
     private readonly List<UIElement> _openOverlayVisuals = new();
     private readonly List<ContextMenu> _openContextMenus = new();
     private readonly List<UiIndexedUpdateParticipant> _activeUpdateParticipants = new();
+    private readonly Dictionary<UIElement, int> _pendingDirtyAncestorCounts = new(ReferenceEqualityComparer.Instance);
+    private InputPhaseTelemetryState _inputTelemetry;
     private UIElement? _cachedClickTarget;
     private UIElement? _cachedPointerResolveTarget;
     private Vector2 _cachedPointerResolvePointerPosition;
@@ -59,36 +71,7 @@ public sealed partial class UiRoot
     private Vector2 _lastWheelPointerPosition;
     private long _lastWheelPreciseRetargetTimestamp;
     private bool _hasLastWheelPointerPosition;
-    private int _lastInputHitTestCount;
-    private int _lastInputRoutedEventCount;
-    private int _lastInputKeyEventCount;
-    private int _lastInputTextEventCount;
-    private int _lastInputPointerEventCount;
-    private double _lastInputCaptureMs;
-    private double _lastInputDispatchMs;
-    private double _lastInputPointerDispatchMs;
-    private double _lastInputPointerTargetResolveMs;
-    private double _lastInputHoverUpdateMs;
-    private double _lastInputPointerRouteMs;
-    private double _lastInputPointerMoveDispatchMs;
-    private double _lastInputPointerMoveRoutedEventsMs;
-    private double _lastInputPointerMoveHandlerMs;
-    private double _lastInputPointerMovePreviewEventMs;
-    private double _lastInputPointerMoveBubbleEventMs;
-    private double _lastInputPointerResolveContextMenuCheckMs;
-    private double _lastInputPointerResolveContextMenuOverlayCandidateMs;
-    private double _lastInputPointerResolveContextMenuCachedMenuMs;
-    private double _lastInputPointerResolveHoverReuseCheckMs;
-    private double _lastInputPointerResolveFinalHitTestMs;
-    private double _lastInputToolTipLifecycleMs;
-    private double _lastInputCommandRequeryMs;
-    private double _lastInputKeyDispatchMs;
-    private double _lastInputTextDispatchMs;
     private double _lastVisualUpdateMs;
-    private int _clickCpuResolveCachedCount;
-    private int _clickCpuResolveCapturedCount;
-    private int _clickCpuResolveHoveredCount;
-    private int _clickCpuResolveHitTestCount;
     private bool _hasMeasureInvalidation;
     private bool _hasArrangeInvalidation;
     private bool _hasRenderInvalidation;
@@ -109,7 +92,6 @@ public sealed partial class UiRoot
     private Color _clearColor = Color.CornflowerBlue;
     private int _visualStructureVersion;
     private int _renderStateVersion;
-    private int _inputCacheVersion;
     private int _pointerResolveStateVersion;
     private int _visualStructureChangeCount;
     private int _retainedFullRebuildCount;
@@ -123,6 +105,13 @@ public sealed partial class UiRoot
     private int _lastDirtyRegionTraversalCount;
     private int _lastAncestorMetadataRefreshNodeCount;
     private int _lastSpriteBatchRestartCount;
+    private double _lastSpriteBatchRestartMs;
+    private double _lastDrawClearMs;
+    private double _lastDrawInitialBatchBeginMs;
+    private double _lastDrawVisualTreeMs;
+    private double _lastDrawCursorMs;
+    private double _lastDrawFinalBatchEndMs;
+    private double _lastDrawCleanupMs;
     private int _dirtyRegionThresholdFallbackCount;
     private int _fullDirtyInitialStateCount;
     private int _fullDirtyViewportChangeCount;
@@ -331,6 +320,7 @@ public sealed partial class UiRoot
     {
         return new UiRenderTelemetrySnapshot(
             _lastSpriteBatchRestartCount,
+            _lastSpriteBatchRestartMs,
             _lastRetainedClipPushCount,
             _lastRetainedNodesVisited,
             _lastRetainedNodesDrawn,
@@ -338,6 +328,12 @@ public sealed partial class UiRoot
             _lastDirtyRegionTraversalCount,
             _lastDirtyRootCountAfterCoalescing,
             _dirtyRegionThresholdFallbackCount,
+            _lastDrawClearMs,
+            _lastDrawInitialBatchBeginMs,
+            _lastDrawVisualTreeMs,
+            _lastDrawCursorMs,
+            _lastDrawFinalBatchEndMs,
+            _lastDrawCleanupMs,
             _fullDirtyInitialStateCount,
             _fullDirtyViewportChangeCount,
             _fullDirtySurfaceResetCount,
@@ -567,6 +563,77 @@ public sealed partial class UiRoot
         return new List<UIElement>(_dirtyRenderQueue);
     }
 
+    internal string GetDirtyRenderQueueSummaryForTests(int limit = 6)
+    {
+        if (_lastCoalescedDirtyRenderRoots.Count > 0)
+        {
+            var count = Math.Min(limit, _lastCoalescedDirtyRenderRoots.Count);
+            var coalescedItems = new string[count];
+            for (var i = 0; i < count; i++)
+            {
+                coalescedItems[i] = DescribeElementForDiagnostics(_lastCoalescedDirtyRenderRoots[i]);
+            }
+
+            return string.Join(" | ", coalescedItems);
+        }
+
+        if (_dirtyRenderQueue.Count == 0)
+        {
+            return "none";
+        }
+
+        var items = new List<string>(limit);
+        foreach (var element in _dirtyRenderQueue)
+        {
+            if (items.Count >= limit)
+            {
+                break;
+            }
+
+            items.Add(DescribeElementForDiagnostics(element));
+        }
+
+        return string.Join(" | ", items);
+    }
+
+    internal string GetLastSynchronizedDirtyRootSummaryForTests(int limit = 6)
+    {
+        var source = _lastCompletedSynchronizedDirtyRenderRoots.Count > 0
+            ? _lastCompletedSynchronizedDirtyRenderRoots
+            : _lastSynchronizedDirtyRenderRoots;
+        if (source.Count == 0)
+        {
+            return "none";
+        }
+
+        var count = Math.Min(limit, source.Count);
+        var items = new string[count];
+        for (var i = 0; i < count; i++)
+        {
+            items[i] = DescribeElementForDiagnostics(source[i]);
+        }
+
+        return string.Join(" | ", items);
+    }
+
+    internal string GetDirtyRegionSummaryForTests(int limit = 6)
+    {
+        if (_dirtyRegions.RegionCount == 0)
+        {
+            return "none";
+        }
+
+        var count = Math.Min(limit, _dirtyRegions.RegionCount);
+        var items = new string[count];
+        for (var i = 0; i < count; i++)
+        {
+            var region = _dirtyRegions.Regions[i];
+            items[i] = $"{region.X:0.#},{region.Y:0.#},{region.Width:0.#},{region.Height:0.#}";
+        }
+
+        return string.Join(" | ", items);
+    }
+
     internal IReadOnlyList<LayoutRect> GetDirtyRegionsSnapshotForTests()
     {
         return new List<LayoutRect>(_dirtyRegions.Regions);
@@ -592,6 +659,7 @@ public sealed partial class UiRoot
         _dirtyRegions.Clear();
         ClearDirtyRenderQueue();
         ResetRetainedSyncTrackingState();
+        _lastCompletedSynchronizedDirtyRenderRoots.Clear();
         _dirtyBoundsEventTrace.Clear();
     }
 
@@ -740,16 +808,60 @@ public sealed partial class UiRoot
     private void MarkVisualIndexDirty()
     {
         _visualIndex.MarkDirty();
-        BumpInputCacheVersion();
         InvalidateKeyboardMenuScopeCache();
         InvalidateActiveUpdateParticipants();
     }
 
-    private void BumpInputCacheVersion()
+    private void InvalidateInputCachesForSubtree(UIElement element)
     {
-        _inputCacheVersion++;
-        _inputConnectionCache.Clear();
-        _inputAncestorCache.Clear();
+        if (_inputConnectionCache.Count == 0 &&
+            _inputAncestorCache.Count == 0)
+        {
+            return;
+        }
+
+        _inputCacheInvalidationTraversalStack.Clear();
+        _inputCacheInvalidationVisited.Clear();
+        _inputCacheInvalidationTraversalStack.Push(element);
+
+        while (_inputCacheInvalidationTraversalStack.Count > 0)
+        {
+            var current = _inputCacheInvalidationTraversalStack.Pop();
+            if (!_inputCacheInvalidationVisited.Add(current))
+            {
+                continue;
+            }
+
+            _inputConnectionCache.Remove(current);
+            _inputAncestorCache.Remove(current);
+
+            foreach (var child in current.GetVisualChildren())
+            {
+                _inputCacheInvalidationTraversalStack.Push(child);
+            }
+
+            foreach (var child in current.GetLogicalChildren())
+            {
+                _inputCacheInvalidationTraversalStack.Push(child);
+            }
+        }
+
+        TrimInputCachesIfOversized();
+    }
+
+    private void TrimInputCachesIfOversized()
+    {
+        var visualCountHint = _visualIndex.Nodes.Count;
+        var maxRetainedEntries = Math.Max(InputCacheTrimFloor, visualCountHint * 4);
+        if (_inputConnectionCache.Count > maxRetainedEntries)
+        {
+            _inputConnectionCache.Clear();
+        }
+
+        if (_inputAncestorCache.Count > maxRetainedEntries)
+        {
+            _inputAncestorCache.Clear();
+        }
     }
 
     private void InvalidateKeyboardMenuScopeCache()
@@ -878,6 +990,15 @@ registerContextMenu:
         }
     }
 
+    private static string DescribeElementForDiagnostics(UIElement element)
+    {
+        return element switch
+        {
+            FrameworkElement { Name.Length: > 0 } frameworkElement => $"{frameworkElement.GetType().Name}#{frameworkElement.Name}",
+            _ => element.GetType().Name
+        };
+    }
+
     private struct VisualTreeMetricsAccumulator
     {
         public int VisualCount;
@@ -895,7 +1016,305 @@ registerContextMenu:
         public long RenderInvalidationCount;
     }
 
-    private readonly record struct CachedInputConnectionState(int Version, bool IsConnected);
+    private int _lastInputHitTestCount
+    {
+        get => _inputTelemetry.HitTestCount;
+        set => _inputTelemetry.HitTestCount = value;
+    }
 
-    private sealed record CachedInputAncestorChain(int Version, UIElement[] Chain);
+    private int _lastInputRoutedEventCount
+    {
+        get => _inputTelemetry.RoutedEventCount;
+        set => _inputTelemetry.RoutedEventCount = value;
+    }
+
+    private int _lastInputKeyEventCount
+    {
+        get => _inputTelemetry.KeyEventCount;
+        set => _inputTelemetry.KeyEventCount = value;
+    }
+
+    private int _lastInputTextEventCount
+    {
+        get => _inputTelemetry.TextEventCount;
+        set => _inputTelemetry.TextEventCount = value;
+    }
+
+    private int _lastInputPointerEventCount
+    {
+        get => _inputTelemetry.PointerEventCount;
+        set => _inputTelemetry.PointerEventCount = value;
+    }
+
+    private double _lastInputCaptureMs
+    {
+        get => _inputTelemetry.CaptureMilliseconds;
+        set => _inputTelemetry.CaptureMilliseconds = value;
+    }
+
+    private double _lastInputDispatchMs
+    {
+        get => _inputTelemetry.DispatchMilliseconds;
+        set => _inputTelemetry.DispatchMilliseconds = value;
+    }
+
+    private double _lastInputPointerDispatchMs
+    {
+        get => _inputTelemetry.PointerDispatchMilliseconds;
+        set => _inputTelemetry.PointerDispatchMilliseconds = value;
+    }
+
+    private double _lastInputPointerTargetResolveMs
+    {
+        get => _inputTelemetry.PointerTargetResolveMilliseconds;
+        set => _inputTelemetry.PointerTargetResolveMilliseconds = value;
+    }
+
+    private double _lastInputHoverUpdateMs
+    {
+        get => _inputTelemetry.HoverUpdateMilliseconds;
+        set => _inputTelemetry.HoverUpdateMilliseconds = value;
+    }
+
+    private double _lastInputPointerRouteMs
+    {
+        get => _inputTelemetry.PointerRouteMilliseconds;
+        set => _inputTelemetry.PointerRouteMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveDispatchMs
+    {
+        get => _inputTelemetry.PointerMoveDispatchMilliseconds;
+        set => _inputTelemetry.PointerMoveDispatchMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveRoutedEventsMs
+    {
+        get => _inputTelemetry.PointerMoveRoutedEventsMilliseconds;
+        set => _inputTelemetry.PointerMoveRoutedEventsMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveHandlerMs
+    {
+        get => _inputTelemetry.PointerMoveHandlerMilliseconds;
+        set => _inputTelemetry.PointerMoveHandlerMilliseconds = value;
+    }
+
+    private double _lastInputPointerMovePreviewEventMs
+    {
+        get => _inputTelemetry.PointerMovePreviewEventMilliseconds;
+        set => _inputTelemetry.PointerMovePreviewEventMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveBubbleEventMs
+    {
+        get => _inputTelemetry.PointerMoveBubbleEventMilliseconds;
+        set => _inputTelemetry.PointerMoveBubbleEventMilliseconds = value;
+    }
+
+    private double _lastInputPointerResolveContextMenuCheckMs
+    {
+        get => _inputTelemetry.PointerResolveContextMenuCheckMilliseconds;
+        set => _inputTelemetry.PointerResolveContextMenuCheckMilliseconds = value;
+    }
+
+    private double _lastInputPointerResolveContextMenuOverlayCandidateMs
+    {
+        get => _inputTelemetry.PointerResolveContextMenuOverlayCandidateMilliseconds;
+        set => _inputTelemetry.PointerResolveContextMenuOverlayCandidateMilliseconds = value;
+    }
+
+    private double _lastInputPointerResolveContextMenuCachedMenuMs
+    {
+        get => _inputTelemetry.PointerResolveContextMenuCachedMenuMilliseconds;
+        set => _inputTelemetry.PointerResolveContextMenuCachedMenuMilliseconds = value;
+    }
+
+    private double _lastInputPointerResolveHoverReuseCheckMs
+    {
+        get => _inputTelemetry.PointerResolveHoverReuseCheckMilliseconds;
+        set => _inputTelemetry.PointerResolveHoverReuseCheckMilliseconds = value;
+    }
+
+    private double _lastInputPointerResolveFinalHitTestMs
+    {
+        get => _inputTelemetry.PointerResolveFinalHitTestMilliseconds;
+        set => _inputTelemetry.PointerResolveFinalHitTestMilliseconds = value;
+    }
+
+    private double _lastInputToolTipLifecycleMs
+    {
+        get => _inputTelemetry.ToolTipLifecycleMilliseconds;
+        set => _inputTelemetry.ToolTipLifecycleMilliseconds = value;
+    }
+
+    private double _lastInputCommandRequeryMs
+    {
+        get => _inputTelemetry.CommandRequeryMilliseconds;
+        set => _inputTelemetry.CommandRequeryMilliseconds = value;
+    }
+
+    private double _lastInputKeyDispatchMs
+    {
+        get => _inputTelemetry.KeyDispatchMilliseconds;
+        set => _inputTelemetry.KeyDispatchMilliseconds = value;
+    }
+
+    private double _lastInputTextDispatchMs
+    {
+        get => _inputTelemetry.TextDispatchMilliseconds;
+        set => _inputTelemetry.TextDispatchMilliseconds = value;
+    }
+
+    private int _clickCpuResolveCachedCount
+    {
+        get => _inputTelemetry.ClickResolveCachedCount;
+        set => _inputTelemetry.ClickResolveCachedCount = value;
+    }
+
+    private int _clickCpuResolveCapturedCount
+    {
+        get => _inputTelemetry.ClickResolveCapturedCount;
+        set => _inputTelemetry.ClickResolveCapturedCount = value;
+    }
+
+    private int _clickCpuResolveHoveredCount
+    {
+        get => _inputTelemetry.ClickResolveHoveredCount;
+        set => _inputTelemetry.ClickResolveHoveredCount = value;
+    }
+
+    private int _clickCpuResolveHitTestCount
+    {
+        get => _inputTelemetry.ClickResolveHitTestCount;
+        set => _inputTelemetry.ClickResolveHitTestCount = value;
+    }
+
+    private double _lastInputPointerMoveCapturedDataGridHandlerMs
+    {
+        get => _inputTelemetry.PointerMoveCapturedDataGridHandlerMilliseconds;
+        set => _inputTelemetry.PointerMoveCapturedDataGridHandlerMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveCapturedTextInputHandlerMs
+    {
+        get => _inputTelemetry.PointerMoveCapturedTextInputHandlerMilliseconds;
+        set => _inputTelemetry.PointerMoveCapturedTextInputHandlerMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveCapturedScrollViewerHandlerMs
+    {
+        get => _inputTelemetry.PointerMoveCapturedScrollViewerHandlerMilliseconds;
+        set => _inputTelemetry.PointerMoveCapturedScrollViewerHandlerMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveCapturedSliderHandlerMs
+    {
+        get => _inputTelemetry.PointerMoveCapturedSliderHandlerMilliseconds;
+        set => _inputTelemetry.PointerMoveCapturedSliderHandlerMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveCapturedPopupHandlerMs
+    {
+        get => _inputTelemetry.PointerMoveCapturedPopupHandlerMilliseconds;
+        set => _inputTelemetry.PointerMoveCapturedPopupHandlerMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveHyperlinkHandlerMs
+    {
+        get => _inputTelemetry.PointerMoveHyperlinkHandlerMilliseconds;
+        set => _inputTelemetry.PointerMoveHyperlinkHandlerMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveContextMenuItemHandlerMs
+    {
+        get => _inputTelemetry.PointerMoveContextMenuItemHandlerMilliseconds;
+        set => _inputTelemetry.PointerMoveContextMenuItemHandlerMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveMenuItemHandlerMs
+    {
+        get => _inputTelemetry.PointerMoveMenuItemHandlerMilliseconds;
+        set => _inputTelemetry.PointerMoveMenuItemHandlerMilliseconds = value;
+    }
+
+    private double _lastInputPointerMoveMenuFocusRestoreMs
+    {
+        get => _inputTelemetry.PointerMoveMenuFocusRestoreMilliseconds;
+        set => _inputTelemetry.PointerMoveMenuFocusRestoreMilliseconds = value;
+    }
+
+    private double _lastInputPointerRouteOuterContextMenuProbeMs
+    {
+        get => _inputTelemetry.PointerRouteOuterContextMenuProbeMilliseconds;
+        set => _inputTelemetry.PointerRouteOuterContextMenuProbeMilliseconds = value;
+    }
+
+    private double _lastInputPointerRouteOuterGateMs
+    {
+        get => _inputTelemetry.PointerRouteOuterGateMilliseconds;
+        set => _inputTelemetry.PointerRouteOuterGateMilliseconds = value;
+    }
+
+    private double _lastInputPointerRouteOuterDispatchCallMs
+    {
+        get => _inputTelemetry.PointerRouteOuterDispatchCallMilliseconds;
+        set => _inputTelemetry.PointerRouteOuterDispatchCallMilliseconds = value;
+    }
+
+    private int _lastInputPointerRouteDispatchCount
+    {
+        get => _inputTelemetry.PointerRouteDispatchCount;
+        set => _inputTelemetry.PointerRouteDispatchCount = value;
+    }
+
+    private struct InputPhaseTelemetryState
+    {
+        public int HitTestCount;
+        public int RoutedEventCount;
+        public int KeyEventCount;
+        public int TextEventCount;
+        public int PointerEventCount;
+        public double CaptureMilliseconds;
+        public double DispatchMilliseconds;
+        public double PointerDispatchMilliseconds;
+        public double PointerTargetResolveMilliseconds;
+        public double HoverUpdateMilliseconds;
+        public double PointerRouteMilliseconds;
+        public double PointerMoveDispatchMilliseconds;
+        public double PointerMoveRoutedEventsMilliseconds;
+        public double PointerMoveHandlerMilliseconds;
+        public double PointerMovePreviewEventMilliseconds;
+        public double PointerMoveBubbleEventMilliseconds;
+        public double PointerResolveContextMenuCheckMilliseconds;
+        public double PointerResolveContextMenuOverlayCandidateMilliseconds;
+        public double PointerResolveContextMenuCachedMenuMilliseconds;
+        public double PointerResolveHoverReuseCheckMilliseconds;
+        public double PointerResolveFinalHitTestMilliseconds;
+        public double ToolTipLifecycleMilliseconds;
+        public double CommandRequeryMilliseconds;
+        public double KeyDispatchMilliseconds;
+        public double TextDispatchMilliseconds;
+        public int ClickResolveCachedCount;
+        public int ClickResolveCapturedCount;
+        public int ClickResolveHoveredCount;
+        public int ClickResolveHitTestCount;
+        public double PointerMoveCapturedDataGridHandlerMilliseconds;
+        public double PointerMoveCapturedTextInputHandlerMilliseconds;
+        public double PointerMoveCapturedScrollViewerHandlerMilliseconds;
+        public double PointerMoveCapturedSliderHandlerMilliseconds;
+        public double PointerMoveCapturedPopupHandlerMilliseconds;
+        public double PointerMoveHyperlinkHandlerMilliseconds;
+        public double PointerMoveContextMenuItemHandlerMilliseconds;
+        public double PointerMoveMenuItemHandlerMilliseconds;
+        public double PointerMoveMenuFocusRestoreMilliseconds;
+        public double PointerRouteOuterContextMenuProbeMilliseconds;
+        public double PointerRouteOuterGateMilliseconds;
+        public double PointerRouteOuterDispatchCallMilliseconds;
+        public int PointerRouteDispatchCount;
+    }
+
+    private readonly record struct CachedInputConnectionState(bool IsConnected);
+
+    private sealed record CachedInputAncestorChain(UIElement[] Chain);
 }

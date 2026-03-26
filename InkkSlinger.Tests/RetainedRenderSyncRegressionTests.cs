@@ -50,6 +50,33 @@ public sealed class RetainedRenderSyncRegressionTests
     }
 
     [Fact]
+    public void DirtyQueueCompaction_ChildThenAncestorInvalidated_KeepsRetainedOrderStable()
+    {
+        var root = new Panel();
+        var parent = new Border();
+        var child = new Border();
+        parent.Child = child;
+        root.AddChild(parent);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        child.InvalidateVisual();
+        parent.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var order = uiRoot.GetRetainedVisualOrderForTests();
+        Assert.Collection(
+            order,
+            visual => Assert.Same(root, visual),
+            visual => Assert.Same(parent, visual),
+            visual => Assert.Same(child, visual));
+        Assert.Equal(1, uiRoot.GetPerformanceTelemetrySnapshotForTests().DirtyRootCount);
+        Assert.Equal(0, uiRoot.DirtyRenderQueueCount);
+    }
+
+    [Fact]
     public void DirtyQueueCompaction_SiblingInvalidations_DoNotCollapseToUnrelatedAncestor()
     {
         var root = new Panel();
@@ -272,6 +299,45 @@ public sealed class RetainedRenderSyncRegressionTests
 
         Assert.Equal(uiRoot.RetainedRenderNodeCount, uiRoot.GetRetainedNodeSubtreeEndIndexForTests(root));
         Assert.Equal(0, uiRoot.DirtyRenderQueueCount);
+    }
+
+    [Fact]
+    public void TransformScrolledContent_WheelScroll_SynchronizesRetainedTreeWithoutFullRebuild()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 240f));
+
+        var content = new StackPanel();
+        for (var i = 0; i < 12; i++)
+        {
+            content.AddChild(new Border
+            {
+                Height = 40f
+            });
+        }
+
+        var viewer = new ScrollViewer
+        {
+            Content = content,
+            Width = 180f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        var viewport = new Microsoft.Xna.Framework.Graphics.Viewport(0, 0, 320, 240);
+        uiRoot.Update(new Microsoft.Xna.Framework.GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), viewport);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        viewer.ScrollToVerticalOffset(24f);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.False(uiRoot.IsRenderListFullRebuildPendingForTests());
+        Assert.Equal(uiRoot.RetainedRenderNodeCount, uiRoot.GetRetainedNodeSubtreeEndIndexForTests(root));
     }
 
     [Fact]

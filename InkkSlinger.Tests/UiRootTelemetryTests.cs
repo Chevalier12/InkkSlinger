@@ -343,22 +343,12 @@ public class UiRootTelemetryTests
     }
 
     [Fact]
-    public void PerformanceTelemetry_InputCaches_ClearAfterStructureMutationVersionBump()
+    public void PerformanceTelemetry_InputCaches_StructureMutation_EvictsDisconnectedEntriesImmediately()
     {
         var root = new Panel();
         root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 200f));
 
-        var content = new StackPanel();
-        content.AddChild(new Border { Height = 40f });
-        content.AddChild(new Border { Height = 220f });
-
-        var scrollViewer = new ScrollViewer
-        {
-            Content = content,
-            Width = 180f,
-            Height = 120f,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
+        var scrollViewer = CreateTelemetryScrollViewer();
         root.AddChild(scrollViewer);
 
         var uiRoot = new UiRoot(root);
@@ -371,9 +361,98 @@ public class UiRootTelemetryTests
 
         root.RemoveChild(scrollViewer);
 
-        var clearedCounts = uiRoot.GetInputCacheEntryCountsForTests();
-        Assert.Equal(0, clearedCounts.ConnectionCacheEntryCount);
-        Assert.Equal(0, clearedCounts.AncestorCacheEntryCount);
+        var preservedCounts = uiRoot.GetInputCacheEntryCountsForTests();
+        Assert.Equal(0, preservedCounts.ConnectionCacheEntryCount);
+        Assert.Equal(0, preservedCounts.AncestorCacheEntryCount);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(40f, 40f), pointerMoved: true));
+
+        Assert.NotSame(scrollViewer, uiRoot.GetHoveredElementForDiagnostics());
+    }
+
+    [Fact]
+    public void PerformanceTelemetry_InputCaches_StructureMutation_EvictsOnlyChangedSubtree()
+    {
+        var root = new Grid();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 400f, 220f));
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+
+        var leftViewer = CreateTelemetryScrollViewer();
+        Grid.SetColumn(leftViewer, 0);
+        root.AddChild(leftViewer);
+
+        var rightViewer = CreateTelemetryScrollViewer();
+        Grid.SetColumn(rightViewer, 1);
+        root.AddChild(rightViewer);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), new Viewport(0, 0, 400, 220));
+
+        uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(new Vector2(40f, 40f), wheelDelta: -120));
+        uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(new Vector2(240f, 40f), wheelDelta: -120));
+
+        var populatedCounts = uiRoot.GetInputCacheEntryCountsForTests();
+        var totalPopulatedCount = populatedCounts.ConnectionCacheEntryCount + populatedCounts.AncestorCacheEntryCount;
+        Assert.True(totalPopulatedCount > 0);
+
+        root.RemoveChild(leftViewer);
+
+        var preservedCounts = uiRoot.GetInputCacheEntryCountsForTests();
+        var totalPreservedCount = preservedCounts.ConnectionCacheEntryCount + preservedCounts.AncestorCacheEntryCount;
+        Assert.True(totalPreservedCount > 0);
+        Assert.True(totalPreservedCount < totalPopulatedCount);
+    }
+
+    [Fact]
+    public void WheelScroll_WithinScrollViewer_PreservesStationaryButtonHoverUntilPointerMoves()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 240f));
+
+        var stack = new StackPanel();
+        var buttons = new List<Button>();
+        for (var i = 0; i < 8; i++)
+        {
+            var button = new Button
+            {
+                Content = $"Item {i}",
+                Width = 180f,
+                Height = 40f
+            };
+            buttons.Add(button);
+            stack.AddChild(button);
+        }
+
+        var viewer = new ScrollViewer
+        {
+            Content = stack,
+            Width = 180f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), new Viewport(0, 0, 320, 240));
+
+        var pointer = GetCenter(buttons[0].LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+
+        Assert.Same(buttons[0], uiRoot.GetHoveredElementForDiagnostics());
+        Assert.True(buttons[0].IsMouseOver);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+
+        Assert.Same(buttons[0], uiRoot.GetHoveredElementForDiagnostics());
+        Assert.True(buttons[0].IsMouseOver);
+        Assert.False(buttons[1].IsMouseOver);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+
+        Assert.Same(buttons[1], uiRoot.GetHoveredElementForDiagnostics());
+        Assert.False(buttons[0].IsMouseOver);
+        Assert.True(buttons[1].IsMouseOver);
     }
 
     [Fact]
@@ -496,6 +575,33 @@ public class UiRootTelemetryTests
         Assert.Equal(2, perfSnapshot.AncestorMetadataRefreshNodeCount);
     }
 
+    [Fact]
+    public void DirtyRootTelemetry_AfterRetainedSync_PreservesCoalescedAndSynchronizedRootSummaries()
+    {
+        var root = new Panel();
+        var left = new Border { Name = "Left" };
+        var right = new Border { Name = "Right" };
+        root.AddChild(left);
+        root.AddChild(right);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        left.InvalidateVisual();
+        right.InvalidateVisual();
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var dirtyQueueSummary = uiRoot.GetDirtyRenderQueueSummaryForTests();
+        var syncedRootSummary = uiRoot.GetLastSynchronizedDirtyRootSummaryForTests();
+
+        Assert.Equal("Border#Left | Border#Right", dirtyQueueSummary);
+        Assert.Equal("Border#Left | Border#Right", syncedRootSummary);
+    }
+
     private static InputDelta CreateKeyDownDelta(Keys key, KeyboardState? keyboard = null)
     {
         var state = keyboard ?? default;
@@ -555,6 +661,26 @@ public class UiRootTelemetryTests
             RightReleased = false,
             MiddlePressed = false,
             MiddleReleased = false
+        };
+    }
+
+    private static Vector2 GetCenter(LayoutRect rect)
+    {
+        return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
+    }
+
+    private static ScrollViewer CreateTelemetryScrollViewer()
+    {
+        var content = new StackPanel();
+        content.AddChild(new Border { Height = 40f });
+        content.AddChild(new Border { Height = 220f });
+
+        return new ScrollViewer
+        {
+            Content = content,
+            Width = 180f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
     }
 

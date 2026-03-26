@@ -38,7 +38,7 @@ public sealed partial class UiRoot
         return _visualIndex.TryGetNode(element, out node);
     }
 
-    private void EnqueueDirtyRenderNode(UIElement visual)
+    private void EnqueueDirtyRenderNode(UIElement visual, bool requireDeepSync = false)
     {
         if (!ReferenceEquals(visual, _visualRoot) &&
             !ReferenceEquals(visual.GetVisualRoot(), _visualRoot))
@@ -48,7 +48,17 @@ public sealed partial class UiRoot
 
         if (!_dirtyRenderSet.Add(visual))
         {
+            if (requireDeepSync)
+            {
+                _dirtyRenderRootsRequireDeepSync.Add(visual);
+            }
+
             return;
+        }
+
+        if (requireDeepSync)
+        {
+            _dirtyRenderRootsRequireDeepSync.Add(visual);
         }
 
         _dirtyRenderQueue.Enqueue(visual);
@@ -58,7 +68,9 @@ public sealed partial class UiRoot
     {
         _dirtyRenderRootsRequireDeepSync.Clear();
         _dirtyRenderWorkItems.Clear();
+        _dirtyRenderCandidates.Clear();
         _dirtyRenderCompactionBuffer.Clear();
+        _lastCoalescedDirtyRenderRoots.Clear();
         while (_dirtyRenderQueue.TryDequeue(out var visual))
         {
             _dirtyRenderCompactionBuffer.Add(visual);
@@ -96,46 +108,68 @@ public sealed partial class UiRoot
             }
 
             var node = _retainedRenderList[renderNodeIndex];
-            AddDirtyRenderWorkItemCoalesced(candidate, renderNodeIndex, node.SubtreeEndIndexExclusive);
+            _dirtyRenderCandidates.Add(new IndexedDirtyRenderCandidate(
+                candidate,
+                renderNodeIndex,
+                node.SubtreeEndIndexExclusive,
+                _dirtyRenderRootsRequireDeepSync.Contains(candidate)));
         }
 
-        if (_renderListNeedsFullRebuild || _dirtyRenderWorkItems.Count <= 1)
+        CoalesceDirtyRenderCandidates();
+
+        _lastDirtyRootCountAfterCoalescing = _dirtyRenderWorkItems.Count;
+        for (var i = 0; i < _dirtyRenderWorkItems.Count; i++)
         {
-            _lastDirtyRootCountAfterCoalescing = _dirtyRenderWorkItems.Count;
+            _lastCoalescedDirtyRenderRoots.Add(_dirtyRenderWorkItems[i].Visual);
+        }
+    }
+
+    private void CoalesceDirtyRenderCandidates()
+    {
+        if (_dirtyRenderCandidates.Count == 0)
+        {
             return;
         }
 
-        _dirtyRenderWorkItems.Sort(static (left, right) => left.RenderNodeIndex.CompareTo(right.RenderNodeIndex));
+        _dirtyRenderCandidates.Sort(static (left, right) => left.RenderNodeIndex.CompareTo(right.RenderNodeIndex));
 
-        _lastDirtyRootCountAfterCoalescing = _dirtyRenderWorkItems.Count;
+        for (var i = 0; i < _dirtyRenderCandidates.Count; i++)
+        {
+            AddSortedDirtyRenderCandidate(_dirtyRenderCandidates[i]);
+        }
+
+        _dirtyRenderCandidates.Clear();
     }
 
-    private void AddDirtyRenderWorkItemCoalesced(UIElement visual, int renderNodeIndex, int subtreeEndIndexExclusive)
+    private void AddSortedDirtyRenderCandidate(IndexedDirtyRenderCandidate candidate)
     {
-        var requiresDeepSync = false;
-        for (var i = _dirtyRenderWorkItems.Count - 1; i >= 0; i--)
+        if (_dirtyRenderWorkItems.Count == 0)
         {
-            var existing = _dirtyRenderWorkItems[i];
-            if (renderNodeIndex >= existing.RenderNodeIndex &&
-                renderNodeIndex < existing.SubtreeEndIndexExclusive)
-            {
-                _dirtyRenderWorkItems[i] = existing with { RequiresDeepSync = true };
-                return;
-            }
+            _dirtyRenderWorkItems.Add(new DirtyRenderWorkItem(
+                candidate.Visual,
+                candidate.RenderNodeIndex,
+                candidate.SubtreeEndIndexExclusive,
+                candidate.RequiresDeepSync));
+            return;
+        }
 
-            if (existing.RenderNodeIndex >= renderNodeIndex &&
-                existing.RenderNodeIndex < subtreeEndIndexExclusive)
-            {
-                requiresDeepSync = true;
-                _dirtyRenderWorkItems.RemoveAt(i);
-            }
+        var lastIndex = _dirtyRenderWorkItems.Count - 1;
+        var last = _dirtyRenderWorkItems[lastIndex];
+
+        // Retained subtree intervals are either disjoint or nested, so sorted starts only need
+        // to compare against the current tail item to preserve the original coalescing semantics.
+        if (last.RenderNodeIndex >= 0 &&
+            candidate.RenderNodeIndex < last.SubtreeEndIndexExclusive)
+        {
+            _dirtyRenderWorkItems[lastIndex] = last with { RequiresDeepSync = true };
+            return;
         }
 
         _dirtyRenderWorkItems.Add(new DirtyRenderWorkItem(
-            visual,
-            renderNodeIndex,
-            subtreeEndIndexExclusive,
-            requiresDeepSync));
+            candidate.Visual,
+            candidate.RenderNodeIndex,
+            candidate.SubtreeEndIndexExclusive,
+            candidate.RequiresDeepSync));
     }
 
     private void ClearDirtyRenderQueue()
@@ -144,7 +178,9 @@ public sealed partial class UiRoot
         _dirtyRenderSet.Clear();
         _dirtyRenderRootsRequireDeepSync.Clear();
         _dirtyRenderWorkItems.Clear();
+        _dirtyRenderCandidates.Clear();
         _pendingAncestorMetadataRefreshRoots.Clear();
+        _lastCoalescedDirtyRenderRoots.Clear();
     }
 
     private void ResetRetainedSyncTrackingState()
@@ -165,6 +201,11 @@ public sealed partial class UiRoot
         if (_renderListNeedsFullRebuild || _retainedRenderList.Count == 0)
         {
             _lastRetainedSyncUsedFullRebuild = true;
+            _lastCompletedSynchronizedDirtyRenderRoots.Clear();
+            for (var i = 0; i < _dirtyRenderWorkItems.Count; i++)
+            {
+                _lastCompletedSynchronizedDirtyRenderRoots.Add(_dirtyRenderWorkItems[i].Visual);
+            }
             RebuildRetainedRenderList();
             return;
         }
@@ -186,6 +227,11 @@ public sealed partial class UiRoot
                 _lastRetainedSyncUsedFullRebuild = true;
                 _lastSynchronizedDirtyRenderRoots.Clear();
                 _lastSynchronizedDirtyRenderSpans.Clear();
+                _lastCompletedSynchronizedDirtyRenderRoots.Clear();
+                for (var completedIndex = 0; completedIndex < _dirtyRenderWorkItems.Count; completedIndex++)
+                {
+                    _lastCompletedSynchronizedDirtyRenderRoots.Add(_dirtyRenderWorkItems[completedIndex].Visual);
+                }
                 RebuildRetainedRenderList();
                 return;
             }
@@ -202,6 +248,9 @@ public sealed partial class UiRoot
                 _lastSynchronizedDirtyRenderSpans.Add(new DirtyRenderSpan(renderNodeIndex, node.SubtreeEndIndexExclusive));
             }
         }
+
+        _lastCompletedSynchronizedDirtyRenderRoots.Clear();
+        _lastCompletedSynchronizedDirtyRenderRoots.AddRange(_lastSynchronizedDirtyRenderRoots);
 
         RefreshQueuedAncestorNodeSubtreeMetadata();
         if (_renderListNeedsFullRebuild)
@@ -405,6 +454,12 @@ public sealed partial class UiRoot
         if (previous.RenderStateSignature != updated.RenderStateSignature ||
             previous.IsEffectivelyVisible != updated.IsEffectivelyVisible)
         {
+            if (previous.IsEffectivelyVisible == updated.IsEffectivelyVisible &&
+                TryUpdateRenderNodeSubtreeForScrollTranslation(renderNodeIndex, visual, previous, updated, out subtreeMetadataChanged))
+            {
+                return true;
+            }
+
             rejectReason = previous.IsEffectivelyVisible != updated.IsEffectivelyVisible
                 ? ShallowSyncRejectReason.EffectiveVisibilityChanged
                 : ShallowSyncRejectReason.RenderStateChanged;
@@ -415,6 +470,215 @@ public sealed partial class UiRoot
         RecordBoundsDelta(previous, updated);
         _retainedRenderList[renderNodeIndex] = updated;
         return true;
+    }
+
+    private bool TryUpdateRenderNodeSubtreeForScrollTranslation(
+        int renderNodeIndex,
+        UIElement visual,
+        RenderNode previous,
+        RenderNode updated,
+        out bool subtreeMetadataChanged)
+    {
+        subtreeMetadataChanged = false;
+        if (!IsScrollTranslationFastPathCandidate(visual) ||
+            !TryGetTranslationDelta(previous, updated, out var translationX, out var translationY))
+        {
+            return false;
+        }
+
+        var subtreeEndIndexExclusive = previous.SubtreeEndIndexExclusive;
+        if (subtreeEndIndexExclusive <= renderNodeIndex ||
+            subtreeEndIndexExclusive > _retainedRenderList.Count)
+        {
+            return false;
+        }
+
+        var translatedRoot = updated.WithSubtreeMetadata(
+            subtreeEndIndexExclusive,
+            previous.HasSubtreeBoundsSnapshot,
+            TranslateRect(previous.SubtreeBoundsSnapshot, translationX, translationY),
+            updated.SubtreeVisualCount,
+            updated.SubtreeHighCostVisualCount,
+            updated.SubtreeRenderVersionStamp,
+            updated.SubtreeLayoutVersionStamp);
+        _retainedRenderList[renderNodeIndex] = translatedRoot;
+
+        var ancestry = new List<(int Depth, RenderNode Node)>(8)
+        {
+            (translatedRoot.Depth, translatedRoot)
+        };
+
+        for (var nodeIndex = renderNodeIndex + 1; nodeIndex < subtreeEndIndexExclusive; nodeIndex++)
+        {
+            var node = _retainedRenderList[nodeIndex];
+            while (ancestry.Count > 0 && ancestry[^1].Depth >= node.Depth)
+            {
+                ancestry.RemoveAt(ancestry.Count - 1);
+            }
+
+            RenderNode? parentNode = ancestry.Count > 0 ? ancestry[^1].Node : null;
+            var translatedNode = TranslateRetainedSubtreeNode(node, parentNode, translationX, translationY);
+            _retainedRenderList[nodeIndex] = translatedNode;
+            ancestry.Add((translatedNode.Depth, translatedNode));
+        }
+
+        subtreeMetadataChanged = !HasEquivalentSubtreeMetadata(previous, translatedRoot);
+        return true;
+    }
+
+    private static RenderNode TranslateRetainedSubtreeNode(
+        RenderNode previous,
+        RenderNode? parentNode,
+        float translationX,
+        float translationY)
+    {
+        var hasTransformFromThisToRoot = false;
+        var transformFromThisToRoot = Matrix.Identity;
+        if (parentNode.HasValue)
+        {
+            var parent = parentNode.Value;
+            if (previous.HasLocalTransform && parent.HasTransformFromThisToRoot)
+            {
+                transformFromThisToRoot = previous.LocalTransform * parent.TransformFromThisToRoot;
+                hasTransformFromThisToRoot = true;
+            }
+            else if (previous.HasLocalTransform)
+            {
+                transformFromThisToRoot = previous.LocalTransform;
+                hasTransformFromThisToRoot = true;
+            }
+            else if (parent.HasTransformFromThisToRoot)
+            {
+                transformFromThisToRoot = parent.TransformFromThisToRoot;
+                hasTransformFromThisToRoot = true;
+            }
+        }
+        else if (previous.HasLocalTransform)
+        {
+            transformFromThisToRoot = previous.LocalTransform;
+            hasTransformFromThisToRoot = true;
+        }
+
+        var renderStateSignature = MixHash(parentNode?.RenderStateSignature ?? 17, previous.LocalRenderStateSignature);
+        var boundsSnapshot = previous.HasBoundsSnapshot
+            ? TranslateRect(previous.BoundsSnapshot, translationX, translationY)
+            : previous.BoundsSnapshot;
+        var subtreeBoundsSnapshot = previous.HasSubtreeBoundsSnapshot
+            ? TranslateRect(previous.SubtreeBoundsSnapshot, translationX, translationY)
+            : previous.SubtreeBoundsSnapshot;
+
+        return new RenderNode(
+            previous.Visual,
+            previous.TraversalOrder,
+            previous.Depth,
+            boundsSnapshot,
+            previous.HasBoundsSnapshot,
+            previous.HasLocalClip,
+            previous.LocalClipRect,
+            previous.HasLocalTransform,
+            previous.LocalTransform,
+            renderStateSignature,
+            previous.LocalRenderStateSignature,
+            hasTransformFromThisToRoot,
+            transformFromThisToRoot,
+            previous.IsEffectivelyVisible,
+            previous.SubtreeEndIndexExclusive,
+            previous.HasSubtreeBoundsSnapshot,
+            subtreeBoundsSnapshot,
+            previous.SubtreeVisualCount,
+            previous.SubtreeHighCostVisualCount,
+            previous.SubtreeRenderVersionStamp,
+            previous.SubtreeLayoutVersionStamp);
+    }
+
+    private static bool IsScrollTranslationFastPathCandidate(UIElement visual)
+    {
+        if (visual is IScrollTransformContent)
+        {
+            return true;
+        }
+
+        if (visual is VirtualizingStackPanel)
+        {
+            return false;
+        }
+
+        if (visual is not Panel)
+        {
+            return false;
+        }
+
+        if (!ScrollViewer.GetUseTransformContentScrolling(visual))
+        {
+            return false;
+        }
+
+        return (visual.VisualParent is ScrollViewer visualOwner && ReferenceEquals(visualOwner.Content, visual)) ||
+               (visual.LogicalParent is ScrollViewer logicalOwner && ReferenceEquals(logicalOwner.Content, visual));
+    }
+
+    private static bool TryGetTranslationDelta(RenderNode previous, RenderNode updated, out float translationX, out float translationY)
+    {
+        translationX = 0f;
+        translationY = 0f;
+
+        if (previous.HasLocalClip != updated.HasLocalClip ||
+            (previous.HasLocalClip && !AreRectsEqual(previous.LocalClipRect, updated.LocalClipRect)))
+        {
+            return false;
+        }
+
+        if (!TryDecomposePureTranslation(previous.HasLocalTransform, previous.LocalTransform, out var previousTranslationX, out var previousTranslationY) ||
+            !TryDecomposePureTranslation(updated.HasLocalTransform, updated.LocalTransform, out var updatedTranslationX, out var updatedTranslationY))
+        {
+            return false;
+        }
+
+        translationX = updatedTranslationX - previousTranslationX;
+        translationY = updatedTranslationY - previousTranslationY;
+        return MathF.Abs(translationX) > 0.0001f || MathF.Abs(translationY) > 0.0001f;
+    }
+
+    private static bool TryDecomposePureTranslation(bool hasTransform, Matrix transform, out float translationX, out float translationY)
+    {
+        translationX = 0f;
+        translationY = 0f;
+        if (!hasTransform)
+        {
+            return true;
+        }
+
+        if (!AreClose(transform.M11, 1f) ||
+            !AreClose(transform.M22, 1f) ||
+            !AreClose(transform.M33, 1f) ||
+            !AreClose(transform.M44, 1f) ||
+            !AreClose(transform.M12, 0f) ||
+            !AreClose(transform.M13, 0f) ||
+            !AreClose(transform.M14, 0f) ||
+            !AreClose(transform.M21, 0f) ||
+            !AreClose(transform.M23, 0f) ||
+            !AreClose(transform.M24, 0f) ||
+            !AreClose(transform.M31, 0f) ||
+            !AreClose(transform.M32, 0f) ||
+            !AreClose(transform.M34, 0f) ||
+            !AreClose(transform.M43, 0f))
+        {
+            return false;
+        }
+
+        translationX = transform.M41;
+        translationY = transform.M42;
+        return true;
+    }
+
+    private static LayoutRect TranslateRect(LayoutRect rect, float translationX, float translationY)
+    {
+        return new LayoutRect(rect.X + translationX, rect.Y + translationY, rect.Width, rect.Height);
+    }
+
+    private static bool AreClose(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.0001f;
     }
 
     private bool CanSafelyDowngradeForcedDeepSync(UIElement root)
@@ -968,6 +1232,12 @@ public sealed partial class UiRoot
         int HighCostVisualCount,
         int RenderVersionStamp,
         int LayoutVersionStamp);
+
+    private readonly record struct IndexedDirtyRenderCandidate(
+        UIElement Visual,
+        int RenderNodeIndex,
+        int SubtreeEndIndexExclusive,
+        bool RequiresDeepSync);
 
     private readonly record struct DirtyRenderWorkItem(
         UIElement Visual,

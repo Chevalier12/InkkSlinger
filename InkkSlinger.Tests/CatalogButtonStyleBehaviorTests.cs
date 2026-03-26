@@ -10,6 +10,65 @@ namespace InkkSlinger.Tests;
 public sealed class CatalogButtonStyleBehaviorTests
 {
     [Fact]
+    public void TemplateHoverTrigger_TargetedBorderInvalidatesWithoutDirtyingButtonOwner()
+    {
+        const string xaml = """
+                            <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                              <UserControl.Resources>
+                                <Style x:Key="HoverTemplateButtonStyle" TargetType="{x:Type Button}">
+                                  <Setter Property="Template">
+                                    <Setter.Value>
+                                      <ControlTemplate TargetType="{x:Type Button}">
+                                        <Border x:Name="border"
+                                                Background="#202020"
+                                                BorderBrush="#404040"
+                                                BorderThickness="1">
+                                          <ContentPresenter HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                          <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#303030" />
+                                            <Setter TargetName="border" Property="BorderBrush" Value="#FF8C00" />
+                                          </Trigger>
+                                        </ControlTemplate.Triggers>
+                                      </ControlTemplate>
+                                    </Setter.Value>
+                                  </Setter>
+                                </Style>
+                              </UserControl.Resources>
+                              <Canvas>
+                                <Button x:Name="Probe"
+                                        Style="{StaticResource HoverTemplateButtonStyle}"
+                                        Width="200"
+                                        Height="80"
+                                        Canvas.Left="20"
+                                        Canvas.Top="20" />
+                              </Canvas>
+                            </UserControl>
+                            """;
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var button = Assert.IsType<Button>(root.FindName("Probe"));
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 420, 220, 16);
+
+        var border = FindNamedVisualChild<Border>(button, "border");
+        Assert.NotNull(border);
+
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(40f, 40f), pointerMoved: true));
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.True(button.IsMouseOver);
+        Assert.Equal("Border#border", uiRoot.GetLastSynchronizedDirtyRootSummaryForTests());
+    }
+
+    [Fact]
     public void FullCatalogLikeButtonStyle_HoverAndLeaveScaleDirection_IsCorrect()
     {
         const string xaml = """
@@ -197,5 +256,25 @@ public sealed class CatalogButtonStyleBehaviorTests
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
             new Viewport(0, 0, width, height));
+    }
+
+    private static TElement? FindNamedVisualChild<TElement>(UIElement root, string name)
+      where TElement : FrameworkElement
+    {
+      foreach (var child in root.GetVisualChildren())
+      {
+        if (child is TElement element && string.Equals(element.Name, name, StringComparison.Ordinal))
+        {
+          return element;
+        }
+
+        var nested = FindNamedVisualChild<TElement>(child, name);
+        if (nested != null)
+        {
+          return nested;
+        }
+      }
+
+      return null;
     }
 }

@@ -8,7 +8,6 @@ internal sealed class TemplateTriggerEngine
 {
     private readonly Control _owner;
     private readonly Func<string, object?> _resolveTargetByName;
-    private readonly Action _invalidateOwner;
     private readonly List<TriggerBase> _attachedTriggers = new();
     private readonly HashSet<DependencyProperty> _conditionProperties = new();
     private readonly Dictionary<(DependencyObject Target, DependencyProperty Property), object?> _activeTriggerValues = new();
@@ -23,11 +22,10 @@ internal sealed class TemplateTriggerEngine
     private bool _isApplying;
     private bool _reapplyPending;
 
-    public TemplateTriggerEngine(Control owner, Func<string, object?> resolveTargetByName, Action invalidateOwner)
+    public TemplateTriggerEngine(Control owner, Func<string, object?> resolveTargetByName)
     {
         _owner = owner;
         _resolveTargetByName = resolveTargetByName;
-        _invalidateOwner = invalidateOwner;
     }
 
     public void Apply(IReadOnlyList<TriggerBase> triggers)
@@ -121,6 +119,7 @@ internal sealed class TemplateTriggerEngine
                 _reapplyPending = false;
                 _desiredScratch.Clear();
                 _matchesScratch.Clear();
+                var changedRenderTargets = new HashSet<UIElement>();
 
                 foreach (var trigger in _attachedTriggers)
                 {
@@ -159,6 +158,7 @@ internal sealed class TemplateTriggerEngine
                     if (!_desiredScratch.ContainsKey(active.Key))
                     {
                         active.Key.Target.ClearTemplateTriggerValue(active.Key.Property);
+                        TrackRenderInvalidationTarget(active.Key.Target, active.Key.Property, changedRenderTargets);
                     }
                 }
 
@@ -170,6 +170,7 @@ internal sealed class TemplateTriggerEngine
                     }
 
                     pair.Key.Target.SetTemplateTriggerValue(pair.Key.Property, pair.Value);
+                    TrackRenderInvalidationTarget(pair.Key.Target, pair.Key.Property, changedRenderTargets);
                 }
 
                 _activeTriggerValues.Clear();
@@ -179,13 +180,17 @@ internal sealed class TemplateTriggerEngine
                 }
 
                 ApplyActions(_matchesScratch);
+
+                foreach (var changedTarget in changedRenderTargets)
+                {
+                    UiRoot.Current?.NotifyDirectRenderInvalidation(changedTarget);
+                }
             }
             while (_reapplyPending);
         }
         finally
         {
             _isApplying = false;
-            _invalidateOwner();
         }
     }
 
@@ -288,6 +293,25 @@ internal sealed class TemplateTriggerEngine
         }
 
         return prepared;
+    }
+
+    private static void TrackRenderInvalidationTarget(
+        DependencyObject target,
+        DependencyProperty property,
+        ISet<UIElement> changedRenderTargets)
+    {
+        if (target is not UIElement uiElement)
+        {
+            return;
+        }
+
+        var metadata = property.GetMetadata(target);
+        if ((metadata.Options & FrameworkPropertyMetadataOptions.AffectsRender) == 0)
+        {
+            return;
+        }
+
+        changedRenderTargets.Add(uiElement);
     }
 
     private DependencyObject? ResolveTarget(string targetName)

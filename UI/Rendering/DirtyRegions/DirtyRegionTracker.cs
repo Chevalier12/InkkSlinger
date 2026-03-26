@@ -5,6 +5,8 @@ namespace InkkSlinger;
 
 internal sealed class DirtyRegionTracker
 {
+    private const float NearbyMergeGapThreshold = 8f;
+    private const double NearbyMergeAreaInflationThreshold = 1.35d;
     private readonly List<LayoutRect> _regions = new();
     private readonly int _maxRegionCount;
     private LayoutRect _viewport;
@@ -135,7 +137,8 @@ internal sealed class DirtyRegionTracker
                 return;
             }
 
-            if (!IntersectsOrTouches(existingRegion, candidate))
+            if (!IntersectsOrTouches(existingRegion, candidate) &&
+                !ShouldMergeNearby(existingRegion, candidate))
             {
                 continue;
             }
@@ -244,6 +247,26 @@ internal sealed class DirtyRegionTracker
         var rightEdge = MathF.Max(left.X + left.Width, right.X + right.Width);
         var bottomEdge = MathF.Max(left.Y + left.Height, right.Y + right.Height);
         return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
+    }
+
+    private static bool ShouldMergeNearby(LayoutRect left, LayoutRect right)
+    {
+        var horizontalGap = MathF.Max(0f, MathF.Max(right.X - (left.X + left.Width), left.X - (right.X + right.Width)));
+        var verticalGap = MathF.Max(0f, MathF.Max(right.Y - (left.Y + left.Height), left.Y - (right.Y + right.Height)));
+        if (horizontalGap > NearbyMergeGapThreshold || verticalGap > NearbyMergeGapThreshold)
+        {
+            return false;
+        }
+
+        var leftArea = GetArea(left);
+        var rightArea = GetArea(right);
+        if (leftArea <= 0d || rightArea <= 0d)
+        {
+            return false;
+        }
+
+        var unionArea = GetArea(Union(left, right));
+        return unionArea <= (leftArea + rightArea) * NearbyMergeAreaInflationThreshold;
     }
 
     private static double GetArea(LayoutRect rect)

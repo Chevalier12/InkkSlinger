@@ -18,6 +18,8 @@ public class UIElement : DependencyObject
     [ThreadStatic]
     private static HashSet<UIElement>? _batchedFreezableInvalidationTargets;
     [ThreadStatic]
+    private static string _lastFreezableBatchFlushTargetSummary = "none";
+    [ThreadStatic]
     private static int _retainedSelfDrawDepth;
     private static int _freezableBatchFlushCount;
     private static int _freezableBatchFlushTargetCount;
@@ -1260,7 +1262,7 @@ public class UIElement : DependencyObject
         _freezableInvalidationBatchDepth++;
     }
 
-    internal static void EndFreezableInvalidationBatch()
+    internal static void EndFreezableInvalidationBatch(UIElement? aggregateInvalidationTarget = null, bool requireDeepSync = false)
     {
         var startTicks = Stopwatch.GetTimestamp();
         if (_freezableInvalidationBatchDepth <= 0)
@@ -1283,10 +1285,17 @@ public class UIElement : DependencyObject
         _batchedFreezableInvalidationTargets.Clear();
         _freezableBatchFlushCount++;
         _freezableBatchFlushTargetCount += pending.Length;
+        _lastFreezableBatchFlushTargetSummary = SummarizeElements(pending, limit: 6);
         for (var i = 0; i < pending.Length; i++)
         {
             pending[i].InvalidateVisual();
         }
+
+        if (aggregateInvalidationTarget != null)
+        {
+            UiRoot.Current?.NotifyDirectRenderInvalidation(aggregateInvalidationTarget, requireDeepSync);
+        }
+
         _freezableBatchFlushElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
@@ -1317,7 +1326,8 @@ public class UIElement : DependencyObject
             _freezableBatchFlushTargetCount,
             _freezableBatchQueuedTargetCount,
             _freezableBatchMaxPendingTargetCount,
-            (double)_freezableBatchFlushElapsedTicks * 1000d / Stopwatch.Frequency);
+            (double)_freezableBatchFlushElapsedTicks * 1000d / Stopwatch.Frequency,
+            _lastFreezableBatchFlushTargetSummary);
     }
 
     internal static UIElementRenderTimingSnapshot GetRenderTimingSnapshotForTests()
@@ -1338,6 +1348,7 @@ public class UIElement : DependencyObject
         _freezableBatchQueuedTargetCount = 0;
         _freezableBatchFlushElapsedTicks = 0L;
         _freezableBatchMaxPendingTargetCount = 0;
+        _lastFreezableBatchFlushTargetSummary = "none";
         _renderSelfElapsedTicks = 0L;
         _renderSelfCallCount = 0;
         _hottestRenderSelfElapsedTicks = 0L;
@@ -1387,6 +1398,27 @@ public class UIElement : DependencyObject
                 .Take(limit)
                 .Select(static pair =>
                     $"{pair.Key}(n={pair.Value.Count},ms={(double)pair.Value.Ticks * 1000d / Stopwatch.Frequency:0.###})"));
+    }
+
+    private static string SummarizeElements(IReadOnlyList<UIElement> elements, int limit)
+    {
+        if (elements.Count == 0)
+        {
+            return "none";
+        }
+
+        var count = Math.Min(limit, elements.Count);
+        var summaries = new string[count];
+        for (var i = 0; i < count; i++)
+        {
+            summaries[i] = elements[i] switch
+            {
+                FrameworkElement { Name.Length: > 0 } frameworkElement => $"{frameworkElement.GetType().Name}#{frameworkElement.Name}",
+                _ => elements[i].GetType().Name
+            };
+        }
+
+        return string.Join(" | ", summaries);
     }
 
     private static bool TryInvertMatrix(Matrix matrix, out Matrix inverse)

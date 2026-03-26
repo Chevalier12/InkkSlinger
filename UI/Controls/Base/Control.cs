@@ -134,7 +134,7 @@ public class Control : FrameworkElement, ICommandSource
         DefaultStyleKey = GetType();
         Resources.Changed += OnResourceScopeChanged;
         UiApplication.Current.Resources.Changed += OnResourceScopeChanged;
-        _templateTriggerEngine = new TemplateTriggerEngine(this, FindTemplateNamedObject, InvalidateVisual);
+        _templateTriggerEngine = new TemplateTriggerEngine(this, FindTemplateNamedObject);
     }
 
     public Type? DefaultStyleKey

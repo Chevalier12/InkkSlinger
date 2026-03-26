@@ -24,7 +24,6 @@ public sealed class RetainedRenderWakeUpTests
         uiRoot.CompleteDrawStateForTests();
         uiRoot.ResetDirtyStateForTests();
 
-        Assert.True(target.NeedsRender);
         Assert.False(uiRoot.HasPendingRenderInvalidation);
 
         target.InvalidateVisual();
@@ -57,7 +56,6 @@ public sealed class RetainedRenderWakeUpTests
         uiRoot.CompleteDrawStateForTests();
         uiRoot.ResetDirtyStateForTests();
 
-        Assert.True(target.NeedsRender);
         Assert.False(uiRoot.HasPendingRenderInvalidation);
 
         sibling.InvalidateVisual();
@@ -89,7 +87,6 @@ public sealed class RetainedRenderWakeUpTests
         uiRoot.CompleteDrawStateForTests();
         uiRoot.ResetDirtyStateForTests();
 
-        Assert.True(target.NeedsRender);
         Assert.Empty(uiRoot.GetDirtyRenderQueueSnapshotForTests());
 
         sibling.InvalidateVisual();

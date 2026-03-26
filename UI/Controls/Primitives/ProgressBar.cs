@@ -596,7 +596,7 @@ public class ProgressBar : RangeBase, IUiRootUpdateParticipant
         }
         finally
         {
-            UIElement.EndFreezableInvalidationBatch();
+            UIElement.EndFreezableInvalidationBatch(track);
         }
 
         return true;

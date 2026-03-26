@@ -85,13 +85,13 @@ public sealed partial class UiRoot
             return;
         }
 
-        var beforeLayout = CaptureLayoutSamples(_layoutRoot);
+        CaptureLayoutSamples(_layoutRoot, _layoutSamplesBeforeMeasure);
         _layoutRoot.Measure(new Vector2(viewport.Width, viewport.Height));
-        var afterMeasure = CaptureLayoutSamples(_layoutRoot);
-        RecordLayoutMeasureTelemetry(beforeLayout, afterMeasure);
+        CaptureLayoutSamples(_layoutRoot, _layoutSamplesAfterMeasure);
+        RecordLayoutMeasureTelemetry(_layoutSamplesBeforeMeasure, _layoutSamplesAfterMeasure);
         _layoutRoot.Arrange(new LayoutRect(0f, 0f, viewport.Width, viewport.Height));
-        var afterArrange = CaptureLayoutSamples(_layoutRoot);
-        RecordLayoutArrangeTelemetry(afterMeasure, afterArrange);
+        CaptureLayoutSamples(_layoutRoot, _layoutSamplesAfterArrange);
+        RecordLayoutArrangeTelemetry(_layoutSamplesAfterMeasure, _layoutSamplesAfterArrange);
         LayoutPasses = 1;
         _layoutGeneration++;
         RefreshPointerTargetsAfterLayoutMutation();
@@ -116,15 +116,15 @@ public sealed partial class UiRoot
         SynchronizeRetainedRenderList();
     }
 
-    private static Dictionary<FrameworkElement, LayoutElementSample> CaptureLayoutSamples(FrameworkElement root)
+    private void CaptureLayoutSamples(FrameworkElement root, Dictionary<FrameworkElement, LayoutElementSample> samples)
     {
-        var samples = new Dictionary<FrameworkElement, LayoutElementSample>(ReferenceEqualityComparer.Instance);
-        var stack = new Stack<UIElement>();
-        stack.Push(root);
+        samples.Clear();
+        _layoutSampleTraversalStack.Clear();
+        _layoutSampleTraversalStack.Push(root);
 
-        while (stack.Count > 0)
+        while (_layoutSampleTraversalStack.Count > 0)
         {
-            var current = stack.Pop();
+            var current = _layoutSampleTraversalStack.Pop();
             if (current is FrameworkElement frameworkElement)
             {
                 samples[frameworkElement] = new LayoutElementSample(
@@ -135,11 +135,9 @@ public sealed partial class UiRoot
 
             foreach (var child in current.GetVisualChildren())
             {
-                stack.Push(child);
+                _layoutSampleTraversalStack.Push(child);
             }
         }
-
-        return samples;
     }
 
     private void RecordLayoutMeasureTelemetry(

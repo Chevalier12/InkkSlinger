@@ -27,6 +27,13 @@ public sealed partial class UiRoot
         _lastRetainedTraversalCount = 0;
         _lastDirtyRegionTraversalCount = 0;
         _lastSpriteBatchRestartCount = 0;
+        _lastSpriteBatchRestartMs = 0d;
+        _lastDrawClearMs = 0d;
+        _lastDrawInitialBatchBeginMs = 0d;
+        _lastDrawVisualTreeMs = 0d;
+        _lastDrawCursorMs = 0d;
+        _lastDrawFinalBatchEndMs = 0d;
+        _lastDrawCleanupMs = 0d;
         UiDrawing.ResetFrameTelemetry();
 
         var graphicsDevice = spriteBatch.GraphicsDevice;
@@ -42,21 +49,26 @@ public sealed partial class UiRoot
                               ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, dirtyCoverage);
         if (!usePartialClear)
         {
+            var clearStart = Stopwatch.GetTimestamp();
             graphicsDevice.Clear(_clearColor);
+            _lastDrawClearMs = Stopwatch.GetElapsedTime(clearStart).TotalMilliseconds;
         }
 
+        var batchBeginStart = Stopwatch.GetTimestamp();
         spriteBatch.Begin(
             sortMode: SpriteSortMode.Deferred,
             blendState: BlendState.AlphaBlend,
             samplerState: SamplerState.LinearClamp,
             depthStencilState: DepthStencilState.None,
             rasterizerState: UiRasterizerState);
+        _lastDrawInitialBatchBeginMs = Stopwatch.GetElapsedTime(batchBeginStart).TotalMilliseconds;
         UiDrawing.SetActiveBatchState(graphicsDevice,
             SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
             DepthStencilState.None, UiRasterizerState);
         try
         {
             UiDrawing.ResetState(graphicsDevice);
+            var treeDrawStart = Stopwatch.GetTimestamp();
             if (UseRetainedRenderList)
             {
                 if (UseDirtyRegionRendering)
@@ -77,22 +89,29 @@ public sealed partial class UiRoot
                 LastDirtyRectCount = 1;
                 LastDirtyAreaPercentage = 1d;
             }
+            _lastDrawVisualTreeMs = Stopwatch.GetElapsedTime(treeDrawStart).TotalMilliseconds;
 
             if (UseSoftwareCursor)
             {
+                var cursorDrawStart = Stopwatch.GetTimestamp();
                 DrawSoftwareCursor(spriteBatch, _inputState.LastPointerPosition);
+                _lastDrawCursorMs = Stopwatch.GetElapsedTime(cursorDrawStart).TotalMilliseconds;
             }
         }
         finally
         {
             UiDrawing.ClearActiveBatchState(graphicsDevice);
+            var batchEndStart = Stopwatch.GetTimestamp();
             spriteBatch.End();
+            _lastDrawFinalBatchEndMs = Stopwatch.GetElapsedTime(batchEndStart).TotalMilliseconds;
         }
 
         var drawingTelemetry = UiDrawing.ConsumeFrameTelemetry();
         _lastSpriteBatchRestartCount = drawingTelemetry.SpriteBatchRestartCount;
+        _lastSpriteBatchRestartMs = (double)drawingTelemetry.SpriteBatchRestartElapsedTicks * 1000d / Stopwatch.Frequency;
         _lastRetainedClipPushCount = drawingTelemetry.ClipPushCount;
 
+        var cleanupStart = Stopwatch.GetTimestamp();
         ApplyRenderInvalidationCleanupAfterDraw();
         _hasMeasureInvalidation = false;
         _hasArrangeInvalidation = false;
@@ -102,6 +121,7 @@ public sealed partial class UiRoot
         ClearDirtyRenderQueue();
         ResetRetainedSyncTrackingState();
         _dirtyRegions.Clear();
+        _lastDrawCleanupMs = Stopwatch.GetElapsedTime(cleanupStart).TotalMilliseconds;
         LastDrawMs = Stopwatch.GetElapsedTime(drawStart).TotalMilliseconds;
     }
 
@@ -144,72 +164,63 @@ public sealed partial class UiRoot
             _lastSynchronizedDirtyRenderRoots[i].ClearRenderInvalidationRecursive();
         }
 
+        BuildPendingDirtyAncestorCounts();
         for (var i = 0; i < _lastSynchronizedDirtyRenderRoots.Count; i++)
         {
-            ClearRenderInvalidationAncestorChain(
-                _lastSynchronizedDirtyRenderRoots[i].GetInvalidationParent(),
-                _lastSynchronizedDirtyRenderRoots[i]);
+            ClearRenderInvalidationAncestorChain(_lastSynchronizedDirtyRenderRoots[i].GetInvalidationParent());
         }
+
+        _pendingDirtyAncestorCounts.Clear();
     }
 
-    private void ClearRenderInvalidationAncestorChain(UIElement? visual, UIElement sourceDirtyRoot)
+    private void BuildPendingDirtyAncestorCounts()
     {
-        for (var current = visual; current != null; current = current.GetInvalidationParent())
+        _pendingDirtyAncestorCounts.Clear();
+
+        for (var i = 0; i < _lastSynchronizedDirtyRenderRoots.Count; i++)
         {
-            if (HasPendingDirtyVisualInSubtree(current, sourceDirtyRoot))
-            {
-                continue;
-            }
-
-            current.ClearRenderInvalidationShallow();
-        }
-    }
-
-    private bool HasPendingDirtyVisualInSubtree(UIElement subtreeRoot, UIElement sourceDirtyRoot)
-    {
-        if (!_renderNodeIndices.TryGetValue(subtreeRoot, out var subtreeRootIndex))
-        {
-            return false;
-        }
-
-        var subtreeEnd = _retainedRenderList[subtreeRootIndex].SubtreeEndIndexExclusive;
-        var excludedIndex = _renderNodeIndices.TryGetValue(sourceDirtyRoot, out var sourceDirtyRootIndex)
-            ? sourceDirtyRootIndex
-            : -1;
-        for (var i = 0; i < _lastSynchronizedDirtyRenderSpans.Count; i++)
-        {
-            var span = _lastSynchronizedDirtyRenderSpans[i];
-            if (span.StartIndex == excludedIndex)
-            {
-                continue;
-            }
-
-            if (span.StartIndex >= subtreeRootIndex && span.StartIndex < subtreeEnd)
-            {
-                return true;
-            }
+            AddPendingDirtyAncestorChain(_lastSynchronizedDirtyRenderRoots[i]);
         }
 
         if (_dirtyRenderSet.Count == 0)
         {
-            return false;
+            return;
         }
 
         foreach (var dirtyVisual in _dirtyRenderSet)
         {
-            if (ReferenceEquals(dirtyVisual, sourceDirtyRoot))
+            AddPendingDirtyAncestorChain(dirtyVisual);
+        }
+    }
+
+    private void AddPendingDirtyAncestorChain(UIElement dirtyVisual)
+    {
+        for (var current = dirtyVisual.GetInvalidationParent(); current != null; current = current.GetInvalidationParent())
+        {
+            _pendingDirtyAncestorCounts.TryGetValue(current, out var count);
+            _pendingDirtyAncestorCounts[current] = count + 1;
+        }
+    }
+
+    private void ClearRenderInvalidationAncestorChain(UIElement? visual)
+    {
+        for (var current = visual; current != null; current = current.GetInvalidationParent())
+        {
+            if (!_pendingDirtyAncestorCounts.TryGetValue(current, out var remainingCount))
             {
+                current.ClearRenderInvalidationShallow();
                 continue;
             }
 
-            if (_renderNodeIndices.TryGetValue(dirtyVisual, out var dirtyRenderNodeIndex) &&
-                dirtyRenderNodeIndex >= subtreeRootIndex &&
-                dirtyRenderNodeIndex < subtreeEnd)
+            remainingCount--;
+            if (remainingCount > 0)
             {
-                return true;
+                _pendingDirtyAncestorCounts[current] = remainingCount;
+                continue;
             }
-        }
 
-        return false;
+            _pendingDirtyAncestorCounts.Remove(current);
+            current.ClearRenderInvalidationShallow();
+        }
     }
 }

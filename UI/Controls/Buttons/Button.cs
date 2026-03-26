@@ -42,6 +42,15 @@ public class Button : ContentControl
     private TextLayout.TextLayoutResult _textLayoutCacheResult = TextLayout.TextLayoutResult.Empty;
     private Vector2 _intrinsicNoWrapMeasureSize = Vector2.Zero;
     private int _contentVersion;
+    private bool _hasTextRenderPlanCache;
+    private int _textRenderPlanCacheContentVersion = -1;
+    private LayoutRect _textRenderPlanCacheSlot;
+    private float _textRenderPlanCacheBorderThickness = float.NaN;
+    private Thickness _textRenderPlanCachePadding = Thickness.Empty;
+    private float _textRenderPlanCacheFontSize = float.NaN;
+    private TextWrapping _textRenderPlanCacheWrapping = TextWrapping.NoWrap;
+    private UiTypography? _textRenderPlanCacheTypography;
+    private ButtonTextRenderPlan _textRenderPlanCache;
 
     public static readonly RoutedEvent ClickEvent =
         new(nameof(Click), RoutingStrategy.Bubble);
@@ -230,15 +239,19 @@ public class Button : ContentControl
             _contentVersion++;
             InvalidateTextLayoutCache();
             InvalidateIntrinsicNoWrapMeasureCache();
+            InvalidateTextRenderPlanCache();
         }
         else if (args.Property == FontSizeProperty ||
                  args.Property == TextWrappingProperty ||
                  args.Property == FontFamilyProperty ||
                  args.Property == FontWeightProperty ||
-                 args.Property == FontStyleProperty)
+                 args.Property == FontStyleProperty ||
+                 args.Property == PaddingProperty ||
+                 args.Property == BorderThicknessProperty)
         {
             InvalidateTextLayoutCache();
             InvalidateIntrinsicNoWrapMeasureCache();
+            InvalidateTextRenderPlanCache();
         }
     }
 
@@ -344,6 +357,19 @@ public class Button : ContentControl
         _intrinsicNoWrapMeasureTypography = null;
         _intrinsicNoWrapMeasureFontSize = float.NaN;
         _intrinsicNoWrapMeasureSize = Vector2.Zero;
+    }
+
+    private void InvalidateTextRenderPlanCache()
+    {
+        _hasTextRenderPlanCache = false;
+        _textRenderPlanCacheContentVersion = -1;
+        _textRenderPlanCacheSlot = default;
+        _textRenderPlanCacheBorderThickness = float.NaN;
+        _textRenderPlanCachePadding = Thickness.Empty;
+        _textRenderPlanCacheFontSize = float.NaN;
+        _textRenderPlanCacheWrapping = TextWrapping.NoWrap;
+        _textRenderPlanCacheTypography = null;
+        _textRenderPlanCache = default;
     }
 
     private bool CanUsePlainTextMeasureFastPath()
@@ -497,6 +523,19 @@ public class Button : ContentControl
                 return null;
             }
 
+            var typography = UiTextRenderer.ResolveTypography(this, FontSize);
+            if (_hasTextRenderPlanCache &&
+                _textRenderPlanCacheContentVersion == _contentVersion &&
+                LayoutRectMatches(_textRenderPlanCacheSlot, slot) &&
+                WidthMatches(_textRenderPlanCacheBorderThickness, BorderThickness) &&
+                ThicknessMatches(_textRenderPlanCachePadding, padding) &&
+                WidthMatches(_textRenderPlanCacheFontSize, FontSize) &&
+                _textRenderPlanCacheWrapping == TextWrapping &&
+                Nullable.Equals(_textRenderPlanCacheTypography, typography))
+            {
+                return _textRenderPlanCache;
+            }
+
             var availableWidth = TextWrapping == TextWrapping.NoWrap
                 ? float.PositiveInfinity
                 : maxTextWidth;
@@ -528,12 +567,22 @@ public class Button : ContentControl
             }
 
             _renderTextPreparationCallCount++;
-            return new ButtonTextRenderPlan(
+            var renderPlan = new ButtonTextRenderPlan(
                 layout,
                 lineSpacing,
                 lineDrawCount == lineDraws.Length
                     ? lineDraws
                     : lineDraws.AsSpan(0, lineDrawCount).ToArray());
+            _textRenderPlanCacheContentVersion = _contentVersion;
+            _textRenderPlanCacheSlot = slot;
+            _textRenderPlanCacheBorderThickness = BorderThickness;
+            _textRenderPlanCachePadding = padding;
+            _textRenderPlanCacheFontSize = FontSize;
+            _textRenderPlanCacheWrapping = TextWrapping;
+            _textRenderPlanCacheTypography = typography;
+            _textRenderPlanCache = renderPlan;
+            _hasTextRenderPlanCache = true;
+            return renderPlan;
         }
         finally
         {
@@ -630,6 +679,22 @@ public class Button : ContentControl
         }
 
         return MathF.Abs(cached - current) < 0.01f;
+    }
+
+    private static bool ThicknessMatches(Thickness cached, Thickness current)
+    {
+        return WidthMatches(cached.Left, current.Left) &&
+               WidthMatches(cached.Top, current.Top) &&
+               WidthMatches(cached.Right, current.Right) &&
+               WidthMatches(cached.Bottom, current.Bottom);
+    }
+
+    private static bool LayoutRectMatches(LayoutRect cached, LayoutRect current)
+    {
+        return WidthMatches(cached.X, current.X) &&
+               WidthMatches(cached.Y, current.Y) &&
+               WidthMatches(cached.Width, current.Width) &&
+               WidthMatches(cached.Height, current.Height);
     }
 
     private static Style BuildDefaultButtonStyle()

@@ -1080,6 +1080,29 @@ public class Game1 : Game
             var button = Button.GetTimingSnapshotForTests();
             var textLayout = TextLayout.GetMetricsSnapshot();
             var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+            var freezableBatch = UIElement.GetFreezableInvalidationBatchSnapshotForTests();
+            var dirtyQueueSummary = uiRoot.GetDirtyRenderQueueSummaryForTests();
+            var syncedDirtyRootsSummary = uiRoot.GetLastSynchronizedDirtyRootSummaryForTests();
+            var dirtyRegionSummary = uiRoot.GetDirtyRegionSummaryForTests();
+            var textDrawMs = TicksToMilliseconds(text.DrawStringElapsedTicks - pending.TextBefore.DrawStringElapsedTicks);
+            var textMeasureMs = TicksToMilliseconds(text.MeasureWidthElapsedTicks - pending.TextBefore.MeasureWidthElapsedTicks);
+            var lineHeightMs = TicksToMilliseconds(text.GetLineHeightElapsedTicks - pending.TextBefore.GetLineHeightElapsedTicks);
+            var textLayoutMs = TicksToMilliseconds(textLayout.LayoutElapsedTicks - pending.TextLayoutBefore.LayoutElapsedTicks);
+            var textLayoutBuildMs = TicksToMilliseconds(textLayout.BuildElapsedTicks - pending.TextLayoutBefore.BuildElapsedTicks);
+            var uiElementRenderMs = TicksToMilliseconds(elementRender.RenderSelfElapsedTicks - pending.ElementRenderBefore.RenderSelfElapsedTicks);
+            var buttonRenderMs = TicksToMilliseconds(button.RenderElapsedTicks - pending.ButtonBefore.RenderElapsedTicks);
+            var buttonChromeMs = TicksToMilliseconds(button.RenderChromeElapsedTicks - pending.ButtonBefore.RenderChromeElapsedTicks);
+            var buttonTextPrepMs = TicksToMilliseconds(button.RenderTextPreparationElapsedTicks - pending.ButtonBefore.RenderTextPreparationElapsedTicks);
+            var buttonTextDrawMs = TicksToMilliseconds(button.RenderTextDrawDispatchElapsedTicks - pending.ButtonBefore.RenderTextDrawDispatchElapsedTicks);
+            var drawAccountedMs =
+                render.DrawClearMilliseconds +
+                render.DrawInitialBatchBeginMilliseconds +
+                render.DrawVisualTreeMilliseconds +
+                render.DrawCursorMilliseconds +
+                render.SpriteBatchRestartMilliseconds +
+                render.DrawFinalBatchEndMilliseconds +
+                render.DrawCleanupMilliseconds;
+            var drawUnaccountedMs = Math.Max(0d, uiRoot.LastDrawMs - drawAccountedMs);
 
             var previewRoot = catalogView.FindName("PreviewHost") as ContentControl;
             var previewType = (previewRoot?.Content as UIElement)?.GetType().Name ?? "null";
@@ -1089,12 +1112,14 @@ public class Game1 : Game
                 $"pointer=({pending.PointerPosition.X:0.#},{pending.PointerPosition.Y:0.#}) hovered={pending.HoveredType} hoveredPath={pending.HoveredPath} hoveredSidebarVBar={pending.HoveredSidebarVerticalScrollBar} " +
                 $"wheelEvents={scroll.WheelEvents} wheelHandled={scroll.WheelHandled} setOffsetCalls={scroll.SetOffsetCalls} setOffsetNoOps={scroll.SetOffsetNoOpCalls} verticalDelta={scroll.TotalVerticalDelta:0.###} " +
                 $"inputMs={perf.InputPhaseMilliseconds:0.###} layoutMs={perf.LayoutPhaseMilliseconds:0.###} animationMs={perf.AnimationPhaseMilliseconds:0.###} renderScheduleMs={perf.RenderSchedulingPhaseMilliseconds:0.###} frameParticipants={perf.FrameUpdateParticipantCount} frameParticipantMs={perf.FrameUpdateParticipantUpdateMilliseconds:0.###} hottestParticipant={perf.HottestFrameUpdateParticipantType}:{perf.HottestFrameUpdateParticipantMilliseconds:0.###} " +
-                $"dirtyRoots={render.DirtyRootCount} dirtyFallbacks={render.DirtyRegionThresholdFallbackCount} spriteBatchRestarts={render.SpriteBatchRestartCount} clipPushes={render.ClipPushCount} retainedVisited={render.RetainedNodesVisited} retainedDrawn={render.RetainedNodesDrawn} retainedTraversals={render.RetainedTraversalCount} dirtyTraversals={render.DirtyRegionTraversalCount} " +
+                $"dirtyRoots={render.DirtyRootCount} dirtyFallbacks={render.DirtyRegionThresholdFallbackCount} spriteBatchRestarts={render.SpriteBatchRestartCount} spriteBatchRestartMs={render.SpriteBatchRestartMilliseconds:0.###} clipPushes={render.ClipPushCount} retainedVisited={render.RetainedNodesVisited} retainedDrawn={render.RetainedNodesDrawn} retainedTraversals={render.RetainedTraversalCount} dirtyTraversals={render.DirtyRegionTraversalCount} " +
+                $"dirtyQueue={dirtyQueueSummary} syncedDirtyRoots={syncedDirtyRootsSummary} dirtyRegions={dirtyRegionSummary} freezableFlushTargets={freezableBatch.LastFlushTargetSummary} " +
+                $"drawClearMs={render.DrawClearMilliseconds:0.###} drawBeginMs={render.DrawInitialBatchBeginMilliseconds:0.###} drawVisualTreeMs={render.DrawVisualTreeMilliseconds:0.###} drawCursorMs={render.DrawCursorMilliseconds:0.###} drawEndMs={render.DrawFinalBatchEndMilliseconds:0.###} drawCleanupMs={render.DrawCleanupMilliseconds:0.###} drawAccountedMs={drawAccountedMs:0.###} drawUnaccountedMs={drawUnaccountedMs:0.###} " +
                 $"effectiveRenderSource={invalidation.EffectiveSourceType}#{invalidation.EffectiveSourceName} dirtyBoundsVisual={invalidation.DirtyBoundsVisualType}#{invalidation.DirtyBoundsVisualName} dirtyBoundsHint={invalidation.DirtyBoundsUsedHint} " +
-                $"textDrawMs={TicksToMilliseconds(text.DrawStringElapsedTicks - pending.TextBefore.DrawStringElapsedTicks):0.###} textDrawCalls={text.DrawStringCallCount - pending.TextBefore.DrawStringCallCount} textMeasureMs={TicksToMilliseconds(text.MeasureWidthElapsedTicks - pending.TextBefore.MeasureWidthElapsedTicks):0.###} textMeasureCalls={text.MeasureWidthCallCount - pending.TextBefore.MeasureWidthCallCount} lineHeightMs={TicksToMilliseconds(text.GetLineHeightElapsedTicks - pending.TextBefore.GetLineHeightElapsedTicks):0.###} lineHeightCalls={text.GetLineHeightCallCount - pending.TextBefore.GetLineHeightCallCount} " +
-                $"textLayoutMs={TicksToMilliseconds(textLayout.LayoutElapsedTicks - pending.TextLayoutBefore.LayoutElapsedTicks):0.###} textLayoutBuildMs={TicksToMilliseconds(textLayout.BuildElapsedTicks - pending.TextLayoutBefore.BuildElapsedTicks):0.###} textLayoutBuilds={textLayout.BuildCount - pending.TextLayoutBefore.BuildCount} textLayoutMisses={textLayout.CacheMissCount - pending.TextLayoutBefore.CacheMissCount} " +
-                $"uiElementRenderMs={TicksToMilliseconds(elementRender.RenderSelfElapsedTicks - pending.ElementRenderBefore.RenderSelfElapsedTicks):0.###} uiElementRenderCalls={elementRender.RenderSelfCallCount - pending.ElementRenderBefore.RenderSelfCallCount} hottestUiElement={elementRender.HottestRenderSelfType}({elementRender.HottestRenderSelfName}):{elementRender.HottestRenderSelfMilliseconds:0.###} hottestUiElementTypes={elementRender.HottestRenderSelfTypeSummary} " +
-                $"buttonRenderMs={TicksToMilliseconds(button.RenderElapsedTicks - pending.ButtonBefore.RenderElapsedTicks):0.###} buttonChromeMs={TicksToMilliseconds(button.RenderChromeElapsedTicks - pending.ButtonBefore.RenderChromeElapsedTicks):0.###} buttonTextPrepMs={TicksToMilliseconds(button.RenderTextPreparationElapsedTicks - pending.ButtonBefore.RenderTextPreparationElapsedTicks):0.###} buttonTextDrawMs={TicksToMilliseconds(button.RenderTextDrawDispatchElapsedTicks - pending.ButtonBefore.RenderTextDrawDispatchElapsedTicks):0.###} buttonTextPrepCalls={button.RenderTextPreparationCallCount - pending.ButtonBefore.RenderTextPreparationCallCount} buttonTextDrawCalls={button.RenderTextDrawDispatchCallCount - pending.ButtonBefore.RenderTextDrawDispatchCallCount} " +
+                $"textDrawMs={textDrawMs:0.###} textDrawCalls={text.DrawStringCallCount - pending.TextBefore.DrawStringCallCount} textMeasureMs={textMeasureMs:0.###} textMeasureCalls={text.MeasureWidthCallCount - pending.TextBefore.MeasureWidthCallCount} lineHeightMs={lineHeightMs:0.###} lineHeightCalls={text.GetLineHeightCallCount - pending.TextBefore.GetLineHeightCallCount} " +
+                $"textLayoutMs={textLayoutMs:0.###} textLayoutBuildMs={textLayoutBuildMs:0.###} textLayoutBuilds={textLayout.BuildCount - pending.TextLayoutBefore.BuildCount} textLayoutMisses={textLayout.CacheMissCount - pending.TextLayoutBefore.CacheMissCount} " +
+                $"uiElementRenderMs={uiElementRenderMs:0.###} uiElementRenderCalls={elementRender.RenderSelfCallCount - pending.ElementRenderBefore.RenderSelfCallCount} hottestUiElement={elementRender.HottestRenderSelfType}({elementRender.HottestRenderSelfName}):{elementRender.HottestRenderSelfMilliseconds:0.###} hottestUiElementTypes={elementRender.HottestRenderSelfTypeSummary} " +
+                $"buttonRenderMs={buttonRenderMs:0.###} buttonChromeMs={buttonChromeMs:0.###} buttonTextPrepMs={buttonTextPrepMs:0.###} buttonTextDrawMs={buttonTextDrawMs:0.###} buttonTextPrepCalls={button.RenderTextPreparationCallCount - pending.ButtonBefore.RenderTextPreparationCallCount} buttonTextDrawCalls={button.RenderTextDrawDispatchCallCount - pending.ButtonBefore.RenderTextDrawDispatchCallCount} " +
                 $"textHotDraw={text.HottestDrawStringText}|{text.HottestDrawStringTypography}:{text.HottestDrawStringMilliseconds:0.###} textHotMeasure={text.HottestMeasureWidthText}|{text.HottestMeasureWidthTypography}:{text.HottestMeasureWidthMilliseconds:0.###}");
         }
 

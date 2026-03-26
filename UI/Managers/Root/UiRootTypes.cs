@@ -85,6 +85,7 @@ public readonly record struct UiInputMetricsSnapshot(
 
 internal readonly record struct UiRenderTelemetrySnapshot(
     int SpriteBatchRestartCount,
+    double SpriteBatchRestartMilliseconds,
     int ClipPushCount,
     int RetainedNodesVisited,
     int RetainedNodesDrawn,
@@ -92,6 +93,12 @@ internal readonly record struct UiRenderTelemetrySnapshot(
     int DirtyRegionTraversalCount,
     int DirtyRootCount,
     int DirtyRegionThresholdFallbackCount,
+    double DrawClearMilliseconds,
+    double DrawInitialBatchBeginMilliseconds,
+    double DrawVisualTreeMilliseconds,
+    double DrawCursorMilliseconds,
+    double DrawFinalBatchEndMilliseconds,
+    double DrawCleanupMilliseconds,
     int FullDirtyInitialStateCount,
     int FullDirtyViewportChangeCount,
     int FullDirtySurfaceResetCount,
@@ -198,4 +205,5 @@ internal readonly record struct UiFreezableInvalidationBatchSnapshot(
     int FlushTargetCount,
     int QueuedTargetCount,
     int MaxPendingTargetCount,
-    double FlushMilliseconds);
+    double FlushMilliseconds,
+    string LastFlushTargetSummary);

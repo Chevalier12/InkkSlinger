@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -6,6 +7,21 @@ namespace InkkSlinger;
 
 public class Border : Decorator
 {
+    private static readonly Dictionary<GraphicsDevice, Dictionary<RoundedTextureCacheKey, Texture2D>> RoundedTextureCaches = new();
+    private RoundedGeometryCacheKey _roundedGeometryCacheKey;
+    private bool _hasRoundedGeometryCache;
+    private Vector2[] _roundedFillPolygon = Array.Empty<Vector2>();
+    private int _roundedFillPolygonPointCount;
+    private Vector2[] _topLeftCornerBorderPolygon = Array.Empty<Vector2>();
+    private int _topLeftCornerBorderPolygonPointCount;
+    private Vector2[] _topRightCornerBorderPolygon = Array.Empty<Vector2>();
+    private int _topRightCornerBorderPolygonPointCount;
+    private Vector2[] _bottomRightCornerBorderPolygon = Array.Empty<Vector2>();
+    private int _bottomRightCornerBorderPolygonPointCount;
+    private Vector2[] _bottomLeftCornerBorderPolygon = Array.Empty<Vector2>();
+    private int _bottomLeftCornerBorderPolygonPointCount;
+    private static int _roundedGeometryCacheBuildCount;
+
     public static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
@@ -97,6 +113,23 @@ public class Border : Decorator
         set => SetValue(CornerRadiusProperty, value);
     }
 
+    internal static int GetRoundedGeometryCacheBuildCountForTests()
+    {
+        return _roundedGeometryCacheBuildCount;
+    }
+
+    internal static void ResetRoundedGeometryCacheBuildCountForTests()
+    {
+        _roundedGeometryCacheBuildCount = 0;
+    }
+
+    internal void BuildRoundedGeometryCacheForTests()
+    {
+        var slot = LayoutSlot;
+        var radii = CreateOuterRadii(CornerRadius, slot.Width, slot.Height);
+        EnsureRoundedGeometryCache(slot, radii, GetRenderBorderThickness());
+    }
+
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var chrome = GetChromeThickness();
@@ -152,6 +185,13 @@ public class Border : Decorator
         var backgroundColor = Background?.ToColor() ?? Color.Transparent;
         var borderColor = BorderBrush?.ToColor() ?? Color.Transparent;
         var borderThickness = GetRenderBorderThickness();
+        var hasVisibleBackground = backgroundColor.A > 0;
+        var hasVisibleBorder = HasVisibleBorder(borderThickness, borderColor);
+        if (!hasVisibleBackground && !hasVisibleBorder)
+        {
+            return;
+        }
+
         var outerRadii = CreateOuterRadii(CornerRadius, slot.Width, slot.Height);
         if (!outerRadii.HasAnyRadius)
         {
@@ -159,12 +199,17 @@ public class Border : Decorator
             return;
         }
 
-        if (backgroundColor.A > 0)
+        if (TryDrawCachedRoundedBorderTexture(spriteBatch, slot, outerRadii, borderThickness, backgroundColor, borderColor, hasVisibleBackground, hasVisibleBorder))
+        {
+            return;
+        }
+
+        if (hasVisibleBackground)
         {
             DrawRoundedRectFill(spriteBatch, slot, outerRadii, backgroundColor);
         }
 
-        if (!HasVisibleBorder(borderThickness, borderColor))
+        if (!hasVisibleBorder)
         {
             return;
         }
@@ -289,11 +334,12 @@ public class Border : Decorator
         RoundedRectRadii radii,
         Color color)
     {
-        Span<Vector2> polygon = stackalloc Vector2[96];
-        var pointCount = BuildRoundedRectPolygon(rect, radii, polygon);
+        EnsureRoundedGeometryCache(rect, radii, GetRenderBorderThickness());
+        var polygon = _roundedFillPolygon;
+        var pointCount = _roundedFillPolygonPointCount;
         if (pointCount >= 3)
         {
-            UiDrawing.DrawFilledPolygon(spriteBatch, polygon[..pointCount], color, Opacity);
+            UiDrawing.DrawFilledPolygon(spriteBatch, polygon.AsSpan(0, pointCount), color, Opacity);
         }
     }
 
@@ -304,6 +350,7 @@ public class Border : Decorator
         RoundedRectRadii outerRadii,
         Color borderColor)
     {
+        EnsureRoundedGeometryCache(outerRect, outerRadii, borderThickness);
         var innerRect = new LayoutRect(
             outerRect.X + borderThickness.Left,
             outerRect.Y + borderThickness.Top,
@@ -315,19 +362,6 @@ public class Border : Decorator
             DrawRoundedRectFill(spriteBatch, outerRect, outerRadii, borderColor);
             return;
         }
-
-        var innerRadii = NormalizeRadii(
-            new RoundedRectRadii(
-                MathF.Max(0f, outerRadii.TopLeftX - borderThickness.Left),
-                MathF.Max(0f, outerRadii.TopLeftY - borderThickness.Top),
-                MathF.Max(0f, outerRadii.TopRightX - borderThickness.Right),
-                MathF.Max(0f, outerRadii.TopRightY - borderThickness.Top),
-                MathF.Max(0f, outerRadii.BottomRightX - borderThickness.Right),
-                MathF.Max(0f, outerRadii.BottomRightY - borderThickness.Bottom),
-                MathF.Max(0f, outerRadii.BottomLeftX - borderThickness.Left),
-                MathF.Max(0f, outerRadii.BottomLeftY - borderThickness.Bottom)),
-            innerRect.Width,
-            innerRect.Height);
 
         DrawBorderBand(
             spriteBatch,
@@ -358,10 +392,123 @@ public class Border : Decorator
             outerRect.Height - outerRadii.TopRightY - outerRadii.BottomRightY,
             borderColor);
 
-        DrawCornerBorderSegment(spriteBatch, BorderCorner.TopLeft, outerRect, innerRect, outerRadii, innerRadii, borderColor);
-        DrawCornerBorderSegment(spriteBatch, BorderCorner.TopRight, outerRect, innerRect, outerRadii, innerRadii, borderColor);
-        DrawCornerBorderSegment(spriteBatch, BorderCorner.BottomRight, outerRect, innerRect, outerRadii, innerRadii, borderColor);
-        DrawCornerBorderSegment(spriteBatch, BorderCorner.BottomLeft, outerRect, innerRect, outerRadii, innerRadii, borderColor);
+        DrawCachedCornerBorderSegment(spriteBatch, _topLeftCornerBorderPolygon, _topLeftCornerBorderPolygonPointCount, borderColor);
+        DrawCachedCornerBorderSegment(spriteBatch, _topRightCornerBorderPolygon, _topRightCornerBorderPolygonPointCount, borderColor);
+        DrawCachedCornerBorderSegment(spriteBatch, _bottomRightCornerBorderPolygon, _bottomRightCornerBorderPolygonPointCount, borderColor);
+        DrawCachedCornerBorderSegment(spriteBatch, _bottomLeftCornerBorderPolygon, _bottomLeftCornerBorderPolygonPointCount, borderColor);
+    }
+
+    private bool TryDrawCachedRoundedBorderTexture(
+        SpriteBatch spriteBatch,
+        LayoutRect slot,
+        RoundedRectRadii outerRadii,
+        Thickness borderThickness,
+        Color backgroundColor,
+        Color borderColor,
+        bool hasVisibleBackground,
+        bool hasVisibleBorder)
+    {
+        var pixelWidth = Math.Max(1, (int)MathF.Round(slot.Width));
+        var pixelHeight = Math.Max(1, (int)MathF.Round(slot.Height));
+        if (pixelWidth <= 0 || pixelHeight <= 0)
+        {
+            return false;
+        }
+
+        if ((long)pixelWidth * pixelHeight > 1_048_576L)
+        {
+            return false;
+        }
+
+        var graphicsDevice = spriteBatch.GraphicsDevice;
+        if (!RoundedTextureCaches.TryGetValue(graphicsDevice, out var cache))
+        {
+            cache = new Dictionary<RoundedTextureCacheKey, Texture2D>();
+            RoundedTextureCaches[graphicsDevice] = cache;
+        }
+
+        var cacheKey = new RoundedTextureCacheKey(
+            pixelWidth,
+            pixelHeight,
+            outerRadii,
+            borderThickness,
+            backgroundColor,
+            borderColor,
+            hasVisibleBackground,
+            hasVisibleBorder);
+        if (!cache.TryGetValue(cacheKey, out var texture))
+        {
+            texture = BuildRoundedBorderTexture(graphicsDevice, pixelWidth, pixelHeight, outerRadii, borderThickness, backgroundColor, borderColor, hasVisibleBackground, hasVisibleBorder);
+            cache[cacheKey] = texture;
+        }
+
+        UiDrawing.DrawTexture(spriteBatch, texture, slot, color: Color.White, opacity: Opacity);
+        return true;
+    }
+
+    private static Texture2D BuildRoundedBorderTexture(
+        GraphicsDevice graphicsDevice,
+        int width,
+        int height,
+        RoundedRectRadii outerRadii,
+        Thickness borderThickness,
+        Color backgroundColor,
+        Color borderColor,
+        bool hasVisibleBackground,
+        bool hasVisibleBorder)
+    {
+        var texture = new Texture2D(graphicsDevice, width, height, false, SurfaceFormat.Color);
+        var pixels = new Color[width * height];
+        var outerRect = new LayoutRect(0f, 0f, width, height);
+        var innerRect = new LayoutRect(
+            borderThickness.Left,
+            borderThickness.Top,
+            MathF.Max(0f, width - borderThickness.Left - borderThickness.Right),
+            MathF.Max(0f, height - borderThickness.Top - borderThickness.Bottom));
+        var innerRadii = innerRect.Width <= 0f || innerRect.Height <= 0f
+            ? RoundedRectRadii.Empty
+            : NormalizeRadii(
+                new RoundedRectRadii(
+                    MathF.Max(0f, outerRadii.TopLeftX - borderThickness.Left),
+                    MathF.Max(0f, outerRadii.TopLeftY - borderThickness.Top),
+                    MathF.Max(0f, outerRadii.TopRightX - borderThickness.Right),
+                    MathF.Max(0f, outerRadii.TopRightY - borderThickness.Top),
+                    MathF.Max(0f, outerRadii.BottomRightX - borderThickness.Right),
+                    MathF.Max(0f, outerRadii.BottomRightY - borderThickness.Bottom),
+                    MathF.Max(0f, outerRadii.BottomLeftX - borderThickness.Left),
+                    MathF.Max(0f, outerRadii.BottomLeftY - borderThickness.Bottom)),
+                innerRect.Width,
+                innerRect.Height);
+
+        for (var y = 0; y < height; y++)
+        {
+            var sampleY = y + 0.5f;
+            for (var x = 0; x < width; x++)
+            {
+                var sampleX = x + 0.5f;
+                if (!ContainsRoundedRectPoint(outerRect, outerRadii, sampleX, sampleY))
+                {
+                    pixels[(y * width) + x] = Color.Transparent;
+                    continue;
+                }
+
+                if (hasVisibleBorder &&
+                    innerRect.Width > 0f &&
+                    innerRect.Height > 0f &&
+                    !ContainsRoundedRectPoint(innerRect, innerRadii, sampleX, sampleY))
+                {
+                    pixels[(y * width) + x] = borderColor;
+                    continue;
+                }
+
+                pixels[(y * width) + x] = hasVisibleBackground
+                    ? backgroundColor
+                    : Color.Transparent;
+            }
+        }
+
+        texture.SetData(pixels);
+        return texture;
     }
 
     private void DrawBorderBand(SpriteBatch spriteBatch, float x, float y, float width, float height, Color color)
@@ -374,21 +521,127 @@ public class Border : Decorator
         UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(x, y, width, height), color, Opacity);
     }
 
-    private void DrawCornerBorderSegment(
+    private void DrawCachedCornerBorderSegment(
         SpriteBatch spriteBatch,
+        Vector2[] polygon,
+        int pointCount,
+        Color color)
+    {
+        if (pointCount >= 3)
+        {
+            UiDrawing.DrawFilledPolygon(spriteBatch, polygon.AsSpan(0, pointCount), color, Opacity);
+        }
+    }
+
+    private void EnsureRoundedGeometryCache(LayoutRect outerRect, RoundedRectRadii outerRadii, Thickness borderThickness)
+    {
+        var cacheKey = new RoundedGeometryCacheKey(outerRect, borderThickness, CornerRadius);
+        if (_hasRoundedGeometryCache &&
+            RoundedGeometryCacheKeyClose(_roundedGeometryCacheKey, cacheKey))
+        {
+            return;
+        }
+
+        _roundedGeometryCacheBuildCount++;
+        _roundedGeometryCacheKey = cacheKey;
+        _hasRoundedGeometryCache = true;
+
+        Span<Vector2> fillPolygon = stackalloc Vector2[96];
+        _roundedFillPolygonPointCount = BuildRoundedRectPolygon(outerRect, outerRadii, fillPolygon);
+        _roundedFillPolygon = CopyPolygon(fillPolygon, _roundedFillPolygonPointCount);
+
+        var innerRect = new LayoutRect(
+            outerRect.X + borderThickness.Left,
+            outerRect.Y + borderThickness.Top,
+            MathF.Max(0f, outerRect.Width - borderThickness.Left - borderThickness.Right),
+            MathF.Max(0f, outerRect.Height - borderThickness.Top - borderThickness.Bottom));
+        if (innerRect.Width <= 0f || innerRect.Height <= 0f)
+        {
+            _topLeftCornerBorderPolygon = Array.Empty<Vector2>();
+            _topRightCornerBorderPolygon = Array.Empty<Vector2>();
+            _bottomRightCornerBorderPolygon = Array.Empty<Vector2>();
+            _bottomLeftCornerBorderPolygon = Array.Empty<Vector2>();
+            _topLeftCornerBorderPolygonPointCount = 0;
+            _topRightCornerBorderPolygonPointCount = 0;
+            _bottomRightCornerBorderPolygonPointCount = 0;
+            _bottomLeftCornerBorderPolygonPointCount = 0;
+            return;
+        }
+
+        var innerRadii = NormalizeRadii(
+            new RoundedRectRadii(
+                MathF.Max(0f, outerRadii.TopLeftX - borderThickness.Left),
+                MathF.Max(0f, outerRadii.TopLeftY - borderThickness.Top),
+                MathF.Max(0f, outerRadii.TopRightX - borderThickness.Right),
+                MathF.Max(0f, outerRadii.TopRightY - borderThickness.Top),
+                MathF.Max(0f, outerRadii.BottomRightX - borderThickness.Right),
+                MathF.Max(0f, outerRadii.BottomRightY - borderThickness.Bottom),
+                MathF.Max(0f, outerRadii.BottomLeftX - borderThickness.Left),
+                MathF.Max(0f, outerRadii.BottomLeftY - borderThickness.Bottom)),
+            innerRect.Width,
+            innerRect.Height);
+
+        CacheCornerBorderPolygon(BorderCorner.TopLeft, outerRect, innerRect, outerRadii, innerRadii, ref _topLeftCornerBorderPolygon, ref _topLeftCornerBorderPolygonPointCount);
+        CacheCornerBorderPolygon(BorderCorner.TopRight, outerRect, innerRect, outerRadii, innerRadii, ref _topRightCornerBorderPolygon, ref _topRightCornerBorderPolygonPointCount);
+        CacheCornerBorderPolygon(BorderCorner.BottomRight, outerRect, innerRect, outerRadii, innerRadii, ref _bottomRightCornerBorderPolygon, ref _bottomRightCornerBorderPolygonPointCount);
+        CacheCornerBorderPolygon(BorderCorner.BottomLeft, outerRect, innerRect, outerRadii, innerRadii, ref _bottomLeftCornerBorderPolygon, ref _bottomLeftCornerBorderPolygonPointCount);
+    }
+
+    private static void CacheCornerBorderPolygon(
         BorderCorner corner,
         LayoutRect outerRect,
         LayoutRect innerRect,
         RoundedRectRadii outerRadii,
         RoundedRectRadii innerRadii,
-        Color color)
+        ref Vector2[] polygon,
+        ref int pointCount)
     {
-        Span<Vector2> polygon = stackalloc Vector2[64];
-        var pointCount = BuildCornerBorderPolygon(corner, outerRect, innerRect, outerRadii, innerRadii, polygon);
-        if (pointCount >= 3)
+        Span<Vector2> buffer = stackalloc Vector2[64];
+        pointCount = BuildCornerBorderPolygon(corner, outerRect, innerRect, outerRadii, innerRadii, buffer);
+        polygon = CopyPolygon(buffer, pointCount);
+    }
+
+    private static Vector2[] CopyPolygon(Span<Vector2> source, int pointCount)
+    {
+        if (pointCount <= 0)
         {
-            UiDrawing.DrawFilledPolygon(spriteBatch, polygon[..pointCount], color, Opacity);
+            return Array.Empty<Vector2>();
         }
+
+        var copy = new Vector2[pointCount];
+        source[..pointCount].CopyTo(copy);
+        return copy;
+    }
+
+    private static bool RoundedGeometryCacheKeyClose(RoundedGeometryCacheKey left, RoundedGeometryCacheKey right)
+    {
+        return AreClose(left.Rect.X, right.Rect.X) &&
+               AreClose(left.Rect.Y, right.Rect.Y) &&
+               AreClose(left.Rect.Width, right.Rect.Width) &&
+               AreClose(left.Rect.Height, right.Rect.Height) &&
+               ThicknessClose(left.BorderThickness, right.BorderThickness) &&
+               CornerRadiusClose(left.CornerRadius, right.CornerRadius);
+    }
+
+    private static bool ThicknessClose(Thickness left, Thickness right)
+    {
+        return AreClose(left.Left, right.Left) &&
+               AreClose(left.Top, right.Top) &&
+               AreClose(left.Right, right.Right) &&
+               AreClose(left.Bottom, right.Bottom);
+    }
+
+    private static bool CornerRadiusClose(CornerRadius left, CornerRadius right)
+    {
+        return AreClose(left.TopLeft, right.TopLeft) &&
+               AreClose(left.TopRight, right.TopRight) &&
+               AreClose(left.BottomRight, right.BottomRight) &&
+               AreClose(left.BottomLeft, right.BottomLeft);
+    }
+
+    private static bool AreClose(float left, float right)
+    {
+        return MathF.Abs(left - right) < 0.01f;
     }
 
     private static bool HasVisibleBorder(Thickness thickness, Color borderColor)
@@ -591,6 +844,57 @@ public class Border : Decorator
         return Math.Clamp((int)MathF.Ceiling(radius / 4f), 2, 12);
     }
 
+    private static bool ContainsRoundedRectPoint(
+        LayoutRect rect,
+        RoundedRectRadii radii,
+        float x,
+        float y)
+    {
+        if (x < rect.X || x >= rect.X + rect.Width || y < rect.Y || y >= rect.Y + rect.Height)
+        {
+            return false;
+        }
+
+        if (!radii.HasAnyRadius)
+        {
+            return true;
+        }
+
+        if (x < rect.X + radii.TopLeftX && y < rect.Y + radii.TopLeftY)
+        {
+            return IsInsideEllipse(rect.X + radii.TopLeftX, rect.Y + radii.TopLeftY, radii.TopLeftX, radii.TopLeftY, x, y);
+        }
+
+        if (x >= rect.X + rect.Width - radii.TopRightX && y < rect.Y + radii.TopRightY)
+        {
+            return IsInsideEllipse(rect.X + rect.Width - radii.TopRightX, rect.Y + radii.TopRightY, radii.TopRightX, radii.TopRightY, x, y);
+        }
+
+        if (x >= rect.X + rect.Width - radii.BottomRightX && y >= rect.Y + rect.Height - radii.BottomRightY)
+        {
+            return IsInsideEllipse(rect.X + rect.Width - radii.BottomRightX, rect.Y + rect.Height - radii.BottomRightY, radii.BottomRightX, radii.BottomRightY, x, y);
+        }
+
+        if (x < rect.X + radii.BottomLeftX && y >= rect.Y + rect.Height - radii.BottomLeftY)
+        {
+            return IsInsideEllipse(rect.X + radii.BottomLeftX, rect.Y + rect.Height - radii.BottomLeftY, radii.BottomLeftX, radii.BottomLeftY, x, y);
+        }
+
+        return true;
+    }
+
+    private static bool IsInsideEllipse(float centerX, float centerY, float radiusX, float radiusY, float x, float y)
+    {
+        if (radiusX <= 0f || radiusY <= 0f)
+        {
+            return true;
+        }
+
+        var normalizedX = (x - centerX) / radiusX;
+        var normalizedY = (y - centerY) / radiusY;
+        return (normalizedX * normalizedX) + (normalizedY * normalizedY) <= 1f;
+    }
+
     private enum BorderCorner
     {
         TopLeft,
@@ -598,6 +902,21 @@ public class Border : Decorator
         BottomRight,
         BottomLeft
     }
+
+    private readonly record struct RoundedGeometryCacheKey(
+        LayoutRect Rect,
+        Thickness BorderThickness,
+        CornerRadius CornerRadius);
+
+    private readonly record struct RoundedTextureCacheKey(
+        int Width,
+        int Height,
+        RoundedRectRadii Radii,
+        Thickness BorderThickness,
+        Color BackgroundColor,
+        Color BorderColor,
+        bool HasVisibleBackground,
+        bool HasVisibleBorder);
 
     private readonly struct RoundedRectRadii
     {

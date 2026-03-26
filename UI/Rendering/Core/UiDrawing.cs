@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -17,6 +18,7 @@ internal static class UiDrawing
     private static readonly Dictionary<CircleCacheKey, Vector2[]> CirclePointTemplates = new();
     private static int _frameClipPushCount;
     private static int _frameSpriteBatchRestartCount;
+    private static long _frameSpriteBatchRestartElapsedTicks;
 
     internal readonly record struct DrawingStateSnapshot(
         Rectangle[] ClipStack,
@@ -60,11 +62,12 @@ internal static class UiDrawing
     {
         _frameClipPushCount = 0;
         _frameSpriteBatchRestartCount = 0;
+        _frameSpriteBatchRestartElapsedTicks = 0;
     }
 
-    internal static (int ClipPushCount, int SpriteBatchRestartCount) ConsumeFrameTelemetry()
+    internal static (int ClipPushCount, int SpriteBatchRestartCount, long SpriteBatchRestartElapsedTicks) ConsumeFrameTelemetry()
     {
-        var snapshot = (_frameClipPushCount, _frameSpriteBatchRestartCount);
+        var snapshot = (_frameClipPushCount, _frameSpriteBatchRestartCount, _frameSpriteBatchRestartElapsedTicks);
         ResetFrameTelemetry();
         return snapshot;
     }
@@ -77,6 +80,7 @@ internal static class UiDrawing
             return;
         }
 
+        var start = Stopwatch.GetTimestamp();
         _frameSpriteBatchRestartCount++;
         spriteBatch.End();
         spriteBatch.Begin(
@@ -85,6 +89,7 @@ internal static class UiDrawing
             state.SamplerState,
             state.DepthStencilState,
             state.RasterizerState);
+        _frameSpriteBatchRestartElapsedTicks += Stopwatch.GetTimestamp() - start;
     }
 
     internal static SuspendedSpriteBatchState SuspendActiveBatch(SpriteBatch spriteBatch)

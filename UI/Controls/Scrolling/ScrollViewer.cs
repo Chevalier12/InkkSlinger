@@ -56,14 +56,14 @@ public class ScrollViewer : ContentControl
             nameof(HorizontalOffset),
             typeof(float),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0f));
 
     public static readonly DependencyProperty VerticalOffsetProperty =
         DependencyProperty.Register(
             nameof(VerticalOffset),
             typeof(float),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0f));
 
     public static readonly DependencyProperty ExtentWidthProperty =
         DependencyProperty.Register(
@@ -659,14 +659,7 @@ public class ScrollViewer : ContentControl
             {
                 if (ContentElement is UIElement contentElement)
                 {
-                    if (contentElement.NeedsRender)
-                    {
-                        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, contentElement);
-                    }
-                    else
-                    {
-                        contentElement.InvalidateVisual();
-                    }
+                    UiRoot.Current?.NotifyDirectRenderInvalidation(contentElement);
                 }
             }
             else

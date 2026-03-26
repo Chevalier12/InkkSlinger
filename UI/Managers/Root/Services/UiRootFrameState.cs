@@ -91,24 +91,61 @@ public sealed partial class UiRoot
         }
     }
 
-    internal void EnsureRenderInvalidationTracked(UIElement visual)
+    internal void EnsureRenderInvalidationTracked(UIElement visual, bool requireDeepSync = false)
     {
         if (_dirtyRenderSet.Contains(visual))
         {
-            TrackQueuedRenderMutation(visual);
+            TrackQueuedRenderMutation(visual, requireDeepSync);
             return;
         }
 
-        NotifyInvalidation(UiInvalidationType.Render, visual);
+        NotifyInvalidation(UiInvalidationType.Render, visual, requireDeepSync);
     }
 
-    internal void NotifyInvalidation(UiInvalidationType invalidationType, UIElement? source = null)
+    internal void NotifyDirectRenderInvalidation(UIElement visual, bool requireDeepSync = false)
     {
-        RecordRenderInvalidationSources(source, effectiveSource: null);
+        if (!TryGetIndexedVisualNodeCore(visual, out _))
+        {
+            NotifyInvalidation(UiInvalidationType.Render, visual, requireDeepSync);
+            return;
+        }
+
+        RecordRenderInvalidationSources(visual, visual);
+
+        _hasRenderInvalidation = true;
+        _mustDrawNextFrame = true;
+        RenderInvalidationCount++;
+        _renderStateVersion++;
+        if (RenderInvalidationAffectsPointerTargets(visual, visual))
+        {
+            _pointerResolveStateVersion++;
+        }
+
+        if (visual is TextBox textBox && textBox.IsFocused)
+        {
+            _hasCaretBlinkInvalidation = true;
+        }
+
+        if (UseDirtyRegionRendering)
+        {
+            TrackDirtyBoundsForVisual(visual);
+        }
+
+        EnqueueDirtyRenderNode(visual, requireDeepSync);
+
+        if (visual is IUiRootUpdateParticipant)
+        {
+            InvalidateActiveUpdateParticipants();
+        }
+    }
+
+    internal void NotifyInvalidation(UiInvalidationType invalidationType, UIElement? source = null, bool requireDeepSync = false)
+    {
         var effectiveSource = source;
         if (source != null &&
             !TryResolveInvalidationSource(source, invalidationType == UiInvalidationType.Render, out effectiveSource))
         {
+            RecordRenderInvalidationSources(source, effectiveSource: null);
             return;
         }
 
@@ -150,7 +187,7 @@ public sealed partial class UiRoot
                 }
                 if (effectiveSource != null)
                 {
-                    EnqueueDirtyRenderNode(effectiveSource);
+                    EnqueueDirtyRenderNode(effectiveSource, requireDeepSync);
                 }
 
                 break;
@@ -164,7 +201,7 @@ public sealed partial class UiRoot
         }
     }
 
-    private void TrackQueuedRenderMutation(UIElement source)
+    private void TrackQueuedRenderMutation(UIElement source, bool requireDeepSync = false)
     {
         if (!TryResolveInvalidationSource(source, allowRetainedAncestorFallback: true, out var effectiveSource) ||
             effectiveSource == null)
@@ -191,6 +228,8 @@ public sealed partial class UiRoot
         {
             TrackDirtyBoundsForVisual(effectiveSource);
         }
+
+        EnqueueDirtyRenderNode(effectiveSource, requireDeepSync);
 
         if (source is IUiRootUpdateParticipant || effectiveSource is IUiRootUpdateParticipant)
         {
@@ -292,6 +331,7 @@ public sealed partial class UiRoot
         _visualStructureChangeCount++;
         _visualStructureVersion++;
         MarkVisualIndexDirty();
+        InvalidateInputCachesForSubtree(element);
         InvalidateOverlayCandidateCache();
         BumpPointerResolveStateVersion();
         _renderListNeedsFullRebuild = true;

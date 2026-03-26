@@ -402,8 +402,6 @@ public sealed class RenderSurfaceTests
         uiRoot.CompleteDrawStateForTests();
         uiRoot.ResetDirtyStateForTests();
 
-        Assert.True(renderSurface.NeedsRender);
-
         uiRoot.ApplyRenderInvalidationCleanupForTests();
 
         Assert.False(renderSurface.NeedsRender);
