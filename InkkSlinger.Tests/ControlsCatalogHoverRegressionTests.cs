@@ -87,7 +87,7 @@ public sealed class ControlsCatalogHoverRegressionTests
         Assert.True(button.IsMouseOver);
         Assert.Equal("ScrollViewer", invalidationSnapshot.EffectiveSourceType);
         Assert.Equal("ScrollViewer", invalidationSnapshot.DirtyBoundsVisualType);
-        Assert.Equal("ScrollViewer", dirtyRootSummary);
+        Assert.Equal("Button", dirtyRootSummary);
     }
 
     [Fact]

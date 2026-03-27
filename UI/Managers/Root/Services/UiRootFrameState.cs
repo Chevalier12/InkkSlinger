@@ -338,6 +338,17 @@ public sealed partial class UiRoot
             return requestedSource;
         }
 
+        // Keep retained sync anchored to the actual mutated subtree when clip promotion
+        // only exists to widen dirty bounds coverage for transformed/effected descendants.
+        if (requestedSource != null &&
+            effectiveSource != null &&
+            !ReferenceEquals(requestedSource, effectiveSource) &&
+            TryGetIndexedVisualNodeCore(requestedSource, out _) &&
+            ReferenceEquals(FindEscapingRenderClipAncestor(requestedSource), effectiveSource))
+        {
+            return requestedSource;
+        }
+
         return effectiveSource;
     }
 
