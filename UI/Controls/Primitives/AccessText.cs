@@ -32,39 +32,13 @@ public sealed class AccessText : TextBlock
 
     internal string DisplayText => _parsedText.DisplayText;
 
-    protected override Vector2 MeasureOverride(Vector2 availableSize)
+    protected override string GetLayoutText()
     {
-        var availableWidth = TextWrapping == TextWrapping.NoWrap
-            ? float.PositiveInfinity
-            : ResolveMeasureTextLayoutWidth(availableSize.X);
-
-        return TextLayout.LayoutForElement(DisplayText, this, FontSize, availableWidth, TextWrapping).Size;
+        return DisplayText;
     }
 
-    protected override void OnRender(SpriteBatch spriteBatch)
+    protected override void OnRenderTextDecorations(SpriteBatch spriteBatch, TextLayout.TextLayoutResult layout, float lineSpacing)
     {
-        if (string.IsNullOrEmpty(DisplayText))
-        {
-            return;
-        }
-
-        var renderWidth = TextWrapping == TextWrapping.NoWrap
-            ? float.PositiveInfinity
-            : RenderSize.X;
-        var layout = TextLayout.LayoutForElement(DisplayText, this, FontSize, renderWidth, TextWrapping);
-        var lineSpacing = UiTextRenderer.GetLineHeight(this, FontSize);
-        for (var i = 0; i < layout.Lines.Count; i++)
-        {
-            var line = layout.Lines[i];
-            if (line.Length == 0)
-            {
-                continue;
-            }
-
-            var position = new Vector2(LayoutSlot.X, LayoutSlot.Y + (i * lineSpacing));
-            UiTextRenderer.DrawString(spriteBatch, this, line, position, Foreground * Opacity, FontSize);
-        }
-
         if (AccessKeyDisplayIndex < 0 || AccessKey == null)
         {
             return;

@@ -255,7 +255,7 @@ public sealed class ControlsCatalogSidebarScrollDrawEstimateDiagnosticsTests
             progressBar.Steps.All(static step => step.EstimatedTraversalCount == 1) &&
             progressBar.TotalRenderSchedulingMs >= progressBar.TotalFrameParticipantMs)
         {
-            return "The old repeated partial-redraw hotspot is gone. With ProgressBar open, the renderer now falls back to one retained traversal per scroll step instead of 2-3 clipped traversals, but the remaining shared cost is still render-side: Track#PART_Track plus PART_Indicator/PART_GlowRect keep three dirty roots alive and force a full retained-tree pass while scrolling and animating together.";
+            return "The old repeated partial-redraw hotspot is gone. With ProgressBar open, the renderer still falls back to one retained traversal per scroll step instead of 2-3 clipped traversals. Track#PART_Track remains the effective render invalidation source, but it no longer adds its own retained dirty root, leaving one scroll dirty root in the default case and two total dirty roots once PART_Indicator/PART_GlowRect join in during ProgressBar animation.";
         }
 
         return "Draw-estimate instrumentation did not overturn the retained-render hypothesis. The next loop should instrument actual OnRender cost per control type if manual FPS is still much worse than this synthetic repro suggests.";

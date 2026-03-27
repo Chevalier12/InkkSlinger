@@ -193,6 +193,16 @@ public sealed partial class UiRoot
             return;
         }
 
+        if (TryGetTransformScrollDirtyBoundsHint(visual, out var transformScrollBounds))
+        {
+            _lastDirtyBoundsUsedHint = true;
+            _lastDirtyBounds = transformScrollBounds;
+            _hasLastDirtyBounds = true;
+            _dirtyBoundsEventTrace.Add($"{_lastDirtyBoundsVisualType}#{_lastDirtyBoundsVisualName}:scroll-clip-hint:{transformScrollBounds.X:0.##},{transformScrollBounds.Y:0.##},{transformScrollBounds.Width:0.##},{transformScrollBounds.Height:0.##}");
+            _dirtyRegions.AddDirtyRegion(transformScrollBounds);
+            return;
+        }
+
         if (visual is IRenderDirtyBoundsHintProvider dirtyHintProvider &&
             dirtyHintProvider.TryConsumeRenderDirtyBoundsHint(out var hintedBounds))
         {
@@ -281,6 +291,38 @@ public sealed partial class UiRoot
             return;
         }
 
+    }
+
+    private static bool TryGetTransformScrollDirtyBoundsHint(UIElement visual, out LayoutRect bounds)
+    {
+        bounds = default;
+        if (visual is VirtualizingStackPanel)
+        {
+            return false;
+        }
+
+        if (visual is not IScrollTransformContent &&
+            (visual is not Panel || !ScrollViewer.GetUseTransformContentScrolling(visual)))
+        {
+            return false;
+        }
+
+        var owner = visual.VisualParent as ScrollViewer;
+        if (owner == null || !ReferenceEquals(owner.Content, visual))
+        {
+            owner = visual.LogicalParent as ScrollViewer;
+            if (owner == null || !ReferenceEquals(owner.Content, visual))
+            {
+                return false;
+            }
+        }
+
+        if (!owner.TryGetContentViewportClipRect(out bounds))
+        {
+            return false;
+        }
+
+        return bounds.Width > 0f && bounds.Height > 0f;
     }
 
 

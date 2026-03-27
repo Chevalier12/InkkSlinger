@@ -49,4 +49,27 @@ public sealed class BorderRenderCacheTests
 
         Assert.Equal(2, Border.GetRoundedGeometryCacheBuildCountForTests());
     }
+
+    [Fact]
+    public void RenderStateCache_ReusesResolvedBrushAndThicknessState_ForStableInputs()
+    {
+        var border = new Border
+        {
+            Background = new SolidColorBrush(Color.CornflowerBlue),
+            BorderBrush = new SolidColorBrush(Color.White),
+            BorderThickness = new Thickness(2f)
+        };
+
+        Border.ResetRenderStateCacheBuildCountForTests();
+
+        border.ResolveRenderStateForTests();
+        border.ResolveRenderStateForTests();
+
+        Assert.Equal(1, Border.GetRenderStateCacheBuildCountForTests());
+
+        border.BorderThickness = new Thickness(3f);
+        border.ResolveRenderStateForTests();
+
+        Assert.Equal(2, Border.GetRenderStateCacheBuildCountForTests());
+    }
 }

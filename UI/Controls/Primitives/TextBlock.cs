@@ -99,18 +99,24 @@ public class TextBlock : FrameworkElement
         return TextWrapping == TextWrapping.NoWrap;
     }
 
+    protected virtual string GetLayoutText()
+    {
+        return Text;
+    }
+
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        if (string.IsNullOrEmpty(Text))
+        var layoutText = GetLayoutText();
+        if (string.IsNullOrEmpty(layoutText))
         {
             return Vector2.Zero;
         }
 
         var effectiveAvailableWidth = ResolveMeasureTextLayoutWidth(availableSize.X);
 
-        if (CanUseIntrinsicMeasure(effectiveAvailableWidth))
+        if (CanUseIntrinsicMeasure(layoutText, effectiveAvailableWidth))
         {
-            return ResolveIntrinsicNoWrapTextSize();
+            return ResolveIntrinsicNoWrapTextSize(layoutText);
         }
 
         var availableWidth = TextWrapping == TextWrapping.NoWrap
@@ -122,7 +128,8 @@ public class TextBlock : FrameworkElement
 
     protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
-        if (string.IsNullOrEmpty(Text))
+        var layoutText = GetLayoutText();
+        if (string.IsNullOrEmpty(layoutText))
         {
             return true;
         }
@@ -132,12 +139,12 @@ public class TextBlock : FrameworkElement
             return true;
         }
 
-        if (Text.IndexOfAny(['\r', '\n']) >= 0)
+        if (layoutText.IndexOfAny(['\r', '\n']) >= 0)
         {
             return false;
         }
 
-        var intrinsicSize = ResolveIntrinsicNoWrapTextSize();
+        var intrinsicSize = ResolveIntrinsicNoWrapTextSize(layoutText);
         return previousAvailableSize.X >= intrinsicSize.X &&
                nextAvailableSize.X >= intrinsicSize.X;
     }
@@ -146,7 +153,8 @@ public class TextBlock : FrameworkElement
     {
         base.OnRender(spriteBatch);
 
-        if (string.IsNullOrEmpty(Text))
+        var layoutText = GetLayoutText();
+        if (string.IsNullOrEmpty(layoutText))
         {
             return;
         }
@@ -156,8 +164,17 @@ public class TextBlock : FrameworkElement
             ? float.PositiveInfinity
             : RenderSize.X;
         var layout = ResolveLayout(renderWidth);
-        var lineSpacing = UiTextRenderer.GetLineHeight(this, FontSize);
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
+        var lineSpacing = UiTextRenderer.GetLineHeight(typography);
+        var drawColor = Foreground * Opacity;
         var currentClip = spriteBatch.GraphicsDevice.ScissorRectangle;
+        var useAxisAlignedClipFastPath = UiDrawing.TryGetAxisAligned2DTransformInfo(spriteBatch, out _, out var scaleY, out _, out var offsetY) && scaleY > 0f;
+        var transformedBaseY = useAxisAlignedClipFastPath
+            ? (LayoutSlot.Y * scaleY) + offsetY
+            : 0f;
+        var transformedLineSpacing = useAxisAlignedClipFastPath
+            ? lineSpacing * scaleY
+            : 0f;
         for (var i = 0; i < layout.Lines.Count; i++)
         {
             var line = layout.Lines[i];
@@ -167,30 +184,56 @@ public class TextBlock : FrameworkElement
             }
 
             var position = new Vector2(LayoutSlot.X, LayoutSlot.Y + (i * lineSpacing));
-            var lineWidth = i < layout.LineWidths.Count
-                ? layout.LineWidths[i]
-                : UiTextRenderer.MeasureWidth(this, line, FontSize);
-            var transformedBounds = UiDrawing.TransformRectBounds(
-                spriteBatch,
-                new LayoutRect(position.X, position.Y, lineWidth, lineSpacing));
-            if (transformedBounds.Y + transformedBounds.Height < currentClip.Y)
+            if (useAxisAlignedClipFastPath)
             {
-                continue;
+                var transformedLineTop = transformedBaseY + (i * transformedLineSpacing);
+                var transformedLineBottom = transformedLineTop + transformedLineSpacing;
+                if (transformedLineBottom < currentClip.Y)
+                {
+                    continue;
+                }
+
+                if (transformedLineTop > currentClip.Bottom)
+                {
+                    break;
+                }
+            }
+            else
+            {
+                var lineWidth = i < layout.LineWidths.Count
+                    ? layout.LineWidths[i]
+                    : UiTextRenderer.MeasureWidth(typography, line);
+                var transformedBounds = UiDrawing.TransformRectBounds(
+                    spriteBatch,
+                    new LayoutRect(position.X, position.Y, lineWidth, lineSpacing));
+                if (transformedBounds.Y + transformedBounds.Height < currentClip.Y)
+                {
+                    continue;
+                }
+
+                if (transformedBounds.Y > currentClip.Bottom)
+                {
+                    break;
+                }
             }
 
-            if (transformedBounds.Y > currentClip.Bottom)
-            {
-                break;
-            }
-
-            UiTextRenderer.DrawString(spriteBatch, this, line, position, Foreground * Opacity, FontSize);
+            UiTextRenderer.DrawString(spriteBatch, typography, line, position, drawColor);
         }
+
+        OnRenderTextDecorations(spriteBatch, layout, lineSpacing);
 
         var renderTicks = Stopwatch.GetTimestamp() - renderStart;
         _renderSampleCount++;
         _renderTotalTicks += renderTicks;
         _renderMaxTicks = System.Math.Max(_renderMaxTicks, renderTicks);
         _renderLastTicks = renderTicks;
+    }
+
+    protected virtual void OnRenderTextDecorations(SpriteBatch spriteBatch, TextLayout.TextLayoutResult layout, float lineSpacing)
+    {
+        _ = spriteBatch;
+        _ = layout;
+        _ = lineSpacing;
     }
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
@@ -216,31 +259,31 @@ public class TextBlock : FrameworkElement
         }
     }
 
-    private bool CanUseIntrinsicNoWrapTextMeasure()
+    private bool CanUseIntrinsicNoWrapTextMeasure(string layoutText)
     {
         return TextWrapping == TextWrapping.NoWrap &&
-               !string.IsNullOrEmpty(Text) &&
-               Text.IndexOfAny(['\r', '\n']) < 0;
+               !string.IsNullOrEmpty(layoutText) &&
+               layoutText.IndexOfAny(['\r', '\n']) < 0;
     }
 
-    private bool CanUseIntrinsicMeasure(float availableWidth)
+    private bool CanUseIntrinsicMeasure(string layoutText, float availableWidth)
     {
-        if (!CanUseIntrinsicNoWrapTextMeasure())
+        if (!CanUseIntrinsicNoWrapTextMeasure(layoutText))
         {
             if (TextWrapping == TextWrapping.NoWrap ||
-                string.IsNullOrEmpty(Text) ||
-                Text.IndexOfAny(['\r', '\n']) >= 0)
+                string.IsNullOrEmpty(layoutText) ||
+                layoutText.IndexOfAny(['\r', '\n']) >= 0)
             {
                 return false;
             }
 
-            return availableWidth >= ResolveIntrinsicNoWrapTextSize().X;
+            return availableWidth >= ResolveIntrinsicNoWrapTextSize(layoutText).X;
         }
 
         return true;
     }
 
-    private Vector2 ResolveIntrinsicNoWrapTextSize()
+    private Vector2 ResolveIntrinsicNoWrapTextSize(string layoutText)
     {
         var typography = UiTextRenderer.ResolveTypography(this, FontSize);
         if (_hasIntrinsicNoWrapMeasureCache &&
@@ -252,7 +295,7 @@ public class TextBlock : FrameworkElement
         }
 
         var size = new Vector2(
-            UiTextRenderer.MeasureWidth(typography, Text),
+            UiTextRenderer.MeasureWidth(typography, layoutText),
             UiTextRenderer.GetLineHeight(typography));
         _intrinsicNoWrapMeasureTextVersion = _textVersion;
         _intrinsicNoWrapMeasureTypography = typography;
@@ -285,6 +328,12 @@ public class TextBlock : FrameworkElement
 
     private TextLayout.TextLayoutResult ResolveLayout(float width)
     {
+        var layoutText = GetLayoutText();
+        if (string.IsNullOrEmpty(layoutText))
+        {
+            return TextLayout.TextLayoutResult.Empty;
+        }
+
         var typography = UiTextRenderer.ResolveTypography(this, FontSize);
         var widthMatches = WidthMatches(_layoutCacheWidth, width);
         if (_hasLayoutCache &&
@@ -299,7 +348,7 @@ public class TextBlock : FrameworkElement
         }
 
         _layoutCacheMissCount++;
-        var result = TextLayout.Layout(Text, typography, FontSize, width, TextWrapping);
+        var result = TextLayout.Layout(layoutText, typography, FontSize, width, TextWrapping);
         _layoutCacheTextVersion = _textVersion;
         _layoutCacheWidth = width;
         _layoutCacheTypography = typography;

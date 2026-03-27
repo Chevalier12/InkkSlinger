@@ -109,6 +109,39 @@ public sealed class UiTextRendererRuntimeServicesTests
         }
     }
 
+    [Fact]
+    public void GlyphDrawPositions_ReusesShapedLayoutAcrossRepeatedCalls()
+    {
+        var catalog = new FakeCatalog();
+        var rasterizer = new FakeRasterizer();
+        UiTextRenderer.ConfigureRuntimeServicesForTests(catalog, rasterizer);
+
+        try
+        {
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal");
+
+            var first = UiTextRenderer.GetGlyphDrawPositionsForTests(typography, "AV\nBC");
+            var firstRasterizeCount = rasterizer.RasterizeCallCount;
+            var firstKerningCount = rasterizer.KerningRequestCount;
+
+            var second = UiTextRenderer.GetGlyphDrawPositionsForTests(typography, "AV\nBC");
+
+            Assert.Equal(first.Count, second.Count);
+            Assert.Equal(first[0], second[0]);
+            Assert.Equal(first[1], second[1]);
+            Assert.Equal(first[2], second[2]);
+            Assert.Equal(first[3], second[3]);
+            Assert.True(firstRasterizeCount > 0);
+            Assert.True(firstKerningCount > 0);
+            Assert.Equal(firstRasterizeCount, rasterizer.RasterizeCallCount);
+            Assert.Equal(firstKerningCount, rasterizer.KerningRequestCount);
+        }
+        finally
+        {
+            UiTextRenderer.ConfigureRuntimeServicesForTests();
+        }
+    }
+
     private sealed class FakeCatalog : IUiFontCatalog
     {
         public UiTypography LastTypography { get; private set; }
@@ -124,6 +157,7 @@ public sealed class UiTextRendererRuntimeServicesTests
     {
         public UiResolvedTypeface LastTypeface { get; private set; }
         public int KerningRequestCount { get; private set; }
+        public int RasterizeCallCount { get; private set; }
 
         public UiTextMetrics Measure(UiResolvedTypeface typeface, float fontSize, string text, UiTextStyleOverride styleOverride)
         {
@@ -143,6 +177,7 @@ public sealed class UiTextRendererRuntimeServicesTests
             LastTypeface = typeface;
             _ = fontSize;
             _ = antialiasMode;
+            RasterizeCallCount++;
             return codePoint switch
             {
                 'A' => new UiGlyphRasterized([], 0, 0, 1, 0f, 8f, 5.25f, antialiasMode),

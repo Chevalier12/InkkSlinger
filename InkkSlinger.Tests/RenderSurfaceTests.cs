@@ -372,6 +372,76 @@ public sealed class RenderSurfaceTests
     }
 
     [Fact]
+    public void UiDrawing_PushLocalState_AppliesAxisAlignedScaleAndTranslationToClipBounds()
+    {
+        var graphicsDevice = CreateFakeGraphicsDevice();
+
+        try
+        {
+            UiDrawing.ConfigureDrawingStateForTests(
+                graphicsDevice,
+                new[]
+                {
+                    new Rectangle(0, 0, 500, 500)
+                },
+                Array.Empty<Matrix>());
+
+            var appliedClip = UiDrawing.PushLocalStateForTests(
+                graphicsDevice,
+                hasTransform: true,
+                Matrix.CreateScale(1.5f, 2f, 1f) * Matrix.CreateTranslation(30f, 15f, 0f),
+                hasClip: true,
+                new LayoutRect(10f, 20f, 100f, 60f));
+
+            Assert.Equal(new Rectangle(45, 55, 150, 120), appliedClip);
+
+            var restoredClip = UiDrawing.PopLocalStateForTests(
+                graphicsDevice,
+                hasTransform: true,
+                hasClip: true);
+
+            Assert.Equal(new Rectangle(0, 0, 500, 500), restoredClip);
+        }
+        finally
+        {
+            UiDrawing.ReleaseDeviceResourcesForTests(graphicsDevice);
+        }
+    }
+
+    [Fact]
+    public void UiDrawing_TryGetAxisAligned2DTransformInfo_ReturnsScaleTranslationAndPixelBounds()
+    {
+        var graphicsDevice = CreateFakeGraphicsDevice();
+
+        try
+        {
+            UiDrawing.ConfigureDrawingStateForTests(
+                graphicsDevice,
+                new[]
+                {
+                    new Rectangle(0, 0, 500, 500)
+                },
+                new[]
+                {
+                    Matrix.CreateScale(1.5f, 2f, 1f) * Matrix.CreateTranslation(30f, 15f, 0f)
+                });
+
+            var success = UiDrawing.TryGetAxisAligned2DTransformInfo(graphicsDevice, out var scaleX, out var scaleY, out var offsetX, out var offsetY);
+
+            Assert.True(success);
+            Assert.Equal(1.5f, scaleX);
+            Assert.Equal(2f, scaleY);
+            Assert.Equal(30f, offsetX);
+            Assert.Equal(15f, offsetY);
+            Assert.Equal(new Rectangle(45, 55, 150, 120), UiDrawing.TransformRectToPixelBounds(graphicsDevice, new LayoutRect(10f, 20f, 100f, 60f)));
+        }
+        finally
+        {
+            UiDrawing.ReleaseDeviceResourcesForTests(graphicsDevice);
+        }
+    }
+
+    [Fact]
     public void OverrideOnlyManagedSurface_UsesManagedModeWithoutSubscribers()
     {
         var renderSurface = new OverridingRenderSurface();

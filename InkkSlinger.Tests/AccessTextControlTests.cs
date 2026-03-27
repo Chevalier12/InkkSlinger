@@ -83,4 +83,27 @@ public sealed class AccessTextControlTests
         Assert.Equal(1, lineIndex);
         Assert.Equal(2, columnIndex);
     }
+
+    [Fact]
+    public void LayoutCache_ReusesParsedDisplayTextLayout()
+    {
+        var accessText = new AccessText
+        {
+            Text = "Sa_ve very long title",
+            TextWrapping = TextWrapping.Wrap
+        };
+
+        accessText.PrimeLayoutCacheForTests(96f);
+        accessText.PrimeLayoutCacheForTests(96f);
+        var firstSnapshot = accessText.GetPerformanceSnapshot();
+
+        Assert.True(firstSnapshot.LayoutCacheMissCount >= 1);
+        Assert.True(firstSnapshot.LayoutCacheHitCount >= 1);
+
+        accessText.Text = "_Open recent project";
+        accessText.PrimeLayoutCacheForTests(96f);
+        var secondSnapshot = accessText.GetPerformanceSnapshot();
+
+        Assert.True(secondSnapshot.LayoutCacheMissCount > firstSnapshot.LayoutCacheMissCount);
+    }
 }

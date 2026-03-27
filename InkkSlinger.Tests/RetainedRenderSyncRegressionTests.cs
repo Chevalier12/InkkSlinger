@@ -102,6 +102,25 @@ public sealed class RetainedRenderSyncRegressionTests
     }
 
     [Fact]
+    public void DirtyQueueCompaction_SingleInvalidation_KeepsOneDirtyRootAndClearsQueue()
+    {
+        var root = new Panel();
+        var child = new Border();
+        root.AddChild(child);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        child.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.Equal(1, uiRoot.GetPerformanceTelemetrySnapshotForTests().DirtyRootCount);
+        Assert.Equal(0, uiRoot.DirtyRenderQueueCount);
+        Assert.Contains(child, uiRoot.GetRetainedVisualOrderForTests());
+    }
+
+    [Fact]
     public void ShallowSyncReject_EffectiveVisibilityChanged_RetainedStructureRemainsValid()
     {
         var root = new Panel();

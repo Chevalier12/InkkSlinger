@@ -88,6 +88,19 @@ public sealed partial class UiRoot
 
         EnsureVisualIndexCurrent();
         var requiresFullRebuild = _renderListNeedsFullRebuild || _retainedRenderList.Count == 0;
+        if (_dirtyRenderCompactionBuffer.Count == 1 &&
+            TryCompactSingleDirtyRenderCandidate(_dirtyRenderCompactionBuffer[0], requiresFullRebuild))
+        {
+            _lastDirtyRootCountAfterCoalescing = _dirtyRenderWorkItems.Count;
+            for (var i = 0; i < _dirtyRenderWorkItems.Count; i++)
+            {
+                _lastCoalescedDirtyRenderRoots.Add(_dirtyRenderWorkItems[i].Visual);
+            }
+
+            _lastRetainedQueueCompactionMs += Stopwatch.GetElapsedTime(compactionStart).TotalMilliseconds;
+            return;
+        }
+
         for (var i = 0; i < _dirtyRenderCompactionBuffer.Count; i++)
         {
             var candidate = _dirtyRenderCompactionBuffer[i];
@@ -129,6 +142,35 @@ public sealed partial class UiRoot
         }
 
         _lastRetainedQueueCompactionMs += Stopwatch.GetElapsedTime(compactionStart).TotalMilliseconds;
+    }
+
+    private bool TryCompactSingleDirtyRenderCandidate(UIElement candidate, bool requiresFullRebuild)
+    {
+        if (!TryGetIndexedVisualNodeCore(candidate, out _))
+        {
+            return true;
+        }
+
+        if (requiresFullRebuild)
+        {
+            _dirtyRenderWorkItems.Add(new DirtyRenderWorkItem(candidate, -1, -1, true));
+            return true;
+        }
+
+        if (!_renderNodeIndices.TryGetValue(candidate, out var renderNodeIndex))
+        {
+            _renderListNeedsFullRebuild = true;
+            _dirtyRenderWorkItems.Add(new DirtyRenderWorkItem(candidate, -1, -1, true));
+            return true;
+        }
+
+        var node = _retainedRenderList[renderNodeIndex];
+        _dirtyRenderWorkItems.Add(new DirtyRenderWorkItem(
+            candidate,
+            renderNodeIndex,
+            node.SubtreeEndIndexExclusive,
+            false));
+        return true;
     }
 
     private void CoalesceDirtyRenderCandidates()

@@ -953,6 +953,11 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         return true;
     }
 
+    internal bool HasPendingRenderDirtyBoundsHintForRetainedSync()
+    {
+        return _hasPendingRenderDirtyBoundsHint;
+    }
+
     private void OnStateMutationChanged(TrackStateMutationSource source)
     {
         var startTicks = Stopwatch.GetTimestamp();

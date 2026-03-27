@@ -11,6 +11,7 @@ internal static class UiTextRenderer
 {
     private const int MetricsCacheCapacity = 4096;
     private const int LineHeightCacheCapacity = 256;
+    private const int ShapedTextLayoutCacheCapacity = 2048;
     private static readonly object SyncRoot = new();
     private static readonly HashSet<string> PrewarmedGlyphBuckets = new(StringComparer.Ordinal);
     private static readonly Dictionary<GraphicsDevice, UiGlyphAtlas> GrayscaleAtlases = new();
@@ -21,6 +22,8 @@ internal static class UiTextRenderer
     private static readonly Queue<UiTextMetricsCacheKey> MetricsCacheOrder = new();
     private static readonly Dictionary<UiLineHeightCacheKey, float> LineHeightCache = new();
     private static readonly Queue<UiLineHeightCacheKey> LineHeightCacheOrder = new();
+    private static readonly Dictionary<UiShapedTextLayoutCacheKey, UiShapedTextLayout> ShapedTextLayoutCache = new();
+    private static readonly Queue<UiShapedTextLayoutCacheKey> ShapedTextLayoutCacheOrder = new();
     private static IUiFontCatalog _fontCatalog = CreateDefaultFontCatalog();
     private static IUiFontRasterizer _rasterizer = CreateDefaultRasterizer();
     private static UiTypography _defaultTypography = new("Segoe UI", 12f, "Normal", "Normal");
@@ -65,6 +68,8 @@ internal static class UiTextRenderer
             MetricsCacheOrder.Clear();
             LineHeightCache.Clear();
             LineHeightCacheOrder.Clear();
+            ShapedTextLayoutCache.Clear();
+            ShapedTextLayoutCacheOrder.Clear();
             PrewarmedGlyphBuckets.Clear();
 
             var nextCatalog = fontCatalog ?? CreateDefaultFontCatalog();
@@ -157,13 +162,7 @@ internal static class UiTextRenderer
         {
             _drawStringCallCount++;
 
-            var scaleX = MathF.Abs(UiDrawing.GetScaleX(spriteBatch));
             var scaleY = MathF.Abs(UiDrawing.GetScaleY(spriteBatch));
-            if (scaleX <= 0f)
-            {
-                scaleX = 1f;
-            }
-
             if (scaleY <= 0f)
             {
                 scaleY = 1f;
@@ -176,39 +175,14 @@ internal static class UiTextRenderer
             _ = opaqueBackground;
             var mode = UiTextAntialiasMode.Grayscale;
             var effectiveTypography = typography.Apply(styleOverride);
-            var typeface = ResolveTypefaceCached(effectiveTypography);
-            var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size * scaleY));
             var scaledTypography = effectiveTypography with { Size = effectiveTypography.Size * scaleY };
-            var metrics = GetTextMetrics(scaledTypography, text, UiTextStyleOverride.None);
-            var lineHeight = GetLineHeight(scaledTypography);
-
-            var currentX = transformedPosition.X;
-            var baselineY = transformedPosition.Y + metrics.Ascent;
-            uint previousGlyphIndex = 0;
-            foreach (var rune in text.EnumerateRunes())
+            var typeface = ResolveTypefaceCached(scaledTypography);
+            var pixelSize = Math.Max(1, (int)MathF.Round(scaledTypography.Size));
+            var shapedLayout = ResolveShapedTextLayout(scaledTypography, text);
+            for (var i = 0; i < shapedLayout.CodePoints.Length; i++)
             {
-                if (rune.Value == '\r')
-                {
-                    continue;
-                }
-
-                if (rune.Value == '\n')
-                {
-                    currentX = transformedPosition.X;
-                    baselineY += lineHeight;
-                    previousGlyphIndex = 0;
-                    continue;
-                }
-
-                var glyph = ResolveGlyph(spriteBatch.GraphicsDevice, typeface, pixelSize, rune.Value, mode);
-                if (previousGlyphIndex != 0 && glyph.GlyphIndex != 0)
-                {
-                    currentX += _rasterizer.GetKerning(typeface, pixelSize, previousGlyphIndex, glyph.GlyphIndex);
-                }
-
-                DrawGlyph(spriteBatch, glyph, currentX, baselineY, color);
-                currentX += glyph.AdvanceX;
-                previousGlyphIndex = glyph.GlyphIndex;
+                var glyph = ResolveGlyph(spriteBatch.GraphicsDevice, typeface, pixelSize, shapedLayout.CodePoints[i], mode);
+                DrawGlyphAtPosition(spriteBatch, glyph, transformedPosition + shapedLayout.DrawPositions[i], color);
             }
         }
         finally
@@ -447,11 +421,41 @@ internal static class UiTextRenderer
         }
 
         var effectiveTypography = typography.Apply(styleOverride);
-        var typeface = ResolveTypefaceCached(effectiveTypography);
+        return ResolveShapedTextLayout(effectiveTypography, text).Width;
+    }
+
+    internal static IReadOnlyList<Vector2> GetGlyphDrawPositionsForTests(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return Array.Empty<Vector2>();
+        }
+
+        var effectiveTypography = typography.Apply(styleOverride);
+        return ResolveShapedTextLayout(effectiveTypography, text).DrawPositions;
+    }
+
+    private static UiShapedTextLayout ResolveShapedTextLayout(UiTypography typography, string text)
+    {
+        var cacheKey = new UiShapedTextLayoutCacheKey(typography, text);
+        lock (SyncRoot)
+        {
+            if (ShapedTextLayoutCache.TryGetValue(cacheKey, out var cached))
+            {
+                return cached;
+            }
+        }
+
+        var typeface = ResolveTypefaceCached(typography);
+        var metrics = GetTextMetrics(typography, text, UiTextStyleOverride.None);
+        var lineHeight = MathF.Max(1f, metrics.LineHeight);
+        var pixelSize = Math.Max(1, (int)MathF.Round(typography.Size));
+        var codePoints = new List<int>(text.Length);
+        var positions = new List<Vector2>(text.Length);
         var penX = 0f;
+        var baselineY = metrics.Ascent;
         var maxWidth = 0f;
         uint previousGlyphIndex = 0;
-        var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size));
 
         foreach (var rune in text.EnumerateRunes())
         {
@@ -464,49 +468,6 @@ internal static class UiTextRenderer
             {
                 maxWidth = MathF.Max(maxWidth, penX);
                 penX = 0f;
-                previousGlyphIndex = 0;
-                continue;
-            }
-
-            var glyph = _rasterizer.Rasterize(typeface, pixelSize, rune.Value, UiTextAntialiasMode.Grayscale);
-            if (previousGlyphIndex != 0 && glyph.GlyphIndex != 0)
-            {
-                penX += _rasterizer.GetKerning(typeface, pixelSize, previousGlyphIndex, glyph.GlyphIndex);
-            }
-
-            penX += glyph.AdvanceX;
-            previousGlyphIndex = glyph.GlyphIndex;
-        }
-
-        return MathF.Max(maxWidth, penX);
-    }
-
-    internal static IReadOnlyList<Vector2> GetGlyphDrawPositionsForTests(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return Array.Empty<Vector2>();
-        }
-
-        var effectiveTypography = typography.Apply(styleOverride);
-        var typeface = ResolveTypefaceCached(effectiveTypography);
-        var penX = 0f;
-        var baselineY = GetTextMetrics(effectiveTypography, text, UiTextStyleOverride.None).Ascent;
-        var lineHeight = GetLineHeight(effectiveTypography);
-        uint previousGlyphIndex = 0;
-        var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size));
-        var positions = new List<Vector2>(text.Length);
-
-        foreach (var rune in text.EnumerateRunes())
-        {
-            if (rune.Value == '\r')
-            {
-                continue;
-            }
-
-            if (rune.Value == '\n')
-            {
-                penX = 0f;
                 baselineY += lineHeight;
                 previousGlyphIndex = 0;
                 continue;
@@ -518,12 +479,19 @@ internal static class UiTextRenderer
                 penX += _rasterizer.GetKerning(typeface, pixelSize, previousGlyphIndex, glyph.GlyphIndex);
             }
 
+            codePoints.Add(rune.Value);
             positions.Add(GetGlyphDrawPosition(penX, baselineY, glyph.BearingX, glyph.BearingY));
             penX += glyph.AdvanceX;
             previousGlyphIndex = glyph.GlyphIndex;
         }
 
-        return positions;
+        var layout = new UiShapedTextLayout(codePoints.ToArray(), positions.ToArray(), MathF.Max(maxWidth, penX));
+        lock (SyncRoot)
+        {
+            AddShapedTextLayoutEntryNoLock(cacheKey, layout);
+        }
+
+        return layout;
     }
 
     private static UiResolvedTypeface ResolveTypefaceCached(UiTypography typography)
@@ -602,6 +570,23 @@ internal static class UiTextRenderer
 
         LineHeightCache[key] = lineHeight;
         LineHeightCacheOrder.Enqueue(key);
+    }
+
+    private static void AddShapedTextLayoutEntryNoLock(UiShapedTextLayoutCacheKey key, UiShapedTextLayout layout)
+    {
+        if (ShapedTextLayoutCache.ContainsKey(key))
+        {
+            return;
+        }
+
+        if (ShapedTextLayoutCache.Count >= ShapedTextLayoutCacheCapacity)
+        {
+            var evicted = ShapedTextLayoutCacheOrder.Dequeue();
+            ShapedTextLayoutCache.Remove(evicted);
+        }
+
+        ShapedTextLayoutCache[key] = layout;
+        ShapedTextLayoutCacheOrder.Enqueue(key);
     }
 
     private static IUiFontCatalog CreateDefaultFontCatalog()
@@ -704,6 +689,20 @@ internal static class UiTextRenderer
             glyph.SourceRect,
             color);
     }
+
+    private static void DrawGlyphAtPosition(SpriteBatch spriteBatch, UiGlyphEntry glyph, Vector2 position, Color color)
+    {
+        if (glyph.SourceRect.Width <= 0 || glyph.SourceRect.Height <= 0)
+        {
+            return;
+        }
+
+        spriteBatch.Draw(
+            glyph.Texture,
+            position,
+            glyph.SourceRect,
+            color);
+    }
 }
 
 internal readonly record struct UiTextRendererTimingSnapshot(
@@ -734,3 +733,12 @@ internal readonly record struct UiTextMetricsCacheKey(
 
 internal readonly record struct UiLineHeightCacheKey(
     UiTypography Typography);
+
+internal readonly record struct UiShapedTextLayoutCacheKey(
+    UiTypography Typography,
+    string Text);
+
+internal readonly record struct UiShapedTextLayout(
+    int[] CodePoints,
+    Vector2[] DrawPositions,
+    float Width);

@@ -320,7 +320,7 @@ public sealed class ControlsCatalogSidebarScrollHotspotDiagnosticsTests
             baseline.TotalDirtyRoots > 0 &&
             progressBar.TotalDirtyRoots > baseline.TotalDirtyRoots)
         {
-            return "The old layout hotspot is gone. The remaining hotspot is UiRoot.RunRenderSchedulingPhase -> SynchronizeRetainedRenderList, driven by one Track#PART_Track dirty root per sidebar wheel step plus the indeterminate ProgressBar's PART_Indicator/PART_GlowRect render invalidations. The ProgressBar now animates those template parts with batched TranslateTransform updates, which removes the old per-frame arrange churn, but retained-render sync still dominates when scrolling and animating at the same time.";
+            return "The old layout hotspot is gone. The remaining hotspot is UiRoot.RunRenderSchedulingPhase -> SynchronizeRetainedRenderList, now driven by one retained dirty root per sidebar wheel step while Track#PART_Track remains the effective render invalidation source. The ProgressBar still adds PART_Indicator/PART_GlowRect dirty roots during its batched TranslateTransform animation, so retained-render sync remains the dominant shared cost when scrolling and animating at the same time.";
         }
 
         if (progressBar.TotalFrameUpdateParticipants > baseline.TotalFrameUpdateParticipants &&

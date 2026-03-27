@@ -127,12 +127,13 @@ public sealed partial class UiRoot
             _hasCaretBlinkInvalidation = true;
         }
 
+        var retainedSyncSource = ResolveRetainedSyncSource(visual, effectiveSource, requireDeepSync);
+
         if (UseDirtyRegionRendering)
         {
-            TrackDirtyBoundsForVisual(effectiveSource);
+            TrackDirtyBoundsForVisual(ResolveDirtyBoundsSource(visual, effectiveSource));
         }
 
-        var retainedSyncSource = ResolveRetainedSyncSource(visual, effectiveSource);
         if (retainedSyncSource != null)
         {
             EnqueueDirtyRenderNode(retainedSyncSource, requireDeepSync);
@@ -186,11 +187,13 @@ public sealed partial class UiRoot
                     _hasCaretBlinkInvalidation = true;
                 }
 
+                var retainedSyncSource = ResolveRetainedSyncSource(source, effectiveSource, requireDeepSync);
+
                 if (UseDirtyRegionRendering)
                 {
-                    TrackDirtyBoundsForVisual(effectiveSource);
+                    TrackDirtyBoundsForVisual(ResolveDirtyBoundsSource(source, effectiveSource));
                 }
-                var retainedSyncSource = ResolveRetainedSyncSource(source, effectiveSource);
+
                 if (retainedSyncSource != null)
                 {
                     EnqueueDirtyRenderNode(retainedSyncSource, requireDeepSync);
@@ -230,12 +233,13 @@ public sealed partial class UiRoot
             _hasCaretBlinkInvalidation = true;
         }
 
+        var retainedSyncSource = ResolveRetainedSyncSource(source, effectiveSource, requireDeepSync);
+
         if (UseDirtyRegionRendering)
         {
-            TrackDirtyBoundsForVisual(effectiveSource);
+            TrackDirtyBoundsForVisual(ResolveDirtyBoundsSource(source, effectiveSource));
         }
 
-        var retainedSyncSource = ResolveRetainedSyncSource(source, effectiveSource);
         if (retainedSyncSource != null)
         {
             EnqueueDirtyRenderNode(retainedSyncSource, requireDeepSync);
@@ -317,7 +321,27 @@ public sealed partial class UiRoot
         return false;
     }
 
-    private UIElement? ResolveRetainedSyncSource(UIElement? requestedSource, UIElement? effectiveSource)
+    private UIElement? ResolveRetainedSyncSource(UIElement? requestedSource, UIElement? effectiveSource, bool requireDeepSync)
+    {
+        if (!requireDeepSync &&
+            requestedSource is Track track &&
+            ReferenceEquals(requestedSource, effectiveSource) &&
+            track.HasPendingRenderDirtyBoundsHintForRetainedSync())
+        {
+            return null;
+        }
+
+        if (requestedSource != null &&
+            TryGetIndexedVisualNodeCore(requestedSource, out _) &&
+            IsTransformScrollRetainedSyncCandidate(requestedSource))
+        {
+            return requestedSource;
+        }
+
+        return effectiveSource;
+    }
+
+    private UIElement? ResolveDirtyBoundsSource(UIElement? requestedSource, UIElement? effectiveSource)
     {
         if (requestedSource != null &&
             TryGetIndexedVisualNodeCore(requestedSource, out _) &&

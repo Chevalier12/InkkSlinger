@@ -8,6 +8,12 @@ namespace InkkSlinger;
 public class Border : Decorator
 {
     private static readonly Dictionary<GraphicsDevice, Dictionary<RoundedTextureCacheKey, Texture2D>> RoundedTextureCaches = new();
+    private BorderRenderState _renderStateCache;
+    private bool _hasRenderStateCache;
+    private RoundedRectRadii _outerRadiiCache;
+    private float _outerRadiiCacheWidth = float.NaN;
+    private float _outerRadiiCacheHeight = float.NaN;
+    private bool _hasOuterRadiiCache;
     private RoundedGeometryCacheKey _roundedGeometryCacheKey;
     private bool _hasRoundedGeometryCache;
     private Vector2[] _roundedFillPolygon = Array.Empty<Vector2>();
@@ -21,6 +27,7 @@ public class Border : Decorator
     private Vector2[] _bottomLeftCornerBorderPolygon = Array.Empty<Vector2>();
     private int _bottomLeftCornerBorderPolygonPointCount;
     private static int _roundedGeometryCacheBuildCount;
+    private static int _renderStateCacheBuildCount;
 
     public static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
@@ -123,11 +130,26 @@ public class Border : Decorator
         _roundedGeometryCacheBuildCount = 0;
     }
 
+    internal static int GetRenderStateCacheBuildCountForTests()
+    {
+        return _renderStateCacheBuildCount;
+    }
+
+    internal static void ResetRenderStateCacheBuildCountForTests()
+    {
+        _renderStateCacheBuildCount = 0;
+    }
+
     internal void BuildRoundedGeometryCacheForTests()
     {
         var slot = LayoutSlot;
-        var radii = CreateOuterRadii(CornerRadius, slot.Width, slot.Height);
-        EnsureRoundedGeometryCache(slot, radii, GetRenderBorderThickness());
+        var radii = ResolveOuterRadii(slot);
+        EnsureRoundedGeometryCache(slot, radii, ResolveRenderState().BorderThickness);
+    }
+
+    internal void ResolveRenderStateForTests()
+    {
+        _ = ResolveRenderState();
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
@@ -182,17 +204,25 @@ public class Border : Decorator
             return;
         }
 
-        var backgroundColor = Background?.ToColor() ?? Color.Transparent;
-        var borderColor = BorderBrush?.ToColor() ?? Color.Transparent;
-        var borderThickness = GetRenderBorderThickness();
-        var hasVisibleBackground = backgroundColor.A > 0;
-        var hasVisibleBorder = HasVisibleBorder(borderThickness, borderColor);
+        var renderState = ResolveRenderState();
+        var backgroundColor = renderState.BackgroundColor;
+        var borderColor = renderState.BorderColor;
+        var borderThickness = renderState.BorderThickness;
+        var hasVisibleBackground = renderState.HasVisibleBackground;
+        var hasVisibleBorder = renderState.HasVisibleBorder;
         if (!hasVisibleBackground && !hasVisibleBorder)
         {
             return;
         }
 
-        var outerRadii = CreateOuterRadii(CornerRadius, slot.Width, slot.Height);
+        var cornerRadius = CornerRadius;
+        if (!HasAnyCornerRadius(cornerRadius))
+        {
+            DrawRectangularBorder(spriteBatch, slot, borderThickness, backgroundColor, borderColor);
+            return;
+        }
+
+        var outerRadii = ResolveOuterRadii(slot);
         if (!outerRadii.HasAnyRadius)
         {
             DrawRectangularBorder(spriteBatch, slot, borderThickness, backgroundColor, borderColor);
@@ -206,7 +236,7 @@ public class Border : Decorator
 
         if (hasVisibleBackground)
         {
-            DrawRoundedRectFill(spriteBatch, slot, outerRadii, backgroundColor);
+            DrawRoundedRectFill(spriteBatch, slot, outerRadii, borderThickness, backgroundColor);
         }
 
         if (!hasVisibleBorder)
@@ -240,6 +270,7 @@ public class Border : Decorator
 
     private void OnBackgroundBrushChanged(DependencyPropertyChangedEventArgs args)
     {
+        InvalidateRenderStateCache();
         if (args.OldValue is Brush oldBrush)
         {
             oldBrush.Changed -= OnBackgroundBrushMutated;
@@ -253,6 +284,7 @@ public class Border : Decorator
 
     private void OnBorderBrushChanged(DependencyPropertyChangedEventArgs args)
     {
+        InvalidateRenderStateCache();
         if (args.OldValue is Brush oldBrush)
         {
             oldBrush.Changed -= OnBorderBrushMutated;
@@ -266,12 +298,31 @@ public class Border : Decorator
 
     private void OnBackgroundBrushMutated()
     {
+        InvalidateRenderStateCache();
         InvalidateVisual();
     }
 
     private void OnBorderBrushMutated()
     {
+        InvalidateRenderStateCache();
         InvalidateVisual();
+    }
+
+    protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
+    {
+        base.OnDependencyPropertyChanged(args);
+
+        if (ReferenceEquals(args.Property, BorderThicknessProperty))
+        {
+            InvalidateRenderStateCache();
+            InvalidateOuterRadiiCache();
+            return;
+        }
+
+        if (ReferenceEquals(args.Property, CornerRadiusProperty))
+        {
+            InvalidateOuterRadiiCache();
+        }
     }
 
     private void DrawRectangularBorder(
@@ -281,6 +332,11 @@ public class Border : Decorator
         Color backgroundColor,
         Color borderColor)
     {
+        if (TryDrawAxisAlignedRectangularBorder(spriteBatch, slot, borderThickness, backgroundColor, borderColor))
+        {
+            return;
+        }
+
         if (backgroundColor.A > 0)
         {
             UiDrawing.DrawFilledRect(spriteBatch, slot, backgroundColor, Opacity);
@@ -328,13 +384,85 @@ public class Border : Decorator
         }
     }
 
+    private bool TryDrawAxisAlignedRectangularBorder(
+        SpriteBatch spriteBatch,
+        LayoutRect slot,
+        Thickness borderThickness,
+        Color backgroundColor,
+        Color borderColor)
+    {
+        if (!UiDrawing.TryGetAxisAligned2DTransformInfo(spriteBatch, out var scaleX, out var scaleY, out var offsetX, out var offsetY))
+        {
+            return false;
+        }
+
+        var pixelRect = UiDrawing.TransformRectToPixelBounds(spriteBatch, slot);
+        if (pixelRect.Width <= 0 || pixelRect.Height <= 0)
+        {
+            return true;
+        }
+
+        if (backgroundColor.A > 0)
+        {
+            UiDrawing.DrawFilledRectPixels(spriteBatch, pixelRect, backgroundColor, Opacity);
+        }
+
+        if (!HasVisibleBorder(borderThickness, borderColor))
+        {
+            return true;
+        }
+
+        var leftWidth = GetAxisAlignedPixelThickness(slot.X, slot.X + borderThickness.Left, scaleX, offsetX);
+        if (leftWidth > 0)
+        {
+            UiDrawing.DrawFilledRectPixels(
+                spriteBatch,
+                new Rectangle(pixelRect.X, pixelRect.Y, leftWidth, pixelRect.Height),
+                borderColor,
+                Opacity);
+        }
+
+        var rightWidth = GetAxisAlignedPixelThickness(slot.X + slot.Width - borderThickness.Right, slot.X + slot.Width, scaleX, offsetX);
+        if (rightWidth > 0)
+        {
+            UiDrawing.DrawFilledRectPixels(
+                spriteBatch,
+                new Rectangle(pixelRect.Right - rightWidth, pixelRect.Y, rightWidth, pixelRect.Height),
+                borderColor,
+                Opacity);
+        }
+
+        var topHeight = GetAxisAlignedPixelThickness(slot.Y, slot.Y + borderThickness.Top, scaleY, offsetY);
+        if (topHeight > 0)
+        {
+            UiDrawing.DrawFilledRectPixels(
+                spriteBatch,
+                new Rectangle(pixelRect.X, pixelRect.Y, pixelRect.Width, topHeight),
+                borderColor,
+                Opacity);
+        }
+
+        var bottomHeight = GetAxisAlignedPixelThickness(slot.Y + slot.Height - borderThickness.Bottom, slot.Y + slot.Height, scaleY, offsetY);
+        if (bottomHeight > 0)
+        {
+            UiDrawing.DrawFilledRectPixels(
+                spriteBatch,
+                new Rectangle(pixelRect.X, pixelRect.Bottom - bottomHeight, pixelRect.Width, bottomHeight),
+                borderColor,
+                Opacity);
+        }
+
+        return true;
+    }
+
     private void DrawRoundedRectFill(
         SpriteBatch spriteBatch,
         LayoutRect rect,
         RoundedRectRadii radii,
+        Thickness borderThickness,
         Color color)
     {
-        EnsureRoundedGeometryCache(rect, radii, GetRenderBorderThickness());
+        EnsureRoundedGeometryCache(rect, radii, borderThickness);
         var polygon = _roundedFillPolygon;
         var pointCount = _roundedFillPolygonPointCount;
         if (pointCount >= 3)
@@ -359,7 +487,7 @@ public class Border : Decorator
 
         if (innerRect.Width <= 0f || innerRect.Height <= 0f)
         {
-            DrawRoundedRectFill(spriteBatch, outerRect, outerRadii, borderColor);
+            DrawRoundedRectFill(spriteBatch, outerRect, outerRadii, borderThickness, borderColor);
             return;
         }
 
@@ -396,6 +524,56 @@ public class Border : Decorator
         DrawCachedCornerBorderSegment(spriteBatch, _topRightCornerBorderPolygon, _topRightCornerBorderPolygonPointCount, borderColor);
         DrawCachedCornerBorderSegment(spriteBatch, _bottomRightCornerBorderPolygon, _bottomRightCornerBorderPolygonPointCount, borderColor);
         DrawCachedCornerBorderSegment(spriteBatch, _bottomLeftCornerBorderPolygon, _bottomLeftCornerBorderPolygonPointCount, borderColor);
+    }
+
+    private BorderRenderState ResolveRenderState()
+    {
+        if (_hasRenderStateCache)
+        {
+            return _renderStateCache;
+        }
+
+        _renderStateCacheBuildCount++;
+        var backgroundColor = Background?.ToColor() ?? Color.Transparent;
+        var borderColor = BorderBrush?.ToColor() ?? Color.Transparent;
+        var borderThickness = GetRenderBorderThickness();
+        _renderStateCache = new BorderRenderState(
+            backgroundColor,
+            borderColor,
+            borderThickness,
+            backgroundColor.A > 0,
+            HasVisibleBorder(borderThickness, borderColor));
+        _hasRenderStateCache = true;
+        return _renderStateCache;
+    }
+
+    private RoundedRectRadii ResolveOuterRadii(LayoutRect slot)
+    {
+        if (_hasOuterRadiiCache &&
+            AreClose(_outerRadiiCacheWidth, slot.Width) &&
+            AreClose(_outerRadiiCacheHeight, slot.Height))
+        {
+            return _outerRadiiCache;
+        }
+
+        _outerRadiiCache = CreateOuterRadii(CornerRadius, slot.Width, slot.Height);
+        _outerRadiiCacheWidth = slot.Width;
+        _outerRadiiCacheHeight = slot.Height;
+        _hasOuterRadiiCache = true;
+        return _outerRadiiCache;
+    }
+
+    private void InvalidateRenderStateCache()
+    {
+        _hasRenderStateCache = false;
+    }
+
+    private void InvalidateOuterRadiiCache()
+    {
+        _hasOuterRadiiCache = false;
+        _outerRadiiCacheWidth = float.NaN;
+        _outerRadiiCacheHeight = float.NaN;
+        _outerRadiiCache = RoundedRectRadii.Empty;
     }
 
     private bool TryDrawCachedRoundedBorderTexture(
@@ -642,6 +820,21 @@ public class Border : Decorator
     private static bool AreClose(float left, float right)
     {
         return MathF.Abs(left - right) < 0.01f;
+    }
+
+    private static bool HasAnyCornerRadius(CornerRadius cornerRadius)
+    {
+        return cornerRadius.TopLeft > 0f ||
+               cornerRadius.TopRight > 0f ||
+               cornerRadius.BottomRight > 0f ||
+               cornerRadius.BottomLeft > 0f;
+    }
+
+    private static int GetAxisAlignedPixelThickness(float start, float end, float scale, float offset)
+    {
+        var transformedStart = (start * scale) + offset;
+        var transformedEnd = (end * scale) + offset;
+        return Math.Abs((int)MathF.Round(transformedEnd) - (int)MathF.Round(transformedStart));
     }
 
     private static bool HasVisibleBorder(Thickness thickness, Color borderColor)
@@ -968,4 +1161,11 @@ public class Border : Decorator
 
         public static RoundedRectRadii Empty => new(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
     }
+
+    private readonly record struct BorderRenderState(
+        Color BackgroundColor,
+        Color BorderColor,
+        Thickness BorderThickness,
+        bool HasVisibleBackground,
+        bool HasVisibleBorder);
 }

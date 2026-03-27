@@ -109,6 +109,60 @@ public sealed class ScrollViewerWheelHoverRegressionTests
         Assert.False(initialButton.IsMouseOver);
     }
 
+    [Fact]
+    public void WheelScroll_OverScrollbarTrack_DoesNotKeepTrackAsRetainedDirtyRoot()
+    {
+        var catalog = new ControlsCatalogView
+        {
+            Width = 1400f,
+            Height = 900f
+        };
+        var host = new Canvas
+        {
+            Width = 1400f,
+            Height = 900f
+        };
+        host.AddChild(catalog);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1400, 900, 16);
+
+        var viewer = FindFirstVisualChild<ScrollViewer>(catalog);
+        Assert.NotNull(viewer);
+
+        var verticalBar = FindFirstVisualChild<ScrollBar>(
+            viewer!,
+            static bar => bar.Orientation == Orientation.Vertical && bar.IsVisible);
+        Assert.NotNull(verticalBar);
+
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 1400f, 900f));
+
+        var pointer = new Vector2(
+            verticalBar!.LayoutSlot.X + (verticalBar.LayoutSlot.Width * 0.5f),
+            verticalBar.LayoutSlot.Y + (verticalBar.LayoutSlot.Height * 0.5f));
+        MovePointer(uiRoot, pointer);
+        RunLayout(uiRoot, 1400, 900, 32);
+
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 1400f, 900f));
+
+        Wheel(uiRoot, pointer, delta: -120);
+        RunLayout(uiRoot, 1400, 900, 48);
+
+        var renderTelemetry = uiRoot.GetRenderTelemetrySnapshotForTests();
+        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRootSummary = uiRoot.GetLastSynchronizedDirtyRootSummaryForTests();
+
+        Assert.True(viewer.VerticalOffset > 0.01f);
+        Assert.Equal("Track", invalidation.EffectiveSourceType);
+        Assert.Equal(1, renderTelemetry.DirtyRootCount);
+        Assert.DoesNotContain("Track", dirtyRootSummary, StringComparison.Ordinal);
+    }
+
     private static (Panel Root, ScrollViewer Viewer) BuildButtonScrollSurface()
     {
         var root = new Panel();
@@ -189,6 +243,26 @@ public sealed class ScrollViewerWheelHoverRegressionTests
             if (current is TElement typed)
             {
                 return typed;
+            }
+        }
+
+        return null;
+    }
+
+    private static TElement? FindFirstVisualChild<TElement>(UIElement root, Func<TElement, bool>? predicate = null)
+        where TElement : UIElement
+    {
+        if (root is TElement match && (predicate == null || predicate(match)))
+        {
+            return match;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindFirstVisualChild(child, predicate);
+            if (found != null)
+            {
+                return found;
             }
         }
 

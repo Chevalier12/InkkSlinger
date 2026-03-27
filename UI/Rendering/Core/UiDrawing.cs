@@ -338,9 +338,62 @@ internal static class UiDrawing
         return Vector2.Transform(point, transform);
     }
 
+    internal static bool TryGetAxisAligned2DTransformInfo(
+        GraphicsDevice graphicsDevice,
+        out float scaleX,
+        out float scaleY,
+        out float offsetX,
+        out float offsetY)
+    {
+        var transform = GetCurrentTransform(graphicsDevice);
+        if (transform == Matrix.Identity)
+        {
+            scaleX = 1f;
+            scaleY = 1f;
+            offsetX = 0f;
+            offsetY = 0f;
+            return true;
+        }
+
+        if (!IsAxisAligned2DTransform(transform))
+        {
+            scaleX = 0f;
+            scaleY = 0f;
+            offsetX = 0f;
+            offsetY = 0f;
+            return false;
+        }
+
+        scaleX = transform.M11;
+        scaleY = transform.M22;
+        offsetX = transform.M41;
+        offsetY = transform.M42;
+        return true;
+    }
+
+    internal static bool TryGetAxisAligned2DTransformInfo(
+        SpriteBatch spriteBatch,
+        out float scaleX,
+        out float scaleY,
+        out float offsetX,
+        out float offsetY)
+    {
+        return TryGetAxisAligned2DTransformInfo(spriteBatch.GraphicsDevice, out scaleX, out scaleY, out offsetX, out offsetY);
+    }
+
     internal static LayoutRect TransformRectBounds(SpriteBatch spriteBatch, LayoutRect rect)
     {
         return TransformRect(spriteBatch.GraphicsDevice, rect);
+    }
+
+    internal static Rectangle TransformRectToPixelBounds(GraphicsDevice graphicsDevice, LayoutRect rect)
+    {
+        return ToRectangle(TransformRect(graphicsDevice, rect));
+    }
+
+    internal static Rectangle TransformRectToPixelBounds(SpriteBatch spriteBatch, LayoutRect rect)
+    {
+        return TransformRectToPixelBounds(spriteBatch.GraphicsDevice, rect);
     }
 
     public static float GetScaleX(SpriteBatch spriteBatch)
@@ -923,6 +976,24 @@ internal static class UiDrawing
             return rect;
         }
 
+        if (IsAxisAligned2DTransform(transform))
+        {
+            var x1 = (rect.X * transform.M11) + transform.M41;
+            var x2 = ((rect.X + rect.Width) * transform.M11) + transform.M41;
+            var y1 = (rect.Y * transform.M22) + transform.M42;
+            var y2 = ((rect.Y + rect.Height) * transform.M22) + transform.M42;
+
+            var axisAlignedMinX = System.MathF.Min(x1, x2);
+            var axisAlignedMaxX = System.MathF.Max(x1, x2);
+            var axisAlignedMinY = System.MathF.Min(y1, y2);
+            var axisAlignedMaxY = System.MathF.Max(y1, y2);
+            return new LayoutRect(
+                axisAlignedMinX,
+                axisAlignedMinY,
+                axisAlignedMaxX - axisAlignedMinX,
+                axisAlignedMaxY - axisAlignedMinY);
+        }
+
         var topLeft = Vector2.Transform(new Vector2(rect.X, rect.Y), transform);
         var topRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y), transform);
         var bottomLeft = Vector2.Transform(new Vector2(rect.X, rect.Y + rect.Height), transform);
@@ -934,6 +1005,22 @@ internal static class UiDrawing
         var maxY = System.MathF.Max(System.MathF.Max(topLeft.Y, topRight.Y), System.MathF.Max(bottomLeft.Y, bottomRight.Y));
 
         return new LayoutRect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    private static bool IsAxisAligned2DTransform(Matrix transform)
+    {
+        return transform.M12 == 0f &&
+               transform.M13 == 0f &&
+               transform.M14 == 0f &&
+               transform.M21 == 0f &&
+               transform.M23 == 0f &&
+               transform.M24 == 0f &&
+               transform.M31 == 0f &&
+               transform.M32 == 0f &&
+               transform.M33 == 1f &&
+               transform.M34 == 0f &&
+               transform.M43 == 0f &&
+               transform.M44 == 1f;
     }
 
     private static Rectangle ToRectangle(LayoutRect rect)

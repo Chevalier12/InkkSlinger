@@ -411,6 +411,45 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
+    public void TransformDefault_DirtyBoundsStayClippedToViewportDuringOffsetOnlyScroll()
+    {
+        var root = new Panel();
+        var content = CreateTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            LineScrollAmount = 30f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
+
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        Assert.True(viewer.HandleMouseWheelFromInput(-120));
+
+        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
+
+        Assert.True(invalidation.HasDirtyBounds);
+        Assert.Contains(dirtyTrace, entry =>
+            entry.StartsWith(nameof(StackPanel), System.StringComparison.Ordinal) &&
+            entry.Contains(":scroll-clip-hint:", System.StringComparison.Ordinal));
+        Assert.Contains(dirtyRegions, region =>
+            region.X <= viewportClip.X + 0.01f &&
+            region.Y <= viewportClip.Y + 0.01f &&
+            region.X + region.Width >= viewportClip.X + viewportClip.Width - 0.01f &&
+            region.Y + region.Height >= viewportClip.Y + viewportClip.Height - 0.01f);
+    }
+
+    [Fact]
     public void TransformDefault_ClampsOffsetsToExtent()
     {
         var root = new Panel();
