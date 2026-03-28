@@ -18,6 +18,7 @@ public class Game1 : Game
     private const int MaxCalendarHoverDiagnosticsFrames = 480;
     private readonly GraphicsDeviceManager _graphics;
     private readonly InkkSlinger.Window _window;
+    private readonly InkkOopsRuntimeOptions _inkkOopsOptions;
     private SpriteBatch _spriteBatch = null!;
     private RenderTarget2D? _uiCompositeTarget;
     private Panel _root = null!;
@@ -32,9 +33,17 @@ public class Game1 : Game
     private long _lastCalendarHoverFrameTimestamp;
     private RichTextBoxTypingDiagnosticsSession? _richTextBoxTypingDiagnostics;
     private ControlsCatalogSidebarScrollRuntimeDiagnosticsSession? _sidebarScrollRuntimeDiagnostics;
+    private InkkOopsGameHost? _inkkOopsHost;
+    private InkkOopsRuntimeService? _inkkOopsRuntimeService;
 
     public Game1()
+        : this(new InkkOopsRuntimeOptions())
     {
+    }
+
+    public Game1(InkkOopsRuntimeOptions inkkOopsOptions)
+    {
+        _inkkOopsOptions = inkkOopsOptions ?? throw new ArgumentNullException(nameof(inkkOopsOptions));
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
         Content.RootDirectory = "Content";
@@ -63,11 +72,23 @@ public class Game1 : Game
 
         _uiRoot = new UiRoot(_root)
         {
+            UseRetainedRenderList = !_inkkOopsOptions.DisableRetainedRenderList,
+            UseDirtyRegionRendering = !_inkkOopsOptions.DisableDirtyRegionRendering,
             UseConditionalDrawScheduling = true,
             UseSoftwareCursor = false
         };
         _richTextBoxTypingDiagnostics = RichTextBoxTypingDiagnosticsSession.TryCreate();
         _sidebarScrollRuntimeDiagnostics = ControlsCatalogSidebarScrollRuntimeDiagnosticsSession.CreateDefault();
+        _inkkOopsHost = new InkkOopsGameHost(
+            _uiRoot,
+            _window,
+            EnsureViewportMatchesBackBuffer,
+            () => _uiCompositeTarget,
+            _inkkOopsOptions.ArtifactRoot);
+        _inkkOopsRuntimeService = new InkkOopsRuntimeService(
+            _inkkOopsOptions,
+            _inkkOopsHost,
+            requestAppExit: () => _uiRoot.EnqueueDeferredOperation(Exit));
 
         base.Initialize();
     }
@@ -97,6 +118,7 @@ public class Game1 : Game
         }
 
         _uiRoot.Update(gameTime, viewport);
+        _inkkOopsRuntimeService?.Update();
         _shouldDrawUiThisFrame = _uiRoot.ShouldDrawThisFrame(gameTime, viewport, GraphicsDevice);
         if (!_shouldDrawUiThisFrame)
         {
@@ -158,6 +180,7 @@ public class Game1 : Game
 
             _richTextBoxTypingDiagnostics?.TryCaptureAfterDraw(gameTime, _uiRoot, _catalogView);
             _sidebarScrollRuntimeDiagnostics?.TryCaptureAfterDraw(gameTime, _uiRoot, _catalogView);
+            _inkkOopsRuntimeService?.AfterDraw();
         }
 
         if (_uiCompositeTarget != null)
@@ -208,6 +231,9 @@ public class Game1 : Game
         _richTextBoxTypingDiagnostics = null;
         _sidebarScrollRuntimeDiagnostics?.Dispose();
         _sidebarScrollRuntimeDiagnostics = null;
+        _inkkOopsRuntimeService?.Dispose();
+        _inkkOopsRuntimeService = null;
+        _inkkOopsHost = null;
 
         _uiCompositeTarget?.Dispose();
         _uiCompositeTarget = null;

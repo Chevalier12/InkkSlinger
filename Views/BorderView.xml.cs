@@ -134,7 +134,7 @@ public partial class BorderView : UserControl
         _clipProbeBorder = new Border
         {
             Width = 228f,
-            Height = 132f,
+            Height = 180f,
             Padding = new Thickness(16),
             BorderThickness = new Thickness(2),
             BorderBrush = new Color(126, 168, 212),
@@ -224,6 +224,7 @@ public partial class BorderView : UserControl
             Text = "Overflow badge",
             Foreground = new Color(34, 19, 8)
         };
+        Grid.SetRow(badge, 0);
         root.AddChild(badge);
 
         return root;

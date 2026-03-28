@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs - InkkOops recording and diagnostics</title>
+    <meta name="description" content="Recording user sessions, replaying them, and reading InkkOops diagnostics artifacts.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./docs.css">
+</head>
+<body class="docs-page">
+    <div class="page-shell docs-shell">
+        <header class="site-header docs-header">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger Docs</strong>
+                    <span>InkkOops recording and diagnostics</span>
+                </span>
+            </a>
+            <div class="docs-header-controls">
+                <a class="header-link" href="./index.html">Docs</a>
+            </div>
+        </header>
+        <main class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Documentation tree">
+                <p class="sidebar-label">Docs tree</p>
+                <nav class="tree-nav">
+                    <ul>
+                        <li class="tree-node expanded"><a href="./index.html">Docs Home</a></li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">WPF Bootcamp</summary>
+                                <ul>
+                                    <li><a href="./wpf-bootcamp-overview.html">Overview</a></li>
+                                    <li><a href="./wpf-bootcamp-application-mental-model.html">Application mental model</a></li>
+                                    <li><a href="./wpf-bootcamp-xaml-fundamentals.html">XAML fundamentals</a></li>
+                                    <li><a href="./wpf-bootcamp-layout-deep-dive.html">Layout deep dive</a></li>
+                                    <li><a href="./wpf-bootcamp-controls-and-content-model.html">Controls and content model</a></li>
+                                    <li><a href="./wpf-bootcamp-dependency-properties-explained.html">Dependency properties explained</a></li>
+                                    <li><a href="./wpf-bootcamp-routed-events-and-commands.html">Routed events and commands</a></li>
+                                    <li><a href="./wpf-bootcamp-data-binding-fundamentals.html">Data binding fundamentals</a></li>
+                                    <li><a href="./wpf-bootcamp-mvvm-core-workflow.html">MVVM core workflow</a></li>
+                                    <li><a href="./wpf-bootcamp-collections-and-item-controls.html">Collections and item controls</a></li>
+                                    <li><a href="./wpf-bootcamp-styling-templates-and-reuse.html">Styling, templates, and reuse</a></li>
+                                    <li><a href="./wpf-bootcamp-validation-and-user-input.html">Validation and user input</a></li>
+                                    <li><a href="./wpf-bootcamp-navigation-and-application-composition.html">Navigation and application composition</a></li>
+                                    <li><a href="./wpf-bootcamp-final-walkthrough.html">Final walkthrough</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">Getting Started</summary>
+                                <ul>
+                                    <li><a href="./getting-started-wpf-mental-model.html">How WPF-style UI maps here</a></li>
+                                    <li><a href="./getting-started-hello-world-without-viewmodel.html">Hello World without a ViewModel</a></li>
+                                    <li><a href="./getting-started-hello-world-with-viewmodel.html">Hello World with a ViewModel</a></li>
+                                    <li><a href="./getting-started-hooking-view-into-monogame.html">Hooking the view into MonoGame</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">RenderSurface</summary>
+                                <ul>
+                                    <li><a href="./rendersurface-what-it-is.html">What it is</a></li>
+                                    <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
+                                    <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group" open>
+                                <summary class="tree-group-toggle">InkkOops</summary>
+                                <ul>
+                                    <li><a href="./inkkoops.html">Overview</a></li>
+                                    <li><a href="./inkkoops-authoring-scripts.html">Authoring scripts</a></li>
+                                    <li><a href="./inkkoops-runtime-cli.html">Runtime and CLI</a></li>
+                                    <li><a class="active" href="./inkkoops-recording-and-diagnostics.html">Recording and diagnostics</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+            <article class="docs-content">
+                <div class="doc-hero">
+                    <p class="eyebrow">InkkOops</p>
+                    <h1>Recording real sessions and reading the artifacts</h1>
+                    <p>Recording is the fastest path from "I can reproduce this by hand" to "the runtime can replay it and capture proof." InkkOops records real window resizes and pointer activity, then turns that into a replayable automation script plus machine-readable diagnostics.</p>
+                </div>
+
+                <section class="doc-section">
+                    <h2>Record a session</h2>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-record
+
+dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code></pre>
+                    <p>Use the app normally. When you are done, close the app normally. The runtime writes a directory under <code>artifacts/inkkoops-recordings</code> by default.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h2>End-to-end runtime examples</h2>
+                    <h3>Example 1: start the app in recording mode</h3>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-record</code></pre>
+                    <p>Then interact with the app manually and close it normally. A new directory will appear under <code>artifacts/inkkoops-recordings</code>, for example:</p>
+<pre><code class="language-text">artifacts/inkkoops-recordings/20260328-120250760-recorded-session/</code></pre>
+<pre><code class="language-csharp">using System.Diagnostics;
+
+var startInfo = new ProcessStartInfo
+{
+    FileName = "dotnet",
+    WorkingDirectory = @"C:\Users\Shadow\Desktop\InkkSlinger",
+    UseShellExecute = false
+};
+
+startInfo.ArgumentList.Add("run");
+startInfo.ArgumentList.Add("--project");
+startInfo.ArgumentList.Add("InkkSlinger.csproj");
+startInfo.ArgumentList.Add("--");
+startInfo.ArgumentList.Add("--inkkoops-record");
+
+using var process = Process.Start(startInfo)!;
+process.WaitForExit();</code></pre>
+
+                    <h3>Example 2: replay the exact recorded session through the app</h3>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-recording "C:\Users\Shadow\Desktop\InkkSlinger\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json"</code></pre>
+                    <p>This launches the app, replays the recorded actions, waits for diagnostics stability, captures the final frame, dumps telemetry, writes artifacts, and exits automatically.</p>
+<pre><code class="language-csharp">using System.Diagnostics;
+
+var recordingPath =
+    @"C:\Users\Shadow\Desktop\InkkSlinger\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json";
+
+var startInfo = new ProcessStartInfo
+{
+    FileName = "dotnet",
+    WorkingDirectory = @"C:\Users\Shadow\Desktop\InkkSlinger",
+    UseShellExecute = false
+};
+
+startInfo.ArgumentList.Add("run");
+startInfo.ArgumentList.Add("--project");
+startInfo.ArgumentList.Add("InkkSlinger.csproj");
+startInfo.ArgumentList.Add("--");
+startInfo.ArgumentList.Add("--inkkoops-recording");
+startInfo.ArgumentList.Add(recordingPath);
+
+using var process = Process.Start(startInfo)!;
+process.WaitForExit();</code></pre>
+
+                    <h3>Example 3: replay into a custom artifact directory</h3>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- `
+  --inkkoops-recording "C:\Users\Shadow\Desktop\InkkSlinger\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json" `
+  --inkkoops-artifacts "artifacts/inkkoops-replay-manual"</code></pre>
+                    <p>Use this when you want to keep multiple replay runs separate while iterating on a bug.</p>
+<pre><code class="language-csharp">using System.Diagnostics;
+
+var startInfo = new ProcessStartInfo
+{
+    FileName = "dotnet",
+    WorkingDirectory = @"C:\Users\Shadow\Desktop\InkkSlinger",
+    UseShellExecute = false
+};
+
+startInfo.ArgumentList.Add("run");
+startInfo.ArgumentList.Add("--project");
+startInfo.ArgumentList.Add("InkkSlinger.csproj");
+startInfo.ArgumentList.Add("--");
+startInfo.ArgumentList.Add("--inkkoops-recording");
+startInfo.ArgumentList.Add(
+    @"C:\Users\Shadow\Desktop\InkkSlinger\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json");
+startInfo.ArgumentList.Add("--inkkoops-artifacts");
+startInfo.ArgumentList.Add("artifacts/inkkoops-replay-manual");
+
+using var process = Process.Start(startInfo)!;
+process.WaitForExit();</code></pre>
+                </section>
+
+                <section class="doc-section">
+                    <h2>What a recording contains</h2>
+                    <ul>
+                        <li><code>recording.json</code>: raw recorded actions such as resize, pointer move, pointer down, pointer up, wheel, and frame waits.</li>
+                        <li><code>recorded-script.txt</code>: a human-readable builder snippet that mirrors the session in <code>InkkOopsScriptBuilder</code> form.</li>
+                    </ul>
+                    <p>The recording file is what the runtime replays. The text file is there so you can inspect or manually convert the session into a focused built-in repro script.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Replay a recorded session</h2>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-recording "C:\Users\Shadow\Desktop\InkkSlinger\artifacts\inkkoops-recordings\20260328-001157740-recorded-session\recording.json"</code></pre>
+                    <p>The replay loader appends a final diagnostics tail automatically:</p>
+                    <ul>
+                        <li><code>WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)</code></li>
+                        <li><code>CaptureFrame("&lt;recording-name&gt;-final")</code></li>
+                        <li><code>DumpTelemetry("&lt;recording-name&gt;-final")</code></li>
+                    </ul>
+                </section>
+
+                <section class="doc-section">
+                    <h2>What a run artifact contains</h2>
+                    <ul>
+                        <li><code>result.json</code>: run status, command count, failure metadata, and total duration.</li>
+                        <li><code>commands.log</code>: time-stamped command descriptions in execution order.</li>
+                        <li><code>command-###.json</code>: one machine-readable diagnostics file per command.</li>
+                        <li><code>*.png</code>: frame captures written by <code>CaptureFrame</code>.</li>
+                        <li><code>*.txt</code>: telemetry dumps written by <code>DumpTelemetry</code>.</li>
+                    </ul>
+                </section>
+
+                <section class="doc-section">
+                    <h2>How to read the diagnostics</h2>
+                    <h3><code>result.json</code></h3>
+                    <p>Check this first. It tells you whether the run completed, how many commands executed, which command failed, and the failure message if the run aborted.</p>
+                    <h3><code>commands.log</code></h3>
+                    <p>Use this to reconstruct the timeline quickly. It is the fastest way to verify that the runtime actually executed the steps you think it executed.</p>
+                    <h3><code>command-###.json</code></h3>
+                    <p>Each file captures the execution mode, selector, resolution result, matched element, matched peer, bounds, viewport, anchor, action point, hover/focus before and after, and failure category if something went wrong.</p>
+                    <h3>Frame and telemetry files</h3>
+                    <p>The final <code>.png</code> answers what the user actually saw. The matching <code>.txt</code> answers what the framework thought the tree looked like at that moment.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Failure categories you will see</h2>
+                    <ul>
+                        <li><code>Unresolved</code></li>
+                        <li><code>Ambiguous</code></li>
+                        <li><code>Unrealized</code></li>
+                        <li><code>Offscreen</code></li>
+                        <li><code>Clipped</code></li>
+                        <li><code>Disabled</code></li>
+                        <li><code>NotInteractive</code></li>
+                        <li><code>SemanticProviderMissing</code></li>
+                        <li><code>UiThreadViolation</code></li>
+                        <li><code>Timeout</code></li>
+                    </ul>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Practical debugging loop</h2>
+                    <ol>
+                        <li>Record the real repro.</li>
+                        <li>Replay it and inspect the final frame.</li>
+                        <li>Open <code>result.json</code> and <code>commands.log</code> to confirm the replay executed correctly.</li>
+                        <li>Open the relevant <code>command-###.json</code> files to inspect selector resolution and actionability decisions.</li>
+                        <li>Promote the useful part of the replay into a built-in script once the sequence is stable.</li>
+                        <li>Add a regression test once the actual subsystem bug is isolated.</li>
+                    </ol>
+                </section>
+
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./inkkoops-runtime-cli.html">
+                        <span>Previous</span>
+                        <strong>Runtime and CLI</strong>
+                    </a>
+                    <a class="pager-link" href="./index.html">
+                        <span>Next</span>
+                        <strong>Docs home</strong>
+                    </a>
+                </nav>
+            </article>
+        </main>
+    </div>
+    <script>
+        (function () {
+            var nav = document.querySelector('.tree-nav');
+            if (!nav) return;
+            var active = nav.querySelector('a.active');
+            if (active) {
+                var navTop = nav.getBoundingClientRect().top;
+                var itemTop = active.getBoundingClientRect().top;
+                var offset = itemTop - navTop;
+                var center = offset - nav.clientHeight / 2 + active.offsetHeight / 2;
+                nav.scrollTop = Math.max(0, center);
+            }
+        })();
+    </script>
+</body>
+</html>

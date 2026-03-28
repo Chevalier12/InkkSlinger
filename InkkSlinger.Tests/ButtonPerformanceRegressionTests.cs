@@ -61,26 +61,27 @@ public sealed class ButtonPerformanceRegressionTests
     }
 
     [Fact]
-    public void Measure_PlainTextWrappedButton_MatchesExpectedDesiredSize()
+    public void Measure_ButtonWithWrappedTextBlockContent_IncreasesDesiredHeight()
     {
+        var textBlock = new TextBlock
+        {
+            Text = "Wednesday Thursday Friday Saturday",
+            TextWrapping = TextWrapping.Wrap
+        };
         var button = new Button
         {
-            Content = "Wednesday Thursday Friday Saturday",
-            TextWrapping = TextWrapping.Wrap,
+            Content = textBlock,
             Padding = new Thickness(10f, 6f, 10f, 6f),
             BorderThickness = 1f
         };
         var availableSize = new Vector2(90f, 300f);
 
         button.Measure(availableSize);
+        var singleLineHeight = UiTextRenderer.GetLineHeight(button, button.FontSize) + button.Padding.Vertical + (button.BorderThickness * 2f);
 
-        var textWidth = availableSize.X - button.Padding.Horizontal - (button.BorderThickness * 2f);
-        var layout = TextLayout.Layout(button.GetContentText(), UiTextRenderer.ResolveTypography(button), button.FontSize, textWidth, TextWrapping.Wrap);
-        var expected = new Vector2(
-            layout.Size.X + button.Padding.Horizontal + (button.BorderThickness * 2f),
-            layout.Size.Y + button.Padding.Vertical + (button.BorderThickness * 2f));
-
-        AssertClose(expected, button.DesiredSize);
+        Assert.True(
+            button.DesiredSize.Y > singleLineHeight,
+            $"Expected wrapped TextBlock content to increase button height beyond a single line. desired={button.DesiredSize}, singleLineHeight={singleLineHeight:0.##}");
     }
 
     [Fact]
@@ -120,6 +121,33 @@ public sealed class ButtonPerformanceRegressionTests
 
         Assert.Equal(2, button.MeasureCallCount);
         Assert.Equal(1, button.MeasureWorkCount);
+    }
+
+    [Fact]
+    public void Measure_ButtonWithWrappedTextBlockContent_DoesNotReuseMeasureAcrossAvailableSizeChanges()
+    {
+        var textBlock = new TextBlock
+        {
+            Text = "Wednesday Thursday Friday Saturday",
+            TextWrapping = TextWrapping.Wrap
+        };
+        var button = new Button
+        {
+            Content = textBlock,
+            Padding = new Thickness(10f, 6f, 10f, 6f),
+            BorderThickness = 1f
+        };
+
+        button.Measure(new Vector2(300f, 300f));
+        var wideDesired = button.DesiredSize;
+
+        button.Measure(new Vector2(90f, 300f));
+        var narrowDesired = button.DesiredSize;
+
+        // Measure work must run again for the narrower pass.
+        Assert.Equal(2, button.MeasureWorkCount);
+        // A narrower constraint must produce a taller desired size.
+        Assert.True(narrowDesired.Y > wideDesired.Y, $"Expected height to increase when width narrows (wide={wideDesired.Y}, narrow={narrowDesired.Y})");
     }
 
     [Fact]

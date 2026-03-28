@@ -162,8 +162,21 @@ public abstract class AutomationPeer
 
     protected static object? TryReadProperty(object target, string propertyName)
     {
-        var property = target.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
-        return property?.CanRead == true ? property.GetValue(target) : null;
+        var properties = target.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public);
+        for (var i = 0; i < properties.Length; i++)
+        {
+            var property = properties[i];
+            if (!string.Equals(property.Name, propertyName, StringComparison.Ordinal) ||
+                !property.CanRead ||
+                property.GetIndexParameters().Length != 0)
+            {
+                continue;
+            }
+
+            return property.GetValue(target);
+        }
+
+        return null;
     }
 
     private static string ConvertToNameText(object? value)

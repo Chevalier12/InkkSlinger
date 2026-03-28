@@ -115,6 +115,11 @@ public sealed class AutomationManager
             _coalescedEventDiscardCountLastFrame);
     }
 
+    internal int GetQueuedEventCountForDiagnostics()
+    {
+        return _queuedEvents.Count;
+    }
+
     internal void NotifyVisualStructureChanged(UIElement element, UIElement? oldParent, UIElement? newParent)
     {
         _ = oldParent;

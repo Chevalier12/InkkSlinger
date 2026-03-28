@@ -4,16 +4,20 @@ namespace InkkSlinger;
 
 public partial class ButtonView : UserControl
 {
+    private int _clickCount;
+
     public ButtonView()
     {
         InitializeComponent();
-        if (this.FindName("DemoHost") is ContentControl demoHost)
-        {
-            demoHost.Content = ControlDemoSupport.BuildSampleElement("Button");
-        }
+
+        if (this.FindName("CountedButton") is Button countedButton)
+            countedButton.Click += OnCountedButtonClick;
+    }
+
+    private void OnCountedButtonClick(object? sender, RoutedSimpleEventArgs e)
+    {
+        _clickCount++;
+        if (this.FindName("ClickCountLabel") is TextBlock label)
+            label.Text = $"Clicks: {_clickCount}";
     }
 }
-
-
-
-

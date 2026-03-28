@@ -40,6 +40,8 @@ scripts/
 # Local agent instructions
 AGENTS.md
 agents.md
+.claude/
+CLAUDE.md
 
 # Local diagnostics notes
 diagnostics-instrumentation-guide.md

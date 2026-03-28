@@ -38,7 +38,6 @@ public class Button : ContentControl
     private UiTypography? _intrinsicNoWrapMeasureTypography;
     private float _textLayoutCacheFontSize = float.NaN;
     private float _intrinsicNoWrapMeasureFontSize = float.NaN;
-    private TextWrapping _textLayoutCacheWrapping = TextWrapping.NoWrap;
     private TextLayout.TextLayoutResult _textLayoutCacheResult = TextLayout.TextLayoutResult.Empty;
     private Vector2 _intrinsicNoWrapMeasureSize = Vector2.Zero;
     private int _contentVersion;
@@ -48,7 +47,6 @@ public class Button : ContentControl
     private float _textRenderPlanCacheBorderThickness = float.NaN;
     private Thickness _textRenderPlanCachePadding = Thickness.Empty;
     private float _textRenderPlanCacheFontSize = float.NaN;
-    private TextWrapping _textRenderPlanCacheWrapping = TextWrapping.NoWrap;
     private UiTypography? _textRenderPlanCacheTypography;
     private ButtonTextRenderPlan _textRenderPlanCache;
 
@@ -61,15 +59,6 @@ public class Button : ContentControl
             typeof(Color),
             typeof(Button),
             new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
-
-    public static readonly DependencyProperty TextWrappingProperty =
-        DependencyProperty.Register(
-            nameof(TextWrapping),
-            typeof(TextWrapping),
-            typeof(Button),
-            new FrameworkPropertyMetadata(
-                TextWrapping.NoWrap,
-                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
     public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
@@ -133,12 +122,6 @@ public class Button : ContentControl
         set => SetValue(ForegroundProperty, value);
     }
 
-    public TextWrapping TextWrapping
-    {
-        get => GetValue<TextWrapping>(TextWrappingProperty);
-        set => SetValue(TextWrappingProperty, value);
-    }
-
     public new Color Background
     {
         get => GetValue<Color>(BackgroundProperty);
@@ -195,10 +178,7 @@ public class Button : ContentControl
             if (!string.IsNullOrEmpty(text))
             {
                 _textLayoutMeasurePathCount++;
-                var textAvailableWidth = TextWrapping == TextWrapping.NoWrap
-                    ? float.PositiveInfinity
-                    : innerAvailableWidth;
-                var textSize = ResolveTextLayout(text, textAvailableWidth).Size;
+                var textSize = ResolveTextLayout(text, innerAvailableWidth).Size;
                 desired.X = System.MathF.Max(desired.X, textSize.X + padding.Horizontal + border);
                 desired.Y = System.MathF.Max(desired.Y, textSize.Y + padding.Vertical + border);
                 return desired;
@@ -242,7 +222,6 @@ public class Button : ContentControl
             InvalidateTextRenderPlanCache();
         }
         else if (args.Property == FontSizeProperty ||
-                 args.Property == TextWrappingProperty ||
                  args.Property == FontFamilyProperty ||
                  args.Property == FontWeightProperty ||
                  args.Property == FontStyleProperty ||
@@ -313,7 +292,6 @@ public class Button : ContentControl
                 _textLayoutCacheTextVersion == _contentVersion &&
                 Nullable.Equals(_textLayoutCacheTypography, typography) &&
                 WidthMatches(_textLayoutCacheFontSize, FontSize) &&
-                _textLayoutCacheWrapping == TextWrapping &&
                 WidthMatches(_textLayoutCacheWidth, availableWidth))
             {
                 _textLayoutCacheHitCount++;
@@ -321,12 +299,11 @@ public class Button : ContentControl
             }
 
             _textLayoutCacheMissCount++;
-            var result = TextLayout.Layout(text, typography, FontSize, availableWidth, TextWrapping);
+            var result = TextLayout.Layout(text, typography, FontSize, float.PositiveInfinity, TextWrapping.NoWrap);
             _textLayoutCacheTextVersion = _contentVersion;
             _textLayoutCacheWidth = availableWidth;
             _textLayoutCacheTypography = typography;
             _textLayoutCacheFontSize = FontSize;
-            _textLayoutCacheWrapping = TextWrapping;
             _textLayoutCacheResult = result;
             _hasTextLayoutCache = true;
             return result;
@@ -345,7 +322,6 @@ public class Button : ContentControl
         _textLayoutCacheWidth = float.NaN;
         _textLayoutCacheTypography = null;
         _textLayoutCacheFontSize = float.NaN;
-        _textLayoutCacheWrapping = TextWrapping.NoWrap;
         _textLayoutCacheResult = TextLayout.TextLayoutResult.Empty;
     }
 
@@ -367,7 +343,6 @@ public class Button : ContentControl
         _textRenderPlanCacheBorderThickness = float.NaN;
         _textRenderPlanCachePadding = Thickness.Empty;
         _textRenderPlanCacheFontSize = float.NaN;
-        _textRenderPlanCacheWrapping = TextWrapping.NoWrap;
         _textRenderPlanCacheTypography = null;
         _textRenderPlanCache = default;
     }
@@ -414,14 +389,13 @@ public class Button : ContentControl
 
     internal bool HasAvailableIndependentDesiredSizeForUniformGrid()
     {
-        return TextWrapping == TextWrapping.NoWrap && CanUsePlainTextMeasureFastPath();
+        return CanUsePlainTextMeasureFastPath();
     }
 
     private bool CanUseIntrinsicNoWrapTextMeasure()
     {
         var text = GetDisplayContentText();
-        return TextWrapping == TextWrapping.NoWrap &&
-               !string.IsNullOrEmpty(text) &&
+        return !string.IsNullOrEmpty(text) &&
                text.IndexOfAny(['\r', '\n']) < 0;
     }
 
@@ -530,16 +504,12 @@ public class Button : ContentControl
                 WidthMatches(_textRenderPlanCacheBorderThickness, BorderThickness) &&
                 ThicknessMatches(_textRenderPlanCachePadding, padding) &&
                 WidthMatches(_textRenderPlanCacheFontSize, FontSize) &&
-                _textRenderPlanCacheWrapping == TextWrapping &&
                 Nullable.Equals(_textRenderPlanCacheTypography, typography))
             {
                 return _textRenderPlanCache;
             }
 
-            var availableWidth = TextWrapping == TextWrapping.NoWrap
-                ? float.PositiveInfinity
-                : maxTextWidth;
-            var layout = ResolveTextLayout(text, availableWidth);
+            var layout = ResolveTextLayout(text, maxTextWidth);
             var textX = layout.Size.X <= maxTextWidth
                 ? left + ((maxTextWidth - layout.Size.X) / 2f)
                 : left;
@@ -578,7 +548,6 @@ public class Button : ContentControl
             _textRenderPlanCacheBorderThickness = BorderThickness;
             _textRenderPlanCachePadding = padding;
             _textRenderPlanCacheFontSize = FontSize;
-            _textRenderPlanCacheWrapping = TextWrapping;
             _textRenderPlanCacheTypography = typography;
             _textRenderPlanCache = renderPlan;
             _hasTextRenderPlanCache = true;

@@ -99,17 +99,54 @@ public sealed partial class UiRoot
         }
 
         CaptureLayoutSamples(_layoutRoot, _layoutSamplesBeforeMeasure);
-        _layoutRoot.Measure(new Vector2(viewport.Width, viewport.Height));
-        CaptureLayoutSamples(_layoutRoot, _layoutSamplesAfterMeasure);
-        RecordLayoutMeasureTelemetry(_layoutSamplesBeforeMeasure, _layoutSamplesAfterMeasure);
-        _layoutRoot.Arrange(new LayoutRect(0f, 0f, viewport.Width, viewport.Height));
-        CaptureLayoutSamples(_layoutRoot, _layoutSamplesAfterArrange);
-        RecordLayoutArrangeTelemetry(_layoutSamplesAfterMeasure, _layoutSamplesAfterArrange);
-        LayoutPasses = 1;
+        RunLayoutUntilStable(new Vector2(viewport.Width, viewport.Height));
         _layoutGeneration++;
         RefreshPointerTargetsAfterLayoutMutation();
         _hasCompletedInitialLayout = true;
         LayoutExecutedFrameCount++;
+    }
+
+    private void RunLayoutUntilStable(Vector2 viewportSize)
+    {
+        const int maxLayoutPasses = 8;
+        LayoutPasses = 0;
+
+        for (var pass = 0; pass < maxLayoutPasses; pass++)
+        {
+            _layoutRoot!.Measure(viewportSize);
+            CaptureLayoutSamples(_layoutRoot, _layoutSamplesAfterMeasure);
+            RecordLayoutMeasureTelemetry(_layoutSamplesBeforeMeasure, _layoutSamplesAfterMeasure);
+
+            _layoutRoot.Arrange(new LayoutRect(0f, 0f, viewportSize.X, viewportSize.Y));
+            CaptureLayoutSamples(_layoutRoot, _layoutSamplesAfterArrange);
+            RecordLayoutArrangeTelemetry(_layoutSamplesAfterMeasure, _layoutSamplesAfterArrange);
+            LayoutPasses++;
+
+            if (!HasInvalidLayout(_layoutRoot))
+            {
+                return;
+            }
+
+            CaptureLayoutSamples(_layoutRoot, _layoutSamplesBeforeMeasure);
+        }
+    }
+
+    private static bool HasInvalidLayout(FrameworkElement element)
+    {
+        if (element.NeedsMeasure || element.NeedsArrange)
+        {
+            return true;
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            if (child is FrameworkElement frameworkChild && HasInvalidLayout(frameworkChild))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void RunAnimationPhase(GameTime gameTime)

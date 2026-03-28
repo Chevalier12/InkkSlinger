@@ -705,6 +705,13 @@ public class ScrollViewer : ContentControl
             }
         }
 
+        if (ContentElement is UIElement transformScrollContent &&
+            UsesTransformBasedContentScrolling() &&
+            ContentElement is not VirtualizingStackPanel)
+        {
+            UiRoot.Current?.NotifyDirectRenderInvalidation(transformScrollContent);
+        }
+
         switch (updateSource)
         {
             case ScrollOffsetUpdateSource.External:

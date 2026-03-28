@@ -195,6 +195,36 @@ public sealed class RetainedRenderSyncRegressionTests
     }
 
     [Fact]
+    public void ShallowSync_AncestorOnlyInvalidation_RefreshesDescendantRetainedBounds()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 240f, 160f));
+
+        var parent = new Border();
+        parent.SetLayoutSlot(new LayoutRect(0f, 0f, 200f, 120f));
+
+        var child = new Border();
+        child.SetLayoutSlot(new LayoutRect(10f, 10f, 140f, 60f));
+
+        parent.Child = child;
+        root.AddChild(parent);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 240f, 160f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        child.SetLayoutSlot(new LayoutRect(10f, 10f, 140f, 40f));
+        parent.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.Equal(new LayoutRect(10f, 10f, 140f, 40f), uiRoot.GetRetainedNodeBoundsForTests(child));
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
     public void VisibilityToggle_CollapsedThenVisible_PreservesRetainedMembershipAndIndices()
     {
         var root = new Panel();
@@ -214,7 +244,7 @@ public sealed class RetainedRenderSyncRegressionTests
     }
 
     [Fact]
-    public void ForcedDeepSync_WithCleanDescendants_DowngradesToShallowPath()
+    public void ForcedDeepSync_WithMissingDescendantIndex_RebuildsDescendantTracking()
     {
         var root = new Panel();
         var parent = new Panel();
@@ -238,7 +268,8 @@ public sealed class RetainedRenderSyncRegressionTests
         uiRoot.SynchronizeRetainedRenderListForTests();
 
         Assert.False(uiRoot.IsRenderListFullRebuildPendingForTests());
-        Assert.Throws<ArgumentException>(() => uiRoot.GetRetainedNodeSubtreeEndIndexForTests(grandChild));
+        _ = uiRoot.GetRetainedNodeSubtreeEndIndexForTests(grandChild);
+        Assert.Contains(grandChild, uiRoot.GetRetainedVisualOrderForTests());
     }
 
     [Fact]
@@ -357,6 +388,56 @@ public sealed class RetainedRenderSyncRegressionTests
 
         Assert.False(uiRoot.IsRenderListFullRebuildPendingForTests());
         Assert.Equal(uiRoot.RetainedRenderNodeCount, uiRoot.GetRetainedNodeSubtreeEndIndexForTests(root));
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
+    public void TransformScrolledContent_WhenViewerAlreadyNeedsArrange_StillSynchronizesRetainedTree()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 240f));
+
+        var content = new StackPanel();
+        for (var i = 0; i < 80; i++)
+        {
+            content.AddChild(new Border
+            {
+                Height = 40f
+            });
+        }
+
+        var viewer = new ScrollViewer
+        {
+            Content = content,
+            Width = 180f,
+            Height = 120f,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        var viewport = new Microsoft.Xna.Framework.Graphics.Viewport(0, 0, 320, 240);
+        uiRoot.Update(new Microsoft.Xna.Framework.GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), viewport);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        viewer.InvalidateArrange();
+        viewer.ScrollToVerticalOffset(1200f);
+
+        uiRoot.Update(new Microsoft.Xna.Framework.GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), viewport);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+
+        Assert.True(viewer.TryGetContentViewportClipRect(out var clip));
+        var visibleChild = Assert.IsType<Border>(content.Children[30]);
+        var offscreenChild = Assert.IsType<Border>(content.Children[5]);
+        var drawOrder = uiRoot.GetRetainedDrawOrderForClipForTests(clip);
+
+        Assert.Contains(visibleChild, drawOrder);
+        Assert.DoesNotContain(offscreenChild, drawOrder);
     }
 
     [Fact]

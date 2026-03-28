@@ -18,6 +18,8 @@ public sealed partial class UiRoot
         if (viewportChanged)
         {
             _mustDrawNextFrame = true;
+            _renderListNeedsFullRebuild = true;
+            ArmFullRedrawSettleWindowForResize();
             MarkFullFrameDirty(UiFullDirtyReason.ViewportChanged);
         }
     }
@@ -399,7 +401,8 @@ public sealed partial class UiRoot
         None,
         RenderStateChanged,
         EffectiveVisibilityChanged,
-        StructureMismatch
+        StructureMismatch,
+        DescendantStateChanged
     }
 
     private void RebuildRetainedRenderList()
@@ -545,9 +548,13 @@ public sealed partial class UiRoot
             parentNode = _retainedRenderList[parentNodeIndex];
         }
 
-        if (!TryBuildUpdatedNodeWithCurrentChildren(visual, previous, parentNode, out var updated))
+        if (!TryUpdateRetainedSubtreeNodesInPlace(
+                visual,
+                renderNodeIndex,
+                parentNode,
+                out var updated))
         {
-            rejectReason = ShallowSyncRejectReason.StructureMismatch;
+            rejectReason = ShallowSyncRejectReason.DescendantStateChanged;
             _lastRetainedShallowRejectStructureCount++;
             _lastRetainedShallowSyncMs += Stopwatch.GetElapsedTime(shallowStart).TotalMilliseconds;
             return false;
@@ -577,10 +584,7 @@ public sealed partial class UiRoot
             _lastRetainedShallowSyncMs += Stopwatch.GetElapsedTime(shallowStart).TotalMilliseconds;
             return false;
         }
-
         subtreeMetadataChanged = !HasEquivalentSubtreeMetadata(previous, updated);
-        RecordBoundsDelta(previous, updated);
-        _retainedRenderList[renderNodeIndex] = updated;
         _lastRetainedShallowSuccessCount++;
         _lastRetainedShallowSyncMs += Stopwatch.GetElapsedTime(shallowStart).TotalMilliseconds;
         return true;
@@ -958,6 +962,234 @@ public sealed partial class UiRoot
             metadata.RenderVersionStamp,
             metadata.LayoutVersionStamp);
         return true;
+    }
+
+    private bool TryUpdateRetainedSubtreeNodesInPlace(
+        UIElement visual,
+        int renderNodeIndex,
+        RenderNode? parentNode,
+        out RenderNode updated)
+    {
+        if (renderNodeIndex < 0 || renderNodeIndex >= _retainedRenderList.Count)
+        {
+            updated = default;
+            _renderListNeedsFullRebuild = true;
+            return false;
+        }
+
+        var previous = _retainedRenderList[renderNodeIndex];
+        updated = CreateRenderNode(
+            visual,
+            previous.TraversalOrder,
+            previous.Depth,
+            previous.SubtreeEndIndexExclusive,
+            parentNode);
+
+        var metadata = CreateSubtreeMetadataForNode(updated);
+        foreach (var child in visual.GetRetainedRenderChildren())
+        {
+            if (!_renderNodeIndices.TryGetValue(child, out var childNodeIndex))
+            {
+                _renderListNeedsFullRebuild = true;
+                updated = default;
+                return false;
+            }
+
+            if (!TryUpdateRetainedSubtreeNodesInPlace(
+                    child,
+                    childNodeIndex,
+                    updated,
+                    out var currentChild))
+            {
+                updated = default;
+                return false;
+            }
+
+            metadata = MergeSubtreeMetadata(
+                metadata,
+                CreateSubtreeMetadataFromSubtreeNode(currentChild));
+        }
+
+        updated = updated.WithSubtreeMetadata(
+            previous.SubtreeEndIndexExclusive,
+            metadata.HasBoundsSnapshot,
+            metadata.BoundsSnapshot,
+            metadata.VisualCount,
+            metadata.HighCostVisualCount,
+            metadata.RenderVersionStamp,
+            metadata.LayoutVersionStamp);
+        if (previous.RenderStateSignature != updated.RenderStateSignature ||
+            previous.LocalRenderStateSignature != updated.LocalRenderStateSignature ||
+            previous.IsEffectivelyVisible != updated.IsEffectivelyVisible ||
+            previous.HasLocalClip != updated.HasLocalClip ||
+            (previous.HasLocalClip && !AreRectsEqual(previous.LocalClipRect, updated.LocalClipRect)) ||
+            previous.HasLocalTransform != updated.HasLocalTransform ||
+            (previous.HasLocalTransform && !AreTransformsEffectivelyEqual(previous.LocalTransform, updated.LocalTransform)))
+        {
+            updated = default;
+            return false;
+        }
+
+        RecordBoundsDelta(previous, updated);
+        _retainedRenderList[renderNodeIndex] = updated;
+        return true;
+    }
+
+    private string ValidateRetainedTreeAgainstCurrentVisualState(int maxMismatches)
+    {
+        if (_retainedRenderList.Count == 0)
+        {
+            return "retained render list is empty";
+        }
+
+        if (!_renderNodeIndices.TryGetValue(_visualRoot, out var rootNodeIndex))
+        {
+            return "visual root is missing from retained indices";
+        }
+
+        var mismatches = new List<string>();
+        var expectedTraversalOrder = 0;
+        var expectedRenderNodeIndex = 0;
+        if (!TryValidateRetainedSubtreeRecursive(
+                _visualRoot,
+                parentNode: null,
+                expectedDepth: 0,
+                mismatches,
+                Math.Max(1, maxMismatches),
+                ref expectedTraversalOrder,
+                ref expectedRenderNodeIndex,
+                out _))
+        {
+            return mismatches.Count == 0
+                ? "retained tree validation aborted"
+                : string.Join(" | ", mismatches);
+        }
+
+        if (_retainedRenderList[rootNodeIndex].SubtreeEndIndexExclusive != _retainedRenderList.Count)
+        {
+            mismatches.Add(
+                $"root subtree span mismatch retainedEnd={_retainedRenderList[rootNodeIndex].SubtreeEndIndexExclusive} retainedCount={_retainedRenderList.Count}");
+        }
+
+        return mismatches.Count == 0 ? "ok" : string.Join(" | ", mismatches);
+    }
+
+    private bool TryValidateRetainedSubtreeRecursive(
+        UIElement visual,
+        RenderNode? parentNode,
+        int expectedDepth,
+        List<string> mismatches,
+        int maxMismatches,
+        ref int expectedTraversalOrder,
+        ref int expectedRenderNodeIndex,
+        out RenderNode current)
+    {
+        current = default;
+        if (!_renderNodeIndices.TryGetValue(visual, out var indexedRenderNodeIndex))
+        {
+            mismatches.Add($"missing retained node for {DescribeElementForDiagnostics(visual)}");
+            return false;
+        }
+
+        if (indexedRenderNodeIndex != expectedRenderNodeIndex)
+        {
+            mismatches.Add(
+                $"{DescribeElementForDiagnostics(visual)} retainedIndex={indexedRenderNodeIndex} expectedIndex={expectedRenderNodeIndex}");
+            return false;
+        }
+
+        var retained = _retainedRenderList[expectedRenderNodeIndex];
+        if (!ReferenceEquals(retained.Visual, visual))
+        {
+            mismatches.Add(
+                $"retained preorder mismatch expected={DescribeElementForDiagnostics(visual)} actual={DescribeElementForDiagnostics(retained.Visual)} index={expectedRenderNodeIndex}");
+            return false;
+        }
+
+        var currentTraversalOrder = expectedTraversalOrder;
+        expectedTraversalOrder++;
+        expectedRenderNodeIndex++;
+        current = CreateRenderNode(
+            visual,
+            currentTraversalOrder,
+            expectedDepth,
+            retained.SubtreeEndIndexExclusive,
+            parentNode);
+
+        var metadata = CreateSubtreeMetadataForNode(current);
+        foreach (var child in visual.GetRetainedRenderChildren())
+        {
+            if (!TryValidateRetainedSubtreeRecursive(
+                    child,
+                    current,
+                    expectedDepth + 1,
+                    mismatches,
+                    maxMismatches,
+                    ref expectedTraversalOrder,
+                    ref expectedRenderNodeIndex,
+                    out var currentChild))
+            {
+                if (mismatches.Count >= maxMismatches)
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            metadata = MergeSubtreeMetadata(
+                metadata,
+                CreateSubtreeMetadataFromSubtreeNode(currentChild));
+        }
+
+        current = current.WithSubtreeMetadata(
+            expectedRenderNodeIndex,
+            metadata.HasBoundsSnapshot,
+            metadata.BoundsSnapshot,
+            metadata.VisualCount,
+            metadata.HighCostVisualCount,
+            metadata.RenderVersionStamp,
+            metadata.LayoutVersionStamp);
+
+        RecordRetainedNodeMismatchIfNeeded(retained, current, mismatches, maxMismatches);
+        return mismatches.Count < maxMismatches;
+    }
+
+    private void RecordRetainedNodeMismatchIfNeeded(
+        RenderNode retained,
+        RenderNode current,
+        List<string> mismatches,
+        int maxMismatches)
+    {
+        if (mismatches.Count >= maxMismatches)
+        {
+            return;
+        }
+
+        if (retained.TraversalOrder != current.TraversalOrder ||
+            retained.Depth != current.Depth ||
+            retained.RenderStateSignature != current.RenderStateSignature ||
+            retained.LocalRenderStateSignature != current.LocalRenderStateSignature ||
+            retained.IsEffectivelyVisible != current.IsEffectivelyVisible ||
+            retained.HasBoundsSnapshot != current.HasBoundsSnapshot ||
+            (retained.HasBoundsSnapshot && !AreRectsEqual(retained.BoundsSnapshot, current.BoundsSnapshot)) ||
+            retained.HasLocalClip != current.HasLocalClip ||
+            (retained.HasLocalClip && !AreRectsEqual(retained.LocalClipRect, current.LocalClipRect)) ||
+            retained.HasLocalTransform != current.HasLocalTransform ||
+            (retained.HasLocalTransform && !AreTransformsEffectivelyEqual(retained.LocalTransform, current.LocalTransform)) ||
+            !HasEquivalentSubtreeMetadata(retained, current))
+        {
+            mismatches.Add(
+                $"{DescribeElementForDiagnostics(retained.Visual)} retainedBounds={FormatRectForDiagnostics(retained.HasBoundsSnapshot, retained.BoundsSnapshot)} " +
+                $"currentBounds={FormatRectForDiagnostics(current.HasBoundsSnapshot, current.BoundsSnapshot)} " +
+                $"retainedSubtree={FormatRectForDiagnostics(retained.HasSubtreeBoundsSnapshot, retained.SubtreeBoundsSnapshot)} " +
+                $"currentSubtree={FormatRectForDiagnostics(current.HasSubtreeBoundsSnapshot, current.SubtreeBoundsSnapshot)}");
+        }
+    }
+
+    private static string FormatRectForDiagnostics(bool hasRect, LayoutRect rect)
+    {
+        return hasRect ? $"{rect.X:0.##},{rect.Y:0.##},{rect.Width:0.##},{rect.Height:0.##}" : "none";
     }
 
     private static bool HasEquivalentSubtreeMetadata(RenderNode previous, RenderNode updated)

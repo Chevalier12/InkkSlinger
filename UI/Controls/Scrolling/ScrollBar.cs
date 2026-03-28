@@ -474,6 +474,7 @@ public class ScrollBar : RangeBase
         }
 
         track.Arrange(slot);
+        UiRoot.Current?.NotifyDirectRenderInvalidation(track, requireDeepSync: true);
         _diagRefreshTrackLayoutElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 

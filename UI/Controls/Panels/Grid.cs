@@ -512,21 +512,48 @@ public class Grid : Panel
 
         FinalizeDefinitionSizes(columns, availableSize.X);
         FinalizeDefinitionSizes(rows, availableSize.Y);
+
+        for (var pass = 0; pass < 4; pass++)
+        {
+            var definitionsChanged = false;
+            for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
+            {
+                ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
+                var childAvailable = new Vector2(
+                    SumRange(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan),
+                    SumRange(rows, metadata.Cell.Row, metadata.Cell.RowSpan));
+
+                if (!ShouldReMeasureChild(_firstPassMeasureRecords[childMeasureIndex], childAvailable))
+                {
+                    continue;
+                }
+
+                var desiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, childAvailable);
+                definitionsChanged |= ApplyChildRequirement(
+                    columns,
+                    metadata.Cell.Column,
+                    metadata.Cell.ColumnSpan,
+                    desiredSize.X,
+                    !float.IsInfinity(availableSize.X) && !float.IsNaN(availableSize.X));
+                definitionsChanged |= ApplyChildRequirement(
+                    rows,
+                    metadata.Cell.Row,
+                    metadata.Cell.RowSpan,
+                    desiredSize.Y,
+                    !float.IsInfinity(availableSize.Y) && !float.IsNaN(availableSize.Y));
+            }
+
+            if (!definitionsChanged)
+            {
+                break;
+            }
+
+            FinalizeDefinitionSizes(columns, availableSize.X);
+            FinalizeDefinitionSizes(rows, availableSize.Y);
+        }
+
         PublishSharedSizes(columns, isColumnAxis: true);
         PublishSharedSizes(rows, isColumnAxis: false);
-
-        for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
-        {
-            ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
-            var childAvailable = new Vector2(
-                SumRange(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan),
-                SumRange(rows, metadata.Cell.Row, metadata.Cell.RowSpan));
-
-            if (ShouldReMeasureChild(_firstPassMeasureRecords[childMeasureIndex], childAvailable))
-            {
-                MeasureChildOrReuseCachedState(childMeasureIndex, metadata, childAvailable);
-            }
-        }
 
         CopySizesToBuffer(columns, ref _measuredColumnSizes);
         CopySizesToBuffer(rows, ref _measuredRowSizes);
@@ -778,7 +805,7 @@ public class Grid : Panel
         NormalizeDefinitionOverflow(definitions, available);
     }
 
-    private static void ApplyChildRequirement(
+    private static bool ApplyChildRequirement(
         IReadOnlyList<DefinitionSnapshot> definitions,
         int start,
         int span,
@@ -787,7 +814,7 @@ public class Grid : Panel
     {
         if (requiredSize <= 0f || float.IsNaN(requiredSize) || float.IsInfinity(requiredSize))
         {
-            return;
+            return false;
         }
 
         var end = Math.Min(definitions.Count, start + span);
@@ -800,21 +827,22 @@ public class Grid : Panel
         var extra = requiredSize - current;
         if (extra <= 0f)
         {
-            return;
+            return false;
         }
 
+        var changed = false;
         if (hasFiniteConstraint && HasDefinitionType(definitions, start, end, static definition => definition.Length.IsStar))
         {
-            extra = DistributeExtraSize(definitions, start, end, extra, static definition => definition.Length.IsStar, useStarWeights: true);
-            extra = DistributeExtraSize(definitions, start, end, extra, static definition => definition.Length.IsAuto);
-            extra = DistributeExtraSize(definitions, start, end, extra, static _ => true);
-            return;
+            extra = DistributeExtraSize(definitions, start, end, extra, static definition => definition.Length.IsAuto, ref changed);
+            return changed;
         }
 
-        extra = DistributeExtraSize(definitions, start, end, extra, static definition => definition.Length.IsAuto);
-        extra = DistributeExtraSize(definitions, start, end, extra, static definition => !definition.Length.IsPixel, useStarWeights: true);
+        extra = DistributeExtraSize(definitions, start, end, extra, static definition => definition.Length.IsAuto, ref changed);
+        extra = DistributeExtraSize(definitions, start, end, extra, static definition => !definition.Length.IsPixel, ref changed, useStarWeights: true);
         var fallback = definitions[end - 1];
+        var fallbackPreviousSize = fallback.Size;
         fallback.Size = Clamp(fallback.Size + extra, fallback.EffectiveMin, fallback.Max);
+        return changed || !AreFloatsClose(fallbackPreviousSize, fallback.Size);
     }
 
     private static void FinalizeDefinitionSizes(IReadOnlyList<DefinitionSnapshot> definitions, float available)
@@ -1061,29 +1089,18 @@ public class Grid : Panel
 
     private static bool ShouldReMeasureChild(in FirstPassMeasureRecord firstPassRecord, Vector2 finalAvailableSize)
     {
-        if (AreSizesClose(firstPassRecord.AvailableSize, finalAvailableSize))
-        {
-            return false;
-        }
-
-        var widthRequiresRemeasure = ShouldReMeasureAxis(
-            firstPassRecord.AvailableSize.X,
-            finalAvailableSize.X,
-            firstPassRecord.DesiredSize.X,
-            firstPassRecord.HasExplicitWidth,
-            firstPassRecord.WidthWasUnconstrained);
-
-        if (widthRequiresRemeasure)
-        {
-            return true;
-        }
-
         return ShouldReMeasureAxis(
-            firstPassRecord.AvailableSize.Y,
-            finalAvailableSize.Y,
-            firstPassRecord.DesiredSize.Y,
-            firstPassRecord.HasExplicitHeight,
-            firstPassRecord.HeightWasUnconstrained);
+                   firstPassRecord.AvailableSize.X,
+                   finalAvailableSize.X,
+                   firstPassRecord.DesiredSize.X,
+                   firstPassRecord.HasExplicitWidth,
+                   firstPassRecord.WidthWasUnconstrained) ||
+               ShouldReMeasureAxis(
+                   firstPassRecord.AvailableSize.Y,
+                   finalAvailableSize.Y,
+                   firstPassRecord.DesiredSize.Y,
+                   firstPassRecord.HasExplicitHeight,
+                   firstPassRecord.HeightWasUnconstrained);
     }
 
     private static bool ShouldReMeasureAxis(
@@ -1203,18 +1220,9 @@ public class Grid : Panel
             return false;
         }
 
-        return !ShouldReMeasureAxis(
-                   cachedState.AvailableSize.X,
-                   availableSize.X,
-                   cachedState.DesiredSize.X,
-                   cachedState.HasExplicitWidth,
-                   cachedState.WidthWasUnconstrained)
-               && !ShouldReMeasureAxis(
-                   cachedState.AvailableSize.Y,
-                   availableSize.Y,
-                   cachedState.DesiredSize.Y,
-                   cachedState.HasExplicitHeight,
-                   cachedState.HeightWasUnconstrained);
+        return child.CanReuseMeasureForAvailableSizeChangeForParentLayout(
+            cachedState.AvailableSize,
+            availableSize);
     }
 
     private static bool AreSizesClose(Vector2 first, Vector2 second)
@@ -1433,6 +1441,7 @@ public class Grid : Panel
         int end,
         float extra,
         Predicate<DefinitionSnapshot> match,
+        ref bool changed,
         bool useStarWeights = false)
     {
         if (extra <= 0f)
@@ -1486,7 +1495,9 @@ public class Grid : Panel
                 var added = MathF.Min(share, capacity);
                 if (added > 0f)
                 {
+                    var previousSize = definition.Size;
                     definition.Size = Clamp(definition.Size + added, definition.EffectiveMin, definition.Max);
+                    changed |= !AreFloatsClose(previousSize, definition.Size);
                     remainingExtra -= added;
                     madeProgress = true;
                 }

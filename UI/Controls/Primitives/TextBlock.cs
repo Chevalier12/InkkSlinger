@@ -49,6 +49,9 @@ public class TextBlock : FrameworkElement
     private long _renderLastTicks;
     private float _layoutCacheFontSize = float.NaN;
     private float _intrinsicNoWrapMeasureFontSize = float.NaN;
+    private int _lastRenderedLineCount;
+    private float _lastRenderedLayoutWidth = float.NaN;
+    private string _lastRenderedLayoutText = string.Empty;
 
     public string Text
     {
@@ -98,6 +101,12 @@ public class TextBlock : FrameworkElement
     {
         return TextWrapping == TextWrapping.NoWrap;
     }
+
+    internal int LastRenderedLineCountForTests => _lastRenderedLineCount;
+
+    internal float LastRenderedLayoutWidthForTests => _lastRenderedLayoutWidth;
+
+    internal string LastRenderedLayoutTextForTests => _lastRenderedLayoutText;
 
     protected virtual string GetLayoutText()
     {
@@ -164,6 +173,9 @@ public class TextBlock : FrameworkElement
             ? float.PositiveInfinity
             : RenderSize.X;
         var layout = ResolveLayout(renderWidth);
+        _lastRenderedLineCount = layout.Lines.Count;
+        _lastRenderedLayoutWidth = renderWidth;
+        _lastRenderedLayoutText = string.Join("\n", layout.Lines);
         var typography = UiTextRenderer.ResolveTypography(this, FontSize);
         var lineSpacing = UiTextRenderer.GetLineHeight(typography);
         var drawColor = Foreground * Opacity;

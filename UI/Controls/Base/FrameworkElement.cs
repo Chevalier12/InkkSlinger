@@ -379,6 +379,12 @@ public class FrameworkElement : UIElement
 
     internal int ArrangeWorkCount => _arrangeWorkCount;
 
+    internal Vector2 PreviousAvailableSizeForTests => _previousAvailableSize;
+
+    internal bool IsMeasureValidForTests => _isMeasureValid;
+
+    internal bool IsArrangeValidForTests => _isArrangeValid;
+
     internal long MeasureElapsedTicksForTests => _measureElapsedTicks;
 
     internal long MeasureExclusiveElapsedTicksForTests => _measureExclusiveElapsedTicks;
@@ -484,12 +490,15 @@ public class FrameworkElement : UIElement
 
         _measureWorkCount++;
         _previousAvailableSize = effectiveAvailableSize;
+        var previousDesiredSize = DesiredSize;
         var measureStart = Stopwatch.GetTimestamp();
         var measureChildTickStack = _activeMeasureChildTickStack ??= new List<long>();
         measureChildTickStack.Add(0L);
 
         try
         {
+            var measureInvalidationCountBeforeOverride = MeasureInvalidationCount;
+            var arrangeInvalidationCountBeforeOverride = ArrangeInvalidationCount;
             var margin = Margin;
             var innerAvailable = new Vector2(
                 MathF.Max(0f, effectiveAvailableSize.X - margin.Horizontal),
@@ -512,9 +521,21 @@ public class FrameworkElement : UIElement
             }
 
             DesiredSize = desired;
+            if (!AreSizesEqual(previousDesiredSize, DesiredSize) &&
+                _measureCallCount > 1 &&
+                VisualParent is FrameworkElement parent)
+            {
+                parent.InvalidateMeasure();
+            }
 
-            _isMeasureValid = true;
-            ClearMeasureInvalidation();
+            var invalidatedDuringMeasure =
+                MeasureInvalidationCount != measureInvalidationCountBeforeOverride ||
+                ArrangeInvalidationCount != arrangeInvalidationCountBeforeOverride;
+            if (!invalidatedDuringMeasure)
+            {
+                _isMeasureValid = true;
+                ClearMeasureInvalidation();
+            }
         }
         finally
         {
@@ -550,10 +571,16 @@ public class FrameworkElement : UIElement
         var effectiveFinalRect = useLayoutRounding
             ? RoundLayoutRect(finalRect)
             : finalRect;
+        var arrangeAvailableSize = new Vector2(effectiveFinalRect.Width, effectiveFinalRect.Height);
+        var requiresArrangeRemeasure =
+            _isMeasureValid &&
+            ShouldReMeasureForArrange(_previousAvailableSize, arrangeAvailableSize) &&
+            !CanReuseMeasureForAvailableSizeChange(_previousAvailableSize, arrangeAvailableSize);
 
         if (_isArrangeValid &&
             _isMeasureValid &&
-            AreRectsEqual(_arrangeRect, effectiveFinalRect))
+            AreRectsEqual(_arrangeRect, effectiveFinalRect) &&
+            !requiresArrangeRemeasure)
         {
             return;
         }
@@ -586,11 +613,16 @@ public class FrameworkElement : UIElement
         }
         else
         {
-            var arrangeAvailableSize = new Vector2(effectiveFinalRect.Width, effectiveFinalRect.Height);
             if (ShouldReMeasureForArrange(_previousAvailableSize, arrangeAvailableSize) &&
                 !CanReuseMeasureForAvailableSizeChange(_previousAvailableSize, arrangeAvailableSize))
             {
+                var previousDesiredSize = DesiredSize;
                 Measure(arrangeAvailableSize);
+                if (!AreSizesEqual(previousDesiredSize, DesiredSize) &&
+                    VisualParent is FrameworkElement parent)
+                {
+                    parent.InvalidateMeasure();
+                }
             }
         }
 
@@ -619,6 +651,8 @@ public class FrameworkElement : UIElement
 
         // ArrangeOverride needs the final aligned origin for child layout decisions.
         SetLayoutSlot(new LayoutRect(arrangedX, arrangedY, arrangedWidth, arrangedHeight));
+        var measureInvalidationCountBeforeOverride = MeasureInvalidationCount;
+        var arrangeInvalidationCountBeforeOverride = ArrangeInvalidationCount;
         RenderSize = ArrangeOverride(new Vector2(arrangedWidth, arrangedHeight));
         if (useLayoutRounding)
         {
@@ -634,9 +668,15 @@ public class FrameworkElement : UIElement
 
         SetLayoutSlot(finalLayoutSlot);
 
-        _isArrangeValid = true;
-        ClearArrangeInvalidation();
-        LayoutUpdated?.Invoke(this, EventArgs.Empty);
+        var invalidatedDuringArrange =
+            MeasureInvalidationCount != measureInvalidationCountBeforeOverride ||
+            ArrangeInvalidationCount != arrangeInvalidationCountBeforeOverride;
+        if (!invalidatedDuringArrange)
+        {
+            _isArrangeValid = true;
+            ClearArrangeInvalidation();
+            LayoutUpdated?.Invoke(this, EventArgs.Empty);
+        }
         var arrangeTicks = Stopwatch.GetTimestamp() - arrangeStart;
         _arrangeElapsedTicks += arrangeTicks;
         _frameArrangeElapsedTicks += arrangeTicks;
@@ -683,26 +723,30 @@ public class FrameworkElement : UIElement
     public void UpdateLayout()
     {
         Dispatcher.VerifyAccess();
-        if (_isMeasureValid && _isArrangeValid)
+        const int maxPasses = 8;
+        for (var pass = 0; pass < maxPasses; pass++)
         {
-            return;
-        }
-
-        if (!_isMeasureValid)
-        {
-            Measure(new Vector2(_arrangeRect.Width, _arrangeRect.Height));
-        }
-
-        if (!_isArrangeValid)
-        {
-            Arrange(_arrangeRect);
-        }
-
-        foreach (var child in GetVisualChildren())
-        {
-            if (child is FrameworkElement frameworkChild)
+            if (!_isMeasureValid)
             {
-                frameworkChild.UpdateLayout();
+                Measure(new Vector2(_arrangeRect.Width, _arrangeRect.Height));
+            }
+
+            if (!_isArrangeValid)
+            {
+                Arrange(_arrangeRect);
+            }
+
+            foreach (var child in GetVisualChildren())
+            {
+                if (child is FrameworkElement frameworkChild)
+                {
+                    frameworkChild.UpdateLayout();
+                }
+            }
+
+            if (_isMeasureValid && _isArrangeValid)
+            {
+                return;
             }
         }
     }
@@ -753,6 +797,11 @@ public class FrameworkElement : UIElement
         _ = previousAvailableSize;
         _ = nextAvailableSize;
         return false;
+    }
+
+    internal bool CanReuseMeasureForAvailableSizeChangeForParentLayout(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        return CanReuseMeasureForAvailableSizeChange(previousAvailableSize, nextAvailableSize);
     }
 
     protected virtual Vector2 ArrangeOverride(Vector2 finalSize)
@@ -1174,14 +1223,6 @@ public class FrameworkElement : UIElement
 
     private static bool ShouldReMeasureForArrange(Vector2 measuredAvailableSize, Vector2 arrangedAvailableSize)
     {
-        if (!float.IsFinite(measuredAvailableSize.X) ||
-            !float.IsFinite(measuredAvailableSize.Y) ||
-            !float.IsFinite(arrangedAvailableSize.X) ||
-            !float.IsFinite(arrangedAvailableSize.Y))
-        {
-            return false;
-        }
-
         return IsFiniteShrink(measuredAvailableSize.X, arrangedAvailableSize.X) ||
                IsFiniteShrink(measuredAvailableSize.Y, arrangedAvailableSize.Y);
     }

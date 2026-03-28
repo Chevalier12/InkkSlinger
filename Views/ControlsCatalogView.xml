@@ -45,7 +45,8 @@
                 Margin="0,0,0,10"
                 Opacity="0.5" />
 
-        <ScrollViewer Grid.Row="2"
+        <ScrollViewer x:Name="CatalogSidebarScrollViewer"
+                      Grid.Row="2"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
           <StackPanel x:Name="ControlButtonsHost" />

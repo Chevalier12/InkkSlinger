@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InkkSlinger Docs - InkkOops overview</title>
+    <meta name="description" content="InkkOops overview: runtime UI automation, repro scripts, recording, replay, and diagnostics for InkkSlinger.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="./docs.css">
+</head>
+<body class="docs-page">
+    <div class="page-shell docs-shell">
+        <header class="site-header docs-header">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark">IS</span>
+                <span class="brand-copy">
+                    <strong>InkkSlinger Docs</strong>
+                    <span>InkkOops overview</span>
+                </span>
+            </a>
+            <div class="docs-header-controls">
+                <a class="header-link" href="./index.html">Docs</a>
+            </div>
+        </header>
+        <main class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Documentation tree">
+                <p class="sidebar-label">Docs tree</p>
+                <nav class="tree-nav">
+                    <ul>
+                        <li class="tree-node expanded"><a href="./index.html">Docs Home</a></li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">WPF Bootcamp</summary>
+                                <ul>
+                                    <li><a href="./wpf-bootcamp-overview.html">Overview</a></li>
+                                    <li><a href="./wpf-bootcamp-application-mental-model.html">Application mental model</a></li>
+                                    <li><a href="./wpf-bootcamp-xaml-fundamentals.html">XAML fundamentals</a></li>
+                                    <li><a href="./wpf-bootcamp-layout-deep-dive.html">Layout deep dive</a></li>
+                                    <li><a href="./wpf-bootcamp-controls-and-content-model.html">Controls and content model</a></li>
+                                    <li><a href="./wpf-bootcamp-dependency-properties-explained.html">Dependency properties explained</a></li>
+                                    <li><a href="./wpf-bootcamp-routed-events-and-commands.html">Routed events and commands</a></li>
+                                    <li><a href="./wpf-bootcamp-data-binding-fundamentals.html">Data binding fundamentals</a></li>
+                                    <li><a href="./wpf-bootcamp-mvvm-core-workflow.html">MVVM core workflow</a></li>
+                                    <li><a href="./wpf-bootcamp-collections-and-item-controls.html">Collections and item controls</a></li>
+                                    <li><a href="./wpf-bootcamp-styling-templates-and-reuse.html">Styling, templates, and reuse</a></li>
+                                    <li><a href="./wpf-bootcamp-validation-and-user-input.html">Validation and user input</a></li>
+                                    <li><a href="./wpf-bootcamp-navigation-and-application-composition.html">Navigation and application composition</a></li>
+                                    <li><a href="./wpf-bootcamp-final-walkthrough.html">Final walkthrough</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">Getting Started</summary>
+                                <ul>
+                                    <li><a href="./getting-started-wpf-mental-model.html">How WPF-style UI maps here</a></li>
+                                    <li><a href="./getting-started-hello-world-without-viewmodel.html">Hello World without a ViewModel</a></li>
+                                    <li><a href="./getting-started-hello-world-with-viewmodel.html">Hello World with a ViewModel</a></li>
+                                    <li><a href="./getting-started-hooking-view-into-monogame.html">Hooking the view into MonoGame</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group">
+                                <summary class="tree-group-toggle">RenderSurface</summary>
+                                <ul>
+                                    <li><a href="./rendersurface-what-it-is.html">What it is</a></li>
+                                    <li><a href="./rendersurface-why-it-exists.html">Why it exists</a></li>
+                                    <li><a href="./rendersurface-the-three-modes.html">The three modes</a></li>
+                                    <li><a href="./rendersurface-sizing-and-layout.html">Sizing and layout</a></li>
+                                    <li><a href="./rendersurface-rules-worth-knowing.html">Rules worth knowing</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li class="tree-node expanded">
+                            <details class="tree-group" open>
+                                <summary class="tree-group-toggle">InkkOops</summary>
+                                <ul>
+                                    <li><a class="active" href="./inkkoops.html">Overview</a></li>
+                                    <li><a href="./inkkoops-authoring-scripts.html">Authoring scripts</a></li>
+                                    <li><a href="./inkkoops-runtime-cli.html">Runtime and CLI</a></li>
+                                    <li><a href="./inkkoops-recording-and-diagnostics.html">Recording and diagnostics</a></li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+            <article class="docs-content">
+                <div class="doc-hero">
+                    <p class="eyebrow">InkkOops</p>
+                    <h1>Runtime UI automation for the framework itself</h1>
+                    <p><code>InkkOops</code> is the framework's in-process automation and diagnostics runtime. It exists to make hard UI bugs reproducible: resize sequences, hover transitions, scrolling edge cases, layout regressions, retained-render issues, and parity investigations that only show up in the live app.</p>
+                    <p>It is not an external accessibility driver. It runs inside the app, targets the real <code>UiRoot</code>, and executes either semantic automation actions or synthetic pointer/input actions against the same tree the runtime is rendering.</p>
+                    <p>Use it for both automated runtime verification and manual testing workflows. The same system can drive scripted repros, record a human session, replay that session later, and capture the proof artifacts needed to debug what happened.</p>
+                </div>
+
+                <section class="doc-section">
+                    <h2>What it gives you</h2>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Deterministic repro scripts</h3>
+                            <p>Built-in scripts are compiled into the main app assembly and run against the real runtime. You can launch them at startup, inject them into a running app, or replay a recorded user session.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Proof artifacts</h3>
+                            <p>Every run writes machine-readable output such as <code>result.json</code>, <code>commands.log</code>, <code>command-###.json</code>, frame captures, and telemetry dumps.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Pointer and semantic actions</h3>
+                            <p>Use pointer actions when you need real hit-testing, hover, drag, and scroll behavior. Use semantic actions when you need stable control-level intent through automation peers.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Recorded sessions</h3>
+                            <p>You can record the actual steps a human took in the app, including window resizes and pointer activity, then replay that exact session later with capture and diagnostics enabled.</p>
+                        </section>
+                    </div>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Core concepts</h2>
+                    <h3>Built-in scripts</h3>
+                    <p>A built-in script is a class that implements <code>IInkkOopsBuiltinScript</code>. The runtime discovers these by reflection in the app assembly and exposes them by name for launch, attach, and replay workflows.</p>
+                    <h3>Selectors</h3>
+                    <p>Targets are resolved through <code>InkkOopsTargetSelector</code>, not fragile coordinate guesses. Resolution prefers explicit <code>x:Name</code>, then automation identifiers and automation names where appropriate, and it reports ambiguity instead of silently picking the first match.</p>
+                    <h3>Actionability</h3>
+                    <p><code>WaitForElement</code> only means the element resolves. If you need a target that can actually be clicked or hovered, use <code>WaitForVisible</code>, <code>WaitForInViewport</code>, or <code>WaitForInteractive</code>.</p>
+                    <h3>Artifacts</h3>
+                    <p>Runs are written under <code>artifacts/inkkoops</code> by default. Recordings are written under <code>artifacts/inkkoops-recordings</code> by default.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Quick start</h2>
+                    <p>List the scripts that are compiled into the app:</p>
+<pre><code class="language-powershell">dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- list</code></pre>
+                    <p>Launch the app and run a built-in script immediately:</p>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-script "sidebar-button-richtextbox"</code></pre>
+                    <p>Record a manual session:</p>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-record</code></pre>
+                    <p>Replay a recording and capture the final frame:</p>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-recording "C:\path\to\recording.json"</code></pre>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Built-in scripts currently in the repo</h2>
+                    <ul>
+                        <li><code>buttons-resize-chaos-repro</code>: aggressive button-view resize and hover repro used for render and layout debugging.</li>
+                        <li><code>buttons-resize-hover-repro</code>: narrower button-view repro focused on resize plus hover transitions.</li>
+                        <li><code>datagrid-workbench-capture</code>: navigates to the DataGrid validation surface and captures proof artifacts.</li>
+                        <li><code>sidebar-button-richtextbox</code>: drives the controls catalog sidebar to the RichTextBox view and verifies navigation.</li>
+                    </ul>
+                    <div class="callout doc-callout">
+                        <p><strong>Built-in only in v1.</strong> InkkOops does not compile arbitrary external scripts at runtime. Scripts are authored as normal C# classes in the app project, discovered by reflection, and executed by name.</p>
+                    </div>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Recommended workflow</h2>
+                    <ol>
+                        <li>Record the real user session if the bug is difficult to reproduce by hand.</li>
+                        <li>Replay the recording through InkkOops so the app can capture a final frame and telemetry automatically.</li>
+                        <li>Turn the replay into a focused built-in repro script if the bug needs repeated iteration.</li>
+                        <li>Add or update a regression test in <code>InkkSlinger.Tests</code> once the root cause is understood.</li>
+                    </ol>
+                </section>
+
+                <nav class="doc-pagination" aria-label="Page navigation">
+                    <a class="pager-link" href="./rendersurface-rules-worth-knowing.html">
+                        <span>Previous</span>
+                        <strong>RenderSurface: rules worth knowing</strong>
+                    </a>
+                    <a class="pager-link" href="./inkkoops-authoring-scripts.html">
+                        <span>Next</span>
+                        <strong>Authoring scripts</strong>
+                    </a>
+                </nav>
+            </article>
+        </main>
+    </div>
+    <script>
+        (function () {
+            var nav = document.querySelector('.tree-nav');
+            if (!nav) return;
+            var active = nav.querySelector('a.active');
+            if (active) {
+                var navTop = nav.getBoundingClientRect().top;
+                var itemTop = active.getBoundingClientRect().top;
+                var offset = itemTop - navTop;
+                var center = offset - nav.clientHeight / 2 + active.offsetHeight / 2;
+                nav.scrollTop = Math.max(0, center);
+            }
+        })();
+    </script>
+</body>
+</html>

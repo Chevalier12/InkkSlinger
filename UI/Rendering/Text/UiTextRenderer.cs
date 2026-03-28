@@ -435,6 +435,58 @@ internal static class UiTextRenderer
         return ResolveShapedTextLayout(effectiveTypography, text).DrawPositions;
     }
 
+    internal static LayoutRect GetInkBoundsForTests(UiTypography typography, string text, UiTextStyleOverride styleOverride = UiTextStyleOverride.None)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return new LayoutRect(0f, 0f, 0f, 0f);
+        }
+
+        var effectiveTypography = typography.Apply(styleOverride);
+        var typeface = ResolveTypefaceCached(effectiveTypography);
+        var pixelSize = Math.Max(1, (int)MathF.Round(effectiveTypography.Size));
+        var shapedLayout = ResolveShapedTextLayout(effectiveTypography, text);
+        var hasBounds = false;
+        var left = 0f;
+        var top = 0f;
+        var right = 0f;
+        var bottom = 0f;
+
+        for (var i = 0; i < shapedLayout.CodePoints.Length; i++)
+        {
+            var glyph = _rasterizer.Rasterize(typeface, pixelSize, shapedLayout.CodePoints[i], UiTextAntialiasMode.Grayscale);
+            if (glyph.Width <= 0 || glyph.Height <= 0)
+            {
+                continue;
+            }
+
+            var position = shapedLayout.DrawPositions[i];
+            var glyphLeft = position.X;
+            var glyphTop = position.Y;
+            var glyphRight = glyphLeft + glyph.Width;
+            var glyphBottom = glyphTop + glyph.Height;
+
+            if (!hasBounds)
+            {
+                left = glyphLeft;
+                top = glyphTop;
+                right = glyphRight;
+                bottom = glyphBottom;
+                hasBounds = true;
+                continue;
+            }
+
+            left = MathF.Min(left, glyphLeft);
+            top = MathF.Min(top, glyphTop);
+            right = MathF.Max(right, glyphRight);
+            bottom = MathF.Max(bottom, glyphBottom);
+        }
+
+        return hasBounds
+            ? new LayoutRect(left, top, right - left, bottom - top)
+            : new LayoutRect(0f, 0f, 0f, 0f);
+    }
+
     private static UiShapedTextLayout ResolveShapedTextLayout(UiTypography typography, string text)
     {
         var cacheKey = new UiShapedTextLayoutCacheKey(typography, text);

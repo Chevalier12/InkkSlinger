@@ -57,13 +57,19 @@
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1">
+    <Grid x:Name="DataGridViewContentGrid"
+          Grid.Row="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" />
+        <RowDefinition Height="0" />
+      </Grid.RowDefinitions>
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="320" />
       </Grid.ColumnDefinitions>
 
       <Border x:Name="DataGridViewBodyBorder"
+              Grid.Row="0"
               Grid.Column="0"
               Background="{StaticResource DarkSurfaceBrush}"
               BorderBrush="{StaticResource DarkBorderBrush}"
@@ -103,7 +109,7 @@
                     Padding="10,6"
                     Margin="12,0,0,0"
                     VerticalAlignment="Center">
-              <Label Content="Sort • Select • Scroll"
+              <Label Content="Sort â€¢ Select â€¢ Scroll"
                      Foreground="{StaticResource TextSecondaryBrush}" />
             </Border>
           </Grid>
@@ -113,7 +119,6 @@
                     Margin="0,12,0,12"
                     Width="Auto"
                     Height="Auto"
-                    MinWidth="520"
                     MinHeight="300"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
@@ -179,14 +184,16 @@
                   BorderThickness="1"
                   CornerRadius="6"
                   Padding="10">
-            <TextBlock Text="The hosted grid is stretched to behave like a real workspace surface rather than a thumbnail. Regression tests still guard header sorting, viewport width, and bottom-of-list scrolling." 
+            <TextBlock Text="The hosted grid is stretched to behave like a real workspace surface rather than a thumbnail. Regression tests still guard header sorting, viewport width, and bottom-of-list scrolling."
                        Foreground="{StaticResource TextSecondaryBrush}"
                        TextWrapping="Wrap" />
           </Border>
         </Grid>
       </Border>
 
-      <ScrollViewer Grid.Column="1"
+      <ScrollViewer x:Name="DataGridViewInfoScrollViewer"
+                    Grid.Row="0"
+                    Grid.Column="1"
                     VerticalScrollBarVisibility="Auto"
                     HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
@@ -221,12 +228,25 @@
                          Foreground="{StaticResource TextSecondaryBrush}"
                          TextWrapping="Wrap"
                          Margin="0,4,0,8" />
-              <Label Content="The blue lane on the far left is the row header; Ticket is the first real data column."
-                     Foreground="{StaticResource TextSecondaryBrush}" />
-              <Label Content="• Click a row header to expose row details." Foreground="{StaticResource TextSecondaryBrush}" />
-              <Label Content="• Sort with the column headers and confirm the viewport stays stable." Foreground="{StaticResource TextSecondaryBrush}" />
-              <Label Content="• Use Ctrl+A / Ctrl+C to exercise bulk selection and clipboard export." Foreground="{StaticResource TextSecondaryBrush}" />
-              <Label Content="• Drag the Name or Status column to verify reorder chrome and frozen-column behavior." Foreground="{StaticResource TextSecondaryBrush}" />
+              <TextBlock Text="The blue lane on the far left is the row header; Ticket is the first real data column."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="- Click a row header to expose row details."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock Text="- Sort with the column headers and confirm the viewport stays stable."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,0" />
+              <TextBlock Text="- Use Ctrl+A / Ctrl+C to exercise bulk selection and clipboard export."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,0" />
+              <TextBlock Text="- Drag the Name or Status column to verify reorder chrome and frozen-column behavior."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,0" />
             </StackPanel>
           </Border>
 
@@ -250,9 +270,3 @@
     </Grid>
   </Grid>
 </UserControl>
-
-
-
-
-
-

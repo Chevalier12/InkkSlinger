@@ -13,6 +13,7 @@ public sealed partial class UiRoot
     private const bool EnableDirtyRegionRenderingByDefault = true;
     private const bool EnableConditionalDrawByDefault = true;
     private const int InputCacheTrimFloor = 256;
+    private const int FullRedrawSettleFrameCountAfterResize = 6;
     private static readonly RasterizerState UiRasterizerState = new()
     {
         ScissorTestEnable = true
@@ -132,6 +133,7 @@ public sealed partial class UiRoot
     private int _fullDirtyVisualStructureChangeCount;
     private int _fullDirtyRetainedRebuildCount;
     private int _fullDirtyDetachedVisualCount;
+    private int _fullRedrawSettleFramesRemaining;
     private int _lastFrameUpdateParticipantCount;
     private int _lastFrameUpdateParticipantRefreshCount;
     private double _lastFrameUpdateParticipantRefreshMs;
@@ -263,6 +265,8 @@ public sealed partial class UiRoot
     public bool HasPendingArrangeInvalidation => _hasArrangeInvalidation;
 
     public bool HasPendingRenderInvalidation => _hasRenderInvalidation;
+
+    internal bool HasPendingForcedDrawForInkkOops => _mustDrawNextFrame;
 
     internal string LastPointerResolvePathForDiagnostics => _lastPointerResolvePath;
 
@@ -466,7 +470,13 @@ public sealed partial class UiRoot
 
     internal bool WouldUsePartialDirtyRedrawForTests()
     {
-        return ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, _dirtyRegions.GetDirtyAreaCoverage());
+        return _fullRedrawSettleFramesRemaining <= 0 &&
+               ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, _dirtyRegions.GetDirtyAreaCoverage());
+    }
+
+    internal int GetFullRedrawSettleFramesRemainingForTests()
+    {
+        return _fullRedrawSettleFramesRemaining;
     }
 
     public UiVisualTreeMetricsSnapshot GetVisualTreeMetricsSnapshot()
@@ -510,7 +520,15 @@ public sealed partial class UiRoot
     {
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
+        ArmFullRedrawSettleWindowForResize();
         MarkFullFrameDirty(UiFullDirtyReason.SurfaceReset);
+    }
+
+    internal void ForceFullRedrawForDiagnosticsCapture()
+    {
+        _hasRenderInvalidation = true;
+        _mustDrawNextFrame = true;
+        _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
     }
 
     internal void RecordForcedDrawForSurfaceReset()
@@ -709,6 +727,21 @@ public sealed partial class UiRoot
         return _retainedRenderList[nodeIndex].SubtreeEndIndexExclusive;
     }
 
+    internal LayoutRect GetRetainedNodeBoundsForTests(UIElement visual)
+    {
+        if (!_renderNodeIndices.TryGetValue(visual, out var nodeIndex))
+        {
+            throw new ArgumentException("Visual is not tracked in retained render list.", nameof(visual));
+        }
+
+        return _retainedRenderList[nodeIndex].BoundsSnapshot;
+    }
+
+    internal string ValidateRetainedTreeAgainstCurrentVisualStateForTests(int maxMismatches = 8)
+    {
+        return ValidateRetainedTreeAgainstCurrentVisualState(maxMismatches);
+    }
+
     internal UiRedrawReason GetScheduledDrawReasonsForTests()
     {
         return _scheduledDrawReasons;
@@ -729,6 +762,21 @@ public sealed partial class UiRoot
         _mustDrawNextFrame = false;
         _scheduledDrawReasons = UiRedrawReason.None;
         ResetRetainedSyncTrackingState();
+    }
+
+    private void ArmFullRedrawSettleWindowForResize()
+    {
+        _fullRedrawSettleFramesRemaining = Math.Max(
+            _fullRedrawSettleFramesRemaining,
+            FullRedrawSettleFrameCountAfterResize);
+    }
+
+    private void ConsumeFullRedrawSettleFrame()
+    {
+        if (_fullRedrawSettleFramesRemaining > 0)
+        {
+            _fullRedrawSettleFramesRemaining--;
+        }
     }
 
     private void MarkFullFrameDirty(UiFullDirtyReason reason)

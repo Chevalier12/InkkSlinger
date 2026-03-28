@@ -22,7 +22,9 @@
         <None Remove="Icon.bmp"/>
         <Compile Remove="InkkSlinger.Tests\\**\\*.cs" />
         <Compile Remove="InkkSlinger.XamlNameGenerator\\**\\*.cs" />
+        <Compile Remove="InkkOops.Cli\\**\\*.cs" />
         <Compile Remove="artifacts\\**\\*.cs" />
+        <None Remove="InkkOops.Cli\\**\\*" />
     </ItemGroup>
     <ItemGroup>
         <_CodeBehindXmlCs Include="**\\*.xml.cs"

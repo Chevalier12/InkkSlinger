@@ -100,6 +100,31 @@ public sealed class GridLayoutTests
     }
 
     [Fact]
+    public void UpdateLayout_WhenChildInvalidatesAncestorDuringArrange_RevisitsAutoRow()
+    {
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
+
+        var footer = new LateGrowingElement();
+        grid.AddChild(footer);
+
+        var body = new FixedSizeElement(new Vector2(40f, 200f));
+        Grid.SetRow(body, 1);
+        grid.AddChild(body);
+
+        grid.Measure(new Vector2(640f, 360f));
+
+        grid.Arrange(new LayoutRect(0f, 0f, 80f, 360f));
+        grid.UpdateLayout();
+
+        Assert.Equal(60f, footer.DesiredSize.Y, 0.01f);
+        Assert.Equal(60f, footer.ActualHeight, 0.01f);
+        Assert.Equal(60f, grid.RowDefinitions[0].ActualHeight, 0.01f);
+        Assert.True(footer.ArrangeInvalidatedParent);
+    }
+
+    [Fact]
     public void Arrange_NarrowerThanMeasuredWidth_RemeasuresWrappedTextForAutoRowHeight()
     {
         var grid = new Grid();
@@ -120,6 +145,26 @@ public sealed class GridLayoutTests
 
         Assert.True(footer.DesiredSize.Y > wideDesiredHeight + 0.01f);
         Assert.Equal(footer.DesiredSize.Y, footer.ActualHeight, 0.01f);
+    }
+
+    [Fact]
+    public void Arrange_WhenMeasuredHeightWasInfinite_StillRemeasuresForFiniteWidthShrink()
+    {
+        var text = new TextBlock
+        {
+            Text = "The hosted grid is stretched to behave like a real workspace surface rather than a thumbnail. Regression tests still guard header sorting, viewport width, and bottom-of-list scrolling.",
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+
+        text.Measure(new Vector2(668f, float.PositiveInfinity));
+        var wideDesiredHeight = text.DesiredSize.Y;
+
+        text.Arrange(new LayoutRect(0f, 0f, 420f, 38f));
+
+        Assert.True(text.MeasureCallCount >= 2);
+        Assert.True(text.DesiredSize.Y > wideDesiredHeight + 0.01f);
+        Assert.Equal(38f, text.ActualHeight, 0.01f);
     }
 
     [Fact]
@@ -419,6 +464,34 @@ public sealed class GridLayoutTests
             return new Vector2(
                 MathF.Min(_desiredSize.X, availableSize.X),
                 MathF.Min(_desiredSize.Y, availableSize.Y));
+        }
+    }
+
+    private sealed class LateGrowingElement : FrameworkElement
+    {
+        private float _desiredHeight = 20f;
+
+        public bool ArrangeInvalidatedParent { get; private set; }
+
+        protected override Vector2 MeasureOverride(Vector2 availableSize)
+        {
+            return new Vector2(MathF.Min(40f, availableSize.X), _desiredHeight);
+        }
+
+        protected override Vector2 ArrangeOverride(Vector2 finalSize)
+        {
+            if (finalSize.X < 100f && _desiredHeight < 60f)
+            {
+                _desiredHeight = 60f;
+                ArrangeInvalidatedParent = true;
+                InvalidateMeasure();
+                if (VisualParent is FrameworkElement parent)
+                {
+                    parent.InvalidateMeasure();
+                }
+            }
+
+            return finalSize;
         }
     }
 }

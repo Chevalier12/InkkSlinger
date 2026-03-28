@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using Microsoft.Xna.Framework;
@@ -117,6 +119,172 @@ public sealed class ControlsCatalogDataGridPreviewTests
         Assert.Equal(DependencyPropertyValueSource.Inherited, rowHeader.GetValueSource(FrameworkElement.FontFamilyProperty));
     }
 
+    [Fact]
+    public void CatalogPreviewDataGrid_NarrowWidth_StacksInfoRailAndKeepsDemoGridInsideBody()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var view = new ControlsCatalogView();
+            view.ShowControl("DataGrid");
+
+            var uiRoot = new UiRoot(view);
+            for (var frame = 1; frame <= 3; frame++)
+            {
+                uiRoot.Update(
+                    new GameTime(TimeSpan.FromMilliseconds(frame * 16), TimeSpan.FromMilliseconds(16)),
+                    new Viewport(0, 0, 856, 820));
+            }
+
+            var previewHost = Assert.IsType<ContentControl>(view.FindName("PreviewHost"));
+            var dataGridView = Assert.IsType<DataGridView>(previewHost.Content);
+            var bodyBorder = Assert.IsType<Border>(dataGridView.FindName("DataGridViewBodyBorder"));
+            var infoViewer = Assert.IsType<ScrollViewer>(dataGridView.FindName("DataGridViewInfoScrollViewer"));
+            var demoGrid = Assert.IsType<DataGrid>(dataGridView.FindName("DemoGrid"));
+            var horizontalBar = GetPrivateScrollBar(demoGrid.ScrollViewerForTesting, "_horizontalBar");
+
+            var bodyRight = bodyBorder.LayoutSlot.X + bodyBorder.LayoutSlot.Width + 0.5f;
+            var gridRight = demoGrid.LayoutSlot.X + demoGrid.LayoutSlot.Width;
+
+            Assert.Equal(0, Grid.GetColumn(infoViewer));
+            Assert.Equal(1, Grid.GetRow(infoViewer));
+            Assert.True(
+                infoViewer.LayoutSlot.Y >= bodyBorder.LayoutSlot.Y + bodyBorder.LayoutSlot.Height - 0.5f,
+                $"Expected the info rail to stack below the body at narrow width, got body={bodyBorder.LayoutSlot} info={infoViewer.LayoutSlot}.");
+            Assert.True(
+                bodyBorder.LayoutSlot.Height >= 390f,
+                $"Expected the body border to retain enough height for a usable demo grid, got body={bodyBorder.LayoutSlot}.");
+            Assert.True(
+                infoViewer.LayoutSlot.Height <= 180.5f,
+                $"Expected the stacked info rail to be height-capped, got info={infoViewer.LayoutSlot}.");
+            Assert.True(
+                gridRight <= bodyRight,
+                $"Expected the demo grid to stay inside the body border at narrow width, got body={bodyBorder.LayoutSlot} grid={demoGrid.LayoutSlot}.");
+            Assert.True(
+                demoGrid.ScrollViewerForTesting.ExtentWidth > demoGrid.ScrollViewerForTesting.ViewportWidth,
+                $"Expected the demo grid to require horizontal scrolling at narrow width. Extent={demoGrid.ScrollViewerForTesting.ExtentWidth}, Viewport={demoGrid.ScrollViewerForTesting.ViewportWidth}.");
+            Assert.True(
+                horizontalBar.IsVisible && horizontalBar.LayoutSlot.Height > 0f,
+                $"Expected the demo grid horizontal scrollbar to be visible at narrow width, got bar={horizontalBar.LayoutSlot} visible={horizontalBar.IsVisible}.");
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
+    [Fact]
+    public void CatalogPreviewDataGrid_WideWidth_WrapsInfoRailCopyAndKeepsFooterTextInsideBorder()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var view = new ControlsCatalogView();
+            view.ShowControl("DataGrid");
+
+            var uiRoot = new UiRoot(view);
+            for (var frame = 1; frame <= 3; frame++)
+            {
+                uiRoot.Update(
+                    new GameTime(TimeSpan.FromMilliseconds(frame * 16), TimeSpan.FromMilliseconds(16)),
+                    new Viewport(0, 0, 1280, 820));
+            }
+
+            var previewHost = Assert.IsType<ContentControl>(view.FindName("PreviewHost"));
+            var dataGridView = Assert.IsType<DataGridView>(previewHost.Content);
+            var demoGrid = Assert.IsType<DataGrid>(dataGridView.FindName("DemoGrid"));
+            var footerBorder = FindFirstVisualChild<Border>(
+                dataGridView,
+                static border => border.GetVisualChildren().OfType<TextBlock>().Any(static block =>
+                    block.Text.StartsWith("The hosted grid is stretched", StringComparison.Ordinal)));
+            var wrappedInfoText = FindFirstVisualChild<TextBlock>(
+                dataGridView,
+                static block => block.Text.StartsWith("The blue lane on the far left", StringComparison.Ordinal));
+            var bulletText = FindFirstVisualChild<TextBlock>(
+                dataGridView,
+                static block => block.Text.StartsWith("- Drag the Name or Status", StringComparison.Ordinal));
+            var footerText = FindFirstVisualChild<TextBlock>(
+                dataGridView,
+                static block => block.Text.StartsWith("The hosted grid is stretched", StringComparison.Ordinal));
+
+            Assert.NotNull(footerBorder);
+            Assert.NotNull(wrappedInfoText);
+            Assert.NotNull(bulletText);
+            Assert.NotNull(footerText);
+
+            Assert.True(
+                wrappedInfoText!.ActualHeight > 23f,
+                $"Expected info rail advisory text to wrap, got text={wrappedInfoText.LayoutSlot}.");
+            Assert.True(
+                bulletText!.ActualHeight > 23f,
+                $"Expected info rail bullet text to wrap, got text={bulletText.LayoutSlot}.");
+
+            var footerBottom = footerBorder!.LayoutSlot.Y + footerBorder.LayoutSlot.Height + 0.5f;
+            var footerTop = footerBorder.LayoutSlot.Y;
+            var footerTextBottom = footerText!.LayoutSlot.Y + footerText.LayoutSlot.Height;
+            var gridBottom = demoGrid.LayoutSlot.Y + demoGrid.LayoutSlot.Height;
+            Assert.True(
+                footerTop >= gridBottom + 12f,
+                $"Expected footer border to stay visually separated from the grid, got grid={demoGrid.LayoutSlot} footer={footerBorder.LayoutSlot}.");
+            Assert.True(
+                footerTextBottom <= footerBottom - 4f,
+                $"Expected footer text to stay inside its border, got border={footerBorder.LayoutSlot} text={footerText.LayoutSlot}.");
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
+    [Fact]
+    public void CatalogPreviewDataGrid_WideWidth_FooterText_ArrangedHeightMatchesMeasuredHeight()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var view = new ControlsCatalogView();
+            view.ShowControl("DataGrid");
+
+            var uiRoot = new UiRoot(view);
+            for (var frame = 1; frame <= 3; frame++)
+            {
+                uiRoot.Update(
+                    new GameTime(TimeSpan.FromMilliseconds(frame * 16), TimeSpan.FromMilliseconds(16)),
+                    new Viewport(0, 0, 1280, 820));
+            }
+
+            var previewHost = Assert.IsType<ContentControl>(view.FindName("PreviewHost"));
+            var dataGridView = Assert.IsType<DataGridView>(previewHost.Content);
+            var footerBorder = FindFirstVisualChild<Border>(
+                dataGridView,
+                static border => border.GetVisualChildren().OfType<TextBlock>().Any(static block =>
+                    block.Text.StartsWith("The hosted grid is stretched", StringComparison.Ordinal)));
+            var footerText = FindFirstVisualChild<TextBlock>(
+                dataGridView,
+                static block => block.Text.StartsWith("The hosted grid is stretched", StringComparison.Ordinal));
+
+            Assert.NotNull(footerBorder);
+            Assert.NotNull(footerText);
+
+            Assert.True(
+                footerText!.ActualHeight >= footerText.DesiredSize.Y - 0.5f,
+                $"Expected footer text arranged height to keep up with its measured height, got desired={footerText.DesiredSize} actual={footerText.ActualHeight:0.###} slot={footerText.LayoutSlot}.");
+            Assert.True(
+                footerBorder!.ActualHeight >= footerText.ActualHeight + 22f - 0.5f,
+                $"Expected footer border height to include text plus padding and border, got border={footerBorder.LayoutSlot} text={footerText.LayoutSlot} desired={footerText.DesiredSize}.");
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
     private static void AssertTypography(FrameworkElement element, FrameworkElement expected)
     {
         Assert.Equal(expected.FontFamily, element.FontFamily);
@@ -128,14 +296,20 @@ public sealed class ControlsCatalogDataGridPreviewTests
     private static TElement? FindFirstVisualChild<TElement>(UIElement root)
         where TElement : UIElement
     {
-        if (root is TElement match)
+        return FindFirstVisualChild<TElement>(root, static _ => true);
+    }
+
+    private static TElement? FindFirstVisualChild<TElement>(UIElement root, Func<TElement, bool> predicate)
+        where TElement : UIElement
+    {
+        if (root is TElement match && predicate(match))
         {
             return match;
         }
 
         foreach (var child in root.GetVisualChildren())
         {
-            var found = FindFirstVisualChild<TElement>(child);
+            var found = FindFirstVisualChild(child, predicate);
             if (found != null)
             {
                 return found;
@@ -161,4 +335,28 @@ public sealed class ControlsCatalogDataGridPreviewTests
         Assert.IsType<ScrollBar>(value);
         return (ScrollBar)value!;
     }
+
+    private static Dictionary<object, object> CaptureApplicationResources()
+    {
+        return new Dictionary<object, object>(UiApplication.Current.Resources);
+    }
+
+    private static void RestoreApplicationResources(Dictionary<object, object> snapshot)
+    {
+        TestApplicationResources.Restore(snapshot);
+    }
+
+    private static void LoadRootAppResources()
+    {
+        var appPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "App.xml"));
+        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
+        XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+    }
+
 }

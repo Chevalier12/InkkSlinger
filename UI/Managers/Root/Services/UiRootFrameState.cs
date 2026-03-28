@@ -323,14 +323,6 @@ public sealed partial class UiRoot
 
     private UIElement? ResolveRetainedSyncSource(UIElement? requestedSource, UIElement? effectiveSource, bool requireDeepSync)
     {
-        if (!requireDeepSync &&
-            requestedSource is Track track &&
-            ReferenceEquals(requestedSource, effectiveSource) &&
-            track.HasPendingRenderDirtyBoundsHintForRetainedSync())
-        {
-            return null;
-        }
-
         if (requestedSource != null &&
             TryGetIndexedVisualNodeCore(requestedSource, out _) &&
             IsTransformScrollRetainedSyncCandidate(requestedSource))

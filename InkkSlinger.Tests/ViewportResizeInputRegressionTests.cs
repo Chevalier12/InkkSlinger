@@ -112,6 +112,33 @@ public sealed class ViewportResizeInputRegressionTests
             $"Expected stationary click after resize to select left list item only. leftSelected={leftList.SelectedIndex}, rightSelected={rightList.SelectedIndex}");
     }
 
+    [Fact]
+    public void LowCoverageDirtyInvalidation_AfterViewportResize_SuppressesPartialDirtyRedrawDuringSettleWindow()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 800f, 600f));
+        var child = new Border();
+        child.SetLayoutSlot(new LayoutRect(20f, 20f, 40f, 40f));
+        root.AddChild(child);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, width: 800, height: 600, elapsedMs: 16);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.CompleteDrawStateForTests();
+
+        RunLayout(uiRoot, width: 500, height: 400, elapsedMs: 32);
+        Assert.True(uiRoot.GetFullRedrawSettleFramesRemainingForTests() > 0);
+
+        uiRoot.ResetDirtyStateForTests();
+        uiRoot.CompleteDrawStateForTests();
+        child.RenderTransform = new TranslateTransform { X = 16f };
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        Assert.NotEmpty(uiRoot.GetDirtyRegionsSnapshotForTests());
+
+        Assert.False(uiRoot.WouldUsePartialDirtyRedrawForTests());
+    }
+
     private static void ClickWithoutPointerMove(UiRoot uiRoot, Vector2 pointer)
     {
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true, pointerMoved: false));

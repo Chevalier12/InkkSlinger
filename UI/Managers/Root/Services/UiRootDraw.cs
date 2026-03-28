@@ -45,6 +45,7 @@ public sealed partial class UiRoot
         var dirtyCoverage = _dirtyRegions.GetDirtyAreaCoverage();
         var usePartialClear = UseRetainedRenderList &&
                               UseDirtyRegionRendering &&
+                              _fullRedrawSettleFramesRemaining <= 0 &&
                               !_dirtyRegions.IsFullFrameDirty &&
                               ShouldUsePartialDirtyRedraw(_dirtyRegions.RegionCount, dirtyCoverage);
         if (!usePartialClear)
@@ -71,7 +72,7 @@ public sealed partial class UiRoot
             var treeDrawStart = Stopwatch.GetTimestamp();
             if (UseRetainedRenderList)
             {
-                if (UseDirtyRegionRendering)
+                if (UseDirtyRegionRendering && usePartialClear)
                 {
                     DrawRetainedRenderListWithDirtyRegions(spriteBatch);
                 }
@@ -121,6 +122,7 @@ public sealed partial class UiRoot
         ClearDirtyRenderQueue();
         ResetRetainedSyncTrackingState();
         _dirtyRegions.Clear();
+        ConsumeFullRedrawSettleFrame();
         _lastDrawCleanupMs = Stopwatch.GetElapsedTime(cleanupStart).TotalMilliseconds;
         LastDrawMs = Stopwatch.GetElapsedTime(drawStart).TotalMilliseconds;
     }
