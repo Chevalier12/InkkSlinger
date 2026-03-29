@@ -130,7 +130,7 @@
 
                 <section class="doc-section">
                     <h2>Why the host configuration exists</h2>
-                    <p>The current architecture deliberately moves defaults and conventions out of the runtime core. Pipe names, artifact roots, replay-tail behavior, diagnostics formatting, and script exposure all come from the host profile now. That keeps the runtime reusable while still allowing this repository to preserve its established defaults.</p>
+                    <p>The host configuration defines the policy boundary for the runtime. Pipe names, artifact roots, replay-tail behavior, diagnostics formatting, and script exposure come from the host profile rather than being embedded in command execution code. That keeps the runtime reusable while still allowing each host app to preserve its own defaults.</p>
                 </section>
 
                 <section class="doc-section">
@@ -149,7 +149,7 @@
 
                 <section class="doc-section">
                     <h2>Diagnostics pipeline</h2>
-                    <p>The telemetry system no longer hardcodes control-type branches inside the runtime host. Instead, the host constructs a diagnostics pipeline from contributors. A generic tree walker captures the visual tree, contributors add per-element facts, and the serializer formats the result into the telemetry output file.</p>
+                    <p>The telemetry system is built from diagnostics contributors. A generic tree walker captures the visual tree, contributors add per-element facts, and the serializer formats the result into the telemetry output file. This keeps diagnostics extensible while allowing framework-specific contributors to describe individual control types in more detail.</p>
                 </section>
 
                 <nav class="doc-pagination" aria-label="Page navigation">
