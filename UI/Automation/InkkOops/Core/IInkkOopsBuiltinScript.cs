@@ -1,8 +1,5 @@
 namespace InkkSlinger;
 
-public interface IInkkOopsBuiltinScript
+public interface IInkkOopsBuiltinScript : IInkkOopsScriptDefinition
 {
-    string Name { get; }
-
-    InkkOopsScript CreateScript();
 }

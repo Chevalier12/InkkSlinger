@@ -12,6 +12,9 @@ namespace InkkSlinger;
 
 public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
 {
+    private readonly InkkOopsHostConfiguration _hostConfiguration;
+    private readonly IInkkOopsArtifactNamingPolicy _artifactNamingPolicy;
+    private readonly InkkOopsVisualTreeDiagnostics _visualTreeDiagnostics;
     private readonly Window _window;
     private readonly Func<Viewport> _viewportAccessor;
     private readonly Func<RenderTarget2D?> _renderTargetAccessor;
@@ -31,12 +34,16 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         Window window,
         Func<Viewport> viewportAccessor,
         Func<RenderTarget2D?> renderTargetAccessor,
-        string artifactRoot)
+        string artifactRoot,
+        InkkOopsHostConfiguration hostConfiguration)
     {
         UiRoot = uiRoot ?? throw new ArgumentNullException(nameof(uiRoot));
         _window = window ?? throw new ArgumentNullException(nameof(window));
         _viewportAccessor = viewportAccessor ?? throw new ArgumentNullException(nameof(viewportAccessor));
         _renderTargetAccessor = renderTargetAccessor ?? throw new ArgumentNullException(nameof(renderTargetAccessor));
+        _hostConfiguration = hostConfiguration ?? throw new ArgumentNullException(nameof(hostConfiguration));
+        _artifactNamingPolicy = _hostConfiguration.ArtifactNamingPolicy;
+        _visualTreeDiagnostics = new InkkOopsVisualTreeDiagnostics(_hostConfiguration.DiagnosticsContributors);
         _artifactRoot = artifactRoot ?? string.Empty;
         UiRoot.Automation.AutomationEventRaised += OnAutomationEventRaised;
     }
@@ -70,7 +77,8 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
 
         _recorder = new InkkOopsInteractionRecorder(
             recordingRoot,
-            _window.ClientSize);
+            _window.ClientSize,
+            _artifactNamingPolicy);
     }
 
     public string StopRecording()
@@ -207,13 +215,22 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
             () =>
             {
                 Directory.CreateDirectory(ArtifactRoot);
-                var path = Path.Combine(ArtifactRoot, NormalizeArtifactName(artifactName, ".txt"));
+                var path = Path.Combine(ArtifactRoot, _artifactNamingPolicy.GetTelemetryFileName(artifactName));
                 var viewport = _viewportAccessor();
                 var hovered = UiRoot.GetHoveredElementForDiagnostics();
+                var focused = FocusManager.GetFocusedElement();
+                var diagnosticsContext = new InkkOopsDiagnosticsContext
+                {
+                    UiRoot = UiRoot,
+                    Viewport = new LayoutRect(0f, 0f, viewport.Width, viewport.Height),
+                    HoveredElement = hovered,
+                    FocusedElement = focused
+                };
+                var visualTree = _visualTreeDiagnostics.Capture(UiRoot.VisualRoot, diagnosticsContext);
                 var builder = new StringBuilder();
                 builder.AppendLine($"timestamp_utc={DateTime.UtcNow:O}");
                 builder.AppendLine($"hovered={DescribeElement(hovered)}");
-                builder.AppendLine($"focused={DescribeElement(FocusManager.GetFocusedElement())}");
+                builder.AppendLine($"focused={DescribeElement(focused)}");
                 builder.AppendLine($"dirty_regions={UiRoot.GetDirtyRegionSummaryForTests()}");
                 builder.AppendLine($"synced_dirty_roots={UiRoot.GetLastSynchronizedDirtyRootSummaryForTests()}");
                 builder.AppendLine($"retained_nodes={UiRoot.RetainedRenderNodeCount}");
@@ -222,7 +239,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                 builder.AppendLine($"window_backbuffer={_window.BackBufferSize.X}x{_window.BackBufferSize.Y}");
                 builder.AppendLine($"viewport={viewport.Width}x{viewport.Height}");
                 builder.AppendLine("visual_tree_begin");
-                AppendVisualTree(builder, UiRoot.VisualRoot, depth: 0);
+                builder.Append(_hostConfiguration.DiagnosticsSerializer.SerializeVisualTree(visualTree));
                 builder.AppendLine("visual_tree_end");
                 File.WriteAllText(path, builder.ToString(), Encoding.UTF8);
             },
@@ -390,7 +407,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
 
             try
             {
-                var path = Path.Combine(ArtifactRoot, NormalizeArtifactName(capture.ArtifactName, ".png"));
+                var path = Path.Combine(ArtifactRoot, _artifactNamingPolicy.GetFrameCaptureFileName(capture.ArtifactName));
                 using var stream = File.Create(path);
                 renderTarget.SaveAsPng(stream, renderTarget.Width, renderTarget.Height);
                 capture.Completion.TrySetResult();
@@ -527,25 +544,6 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         };
     }
 
-    private static string NormalizeArtifactName(string artifactName, string extension)
-    {
-        if (string.IsNullOrWhiteSpace(artifactName))
-        {
-            artifactName = "artifact";
-        }
-
-        artifactName = artifactName.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
-            ? artifactName
-            : artifactName + extension;
-
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-        {
-            artifactName = artifactName.Replace(invalid, '-');
-        }
-
-        return artifactName;
-    }
-
     private static string DescribeElement(UIElement? element)
     {
         if (element == null)
@@ -556,120 +554,6 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         return element is FrameworkElement { Name.Length: > 0 } frameworkElement
             ? $"{element.GetType().Name}#{frameworkElement.Name}"
             : element.GetType().Name;
-    }
-
-    private static void AppendVisualTree(StringBuilder builder, UIElement element, int depth)
-    {
-        var indent = new string(' ', depth * 2);
-        var text = element switch
-        {
-            Button button => Label.ExtractAutomationText(button.Content),
-            Label label => Label.ExtractAutomationText(label.Content),
-            TextBlock textBlock => textBlock.Text,
-            _ => string.Empty
-        };
-
-        if (element is FrameworkElement frameworkElement)
-        {
-            var slot = frameworkElement.LayoutSlot;
-            builder.Append(indent);
-            builder.Append(DescribeElement(element));
-            builder.Append(" slot=");
-            builder.Append($"{slot.X:0.##},{slot.Y:0.##},{slot.Width:0.##},{slot.Height:0.##}");
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                builder.Append(" text=");
-                builder.Append(text.Replace("\r", "\\r").Replace("\n", "\\n"));
-            }
-
-            if (element is TextBlock textBlock)
-            {
-                var typography = UiTextRenderer.ResolveTypography(textBlock, textBlock.FontSize);
-                var lineHeight = UiTextRenderer.GetLineHeight(typography);
-                var inkBounds = string.IsNullOrWhiteSpace(textBlock.LastRenderedLayoutTextForTests)
-                    ? new LayoutRect(0f, 0f, 0f, 0f)
-                    : UiTextRenderer.GetInkBoundsForTests(typography, textBlock.LastRenderedLayoutTextForTests);
-                builder.Append(" renderLines=");
-                builder.Append(textBlock.LastRenderedLineCountForTests);
-                builder.Append(" renderWidth=");
-                builder.Append($"{textBlock.LastRenderedLayoutWidthForTests:0.##}");
-                builder.Append(" desired=");
-                builder.Append($"{textBlock.DesiredSize.X:0.##},{textBlock.DesiredSize.Y:0.##}");
-                builder.Append(" previousAvailable=");
-                builder.Append($"{textBlock.PreviousAvailableSizeForTests.X:0.##},{textBlock.PreviousAvailableSizeForTests.Y:0.##}");
-                builder.Append(" measureCalls=");
-                builder.Append(textBlock.MeasureCallCount);
-                builder.Append(" measureWork=");
-                builder.Append(textBlock.MeasureWorkCount);
-                builder.Append(" arrangeCalls=");
-                builder.Append(textBlock.ArrangeCallCount);
-                builder.Append(" arrangeWork=");
-                builder.Append(textBlock.ArrangeWorkCount);
-                builder.Append(" measureValid=");
-                builder.Append(textBlock.IsMeasureValidForTests);
-                builder.Append(" arrangeValid=");
-                builder.Append(textBlock.IsArrangeValidForTests);
-                builder.Append(" lineHeight=");
-                builder.Append($"{lineHeight:0.###}");
-                builder.Append(" inkBounds=");
-                builder.Append($"{inkBounds.X:0.##},{inkBounds.Y:0.##},{inkBounds.Width:0.##},{inkBounds.Height:0.##}");
-                if (!string.IsNullOrWhiteSpace(textBlock.LastRenderedLayoutTextForTests))
-                {
-                    builder.Append(" renderText=");
-                    builder.Append(textBlock.LastRenderedLayoutTextForTests.Replace("\r", "\\r").Replace("\n", "\\n"));
-                }
-            }
-            else if (element is Border border)
-            {
-                builder.Append(" desired=");
-                builder.Append($"{border.DesiredSize.X:0.##},{border.DesiredSize.Y:0.##}");
-                builder.Append(" previousAvailable=");
-                builder.Append($"{border.PreviousAvailableSizeForTests.X:0.##},{border.PreviousAvailableSizeForTests.Y:0.##}");
-                builder.Append(" measureCalls=");
-                builder.Append(border.MeasureCallCount);
-                builder.Append(" measureWork=");
-                builder.Append(border.MeasureWorkCount);
-                builder.Append(" arrangeCalls=");
-                builder.Append(border.ArrangeCallCount);
-                builder.Append(" arrangeWork=");
-                builder.Append(border.ArrangeWorkCount);
-                builder.Append(" measureValid=");
-                builder.Append(border.IsMeasureValidForTests);
-                builder.Append(" arrangeValid=");
-                builder.Append(border.IsArrangeValidForTests);
-            }
-            else if (element is Grid grid)
-            {
-                builder.Append(" desired=");
-                builder.Append($"{grid.DesiredSize.X:0.##},{grid.DesiredSize.Y:0.##}");
-                builder.Append(" previousAvailable=");
-                builder.Append($"{grid.PreviousAvailableSizeForTests.X:0.##},{grid.PreviousAvailableSizeForTests.Y:0.##}");
-                builder.Append(" measureCalls=");
-                builder.Append(grid.MeasureCallCount);
-                builder.Append(" measureWork=");
-                builder.Append(grid.MeasureWorkCount);
-                builder.Append(" arrangeCalls=");
-                builder.Append(grid.ArrangeCallCount);
-                builder.Append(" arrangeWork=");
-                builder.Append(grid.ArrangeWorkCount);
-                builder.Append(" measureValid=");
-                builder.Append(grid.IsMeasureValidForTests);
-                builder.Append(" arrangeValid=");
-                builder.Append(grid.IsArrangeValidForTests);
-            }
-
-            builder.AppendLine();
-        }
-        else
-        {
-            builder.Append(indent);
-            builder.AppendLine(DescribeElement(element));
-        }
-
-        foreach (var child in element.GetVisualChildren())
-        {
-            AppendVisualTree(builder, child, depth + 1);
-        }
     }
 
     private readonly record struct PendingFrameGate(int RemainingFrames, TaskCompletionSource Completion);

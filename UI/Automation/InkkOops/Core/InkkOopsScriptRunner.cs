@@ -53,7 +53,7 @@ public sealed class InkkOopsScriptRunner
                 script.Name,
                 session.Artifacts.DirectoryPath,
                 script.Commands.Count,
-                failedCommandIndex: currentIndex >= 0 ? currentIndex : TryGetLastLoggedCommandIndex(session.Artifacts.GetPath("commands.log")),
+                failedCommandIndex: currentIndex >= 0 ? currentIndex : TryGetLastLoggedCommandIndex(session.Artifacts.GetCommandLogPath()),
                 failedCommandDescription: currentDescription,
                 failureMessage: ex.ToString(),
                 duration: Stopwatch.GetElapsedTime(started));

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - InkkOops overview</title>
-    <meta name="description" content="InkkOops overview: runtime UI automation, repro scripts, recording, replay, and diagnostics for InkkSlinger.">
+    <meta name="description" content="Technical overview of InkkOops: runtime automation, replay, diagnostics, architecture, and host integration.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -80,9 +80,14 @@
                                 <summary class="tree-group-toggle">InkkOops</summary>
                                 <ul>
                                     <li><a class="active" href="./inkkoops.html">Overview</a></li>
+                                    <li><a href="./inkkoops-architecture.html">Architecture</a></li>
+                                    <li><a href="./inkkoops-host-integration.html">Host integration</a></li>
+                                    <li><a href="./inkkoops-selectors-and-waits.html">Selectors and waits</a></li>
+                                    <li><a href="./inkkoops-command-patterns.html">Command patterns</a></li>
                                     <li><a href="./inkkoops-authoring-scripts.html">Authoring scripts</a></li>
                                     <li><a href="./inkkoops-runtime-cli.html">Runtime and CLI</a></li>
                                     <li><a href="./inkkoops-recording-and-diagnostics.html">Recording and diagnostics</a></li>
+                                    <li><a href="./inkkoops-artifacts-reference.html">Artifacts reference</a></li>
                                 </ul>
                             </details>
                         </li>
@@ -92,78 +97,129 @@
             <article class="docs-content">
                 <div class="doc-hero">
                     <p class="eyebrow">InkkOops</p>
-                    <h1>Runtime UI automation for the framework itself</h1>
-                    <p><code>InkkOops</code> is the framework's in-process automation and diagnostics runtime. It exists to make hard UI bugs reproducible: resize sequences, hover transitions, scrolling edge cases, layout regressions, retained-render issues, and parity investigations that only show up in the live app.</p>
-                    <p>It is not an external accessibility driver. It runs inside the app, targets the real <code>UiRoot</code>, and executes either semantic automation actions or synthetic pointer/input actions against the same tree the runtime is rendering.</p>
-                    <p>Use it for both automated runtime verification and manual testing workflows. The same system can drive scripted repros, record a human session, replay that session later, and capture the proof artifacts needed to debug what happened.</p>
+                    <h1>Technical overview</h1>
+                    <p><code>InkkOops</code> is InkkSlinger's in-process runtime automation and diagnostics system. It exists for defects that only show up when the real host app is running: hover transitions, resize sequences, scrolling behavior, focus bugs, retained-render mismatches, dirty-region regressions, and parity issues that do not reproduce in a narrow unit test.</p>
+                    <p>It is not an external driver. It runs inside the app process and works directly against the framework runtime: <code>UiRoot</code>, automation peers, input dispatch, rendering state, diagnostics hooks, and artifact writing.</p>
+                    <p>This documentation set is written as technical documentation. It focuses on architecture, contracts, operational behavior, and debugging workflow.</p>
                 </div>
 
                 <section class="doc-section">
-                    <h2>What it gives you</h2>
+                    <h2>Reading map</h2>
+                    <ul>
+                        <li><strong>Overview:</strong> what InkkOops is for and when to prefer it over a smaller test.</li>
+                        <li><strong>Architecture and host integration:</strong> how the runtime, host profile, policies, and game-host adapter fit together.</li>
+                        <li><strong>Selectors, command patterns, and authoring:</strong> how to build scripts that are stable and diagnostic-friendly.</li>
+                        <li><strong>Runtime, recording, and artifacts:</strong> how to launch work and how to inspect what the runtime produced.</li>
+                    </ul>
+                </section>
+
+                <section class="doc-section">
+                    <h2>What InkkOops is for</h2>
                     <div class="doc-grid two-up">
                         <section class="doc-card">
-                            <h3>Deterministic repro scripts</h3>
-                            <p>Built-in scripts are compiled into the main app assembly and run against the real runtime. You can launch them at startup, inject them into a running app, or replay a recorded user session.</p>
+                            <h3>Use it for live-runtime bugs</h3>
+                            <p>Choose InkkOops when the bug depends on real layout, real rendering, pointer hit-testing, live automation peers, viewport state, or app-host behavior that is difficult to model in a small in-memory test.</p>
                         </section>
                         <section class="doc-card">
-                            <h3>Proof artifacts</h3>
-                            <p>Every run writes machine-readable output such as <code>result.json</code>, <code>commands.log</code>, <code>command-###.json</code>, frame captures, and telemetry dumps.</p>
-                        </section>
-                        <section class="doc-card">
-                            <h3>Pointer and semantic actions</h3>
-                            <p>Use pointer actions when you need real hit-testing, hover, drag, and scroll behavior. Use semantic actions when you need stable control-level intent through automation peers.</p>
-                        </section>
-                        <section class="doc-card">
-                            <h3>Recorded sessions</h3>
-                            <p>You can record the actual steps a human took in the app, including window resizes and pointer activity, then replay that exact session later with capture and diagnostics enabled.</p>
+                            <h3>Do not overuse it</h3>
+                            <p>If the issue can be reproduced by constructing controls directly and asserting on their behavior without launching the full app, a normal xUnit control test is usually simpler and faster.</p>
                         </section>
                     </div>
                 </section>
 
                 <section class="doc-section">
                     <h2>Core concepts</h2>
-                    <h3>Built-in scripts</h3>
-                    <p>A built-in script is a class that implements <code>IInkkOopsBuiltinScript</code>. The runtime discovers these by reflection in the app assembly and exposes them by name for launch, attach, and replay workflows.</p>
-                    <h3>Selectors</h3>
-                    <p>Targets are resolved through <code>InkkOopsTargetSelector</code>, not fragile coordinate guesses. Resolution prefers explicit <code>x:Name</code>, then automation identifiers and automation names where appropriate, and it reports ambiguity instead of silently picking the first match.</p>
-                    <h3>Actionability</h3>
-                    <p><code>WaitForElement</code> only means the element resolves. If you need a target that can actually be clicked or hovered, use <code>WaitForVisible</code>, <code>WaitForInViewport</code>, or <code>WaitForInteractive</code>.</p>
-                    <h3>Artifacts</h3>
-                    <p>Runs are written under <code>artifacts/inkkoops</code> by default. Recordings are written under <code>artifacts/inkkoops-recordings</code> by default.</p>
+                    <h3>Host configuration</h3>
+                    <p>The app provides an <code>InkkOopsHostConfiguration</code>. That configuration supplies the script catalog, artifact naming policy, replay postamble policy, diagnostics serializer, diagnostics contributors, and default roots such as the pipe name and artifact directories.</p>
+                    <h3>Runtime service</h3>
+                    <p><code>InkkOopsRuntimeService</code> coordinates script runs, recording replays, attach-mode requests, and recording startup. It serializes work and produces a single artifact bundle per run.</p>
+                    <h3>Host adapter</h3>
+                    <p><code>InkkOopsGameHost</code> adapts the real MonoGame host to the automation runtime. It can resize the window, advance frames, inject pointer input, capture the composite target, and write structured telemetry.</p>
+                    <h3>Script model</h3>
+                    <p>A script is an <code>InkkOopsScript</code>, usually created through <code>InkkOopsScriptBuilder</code>. In this repository, built-in scripts are exposed through a reflection-backed catalog, but the runtime itself depends only on the catalog abstraction.</p>
+                    <h3>Recording model</h3>
+                    <p>A recording is a structured log of runtime input activity. Replay turns that log back into a normal InkkOops script and then appends a configurable diagnostics tail.</p>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Quick start</h2>
-                    <p>List the scripts that are compiled into the app:</p>
-<pre><code class="language-powershell">dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- list</code></pre>
-                    <p>Launch the app and run a built-in script immediately:</p>
-<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-script "sidebar-button-richtextbox"</code></pre>
-                    <p>Record a manual session:</p>
-<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-record</code></pre>
-                    <p>Replay a recording and capture the final frame:</p>
-<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-recording "C:\path\to\recording.json"</code></pre>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Built-in scripts currently in the repo</h2>
+                    <h2>Execution modes</h2>
                     <ul>
-                        <li><code>buttons-resize-chaos-repro</code>: aggressive button-view resize and hover repro used for render and layout debugging.</li>
-                        <li><code>buttons-resize-hover-repro</code>: narrower button-view repro focused on resize plus hover transitions.</li>
-                        <li><code>datagrid-workbench-capture</code>: navigates to the DataGrid validation surface and captures proof artifacts.</li>
-                        <li><code>sidebar-button-richtextbox</code>: drives the controls catalog sidebar to the RichTextBox view and verifies navigation.</li>
+                        <li><strong>Startup script run.</strong> Launch with <code>--inkkoops-script</code>, execute one script, write artifacts, and exit automatically.</li>
+                        <li><strong>Startup replay.</strong> Launch with <code>--inkkoops-recording</code>, replay one recording, write artifacts, and exit automatically.</li>
+                        <li><strong>Attach mode.</strong> Submit work to an already-running app through the named pipe. The app stays open after the run.</li>
+                        <li><strong>Recording mode.</strong> Launch with <code>--inkkoops-record</code>, capture human interaction, and write the recording bundle on normal shutdown.</li>
                     </ul>
-                    <div class="callout doc-callout">
-                        <p><strong>Built-in only in v1.</strong> InkkOops does not compile arbitrary external scripts at runtime. Scripts are authored as normal C# classes in the app project, discovered by reflection, and executed by name.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Selectors and actionability</h2>
+                    <p>InkkOops separates target resolution from interaction safety.</p>
+                    <ul>
+                        <li>Resolution prefers <code>x:Name</code>, then automation id, then automation name.</li>
+                        <li>Ambiguity is reported as a failure, not silently accepted.</li>
+                        <li><code>WaitForElement</code> means the target resolves.</li>
+                        <li><code>WaitForInteractive</code> means the target can be used safely for pointer interaction.</li>
+                    </ul>
+                    <p>This distinction matters because a target can exist but still be clipped, offscreen, disabled, or otherwise unsuitable for the action you want to perform.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Pointer actions vs semantic actions</h2>
+                    <div class="doc-grid two-up">
+                        <section class="doc-card">
+                            <h3>Pointer actions</h3>
+                            <p>Use pointer commands for hover bugs, hit-testing bugs, drag behavior, pointer capture, and any scenario where you need the real input path.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Semantic actions</h3>
+                            <p>Use semantic commands for stable control-level actions such as invoke, activate, and scroll provider operations when pointer fidelity is not the subject of the test.</p>
+                        </section>
                     </div>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Artifacts</h2>
+                    <p>Every run writes an artifact bundle. In this repository, the default run root is <code>artifacts/inkkoops</code> and the default recording root is <code>artifacts/inkkoops-recordings</code>.</p>
+                    <ul>
+                        <li><code>result.json</code>: overall status, command count, failure metadata, duration</li>
+                        <li><code>commands.log</code>: command execution timeline</li>
+                        <li><code>command-###.json</code>: per-command diagnostics</li>
+                        <li><code>*.png</code>: captured frames</li>
+                        <li><code>*.txt</code>: telemetry dumps</li>
+                    </ul>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Default host profile in this repository</h2>
+                    <ul>
+                        <li>Named pipe: <code>InkkOops</code></li>
+                        <li>Run root: <code>artifacts/inkkoops</code></li>
+                        <li>Recording root: <code>artifacts/inkkoops-recordings</code></li>
+                        <li>Script catalog: reflection-backed built-in scripts from the app assembly</li>
+                        <li>Replay postamble: wait for diagnostics stability, capture final frame, dump final telemetry</li>
+                    </ul>
+                    <p>These are host defaults, not core runtime requirements.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Examples</h2>
+                    <p>List scripts:</p>
+<pre><code class="language-powershell">dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- list</code></pre>
+                    <p>Run a startup script:</p>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-script "sidebar-button-richtextbox"</code></pre>
+                    <p>Record a session:</p>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-record</code></pre>
+                    <p>Replay a recording:</p>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-recording ".\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json"</code></pre>
                 </section>
 
                 <section class="doc-section">
                     <h2>Recommended workflow</h2>
                     <ol>
-                        <li>Record the real user session if the bug is difficult to reproduce by hand.</li>
-                        <li>Replay the recording through InkkOops so the app can capture a final frame and telemetry automatically.</li>
-                        <li>Turn the replay into a focused built-in repro script if the bug needs repeated iteration.</li>
-                        <li>Add or update a regression test in <code>InkkSlinger.Tests</code> once the root cause is understood.</li>
+                        <li>Start with a recording when the bug is hard to reproduce accurately by hand.</li>
+                        <li>Replay it to generate frame and telemetry proof.</li>
+                        <li>Reduce it to a focused built-in script for faster iteration if needed.</li>
+                        <li>Add a lower-level regression test once the root cause is isolated enough to test without the full app host.</li>
                     </ol>
                 </section>
 
@@ -172,9 +228,9 @@
                         <span>Previous</span>
                         <strong>RenderSurface: rules worth knowing</strong>
                     </a>
-                    <a class="pager-link" href="./inkkoops-authoring-scripts.html">
+                    <a class="pager-link" href="./inkkoops-architecture.html">
                         <span>Next</span>
-                        <strong>Authoring scripts</strong>
+                        <strong>Architecture</strong>
                     </a>
                 </nav>
             </article>

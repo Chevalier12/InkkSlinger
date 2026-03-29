@@ -8,13 +8,19 @@ namespace InkkSlinger;
 public sealed class InkkOopsArtifacts : IDisposable
 {
     private readonly StreamWriter _commandLogWriter;
+    private readonly IInkkOopsArtifactNamingPolicy _namingPolicy;
 
     public InkkOopsArtifacts(string rootPath, string scriptName)
+        : this(rootPath, scriptName, new DefaultInkkOopsArtifactNamingPolicy())
     {
-        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff");
-        DirectoryPath = Path.GetFullPath(Path.Combine(rootPath, $"{timestamp}-{Sanitize(scriptName)}"));
+    }
+
+    public InkkOopsArtifacts(string rootPath, string scriptName, IInkkOopsArtifactNamingPolicy namingPolicy)
+    {
+        _namingPolicy = namingPolicy ?? throw new ArgumentNullException(nameof(namingPolicy));
+        DirectoryPath = Path.GetFullPath(Path.Combine(rootPath, _namingPolicy.CreateRunDirectoryName(scriptName, DateTime.UtcNow)));
         Directory.CreateDirectory(DirectoryPath);
-        _commandLogWriter = new StreamWriter(Path.Combine(DirectoryPath, "commands.log"), append: false, Encoding.UTF8)
+        _commandLogWriter = new StreamWriter(Path.Combine(DirectoryPath, _namingPolicy.GetCommandLogFileName()), append: false, Encoding.UTF8)
         {
             AutoFlush = true
         };
@@ -25,6 +31,11 @@ public sealed class InkkOopsArtifacts : IDisposable
     public string GetPath(string fileName)
     {
         return Path.Combine(DirectoryPath, fileName);
+    }
+
+    public string GetCommandLogPath()
+    {
+        return GetPath(_namingPolicy.GetCommandLogFileName());
     }
 
     public void LogCommand(int index, string description)
@@ -47,13 +58,13 @@ public sealed class InkkOopsArtifacts : IDisposable
                 durationMilliseconds = result.Duration.TotalMilliseconds
             },
             new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(GetPath("result.json"), json, Encoding.UTF8);
+        File.WriteAllText(GetPath(_namingPolicy.GetResultFileName()), json, Encoding.UTF8);
     }
 
     public void WriteCommandDiagnostics(InkkOopsCommandDiagnostics diagnostics)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
-        var fileName = $"command-{diagnostics.CommandIndex:000}.json";
+        var fileName = _namingPolicy.GetCommandDiagnosticsFileName(diagnostics.CommandIndex);
         var json = JsonSerializer.Serialize(
             diagnostics,
             new JsonSerializerOptions
@@ -66,20 +77,5 @@ public sealed class InkkOopsArtifacts : IDisposable
     public void Dispose()
     {
         _commandLogWriter.Dispose();
-    }
-
-    private static string Sanitize(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "script";
-        }
-
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-        {
-            value = value.Replace(invalid, '-');
-        }
-
-        return value;
     }
 }

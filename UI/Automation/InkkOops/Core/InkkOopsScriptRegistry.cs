@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 
 namespace InkkSlinger;
 
-public sealed class InkkOopsScriptRegistry
+public sealed class InkkOopsScriptRegistry : IInkkOopsScriptCatalog
 {
-    private readonly Dictionary<string, Type> _scriptTypes;
+    private readonly ReflectionInkkOopsScriptCatalog _catalog;
 
     public InkkOopsScriptRegistry()
         : this(Assembly.GetExecutingAssembly())
@@ -17,42 +16,28 @@ public sealed class InkkOopsScriptRegistry
     public InkkOopsScriptRegistry(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
-
-        _scriptTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
-        foreach (var type in assembly.GetTypes())
-        {
-            if (type.IsAbstract ||
-                !typeof(IInkkOopsBuiltinScript).IsAssignableFrom(type) ||
-                type.GetConstructor(Type.EmptyTypes) == null)
-            {
-                continue;
-            }
-
-            var instance = (IInkkOopsBuiltinScript)Activator.CreateInstance(type)!;
-            if (_scriptTypes.TryGetValue(instance.Name, out var existing))
-            {
-                throw new InvalidOperationException(
-                    $"Duplicate InkkOops script name '{instance.Name}' found on '{existing.FullName}' and '{type.FullName}'.");
-            }
-
-            _scriptTypes.Add(instance.Name, type);
-        }
+        _catalog = new ReflectionInkkOopsScriptCatalog(assembly);
     }
 
     public IReadOnlyList<string> ListScripts()
     {
-        return _scriptTypes.Keys.OrderBy(static name => name, StringComparer.Ordinal).ToArray();
+        return _catalog.ListScripts();
     }
 
     public bool TryResolve(string name, out IInkkOopsBuiltinScript? script)
     {
-        if (_scriptTypes.TryGetValue(name, out var type))
+        if (_catalog.TryResolve(name, out var definition) && definition is IInkkOopsBuiltinScript builtInScript)
         {
-            script = (IInkkOopsBuiltinScript)Activator.CreateInstance(type)!;
+            script = builtInScript;
             return true;
         }
 
         script = null;
         return false;
+    }
+
+    bool IInkkOopsScriptCatalog.TryResolve(string name, out IInkkOopsScriptDefinition? script)
+    {
+        return _catalog.TryResolve(name, out script);
     }
 }

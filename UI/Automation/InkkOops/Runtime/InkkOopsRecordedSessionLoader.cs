@@ -15,18 +15,30 @@ public static class InkkOopsRecordedSessionLoader
 
     public static InkkOopsScript LoadFromJson(string recordingPath)
     {
+        return LoadFromJson(
+            recordingPath,
+            new DefaultInkkOopsArtifactNamingPolicy(),
+            new DefaultInkkOopsReplayPostamblePolicy());
+    }
+
+    public static InkkOopsScript LoadFromJson(
+        string recordingPath,
+        IInkkOopsArtifactNamingPolicy namingPolicy,
+        IInkkOopsReplayPostamblePolicy replayPostamblePolicy)
+    {
         if (string.IsNullOrWhiteSpace(recordingPath))
         {
             throw new ArgumentException("Recording path is required.", nameof(recordingPath));
         }
 
+        ArgumentNullException.ThrowIfNull(namingPolicy);
+        ArgumentNullException.ThrowIfNull(replayPostamblePolicy);
+
         var fullPath = Path.GetFullPath(recordingPath);
         var json = File.ReadAllText(fullPath);
         var session = JsonSerializer.Deserialize<RecordedSessionDocument>(json, JsonOptions)
                       ?? throw new InvalidOperationException($"Could not deserialize recording '{fullPath}'.");
-        var scriptName = Path.GetFileNameWithoutExtension(fullPath);
-        var captureName = SanitizeArtifactName(scriptName);
-        var builder = new InkkOopsScriptBuilder($"recording-replay-{scriptName}");
+        var builder = new InkkOopsScriptBuilder(namingPolicy.CreateReplayScriptName(fullPath));
 
         foreach (var action in session.Actions)
         {
@@ -55,30 +67,9 @@ public static class InkkOopsRecordedSessionLoader
             }
         }
 
-        builder
-            .WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)
-            .CaptureFrame($"{captureName}-final")
-            .DumpTelemetry($"{captureName}-final");
+        replayPostamblePolicy.Apply(builder, fullPath, namingPolicy);
 
         return builder.Build();
-    }
-
-    private static string SanitizeArtifactName(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "recording";
-        }
-
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var buffer = new char[value.Length];
-        for (var i = 0; i < value.Length; i++)
-        {
-            var ch = value[i];
-            buffer[i] = Array.IndexOf(invalidChars, ch) >= 0 ? '-' : ch;
-        }
-
-        return new string(buffer);
     }
 
     private sealed class RecordedSessionDocument

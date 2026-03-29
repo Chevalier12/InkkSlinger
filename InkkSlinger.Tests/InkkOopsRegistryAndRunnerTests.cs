@@ -93,6 +93,23 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
         Assert.Equal(response.ArtifactDirectory, roundTripResponse!.ArtifactDirectory);
     }
 
+    [Theory]
+    [InlineData(InkkOopsRunStatus.Completed, InkkOopsExitCodes.Success)]
+    [InlineData(InkkOopsRunStatus.Failed, InkkOopsExitCodes.Failed)]
+    [InlineData(InkkOopsRunStatus.Busy, InkkOopsExitCodes.Busy)]
+    [InlineData(InkkOopsRunStatus.NotFound, InkkOopsExitCodes.NotFound)]
+    public void ExitCodes_Map_RunStatuses_To_ProcessExitCodes(InkkOopsRunStatus status, int expectedExitCode)
+    {
+        Assert.Equal(expectedExitCode, InkkOopsExitCodes.FromStatus(status));
+        Assert.Equal(expectedExitCode, InkkOopsExitCodes.FromStatus(status.ToString()));
+    }
+
+    [Fact]
+    public void ExitCodes_Unknown_Status_Maps_To_Failed()
+    {
+        Assert.Equal(InkkOopsExitCodes.Failed, InkkOopsExitCodes.FromStatus("bogus"));
+    }
+
     private static Assembly CompileTestAssembly(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);

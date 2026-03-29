@@ -13,6 +13,7 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
     private readonly List<RecordedAction> _actions = new();
     private readonly string _directoryPath;
     private readonly DateTime _startedUtc = DateTime.UtcNow;
+    private readonly IInkkOopsArtifactNamingPolicy _namingPolicy;
     private int _pendingWaitFrames;
     private bool _hasLastState;
     private int _lastPointerX;
@@ -23,10 +24,18 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
     private bool _disposed;
 
     public InkkOopsInteractionRecorder(string rootPath, Microsoft.Xna.Framework.Point initialClientSize)
+        : this(rootPath, initialClientSize, new DefaultInkkOopsArtifactNamingPolicy())
+    {
+    }
+
+    public InkkOopsInteractionRecorder(
+        string rootPath,
+        Microsoft.Xna.Framework.Point initialClientSize,
+        IInkkOopsArtifactNamingPolicy namingPolicy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
-        var timestamp = _startedUtc.ToString("yyyyMMdd-HHmmssfff");
-        _directoryPath = Path.GetFullPath(Path.Combine(rootPath, $"{timestamp}-recorded-session"));
+        _namingPolicy = namingPolicy ?? throw new ArgumentNullException(nameof(namingPolicy));
+        _directoryPath = Path.GetFullPath(Path.Combine(rootPath, _namingPolicy.CreateRecordingDirectoryName(_startedUtc)));
         Directory.CreateDirectory(_directoryPath);
         _lastClientSize = initialClientSize;
         _actions.Add(RecordedAction.ResizeWindow(initialClientSize.X, initialClientSize.Y));
@@ -120,7 +129,7 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
                 actions = _actions
             },
             new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(Path.Combine(_directoryPath, "recording.json"), sessionJson, Encoding.UTF8);
+        File.WriteAllText(Path.Combine(_directoryPath, _namingPolicy.GetRecordingJsonFileName()), sessionJson, Encoding.UTF8);
 
         var builder = new StringBuilder();
         builder.AppendLine("using System.Numerics;");
@@ -155,7 +164,7 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
         }
 
         builder.AppendLine("    .Build();");
-        File.WriteAllText(Path.Combine(_directoryPath, "recorded-script.txt"), builder.ToString(), Encoding.UTF8);
+        File.WriteAllText(Path.Combine(_directoryPath, _namingPolicy.GetRecordedScriptFileName()), builder.ToString(), Encoding.UTF8);
     }
 
     public enum RecordedActionKind

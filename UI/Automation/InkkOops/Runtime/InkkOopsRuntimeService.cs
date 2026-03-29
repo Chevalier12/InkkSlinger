@@ -12,11 +12,12 @@ namespace InkkSlinger;
 public sealed class InkkOopsRuntimeService : IDisposable
 {
     private readonly InkkOopsRuntimeOptions _options;
+    private readonly InkkOopsHostConfiguration _hostConfiguration;
     private readonly InkkOopsGameHost _host;
-    private readonly InkkOopsScriptRegistry _registry;
+    private readonly IInkkOopsScriptCatalog _scriptCatalog;
     private readonly InkkOopsScriptRunner _runner = new();
     private readonly CancellationTokenSource _shutdown = new();
-    private readonly Action? _requestAppExit;
+    private readonly Action<InkkOopsRunResult>? _requestAppExit;
     private readonly object _sync = new();
     private readonly Task _pipeServerTask;
     private PendingRunRequest? _pendingRequest;
@@ -24,18 +25,23 @@ public sealed class InkkOopsRuntimeService : IDisposable
     private bool _startupRequestQueued;
     private bool _recordingStarted;
 
-    public InkkOopsRuntimeService(InkkOopsRuntimeOptions options, InkkOopsGameHost host, Action? requestAppExit = null)
+    public InkkOopsRuntimeService(
+        InkkOopsRuntimeOptions options,
+        InkkOopsHostConfiguration hostConfiguration,
+        InkkOopsGameHost host,
+        Action<InkkOopsRunResult>? requestAppExit = null)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _hostConfiguration = hostConfiguration ?? throw new ArgumentNullException(nameof(hostConfiguration));
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _requestAppExit = requestAppExit;
-        _registry = new InkkOopsScriptRegistry();
+        _scriptCatalog = _hostConfiguration.ScriptCatalog;
         _pipeServerTask = Task.Run(RunPipeServerLoopAsync);
     }
 
     public IReadOnlyList<string> ListScripts()
     {
-        return _registry.ListScripts();
+        return _scriptCatalog.ListScripts();
     }
 
     public void Update()
@@ -55,7 +61,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (!_registry.TryResolve(request.ScriptName, out _))
+        if (!_scriptCatalog.TryResolve(request.ScriptName, out _))
         {
             return new InkkOopsPipeResponse
             {
@@ -82,7 +88,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
             _pendingRequest = new PendingRunRequest(
                 request.ScriptName,
                 RecordingPath: string.Empty,
-                ArtifactRoot: string.IsNullOrWhiteSpace(request.ArtifactRootOverride) ? _options.ArtifactRoot : request.ArtifactRootOverride,
+                ArtifactRoot: string.IsNullOrWhiteSpace(request.ArtifactRootOverride) ? ResolveArtifactRoot() : request.ArtifactRootOverride,
                 Completion: completion);
         }
 
@@ -145,7 +151,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
             return;
         }
 
-        _host.StartRecording(_options.RecordingRoot);
+        _host.StartRecording(ResolveRecordingRoot());
         _recordingStarted = true;
     }
 
@@ -165,7 +171,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 _pendingRequest = new PendingRunRequest(
                     _options.StartupScriptName,
                     _options.StartupRecordingPath,
-                    _options.ArtifactRoot,
+                    ResolveArtifactRoot(),
                     Completion: null);
                 _startupRequestQueued = true;
             }
@@ -199,15 +205,18 @@ public sealed class InkkOopsRuntimeService : IDisposable
             if (!string.IsNullOrWhiteSpace(request.RecordingPath))
             {
                 var root = Path.GetFullPath(request.ArtifactRoot);
-                using var artifacts = new InkkOopsArtifacts(root, Path.GetFileNameWithoutExtension(request.RecordingPath));
+                using var artifacts = new InkkOopsArtifacts(root, Path.GetFileNameWithoutExtension(request.RecordingPath), _hostConfiguration.ArtifactNamingPolicy);
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
                 var session = new InkkOopsSession(_host, artifacts);
-                var script = InkkOopsRecordedSessionLoader.LoadFromJson(request.RecordingPath);
+                var script = InkkOopsRecordedSessionLoader.LoadFromJson(
+                    request.RecordingPath,
+                    _hostConfiguration.ArtifactNamingPolicy,
+                    _hostConfiguration.ReplayPostamblePolicy);
                 result = await _runner.RunAsync(script, session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
             }
-            else if (!_registry.TryResolve(request.ScriptName, out var builtinScript) || builtinScript == null)
+            else if (!_scriptCatalog.TryResolve(request.ScriptName, out var scriptDefinition) || scriptDefinition == null)
             {
                 result = new InkkOopsRunResult(
                     InkkOopsRunStatus.NotFound,
@@ -219,11 +228,11 @@ public sealed class InkkOopsRuntimeService : IDisposable
             else
             {
                 var root = Path.GetFullPath(request.ArtifactRoot);
-                using var artifacts = new InkkOopsArtifacts(root, request.ScriptName);
+                using var artifacts = new InkkOopsArtifacts(root, request.ScriptName, _hostConfiguration.ArtifactNamingPolicy);
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
                 var session = new InkkOopsSession(_host, artifacts);
-                result = await _runner.RunAsync(builtinScript.CreateScript(), session, _shutdown.Token).ConfigureAwait(false);
+                result = await _runner.RunAsync(scriptDefinition.CreateScript(), session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
             }
         }
@@ -245,7 +254,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
 
         if (shouldExitWhenDone)
         {
-            _requestAppExit?.Invoke();
+            _requestAppExit?.Invoke(result);
         }
     }
 
@@ -256,7 +265,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
             try
             {
                 using var pipe = new NamedPipeServerStream(
-                    _options.NamedPipeName,
+                    ResolveNamedPipeName(),
                     PipeDirection.InOut,
                     1,
                     PipeTransmissionMode.Byte,
@@ -288,4 +297,25 @@ public sealed class InkkOopsRuntimeService : IDisposable
         string RecordingPath,
         string ArtifactRoot,
         TaskCompletionSource<InkkOopsRunResult>? Completion);
+
+    private string ResolveArtifactRoot()
+    {
+        return string.IsNullOrWhiteSpace(_options.ArtifactRoot)
+            ? _hostConfiguration.DefaultArtifactRoot
+            : _options.ArtifactRoot;
+    }
+
+    private string ResolveNamedPipeName()
+    {
+        return string.IsNullOrWhiteSpace(_options.NamedPipeName)
+            ? _hostConfiguration.DefaultNamedPipeName
+            : _options.NamedPipeName;
+    }
+
+    private string ResolveRecordingRoot()
+    {
+        return string.IsNullOrWhiteSpace(_options.RecordingRoot)
+            ? _hostConfiguration.DefaultRecordingRoot
+            : _options.RecordingRoot;
+    }
 }

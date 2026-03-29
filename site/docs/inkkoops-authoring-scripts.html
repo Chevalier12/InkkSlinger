@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - Authoring InkkOops scripts</title>
-    <meta name="description" content="Authoring InkkOops built-in scripts: selectors, waits, pointer actions, semantic actions, and examples.">
+    <meta name="description" content="Technical documentation for authoring InkkOops scripts: script contracts, selectors, waits, pointer actions, semantic actions, and proof artifacts.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -80,9 +80,14 @@
                                 <summary class="tree-group-toggle">InkkOops</summary>
                                 <ul>
                                     <li><a href="./inkkoops.html">Overview</a></li>
+                                    <li><a href="./inkkoops-architecture.html">Architecture</a></li>
+                                    <li><a href="./inkkoops-host-integration.html">Host integration</a></li>
+                                    <li><a href="./inkkoops-selectors-and-waits.html">Selectors and waits</a></li>
+                                    <li><a href="./inkkoops-command-patterns.html">Command patterns</a></li>
                                     <li><a class="active" href="./inkkoops-authoring-scripts.html">Authoring scripts</a></li>
                                     <li><a href="./inkkoops-runtime-cli.html">Runtime and CLI</a></li>
                                     <li><a href="./inkkoops-recording-and-diagnostics.html">Recording and diagnostics</a></li>
+                                    <li><a href="./inkkoops-artifacts-reference.html">Artifacts reference</a></li>
                                 </ul>
                             </details>
                         </li>
@@ -92,138 +97,127 @@
             <article class="docs-content">
                 <div class="doc-hero">
                     <p class="eyebrow">InkkOops</p>
-                    <h1>Authoring built-in scripts</h1>
-                    <p>InkkOops v1 scripts are authored as normal C# classes in the app project. They are compiled into the assembly, discovered by reflection, and executed by name through the runtime service.</p>
+                    <h1>Authoring scripts</h1>
+                    <p>This page describes the script authoring contract in detail: how scripts are registered, how selectors work, when waits are required, and how to choose between pointer actions and semantic actions.</p>
                 </div>
 
                 <section class="doc-section">
-                    <h2>The contract</h2>
-                    <p>Implement <code>IInkkOopsBuiltinScript</code>. The runtime uses <code>Name</code> as the public entry point and <code>CreateScript()</code> to produce the command list.</p>
+                    <h2>Script contract</h2>
+                    <p>A script definition implements <code>IInkkOopsScriptDefinition</code>. In this repository, built-in scripts usually implement <code>IInkkOopsBuiltinScript</code>, which is a host-facing convenience interface.</p>
 <pre><code class="language-csharp">using InkkSlinger;
 
-public sealed class InkkOopsExampleScript : IInkkOopsBuiltinScript
+public sealed class SidebarRichTextBoxScript : IInkkOopsBuiltinScript
 {
-    public string Name =&gt; "example-navigation";
+    public string Name =&gt; "sidebar-richtextbox";
 
     public InkkOopsScript CreateScript()
     {
         return new InkkOopsScriptBuilder(Name)
             .WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)
-            .Click("Button")
-            .WaitForVisible("PreviewHost")
-            .CaptureFrame("after-button-click")
-            .DumpTelemetry("after-button-click")
+            .Click("RichTextBox")
+            .CaptureFrame("after-click")
+            .DumpTelemetry("after-click")
             .Build();
     }
 }</code></pre>
+                    <p><code>Name</code> is the public entry point. <code>CreateScript()</code> must return a complete script object.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h2>How scripts are discovered</h2>
+                    <p>The runtime depends on the configured script catalog, not on reflection directly. In this repository, the default host profile uses a reflection-backed catalog for convenience, so adding a built-in script class is usually enough to expose it. The important architectural point is that registration is a host concern.</p>
                 </section>
 
                 <section class="doc-section">
                     <h2>Selectors</h2>
-                    <p>Prefer selectors over coordinates whenever you can. They survive layout changes, templates, and viewport differences much better.</p>
+                    <p>Selectors are the preferred way to target elements. They are more stable than coordinates because they survive layout shifts, window size changes, and template changes.</p>
 <pre><code class="language-csharp">var byName = InkkOopsTargetSelector.Name("CatalogSidebarScrollViewer");
 var byAutomationId = InkkOopsTargetSelector.AutomationId("PreviewHost");
 var byAutomationName = InkkOopsTargetSelector.AutomationName("RichTextBox");
 
-var richTextBoxInSidebar =
+var scoped =
     InkkOopsTargetSelector.Within(
         InkkOopsTargetSelector.Name("CatalogSidebarScrollViewer"),
         InkkOopsTargetSelector.AutomationName("RichTextBox"));
 
-var secondDeleteButton =
+var indexed =
     InkkOopsTargetSelector.DescendantOf(
         InkkOopsTargetSelector.Name("ToolbarHost"),
         InkkOopsTargetSelector.AutomationName("Delete"))
     .WithIndex(1);</code></pre>
-                    <p>Resolution is strict. If no match exists, the command fails as <code>Unresolved</code>. If more than one match exists, the command fails as <code>Ambiguous</code>.</p>
+                    <p>The names above come from this repository's Controls Catalog host profile. They are examples, not hard requirements of the InkkOops core.</p>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Waits and actionability</h2>
+                    <h2>Resolution rules</h2>
                     <ul>
-                        <li><code>WaitForElement</code>: the target resolves, nothing more.</li>
-                        <li><code>WaitForVisible</code>: the target exists and reports visible.</li>
-                        <li><code>WaitForEnabled</code>: the target exists and is enabled.</li>
-                        <li><code>WaitForInViewport</code>: the target exists and is within the viewport.</li>
-                        <li><code>WaitForInteractive</code>: the target exists, is visible, enabled, has usable bounds, and the chosen action point is hit-testable.</li>
+                        <li>Resolution prefers <code>x:Name</code>.</li>
+                        <li>If no <code>x:Name</code> match exists, automation id is considered next.</li>
+                        <li>If no automation id match exists, automation name is considered next.</li>
+                        <li>If multiple matches are found and no index is specified, the command fails as <code>Ambiguous</code>.</li>
+                        <li>If nothing matches, the command fails as <code>Unresolved</code>.</li>
+                    </ul>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Wait semantics</h2>
+                    <p>Use waits that match the actual condition you need.</p>
+                    <ul>
+                        <li><code>WaitForElement</code>: target resolves.</li>
+                        <li><code>WaitForVisible</code>: target resolves and is visible.</li>
+                        <li><code>WaitForEnabled</code>: target resolves and is enabled.</li>
+                        <li><code>WaitForInViewport</code>: target resolves and its action point is in the viewport.</li>
+                        <li><code>WaitForInteractive</code>: target can be used for pointer interaction.</li>
+                        <li><code>WaitForIdle</code>: the host reaches the requested idle policy.</li>
                     </ul>
 <pre><code class="language-csharp">var richTextBoxButton = InkkOopsTargetSelector.Within(
     InkkOopsTargetSelector.Name("CatalogSidebarScrollViewer"),
     InkkOopsTargetSelector.AutomationName("RichTextBox"));
 
 return new InkkOopsScriptBuilder("sidebar-richtextbox")
-    .WaitForInteractive(richTextBoxButton)
+    .WaitForInteractive(richTextBoxButton, maxFrames: 120)
     .Hover(richTextBoxButton)
     .Click(richTextBoxButton)
+    .WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)
     .Build();</code></pre>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Builder surface at a glance</h2>
-                    <p>The current builder supports these command families:</p>
-                    <ul>
-                        <li>Timing and layout: <code>ResizeWindow</code>, <code>WaitFrames</code>, <code>WaitForIdle</code></li>
-                        <li>Wait conditions: <code>WaitForElement</code>, <code>WaitForVisible</code>, <code>WaitForEnabled</code>, <code>WaitForInViewport</code>, <code>WaitForInteractive</code></li>
-                        <li>Pointer input: <code>Hover</code>, <code>Click</code>, <code>MovePointer</code>, <code>PointerDown</code>, <code>PointerUp</code>, <code>Drag</code>, <code>Wheel</code></li>
-                        <li>Semantic actions: <code>Invoke</code>, <code>Activate</code>, <code>ScrollTo</code>, <code>ScrollBy</code>, <code>ScrollIntoView</code>, <code>ScrollIntoViewItemText</code>, <code>ScrollIntoViewItemIndex</code></li>
-                        <li>Proof and assertions: <code>CaptureFrame</code>, <code>DumpTelemetry</code>, <code>AssertExists</code>, <code>AssertNotExists</code>, <code>AssertProperty</code>, <code>AssertAutomationEvent</code></li>
-                    </ul>
-                    <p>Keep scripts short and explicit. Prefer a small number of purposeful steps over long imperative recordings unless the bug genuinely depends on a long recorded path.</p>
+                    <h2>Command composition</h2>
+                    <p>This page focuses on how scripts are declared and exposed. For deeper guidance on command families, reduction patterns, pointer-versus-semantic tradeoffs, and proof strategy, read <a href="./inkkoops-command-patterns.html">Command patterns</a>.</p>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Pointer actions and anchors</h2>
-                    <p>Pointer actions exercise the real input path. Use them for hover bugs, hit-testing bugs, pointer capture bugs, drag operations, or any scenario where semantic automation would hide the problem.</p>
-<pre><code class="language-csharp">new InkkOopsScriptBuilder("pointer-anchor-demo")
-    .Hover("Normal", InkkOopsPointerAnchor.Center)
-    .Click(
-        InkkOopsTargetSelector.Name("ScrollThumb"),
-        InkkOopsPointerAnchor.TopLeft)
-    .Drag(
-        InkkOopsTargetSelector.Name("ScrollThumb"),
-        0f,
-        120f,
-        InkkOopsPointerAnchor.OffsetBy(4f, 4f))
+                    <h2>Pointer commands in authored scripts</h2>
+                    <p>Use pointer commands when the bug depends on the actual input path.</p>
+<pre><code class="language-csharp">return new InkkOopsScriptBuilder("scroll-thumb-drag")
+    .Hover("ScrollThumb", InkkOopsPointerAnchor.Center)
+    .PointerDown("ScrollThumb", InkkOopsPointerAnchor.Center)
+    .Drag("ScrollThumb", 0f, 120f, InkkOopsPointerAnchor.OffsetBy(4f, 4f))
+    .PointerUp("ScrollThumb", InkkOopsPointerAnchor.OffsetBy(4f, 124f))
     .Build();</code></pre>
-                    <p>Default anchor is <code>Center</code>. The runtime writes the final chosen root-space action point into the command diagnostics file.</p>
+                    <p>Pointer diagnostics include the final chosen anchor and root-space action point so you can verify what the runtime actually clicked or hovered.</p>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Semantic actions and scrolling</h2>
-                    <p>Semantic commands route through automation peers and providers. They are appropriate when you want a stable control-level action and you do not need to test pointer behavior itself.</p>
+                    <h2>Semantic commands in authored scripts</h2>
+                    <p>Use semantic commands when you want stable control-level behavior and do not need pointer fidelity itself.</p>
 <pre><code class="language-csharp">var sidebar = InkkOopsTargetSelector.Name("CatalogSidebarScrollViewer");
-var richTextBoxButton = InkkOopsTargetSelector.Within(
+var target = InkkOopsTargetSelector.Within(
     sidebar,
     InkkOopsTargetSelector.AutomationName("RichTextBox"));
 
 return new InkkOopsScriptBuilder("semantic-sidebar-nav")
-    .ScrollIntoView(sidebar, InkkOopsScrollLocator.ForElement(richTextBoxButton))
-    .WaitForInteractive(richTextBoxButton)
-    .Activate(richTextBoxButton)
+    .ScrollIntoView(sidebar, target)
+    .WaitForInteractive(target)
+    .Activate(target)
     .AssertExists("PreviewHost")
     .Build();</code></pre>
-<pre><code class="language-csharp">return new InkkOopsScriptBuilder("items-control-scroll")
-    .ScrollIntoViewItemText(
-        InkkOopsTargetSelector.Name("CatalogSidebarScrollViewer"),
-        "RichTextBox")
-    .ScrollIntoViewItemIndex(
-        InkkOopsTargetSelector.Name("ResultsList"),
-        25)
-    .Build();</code></pre>
-                    <div class="callout doc-callout">
-                        <p><strong>Rule of thumb.</strong> If the bug is visual, input-sensitive, or hover-sensitive, use pointer commands. If the goal is navigation or state mutation and pointer fidelity does not matter, semantic commands are usually simpler.</p>
-                    </div>
                 </section>
 
                 <section class="doc-section">
                     <h2>Assertions and proof</h2>
-                    <ul>
-                        <li><code>AssertExists</code></li>
-                        <li><code>AssertNotExists</code></li>
-                        <li><code>AssertProperty</code></li>
-                        <li><code>AssertAutomationEvent</code></li>
-                        <li><code>CaptureFrame</code> and <code>DumpTelemetry</code> for visual and structural proof</li>
-                    </ul>
+                    <p>Assertions prove state. Captures and telemetry prove the visible and structural outcome.</p>
 <pre><code class="language-csharp">return new InkkOopsScriptBuilder("prove-selection")
     .Click("DataGrid")
     .WaitForVisible("PreviewHost")
@@ -233,10 +227,21 @@ return new InkkOopsScriptBuilder("semantic-sidebar-nav")
     .Build();</code></pre>
                 </section>
 
+                <section class="doc-section">
+                    <h2>Authoring guidelines</h2>
+                    <ul>
+                        <li>Prefer selectors over coordinates.</li>
+                        <li>Use explicit waits instead of long chains of <code>WaitFrames</code>.</li>
+                        <li>Capture proof near the end of the script once the state of interest is stable.</li>
+                        <li>Use pointer commands for pointer bugs and semantic commands for control-intent bugs.</li>
+                        <li>Keep scripts short enough that a single failed command still tells you something useful.</li>
+                    </ul>
+                </section>
+
                 <nav class="doc-pagination" aria-label="Page navigation">
-                    <a class="pager-link" href="./inkkoops.html">
+                    <a class="pager-link" href="./inkkoops-command-patterns.html">
                         <span>Previous</span>
-                        <strong>Overview</strong>
+                        <strong>Command patterns</strong>
                     </a>
                     <a class="pager-link" href="./inkkoops-runtime-cli.html">
                         <span>Next</span>

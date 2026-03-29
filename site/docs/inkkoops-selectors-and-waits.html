@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>InkkSlinger Docs - InkkOops recording and diagnostics</title>
-    <meta name="description" content="Technical documentation for InkkOops recording, replay conversion, artifact bundles, and diagnostics interpretation.">
+    <title>InkkSlinger Docs - InkkOops selectors and waits</title>
+    <meta name="description" content="Technical documentation for InkkOops selectors, target resolution, actionability, and wait semantics.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
                 <span class="brand-mark">IS</span>
                 <span class="brand-copy">
                     <strong>InkkSlinger Docs</strong>
-                    <span>InkkOops recording and diagnostics</span>
+                    <span>InkkOops selectors and waits</span>
                 </span>
             </a>
             <div class="docs-header-controls">
@@ -82,11 +82,11 @@
                                     <li><a href="./inkkoops.html">Overview</a></li>
                                     <li><a href="./inkkoops-architecture.html">Architecture</a></li>
                                     <li><a href="./inkkoops-host-integration.html">Host integration</a></li>
-                                    <li><a href="./inkkoops-selectors-and-waits.html">Selectors and waits</a></li>
+                                    <li><a class="active" href="./inkkoops-selectors-and-waits.html">Selectors and waits</a></li>
                                     <li><a href="./inkkoops-command-patterns.html">Command patterns</a></li>
                                     <li><a href="./inkkoops-authoring-scripts.html">Authoring scripts</a></li>
                                     <li><a href="./inkkoops-runtime-cli.html">Runtime and CLI</a></li>
-                                    <li><a class="active" href="./inkkoops-recording-and-diagnostics.html">Recording and diagnostics</a></li>
+                                    <li><a href="./inkkoops-recording-and-diagnostics.html">Recording and diagnostics</a></li>
                                     <li><a href="./inkkoops-artifacts-reference.html">Artifacts reference</a></li>
                                 </ul>
                             </details>
@@ -97,86 +97,82 @@
             <article class="docs-content">
                 <div class="doc-hero">
                     <p class="eyebrow">InkkOops</p>
-                    <h1>Recording and diagnostics</h1>
-                    <p>This page explains what the recorder captures, how replay is generated from a recording, what the runtime writes into an artifact bundle, and how to interpret those artifacts when diagnosing a real issue.</p>
+                    <h1>Selectors and waits</h1>
+                    <p>This page covers the mechanics of finding a target and deciding when it is safe to interact with that target. These details matter because many runtime failures are really target-resolution failures or actionability failures.</p>
                 </div>
 
                 <section class="doc-section">
-                    <h2>What recording captures</h2>
-                    <p>A recording is a structured action log, not a video. The current recorder observes runtime interaction and captures:</p>
+                    <h2>Selector types</h2>
                     <ul>
-                        <li>Window resize events</li>
-                        <li>Pointer movement</li>
-                        <li>Primary pointer press and release</li>
-                        <li>Wheel movement</li>
-                        <li>Frame waits inserted between observed changes</li>
+                        <li><code>Name("...")</code> targets an explicit <code>x:Name</code>.</li>
+                        <li><code>AutomationId("...")</code> targets an automation id.</li>
+                        <li><code>AutomationName("...")</code> targets an automation name.</li>
+                        <li><code>Within(...)</code> scopes one selector inside another.</li>
+                        <li><code>DescendantOf(...)</code> scopes the target beneath a container.</li>
+                        <li><code>WithIndex(...)</code> disambiguates multiple matches.</li>
                     </ul>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Start a recording</h2>
-<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-record
-
-dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code></pre>
-                    <p>Use the app normally and close it normally when finished. The recording bundle is written under the configured recording root, which defaults to <code>artifacts/inkkoops-recordings</code> in this repository.</p>
+                    <h2>Resolution order</h2>
+                    <p>When a simple identifier selector is used, resolution prefers:</p>
+                    <ol>
+                        <li><code>x:Name</code></li>
+                        <li>automation id</li>
+                        <li>automation name</li>
+                    </ol>
+                    <p>If none of those produce a match, the selector is <code>Unresolved</code>. If more than one match remains and no index is given, the selector is <code>Ambiguous</code>.</p>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Recording bundle layout</h2>
+                    <h2>Examples</h2>
+<pre><code class="language-csharp">var sidebar = InkkOopsTargetSelector.Name("CatalogSidebarScrollViewer");
+var previewHost = InkkOopsTargetSelector.AutomationId("PreviewHost");
+var richTextBox = InkkOopsTargetSelector.AutomationName("RichTextBox");
+
+var richTextBoxInSidebar =
+    InkkOopsTargetSelector.Within(sidebar, richTextBox);
+
+var secondDeleteButton =
+    InkkOopsTargetSelector.DescendantOf(
+        InkkOopsTargetSelector.Name("ToolbarHost"),
+        InkkOopsTargetSelector.AutomationName("Delete"))
+    .WithIndex(1);</code></pre>
+                    <p>Those identifiers are host-profile examples from this repository, not universal core names.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Wait conditions</h2>
                     <ul>
-                        <li><code>recording.json</code> is the structured replay source.</li>
-                        <li><code>recorded-script.txt</code> is a readable builder-style representation of the same sequence.</li>
-                    </ul>
-                    <p>The JSON file is what the runtime replays. The text file exists so a developer can inspect the session and manually reduce it into a focused built-in script.</p>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Replay conversion</h2>
-                    <p>Replay loads <code>recording.json</code>, turns each action into a normal builder command, and then applies the configured replay postamble policy. In this repository's default host profile, the postamble appends:</p>
-                    <ul>
-                        <li><code>WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)</code></li>
-                        <li><code>CaptureFrame("&lt;recording-name&gt;-final")</code></li>
-                        <li><code>DumpTelemetry("&lt;recording-name&gt;-final")</code></li>
-                    </ul>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Replay examples</h2>
-                    <p>Replay with default artifact location:</p>
-<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-recording ".\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json"</code></pre>
-                    <p>Replay with custom artifact location:</p>
-<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- `
-  --inkkoops-recording ".\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json" `
-  --inkkoops-artifacts "artifacts/inkkoops-replay-manual"</code></pre>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Run artifact bundle</h2>
-                    <ul>
-                        <li><code>result.json</code>: overall run result, command count, failure metadata, duration</li>
-                        <li><code>commands.log</code>: execution timeline</li>
-                        <li><code>command-###.json</code>: per-command diagnostics</li>
-                        <li><code>*.png</code>: frame captures</li>
-                        <li><code>*.txt</code>: telemetry dumps</li>
+                        <li><code>WaitForElement</code>: the selector resolves.</li>
+                        <li><code>WaitForVisible</code>: the target exists and is visible.</li>
+                        <li><code>WaitForEnabled</code>: the target exists and is enabled.</li>
+                        <li><code>WaitForInViewport</code>: the action point is inside the viewport.</li>
+                        <li><code>WaitForInteractive</code>: the target is usable for pointer interaction.</li>
                     </ul>
                 </section>
 
                 <section class="doc-section">
-                    <h2>How to read diagnostics</h2>
-                    <h3><code>result.json</code></h3>
-                    <p>Read this first. It tells you whether the run completed, how long it took, and which command failed if the run aborted.</p>
-                    <h3><code>commands.log</code></h3>
-                    <p>Use this for the linear timeline of what actually ran.</p>
-                    <h3><code>command-###.json</code></h3>
-                    <p>Use these files to inspect selector choice, resolution status, bounds, viewport, action point, matched peer, before/after hover and focus state, and the final failure category for a specific command.</p>
-                    <h3>Frame capture</h3>
-                    <p>The final frame answers what the user actually saw.</p>
-                    <h3>Telemetry dump</h3>
-                    <p>The final telemetry dump answers what the framework believed was on screen, including the visual tree snapshot and rendering-related diagnostics.</p>
+                    <h2>Why actionability matters</h2>
+                    <p>A target can exist and still fail interaction for multiple reasons: it may be unrealized, offscreen, clipped, disabled, or blocked at the action point. InkkOops exposes those cases explicitly instead of treating every failure as "not found."</p>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Failure categories</h2>
+                    <h2>Example wait pattern</h2>
+<pre><code class="language-csharp">var target = InkkOopsTargetSelector.Within(
+    InkkOopsTargetSelector.Name("CatalogSidebarScrollViewer"),
+    InkkOopsTargetSelector.AutomationName("RichTextBox"));
+
+return new InkkOopsScriptBuilder("sidebar-richtextbox")
+    .WaitForInteractive(target, maxFrames: 120)
+    .Hover(target)
+    .Click(target)
+    .WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)
+    .Build();</code></pre>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Failure categories you will see</h2>
                     <ul>
                         <li><code>Unresolved</code></li>
                         <li><code>Ambiguous</code></li>
@@ -185,56 +181,17 @@ dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code><
                         <li><code>Clipped</code></li>
                         <li><code>Disabled</code></li>
                         <li><code>NotInteractive</code></li>
-                        <li><code>SemanticProviderMissing</code></li>
-                        <li><code>UiThreadViolation</code></li>
-                        <li><code>Timeout</code></li>
                     </ul>
                 </section>
 
-                <section class="doc-section">
-                    <h2>Practical debugging flow</h2>
-                    <ol>
-                        <li>Record the human repro if the issue is hard to reproduce deterministically.</li>
-                        <li>Replay the recording and confirm that the run completed.</li>
-                        <li>Open the final frame capture to confirm the visible end state.</li>
-                        <li>Open the telemetry dump to inspect the structural end state.</li>
-                        <li>If the run failed, inspect the failed <code>command-###.json</code> file first.</li>
-                        <li>Reduce the recording to a focused built-in script if the replay is useful but too long for rapid iteration.</li>
-                    </ol>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Replay from code</h2>
-<pre><code class="language-csharp">using System.Diagnostics;
-
-var startInfo = new ProcessStartInfo
-{
-    FileName = "dotnet",
-    WorkingDirectory = Environment.CurrentDirectory,
-    UseShellExecute = false
-};
-
-startInfo.ArgumentList.Add("run");
-startInfo.ArgumentList.Add("--project");
-startInfo.ArgumentList.Add("InkkSlinger.csproj");
-startInfo.ArgumentList.Add("--");
-startInfo.ArgumentList.Add("--inkkoops-recording");
-startInfo.ArgumentList.Add(@".\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json");
-startInfo.ArgumentList.Add("--inkkoops-artifacts");
-startInfo.ArgumentList.Add("artifacts/inkkoops-replay-manual");
-
-using var process = Process.Start(startInfo)!;
-process.WaitForExit();</code></pre>
-                </section>
-
                 <nav class="doc-pagination" aria-label="Page navigation">
-                    <a class="pager-link" href="./inkkoops-runtime-cli.html">
+                    <a class="pager-link" href="./inkkoops-host-integration.html">
                         <span>Previous</span>
-                        <strong>Runtime and CLI</strong>
+                        <strong>Host integration</strong>
                     </a>
-                    <a class="pager-link" href="./inkkoops-artifacts-reference.html">
+                    <a class="pager-link" href="./inkkoops-command-patterns.html">
                         <span>Next</span>
-                        <strong>Artifacts reference</strong>
+                        <strong>Command patterns</strong>
                     </a>
                 </nav>
             </article>

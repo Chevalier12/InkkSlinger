@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - InkkOops runtime and CLI</title>
-    <meta name="description" content="Running InkkOops from the app command line and the companion CLI.">
+    <meta name="description" content="Technical documentation for InkkOops runtime entry points, startup runs, attach mode, CLI usage, and operational behavior.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -80,9 +80,14 @@
                                 <summary class="tree-group-toggle">InkkOops</summary>
                                 <ul>
                                     <li><a href="./inkkoops.html">Overview</a></li>
+                                    <li><a href="./inkkoops-architecture.html">Architecture</a></li>
+                                    <li><a href="./inkkoops-host-integration.html">Host integration</a></li>
+                                    <li><a href="./inkkoops-selectors-and-waits.html">Selectors and waits</a></li>
+                                    <li><a href="./inkkoops-command-patterns.html">Command patterns</a></li>
                                     <li><a href="./inkkoops-authoring-scripts.html">Authoring scripts</a></li>
                                     <li><a class="active" href="./inkkoops-runtime-cli.html">Runtime and CLI</a></li>
                                     <li><a href="./inkkoops-recording-and-diagnostics.html">Recording and diagnostics</a></li>
+                                    <li><a href="./inkkoops-artifacts-reference.html">Artifacts reference</a></li>
                                 </ul>
                             </details>
                         </li>
@@ -92,33 +97,35 @@
             <article class="docs-content">
                 <div class="doc-hero">
                     <p class="eyebrow">InkkOops</p>
-                    <h1>Runtime entry points and CLI usage</h1>
-                    <p>InkkOops can be started directly through the app command line or through the companion CLI project. Both paths target the same in-process runtime service.</p>
+                    <h1>Runtime and CLI</h1>
+                    <p>This page explains how InkkOops is started, how startup work differs from attach-mode work, how the companion CLI maps onto the runtime service, and which operational guarantees you can rely on.</p>
                 </div>
 
                 <section class="doc-section">
-                    <h2>App command line</h2>
-                    <p>The app accepts these InkkOops flags:</p>
+                    <h2>Entry points</h2>
                     <ul>
-                        <li><code>--inkkoops-script &lt;name&gt;</code>: run a built-in script at startup.</li>
-                        <li><code>--inkkoops-recording &lt;path&gt;</code>: replay a previously recorded session.</li>
-                        <li><code>--inkkoops-record</code>: record user interaction and write it on normal app shutdown.</li>
-                        <li><code>--inkkoops-artifacts &lt;path&gt;</code>: override the artifact output root for script and replay runs.</li>
-                        <li><code>--inkkoops-record-root &lt;path&gt;</code>: override the root directory for recorded sessions.</li>
-                        <li><code>--inkkoops-pipe &lt;name&gt;</code>: choose the named pipe used for attach mode.</li>
-                        <li><code>--inkkoops-disable-retained</code>: diagnostic mode for turning retained rendering off.</li>
-                        <li><code>--inkkoops-disable-dirty</code>: diagnostic mode for turning dirty-region rendering off.</li>
+                        <li><strong>App command line.</strong> Start the host app with InkkOops-specific flags such as <code>--inkkoops-script</code> or <code>--inkkoops-recording</code>.</li>
+                        <li><strong>Companion CLI.</strong> Use <code>InkkOops.Cli</code> to list scripts, launch startup runs, attach to a running app, or launch recording mode.</li>
                     </ul>
-<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-script "datagrid-workbench-capture"
-
-dotnet run --project InkkSlinger.csproj -- --inkkoops-script "buttons-resize-chaos-repro" --inkkoops-artifacts "artifacts/my-chaos-run"
-
-dotnet run --project InkkSlinger.csproj -- --inkkoops-recording "C:\Users\Shadow\Desktop\InkkSlinger\artifacts\inkkoops-recordings\20260328-001157740-recorded-session\recording.json"</code></pre>
+                    <p>Both paths end up driving the same in-process runtime service.</p>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Companion CLI</h2>
-                    <p>The CLI wraps common runtime operations so you do not have to remember the app flags by hand.</p>
+                    <h2>App command line flags</h2>
+                    <ul>
+                        <li><code>--inkkoops-script &lt;name&gt;</code>: run a startup script.</li>
+                        <li><code>--inkkoops-recording &lt;path&gt;</code>: replay a recording at startup.</li>
+                        <li><code>--inkkoops-record</code>: record user interaction and write the recording bundle on normal shutdown.</li>
+                        <li><code>--inkkoops-artifacts &lt;path&gt;</code>: override the run artifact root.</li>
+                        <li><code>--inkkoops-record-root &lt;path&gt;</code>: override the recording root.</li>
+                        <li><code>--inkkoops-pipe &lt;name&gt;</code>: override the attach-mode pipe name.</li>
+                        <li><code>--inkkoops-disable-retained</code>: disable retained rendering for renderer diagnostics.</li>
+                        <li><code>--inkkoops-disable-dirty</code>: disable dirty-region rendering for renderer diagnostics.</li>
+                    </ul>
+                </section>
+
+                <section class="doc-section">
+                    <h2>CLI commands</h2>
 <pre><code class="language-powershell">dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- list
 
 dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- run --script "sidebar-button-richtextbox" --launch
@@ -126,48 +133,75 @@ dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- run --script "sidebar-b
 dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- run --script "sidebar-button-richtextbox" --attach
 
 dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code></pre>
+                    <p>The CLI resolves its launch target through a resolver abstraction. In this repository, the default resolver falls back to <code>InkkSlinger.csproj</code>, but you can also provide <code>--project &lt;path&gt;</code> explicitly.</p>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Launch mode vs attach mode</h2>
+                    <h2>Startup runs vs attach runs</h2>
                     <div class="doc-grid two-up">
                         <section class="doc-card">
-                            <h3><code>--launch</code></h3>
-                            <p>Starts a new app process with a startup request. Use this when the scenario should begin from a cold start or when no app instance is already running.</p>
+                            <h3>Startup script run</h3>
+                            <p>The app launches, waits for initial layout, runs the configured startup script, writes artifacts, and exits automatically.</p>
                         </section>
                         <section class="doc-card">
-                            <h3><code>--attach</code></h3>
-                            <p>Connects to the app's named pipe and submits a script request to the already-running runtime service. Use this when you want to keep the app open and inject work into it.</p>
+                            <h3>Startup recording replay</h3>
+                            <p>The app launches, converts the recording into a replay script, runs it, writes artifacts, and exits automatically.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Attach mode</h3>
+                            <p>The app is already running. The request arrives over the named pipe and executes without forcing the app to exit afterward.</p>
+                        </section>
+                        <section class="doc-card">
+                            <h3>Recording mode</h3>
+                            <p>The app records human interaction. The recording is written when the app closes normally.</p>
                         </section>
                     </div>
-                    <p>Attach mode is serialized. If a script is already queued or running, the runtime returns a busy response rather than running multiple scripts concurrently.</p>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Named pipe and artifact overrides</h2>
+                    <h2>Serialization and concurrency</h2>
+                    <p>Attach mode is serialized. The runtime accepts only one queued or active request at a time. If a script is already queued or running, the attach response is <code>Busy</code>.</p>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Automatic exit behavior</h2>
+                    <ul>
+                        <li>Startup script runs exit automatically after completion.</li>
+                        <li>Startup recording replays exit automatically after completion.</li>
+                        <li>Attach-mode requests do not exit the app.</li>
+                        <li>Recording mode writes output on normal shutdown and does not force early exit.</li>
+                    </ul>
+                </section>
+
+                <section class="doc-section">
+                    <h2>Examples</h2>
+                    <p>Startup script:</p>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-script "datagrid-workbench-capture"</code></pre>
+                    <p>Startup replay with custom artifacts:</p>
+<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- `
+  --inkkoops-recording ".\artifacts\inkkoops-recordings\20260328-001157740-recorded-session\recording.json" `
+  --inkkoops-artifacts "artifacts/my-replay-run"</code></pre>
+                    <p>Attach mode with explicit pipe:</p>
 <pre><code class="language-powershell">dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- run `
   --script "buttons-resize-hover-repro" `
   --attach `
   --pipe "inkkoops-dev" `
   --timeout 45000 `
   --artifacts "artifacts/inkkoops-dev"</code></pre>
-                    <p>Use a dedicated pipe name if you need multiple local development sessions that should not talk to each other.</p>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Automatic exit for startup runs</h2>
-                    <p>Startup script runs and startup recording replays are treated as single-purpose sessions. The runtime executes the request, writes artifacts, and then requests app exit automatically.</p>
-                    <p>Recorded user sessions still finalize on normal shutdown. If you are capturing a recording, close the app normally rather than force-killing the process.</p>
+                    <h2>Operational guidance</h2>
+                    <ul>
+                        <li>Use startup runs for cold-start reproducibility.</li>
+                        <li>Use attach mode when you want to keep the app open and iterate quickly.</li>
+                        <li>Use dedicated artifact roots when comparing multiple runs.</li>
+                        <li>Use the renderer diagnostic switches only when isolating renderer-specific bugs.</li>
+                    </ul>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Diagnostic switches</h2>
-                    <p><code>--inkkoops-disable-retained</code> and <code>--inkkoops-disable-dirty</code> are there to isolate renderer classes of bugs. They are not normal operating modes.</p>
-                </section>
-
-                <section class="doc-section">
-                    <h2>xUnit example: launch the Controls Catalog from a test</h2>
-                    <p>The app boots into the Controls Catalog by default. A host-side xUnit test can launch the app as a separate process, run a built-in InkkOops script against that live runtime, wait for the process to exit, and then assert on the generated artifact bundle.</p>
+                    <h2>xUnit example</h2>
 <pre><code class="language-csharp">using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -177,15 +211,10 @@ using Xunit;
 public sealed class ControlsCatalogRuntimeTests
 {
     [Fact]
-    public void ControlsCatalog_CanLaunch_And_Run_A_BuiltIn_Script()
+    public void StartupScript_Run_Writes_Artifacts()
     {
-        var repoRoot = @"C:\Users\Shadow\Desktop\InkkSlinger";
+        var repoRoot = Environment.CurrentDirectory;
         var artifactRoot = Path.Combine(repoRoot, "artifacts", "inkkoops-xunit");
-
-        if (Directory.Exists(artifactRoot))
-        {
-            Directory.Delete(artifactRoot, recursive: true);
-        }
 
         var startInfo = new ProcessStartInfo
         {
@@ -204,75 +233,14 @@ public sealed class ControlsCatalogRuntimeTests
         startInfo.ArgumentList.Add(artifactRoot);
 
         using var process = Process.Start(startInfo)!;
-        Assert.True(process.WaitForExit(120_000), "The app did not exit within the timeout.");
+        Assert.True(process.WaitForExit(120_000));
         Assert.Equal(0, process.ExitCode);
 
         var runDirectory = Directory.GetDirectories(artifactRoot).Single();
-        var resultPath = Path.Combine(runDirectory, "result.json");
-        Assert.True(File.Exists(resultPath), "The runtime did not write result.json.");
-
-        using var document = JsonDocument.Parse(File.ReadAllText(resultPath));
-        Assert.Equal(
-            "Completed",
-            document.RootElement.GetProperty("status").GetString());
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(runDirectory, "result.json")));
+        Assert.Equal("Completed", document.RootElement.GetProperty("status").GetString());
     }
 }</code></pre>
-                    <p>This is a host-side integration test. It is not using <code>InkkOopsTestHost</code>. It is starting the real app process, letting the startup script drive the live Controls Catalog, and then asserting on the runtime artifacts after the app exits.</p>
-
-                    <h3>xUnit example: replay a recording from a test</h3>
-<pre><code class="language-csharp">using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-using Xunit;
-
-public sealed class ControlsCatalogReplayTests
-{
-    [Fact]
-    public void Recorded_Session_Can_Be_Replayed()
-    {
-        var repoRoot = @"C:\Users\Shadow\Desktop\InkkSlinger";
-        var artifactRoot = Path.Combine(repoRoot, "artifacts", "inkkoops-replay-xunit");
-        var recordingPath = Path.Combine(
-            repoRoot,
-            "artifacts",
-            "inkkoops-recordings",
-            "20260328-120250760-recorded-session",
-            "recording.json");
-
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            WorkingDirectory = repoRoot,
-            UseShellExecute = false
-        };
-
-        startInfo.ArgumentList.Add("run");
-        startInfo.ArgumentList.Add("--project");
-        startInfo.ArgumentList.Add("InkkSlinger.csproj");
-        startInfo.ArgumentList.Add("--");
-        startInfo.ArgumentList.Add("--inkkoops-recording");
-        startInfo.ArgumentList.Add(recordingPath);
-        startInfo.ArgumentList.Add("--inkkoops-artifacts");
-        startInfo.ArgumentList.Add(artifactRoot);
-
-        using var process = Process.Start(startInfo)!;
-        Assert.True(process.WaitForExit(120_000), "The replay run did not exit within the timeout.");
-        Assert.Equal(0, process.ExitCode);
-
-        var runDirectory = Directory.GetDirectories(artifactRoot).Single();
-        Assert.True(File.Exists(Path.Combine(runDirectory, "result.json")));
-        Assert.True(Directory.GetFiles(runDirectory, "*.png").Length &gt; 0);
-        Assert.True(Directory.GetFiles(runDirectory, "*.txt").Length &gt; 0);
-
-        using var document = JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(runDirectory, "result.json")));
-        Assert.Equal(
-            "Completed",
-            document.RootElement.GetProperty("status").GetString());
-    }
-}</code></pre>
-                    <p>Use this pattern when the bug is driven by a human recording and you want xUnit to execute the exact same runtime replay that you use manually from the shell.</p>
                 </section>
 
                 <nav class="doc-pagination" aria-label="Page navigation">

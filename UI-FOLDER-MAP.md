@@ -1,6 +1,6 @@
 # UI Folder Map
 
-Generated: 2026-03-25 (Views section added)
+Generated: 2026-03-28
 
 ```text
 UI/
@@ -24,6 +24,57 @@ UI/
       Int32Animations.cs
       PointThicknessAnimations.cs
   Automation
+    InkkOops
+      Commands
+        InkkOopsAssertAutomationEventCommand.cs
+        InkkOopsAssertExistsCommand.cs
+        InkkOopsAssertNotExistsCommand.cs
+        InkkOopsAssertPropertyCommand.cs
+        InkkOopsCaptureFrameCommand.cs
+        InkkOopsClickTargetCommand.cs
+        InkkOopsCommandUtilities.cs
+        InkkOopsDragTargetCommand.cs
+        InkkOopsDumpTelemetryCommand.cs
+        InkkOopsHoverTargetCommand.cs
+        InkkOopsInvokeTargetCommand.cs
+        InkkOopsMovePointerCommand.cs
+        InkkOopsPointerDownCommand.cs
+        InkkOopsPointerUpCommand.cs
+        InkkOopsResizeWindowCommand.cs
+        InkkOopsScrollByCommand.cs
+        InkkOopsScrollIntoViewCommand.cs
+        InkkOopsScrollToCommand.cs
+        InkkOopsWaitForElementCommand.cs
+        InkkOopsWaitForIdleCommand.cs
+        InkkOopsWaitFramesCommand.cs
+        InkkOopsWheelCommand.cs
+      Core
+        IInkkOopsBuiltinScript.cs
+        IInkkOopsCommand.cs
+        IInkkOopsHost.cs
+        InkkOopsArtifacts.cs
+        InkkOopsModels.cs
+        InkkOopsPipeMessages.cs
+        InkkOopsRunResult.cs
+        InkkOopsRuntimeOptions.cs
+        InkkOopsScript.cs
+        InkkOopsScriptBuilder.cs
+        InkkOopsScriptRegistry.cs
+        InkkOopsScriptRunner.cs
+        InkkOopsSession.cs
+        InkkOopsTargetResolution.cs
+      Runtime
+        InkkOopsGameHost.cs
+        InkkOopsInteractionRecorder.cs
+        InkkOopsRecordedSessionLoader.cs
+        InkkOopsRuntimeService.cs
+      Scripts
+        InkkOopsButtonsResizeChaosReproScript.cs
+        InkkOopsButtonsResizeHoverReproScript.cs
+        InkkOopsDataGridWorkbenchCaptureScript.cs
+        InkkOopsSidebarButtonRichTextBoxScript.cs
+      Targets
+        InkkOopsTargetReference.cs
     AutomationManager.cs
     AutomationPeer.cs
     AutomationPeerFactory.cs
@@ -148,6 +199,7 @@ UI/
       Calendar.cs
       CalendarDateRange.cs
       CalendarDayButton.cs
+      CalendarDayTextPresenter.cs
       CalendarSelectionMode.cs
       DatePicker.cs
       IHyperlinkHoverHost.cs
@@ -410,91 +462,175 @@ UI/
       XamlLoadSession.cs
       XamlObjectFactory.cs
       XamlTypeResolver.cs
-Views/ (demo and catalog views; each is a .xml + .xml.cs pair)
-  ControlsCatalogView.xml(.cs)         # Main shell: sidebar ScrollViewer (StackPanel of buttons) + preview pane
-  ControlDemoViewBase.cs               # Shared base + ControlViews factory (maps 75 control names to view factories)
-  AccessTextView.xml(.cs)
-  BorderView.xml(.cs)
-  ButtonView.xml(.cs)
-  CalendarView.xml(.cs)               # Has Calendar hover/selection hotspots
-  CanvasView.xml(.cs)
-  CatchMeView.xml(.cs)
-  CheckBoxView.xml(.cs)
-  ComboBoxView.xml(.cs)
-  ComboBoxItemView.xml(.cs)
-  ContentControlView.xml(.cs)
-  ContentPresenterView.xml(.cs)
-  ContextMenuView.xml(.cs)
-  ControlView.xml(.cs)
-  DataGridView.xml(.cs)               # Large; has hotspot diagnostics tests
-  DataGridCellView.xml(.cs)
-  DataGridColumnHeaderView.xml(.cs)
-  DataGridDetailsPresenterView.xml(.cs)
-  DataGridRowView.xml(.cs)
-  DataGridRowHeaderView.xml(.cs)
-  DatePickerView.xml(.cs)
-  DecoratorView.xml(.cs)
-  DockPanelView.xml(.cs)
-  DocumentViewerView.xml(.cs)
-  ExpanderView.xml(.cs)
-  FrameView.xml(.cs)
-  GridView.xml(.cs)
-  GridSplitterView.xml(.cs)
-  GroupBoxView.xml(.cs)
-  GroupItemView.xml(.cs)
-  HeaderedContentControlView.xml(.cs)
-  HeaderedItemsControlView.xml(.cs)
-  ImageView.xml(.cs)
-  InkCanvasView.xml(.cs)
-  InkPresenterView.xml(.cs)
-  ItemsControlView.xml(.cs)
-  LabelView.xml(.cs)
-  ListBoxView.xml(.cs)
-  ListBoxItemView.xml(.cs)
-  ListViewView.xml(.cs)
-  ListViewItemView.xml(.cs)
-  MediaElementView.xml(.cs)
-  MenuView.xml(.cs)
-  MenuItemView.xml(.cs)
-  PageView.xml(.cs)
-  PanelView.xml(.cs)
-  PasswordBoxView.xml(.cs)
-  PasswordBoxDemoView.xml(.cs)
-  PopupView.xml(.cs)
-  ProgressBarView.xml(.cs)
-  RadioButtonView.xml(.cs)
-  RenderSurfaceView.xml(.cs)          # CPU rendering diagnostics
-  RenderSurfaceGpuView.xml(.cs)      # GPU rendering diagnostics
-  RepeatButtonView.xml(.cs)
-  ResizeGripView.xml(.cs)
-  RichTextBoxView.xml(.cs)           # Large; has hotspot diagnostics tests
-  ScrollBarView.xml(.cs)
-  ScrollViewerView.xml(.cs)
-  SeparatorView.xml(.cs)
-  SliderView.xml(.cs)
-  StackPanelView.xml(.cs)
-  StatusBarView.xml(.cs)
-  StatusBarItemView.xml(.cs)
-  TabControlView.xml(.cs)
-  TabItemView.xml(.cs)
-  TextBlockView.xml(.cs)
-  TextBoxView.xml(.cs)
-  ThumbView.xml(.cs)
-  ToggleButtonView.xml(.cs)
-  ToolBarView.xml(.cs)
-  ToolBarOverflowPanelView.xml(.cs)
-  ToolBarPanelView.xml(.cs)
-  ToolBarTrayView.xml(.cs)
-  ToolTipView.xml(.cs)
-  TreeViewView.xml(.cs)
-  TreeViewItemView.xml(.cs)
-  UniformGridView.xml(.cs)
-  UserControlView.xml(.cs)
-  ViewboxView.xml(.cs)
-  VirtualizingStackPanelView.xml(.cs)
-  WindowView.xml(.cs)
-  WrapPanelView.xml(.cs)
-  PaintShellView.xml(.cs)            # Standalone demo (not in ControlViews.All)
-  SnakeGameViewModel.cs               # Standalone demo (not in ControlViews.All)
-  MainMenuView.xml(.cs)              # Standalone demo (not in ControlViews.All)
+Views/
+  AccessTextView.xml
+  AccessTextView.xml.cs
+  BorderView.xml
+  BorderView.xml.cs
+  ButtonView.xml
+  ButtonView.xml.cs
+  CalendarView.xml
+  CalendarView.xml.cs
+  CanvasView.xml
+  CanvasView.xml.cs
+  CatchMeView.xml
+  CatchMeView.xml.cs
+  CheckBoxView.xml
+  CheckBoxView.xml.cs
+  ComboBoxItemView.xml
+  ComboBoxItemView.xml.cs
+  ComboBoxView.xml
+  ComboBoxView.xml.cs
+  ContentControlView.xml
+  ContentControlView.xml.cs
+  ContentPresenterView.xml
+  ContentPresenterView.xml.cs
+  ContextMenuView.xml
+  ContextMenuView.xml.cs
+  ControlsCatalogView.xml
+  ControlsCatalogView.xml.cs
+  ControlView.xml
+  ControlView.xml.cs
+  DataGridCellView.xml
+  DataGridCellView.xml.cs
+  DataGridColumnHeaderView.xml
+  DataGridColumnHeaderView.xml.cs
+  DataGridDetailsPresenterView.xml
+  DataGridDetailsPresenterView.xml.cs
+  DataGridRowHeaderView.xml
+  DataGridRowHeaderView.xml.cs
+  DataGridRowView.xml
+  DataGridRowView.xml.cs
+  DataGridView.xml
+  DataGridView.xml.cs
+  DatePickerView.xml
+  DatePickerView.xml.cs
+  DecoratorView.xml
+  DecoratorView.xml.cs
+  DockPanelView.xml
+  DockPanelView.xml.cs
+  DocumentViewerView.xml
+  DocumentViewerView.xml.cs
+  ExpanderView.xml
+  ExpanderView.xml.cs
+  FrameView.xml
+  FrameView.xml.cs
+  GridSplitterView.xml
+  GridSplitterView.xml.cs
+  GridView.xml
+  GridView.xml.cs
+  GroupBoxView.xml
+  GroupBoxView.xml.cs
+  GroupItemView.xml
+  GroupItemView.xml.cs
+  HeaderedContentControlView.xml
+  HeaderedContentControlView.xml.cs
+  HeaderedItemsControlView.xml
+  HeaderedItemsControlView.xml.cs
+  ImageView.xml
+  ImageView.xml.cs
+  InkCanvasView.xml
+  InkCanvasView.xml.cs
+  InkPresenterView.xml
+  InkPresenterView.xml.cs
+  ItemsControlView.xml
+  ItemsControlView.xml.cs
+  LabelView.xml
+  LabelView.xml.cs
+  ListBoxItemView.xml
+  ListBoxItemView.xml.cs
+  ListBoxView.xml
+  ListBoxView.xml.cs
+  ListViewItemView.xml
+  ListViewItemView.xml.cs
+  ListViewView.xml
+  ListViewView.xml.cs
+  MainMenuView.xml
+  MainMenuView.xml.cs
+  MediaElementView.xml
+  MediaElementView.xml.cs
+  MenuItemView.xml
+  MenuItemView.xml.cs
+  MenuView.xml
+  MenuView.xml.cs
+  PageView.xml
+  PageView.xml.cs
+  PaintShellView.xml
+  PaintShellView.xml.cs
+  PanelView.xml
+  PanelView.xml.cs
+  PasswordBoxDemoView.xml
+  PasswordBoxDemoView.xml.cs
+  PasswordBoxView.xml
+  PasswordBoxView.xml.cs
+  PopupView.xml
+  PopupView.xml.cs
+  ProgressBarView.xml
+  ProgressBarView.xml.cs
+  RadioButtonView.xml
+  RadioButtonView.xml.cs
+  RenderSurfaceGpuView.xml
+  RenderSurfaceGpuView.xml.cs
+  RenderSurfaceView.xml
+  RenderSurfaceView.xml.cs
+  RepeatButtonView.xml
+  RepeatButtonView.xml.cs
+  ResizeGripView.xml
+  ResizeGripView.xml.cs
+  RichTextBoxView.xml
+  RichTextBoxView.xml.cs
+  ScrollBarView.xml
+  ScrollBarView.xml.cs
+  ScrollViewerView.xml
+  ScrollViewerView.xml.cs
+  SeparatorView.xml
+  SeparatorView.xml.cs
+  SliderView.xml
+  SliderView.xml.cs
+  StackPanelView.xml
+  StackPanelView.xml.cs
+  StatusBarItemView.xml
+  StatusBarItemView.xml.cs
+  StatusBarView.xml
+  StatusBarView.xml.cs
+  TabControlView.xml
+  TabControlView.xml.cs
+  TabItemView.xml
+  TabItemView.xml.cs
+  TextBlockView.xml
+  TextBlockView.xml.cs
+  TextBoxView.xml
+  TextBoxView.xml.cs
+  ThumbView.xml
+  ThumbView.xml.cs
+  ToggleButtonView.xml
+  ToggleButtonView.xml.cs
+  ToolBarOverflowPanelView.xml
+  ToolBarOverflowPanelView.xml.cs
+  ToolBarPanelView.xml
+  ToolBarPanelView.xml.cs
+  ToolBarTrayView.xml
+  ToolBarTrayView.xml.cs
+  ToolBarView.xml
+  ToolBarView.xml.cs
+  ToolTipView.xml
+  ToolTipView.xml.cs
+  TreeViewItemView.xml
+  TreeViewItemView.xml.cs
+  TreeViewView.xml
+  TreeViewView.xml.cs
+  UniformGridView.xml
+  UniformGridView.xml.cs
+  UserControlView.xml
+  UserControlView.xml.cs
+  ViewboxView.xml
+  ViewboxView.xml.cs
+  VirtualizingStackPanelView.xml
+  VirtualizingStackPanelView.xml.cs
+  WindowView.xml
+  WindowView.xml.cs
+  WrapPanelView.xml
+  WrapPanelView.xml.cs
+  ControlDemoViewBase.cs
+  SnakeGameViewModel.cs
 ```

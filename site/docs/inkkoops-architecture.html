@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>InkkSlinger Docs - InkkOops recording and diagnostics</title>
-    <meta name="description" content="Technical documentation for InkkOops recording, replay conversion, artifact bundles, and diagnostics interpretation.">
+    <title>InkkSlinger Docs - InkkOops architecture</title>
+    <meta name="description" content="Technical architecture of InkkOops: host configuration, runtime service, script catalog, policies, game host adapter, and diagnostics pipeline.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
                 <span class="brand-mark">IS</span>
                 <span class="brand-copy">
                     <strong>InkkSlinger Docs</strong>
-                    <span>InkkOops recording and diagnostics</span>
+                    <span>InkkOops architecture</span>
                 </span>
             </a>
             <div class="docs-header-controls">
@@ -80,13 +80,13 @@
                                 <summary class="tree-group-toggle">InkkOops</summary>
                                 <ul>
                                     <li><a href="./inkkoops.html">Overview</a></li>
-                                    <li><a href="./inkkoops-architecture.html">Architecture</a></li>
+                                    <li><a class="active" href="./inkkoops-architecture.html">Architecture</a></li>
                                     <li><a href="./inkkoops-host-integration.html">Host integration</a></li>
                                     <li><a href="./inkkoops-selectors-and-waits.html">Selectors and waits</a></li>
                                     <li><a href="./inkkoops-command-patterns.html">Command patterns</a></li>
                                     <li><a href="./inkkoops-authoring-scripts.html">Authoring scripts</a></li>
                                     <li><a href="./inkkoops-runtime-cli.html">Runtime and CLI</a></li>
-                                    <li><a class="active" href="./inkkoops-recording-and-diagnostics.html">Recording and diagnostics</a></li>
+                                    <li><a href="./inkkoops-recording-and-diagnostics.html">Recording and diagnostics</a></li>
                                     <li><a href="./inkkoops-artifacts-reference.html">Artifacts reference</a></li>
                                 </ul>
                             </details>
@@ -97,144 +97,69 @@
             <article class="docs-content">
                 <div class="doc-hero">
                     <p class="eyebrow">InkkOops</p>
-                    <h1>Recording and diagnostics</h1>
-                    <p>This page explains what the recorder captures, how replay is generated from a recording, what the runtime writes into an artifact bundle, and how to interpret those artifacts when diagnosing a real issue.</p>
+                    <h1>Architecture</h1>
+                    <p>This page focuses on structure. It describes which components exist, which responsibilities they own, and how a request moves through the system from startup flag or CLI command to completed artifact bundle.</p>
                 </div>
 
                 <section class="doc-section">
-                    <h2>What recording captures</h2>
-                    <p>A recording is a structured action log, not a video. The current recorder observes runtime interaction and captures:</p>
+                    <h2>Top-level components</h2>
                     <ul>
-                        <li>Window resize events</li>
-                        <li>Pointer movement</li>
-                        <li>Primary pointer press and release</li>
-                        <li>Wheel movement</li>
-                        <li>Frame waits inserted between observed changes</li>
+                        <li><code>InkkOopsHostConfiguration</code>: host-owned configuration root for catalogs, policies, and defaults.</li>
+                        <li><code>InkkOopsRuntimeService</code>: coordinator for queued work, startup work, recording, and attach requests.</li>
+                        <li><code>InkkOopsGameHost</code>: adapter between MonoGame host behavior and the automation runtime.</li>
+                        <li><code>IInkkOopsScriptCatalog</code>: host-supplied lookup for named scripts.</li>
+                        <li><code>IInkkOopsArtifactNamingPolicy</code>: host-supplied naming rules for run and recording bundles.</li>
+                        <li><code>IInkkOopsReplayPostamblePolicy</code>: host-supplied replay tail behavior.</li>
+                        <li><code>IInkkOopsDiagnosticsContributor</code> and <code>IInkkOopsDiagnosticsSerializer</code>: host-supplied visual-tree diagnostics pipeline.</li>
                     </ul>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Start a recording</h2>
-<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-record
-
-dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code></pre>
-                    <p>Use the app normally and close it normally when finished. The recording bundle is written under the configured recording root, which defaults to <code>artifacts/inkkoops-recordings</code> in this repository.</p>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Recording bundle layout</h2>
-                    <ul>
-                        <li><code>recording.json</code> is the structured replay source.</li>
-                        <li><code>recorded-script.txt</code> is a readable builder-style representation of the same sequence.</li>
-                    </ul>
-                    <p>The JSON file is what the runtime replays. The text file exists so a developer can inspect the session and manually reduce it into a focused built-in script.</p>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Replay conversion</h2>
-                    <p>Replay loads <code>recording.json</code>, turns each action into a normal builder command, and then applies the configured replay postamble policy. In this repository's default host profile, the postamble appends:</p>
-                    <ul>
-                        <li><code>WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)</code></li>
-                        <li><code>CaptureFrame("&lt;recording-name&gt;-final")</code></li>
-                        <li><code>DumpTelemetry("&lt;recording-name&gt;-final")</code></li>
-                    </ul>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Replay examples</h2>
-                    <p>Replay with default artifact location:</p>
-<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- --inkkoops-recording ".\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json"</code></pre>
-                    <p>Replay with custom artifact location:</p>
-<pre><code class="language-powershell">dotnet run --project InkkSlinger.csproj -- `
-  --inkkoops-recording ".\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json" `
-  --inkkoops-artifacts "artifacts/inkkoops-replay-manual"</code></pre>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Run artifact bundle</h2>
-                    <ul>
-                        <li><code>result.json</code>: overall run result, command count, failure metadata, duration</li>
-                        <li><code>commands.log</code>: execution timeline</li>
-                        <li><code>command-###.json</code>: per-command diagnostics</li>
-                        <li><code>*.png</code>: frame captures</li>
-                        <li><code>*.txt</code>: telemetry dumps</li>
-                    </ul>
-                </section>
-
-                <section class="doc-section">
-                    <h2>How to read diagnostics</h2>
-                    <h3><code>result.json</code></h3>
-                    <p>Read this first. It tells you whether the run completed, how long it took, and which command failed if the run aborted.</p>
-                    <h3><code>commands.log</code></h3>
-                    <p>Use this for the linear timeline of what actually ran.</p>
-                    <h3><code>command-###.json</code></h3>
-                    <p>Use these files to inspect selector choice, resolution status, bounds, viewport, action point, matched peer, before/after hover and focus state, and the final failure category for a specific command.</p>
-                    <h3>Frame capture</h3>
-                    <p>The final frame answers what the user actually saw.</p>
-                    <h3>Telemetry dump</h3>
-                    <p>The final telemetry dump answers what the framework believed was on screen, including the visual tree snapshot and rendering-related diagnostics.</p>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Failure categories</h2>
-                    <ul>
-                        <li><code>Unresolved</code></li>
-                        <li><code>Ambiguous</code></li>
-                        <li><code>Unrealized</code></li>
-                        <li><code>Offscreen</code></li>
-                        <li><code>Clipped</code></li>
-                        <li><code>Disabled</code></li>
-                        <li><code>NotInteractive</code></li>
-                        <li><code>SemanticProviderMissing</code></li>
-                        <li><code>UiThreadViolation</code></li>
-                        <li><code>Timeout</code></li>
-                    </ul>
-                </section>
-
-                <section class="doc-section">
-                    <h2>Practical debugging flow</h2>
+                    <h2>Request flow</h2>
                     <ol>
-                        <li>Record the human repro if the issue is hard to reproduce deterministically.</li>
-                        <li>Replay the recording and confirm that the run completed.</li>
-                        <li>Open the final frame capture to confirm the visible end state.</li>
-                        <li>Open the telemetry dump to inspect the structural end state.</li>
-                        <li>If the run failed, inspect the failed <code>command-###.json</code> file first.</li>
-                        <li>Reduce the recording to a focused built-in script if the replay is useful but too long for rapid iteration.</li>
+                        <li>The app constructs the host configuration.</li>
+                        <li>The app starts <code>InkkOopsRuntimeService</code> with runtime options plus the host configuration.</li>
+                        <li>A request is created either from startup flags or from an attach-mode pipe request.</li>
+                        <li>The runtime resolves the script or recording replay.</li>
+                        <li>The runtime creates an artifact bundle using the naming policy.</li>
+                        <li>The runtime executes the script through <code>InkkOopsScriptRunner</code> and <code>InkkOopsSession</code>.</li>
+                        <li>The host adapter performs the real resize, input, capture, and telemetry work.</li>
+                        <li>The runtime writes <code>result.json</code> and any per-command diagnostics.</li>
                     </ol>
                 </section>
 
                 <section class="doc-section">
-                    <h2>Replay from code</h2>
-<pre><code class="language-csharp">using System.Diagnostics;
+                    <h2>Why the host configuration exists</h2>
+                    <p>The current architecture deliberately moves defaults and conventions out of the runtime core. Pipe names, artifact roots, replay-tail behavior, diagnostics formatting, and script exposure all come from the host profile now. That keeps the runtime reusable while still allowing this repository to preserve its established defaults.</p>
+                </section>
 
-var startInfo = new ProcessStartInfo
-{
-    FileName = "dotnet",
-    WorkingDirectory = Environment.CurrentDirectory,
-    UseShellExecute = false
-};
+                <section class="doc-section">
+                    <h2>Catalog and script registration</h2>
+                    <p>The runtime only depends on <code>IInkkOopsScriptCatalog</code>. In this repository, the default host profile uses a reflection-backed catalog that discovers built-in script classes from the app assembly. That reflection step is an adapter, not a core runtime requirement.</p>
+                </section>
 
-startInfo.ArgumentList.Add("run");
-startInfo.ArgumentList.Add("--project");
-startInfo.ArgumentList.Add("InkkSlinger.csproj");
-startInfo.ArgumentList.Add("--");
-startInfo.ArgumentList.Add("--inkkoops-recording");
-startInfo.ArgumentList.Add(@".\artifacts\inkkoops-recordings\20260328-120250760-recorded-session\recording.json");
-startInfo.ArgumentList.Add("--inkkoops-artifacts");
-startInfo.ArgumentList.Add("artifacts/inkkoops-replay-manual");
+                <section class="doc-section">
+                    <h2>Policy surfaces</h2>
+                    <ul>
+                        <li><strong>Naming policy:</strong> controls run directory names, recording directory names, result file names, command diagnostics file names, frame capture file names, and telemetry file names.</li>
+                        <li><strong>Replay postamble policy:</strong> controls what extra commands are appended after a replay is generated from a recording.</li>
+                        <li><strong>Diagnostics contributors:</strong> control which per-element facts are collected during telemetry generation.</li>
+                    </ul>
+                </section>
 
-using var process = Process.Start(startInfo)!;
-process.WaitForExit();</code></pre>
+                <section class="doc-section">
+                    <h2>Diagnostics pipeline</h2>
+                    <p>The telemetry system no longer hardcodes control-type branches inside the runtime host. Instead, the host constructs a diagnostics pipeline from contributors. A generic tree walker captures the visual tree, contributors add per-element facts, and the serializer formats the result into the telemetry output file.</p>
                 </section>
 
                 <nav class="doc-pagination" aria-label="Page navigation">
-                    <a class="pager-link" href="./inkkoops-runtime-cli.html">
+                    <a class="pager-link" href="./inkkoops.html">
                         <span>Previous</span>
-                        <strong>Runtime and CLI</strong>
+                        <strong>Overview</strong>
                     </a>
-                    <a class="pager-link" href="./inkkoops-artifacts-reference.html">
+                    <a class="pager-link" href="./inkkoops-host-integration.html">
                         <span>Next</span>
-                        <strong>Artifacts reference</strong>
+                        <strong>Host integration</strong>
                     </a>
                 </nav>
             </article>

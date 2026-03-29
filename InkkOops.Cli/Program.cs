@@ -4,14 +4,15 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using InkkSlinger;
+using InkkSlinger.Cli;
 
 static int PrintUsage()
 {
     Console.Error.WriteLine("Usage:");
     Console.Error.WriteLine("  inkkoops list");
-    Console.Error.WriteLine("  inkkoops run --script <name> --launch [--pipe <name>] [--artifacts <path>]");
+    Console.Error.WriteLine("  inkkoops run --script <name> --launch [--project <path>] [--pipe <name>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops run --script <name> --attach [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
-    Console.Error.WriteLine("  inkkoops record --launch [--artifacts <path>]");
+    Console.Error.WriteLine("  inkkoops record --launch [--project <path>] [--artifacts <path>]");
     return 1;
 }
 
@@ -36,14 +37,21 @@ static Dictionary<string, string> ParseOptions(string[] args, int startIndex)
     return options;
 }
 
-static async Task<int> RunAttachAsync(Dictionary<string, string> options)
+static string ResolvePipeName(Dictionary<string, string> options, InkkOopsHostConfiguration hostConfiguration)
+{
+    return options.TryGetValue("pipe", out var pipe) && !string.IsNullOrWhiteSpace(pipe)
+        ? pipe
+        : hostConfiguration.DefaultNamedPipeName;
+}
+
+static async Task<int> RunAttachAsync(Dictionary<string, string> options, InkkOopsHostConfiguration hostConfiguration)
 {
     if (!options.TryGetValue("script", out var scriptName) || string.IsNullOrWhiteSpace(scriptName))
     {
         return PrintUsage();
     }
 
-    var pipeName = options.TryGetValue("pipe", out var pipe) ? pipe : "InkkOops";
+    var pipeName = ResolvePipeName(options, hostConfiguration);
     var timeoutMilliseconds = options.TryGetValue("timeout", out var timeoutText) && int.TryParse(timeoutText, out var timeout)
         ? timeout
         : 120000;
@@ -62,24 +70,29 @@ static async Task<int> RunAttachAsync(Dictionary<string, string> options)
     await writer.WriteLineAsync(requestJson).ConfigureAwait(false);
     var responseJson = await reader.ReadLineAsync().ConfigureAwait(false);
     Console.WriteLine(responseJson);
-    return 0;
+    if (string.IsNullOrWhiteSpace(responseJson))
+    {
+        return InkkOopsExitCodes.Failed;
+    }
+
+    var response = JsonSerializer.Deserialize<InkkOopsPipeResponse>(responseJson);
+    return InkkOopsExitCodes.FromStatus(response?.Status);
 }
 
-static int RunLaunch(Dictionary<string, string> options)
+static int RunLaunch(Dictionary<string, string> options, InkkOopsHostConfiguration hostConfiguration, IInkkOopsLaunchTargetResolver launchTargetResolver)
 {
     if (!options.TryGetValue("script", out var scriptName) || string.IsNullOrWhiteSpace(scriptName))
     {
         return PrintUsage();
     }
 
-    var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-    var projectPath = Path.Combine(repoRoot, "InkkSlinger.csproj");
+    var launchTarget = launchTargetResolver.Resolve(options);
     var arguments = new StringBuilder();
-    arguments.Append("run --project \"").Append(projectPath).Append("\" -- ");
+    arguments.Append("run --project \"").Append(launchTarget.ProjectPath).Append("\" -- ");
     arguments.Append("--inkkoops-script \"").Append(scriptName).Append("\" ");
-    if (options.TryGetValue("pipe", out var pipeName))
+    if (options.TryGetValue("pipe", out var pipeName) || !string.IsNullOrWhiteSpace(hostConfiguration.DefaultNamedPipeName))
     {
-        arguments.Append("--inkkoops-pipe \"").Append(pipeName).Append("\" ");
+        arguments.Append("--inkkoops-pipe \"").Append(ResolvePipeName(options, hostConfiguration)).Append("\" ");
     }
 
     if (options.TryGetValue("artifacts", out var artifacts))
@@ -91,19 +104,18 @@ static int RunLaunch(Dictionary<string, string> options)
     {
         FileName = "dotnet",
         Arguments = arguments.ToString(),
-        WorkingDirectory = repoRoot,
+        WorkingDirectory = launchTarget.WorkingDirectory,
         UseShellExecute = false
     });
     process?.WaitForExit();
     return process?.ExitCode ?? 1;
 }
 
-static int RunRecordLaunch(Dictionary<string, string> options)
+static int RunRecordLaunch(Dictionary<string, string> options, IInkkOopsLaunchTargetResolver launchTargetResolver)
 {
-    var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-    var projectPath = Path.Combine(repoRoot, "InkkSlinger.csproj");
+    var launchTarget = launchTargetResolver.Resolve(options);
     var arguments = new StringBuilder();
-    arguments.Append("run --project \"").Append(projectPath).Append("\" -- --inkkoops-record ");
+    arguments.Append("run --project \"").Append(launchTarget.ProjectPath).Append("\" -- --inkkoops-record ");
     if (options.TryGetValue("artifacts", out var artifacts))
     {
         arguments.Append("--inkkoops-record-root \"").Append(artifacts).Append("\" ");
@@ -113,14 +125,15 @@ static int RunRecordLaunch(Dictionary<string, string> options)
     {
         FileName = "dotnet",
         Arguments = arguments.ToString(),
-        WorkingDirectory = repoRoot,
+        WorkingDirectory = launchTarget.WorkingDirectory,
         UseShellExecute = false
     });
     process?.WaitForExit();
     return process?.ExitCode ?? 1;
 }
 
-var registry = new InkkOopsScriptRegistry(typeof(Game1).Assembly);
+var hostConfiguration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
+var launchTargetResolver = new DefaultInkkOopsLaunchTargetResolver();
 if (args.Length == 0)
 {
     return PrintUsage();
@@ -128,7 +141,7 @@ if (args.Length == 0)
 
 if (string.Equals(args[0], "list", StringComparison.Ordinal))
 {
-    foreach (var script in registry.ListScripts())
+    foreach (var script in hostConfiguration.ScriptCatalog.ListScripts())
     {
         Console.WriteLine(script);
     }
@@ -141,12 +154,12 @@ if (args.Length >= 2 && string.Equals(args[0], "run", StringComparison.Ordinal))
     var options = ParseOptions(args, 1);
     if (options.ContainsKey("attach"))
     {
-        return await RunAttachAsync(options).ConfigureAwait(false);
+        return await RunAttachAsync(options, hostConfiguration).ConfigureAwait(false);
     }
 
     if (options.ContainsKey("launch"))
     {
-        return RunLaunch(options);
+        return RunLaunch(options, hostConfiguration, launchTargetResolver);
     }
 }
 
@@ -155,7 +168,7 @@ if (args.Length >= 2 && string.Equals(args[0], "record", StringComparison.Ordina
     var options = ParseOptions(args, 1);
     if (options.ContainsKey("launch"))
     {
-        return RunRecordLaunch(options);
+        return RunRecordLaunch(options, launchTargetResolver);
     }
 }
 

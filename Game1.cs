@@ -19,6 +19,7 @@ public class Game1 : Game
     private readonly GraphicsDeviceManager _graphics;
     private readonly InkkSlinger.Window _window;
     private readonly InkkOopsRuntimeOptions _inkkOopsOptions;
+    private readonly InkkOopsHostConfiguration _inkkOopsHostConfiguration;
     private SpriteBatch _spriteBatch = null!;
     private RenderTarget2D? _uiCompositeTarget;
     private Panel _root = null!;
@@ -44,6 +45,7 @@ public class Game1 : Game
     public Game1(InkkOopsRuntimeOptions inkkOopsOptions)
     {
         _inkkOopsOptions = inkkOopsOptions ?? throw new ArgumentNullException(nameof(inkkOopsOptions));
+        _inkkOopsHostConfiguration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
         Content.RootDirectory = "Content";
@@ -84,13 +86,26 @@ public class Game1 : Game
             _window,
             EnsureViewportMatchesBackBuffer,
             () => _uiCompositeTarget,
-            _inkkOopsOptions.ArtifactRoot);
+            ResolveArtifactRoot(),
+            _inkkOopsHostConfiguration);
         _inkkOopsRuntimeService = new InkkOopsRuntimeService(
             _inkkOopsOptions,
+            _inkkOopsHostConfiguration,
             _inkkOopsHost,
-            requestAppExit: () => _uiRoot.EnqueueDeferredOperation(Exit));
+            requestAppExit: result =>
+            {
+                Environment.ExitCode = InkkOopsExitCodes.FromStatus(result.Status);
+                _uiRoot.EnqueueDeferredOperation(Exit);
+            });
 
         base.Initialize();
+    }
+
+    private string ResolveArtifactRoot()
+    {
+        return string.IsNullOrWhiteSpace(_inkkOopsOptions.ArtifactRoot)
+            ? _inkkOopsHostConfiguration.DefaultArtifactRoot
+            : _inkkOopsOptions.ArtifactRoot;
     }
 
     protected override void LoadContent()
