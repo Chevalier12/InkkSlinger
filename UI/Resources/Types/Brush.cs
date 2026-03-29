@@ -19,5 +19,9 @@ public abstract class Brush : Freezable
         return (Brush)base.CloneCurrentValue();
     }
 
+    internal abstract Color SampleColor(LayoutRect bounds, Vector2 point);
+
+    internal abstract string GetRenderSignature();
+
     public abstract Color ToColor();
 }

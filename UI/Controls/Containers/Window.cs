@@ -128,9 +128,9 @@ public sealed class Window : DependencyObject, IDisposable
     public static readonly DependencyProperty FontFamilyProperty =
         DependencyProperty.Register(
             nameof(FontFamily),
-            typeof(string),
+            typeof(FontFamily),
             typeof(Window),
-            new FrameworkPropertyMetadata(string.Empty));
+            new FrameworkPropertyMetadata(FontFamily.Empty));
 
     public static readonly DependencyProperty FontSizeProperty =
         DependencyProperty.Register(
@@ -286,9 +286,9 @@ public sealed class Window : DependencyObject, IDisposable
         set => SetValue(ForegroundProperty, value);
     }
 
-    public string FontFamily
+    public FontFamily FontFamily
     {
-        get => GetValue<string>(FontFamilyProperty) ?? string.Empty;
+        get => GetValue<FontFamily>(FontFamilyProperty) ?? FontFamily.Empty;
         set => SetValue(FontFamilyProperty, value);
     }
 

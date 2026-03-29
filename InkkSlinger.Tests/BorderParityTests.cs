@@ -82,6 +82,31 @@ public sealed class BorderParityTests
         Assert.Equal(startingRootInvalidations + 1, uiRoot.RenderInvalidationCount);
     }
 
+    [Fact]
+    public void GradientStopMutation_InvalidatesRender()
+    {
+        var brush = new LinearGradientBrush();
+        var leading = new GradientStop(new Color(255, 0, 0), 0f);
+        brush.GradientStops.Add(leading);
+        brush.GradientStops.Add(new GradientStop(new Color(0, 0, 255), 1f));
+
+        var border = new Border
+        {
+            Background = brush
+        };
+        var uiRoot = new UiRoot(border);
+
+        border.ClearRenderInvalidationRecursive();
+        var startingBorderInvalidations = border.RenderInvalidationCount;
+        var startingRootInvalidations = uiRoot.RenderInvalidationCount;
+
+        leading.Color = new Color(0, 255, 0);
+
+        Assert.True(border.NeedsRender);
+        Assert.Equal(startingBorderInvalidations + 1, border.RenderInvalidationCount);
+        Assert.Equal(startingRootInvalidations + 1, uiRoot.RenderInvalidationCount);
+    }
+
     private static void AssertBrushColor(Color expected, Brush? brush)
     {
         var actualBrush = Assert.IsAssignableFrom<Brush>(brush);

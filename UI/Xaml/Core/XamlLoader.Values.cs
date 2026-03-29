@@ -48,6 +48,11 @@ public static partial class XamlLoader
             return rawValue;
         }
 
+        if (targetType == typeof(FontFamily))
+        {
+            return new FontFamily(rawValue);
+        }
+
         if (targetType == typeof(object))
         {
             return rawValue;
@@ -88,6 +93,11 @@ public static partial class XamlLoader
             }
 
             return float.Parse(trimmed, CultureInfo.InvariantCulture);
+        }
+
+        if (targetType == typeof(double))
+        {
+            return double.Parse(rawValue.Trim(), CultureInfo.InvariantCulture);
         }
 
         if (targetType == typeof(bool))
@@ -277,6 +287,34 @@ public static partial class XamlLoader
     }
 
 
+    private static FontFamily BuildFontFamilyObject(XElement element)
+    {
+        if (HasChildElements(element))
+        {
+            throw CreateXamlException("FontFamily element does not support child elements.", element);
+        }
+
+        var sourceAttribute = element.Attribute(nameof(FontFamily.Source));
+        var text = (element.Value ?? string.Empty).Trim();
+        if (sourceAttribute != null)
+        {
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                throw CreateXamlException("FontFamily element cannot mix text content with a Source attribute.", element);
+            }
+
+            return new FontFamily(sourceAttribute.Value);
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return FontFamily.Empty;
+        }
+
+        return new FontFamily(text);
+    }
+
+
     private static CornerRadius BuildCornerRadiusObject(XElement element)
     {
         if (HasChildElements(element))
@@ -331,6 +369,83 @@ public static partial class XamlLoader
         }
 
         return ParseCornerRadius(text);
+    }
+
+
+    private static Thickness BuildThicknessObject(XElement element)
+    {
+        if (HasChildElements(element))
+        {
+            throw CreateXamlException("Thickness element does not support child elements.", element);
+        }
+
+        var text = (element.Value ?? string.Empty).Trim();
+        var hasAttributes = false;
+        var left = 0f;
+        var top = 0f;
+        var right = 0f;
+        var bottom = 0f;
+
+        if (TryGetOptionalAttributeFloatValue(element, nameof(Thickness.Left), out var parsedLeft))
+        {
+            hasAttributes = true;
+            left = parsedLeft;
+        }
+
+        if (TryGetOptionalAttributeFloatValue(element, nameof(Thickness.Top), out var parsedTop))
+        {
+            hasAttributes = true;
+            top = parsedTop;
+        }
+
+        if (TryGetOptionalAttributeFloatValue(element, nameof(Thickness.Right), out var parsedRight))
+        {
+            hasAttributes = true;
+            right = parsedRight;
+        }
+
+        if (TryGetOptionalAttributeFloatValue(element, nameof(Thickness.Bottom), out var parsedBottom))
+        {
+            hasAttributes = true;
+            bottom = parsedBottom;
+        }
+
+        if (hasAttributes)
+        {
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                throw CreateXamlException("Thickness element cannot mix text content with edge attributes.", element);
+            }
+
+            return new Thickness(left, top, right, bottom);
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return Thickness.Empty;
+        }
+
+        return ParseThickness(text);
+    }
+
+
+    private static object BuildPrimitiveObject(XElement element, Type targetType)
+    {
+        if (HasChildElements(element))
+        {
+            throw CreateXamlException($"{targetType.Name} element does not support child elements.", element);
+        }
+
+        var text = targetType == typeof(string)
+            ? element.Value ?? string.Empty
+            : (element.Value ?? string.Empty).Trim();
+
+        if (targetType != typeof(string) && string.IsNullOrWhiteSpace(text))
+        {
+            throw CreateXamlException($"{targetType.Name} element requires text content.", element);
+        }
+
+        return ConvertValue(text, targetType);
     }
 
 

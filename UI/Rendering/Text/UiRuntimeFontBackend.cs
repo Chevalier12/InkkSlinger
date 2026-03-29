@@ -41,22 +41,24 @@ internal sealed class WindowsInstalledFontCatalog : IUiFontCatalog
     {
         EnsureLoaded();
 
-        var requestedFamily = UiTypography.NormalizeFamily(typography.Family);
-        if (TryResolveFromFamily(requestedFamily, typography.Weight, typography.Style, out var resolved))
+        foreach (var requestedFamily in ResolveRequestedFamilies(typography.Family))
         {
-            return resolved;
-        }
+            if (TryResolveFromFamily(requestedFamily, typography.Weight, typography.Style, out var resolved))
+            {
+                return resolved;
+            }
 
-        if (!requestedFamily.Equals("Segoe UI", StringComparison.OrdinalIgnoreCase) &&
-            TryResolveFromFamily("Segoe UI", typography.Weight, typography.Style, out resolved))
-        {
-            return resolved;
-        }
+            if (!requestedFamily.Equals("Segoe UI", StringComparison.OrdinalIgnoreCase) &&
+                TryResolveFromFamily("Segoe UI", typography.Weight, typography.Style, out resolved))
+            {
+                return resolved;
+            }
 
-        if (!requestedFamily.Equals("Segoe UI Symbol", StringComparison.OrdinalIgnoreCase) &&
-            TryResolveFromFamily("Segoe UI Symbol", typography.Weight, typography.Style, out resolved))
-        {
-            return resolved;
+            if (!requestedFamily.Equals("Segoe UI Symbol", StringComparison.OrdinalIgnoreCase) &&
+                TryResolveFromFamily("Segoe UI Symbol", typography.Weight, typography.Style, out resolved))
+            {
+                return resolved;
+            }
         }
 
         if (_facesByFamily is { Count: > 0 })
@@ -65,6 +67,21 @@ internal sealed class WindowsInstalledFontCatalog : IUiFontCatalog
         }
 
         throw new InvalidOperationException("No Windows fonts were discovered.");
+    }
+
+    private static IEnumerable<string> ResolveRequestedFamilies(string source)
+    {
+        var resolvedAny = false;
+        foreach (var family in FontFamily.ParseFamilyNames(source))
+        {
+            resolvedAny = true;
+            yield return UiTypography.NormalizeFamily(family);
+        }
+
+        if (!resolvedAny)
+        {
+            yield return UiTypography.NormalizeFamily(source);
+        }
     }
 
     private bool TryResolveFromFamily(string family, string weight, string style, out UiResolvedTypeface resolved)

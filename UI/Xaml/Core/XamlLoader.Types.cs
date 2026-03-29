@@ -42,6 +42,11 @@ public static partial class XamlLoader
             return typeof(float);
         }
 
+        if (string.Equals(trimmed, "Double", StringComparison.OrdinalIgnoreCase))
+        {
+            return typeof(double);
+        }
+
         if (string.Equals(trimmed, "Boolean", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(trimmed, "Bool", StringComparison.OrdinalIgnoreCase))
         {

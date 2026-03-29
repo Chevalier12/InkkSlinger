@@ -15,7 +15,7 @@ public sealed class EffectPhase2Tests
                             <Panel>
                               <Border>
                                 <Border.Effect>
-                                  <DropShadowEffect Color="#FF8C00" ShadowDepth="3" BlurRadius="12" Opacity="0.5" />
+                                                                    <DropShadowEffect Color="#FF8C00" ShadowDepth="3" BlurRadius="12" Opacity="0.5" Direction="270" />
                                 </Border.Effect>
                               </Border>
                             </Panel>
@@ -27,6 +27,7 @@ public sealed class EffectPhase2Tests
         Assert.Equal(3f, effect.ShadowDepth, 3);
         Assert.Equal(12f, effect.BlurRadius, 3);
         Assert.Equal(0.5f, effect.Opacity, 3);
+        Assert.Equal(270d, effect.Direction, 3);
     }
 
     [Fact]
@@ -99,7 +100,8 @@ public sealed class EffectPhase2Tests
                 Color = Color.Orange,
                 ShadowDepth = 3f,
                 BlurRadius = 12f,
-                Opacity = 0.5f
+                Opacity = 0.5f,
+                Direction = 270d
             }
         };
 
@@ -111,6 +113,33 @@ public sealed class EffectPhase2Tests
         Assert.Equal(11f, bounds.Y, 3);
         Assert.Equal(64f, bounds.Width, 3);
         Assert.Equal(44f, bounds.Height, 3);
+    }
+
+    [Fact]
+    public void DropShadowEffect_Direction_OffsetsShadowHorizontallyAndVertically()
+    {
+        var border = new Border
+        {
+            Width = 40f,
+            Height = 20f,
+            Effect = new DropShadowEffect
+            {
+                Color = Color.Orange,
+                ShadowDepth = 8f,
+                BlurRadius = 0f,
+                Opacity = 0.5f,
+                Direction = 0d
+            }
+        };
+
+        border.Measure(new Vector2(100f, 100f));
+        border.Arrange(new LayoutRect(10f, 20f, 40f, 20f));
+
+        Assert.True(border.TryGetRenderBoundsInRootSpace(out var bounds));
+        Assert.Equal(10f, bounds.X, 3);
+        Assert.Equal(20f, bounds.Y, 3);
+        Assert.Equal(48f, bounds.Width, 3);
+        Assert.Equal(20f, bounds.Height, 3);
     }
 
     [Fact]

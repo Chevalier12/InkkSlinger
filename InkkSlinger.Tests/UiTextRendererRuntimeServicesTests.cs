@@ -14,7 +14,7 @@ public sealed class UiTextRendererRuntimeServicesTests
 
         try
         {
-            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Italic");
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Italic", 0);
 
             var width = UiTextRenderer.MeasureWidth(typography, "abcd");
             var height = UiTextRenderer.MeasureHeight(typography, "abcd");
@@ -44,7 +44,7 @@ public sealed class UiTextRendererRuntimeServicesTests
 
         try
         {
-            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal");
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal", 0);
 
             var measuredWidth = UiTextRenderer.MeasureWidth(typography, "AV");
             var drawnWidth = UiTextRenderer.GetDrawWidthForTests(typography, "AV");
@@ -68,7 +68,7 @@ public sealed class UiTextRendererRuntimeServicesTests
 
         try
         {
-            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal");
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal", 0);
 
             var positions = UiTextRenderer.GetGlyphDrawPositionsForTests(typography, "ABC");
 
@@ -92,7 +92,7 @@ public sealed class UiTextRendererRuntimeServicesTests
 
         try
         {
-            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal");
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal", 0);
 
             var positions = UiTextRenderer.GetGlyphDrawPositionsForTests(typography, "A\nBC");
 
@@ -118,7 +118,7 @@ public sealed class UiTextRendererRuntimeServicesTests
 
         try
         {
-            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal");
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal", 0);
 
             var first = UiTextRenderer.GetGlyphDrawPositionsForTests(typography, "AV\nBC");
             var firstRasterizeCount = rasterizer.RasterizeCallCount;
@@ -135,6 +135,53 @@ public sealed class UiTextRendererRuntimeServicesTests
             Assert.True(firstKerningCount > 0);
             Assert.Equal(firstRasterizeCount, rasterizer.RasterizeCallCount);
             Assert.Equal(firstKerningCount, rasterizer.KerningRequestCount);
+        }
+        finally
+        {
+            UiTextRenderer.ConfigureRuntimeServicesForTests();
+        }
+    }
+
+    [Fact]
+    public void MeasureWidth_WithCharacterSpacing_AddsTrackingBetweenGlyphs()
+    {
+        var catalog = new FakeCatalog();
+        var rasterizer = new FakeRasterizer();
+        UiTextRenderer.ConfigureRuntimeServicesForTests(catalog, rasterizer);
+
+        try
+        {
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal", 100);
+
+            var measuredWidth = UiTextRenderer.MeasureWidth(typography, "ABC");
+            var drawnWidth = UiTextRenderer.GetDrawWidthForTests(typography, "ABC");
+
+            Assert.Equal(17.75f, measuredWidth, 3);
+            Assert.Equal(measuredWidth, drawnWidth, 3);
+        }
+        finally
+        {
+            UiTextRenderer.ConfigureRuntimeServicesForTests();
+        }
+    }
+
+    [Fact]
+    public void GlyphDrawPositions_WithCharacterSpacing_OffsetsSubsequentGlyphs()
+    {
+        var catalog = new FakeCatalog();
+        var rasterizer = new FakeRasterizer();
+        UiTextRenderer.ConfigureRuntimeServicesForTests(catalog, rasterizer);
+
+        try
+        {
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal", 100);
+
+            var positions = UiTextRenderer.GetGlyphDrawPositionsForTests(typography, "ABC");
+
+            Assert.Equal(3, positions.Count);
+            Assert.Equal(0f, positions[0].X, 3);
+            Assert.Equal(6.25f, positions[1].X, 3);
+            Assert.Equal(12.5f, positions[2].X, 3);
         }
         finally
         {
@@ -167,6 +214,7 @@ public sealed class UiTextRendererRuntimeServicesTests
             var width = text switch
             {
                 "AV" => 8.25f,
+                "ABC" => 15.75f,
                 _ => text.Length * 5f
             };
             return new UiTextMetrics(width, 11f, 12f, 8f, 3f);

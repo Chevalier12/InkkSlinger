@@ -121,9 +121,9 @@ public class FrameworkElement : UIElement
     public static readonly DependencyProperty FontFamilyProperty =
         DependencyProperty.Register(
             nameof(FontFamily),
-            typeof(string),
+            typeof(FontFamily),
             typeof(FrameworkElement),
-            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.Inherits));
+            new FrameworkPropertyMetadata(FontFamily.Empty, FrameworkPropertyMetadataOptions.Inherits));
 
     public static readonly DependencyProperty FontSizeProperty =
         DependencyProperty.Register(
@@ -299,9 +299,9 @@ public class FrameworkElement : UIElement
         set => SetValue(BindingGroupProperty, value);
     }
 
-    public string FontFamily
+    public FontFamily FontFamily
     {
-        get => GetValue<string>(FontFamilyProperty) ?? string.Empty;
+        get => GetValue<FontFamily>(FontFamilyProperty) ?? FontFamily.Empty;
         set => SetValue(FontFamilyProperty, value);
     }
 

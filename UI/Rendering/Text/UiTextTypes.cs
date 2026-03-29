@@ -22,7 +22,8 @@ public readonly record struct UiTypography(
     string Family,
     float Size,
     string Weight,
-    string Style)
+    string Style,
+    int CharacterSpacing = 0)
 {
     public static UiTypography FromElement(FrameworkElement element)
     {
@@ -31,7 +32,8 @@ public readonly record struct UiTypography(
             NormalizeFamily(element.FontFamily),
             MathF.Max(1f, element.FontSize),
             NormalizeWeight(element.FontWeight),
-            NormalizeStyle(element.FontStyle));
+            NormalizeStyle(element.FontStyle),
+            element is TextBlock textBlock ? textBlock.CharacterSpacing : 0);
     }
 
     internal UiTypography Apply(UiTextStyleOverride styleOverride)
@@ -48,7 +50,12 @@ public readonly record struct UiTypography(
             style = "Italic";
         }
 
-        return new UiTypography(Family, Size, weight, style);
+        return new UiTypography(Family, Size, weight, style, CharacterSpacing);
+    }
+
+    public static string NormalizeFamily(FontFamily? family)
+    {
+        return NormalizeFamily(family?.Source);
     }
 
     public static string NormalizeFamily(string? family)

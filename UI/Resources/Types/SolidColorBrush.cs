@@ -47,6 +47,18 @@ public sealed class SolidColorBrush : Brush
         _color = typedSource._color;
     }
 
+    internal override Color SampleColor(LayoutRect bounds, Vector2 point)
+    {
+        _ = bounds;
+        _ = point;
+        return Color;
+    }
+
+    internal override string GetRenderSignature()
+    {
+        return $"solid:{Color.PackedValue:X8}";
+    }
+
     public override Color ToColor()
     {
         return Color;

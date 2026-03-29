@@ -39,6 +39,7 @@ public sealed partial class DropShadowEffect : Effect
     private float _shadowDepth;
     private float _blurRadius;
     private float _opacity;
+    private double _direction = 315d;
 
     public Color Color
     {
@@ -106,6 +107,22 @@ public sealed partial class DropShadowEffect : Effect
         }
     }
 
+    public double Direction
+    {
+        get => _direction;
+        set
+        {
+            WritePreamble();
+            if (Math.Abs(_direction - value) <= 0.0001d)
+            {
+                return;
+            }
+
+            _direction = value;
+            WritePostscript();
+        }
+    }
+
     protected override Freezable CreateInstanceCore()
     {
         return new DropShadowEffect();
@@ -118,6 +135,7 @@ public sealed partial class DropShadowEffect : Effect
         _shadowDepth = typedSource._shadowDepth;
         _blurRadius = typedSource._blurRadius;
         _opacity = typedSource._opacity;
+        _direction = typedSource._direction;
     }
 
     internal override void Render(UIElement element, SpriteBatch spriteBatch, float elementOpacity)
@@ -150,7 +168,8 @@ public sealed partial class DropShadowEffect : Effect
                 return;
             }
 
-            var shadowRect = new LayoutRect(slot.X, slot.Y + ShadowDepth, slot.Width, slot.Height);
+            var shadowOffset = GetShadowOffset();
+            var shadowRect = new LayoutRect(slot.X + shadowOffset.X, slot.Y + shadowOffset.Y, slot.Width, slot.Height);
             var blur = BlurRadius;
             if (blur <= 0.001f)
             {
@@ -206,7 +225,8 @@ public sealed partial class DropShadowEffect : Effect
             return slot;
         }
 
-        var shadowRect = new LayoutRect(slot.X, slot.Y + ShadowDepth, slot.Width, slot.Height);
+        var shadowOffset = GetShadowOffset();
+        var shadowRect = new LayoutRect(slot.X + shadowOffset.X, slot.Y + shadowOffset.Y, slot.Width, slot.Height);
         var blur = BlurRadius;
         if (blur <= 0.001f)
         {
@@ -363,6 +383,19 @@ public sealed partial class DropShadowEffect : Effect
         var rightEdge = MathF.Max(left.X + left.Width, right.X + right.Width);
         var bottomEdge = MathF.Max(left.Y + left.Height, right.Y + right.Height);
         return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
+    }
+
+    private Vector2 GetShadowOffset()
+    {
+        if (MathF.Abs(ShadowDepth) <= 0.0001f)
+        {
+            return Vector2.Zero;
+        }
+
+        var radians = (float)(Direction * (Math.PI / 180d));
+        var offsetX = ShadowDepth * MathF.Cos(radians);
+        var offsetY = -ShadowDepth * MathF.Sin(radians);
+        return new Vector2(offsetX, offsetY);
     }
 
 }

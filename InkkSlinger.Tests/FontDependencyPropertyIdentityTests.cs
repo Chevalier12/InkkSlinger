@@ -7,9 +7,10 @@ public sealed class FontDependencyPropertyIdentityTests
     [Fact]
     public void ControlDerivedTypes_InheritFrameworkTypographyProperties()
     {
+        var expectedFamily = new FontFamily("Segoe UI");
         var host = new StackPanel
         {
-            FontFamily = "Segoe UI",
+            FontFamily = expectedFamily,
             FontSize = 18f,
             FontWeight = "SemiBold",
             FontStyle = "Italic"
@@ -40,7 +41,7 @@ public sealed class FontDependencyPropertyIdentityTests
         {
             host.AddChild(descendant);
 
-            Assert.Equal("Segoe UI", descendant.FontFamily);
+            Assert.Equal(expectedFamily, descendant.FontFamily);
             Assert.Equal(18f, descendant.FontSize);
             Assert.Equal("SemiBold", descendant.FontWeight);
             Assert.Equal("Italic", descendant.FontStyle);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -205,6 +206,8 @@ public class Border : Decorator
         }
 
         var renderState = ResolveRenderState();
+        var backgroundBrush = renderState.BackgroundBrush;
+        var borderBrush = renderState.BorderBrush;
         var backgroundColor = renderState.BackgroundColor;
         var borderColor = renderState.BorderColor;
         var borderThickness = renderState.BorderThickness;
@@ -218,6 +221,11 @@ public class Border : Decorator
         var cornerRadius = CornerRadius;
         if (!HasAnyCornerRadius(cornerRadius))
         {
+            if (TryDrawCachedBorderTexture(spriteBatch, slot, RoundedRectRadii.Empty, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder))
+            {
+                return;
+            }
+
             DrawRectangularBorder(spriteBatch, slot, borderThickness, backgroundColor, borderColor);
             return;
         }
@@ -225,11 +233,16 @@ public class Border : Decorator
         var outerRadii = ResolveOuterRadii(slot);
         if (!outerRadii.HasAnyRadius)
         {
+            if (TryDrawCachedBorderTexture(spriteBatch, slot, RoundedRectRadii.Empty, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder))
+            {
+                return;
+            }
+
             DrawRectangularBorder(spriteBatch, slot, borderThickness, backgroundColor, borderColor);
             return;
         }
 
-        if (TryDrawCachedRoundedBorderTexture(spriteBatch, slot, outerRadii, borderThickness, backgroundColor, borderColor, hasVisibleBackground, hasVisibleBorder))
+        if (TryDrawCachedBorderTexture(spriteBatch, slot, outerRadii, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder))
         {
             return;
         }
@@ -534,10 +547,14 @@ public class Border : Decorator
         }
 
         _renderStateCacheBuildCount++;
-        var backgroundColor = Background?.ToColor() ?? Color.Transparent;
-        var borderColor = BorderBrush?.ToColor() ?? Color.Transparent;
+        var backgroundBrush = Background;
+        var borderBrush = BorderBrush;
+        var backgroundColor = backgroundBrush?.ToColor() ?? Color.Transparent;
+        var borderColor = borderBrush?.ToColor() ?? Color.Transparent;
         var borderThickness = GetRenderBorderThickness();
         _renderStateCache = new BorderRenderState(
+            backgroundBrush,
+            borderBrush,
             backgroundColor,
             borderColor,
             borderThickness,
@@ -576,13 +593,13 @@ public class Border : Decorator
         _outerRadiiCache = RoundedRectRadii.Empty;
     }
 
-    private bool TryDrawCachedRoundedBorderTexture(
+    private bool TryDrawCachedBorderTexture(
         SpriteBatch spriteBatch,
         LayoutRect slot,
         RoundedRectRadii outerRadii,
         Thickness borderThickness,
-        Color backgroundColor,
-        Color borderColor,
+        Brush? backgroundBrush,
+        Brush? borderBrush,
         bool hasVisibleBackground,
         bool hasVisibleBorder)
     {
@@ -610,13 +627,13 @@ public class Border : Decorator
             pixelHeight,
             outerRadii,
             borderThickness,
-            backgroundColor,
-            borderColor,
+            GetBrushRenderSignature(backgroundBrush),
+            GetBrushRenderSignature(borderBrush),
             hasVisibleBackground,
             hasVisibleBorder);
         if (!cache.TryGetValue(cacheKey, out var texture))
         {
-            texture = BuildRoundedBorderTexture(graphicsDevice, pixelWidth, pixelHeight, outerRadii, borderThickness, backgroundColor, borderColor, hasVisibleBackground, hasVisibleBorder);
+            texture = BuildBorderTexture(graphicsDevice, pixelWidth, pixelHeight, outerRadii, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder);
             cache[cacheKey] = texture;
         }
 
@@ -624,14 +641,14 @@ public class Border : Decorator
         return true;
     }
 
-    private static Texture2D BuildRoundedBorderTexture(
+    private static Texture2D BuildBorderTexture(
         GraphicsDevice graphicsDevice,
         int width,
         int height,
         RoundedRectRadii outerRadii,
         Thickness borderThickness,
-        Color backgroundColor,
-        Color borderColor,
+        Brush? backgroundBrush,
+        Brush? borderBrush,
         bool hasVisibleBackground,
         bool hasVisibleBorder)
     {
@@ -675,18 +692,28 @@ public class Border : Decorator
                     innerRect.Height > 0f &&
                     !ContainsRoundedRectPoint(innerRect, innerRadii, sampleX, sampleY))
                 {
-                    pixels[(y * width) + x] = borderColor;
+                    pixels[(y * width) + x] = SampleBrush(borderBrush, outerRect, sampleX, sampleY);
                     continue;
                 }
 
                 pixels[(y * width) + x] = hasVisibleBackground
-                    ? backgroundColor
+                    ? SampleBrush(backgroundBrush, outerRect, sampleX, sampleY)
                     : Color.Transparent;
             }
         }
 
         texture.SetData(pixels);
         return texture;
+    }
+
+    private static Color SampleBrush(Brush? brush, LayoutRect bounds, float x, float y)
+    {
+        return brush?.SampleColor(bounds, new Vector2(x, y)) ?? Color.Transparent;
+    }
+
+    private static string GetBrushRenderSignature(Brush? brush)
+    {
+        return brush?.GetRenderSignature() ?? "none";
     }
 
     private void DrawBorderBand(SpriteBatch spriteBatch, float x, float y, float width, float height, Color color)
@@ -1106,8 +1133,8 @@ public class Border : Decorator
         int Height,
         RoundedRectRadii Radii,
         Thickness BorderThickness,
-        Color BackgroundColor,
-        Color BorderColor,
+        string BackgroundSignature,
+        string BorderSignature,
         bool HasVisibleBackground,
         bool HasVisibleBorder);
 
@@ -1163,6 +1190,8 @@ public class Border : Decorator
     }
 
     private readonly record struct BorderRenderState(
+        Brush? BackgroundBrush,
+        Brush? BorderBrush,
         Color BackgroundColor,
         Color BorderColor,
         Thickness BorderThickness,

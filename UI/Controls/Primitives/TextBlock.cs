@@ -30,6 +30,25 @@ public class TextBlock : FrameworkElement
                 TextWrapping.NoWrap,
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty LineHeightProperty =
+        DependencyProperty.Register(
+            nameof(LineHeight),
+            typeof(float),
+            typeof(TextBlock),
+            new FrameworkPropertyMetadata(
+                float.NaN,
+                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender),
+            static value => value is float lineHeight && (float.IsNaN(lineHeight) || lineHeight > 0f));
+
+    public static readonly DependencyProperty CharacterSpacingProperty =
+        DependencyProperty.Register(
+            nameof(CharacterSpacing),
+            typeof(int),
+            typeof(TextBlock),
+            new FrameworkPropertyMetadata(
+                0,
+                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+
     private bool _hasLayoutCache;
     private bool _hasIntrinsicNoWrapMeasureCache;
     private int _layoutCacheTextVersion = -1;
@@ -52,6 +71,8 @@ public class TextBlock : FrameworkElement
     private int _lastRenderedLineCount;
     private float _lastRenderedLayoutWidth = float.NaN;
     private string _lastRenderedLayoutText = string.Empty;
+    private float _layoutCacheLineHeight = float.NaN;
+    private float _intrinsicNoWrapMeasureLineHeight = float.NaN;
 
     public string Text
     {
@@ -69,6 +90,18 @@ public class TextBlock : FrameworkElement
     {
         get => GetValue<TextWrapping>(TextWrappingProperty);
         set => SetValue(TextWrappingProperty, value);
+    }
+
+    public float LineHeight
+    {
+        get => GetValue<float>(LineHeightProperty);
+        set => SetValue(LineHeightProperty, value);
+    }
+
+    public int CharacterSpacing
+    {
+        get => GetValue<int>(CharacterSpacingProperty);
+        set => SetValue(CharacterSpacingProperty, value);
     }
 
     public TextBlockPerformanceSnapshot GetPerformanceSnapshot()
@@ -177,7 +210,7 @@ public class TextBlock : FrameworkElement
         _lastRenderedLayoutWidth = renderWidth;
         _lastRenderedLayoutText = string.Join("\n", layout.Lines);
         var typography = UiTextRenderer.ResolveTypography(this, FontSize);
-        var lineSpacing = UiTextRenderer.GetLineHeight(typography);
+        var lineSpacing = ResolveLineHeight(typography);
         var drawColor = Foreground * Opacity;
         var currentClip = spriteBatch.GraphicsDevice.ScissorRectangle;
         var useAxisAlignedClipFastPath = UiDrawing.TryGetAxisAligned2DTransformInfo(spriteBatch, out _, out var scaleY, out _, out var offsetY) && scaleY > 0f;
@@ -261,6 +294,8 @@ public class TextBlock : FrameworkElement
         }
 
         if (ReferenceEquals(args.Property, TextWrappingProperty) ||
+            ReferenceEquals(args.Property, LineHeightProperty) ||
+            ReferenceEquals(args.Property, CharacterSpacingProperty) ||
             ReferenceEquals(args.Property, FontSizeProperty) ||
             ReferenceEquals(args.Property, FontFamilyProperty) ||
             ReferenceEquals(args.Property, FontWeightProperty) ||
@@ -301,17 +336,21 @@ public class TextBlock : FrameworkElement
         if (_hasIntrinsicNoWrapMeasureCache &&
             _intrinsicNoWrapMeasureTextVersion == _textVersion &&
             Nullable.Equals(_intrinsicNoWrapMeasureTypography, typography) &&
-            WidthMatches(_intrinsicNoWrapMeasureFontSize, FontSize))
+            FloatMatches(_intrinsicNoWrapMeasureFontSize, FontSize) &&
+            FloatMatches(_intrinsicNoWrapMeasureLineHeight, LineHeight))
         {
             return _intrinsicNoWrapMeasureSize;
         }
 
+        var lineHeight = ResolveLineHeight(typography);
+
         var size = new Vector2(
             UiTextRenderer.MeasureWidth(typography, layoutText),
-            UiTextRenderer.GetLineHeight(typography));
+            lineHeight);
         _intrinsicNoWrapMeasureTextVersion = _textVersion;
         _intrinsicNoWrapMeasureTypography = typography;
         _intrinsicNoWrapMeasureFontSize = FontSize;
+        _intrinsicNoWrapMeasureLineHeight = LineHeight;
         _intrinsicNoWrapMeasureSize = size;
         _hasIntrinsicNoWrapMeasureCache = true;
         return size;
@@ -347,12 +386,14 @@ public class TextBlock : FrameworkElement
         }
 
         var typography = UiTextRenderer.ResolveTypography(this, FontSize);
-        var widthMatches = WidthMatches(_layoutCacheWidth, width);
+        var lineHeight = LineHeight;
+        var widthMatches = FloatMatches(_layoutCacheWidth, width);
         if (_hasLayoutCache &&
             _layoutCacheTextVersion == _textVersion &&
             Nullable.Equals(_layoutCacheTypography, typography) &&
-            WidthMatches(_layoutCacheFontSize, FontSize) &&
+            FloatMatches(_layoutCacheFontSize, FontSize) &&
             _layoutCacheWrapping == TextWrapping &&
+            FloatMatches(_layoutCacheLineHeight, lineHeight) &&
             widthMatches)
         {
             _layoutCacheHitCount++;
@@ -360,12 +401,13 @@ public class TextBlock : FrameworkElement
         }
 
         _layoutCacheMissCount++;
-        var result = TextLayout.Layout(layoutText, typography, FontSize, width, TextWrapping);
+        var result = ApplyLineHeight(TextLayout.Layout(layoutText, typography, FontSize, width, TextWrapping), lineHeight);
         _layoutCacheTextVersion = _textVersion;
         _layoutCacheWidth = width;
         _layoutCacheTypography = typography;
         _layoutCacheFontSize = FontSize;
         _layoutCacheWrapping = TextWrapping;
+        _layoutCacheLineHeight = lineHeight;
         _layoutCacheResult = result;
         _hasLayoutCache = true;
         return result;
@@ -378,6 +420,7 @@ public class TextBlock : FrameworkElement
         _layoutCacheWidth = float.NaN;
         _layoutCacheTypography = null;
         _layoutCacheFontSize = float.NaN;
+        _layoutCacheLineHeight = float.NaN;
         _layoutCacheResult = TextLayout.TextLayoutResult.Empty;
     }
 
@@ -387,10 +430,31 @@ public class TextBlock : FrameworkElement
         _intrinsicNoWrapMeasureTextVersion = -1;
         _intrinsicNoWrapMeasureTypography = null;
         _intrinsicNoWrapMeasureFontSize = float.NaN;
+        _intrinsicNoWrapMeasureLineHeight = float.NaN;
         _intrinsicNoWrapMeasureSize = Vector2.Zero;
     }
 
-    private static bool WidthMatches(float cached, float current)
+    private float ResolveLineHeight(UiTypography typography)
+    {
+        return float.IsNaN(LineHeight)
+            ? UiTextRenderer.GetLineHeight(typography)
+            : LineHeight;
+    }
+
+    private static TextLayout.TextLayoutResult ApplyLineHeight(TextLayout.TextLayoutResult result, float lineHeight)
+    {
+        if (float.IsNaN(lineHeight) || result.Lines.Count == 0)
+        {
+            return result;
+        }
+
+        return new TextLayout.TextLayoutResult(
+            result.Lines,
+            result.LineWidths,
+            new Vector2(result.Size.X, result.Lines.Count * lineHeight));
+    }
+
+    private static bool FloatMatches(float cached, float current)
     {
         if (float.IsNaN(cached) && float.IsNaN(current))
         {

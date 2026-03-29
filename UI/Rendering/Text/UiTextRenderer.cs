@@ -26,7 +26,7 @@ internal static class UiTextRenderer
     private static readonly Queue<UiShapedTextLayoutCacheKey> ShapedTextLayoutCacheOrder = new();
     private static IUiFontCatalog _fontCatalog = CreateDefaultFontCatalog();
     private static IUiFontRasterizer _rasterizer = CreateDefaultRasterizer();
-    private static UiTypography _defaultTypography = new("Segoe UI", 12f, "Normal", "Normal");
+    private static UiTypography _defaultTypography = new("Segoe UI", 12f, "Normal", "Normal", 0);
     private static long _measureWidthElapsedTicks;
     private static long _getLineHeightElapsedTicks;
     private static long _drawStringElapsedTicks;
@@ -54,7 +54,8 @@ internal static class UiTextRenderer
             UiTypography.NormalizeFamily(family),
             MathF.Max(1f, size),
             UiTypography.NormalizeWeight(weight),
-            UiTypography.NormalizeStyle(style));
+            UiTypography.NormalizeStyle(style),
+            0);
     }
 
     internal static void ConfigureRuntimeServicesForTests(IUiFontCatalog? fontCatalog = null, IUiFontRasterizer? rasterizer = null)
@@ -105,7 +106,7 @@ internal static class UiTextRenderer
     {
         ArgumentNullException.ThrowIfNull(element);
         var typography = UiTypography.FromElement(element);
-        if (string.IsNullOrWhiteSpace(element.FontFamily))
+        if (element.FontFamily.IsEmpty)
         {
             typography = typography with { Family = _defaultTypography.Family };
         }
@@ -395,7 +396,7 @@ internal static class UiTextRenderer
 
     private static string SummarizeTypography(UiTypography typography)
     {
-        return $"{typography.Family}|{typography.Size:0.###}|{typography.Weight}|{typography.Style}";
+        return $"{typography.Family}|{typography.Size:0.###}|{typography.Weight}|{typography.Style}|cs={typography.CharacterSpacing}";
     }
 
     private static double TicksToMilliseconds(long ticks)
@@ -508,6 +509,8 @@ internal static class UiTextRenderer
         var baselineY = metrics.Ascent;
         var maxWidth = 0f;
         uint previousGlyphIndex = 0;
+        var characterSpacing = GetCharacterSpacingPixels(typography);
+        var hasGlyphOnCurrentLine = false;
 
         foreach (var rune in text.EnumerateRunes())
         {
@@ -522,6 +525,7 @@ internal static class UiTextRenderer
                 penX = 0f;
                 baselineY += lineHeight;
                 previousGlyphIndex = 0;
+                hasGlyphOnCurrentLine = false;
                 continue;
             }
 
@@ -531,10 +535,16 @@ internal static class UiTextRenderer
                 penX += _rasterizer.GetKerning(typeface, pixelSize, previousGlyphIndex, glyph.GlyphIndex);
             }
 
+            if (hasGlyphOnCurrentLine)
+            {
+                penX += characterSpacing;
+            }
+
             codePoints.Add(rune.Value);
             positions.Add(GetGlyphDrawPosition(penX, baselineY, glyph.BearingX, glyph.BearingY));
             penX += glyph.AdvanceX;
             previousGlyphIndex = glyph.GlyphIndex;
+            hasGlyphOnCurrentLine = true;
         }
 
         var layout = new UiShapedTextLayout(codePoints.ToArray(), positions.ToArray(), MathF.Max(maxWidth, penX));
@@ -581,7 +591,7 @@ internal static class UiTextRenderer
 
         _metricsCacheMissCount++;
         var typeface = ResolveTypefaceCached(typography);
-        var measured = _rasterizer.Measure(typeface, typography.Size, text, styleOverride);
+        var measured = ApplyCharacterSpacing(_rasterizer.Measure(typeface, typography.Size, text, styleOverride), typography, text);
         lock (SyncRoot)
         {
             AddMetricsCacheEntryNoLock(cacheKey, measured);
@@ -726,6 +736,66 @@ internal static class UiTextRenderer
     private static Vector2 GetGlyphDrawPosition(float penX, float baselineY, float bearingX, float bearingY)
     {
         return new Vector2(penX + bearingX, baselineY - bearingY);
+    }
+
+    private static UiTextMetrics ApplyCharacterSpacing(UiTextMetrics metrics, UiTypography typography, string text)
+    {
+        var characterSpacing = GetCharacterSpacingPixels(typography);
+        if (characterSpacing == 0f)
+        {
+            return metrics;
+        }
+
+        var additionalWidth = GetCharacterSpacingWidth(text, characterSpacing);
+        if (additionalWidth == 0f)
+        {
+            return metrics;
+        }
+
+        return metrics with { Width = metrics.Width + additionalWidth };
+    }
+
+    private static float GetCharacterSpacingPixels(UiTypography typography)
+    {
+        if (typography.CharacterSpacing == 0)
+        {
+            return 0f;
+        }
+
+        return typography.Size * (typography.CharacterSpacing / 1000f);
+    }
+
+    private static float GetCharacterSpacingWidth(string text, float characterSpacing)
+    {
+        if (characterSpacing == 0f || string.IsNullOrEmpty(text))
+        {
+            return 0f;
+        }
+
+        var additionalSpacingCount = 0;
+        var hasGlyphOnCurrentLine = false;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            if (rune.Value == '\r')
+            {
+                continue;
+            }
+
+            if (rune.Value == '\n')
+            {
+                hasGlyphOnCurrentLine = false;
+                continue;
+            }
+
+            if (hasGlyphOnCurrentLine)
+            {
+                additionalSpacingCount++;
+            }
+
+            hasGlyphOnCurrentLine = true;
+        }
+
+        return additionalSpacingCount * characterSpacing;
     }
 
     private static void DrawGlyph(SpriteBatch spriteBatch, UiGlyphEntry glyph, float penX, float baselineY, Color color)

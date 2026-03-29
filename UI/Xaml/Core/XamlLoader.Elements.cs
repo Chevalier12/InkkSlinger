@@ -453,9 +453,24 @@ public static partial class XamlLoader
             return BuildColorObject(element);
         }
 
+        if (string.Equals(element.Name.LocalName, nameof(FontFamily), StringComparison.Ordinal))
+        {
+            return BuildFontFamilyObject(element);
+        }
+
         if (string.Equals(element.Name.LocalName, nameof(CornerRadius), StringComparison.Ordinal))
         {
             return BuildCornerRadiusObject(element);
+        }
+
+        if (string.Equals(element.Name.LocalName, nameof(Thickness), StringComparison.Ordinal))
+        {
+            return BuildThicknessObject(element);
+        }
+
+        if (TryResolvePrimitiveObjectType(element.Name.LocalName, out var primitiveType))
+        {
+            return BuildPrimitiveObject(element, primitiveType);
         }
 
         if (string.Equals(element.Name.LocalName, nameof(ResourceDictionary), StringComparison.Ordinal))
@@ -494,6 +509,45 @@ public static partial class XamlLoader
         }
 
         return instance;
+    }
+
+    private static bool TryResolvePrimitiveObjectType(string elementName, out Type type)
+    {
+        if (string.Equals(elementName, nameof(String), StringComparison.OrdinalIgnoreCase))
+        {
+            type = typeof(string);
+            return true;
+        }
+
+        if (string.Equals(elementName, nameof(Int32), StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(elementName, "Int", StringComparison.OrdinalIgnoreCase))
+        {
+            type = typeof(int);
+            return true;
+        }
+
+        if (string.Equals(elementName, nameof(Single), StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(elementName, "Float", StringComparison.OrdinalIgnoreCase))
+        {
+            type = typeof(float);
+            return true;
+        }
+
+        if (string.Equals(elementName, nameof(Double), StringComparison.OrdinalIgnoreCase))
+        {
+            type = typeof(double);
+            return true;
+        }
+
+        if (string.Equals(elementName, nameof(Boolean), StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(elementName, "Bool", StringComparison.OrdinalIgnoreCase))
+        {
+            type = typeof(bool);
+            return true;
+        }
+
+        type = null!;
+        return false;
     }
 
 
@@ -599,6 +653,21 @@ public static partial class XamlLoader
                 }
 
                 objectKeyFrameAnimation.KeyFrames.Add((ObjectKeyFrame)BuildObject(child, codeBehind, resourceScope));
+            }
+
+            return;
+        }
+
+        if (target is LinearGradientBrush linearGradientBrush)
+        {
+            foreach (var child in element.Elements())
+            {
+                if (TryApplyPropertyElement(target, child, codeBehind, resourceScope))
+                {
+                    continue;
+                }
+
+                linearGradientBrush.GradientStops.Add((GradientStop)BuildObject(child, codeBehind, resourceScope));
             }
 
             return;

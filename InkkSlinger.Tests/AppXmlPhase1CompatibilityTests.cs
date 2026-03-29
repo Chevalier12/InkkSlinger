@@ -45,6 +45,109 @@ public sealed class AppXmlPhase1CompatibilityTests
     }
 
     [Fact]
+    public void LinearGradientBrushStaticResource_CoercesToColorTypedDependencyProperty()
+    {
+        var root = (UserControl)XamlLoader.LoadFromString(
+            """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <LinearGradientBrush x:Key="AccentBrush" StartPoint="0,0" EndPoint="1,0">
+      <GradientStop Color="#FFFF0000" Offset="0" />
+      <GradientStop Color="#FF0000FF" Offset="1" />
+    </LinearGradientBrush>
+  </UserControl.Resources>
+  <Button x:Name="Probe" Background="{StaticResource AccentBrush}" />
+</UserControl>
+""");
+
+        var button = Assert.IsType<Button>(root.FindName("Probe"));
+        Assert.Equal(new Color(127, 0, 127, 255), button.Background);
+    }
+
+    [Fact]
+    public void LinearGradientBrushObjectElement_ParsesDirectGradientStopChildren()
+    {
+        var root = (UserControl)XamlLoader.LoadFromString(
+            """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Border x:Name="Probe">
+    <Border.Background>
+      <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#FFFF0000" Offset="0" />
+        <GradientStop Color="#FF0000FF" Offset="1" />
+      </LinearGradientBrush>
+    </Border.Background>
+  </Border>
+</UserControl>
+""");
+
+        var border = Assert.IsType<Border>(root.FindName("Probe"));
+        var brush = Assert.IsType<LinearGradientBrush>(border.Background);
+        Assert.Equal(new Vector2(0f, 0f), brush.StartPoint);
+        Assert.Equal(new Vector2(1f, 0f), brush.EndPoint);
+        Assert.Equal(2, brush.GradientStops.Count);
+        Assert.Equal(new Color(255, 0, 0, 255), brush.GradientStops[0].Color);
+        Assert.Equal(1f, brush.GradientStops[1].Offset);
+    }
+
+    [Fact]
+    public void FontFamilyObjectElement_ParsesAndAppliesToFontFamilyProperty()
+    {
+        var root = (UserControl)XamlLoader.LoadFromString(
+            """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <FontFamily x:Key="BodyFont">Segoe UI Variable, Segoe UI, Calibri</FontFamily>
+  </UserControl.Resources>
+  <TextBlock x:Name="Probe" FontFamily="{StaticResource BodyFont}" />
+</UserControl>
+""");
+
+        var textBlock = Assert.IsType<TextBlock>(root.FindName("Probe"));
+        Assert.Equal(new FontFamily("Segoe UI Variable, Segoe UI, Calibri"), textBlock.FontFamily);
+        Assert.Equal("Segoe UI Variable", textBlock.FontFamily.PrimaryFamilyName);
+        Assert.Equal(3, textBlock.FontFamily.FamilyNames.Count);
+    }
+
+    [Fact]
+    public void TextBlockStyleSetter_LineHeight_ParsesAndAppliesToTextBlock()
+    {
+        var root = (UserControl)XamlLoader.LoadFromString(
+            """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <Style x:Key="BodyText" TargetType="TextBlock">
+      <Setter Property="LineHeight" Value="22" />
+    </Style>
+  </UserControl.Resources>
+  <TextBlock x:Name="Probe" Style="{StaticResource BodyText}" Text="Hello" />
+</UserControl>
+""");
+
+        var textBlock = Assert.IsType<TextBlock>(root.FindName("Probe"));
+        Assert.Equal(22f, textBlock.LineHeight);
+    }
+
+    [Fact]
+    public void TextBlockStyleSetter_CharacterSpacing_ParsesAndAppliesToTextBlock()
+    {
+        var root = (UserControl)XamlLoader.LoadFromString(
+            """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <Style x:Key="CaptionText" TargetType="TextBlock">
+      <Setter Property="CharacterSpacing" Value="60" />
+    </Style>
+  </UserControl.Resources>
+  <TextBlock x:Name="Probe" Style="{StaticResource CaptionText}" Text="Hello" />
+</UserControl>
+""");
+
+        var textBlock = Assert.IsType<TextBlock>(root.FindName("Probe"));
+        Assert.Equal(60, textBlock.CharacterSpacing);
+    }
+
+    [Fact]
     public void SetterValueObjectElement_ControlTemplate_ParsesAndBuilds()
     {
         var root = (UserControl)XamlLoader.LoadFromString(
@@ -242,6 +345,76 @@ public sealed class AppXmlPhase1CompatibilityTests
 
         var border = Assert.IsType<Border>(root.FindName("Probe"));
         Assert.Equal(new Thickness(12f, 5f, 12f, 5f), border.Padding);
+    }
+
+    [Fact]
+    public void ThicknessResourceObjectElement_ParsesAndStoresThicknessValue()
+    {
+        var root = (UserControl)XamlLoader.LoadFromString(
+            """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Resources>
+    <Thickness x:Key="PanelPadding">12,5</Thickness>
+  </UserControl.Resources>
+  <Border x:Name="Probe" Padding="{StaticResource PanelPadding}" />
+</UserControl>
+""");
+
+        Assert.True(root.Resources.TryGetValue("PanelPadding", out var resource));
+        var thickness = Assert.IsType<Thickness>(resource);
+        Assert.Equal(new Thickness(12f, 5f, 12f, 5f), thickness);
+
+        var border = Assert.IsType<Border>(root.FindName("Probe"));
+        Assert.Equal(thickness, border.Padding);
+    }
+
+    [Fact]
+    public void PrimitiveResourceObjectElements_ParseAndStoreTypedValues()
+    {
+        var root = (UserControl)XamlLoader.LoadFromString(
+            """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib">
+  <UserControl.Resources>
+    <sys:String x:Key="Caption">Status</sys:String>
+    <sys:Boolean x:Key="EnabledFlag">true</sys:Boolean>
+    <sys:Int32 x:Key="TrackAmount">60</sys:Int32>
+    <sys:Single x:Key="ScaleValue">1.5</sys:Single>
+    <sys:Double x:Key="DimOpacity">0.38</sys:Double>
+  </UserControl.Resources>
+</UserControl>
+""");
+
+        Assert.Equal("Status", Assert.IsType<string>(root.Resources["Caption"]));
+        Assert.True(Assert.IsType<bool>(root.Resources["EnabledFlag"]));
+        Assert.Equal(60, Assert.IsType<int>(root.Resources["TrackAmount"]));
+        Assert.Equal(1.5f, Assert.IsType<float>(root.Resources["ScaleValue"]));
+        Assert.Equal(0.38d, Assert.IsType<double>(root.Resources["DimOpacity"]));
+    }
+
+    [Fact]
+    public void PrimitiveStaticResourceValues_CoerceToFrameworkPropertyTypes()
+    {
+        var root = (UserControl)XamlLoader.LoadFromString(
+            """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib">
+  <UserControl.Resources>
+    <sys:Int32 x:Key="TrackAmount">60</sys:Int32>
+    <sys:Double x:Key="DimOpacity">0.38</sys:Double>
+  </UserControl.Resources>
+  <Grid>
+    <TextBlock x:Name="TextProbe" CharacterSpacing="{StaticResource TrackAmount}" Text="Hello" />
+    <Border x:Name="OpacityProbe" Opacity="{StaticResource DimOpacity}" />
+  </Grid>
+</UserControl>
+""");
+
+        var textBlock = Assert.IsType<TextBlock>(root.FindName("TextProbe"));
+        Assert.Equal(60, textBlock.CharacterSpacing);
+
+        var border = Assert.IsType<Border>(root.FindName("OpacityProbe"));
+        Assert.Equal(0.38f, border.Opacity, 3);
     }
 
     [Fact]

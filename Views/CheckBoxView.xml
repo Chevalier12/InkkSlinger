@@ -21,14 +21,122 @@
       <Label Content="Control Demo: CheckBox" Foreground="{StaticResource TextPrimaryBrush}" />
     </Border>
 
-    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <ContentControl x:Name="DemoHost" />
+    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="12">
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Text="CheckBox extends ToggleButton with a glyph-and-label layout. It cycles between Unchecked and Checked on click, or through all three states when IsThreeState is enabled. Checked, Unchecked, and Indeterminate are bubbling routed events." />
+
+          <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="16" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left column: states and check states -->
+            <StackPanel Grid.Column="0">
+
+              <!-- Visual states -->
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Visual states" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="The default style applies a border-color trigger for Normal, MouseOver, and Disabled states. Hover over the Normal checkbox to see the border brighten." />
+
+                  <WrapPanel>
+                    <CheckBox Content="Normal" Margin="0,0,16,8" />
+                    <CheckBox Content="Disabled" IsEnabled="False" Margin="0,0,0,8" />
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Check states -->
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14">
+                <StackPanel>
+                  <Label Content="Check states" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="IsChecked is a nullable bool. False renders an empty glyph box, True renders a filled inner square, and null renders the indeterminate dash. The boxes below are initialised to each state." />
+
+                  <CheckBox x:Name="UncheckedBox" Content="Unchecked (IsChecked = false)" Margin="0,0,0,8" />
+                  <CheckBox x:Name="CheckedBox" Content="Checked (IsChecked = true)" Margin="0,0,0,8" />
+                  <CheckBox x:Name="IndeterminateBox" Content="Indeterminate (IsChecked = null)" />
+                </StackPanel>
+              </Border>
+
+            </StackPanel>
+
+            <!-- Right column: three-state cycling and event feedback -->
+            <StackPanel Grid.Column="2">
+
+              <!-- Three-state -->
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Three-state cycling" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="When IsThreeState is true, OnToggle cycles false → true → null → false. The live readout below reflects the current IsChecked value after each click." />
+
+                  <CheckBox x:Name="ThreeStateBox" Content="Three-state checkbox" Margin="0,0,0,10" />
+                  <TextBlock x:Name="ThreeStateLabel"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Text="IsChecked: False" />
+                </StackPanel>
+              </Border>
+
+              <!-- Event feedback -->
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14">
+                <StackPanel>
+                  <Label Content="Routed events" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="CheckBox raises Checked, Unchecked, and Indeterminate as bubbling RoutedEvents. The counters below are incremented by handlers attached in code-behind. This checkbox also has IsThreeState enabled." />
+
+                  <CheckBox x:Name="EventBox" Content="Toggle me" Margin="0,0,0,10" />
+                  <TextBlock x:Name="CheckedCountLabel"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Margin="0,0,0,4"
+                             Text="Checked fired: 0" />
+                  <TextBlock x:Name="UncheckedCountLabel"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Margin="0,0,0,4"
+                             Text="Unchecked fired: 0" />
+                  <TextBlock x:Name="IndeterminateCountLabel"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Text="Indeterminate fired: 0" />
+                </StackPanel>
+              </Border>
+
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </ScrollViewer>
     </Border>
   </Grid>
 </UserControl>
-
-
-
-
-
-
