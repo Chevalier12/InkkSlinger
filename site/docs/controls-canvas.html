@@ -174,7 +174,7 @@
                 <div class="doc-hero">
                     <p class="eyebrow">Controls</p>
                     <h1>Canvas</h1>
-                    <p><code>Canvas</code> is the framework's free-positioning panel. It lays out each child at an explicit X/Y offset using the attached <code>Canvas.Left</code> and <code>Canvas.Top</code> properties, making it the right panel for overlays, HUDs, anchored popups, drag surfaces, and lightweight 2D scene composition.</p>
+                    <p><code>Canvas</code> is the framework's free-positioning panel. It lays out each child at an explicit X/Y offset using the attached <code>Canvas.Left</code>, <code>Canvas.Top</code>, <code>Canvas.Right</code>, and <code>Canvas.Bottom</code> properties, making it the right panel for overlays, HUDs, anchored popups, drag surfaces, and lightweight 2D scene composition.</p>
                 </div>
                 <section class="doc-section">
                     <h2>Quick start</h2>
@@ -225,14 +225,16 @@ overlayCanvas.AddChild(badge);</code></pre>
                         </article>
                         <article class="doc-card">
                             <h3>Arrange</h3>
-                            <p>Each child is arranged at <code>Canvas.Left</code>/<code>Canvas.Top</code> relative to the canvas origin, using the child's desired size as its arranged width and height.</p>
+                            <p>Each child is arranged from <code>Canvas.Left</code>/<code>Canvas.Top</code> when those values are set. If they are unset, <code>Canvas.Right</code> and <code>Canvas.Bottom</code> can anchor the child from the far edges using the child's desired size.</p>
                         </article>
                     </div>
                     <ul>
-                        <li>If <code>Canvas.Left</code> is not set, the child uses <code>0</code> for X.</li>
-                        <li>If <code>Canvas.Top</code> is not set, the child uses <code>0</code> for Y.</li>
-                        <li>Canvas desired width is the maximum of <code>left + child desired width</code> across all children.</li>
-                        <li>Canvas desired height is the maximum of <code>top + child desired height</code> across all children.</li>
+                        <li>If <code>Canvas.Left</code> is set, it wins over <code>Canvas.Right</code> for horizontal placement.</li>
+                        <li>If <code>Canvas.Top</code> is set, it wins over <code>Canvas.Bottom</code> for vertical placement.</li>
+                        <li>If neither horizontal property is set, the child defaults to <code>0</code> from the left edge.</li>
+                        <li>If neither vertical property is set, the child defaults to <code>0</code> from the top edge.</li>
+                        <li>Canvas desired width is the maximum of the resolved horizontal offset plus the child desired width across all children.</li>
+                        <li>Canvas desired height is the maximum of the resolved vertical offset plus the child desired height across all children.</li>
                         <li>Negative coordinates are allowed and can place content partially or fully outside the visible canvas region.</li>
                     </ul>
                     <pre><code class="language-xml">&lt;Canvas&gt;

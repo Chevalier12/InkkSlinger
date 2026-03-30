@@ -780,9 +780,24 @@ public class MenuItem : ItemsControl
             return OwnerContextMenu.GetWorkAreaBounds();
         }
 
-        if (OwnerMenu?.VisualParent is FrameworkElement host)
+        if (OwnerMenu != null)
         {
-            return host.LayoutSlot;
+            var visualRoot = OwnerMenu.GetVisualRoot();
+            var rootSlot = visualRoot.LayoutSlot;
+            if (rootSlot.Width > 0f && rootSlot.Height > 0f)
+            {
+                return rootSlot;
+            }
+
+            if (OwnerMenu.VisualParent is FrameworkElement host)
+            {
+                var hostSlot = host.LayoutSlot;
+                return new LayoutRect(
+                    hostSlot.X,
+                    hostSlot.Y,
+                    MathF.Max(1f, hostSlot.Width),
+                    MathF.Max(1f, hostSlot.Height));
+            }
         }
 
         return new LayoutRect(0f, 0f, MathF.Max(1f, LayoutSlot.Width), MathF.Max(1f, LayoutSlot.Height));

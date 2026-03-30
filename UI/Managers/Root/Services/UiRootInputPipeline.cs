@@ -19,6 +19,7 @@ public sealed partial class UiRoot
     private const double WheelPreciseRetargetCooldownMs = 90d;
     private const float WheelPointerMoveThresholdSquared = 4f;
     private const float ClickPointerReuseThresholdSquared = 9f;
+    private const float SweptPointerPressSampleSpacing = 1f;
     private string _lastPointerResolvePath = "None";
     private HitTestMetrics? _lastPointerResolveHitTestMetrics;
     private ContextMenu? _lastKnownOpenContextMenu;
@@ -112,6 +113,13 @@ public sealed partial class UiRoot
         var pointerResolveStart = Stopwatch.GetTimestamp();
         var clickHitTestsBeforeResolve = _lastInputHitTestCount;
         var pointerTarget = ResolvePointerTarget(delta);
+        var pressedPointerPosition = delta.Current.PointerPosition;
+        if (TryResolveSweptPointerPressTarget(delta, pointerTarget, out var sweptPointerTarget, out var sweptPointerPosition) &&
+            sweptPointerTarget != null)
+        {
+            pointerTarget = FinalizePointerResolve("SweptPressPathHitTest", sweptPointerTarget);
+            pressedPointerPosition = sweptPointerPosition;
+        }
         if (delta.LeftPressed || delta.LeftReleased || delta.RightPressed || delta.RightReleased)
         {
             clickResolveHitTests = Math.Max(0, _lastInputHitTestCount - clickHitTestsBeforeResolve);
@@ -164,10 +172,10 @@ public sealed partial class UiRoot
             DismissToolTipForPointerInteraction();
             _suppressCurrentLeftPressGesture = false;
             _lastClickDownTarget = pointerTarget;
-            _lastClickDownPointerPosition = delta.Current.PointerPosition;
+            _lastClickDownPointerPosition = pressedPointerPosition;
             _hasLastClickDownPointerPosition = true;
             var routeStart = Stopwatch.GetTimestamp();
-            DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
+            DispatchMouseDown(pointerTarget, pressedPointerPosition, MouseButton.Left);
             if (!_suppressCurrentLeftPressGesture)
             {
                 _ = InputGestureService.Execute(
@@ -198,7 +206,7 @@ public sealed partial class UiRoot
             DismissToolTipForPointerInteraction();
             _suppressCurrentRightPressGesture = false;
             var routeStart = Stopwatch.GetTimestamp();
-            DispatchMouseDown(pointerTarget, delta.Current.PointerPosition, MouseButton.Right);
+            DispatchMouseDown(pointerTarget, pressedPointerPosition, MouseButton.Right);
             if (!_suppressCurrentRightPressGesture)
             {
                 _ = InputGestureService.Execute(
@@ -445,6 +453,21 @@ public sealed partial class UiRoot
         var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
         _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(finalHitTestStart).TotalMilliseconds;
         _lastPointerResolveHitTestMetrics = metrics;
+
+        if (requiresPreciseTarget)
+        {
+            if (TryResolveClickTargetFromCandidate(hit, pointerPosition, out var resolvedClickTarget) &&
+                resolvedClickTarget != null)
+            {
+                return FinalizePointerResolve(finalPath, resolvedClickTarget);
+            }
+
+            if (hit != null && IsClickCapableElement(hit))
+            {
+                return FinalizePointerResolve(finalPath, hit);
+            }
+        }
+
         return FinalizePointerResolve(finalPath, hit);
     }
 
@@ -486,6 +509,70 @@ public sealed partial class UiRoot
         return true;
     }
 
+    private bool TryResolveSweptPointerPressTarget(
+        InputDelta delta,
+        UIElement? currentTarget,
+        out UIElement? target,
+        out Vector2 pointerPosition)
+    {
+        target = null;
+        pointerPosition = delta.Current.PointerPosition;
+        if (!delta.PointerMoved ||
+            !(delta.LeftPressed || delta.RightPressed) ||
+            _inputState.CapturedPointerElement != null)
+        {
+            return false;
+        }
+
+        var currentPointerPosition = delta.Current.PointerPosition;
+        if (TryResolveClickTargetFromCandidate(currentTarget, currentPointerPosition, out var resolvedCurrentTarget) &&
+            resolvedCurrentTarget != null)
+        {
+            return false;
+        }
+
+        var previousPointerPosition = delta.Previous.PointerPosition;
+        var deltaVector = currentPointerPosition - previousPointerPosition;
+        var maxAxisDistance = MathF.Max(MathF.Abs(deltaVector.X), MathF.Abs(deltaVector.Y));
+        var sampleCount = (int)MathF.Ceiling(maxAxisDistance / SweptPointerPressSampleSpacing);
+        if (sampleCount <= 1)
+        {
+            return false;
+        }
+
+        for (var sampleIndex = sampleCount - 1; sampleIndex >= 1; sampleIndex--)
+        {
+            var progress = sampleIndex / (float)sampleCount;
+            var samplePosition = Vector2.Lerp(previousPointerPosition, currentPointerPosition, progress);
+            if (!TryResolveSweptClickTargetAtPoint(samplePosition, out target) || target == null)
+            {
+                continue;
+            }
+
+            pointerPosition = samplePosition;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryResolveSweptClickTargetAtPoint(Vector2 pointerPosition, out UIElement? target)
+    {
+        target = null;
+        _lastInputHitTestCount++;
+        _clickCpuResolveHitTestCount++;
+        var hitTestStart = Stopwatch.GetTimestamp();
+        var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
+        _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+        _lastPointerResolveHitTestMetrics = metrics;
+        if (hit == null)
+        {
+            return false;
+        }
+
+        return TryResolveClickTargetFromCandidate(hit, pointerPosition, out target) && target != null;
+    }
+
     private void UpdateCachedPointerResolveTarget(Vector2 pointerPosition, UIElement? target)
     {
         if (target == null || !IsElementConnectedToVisualRoot(target))
@@ -508,6 +595,19 @@ public sealed partial class UiRoot
         {
             UpdateCachedPointerResolveTarget(_inputState.LastPointerPosition, target);
         }
+
+        if (CanvasThumbInvestigationLog.ShouldTrace(
+                _visualRoot,
+                _inputState.LastPointerPosition,
+                target,
+                _inputState.HoveredElement,
+                _inputState.CapturedPointerElement))
+        {
+            CanvasThumbInvestigationLog.Write(
+                "Resolve",
+                $"path={path} pointer={CanvasThumbInvestigationLog.DescribePointer(_inputState.LastPointerPosition)} target={CanvasThumbInvestigationLog.DescribeElement(target)} hovered={CanvasThumbInvestigationLog.DescribeElement(_inputState.HoveredElement)} captured={CanvasThumbInvestigationLog.DescribeElement(_inputState.CapturedPointerElement)} metrics={CanvasThumbInvestigationLog.DescribeHitTestMetrics(_lastPointerResolveHitTestMetrics)}");
+        }
+
         return target;
     }
 
@@ -532,6 +632,18 @@ public sealed partial class UiRoot
         RefreshCachedWheelTargets(hovered);
         RefreshCachedClickTarget(hovered);
         SetHoverState(hovered, isMouseOver: true);
+
+        if (CanvasThumbInvestigationLog.ShouldTrace(
+            _visualRoot,
+            _inputState.LastPointerPosition,
+            previousHovered,
+            hovered,
+            _inputState.CapturedPointerElement))
+        {
+            CanvasThumbInvestigationLog.Write(
+            "Hover",
+            $"pointer={CanvasThumbInvestigationLog.DescribePointer(_inputState.LastPointerPosition)} previous={CanvasThumbInvestigationLog.DescribeElement(previousHovered)} current={CanvasThumbInvestigationLog.DescribeElement(hovered)} cachedClick={CanvasThumbInvestigationLog.DescribeElement(_cachedClickTarget)} captured={CanvasThumbInvestigationLog.DescribeElement(_inputState.CapturedPointerElement)}");
+        }
 
         var pointerPosition = _inputState.LastPointerPosition;
         if (previousHovered != null)
@@ -831,6 +943,19 @@ public sealed partial class UiRoot
             return;
         }
 
+        if (CanvasThumbInvestigationLog.ShouldTrace(
+                _visualRoot,
+                pointerPosition,
+                target,
+                routedTarget,
+                _inputState.HoveredElement,
+                _inputState.CapturedPointerElement))
+        {
+            CanvasThumbInvestigationLog.Write(
+                "PointerMove",
+                $"pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} target={CanvasThumbInvestigationLog.DescribeElement(target)} routed={CanvasThumbInvestigationLog.DescribeElement(routedTarget)} hovered={CanvasThumbInvestigationLog.DescribeElement(_inputState.HoveredElement)} captured={CanvasThumbInvestigationLog.DescribeElement(_inputState.CapturedPointerElement)} path={_lastPointerResolvePath}");
+        }
+
         var dispatchStart = Stopwatch.GetTimestamp();
         _lastInputPointerEventCount++;
         var routedEventsStart = Stopwatch.GetTimestamp();
@@ -983,6 +1108,19 @@ public sealed partial class UiRoot
         }
 
         if (button == MouseButton.Left &&
+            CanvasThumbInvestigationLog.ShouldTrace(
+                _visualRoot,
+                pointerPosition,
+                target,
+                _inputState.HoveredElement,
+                _inputState.CapturedPointerElement))
+        {
+            CanvasThumbInvestigationLog.Write(
+                "MouseDown",
+                $"pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} target={CanvasThumbInvestigationLog.DescribeElement(target)} hovered={CanvasThumbInvestigationLog.DescribeElement(_inputState.HoveredElement)} capturedBefore={CanvasThumbInvestigationLog.DescribeElement(_inputState.CapturedPointerElement)} path={_lastPointerResolvePath}");
+        }
+
+        if (button == MouseButton.Left &&
             target is not Button &&
             TryFindAncestor<Button>(target, out var ancestorButton) &&
             ancestorButton != null)
@@ -1116,6 +1254,20 @@ public sealed partial class UiRoot
         if (routedTarget == null)
         {
             return;
+        }
+
+        if (button == MouseButton.Left &&
+            CanvasThumbInvestigationLog.ShouldTrace(
+                _visualRoot,
+                pointerPosition,
+                target,
+                routedTarget,
+                _inputState.HoveredElement,
+                _inputState.CapturedPointerElement))
+        {
+            CanvasThumbInvestigationLog.Write(
+                "MouseUp",
+                $"pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} target={CanvasThumbInvestigationLog.DescribeElement(target)} routed={CanvasThumbInvestigationLog.DescribeElement(routedTarget)} hovered={CanvasThumbInvestigationLog.DescribeElement(_inputState.HoveredElement)} capturedBefore={CanvasThumbInvestigationLog.DescribeElement(_inputState.CapturedPointerElement)} path={_lastPointerResolvePath}");
         }
 
         RefreshCachedClickTarget(routedTarget);
@@ -1613,23 +1765,62 @@ public sealed partial class UiRoot
 
     private bool TryResolvePreciseClickTargetWithinHoveredSubtree(Vector2 pointerPosition, out UIElement? target)
     {
-        return TryResolvePreciseClickTargetWithinAnchorSubtree(_inputState.HoveredElement, pointerPosition, out target, hoveredStrictMode: true);
+        target = null;
+        if (!TryResolvePreciseClickTargetWithinAnchorSubtree(_inputState.HoveredElement, pointerPosition, out var hoveredSubtreeTarget, hoveredStrictMode: true) ||
+            hoveredSubtreeTarget == null)
+        {
+            return false;
+        }
+
+        if (TryResolveClickTargetFromCandidate(hoveredSubtreeTarget, pointerPosition, out var resolvedClickTarget) &&
+            resolvedClickTarget != null)
+        {
+            target = resolvedClickTarget;
+            return true;
+        }
+
+        if (!IsClickCapableElement(hoveredSubtreeTarget))
+        {
+            return false;
+        }
+
+        target = hoveredSubtreeTarget;
+        return true;
     }
 
     private bool TryResolvePointerMoveWithinHoveredHostSubtree(Vector2 pointerPosition, out UIElement? target)
     {
         target = null;
         var hovered = _inputState.HoveredElement;
+        UIElement? hostAnchor = null;
+        var shouldTrace = CanvasThumbInvestigationLog.ShouldTrace(
+            _visualRoot,
+            pointerPosition,
+            hovered,
+            _inputState.CapturedPointerElement);
         if (hovered == null || !IsElementConnectedToVisualRoot(hovered))
         {
+            if (shouldTrace)
+            {
+                CanvasThumbInvestigationLog.Write(
+                    "HoveredHostSubtree",
+                    $"eligible=false reason=hovered-null-or-detached pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} hovered={CanvasThumbInvestigationLog.DescribeElement(hovered)}");
+            }
             return false;
         }
 
-        if (!TryGetHoverHostAnchor(hovered, out var hostAnchor) ||
+        var pointerInsideHost = false;
+        if (!TryGetHoverHostAnchor(hovered, out hostAnchor) ||
             hostAnchor == null ||
             !IsElementConnectedToVisualRoot(hostAnchor) ||
-            !PointerLikelyInsideElement(hostAnchor, pointerPosition))
+            !(pointerInsideHost = PointerLikelyInsideElement(hostAnchor, pointerPosition)))
         {
+            if (shouldTrace)
+            {
+                CanvasThumbInvestigationLog.Write(
+                    "HoveredHostSubtree",
+                    $"eligible=false reason=host-anchor-gate pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} hovered={CanvasThumbInvestigationLog.DescribeElement(hovered)} host={CanvasThumbInvestigationLog.DescribeElement(hostAnchor)} pointerInsideHost={pointerInsideHost}");
+            }
             return false;
         }
 
@@ -1638,13 +1829,20 @@ public sealed partial class UiRoot
         var hit = VisualTreeHelper.HitTest(hostAnchor, pointerPosition, out var metrics);
         _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(hostHitTestStart).TotalMilliseconds;
         _lastPointerResolveHitTestMetrics = metrics;
-        if (hit == null)
+        if (shouldTrace)
+        {
+            CanvasThumbInvestigationLog.Write(
+                "HoveredHostSubtree",
+                $"eligible=true pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} hovered={CanvasThumbInvestigationLog.DescribeElement(hovered)} host={CanvasThumbInvestigationLog.DescribeElement(hostAnchor)} hit={CanvasThumbInvestigationLog.DescribeElement(hit)} metrics={CanvasThumbInvestigationLog.DescribeHitTestMetrics(metrics)}");
+        }
+
+        if (hit != null && PromoteHoverTarget(hit) == hit)
         {
             return false;
         }
 
         target = hit;
-        return true;
+        return hit != null;
     }
 
     private bool TryResolvePreciseClickTargetWithinAnchorSubtree(
@@ -1654,26 +1852,59 @@ public sealed partial class UiRoot
         bool hoveredStrictMode = false)
     {
         target = null;
+        var shouldTrace = CanvasThumbInvestigationLog.ShouldTrace(
+            _visualRoot,
+            pointerPosition,
+            anchor,
+            _inputState.CapturedPointerElement);
+        var anchorConnected = anchor != null && IsElementConnectedToVisualRoot(anchor);
+        var broadAnchor = anchor != null && IsBroadClickAnchor(anchor);
+        var narrowHoveredAnchor = !hoveredStrictMode || (anchor != null && IsNarrowHoveredAnchor(anchor));
+        var pointerInsideAnchor = anchor != null && PointerLikelyInsideElement(anchor, pointerPosition);
         if (anchor == null ||
-            !IsElementConnectedToVisualRoot(anchor) ||
-            IsBroadClickAnchor(anchor) ||
-            (hoveredStrictMode && !IsNarrowHoveredAnchor(anchor)) ||
-            !PointerLikelyInsideElement(anchor, pointerPosition))
+            !anchorConnected ||
+            broadAnchor ||
+            !narrowHoveredAnchor ||
+            !pointerInsideAnchor)
         {
+            if (shouldTrace)
+            {
+                CanvasThumbInvestigationLog.Write(
+                    "PreciseClickSubtree",
+                    $"eligible=false pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} anchor={CanvasThumbInvestigationLog.DescribeElement(anchor)} anchorConnected={anchorConnected} broadAnchor={broadAnchor} hoveredStrictMode={hoveredStrictMode} narrowHoveredAnchor={narrowHoveredAnchor} pointerInsideAnchor={pointerInsideAnchor}");
+            }
             return false;
         }
 
         _lastInputHitTestCount++;
         _clickCpuResolveHitTestCount++;
         var hit = VisualTreeHelper.HitTest(anchor, pointerPosition);
+        if (shouldTrace)
+        {
+            CanvasThumbInvestigationLog.Write(
+                "PreciseClickSubtree",
+                $"eligible=true pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} anchor={CanvasThumbInvestigationLog.DescribeElement(anchor)} hoveredStrictMode={hoveredStrictMode} hit={CanvasThumbInvestigationLog.DescribeElement(hit)}");
+        }
 
         if (hit == null)
         {
             return false;
         }
 
-        target = hit;
-        return true;
+        if (TryResolveClickTargetFromCandidate(hit, pointerPosition, out var resolvedTarget) &&
+            resolvedTarget != null)
+        {
+            target = resolvedTarget;
+            return true;
+        }
+
+        if (IsClickCapableElement(hit))
+        {
+            target = hit;
+            return true;
+        }
+
+        return false;
     }
 
     private bool TryResolveClickTargetWithinTextInputSubtree(
@@ -1772,6 +2003,11 @@ public sealed partial class UiRoot
 
         foreach (var current in GetInputAncestorChain(candidate))
         {
+            if (current is ScrollViewer && !ReferenceEquals(current, candidate))
+            {
+                continue;
+            }
+
             if (IsKnownClickCapableElement(current))
             {
                 target = current;
@@ -1932,7 +2168,7 @@ public sealed partial class UiRoot
 
     private static bool IsKnownClickCapableElement(UIElement element)
     {
-        return element is Button or ITextInputControl or ScrollViewer or ScrollBar or
+        return element is Button or ITextInputControl or Thumb or ScrollViewer or ScrollBar or
             ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem or TreeViewItem;
     }
 
@@ -2291,7 +2527,7 @@ public sealed partial class UiRoot
 
     private static bool IsClickCapableElement(UIElement element)
     {
-        if (element is Button or ITextInputControl or ScrollViewer or ScrollBar or
+        if (element is Button or ITextInputControl or Thumb or ScrollViewer or ScrollBar or
             ListBoxItem or ListViewItem or DataGridRow or ComboBoxItem or TabItem or TreeViewItem)
         {
             return true;
@@ -2769,6 +3005,18 @@ public sealed partial class UiRoot
     {
         _inputState.CapturedPointerElement = element;
         FocusManager.CapturePointer(element);
+
+        if (CanvasThumbInvestigationLog.ShouldTrace(
+                _visualRoot,
+                _inputState.LastPointerPosition,
+                element,
+                _inputState.HoveredElement,
+                _inputState.CapturedPointerElement))
+        {
+            CanvasThumbInvestigationLog.Write(
+                "Capture",
+                $"pointer={CanvasThumbInvestigationLog.DescribePointer(_inputState.LastPointerPosition)} captured={CanvasThumbInvestigationLog.DescribeElement(element)} hovered={CanvasThumbInvestigationLog.DescribeElement(_inputState.HoveredElement)}");
+        }
     }
 
     private void ReleasePointer(UIElement? element)
@@ -2780,6 +3028,17 @@ public sealed partial class UiRoot
 
         _inputState.CapturedPointerElement = null;
         FocusManager.ReleasePointer(element);
+
+    if (CanvasThumbInvestigationLog.ShouldTrace(
+        _visualRoot,
+        _inputState.LastPointerPosition,
+        element,
+        _inputState.HoveredElement))
+    {
+        CanvasThumbInvestigationLog.Write(
+        "Release",
+        $"pointer={CanvasThumbInvestigationLog.DescribePointer(_inputState.LastPointerPosition)} released={CanvasThumbInvestigationLog.DescribeElement(element)} hovered={CanvasThumbInvestigationLog.DescribeElement(_inputState.HoveredElement)}");
+    }
     }
 
     private bool TryHandleMenuAccessKey(char accessKey)

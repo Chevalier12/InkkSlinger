@@ -304,6 +304,57 @@ public class InputDispatchOptimizationTests
     }
 
     [Fact]
+    public void PointerMove_AndClick_StaleHoveredContentFallbacksToThumbHitTest()
+    {
+        var root = new Canvas
+        {
+            Width = 400f,
+            Height = 240f
+        };
+
+        var focusCard = new Border
+        {
+            Width = 180f,
+            Height = 120f,
+            Child = new Grid()
+        };
+        Canvas.SetLeft(focusCard, 60f);
+        Canvas.SetTop(focusCard, 50f);
+
+        var thumb = new Thumb
+        {
+            Width = 64f,
+            Height = 16f
+        };
+        Canvas.SetLeft(thumb, 170f);
+        Canvas.SetTop(thumb, 74f);
+
+        root.AddChild(focusCard);
+        root.AddChild(thumb);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 400, 240, 16);
+
+        var focusPoint = new Vector2(focusCard.LayoutSlot.X + 24f, focusCard.LayoutSlot.Y + 24f);
+        var thumbEntryPoint = new Vector2(thumb.LayoutSlot.X + 2f, thumb.LayoutSlot.Y + (thumb.LayoutSlot.Height * 0.5f));
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: focusPoint));
+        Assert.NotSame(thumb, uiRoot.GetHoveredElementForDiagnostics());
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: thumbEntryPoint));
+
+        Assert.Same(thumb, uiRoot.GetHoveredElementForDiagnostics());
+        Assert.True(thumb.IsMouseOver);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: thumbEntryPoint, leftPressed: true));
+
+        Assert.True(thumb.IsDragging);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: thumbEntryPoint, leftReleased: true));
+        Assert.False(thumb.IsDragging);
+    }
+
+    [Fact]
     public void ListHover_ManyItems_StaysLowHitTestRate()
     {
         var root = new Panel();

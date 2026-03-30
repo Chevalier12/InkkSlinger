@@ -130,6 +130,13 @@ public class Thumb : Control
 
     internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
     {
+        if (CanvasThumbInvestigationLog.ShouldTrace(this, pointerPosition, this))
+        {
+            CanvasThumbInvestigationLog.Write(
+                "Thumb",
+                $"HandlePointerDown target={CanvasThumbInvestigationLog.DescribeElement(this)} pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} hit={HitTest(pointerPosition)} enabled={IsEnabled} dragging={_isDragging}");
+        }
+
         if (!IsEnabled || !HitTest(pointerPosition))
         {
             return false;
@@ -146,6 +153,13 @@ public class Thumb : Control
                 DragStartedEvent,
                 pointerPosition.X - LayoutSlot.X,
                 pointerPosition.Y - LayoutSlot.Y));
+
+        if (CanvasThumbInvestigationLog.ShouldTrace(this, pointerPosition, this))
+        {
+            CanvasThumbInvestigationLog.Write(
+                "Thumb",
+                $"DragStarted target={CanvasThumbInvestigationLog.DescribeElement(this)} pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} start=({ _dragStartPosition.X:0.##},{ _dragStartPosition.Y:0.##})");
+        }
 
         return true;
     }
@@ -168,6 +182,14 @@ public class Thumb : Control
                 DragDeltaEvent,
                 delta.X,
                 delta.Y));
+
+        if (CanvasThumbInvestigationLog.ShouldTrace(this, pointerPosition, this))
+        {
+            CanvasThumbInvestigationLog.Write(
+                "Thumb",
+                $"HandlePointerMove target={CanvasThumbInvestigationLog.DescribeElement(this)} pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} delta=({delta.X:0.##},{delta.Y:0.##}) last=({_lastPointerPosition.X:0.##},{_lastPointerPosition.Y:0.##})");
+        }
+
         _diagRaiseDragDeltaElapsedTicks += Stopwatch.GetTimestamp() - raiseStartTicks;
         _diagHandlePointerMoveCallCount++;
         _diagHandlePointerMoveElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
@@ -194,6 +216,13 @@ public class Thumb : Control
 
     internal bool HandlePointerUpFromInput()
     {
+        if (CanvasThumbInvestigationLog.IsEnabled)
+        {
+            CanvasThumbInvestigationLog.Write(
+                "Thumb",
+                $"HandlePointerUp target={CanvasThumbInvestigationLog.DescribeElement(this)} dragging={_isDragging} total=({_lastPointerPosition.X - _dragStartPosition.X:0.##},{_lastPointerPosition.Y - _dragStartPosition.Y:0.##})");
+        }
+
         if (!_isDragging)
         {
             return false;
@@ -211,6 +240,13 @@ public class Thumb : Control
         }
 
         IsMouseOver = isMouseOver;
+
+        if (CanvasThumbInvestigationLog.IsEnabled)
+        {
+            CanvasThumbInvestigationLog.Write(
+                "Thumb",
+                $"SetMouseOver target={CanvasThumbInvestigationLog.DescribeElement(this)} isMouseOver={isMouseOver}");
+        }
     }
 
     private void EndDrag(bool canceled, bool releaseCapture)

@@ -11,19 +11,563 @@
              BorderBrush="{StaticResource DarkBorderBrush}"
              BorderThickness="1"
              Padding="12">
-  <Grid>
+  <Grid x:Name="CanvasViewRootGrid">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <Border Grid.Row="0" Background="{StaticResource DarkElevatedBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
-      <Label Content="Control Demo: Canvas" Foreground="{StaticResource TextPrimaryBrush}" />
+    <Border Grid.Row="0"
+            Background="{StaticResource DarkElevatedBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14"
+            Margin="0,0,0,10">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+          <TextBlock Text="Control Demo: Canvas Workbench"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="A fuller Canvas validation surface for absolute positioning, mixed edge anchoring, ZIndex layering, live repositioning, and guide overlays on one stage."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Column="1"
+                Background="{StaticResource DarkBgBrush}"
+                BorderBrush="#7DD3FC"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="12,6"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center">
+          <TextBlock Text="Anchors • Layers • Guides"
+                     Foreground="#7DD3FC"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+        </Border>
+      </Grid>
     </Border>
 
-    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <ContentControl x:Name="DemoHost" />
-    </Border>
+    <Grid x:Name="CanvasViewContentGrid"
+          Grid.Row="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" />
+        <RowDefinition Height="0" />
+      </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="320" />
+      </Grid.ColumnDefinitions>
+
+      <Border x:Name="CanvasViewBodyBorder"
+              Grid.Row="0"
+              Grid.Column="0"
+              Background="{StaticResource DarkSurfaceBrush}"
+              BorderBrush="{StaticResource DarkBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="12"
+              Margin="0,0,10,0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="Live canvas stage"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         FontSize="15"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="The stage uses a real Canvas tree so attached offsets, mixed anchors, overlap order, and clip-aware guides are visible without a generic sample host."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,3,0,0" />
+            </StackPanel>
+
+            <Border Grid.Column="1"
+                    Background="{StaticResource DarkBgBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="10,6"
+                    Margin="12,0,0,0"
+                    VerticalAlignment="Center">
+              <TextBlock Text="WPF-style free positioning"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap" />
+            </Border>
+          </Grid>
+
+          <Border Grid.Row="1"
+                  Background="{StaticResource DarkBgBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Padding="12"
+                  Margin="0,12,0,12">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0"
+                         Text="Switch the focus card between Left/Top and Right/Bottom anchoring, move it around, change its size, and flip badge layering to watch the same Canvas rearrange without changing the child tree."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,0,0,10" />
+
+              <StackPanel Grid.Row="1">
+                <StackPanel Orientation="Horizontal">
+                  <CheckBox x:Name="AnchorFromRightBottomCheckBox"
+                            Content="Use Right/Bottom for focus card"
+                            IsChecked="False"
+                            Margin="0,0,12,8"
+                            VerticalAlignment="Center" />
+                  <CheckBox x:Name="BringBadgeToFrontCheckBox"
+                            Content="Badge on top"
+                            IsChecked="True"
+                            Margin="0,0,12,8"
+                            VerticalAlignment="Center" />
+                  <CheckBox x:Name="ShowGuidesCheckBox"
+                            Content="Guides"
+                            IsChecked="True"
+                            Margin="0,0,0,8"
+                            VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal">
+                  <Button x:Name="MoveLeftButton"
+                          Content="Left"
+                          Margin="0,0,8,0"
+                          MinWidth="76" />
+                  <Button x:Name="MoveRightButton"
+                          Content="Right"
+                          Margin="0,0,8,0"
+                          MinWidth="76" />
+                  <Button x:Name="MoveUpButton"
+                          Content="Up"
+                          Margin="0,0,8,0"
+                          MinWidth="76" />
+                  <Button x:Name="MoveDownButton"
+                          Content="Down"
+                          Margin="0,0,8,0"
+                          MinWidth="76" />
+                  <Button x:Name="GrowSelectionButton"
+                          Content="Grow"
+                          Margin="0,0,8,0"
+                          MinWidth="76" />
+                  <Button x:Name="ShrinkSelectionButton"
+                          Content="Shrink"
+                          Margin="0,0,8,0"
+                          MinWidth="76" />
+                  <Button x:Name="ResetSceneButton"
+                          Content="Reset"
+                          MinWidth="76" />
+                </StackPanel>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+            <Border x:Name="CanvasWorkbenchStageBorder"
+              Grid.Row="2"
+              Background="#0E1822"
+              BorderBrush="{StaticResource DarkBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="12"
+              Margin="0,0,0,12">
+              <ScrollViewer x:Name="CanvasWorkbenchScrollViewer"
+                            HorizontalScrollBarVisibility="Auto"
+                            VerticalScrollBarVisibility="Auto">
+                <Canvas x:Name="CanvasWorkbench"
+                  MinWidth="720"
+                  MinHeight="380"
+                  Background="#0B141D"
+                  ClipToBounds="True">
+              <Border x:Name="CanvasVerticalGuide"
+                      Width="1"
+                      Height="320"
+                      Background="#3F8EB8"
+                      Opacity="0.8"
+                      Visibility="Visible"
+                      Panel.ZIndex="0"
+                      Canvas.Left="180"
+                      Canvas.Top="0" />
+
+              <Border x:Name="CanvasHorizontalGuide"
+                      Width="640"
+                      Height="1"
+                      Background="#3F8EB8"
+                      Opacity="0.8"
+                      Visibility="Visible"
+                      Panel.ZIndex="0"
+                      Canvas.Left="0"
+                      Canvas.Top="140" />
+
+              <Border x:Name="CanvasCornerChip"
+                      Width="160"
+                      Padding="12,8"
+                      Background="#1D3042"
+                      BorderBrush="#486B86"
+                      BorderThickness="1"
+                      CornerRadius="14"
+                      Panel.ZIndex="1"
+                      Canvas.Right="24"
+                      Canvas.Top="18">
+                <StackPanel>
+                  <TextBlock Text="Canvas.Right + Canvas.Top"
+                             Foreground="#D9EEFF"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="Corner chip stays pinned to the upper-right edge."
+                             Foreground="#A8C4DB"
+                             TextWrapping="Wrap"
+                             Margin="0,3,0,0" />
+                </StackPanel>
+              </Border>
+
+              <Border x:Name="CanvasLegendCard"
+                      Width="220"
+                      Padding="12"
+                      Background="#18271D"
+                      BorderBrush="#3F6F55"
+                      BorderThickness="1"
+                      CornerRadius="8"
+                      Panel.ZIndex="1"
+                      Canvas.Left="18"
+                      Canvas.Bottom="18">
+                <StackPanel>
+                  <TextBlock Text="Canvas.Left + Canvas.Bottom"
+                             Foreground="#E2F8E6"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="Bottom-anchored notes are useful for HUD legends, playback strips, or fixed overlays that still own their horizontal offset."
+                             Foreground="#BCD8C4"
+                             TextWrapping="Wrap"
+                             Margin="0,4,0,0" />
+                </StackPanel>
+              </Border>
+
+              <Border x:Name="CanvasAnchoredInspector"
+                      Width="228"
+                      Padding="14"
+                      Background="#251B36"
+                      BorderBrush="#725A99"
+                      BorderThickness="1"
+                      CornerRadius="10"
+                      Panel.ZIndex="2"
+                      Canvas.Right="24"
+                      Canvas.Bottom="22">
+                <StackPanel>
+                  <TextBlock Text="Canvas.Right + Canvas.Bottom"
+                             Foreground="#F1E6FF"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="Inspector lane keeps a fixed inset from the far edges while the focus card moves independently."
+                             Foreground="#D0C0EA"
+                             TextWrapping="Wrap"
+                             Margin="0,4,0,8" />
+                  <Border Background="#312548"
+                          BorderBrush="#7F66A9"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="10">
+                    <TextBlock x:Name="CanvasInspectorDetailText"
+                               Text="Pinned diagnostics: overlay order, attached offsets, and stage bounds all read from the live Canvas instance."
+                               Foreground="#EBDDFF"
+                               TextWrapping="Wrap" />
+                  </Border>
+                </StackPanel>
+              </Border>
+
+              <Border x:Name="CanvasSceneRootCard"
+                      Width="228"
+                      Height="140"
+                      Padding="14"
+                      Background="#143042"
+                      BorderBrush="#4C7A96"
+                      BorderThickness="1"
+                      CornerRadius="10"
+                      Panel.ZIndex="2"
+                      Canvas.Left="52"
+                      Canvas.Top="68">
+                <Grid>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+
+                  <TextBlock Grid.Row="0"
+                             x:Name="CanvasSceneRootTitleText"
+                             Text="Focus card"
+                             Foreground="#E8F5FF"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                  <TextBlock Grid.Row="1"
+                             x:Name="CanvasSceneRootBodyText"
+                             Text="This child is the interactive probe. Drag the stage handle, nudge it, resize it, or swap between Left/Top and Right/Bottom anchoring to validate the panel's coordinate rules."
+                             Foreground="#BAD6E7"
+                             TextWrapping="Wrap"
+                             Margin="0,8,0,8" />
+                  <Border Grid.Row="2"
+                          Background="#21455C"
+                          BorderBrush="#5D8AA7"
+                          BorderThickness="1"
+                          CornerRadius="12"
+                          Padding="10,5"
+                          HorizontalAlignment="Left">
+                    <TextBlock x:Name="CanvasSceneAnchorBadgeText"
+                               Text="Left / Top active"
+                               Foreground="#EAF7FF"
+                               TextWrapping="Wrap" />
+                  </Border>
+                </Grid>
+              </Border>
+
+              <Thumb x:Name="CanvasSceneDragThumb"
+                     Width="76"
+                     Height="14"
+                     Background="#22485E"
+                     BorderBrush="#6FA6C4"
+                     Panel.ZIndex="3"
+                     Canvas.Left="176"
+                     Canvas.Top="82" />
+
+              <Border x:Name="CanvasSceneBadge"
+                      Width="152"
+                      Height="60"
+                      Padding="10"
+                      Background="#4A2A11"
+                      BorderBrush="#C7843C"
+                      BorderThickness="1"
+                      CornerRadius="18"
+                      Panel.ZIndex="4"
+                      Canvas.Left="210"
+                      Canvas.Top="88">
+                <StackPanel>
+                  <TextBlock x:Name="CanvasSceneBadgeTitleText"
+                             Text="Overlap badge"
+                             Foreground="#FFEFD8"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                  <TextBlock x:Name="CanvasSceneBadgeBodyText"
+                             Text="ZIndex = 4"
+                             Foreground="#F8D9AE"
+                             TextWrapping="Wrap"
+                             Margin="0,3,0,0" />
+                </StackPanel>
+              </Border>
+
+              <Border x:Name="CanvasGuideXLabel"
+                      Width="130"
+                      Padding="8,5"
+                      Background="#102331"
+                      BorderBrush="#3F7596"
+                      BorderThickness="1"
+                      CornerRadius="12"
+                      Visibility="Visible"
+                      Panel.ZIndex="1"
+                      Canvas.Left="188"
+                      Canvas.Top="12">
+                <TextBlock x:Name="CanvasGuideXLabelText"
+                           Text="Center X guide"
+                           Foreground="#CCE7F7"
+                           TextWrapping="Wrap" />
+              </Border>
+
+              <Border x:Name="CanvasGuideYLabel"
+                      Width="150"
+                      Padding="8,5"
+                      Background="#102331"
+                      BorderBrush="#3F7596"
+                      BorderThickness="1"
+                      CornerRadius="12"
+                      Visibility="Visible"
+                      Panel.ZIndex="1"
+                      Canvas.Left="12"
+                      Canvas.Top="148">
+                <TextBlock x:Name="CanvasGuideYLabelText"
+                           Text="Center Y guide"
+                           Foreground="#CCE7F7"
+                           TextWrapping="Wrap" />
+              </Border>
+            </Canvas>
+            </ScrollViewer>
+          </Border>
+
+          <Border Grid.Row="3"
+                  Background="{StaticResource DarkBgBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Padding="12">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <TextBlock Grid.Column="0"
+                         x:Name="CanvasFooterLabel"
+                         Text="Canvas is most useful when explicit coordinates are the behavior you want to own. This workbench keeps the same child tree in place while its attached offsets and overlap order change live."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,0,12,0" />
+
+              <Border Grid.Column="1"
+                      Background="#102331"
+                      BorderBrush="#385E7A"
+                      BorderThickness="1"
+                      CornerRadius="14"
+                      Padding="10,5"
+                      VerticalAlignment="Center">
+                <TextBlock x:Name="CanvasStageMetricsBadgeText"
+                           Text="Stage ready"
+                           Foreground="#D6EEFF"
+                           TextWrapping="Wrap" />
+              </Border>
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
+
+      <ScrollViewer x:Name="CanvasViewInfoScrollViewer"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled"
+                    Background="{StaticResource DarkSurfaceBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    Padding="12">
+        <StackPanel>
+          <Border Background="#152432"
+                  BorderBrush="#375472"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <TextBlock Text="Attached-property coverage"
+                         Foreground="#E6F3FF"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock x:Name="AnchorModeValueText"
+                         Text="Focus card: Left=52, Top=68"
+                         Foreground="#BCD4E8"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock x:Name="MixedAnchorValueText"
+                         Text="Mixed anchors: Left+Bottom, Right+Top, Right+Bottom"
+                         Foreground="#BCD4E8"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,0" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="#241A10"
+                  BorderBrush="#6F522B"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <TextBlock Text="Live telemetry"
+                         Foreground="#FFF0D8"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock x:Name="PositionValueText"
+                         Text="Focus bounds: X=0, Y=0"
+                         Foreground="#E7CFAC"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock x:Name="SizeValueText"
+                         Text="Focus size: 228 x 140"
+                         Foreground="#E7CFAC"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,0" />
+              <TextBlock x:Name="LayerValueText"
+                         Text="Layering: badge above focus card"
+                         Foreground="#E7CFAC"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,0" />
+              <TextBlock x:Name="GuideValueText"
+                         Text="Guides: visible and aligned to the focus-card center."
+                         Foreground="#E7CFAC"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,0" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="#18271D"
+                  BorderBrush="#3F6F55"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <TextBlock Text="Why this panel"
+                         Foreground="#E2F8E6"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="Canvas is a deliberate choice for overlays, HUDs, drag surfaces, pinned notes, and scene editors where coordinates are part of the UI state instead of an implementation detail."
+                         Foreground="#BCD8C4"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock Text="If your layout should adapt automatically to rows, columns, or stacking, a Grid, DockPanel, or StackPanel is usually the better fit."
+                         Foreground="#BCD8C4"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="#251B36"
+                  BorderBrush="#725A99"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12">
+            <StackPanel>
+              <TextBlock Text="Stage metrics"
+                         Foreground="#F1E6FF"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock x:Name="StageMetricsText"
+                         Text="Stage metrics unavailable"
+                         Foreground="#D0C0EA"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock x:Name="TelemetrySummaryText"
+                         Text="Waiting for arrange pass."
+                         Foreground="#D0C0EA"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
   </Grid>
 </UserControl>
 
