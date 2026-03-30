@@ -21,8 +21,206 @@
       <Label Content="Control Demo: DatePicker" Foreground="{StaticResource TextPrimaryBrush}" />
     </Border>
 
-    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <DatePicker Width="260" Height="32" />
+    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="12">
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Text="DatePicker combines a TextBox with a popup Calendar. This demo covers nullable selection, typed text parsing, display-date range coercion, first-day-of-week configuration, readonly behavior, and programmatic control over the popup." />
+
+          <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="16" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Basic selection" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="SelectedDate is nullable. Pick a date from the popup or use the quick actions below to set Today, clear the value, or jump to a seeded milestone." />
+
+                  <DatePicker x:Name="BasicPicker"
+                              Width="260"
+                              Margin="0,0,0,10" />
+
+                  <WrapPanel Margin="0,0,0,10">
+                    <Button x:Name="BasicTodayButton" Content="Today" Margin="0,0,8,8" />
+                    <Button x:Name="BasicClearButton" Content="Clear" Margin="0,0,8,8" />
+                    <Button x:Name="BasicMilestoneButton" Content="Set milestone" Margin="0,0,0,8" />
+                  </WrapPanel>
+
+                  <TextBlock x:Name="BasicStatusLabel"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             TextWrapping="Wrap"
+                             Text="SelectedDate: none" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14">
+                <StackPanel>
+                  <Label Content="Typed input and text sync" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="Text and SelectedDate stay in sync. Valid local-culture and invariant dates are parsed immediately. Invalid text is preserved until you commit it with Enter, at which point the control snaps back to the last valid selection." />
+
+                  <DatePicker x:Name="TextEntryPicker"
+                              Width="260"
+                              Margin="0,0,0,10" />
+
+                  <WrapPanel Margin="0,0,0,10">
+                    <Button x:Name="TextEntryLocalButton" Content="Fill local date" Margin="0,0,8,8" />
+                    <Button x:Name="TextEntryIsoButton" Content="Fill ISO date" Margin="0,0,8,8" />
+                    <Button x:Name="TextEntryInvalidButton" Content="Set invalid text" Margin="0,0,8,8" />
+                    <Button x:Name="TextEntryClearButton" Content="Clear text" Margin="0,0,0,8" />
+                  </WrapPanel>
+
+                  <TextBlock x:Name="TextEntryStatusLabel"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             TextWrapping="Wrap"
+                             Text="Text: empty | SelectedDate: none" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2">
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Display range and first day of week" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="DisplayDateStart and DisplayDateEnd clamp both the visible month and the chosen date. This picker is limited to a sprint window and switches the calendar to Monday-first headers." />
+
+                  <DatePicker x:Name="RangePicker"
+                              Width="260"
+                              Margin="0,0,0,10" />
+
+                  <WrapPanel Margin="0,0,0,10">
+                    <Button x:Name="RangeStartButton" Content="Select window start" Margin="0,0,8,8" />
+                    <Button x:Name="RangeBeforeButton" Content="Try before range" Margin="0,0,8,8" />
+                    <Button x:Name="RangeAfterButton" Content="Try after range" Margin="0,0,0,8" />
+                  </WrapPanel>
+
+                  <TextBlock x:Name="RangeWindowLabel"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Margin="0,0,0,4"
+                             TextWrapping="Wrap"
+                             Text="Allowed window: --" />
+                  <TextBlock x:Name="RangeStatusLabel"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             TextWrapping="Wrap"
+                             Text="SelectedDate: none" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14">
+                <StackPanel>
+                  <Label Content="Readonly and popup control" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="IsReadOnly locks the text box and disables the dropdown button. The popup can also be driven through IsDropDownOpen, which is the same state toggled by F4 and Alt+Down." />
+
+                  <DatePicker x:Name="ControlledPicker"
+                              Width="260"
+                              Margin="0,0,0,10" />
+
+                  <WrapPanel Margin="0,0,0,10">
+                    <Button x:Name="ControlledToggleReadOnlyButton" Content="Toggle readonly" Margin="0,0,8,8" />
+                    <Button x:Name="ControlledOpenButton" Content="Open popup" Margin="0,0,8,8" />
+                    <Button x:Name="ControlledCloseButton" Content="Close popup" Margin="0,0,8,8" />
+                    <Button x:Name="ControlledTodayButton" Content="Select today" Margin="0,0,0,8" />
+                  </WrapPanel>
+
+                  <TextBlock x:Name="ControlledStatusLabel"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             TextWrapping="Wrap"
+                             Text="Readonly: false | Popup: closed" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+
+          <Border Background="{StaticResource DarkElevatedBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Padding="14"
+                  Margin="0,10,0,0">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <StackPanel Grid.Column="0">
+                <Label Content="Event inspector" Foreground="{StaticResource TextPrimaryBrush}" />
+                <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10"
+                           Text="SelectedDateChanged is a bubbling SelectionChanged-style event. The telemetry rail on the right listens to both that event and dependency-property changes so you can see how Text, DisplayDate, first-day-of-week, and popup state move together." />
+
+                <DatePicker x:Name="InspectorPicker"
+                            Width="260"
+                            Margin="0,0,0,10" />
+
+                <WrapPanel>
+                  <Button x:Name="InspectorTodayButton" Content="Set today" Margin="0,0,8,8" />
+                  <Button x:Name="InspectorClearButton" Content="Clear" Margin="0,0,8,8" />
+                  <Button x:Name="InspectorCycleWeekButton" Content="Cycle week start" Margin="0,0,8,8" />
+                  <Button x:Name="InspectorTogglePopupButton" Content="Toggle popup" Margin="0,0,0,8" />
+                </WrapPanel>
+              </StackPanel>
+
+              <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="InspectorSelectedDateLabel" Grid.Row="0" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="SelectedDate: none" />
+                <TextBlock x:Name="InspectorTextLabel" Grid.Row="1" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="Text: empty" />
+                <TextBlock x:Name="InspectorDisplayDateLabel" Grid.Row="2" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="Display month: --" />
+                <TextBlock x:Name="InspectorFirstDayLabel" Grid.Row="3" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="First day of week: Sunday" />
+                <TextBlock x:Name="InspectorPopupLabel" Grid.Row="4" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="Popup: closed | Readonly: false" />
+                <TextBlock x:Name="InspectorEventCountLabel" Grid.Row="5" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="SelectedDateChanged fired: 0" />
+                <TextBlock x:Name="InspectorLastChangeLabel" Grid.Row="6" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" Text="Last delta: none" />
+              </Grid>
+            </Grid>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
     </Border>
   </Grid>
 </UserControl>

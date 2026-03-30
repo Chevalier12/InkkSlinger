@@ -62,8 +62,16 @@ public class DockPanel : Panel
             var isFillChild = LastChildFill && i == Children.Count - 1;
             var remainingWidth = MathF.Max(0f, availableSize.X - usedLeft - usedRight);
             var remainingHeight = MathF.Max(0f, availableSize.Y - usedTop - usedBottom);
+            var childAvailable = isFillChild
+                ? new Vector2(remainingWidth, remainingHeight)
+                : GetDock(child) switch
+                {
+                    Dock.Left or Dock.Right => new Vector2(float.PositiveInfinity, remainingHeight),
+                    Dock.Top or Dock.Bottom => new Vector2(remainingWidth, float.PositiveInfinity),
+                    _ => new Vector2(remainingWidth, remainingHeight)
+                };
 
-            child.Measure(new Vector2(remainingWidth, remainingHeight));
+            child.Measure(childAvailable);
             var childDesired = child.DesiredSize;
 
             if (isFillChild)

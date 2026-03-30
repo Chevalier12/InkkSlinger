@@ -1,5 +1,6 @@
 using System;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -96,6 +97,63 @@ public sealed class PanelRegressionTests
     }
 
     [Fact]
+    public void DockPanel_TopDockedContentDrivenHeader_DoesNotConsumeRemainingHeight()
+    {
+        var panel = new DockPanel();
+
+        var top = new Border
+        {
+            Padding = new Thickness(16f, 12f, 16f, 12f),
+            Margin = new Thickness(0f, 0f, 0f, 10f),
+            Child = BuildDockHeaderContent()
+        };
+        DockPanel.SetDock(top, Dock.Top);
+
+        var bottom = new Border
+        {
+            Height = 38f,
+            Margin = new Thickness(0f, 10f, 0f, 0f),
+            Child = new TextBlock { Text = "Status rail" }
+        };
+        DockPanel.SetDock(bottom, Dock.Bottom);
+
+        var left = new Border
+        {
+            Width = 176f,
+            Margin = new Thickness(0f, 0f, 10f, 0f),
+            Child = new TextBlock { Text = "Navigation" }
+        };
+        DockPanel.SetDock(left, Dock.Left);
+
+        var right = new Border
+        {
+            Width = 188f,
+            Margin = new Thickness(10f, 0f, 0f, 0f),
+            Child = new TextBlock { Text = "Inspector" }
+        };
+        DockPanel.SetDock(right, Dock.Right);
+
+        var center = new Border
+        {
+            Child = new TextBlock { Text = "Workspace" }
+        };
+
+        panel.AddChild(top);
+        panel.AddChild(bottom);
+        panel.AddChild(left);
+        panel.AddChild(right);
+        panel.AddChild(center);
+
+        var uiRoot = new UiRoot(panel);
+        RunLayout(uiRoot, 558, 360);
+
+        Assert.InRange(top.ActualHeight, 40f, 120f);
+        Assert.True(bottom.ActualHeight > 0f);
+        Assert.True(center.ActualHeight > 120f, $"Center height should remain usable after top docking, but was {center.ActualHeight:0.###}.");
+        Assert.True(center.ActualWidth > 120f, $"Center width should remain usable after side docking, but was {center.ActualWidth:0.###}.");
+    }
+
+    [Fact]
     public void MoveChildRange_RebuildsRetainedOrderAfterSync()
     {
         var root = CreateNamedPanel("A", "B", "C");
@@ -161,5 +219,34 @@ public sealed class PanelRegressionTests
         {
             Assert.Equal(expectedNames[i], Assert.IsType<Border>(panel.Children[i]).Name);
         }
+    }
+
+    private static Grid BuildDockHeaderContent()
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1f, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var textStack = new StackPanel();
+        textStack.AddChild(new TextBlock { Text = "Top rail", FontWeight = "SemiBold" });
+        textStack.AddChild(new TextBlock { Text = "Header content should size to text instead of consuming the full remaining height." });
+        grid.AddChild(textStack);
+
+        var badge = new Border
+        {
+            Padding = new Thickness(10f, 4f, 10f, 4f),
+            Child = new TextBlock { Text = "Primary chrome" }
+        };
+        Grid.SetColumn(badge, 1);
+        grid.AddChild(badge);
+
+        return grid;
+    }
+
+    private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs = 16)
+    {
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
+            new Viewport(0, 0, width, height));
     }
 }
