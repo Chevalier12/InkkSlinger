@@ -481,33 +481,41 @@ public class Grid : Panel
         ResolveDefinitionSizes(rows, availableSize.Y);
         EnsureChildMeasureRecordCapacity(childLayoutMetadata.Length);
 
-        for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
+        for (var deferredSpanPass = 0; deferredSpanPass < 2; deferredSpanPass++)
         {
-            ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
-            var firstPassAvailable = ResolveFirstPassAvailableSize(metadata, rows, columns);
-            var desiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, firstPassAvailable);
+            for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
+            {
+                ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
+                if (ShouldDeferRowSpanMeasurement(metadata) != (deferredSpanPass == 1))
+                {
+                    continue;
+                }
 
-            _firstPassMeasureRecords[childMeasureIndex] = new FirstPassMeasureRecord(
-                metadata.Cell,
-                firstPassAvailable,
-                desiredSize,
-                metadata.HasExplicitWidth,
-                metadata.HasExplicitHeight,
-                float.IsPositiveInfinity(firstPassAvailable.X),
-                float.IsPositiveInfinity(firstPassAvailable.Y));
+                var firstPassAvailable = ResolveFirstPassAvailableSize(metadata, rows, columns);
+                var desiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, firstPassAvailable);
 
-            ApplyChildRequirement(
-                columns,
-                metadata.Cell.Column,
-                metadata.Cell.ColumnSpan,
-                desiredSize.X,
-                !float.IsInfinity(availableSize.X) && !float.IsNaN(availableSize.X));
-            ApplyChildRequirement(
-                rows,
-                metadata.Cell.Row,
-                metadata.Cell.RowSpan,
-                desiredSize.Y,
-                !float.IsInfinity(availableSize.Y) && !float.IsNaN(availableSize.Y));
+                _firstPassMeasureRecords[childMeasureIndex] = new FirstPassMeasureRecord(
+                    metadata.Cell,
+                    firstPassAvailable,
+                    desiredSize,
+                    metadata.HasExplicitWidth,
+                    metadata.HasExplicitHeight,
+                    float.IsPositiveInfinity(firstPassAvailable.X),
+                    float.IsPositiveInfinity(firstPassAvailable.Y));
+
+                ApplyChildRequirement(
+                    columns,
+                    metadata.Cell.Column,
+                    metadata.Cell.ColumnSpan,
+                    desiredSize.X,
+                    !float.IsInfinity(availableSize.X) && !float.IsNaN(availableSize.X));
+                ApplyChildRequirement(
+                    rows,
+                    metadata.Cell.Row,
+                    metadata.Cell.RowSpan,
+                    desiredSize.Y,
+                    !float.IsInfinity(availableSize.Y) && !float.IsNaN(availableSize.Y));
+            }
         }
 
         FinalizeDefinitionSizes(columns, availableSize.X);
@@ -516,31 +524,39 @@ public class Grid : Panel
         for (var pass = 0; pass < 4; pass++)
         {
             var definitionsChanged = false;
-            for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
+            for (var deferredSpanPass = 0; deferredSpanPass < 2; deferredSpanPass++)
             {
-                ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
-                var childAvailable = new Vector2(
-                    SumRange(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan),
-                    SumRange(rows, metadata.Cell.Row, metadata.Cell.RowSpan));
-
-                if (!ShouldReMeasureChild(_firstPassMeasureRecords[childMeasureIndex], childAvailable))
+                for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
                 {
-                    continue;
-                }
+                    ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
+                    if (ShouldDeferRowSpanMeasurement(metadata) != (deferredSpanPass == 1))
+                    {
+                        continue;
+                    }
 
-                var desiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, childAvailable);
-                definitionsChanged |= ApplyChildRequirement(
-                    columns,
-                    metadata.Cell.Column,
-                    metadata.Cell.ColumnSpan,
-                    desiredSize.X,
-                    !float.IsInfinity(availableSize.X) && !float.IsNaN(availableSize.X));
-                definitionsChanged |= ApplyChildRequirement(
-                    rows,
-                    metadata.Cell.Row,
-                    metadata.Cell.RowSpan,
-                    desiredSize.Y,
-                    !float.IsInfinity(availableSize.Y) && !float.IsNaN(availableSize.Y));
+                    var childAvailable = new Vector2(
+                        SumRange(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan),
+                        SumRange(rows, metadata.Cell.Row, metadata.Cell.RowSpan));
+
+                    if (!ShouldReMeasureChild(_firstPassMeasureRecords[childMeasureIndex], childAvailable))
+                    {
+                        continue;
+                    }
+
+                    var desiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, childAvailable);
+                    definitionsChanged |= ApplyChildRequirement(
+                        columns,
+                        metadata.Cell.Column,
+                        metadata.Cell.ColumnSpan,
+                        desiredSize.X,
+                        !float.IsInfinity(availableSize.X) && !float.IsNaN(availableSize.X));
+                    definitionsChanged |= ApplyChildRequirement(
+                        rows,
+                        metadata.Cell.Row,
+                        metadata.Cell.RowSpan,
+                        desiredSize.Y,
+                        !float.IsInfinity(availableSize.Y) && !float.IsNaN(availableSize.Y));
+                }
             }
 
             if (!definitionsChanged)
@@ -1173,6 +1189,11 @@ public class Grid : Panel
     private static bool HasExplicitSize(float value)
     {
         return !float.IsNaN(value);
+    }
+
+    private static bool ShouldDeferRowSpanMeasurement(in ChildLayoutMetadata metadata)
+    {
+        return metadata.Cell.RowSpan > 1;
     }
 
     private void InvalidateChildLayoutMetadataCache()

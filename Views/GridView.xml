@@ -11,19 +11,679 @@
              BorderBrush="{StaticResource DarkBorderBrush}"
              BorderThickness="1"
              Padding="12">
-  <Grid>
+  <Grid x:Name="GridViewRootGrid">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <Border Grid.Row="0" Background="{StaticResource DarkElevatedBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
-      <Label Content="Control Demo: Grid" Foreground="{StaticResource TextPrimaryBrush}" />
+    <Border x:Name="GridViewHeaderBorder"
+            Grid.Row="0"
+            Background="{StaticResource DarkElevatedBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14"
+            Margin="0,0,0,10">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+             <TextBlock Text="Control Demo: Grid Workbench"
+              Foreground="{StaticResource TextPrimaryBrush}"
+              FontSize="18"
+              FontWeight="SemiBold"
+              TextWrapping="Wrap" />
+          <TextBlock Text="A fuller validation surface for auto, star, row and column spans, nested grids, shared-size alignment, and live definition telemetry."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Column="1"
+                Background="{StaticResource DarkBgBrush}"
+                BorderBrush="#7DD3FC"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="12,6"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center">
+             <TextBlock Text="Auto • Star • Span"
+              Foreground="#7DD3FC"
+              FontWeight="SemiBold"
+              TextWrapping="Wrap" />
+        </Border>
+      </Grid>
     </Border>
 
-    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <ContentControl x:Name="DemoHost" />
-    </Border>
+    <Grid x:Name="GridViewContentGrid"
+          Grid.Row="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" />
+        <RowDefinition Height="0" />
+      </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="320" />
+      </Grid.ColumnDefinitions>
+
+      <Border x:Name="GridViewBodyBorder"
+              Grid.Row="0"
+              Grid.Column="0"
+              Background="{StaticResource DarkSurfaceBrush}"
+              BorderBrush="{StaticResource DarkBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="12"
+              Margin="0,0,10,0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="Live layout workbench"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    FontSize="15"
+                    FontWeight="SemiBold"
+                    TextWrapping="Wrap" />
+              <TextBlock Text="The preview stays focused on a real Grid tree instead of a blank host, so row and column math, nesting, and definition changes are visible in one place."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,3,0,0" />
+            </StackPanel>
+
+            <Border Grid.Column="1"
+                    Background="{StaticResource DarkBgBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="10,6"
+                    Margin="12,0,0,0"
+                    VerticalAlignment="Center">
+              <TextBlock Text="Shared-size aware"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    TextWrapping="Wrap" />
+            </Border>
+          </Grid>
+
+          <Border Grid.Row="1"
+                  Background="{StaticResource DarkBgBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Padding="12"
+                  Margin="0,12,0,12">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <TextBlock Grid.Column="0"
+                         Text="Toggle grid lines or widen the nested canvas card to force the same Grid instance through different row and column-span arrangements."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,0,12,0" />
+
+              <CheckBox x:Name="ShowGridLinesCheckBox"
+                        Grid.Column="1"
+                        Content="Grid lines"
+                        IsChecked="True"
+                        Margin="0,0,12,0"
+                        VerticalAlignment="Center" />
+
+              <CheckBox x:Name="WideCanvasCheckBox"
+                        Grid.Column="2"
+                        Content="Wide canvas"
+                        IsChecked="False"
+                        VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+
+              <ScrollViewer x:Name="LayoutWorkbenchScrollViewer"
+                Grid.Row="2"
+                Margin="0,0,0,12"
+                VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled">
+            <Grid x:Name="LayoutWorkbenchGrid"
+              MinHeight="360"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch"
+              ShowGridLines="True">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="150" />
+              <ColumnDefinition Width="1.6*" />
+              <ColumnDefinition Width="1.2*" />
+              <ColumnDefinition Width="190" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border x:Name="ScheduleCard"
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="3"
+                    Margin="0,0,10,10"
+                    Padding="12"
+                    BorderThickness="1"
+                    BorderBrush="#375472"
+                    Background="#142231"
+                    CornerRadius="8">
+              <StackPanel>
+                  <TextBlock Text="Header spans three columns"
+                        Foreground="#E6F3FF"
+                        FontWeight="SemiBold"
+                        TextWrapping="Wrap" />
+                <TextBlock Text="The title rail uses Auto plus star definitions, then spans across the operational columns while the status rail keeps its own fixed lane."
+                           Foreground="#B7D1EA"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,8" />
+                <StackPanel Orientation="Horizontal">
+                  <Border Background="#25455E"
+                          BorderBrush="#456C8E"
+                          BorderThickness="1"
+                          CornerRadius="12"
+                          Padding="10,4"
+                          Margin="0,0,8,0">
+                    <TextBlock Text="Auto header"
+                               Foreground="#D9ECFF"
+                               TextWrapping="Wrap" />
+                  </Border>
+                  <Border Background="#1E3E32"
+                          BorderBrush="#2E7D57"
+                          BorderThickness="1"
+                          CornerRadius="12"
+                          Padding="10,4"
+                          Margin="0,0,8,0">
+                    <TextBlock Text="Star workspace"
+                               Foreground="#DDF8EA"
+                               TextWrapping="Wrap" />
+                  </Border>
+                  <Border Background="#4D3217"
+                          BorderBrush="#B9772D"
+                          BorderThickness="1"
+                          CornerRadius="12"
+                          Padding="10,4">
+                    <TextBlock Text="Span telemetry"
+                               Foreground="#FFE8C7"
+                               TextWrapping="Wrap" />
+                  </Border>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <Border x:Name="StatusRailCard"
+                    Grid.Row="0"
+                    Grid.Column="3"
+                    Grid.RowSpan="2"
+                    Margin="0,0,0,10"
+                    Padding="12"
+                    BorderThickness="1"
+                    BorderBrush="#5B4B2A"
+                    Background="#241C10"
+                    CornerRadius="8">
+              <StackPanel>
+                  <TextBlock Text="Status rail spans two rows"
+                        Foreground="#FFF1D8"
+                        FontWeight="SemiBold"
+                        TextWrapping="Wrap" />
+                <TextBlock Text="Fixed-width rail with row span keeps diagnostics visible while the center cells flex."
+                           Foreground="#E9D4B1"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,10" />
+                <Border Background="#3A2B15"
+                        BorderBrush="#8A6533"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="10"
+                        Margin="0,0,0,8">
+                  <TextBlock Text="2 rows locked" Foreground="#FFF1D8" TextWrapping="Wrap" />
+                </Border>
+                <Border Background="#3A2B15"
+                        BorderBrush="#8A6533"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="10"
+                        Margin="0,0,0,8">
+                  <TextBlock Text="190 px lane" Foreground="#FFF1D8" TextWrapping="Wrap" />
+                </Border>
+                <Border Background="#3A2B15"
+                        BorderBrush="#8A6533"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="10">
+                  <TextBlock Text="Independent from header span" Foreground="#FFF1D8" TextWrapping="Wrap" />
+                </Border>
+              </StackPanel>
+            </Border>
+
+            <Border x:Name="QueueCard"
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    Margin="0,0,10,10"
+                    Padding="12"
+                    BorderThickness="1"
+                    BorderBrush="#3D536D"
+                    Background="#101A27"
+                    CornerRadius="8">
+              <StackPanel>
+                <TextBlock Text="Auto lane"
+                           Foreground="#E4EDF8"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="The left column stays fixed so labels remain readable while the center content absorbs the remaining width."
+                           Foreground="#B3C3D8"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,8" />
+                <TextBlock Text="• schema pass"
+                           Foreground="#D1DEEE"
+                           Margin="0,0,0,4"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="• arrange pass"
+                           Foreground="#D1DEEE"
+                           Margin="0,0,0,4"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="• retained pass"
+                           Foreground="#D1DEEE"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Border x:Name="TimelineCard"
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Margin="0,0,10,10"
+                    Padding="12"
+                    BorderThickness="1"
+                    BorderBrush="#355A53"
+                    Background="#12211E"
+                    CornerRadius="8">
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0"
+                       Grid.Column="0"
+                       Grid.ColumnSpan="3"
+                       TextWrapping="Wrap"
+                       Text="Timeline spans the center columns"
+                       Foreground="#DDF8EA"
+                       FontWeight="SemiBold" />
+
+                <Border Grid.Row="1"
+                        Grid.Column="0"
+                        Margin="0,8,8,0"
+                        Padding="10"
+                        BorderThickness="1"
+                        BorderBrush="#2C7660"
+                        Background="#173128"
+                        CornerRadius="6">
+                  <TextBlock Text="Measure" Foreground="#DDF8EA" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                </Border>
+                <Border Grid.Row="1"
+                        Grid.Column="1"
+                        Margin="0,8,8,0"
+                        Padding="10"
+                        BorderThickness="1"
+                        BorderBrush="#2C7660"
+                        Background="#173128"
+                        CornerRadius="6">
+                  <TextBlock Text="Arrange" Foreground="#DDF8EA" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                </Border>
+                <Border Grid.Row="1"
+                        Grid.Column="2"
+                        Margin="0,8,0,0"
+                        Padding="10"
+                        BorderThickness="1"
+                        BorderBrush="#2C7660"
+                        Background="#173128"
+                        CornerRadius="6">
+                  <TextBlock Text="Render" Foreground="#DDF8EA" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                </Border>
+              </Grid>
+            </Border>
+
+            <Border x:Name="CanvasCard"
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    Margin="0,0,10,0"
+                    Padding="12"
+                    BorderThickness="1"
+                    BorderBrush="#5A4778"
+                    Background="#181422"
+                    CornerRadius="8">
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                  <TextBlock Grid.Row="0"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        Text="Nested grid canvas"
+                        Foreground="#EEE6FF"
+                        FontWeight="SemiBold"
+                        Margin="0,0,0,8"
+                        TextWrapping="Wrap" />
+
+                <Border Grid.Row="1"
+                        Grid.Column="0"
+                        Margin="0,0,8,8"
+                        Padding="10"
+                        BorderThickness="1"
+                        BorderBrush="#7C64A3"
+                        Background="#241B35"
+                        CornerRadius="6">
+                  <TextBlock Text="Cell 1,1" Foreground="#EEE6FF" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </Border>
+                <Border Grid.Row="1"
+                        Grid.Column="1"
+                        Margin="0,0,0,8"
+                        Padding="10"
+                        BorderThickness="1"
+                        BorderBrush="#7C64A3"
+                        Background="#241B35"
+                        CornerRadius="6">
+                  <TextBlock Text="Cell 1,2" Foreground="#EEE6FF" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </Border>
+              </Grid>
+            </Border>
+
+            <Border x:Name="InspectorCard"
+                    Grid.Row="2"
+                    Grid.Column="2"
+                    Grid.ColumnSpan="2"
+                    Padding="12"
+                    BorderThickness="1"
+                    BorderBrush="#6A4E41"
+                    Background="#221712"
+                    CornerRadius="8">
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                  <TextBlock Grid.Row="0"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        Text="Inspector spans two columns by default"
+                        Foreground="#FFE8DC"
+                        FontWeight="SemiBold"
+                        Margin="0,0,0,8"
+                        TextWrapping="Wrap" />
+
+                <TextBlock Grid.Row="1"
+                           Grid.Column="0"
+                           Text="Active lane"
+                           Foreground="#DDBFB1"
+                           Margin="0,0,12,6"
+                           TextWrapping="Wrap" />
+                <TextBlock Grid.Row="1"
+                           Grid.Column="1"
+                           Text="Column 2 and 3 combine into a wider diagnostics surface until the Wide canvas toggle shifts the span balance."
+                           Foreground="#FFE8DC"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,6" />
+
+                <TextBlock Grid.Row="2"
+                           Grid.Column="0"
+                           Text="Purpose"
+                           Foreground="#DDBFB1"
+                           Margin="0,0,12,0"
+                           TextWrapping="Wrap" />
+                <TextBlock Grid.Row="2"
+                           Grid.Column="1"
+                           Text="Demonstrates attached-property span changes without rebuilding the Grid tree."
+                           Foreground="#FFE8DC"
+                           TextWrapping="Wrap" />
+              </Grid>
+            </Border>
+
+            <Border x:Name="FooterCard"
+                    Grid.Row="3"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="4"
+                    Margin="0,10,0,0"
+                    Padding="12"
+                    BorderThickness="1"
+                    BorderBrush="#344B63"
+                    Background="#101720"
+                    CornerRadius="8">
+              <TextBlock Text="This workbench keeps all the key Grid behaviors in one preview: fixed and star definitions, row and column spanning, nested cells, shared-size form alignment, and adaptive catalog chrome when the available width collapses."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap" />
+            </Border>
+            </Grid>
+          </ScrollViewer>
+
+          <Border Grid.Row="3"
+                  Background="{StaticResource DarkBgBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Padding="10">
+            <TextBlock Text="Use this page to confirm Grid math visually before dropping into focused layout tests: the workbench makes definition widths, shared groups, and responsive rail movement observable without leaving the catalog."
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+          </Border>
+        </Grid>
+      </Border>
+
+      <ScrollViewer x:Name="GridViewInfoScrollViewer"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <TextBlock Text="Why this view exists"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    FontWeight="SemiBold"
+                    TextWrapping="Wrap" />
+              <TextBlock Text="The old Grid page only hosted a default sample. This version keeps the panel itself in focus and turns the catalog into a practical layout validation surface."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,0" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <TextBlock Text="Shared-size alignment"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    FontWeight="SemiBold"
+                    TextWrapping="Wrap" />
+              <TextBlock Text="Both rows below use Auto/*/Auto and shared-size groups, so the longer label in the second row drives the first column width for both grids."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,8" />
+
+              <StackPanel x:Name="SharedSizeScopeHost"
+                          Grid.IsSharedSizeScope="True">
+                <Grid x:Name="SharedSizePrimaryGrid"
+                      Margin="0,0,0,8">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Meta" />
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+
+                  <TextBlock Grid.Column="0"
+                             Text="Owner"
+                             Foreground="#AFC6DD"
+                             Margin="0,0,10,0"
+                             TextWrapping="Wrap" />
+                  <TextBlock Grid.Column="1"
+                             Text="Layout crew"
+                             Foreground="#E7F1FA"
+                             Margin="0,0,10,0"
+                             TextWrapping="Wrap" />
+                  <Border Grid.Column="2"
+                          Background="#173128"
+                          BorderBrush="#2C7660"
+                          BorderThickness="1"
+                          CornerRadius="10"
+                          Padding="8,3">
+                    <TextBlock Text="Ready"
+                               Foreground="#DDF8EA"
+                               TextWrapping="Wrap" />
+                  </Border>
+                </Grid>
+
+                <Grid x:Name="SharedSizeSecondaryGrid">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Meta" />
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+
+                  <TextBlock Grid.Column="0"
+                             Text="Longer dependency label"
+                             Foreground="#AFC6DD"
+                             Margin="0,0,10,0"
+                             TextWrapping="Wrap" />
+                  <TextBlock Grid.Column="1"
+                             Text="Shared groups synchronize both label and badge columns."
+                             Foreground="#E7F1FA"
+                             TextWrapping="Wrap"
+                             Margin="0,0,10,0" />
+                  <Border Grid.Column="2"
+                          Background="#3A2B15"
+                          BorderBrush="#8A6533"
+                          BorderThickness="1"
+                          CornerRadius="10"
+                          Padding="8,3">
+                    <TextBlock Text="Pinned"
+                               Foreground="#FFF1D8"
+                               TextWrapping="Wrap" />
+                  </Border>
+                </Grid>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <TextBlock Text="Live telemetry"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    FontWeight="SemiBold"
+                    TextWrapping="Wrap" />
+              <TextBlock x:Name="LayoutModeValueText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,4"
+                         Text="Layout mode: pending" />
+              <TextBlock x:Name="GridLinesValueText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,0,0,4"
+                         Text="Grid lines: pending" />
+              <TextBlock x:Name="ColumnMetricsText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,0,0,4"
+                         Text="Columns: pending" />
+              <TextBlock x:Name="RowMetricsText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,0,0,4"
+                         Text="Rows: pending" />
+              <TextBlock x:Name="SharedMetricsText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Text="Shared groups: pending" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12">
+            <StackPanel>
+              <TextBlock Text="Regression focus"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    FontWeight="SemiBold"
+                    TextWrapping="Wrap" />
+              <TextBlock Text="Check that the info rail stacks below the body at narrow widths, the shared label column stays synchronized, and the workbench remains inside its body border even when spans change."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,8" />
+              <TextBlock Text="- Header and timeline cards should preserve their column spans."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,0,0,4" />
+              <TextBlock Text="- The status rail should continue spanning two rows while the center content flexes."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,0,0,4" />
+              <TextBlock Text="- The shared-size sample should keep both label and badge columns aligned."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
   </Grid>
 </UserControl>
 

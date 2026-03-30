@@ -202,6 +202,53 @@ public sealed class GridLayoutTests
     }
 
     [Fact]
+    public void Arrange_LaterAutoRowGrowth_DoesNotCollapseFollowingStarRowAfterEarlierRowSpanMeasurement()
+    {
+        var grid = new Grid
+        {
+            Width = 500f,
+            Height = 577f
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150f) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var header = new FixedSizeElement(new Vector2(200f, 123f));
+        grid.AddChild(header);
+
+        var spanningStatus = new FixedSizeElement(new Vector2(120f, 307f));
+        Grid.SetColumn(spanningStatus, 1);
+        Grid.SetRow(spanningStatus, 0);
+        Grid.SetRowSpan(spanningStatus, 2);
+        grid.AddChild(spanningStatus);
+
+        var tallAutoRow = new FixedSizeElement(new Vector2(100f, 269f));
+        Grid.SetRow(tallAutoRow, 1);
+        grid.AddChild(tallAutoRow);
+
+        var starRow = new FixedSizeElement(new Vector2(100f, 26f));
+        Grid.SetRow(starRow, 2);
+        grid.AddChild(starRow);
+
+        var footer = new FixedSizeElement(new Vector2(100f, 74f));
+        Grid.SetRow(footer, 3);
+        Grid.SetColumnSpan(footer, 2);
+        grid.AddChild(footer);
+
+        grid.Measure(new Vector2(500f, 577f));
+        grid.Arrange(new LayoutRect(0f, 0f, 500f, 577f));
+
+        Assert.Equal(123f, grid.RowDefinitions[0].ActualHeight, 0.01f);
+        Assert.Equal(269f, grid.RowDefinitions[1].ActualHeight, 0.01f);
+        Assert.Equal(111f, grid.RowDefinitions[2].ActualHeight, 0.01f);
+        Assert.Equal(74f, grid.RowDefinitions[3].ActualHeight, 0.01f);
+        Assert.True(starRow.ActualHeight > 100f);
+    }
+
+    [Fact]
     public void Measure_AutoDefinitions_RespectMinAndMaxConstraints()
     {
         var grid = new Grid();
