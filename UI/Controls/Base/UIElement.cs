@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -1907,64 +1908,4 @@ public class UIElement : DependencyObject
 
         public string Reason { get; } = reason;
     }
-}
-
-internal readonly record struct UIElementRenderTimingSnapshot(
-    long RenderSelfElapsedTicks,
-    int RenderSelfCallCount,
-    string HottestRenderSelfType,
-    string HottestRenderSelfName,
-    double HottestRenderSelfMilliseconds,
-    string HottestRenderSelfTypeSummary);
-
-internal readonly record struct ValueChangedRoutedEventTelemetrySnapshot(
-    int RaiseCount,
-    double RaiseMilliseconds,
-    double RouteBuildMilliseconds,
-    double RouteTraverseMilliseconds,
-    double ClassHandlerMilliseconds,
-    double InstanceDispatchMilliseconds,
-    double InstancePrepareMilliseconds,
-    double InstanceInvokeMilliseconds,
-    int MaxRouteLength);
-
-internal readonly record struct UIElementInvalidationDiagnosticsSnapshot(
-    int DirectMeasureInvalidationCount,
-    int PropagatedMeasureInvalidationCount,
-    string LastMeasureInvalidationSummary,
-    string TopMeasureInvalidationSources,
-    int LastMeasureInvalidationLayoutFrame,
-    int LastMeasureInvalidationDrawFrame,
-    int DirectArrangeInvalidationCount,
-    int PropagatedArrangeInvalidationCount,
-    string LastArrangeInvalidationSummary,
-    string TopArrangeInvalidationSources,
-    int LastArrangeInvalidationLayoutFrame,
-    int LastArrangeInvalidationDrawFrame,
-    int DirectRenderInvalidationCount,
-    int PropagatedRenderInvalidationCount,
-    string LastRenderInvalidationSummary,
-    string TopRenderInvalidationSources,
-    int LastRenderInvalidationLayoutFrame,
-    int LastRenderInvalidationDrawFrame)
-{
-    public static UIElementInvalidationDiagnosticsSnapshot Empty => new(
-        0,
-        0,
-        "none",
-        "none",
-        -1,
-        -1,
-        0,
-        0,
-        "none",
-        "none",
-        -1,
-        -1,
-        0,
-        0,
-        "none",
-        "none",
-        -1,
-        -1);
 }

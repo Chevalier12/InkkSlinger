@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -1290,13 +1291,3 @@ public class FrameworkElement : UIElement
 
 }
 
-internal readonly record struct FrameworkLayoutTimingSnapshot(
-    long MeasureElapsedTicks,
-    long MeasureExclusiveElapsedTicks,
-    long ArrangeElapsedTicks,
-    string HottestMeasureElementType,
-    string HottestMeasureElementName,
-    long HottestMeasureElapsedTicks,
-    string HottestArrangeElementType,
-    string HottestArrangeElementName,
-    long HottestArrangeElapsedTicks);

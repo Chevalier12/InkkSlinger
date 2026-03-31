@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -1465,49 +1466,5 @@ public class ScrollViewer : ContentControl
 
 }
 
-public readonly record struct ScrollViewerScrollMetricsSnapshot(
-    int WheelEvents,
-    int WheelHandled,
-    int SetOffsetCalls,
-    int SetOffsetNoOpCalls,
-    float TotalHorizontalDelta,
-    float TotalVerticalDelta);
 
-internal readonly record struct ScrollViewerValueChangedTelemetrySnapshot(
-    int VerticalValueChangedCallCount,
-    double VerticalValueChangedMilliseconds,
-    double VerticalValueChangedSetOffsetsMilliseconds);
-
-internal readonly record struct ScrollViewerLayoutTelemetrySnapshot(
-    int MeasureOverrideCallCount,
-    double MeasureOverrideMilliseconds,
-    int ArrangeOverrideCallCount,
-    double ArrangeOverrideMilliseconds,
-    int ResolveBarsAndMeasureContentCallCount,
-    double ResolveBarsAndMeasureContentMilliseconds,
-    int ResolveBarsAndMeasureContentIterationCount,
-    int ResolveBarsAndMeasureContentHorizontalFlipCount,
-    int ResolveBarsAndMeasureContentVerticalFlipCount,
-    int ResolveBarsAndMeasureContentSingleMeasurePathCount,
-    int ResolveBarsAndMeasureContentRemeasurePathCount,
-    int ResolveBarsAndMeasureContentFallbackCount,
-    int ResolveBarsAndMeasureContentInitialHorizontalVisibleCount,
-    int ResolveBarsAndMeasureContentInitialHorizontalHiddenCount,
-    int ResolveBarsAndMeasureContentInitialVerticalVisibleCount,
-    int ResolveBarsAndMeasureContentInitialVerticalHiddenCount,
-    int ResolveBarsAndMeasureContentResolvedHorizontalVisibleCount,
-    int ResolveBarsAndMeasureContentResolvedHorizontalHiddenCount,
-    int ResolveBarsAndMeasureContentResolvedVerticalVisibleCount,
-    int ResolveBarsAndMeasureContentResolvedVerticalHiddenCount,
-    string ResolveBarsAndMeasureContentLastTrace,
-    string ResolveBarsAndMeasureContentHottestTrace,
-    int ResolveBarsForArrangeCallCount,
-    double ResolveBarsForArrangeMilliseconds,
-    int ResolveBarsForArrangeIterationCount,
-    int ResolveBarsForArrangeHorizontalFlipCount,
-    int ResolveBarsForArrangeVerticalFlipCount,
-    int MeasureContentCallCount,
-    double MeasureContentMilliseconds,
-    int UpdateScrollBarsCallCount,
-    double UpdateScrollBarsMilliseconds);
 

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -206,10 +207,4 @@ public class Canvas : Panel
     }
 }
 
-internal readonly record struct CanvasTelemetrySnapshot(
-    int MeasureCallCount,
-    double MeasureMilliseconds,
-    int MeasuredChildCount,
-    int ArrangeCallCount,
-    double ArrangeMilliseconds,
-    int ArrangedChildCount);
+

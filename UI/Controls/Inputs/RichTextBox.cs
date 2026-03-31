@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework.Input;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Collections.Immutable;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -6077,57 +6078,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         public float ScrollableHeight => Math.Max(0f, ExtentHeight - ViewportHeight);
     }
 }
-
-public readonly record struct RichTextBoxPerformanceSnapshot(
-    int LayoutCacheHitCount,
-    int LayoutCacheMissCount,
-    int LayoutBuildSampleCount,
-    double AverageLayoutBuildMilliseconds,
-    double P95LayoutBuildMilliseconds,
-    double P99LayoutBuildMilliseconds,
-    double MaxLayoutBuildMilliseconds,
-    int RenderSampleCount,
-    double LastRenderMilliseconds,
-    double AverageRenderMilliseconds,
-    double MaxRenderMilliseconds,
-    double LastRenderLayoutResolveMilliseconds,
-    double LastRenderSelectionMilliseconds,
-    double LastRenderRunsMilliseconds,
-    int LastRenderRunCount,
-    int LastRenderRunCharacterCount,
-    double LastRenderTableBordersMilliseconds,
-    double LastRenderCaretMilliseconds,
-    double LastRenderHostedLayoutMilliseconds,
-    double LastRenderHostedChildrenDrawMilliseconds,
-    int LastRenderHostedChildrenDrawCount,
-    int SelectionGeometrySampleCount,
-    double LastSelectionGeometryMilliseconds,
-    double AverageSelectionGeometryMilliseconds,
-    double MaxSelectionGeometryMilliseconds,
-    int ClipboardSerializeSampleCount,
-    double LastClipboardSerializeMilliseconds,
-    double AverageClipboardSerializeMilliseconds,
-    double MaxClipboardSerializeMilliseconds,
-    int ClipboardDeserializeSampleCount,
-    double LastClipboardDeserializeMilliseconds,
-    double AverageClipboardDeserializeMilliseconds,
-    double MaxClipboardDeserializeMilliseconds,
-    int EditSampleCount,
-    double LastEditMilliseconds,
-    double AverageEditMilliseconds,
-    double MaxEditMilliseconds,
-    int StructuredEnterSampleCount,
-    double LastStructuredEnterParagraphEntryCollectionMilliseconds,
-    double LastStructuredEnterCloneDocumentMilliseconds,
-    double LastStructuredEnterParagraphEnumerationMilliseconds,
-    double LastStructuredEnterPrepareParagraphsMilliseconds,
-    double LastStructuredEnterCommitMilliseconds,
-    double LastStructuredEnterTotalMilliseconds,
-    bool LastStructuredEnterUsedDocumentReplacement,
-    int UndoDepth,
-    int RedoDepth,
-    int UndoOperationCount,
-    int RedoOperationCount);
 
 
 

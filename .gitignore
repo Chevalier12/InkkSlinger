@@ -42,6 +42,8 @@ AGENTS.md
 agents.md
 .github/
 .claude/
+.claude/skills/
+.kilocode/
 CLAUDE.md
 
 # Local diagnostics notes

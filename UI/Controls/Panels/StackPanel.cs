@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -129,10 +130,4 @@ public class StackPanel : Panel
     }
 }
 
-internal readonly record struct StackPanelTelemetrySnapshot(
-    int MeasureCallCount,
-    double MeasureMilliseconds,
-    int MeasuredChildCount,
-    int ArrangeCallCount,
-    double ArrangeMilliseconds,
-    int ArrangedChildCount);
+

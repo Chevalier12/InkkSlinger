@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -416,10 +417,4 @@ public class Panel : FrameworkElement
     }
 }
 
-internal readonly record struct PanelTelemetrySnapshot(
-    int MeasureCallCount,
-    double MeasureMilliseconds,
-    int MeasuredChildCount,
-    int ArrangeCallCount,
-    double ArrangeMilliseconds,
-    int ArrangedChildCount);
+

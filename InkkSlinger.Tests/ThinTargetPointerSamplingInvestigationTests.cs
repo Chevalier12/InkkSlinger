@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Xunit;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger.Tests;
 

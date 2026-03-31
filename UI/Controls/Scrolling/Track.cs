@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -1196,27 +1197,4 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         bool HasIncreasePart);
 }
 
-internal readonly record struct TrackThumbTravelTelemetrySnapshot(
-    int GetValueFromThumbTravelCallCount,
-    double GetValueFromThumbTravelMilliseconds,
-    int RefreshLayoutForStateMutationCallCount,
-    double RefreshLayoutForStateMutationMilliseconds,
-    int RefreshLayoutValueMutationCallCount,
-    double RefreshLayoutValueMutationMilliseconds,
-    int RefreshLayoutViewportMutationCallCount,
-    double RefreshLayoutViewportMutationMilliseconds,
-    int RefreshLayoutMinimumMutationCallCount,
-    double RefreshLayoutMinimumMutationMilliseconds,
-    int RefreshLayoutMaximumMutationCallCount,
-    double RefreshLayoutMaximumMutationMilliseconds,
-    int RefreshLayoutDirectionMutationCallCount,
-    double RefreshLayoutDirectionMutationMilliseconds,
-    int RefreshLayoutNeedsMeasureFallbackCount,
-    double RefreshLayoutNeedsMeasureFallbackMilliseconds,
-    double RefreshLayoutCaptureSnapshotMilliseconds,
-    double RefreshLayoutInvalidateArrangeMilliseconds,
-    double RefreshLayoutArrangeMilliseconds,
-    double RefreshLayoutDirtyBoundsMilliseconds,
-    int RefreshLayoutDirtyBoundsHintCount,
-    int RefreshLayoutVisualFallbackCount,
-    double RefreshLayoutVisualInvalidationMilliseconds);
+

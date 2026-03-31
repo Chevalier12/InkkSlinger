@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -4051,55 +4052,6 @@ public class PasswordBox : Control, IRenderDirtyBoundsHintProvider, ITextInputCo
         bool IsVirtualized = false);
     private readonly record struct WrappedLineCheckpoint(int LineIndex, int TextIndex);
 }
-
-public readonly record struct PasswordBoxPerformanceSnapshot(
-    int CommitCount,
-    int DeferredSyncScheduledCount,
-    int DeferredSyncFlushCount,
-    int ImmediateSyncCount,
-    int IncrementalNoWrapEditAttemptCount,
-    int IncrementalNoWrapEditSuccessCount,
-    int IncrementalVirtualEditSuccessCount,
-    int IncrementalVirtualEditFallbackCount,
-    int LayoutCacheHitCount,
-    int LayoutCacheMissCount,
-    int ViewportLayoutBuildCount,
-    int FullLayoutBuildCount,
-    int VirtualRangeBuildCount,
-    int VirtualLineBuildCount,
-    double TextSyncMilliseconds,
-    int InputMutationSampleCount,
-    double LastInputMutationMilliseconds,
-    double LastInputEditMilliseconds,
-    double LastInputCommitMilliseconds,
-    double LastInputEnsureCaretMilliseconds,
-    double AverageInputMutationMilliseconds,
-    double MaxInputMutationMilliseconds,
-    int RenderSampleCount,
-    double LastRenderMilliseconds,
-    double LastRenderViewportMilliseconds,
-    double LastRenderSelectionMilliseconds,
-    double LastRenderTextMilliseconds,
-    double LastRenderCaretMilliseconds,
-    double AverageRenderMilliseconds,
-    double MaxRenderMilliseconds,
-    int ViewportStateSampleCount,
-    int ViewportStateCacheHitCount,
-    int ViewportStateCacheMissCount,
-    double LastViewportStateMilliseconds,
-    double AverageViewportStateMilliseconds,
-    double MaxViewportStateMilliseconds,
-    int EnsureCaretSampleCount,
-    int EnsureCaretFastPathHitCount,
-    int EnsureCaretFastPathMissCount,
-    double LastEnsureCaretMilliseconds,
-    double LastEnsureCaretViewportMilliseconds,
-    double LastEnsureCaretLineLookupMilliseconds,
-    double LastEnsureCaretWidthMilliseconds,
-    double LastEnsureCaretOffsetAdjustMilliseconds,
-    double AverageEnsureCaretMilliseconds,
-    double MaxEnsureCaretMilliseconds,
-    TextEditingBufferMetrics BufferMetrics);
 
 
 

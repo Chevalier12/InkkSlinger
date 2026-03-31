@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -765,27 +766,3 @@ public class TextBlock : FrameworkElement
     }
 }
 
-public readonly record struct TextBlockPerformanceSnapshot(
-    int LayoutCacheHitCount,
-    int LayoutCacheMissCount,
-    int RenderSampleCount,
-    double LastRenderMilliseconds,
-    double AverageRenderMilliseconds,
-    double MaxRenderMilliseconds);
-
-internal readonly record struct TextBlockRuntimeDiagnosticsSnapshot(
-    int MeasureOverrideCallCount,
-    double MeasureOverrideMilliseconds,
-    int EmptyMeasureCallCount,
-    int SameTextSameWidthMeasureCallCount,
-    int IntrinsicMeasurePathCallCount,
-    int IntrinsicMeasureCacheHitCount,
-    int IntrinsicMeasureCacheMissCount,
-    int ResolveLayoutCallCount,
-    int ResolveLayoutCacheHitCount,
-    int ResolveLayoutCacheMissCount,
-    int ResolveLayoutSameTextSameWidthCallCount,
-    int TextPropertyChangeCount,
-    int LayoutAffectingPropertyChangeCount,
-    int LayoutCacheInvalidationCount,
-    int IntrinsicMeasureInvalidationCount);

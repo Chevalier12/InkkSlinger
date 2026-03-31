@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -1402,18 +1403,6 @@ public static class VisualTreeHelper
 
     private readonly record struct TraversalIndexEntry(int Index, int ZIndex);
 }
-
-internal readonly record struct HitTestInstrumentationSnapshot(
-    int ItemsPresenterNeighborProbes,
-    int ItemsPresenterFullFallbackScans,
-    int LegacyEnumerableFallbacks,
-    int MonotonicPanelFastPathCount,
-    int SimpleSlotHitCount,
-    int TransformedBoundsHitCount,
-    int ClipRejectCount,
-    int VisibilityRejectCount,
-    int PanelTraversalCount,
-    int VisualTraversalZSortCount);
 
 public readonly record struct HitTestMetrics(
     int NodesVisited,

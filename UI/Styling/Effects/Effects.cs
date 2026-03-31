@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -399,15 +400,6 @@ public sealed partial class DropShadowEffect : Effect
     }
 
 }
-
-internal readonly record struct DropShadowEffectTimingSnapshot(
-    long RenderElapsedTicks,
-    long BlurPathElapsedTicks,
-    long DrawBlurSlicesElapsedTicks,
-    int RenderCallCount,
-    int BlurPathCallCount,
-    int CalendarDayRenderCallCount,
-    int CalendarDayBlurPathCallCount);
 
 public sealed partial class DropShadowEffect
 {

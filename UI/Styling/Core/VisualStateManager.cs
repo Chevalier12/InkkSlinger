@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -205,18 +206,3 @@ public static class VisualStateManager
     }
 }
 
-internal readonly record struct VisualStateTelemetrySnapshot(
-    long GoToStateCallCount,
-    double GoToStateMilliseconds,
-    long GoToElementStateCallCount,
-    double GoToElementStateMilliseconds,
-    long TryGoToStateCallCount,
-    double TryGoToStateMilliseconds,
-    long MatchedGroupCount,
-    long GroupGoToStateCallCount,
-    double GroupGoToStateMilliseconds,
-    double GroupApplySettersMilliseconds,
-    double GroupStoryboardMilliseconds,
-    long SetTemplateTriggerValueCount,
-    long ClearTemplateTriggerValueCount,
-    long ClearStateCallCount);

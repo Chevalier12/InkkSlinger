@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -139,12 +140,6 @@ public readonly record struct AutomationEventRecord(
     object? NewValue,
     int? OldPeerRuntimeId,
     int? NewPeerRuntimeId);
-
-public readonly record struct AutomationMetricsSnapshot(
-    int PeerCount,
-    int TreeRebuildCount,
-    int EmittedEventCountLastFrame,
-    int CoalescedEventDiscardCountLastFrame);
 
 public interface IInvokeProvider
 {

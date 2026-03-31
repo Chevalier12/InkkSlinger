@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -46,6 +47,34 @@ public sealed class AnimationManager
     private readonly Dictionary<string, (int Count, long Ticks)> _setValueByPath = new(StringComparer.Ordinal);
     private long _hottestSetValueWriteElapsedTicks;
     private string _hottestSetValueWriteSummary = "none";
+
+    // New telemetry fields for uninstrumented methods
+    private int _pauseStoryboardCallCount;
+    private int _resumeStoryboardCallCount;
+    private int _stopStoryboardCallCount;
+    private int _removeStoryboardCallCount;
+    private int _seekStoryboardCallCount;
+    private int _setStoryboardSpeedRatioCallCount;
+    private int _skipStoryboardToFillCallCount;
+    private int _findInstancesCallCount;
+    private int _findInstancesIterations;
+    private int _hasLiveContributionForLaneCallCount;
+    private int _hasLiveContributionForLaneTrueCount;
+    private int _hasLiveContributionForLaneFalseCount;
+    private int _invalidateFrozenLaneStateKeyCallCount;
+    private int _removeFromLaneCallCount;
+    private int _removeFromLaneNoopCount;
+    private int _removeFromLanesCallCount;
+    private int _removeFromLanesNoopCount;
+    private int _tryResolveControllableCallCount;
+    private int _tryResolveControllableHitCount;
+    private int _tryResolveControllableMissCount;
+    private int _setControllableSpeedRatioCallCount;
+    private int _cleanupCompletedStoryboardsCallCount;
+    private int _cleanupCompletedStoryboardsRemovedCount;
+    private int _clearActiveLaneBufferCallCount;
+    private int _preparedStoryboardMetadataCacheHits;
+    private int _preparedStoryboardMetadataCacheMisses;
 
     public static AnimationManager Current => Instance;
 
@@ -150,6 +179,7 @@ public sealed class AnimationManager
 
     public void PauseStoryboard(Storyboard storyboard, FrameworkElement containingObject)
     {
+        _pauseStoryboardCallCount++;
         foreach (var instance in FindInstances(storyboard, containingObject))
         {
             instance.Pause(_currentTime);
@@ -158,6 +188,7 @@ public sealed class AnimationManager
 
     public void ResumeStoryboard(Storyboard storyboard, FrameworkElement containingObject)
     {
+        _resumeStoryboardCallCount++;
         foreach (var instance in FindInstances(storyboard, containingObject))
         {
             instance.Resume(_currentTime);
@@ -167,6 +198,7 @@ public sealed class AnimationManager
 
     public void StopStoryboard(Storyboard storyboard, FrameworkElement containingObject)
     {
+        _stopStoryboardCallCount++;
         foreach (var instance in FindInstances(storyboard, containingObject))
         {
             instance.Stop();
@@ -175,6 +207,7 @@ public sealed class AnimationManager
 
     public void RemoveStoryboard(Storyboard storyboard, FrameworkElement containingObject)
     {
+        _removeStoryboardCallCount++;
         foreach (var instance in FindInstances(storyboard, containingObject))
         {
             instance.Remove();
@@ -183,6 +216,7 @@ public sealed class AnimationManager
 
     public void SeekStoryboard(Storyboard storyboard, FrameworkElement containingObject, TimeSpan offset)
     {
+        _seekStoryboardCallCount++;
         foreach (var instance in FindInstances(storyboard, containingObject))
         {
             instance.Seek(offset, TimeSeekOrigin.BeginTime, _currentTime);
@@ -192,6 +226,7 @@ public sealed class AnimationManager
 
     public void SetStoryboardSpeedRatio(Storyboard storyboard, FrameworkElement containingObject, float speedRatio)
     {
+        _setStoryboardSpeedRatioCallCount++;
         foreach (var instance in FindInstances(storyboard, containingObject))
         {
             instance.SpeedRatio = Math.Max(0.01f, speedRatio);
@@ -201,6 +236,7 @@ public sealed class AnimationManager
 
     public void SkipStoryboardToFill(Storyboard storyboard, FrameworkElement containingObject)
     {
+        _skipStoryboardToFillCallCount++;
         foreach (var instance in FindInstances(storyboard, containingObject))
         {
             instance.SkipToFill(_currentTime);
@@ -210,11 +246,22 @@ public sealed class AnimationManager
 
     internal bool TryResolveControllable(FrameworkElement containingObject, string controlName, out StoryboardInstance? instance)
     {
-        return _controllableByName.TryGetValue(new StoryboardControlKey(containingObject, controlName), out instance);
+        _tryResolveControllableCallCount++;
+        var result = _controllableByName.TryGetValue(new StoryboardControlKey(containingObject, controlName), out instance);
+        if (result)
+        {
+            _tryResolveControllableHitCount++;
+        }
+        else
+        {
+            _tryResolveControllableMissCount++;
+        }
+        return result;
     }
 
     internal void SetControllableSpeedRatio(StoryboardInstance instance, float speedRatio)
     {
+        _setControllableSpeedRatioCallCount++;
         instance.SpeedRatio = Math.Max(0.01f, speedRatio);
         InvalidateFrozenLaneState(instance);
     }
@@ -231,8 +278,10 @@ public sealed class AnimationManager
 
     internal void RemoveFromLane(AnimationLaneKey key, StoryboardInstance owner, HandoffBehavior handoff)
     {
+        _removeFromLaneCallCount++;
         if (handoff != HandoffBehavior.SnapshotAndReplace)
         {
+            _removeFromLaneNoopCount++;
             return;
         }
 
@@ -251,8 +300,10 @@ public sealed class AnimationManager
 
     internal void RemoveFromLanes(IReadOnlyCollection<AnimationLaneKey> keys, StoryboardInstance owner, HandoffBehavior handoff)
     {
+        _removeFromLanesCallCount++;
         if (handoff != HandoffBehavior.SnapshotAndReplace || keys.Count == 0)
         {
+            _removeFromLanesNoopCount++;
             return;
         }
 
@@ -274,16 +325,22 @@ public sealed class AnimationManager
 
     private IEnumerable<StoryboardInstance> FindInstances(Storyboard storyboard, FrameworkElement containingObject)
     {
-        return _storyboards.Where(s => ReferenceEquals(s.Storyboard, storyboard) && ReferenceEquals(s.Scope, containingObject));
+        _findInstancesCallCount++;
+        var result = _storyboards.Where(s => ReferenceEquals(s.Storyboard, storyboard) && ReferenceEquals(s.Scope, containingObject));
+        var count = result.Count();
+        _findInstancesIterations += count;
+        return result;
     }
 
     internal StoryboardInstance.PreparedStoryboardMetadata GetOrCreatePreparedStoryboardMetadata(Storyboard storyboard)
     {
         if (_preparedStoryboardMetadata.TryGetValue(storyboard, out var prepared))
         {
+            _preparedStoryboardMetadataCacheHits++;
             return prepared;
         }
 
+        _preparedStoryboardMetadataCacheMisses++;
         prepared = StoryboardInstance.PreparedStoryboardMetadata.Create(storyboard);
         _preparedStoryboardMetadata.Add(storyboard, prepared);
         return prepared;
@@ -437,6 +494,7 @@ public sealed class AnimationManager
 
     private void ClearActiveLaneBuffer()
     {
+        _clearActiveLaneBufferCallCount++;
         foreach (var lane in _activeLaneBuffer.Values)
         {
             lane.Clear();
@@ -447,6 +505,7 @@ public sealed class AnimationManager
 
     private bool HasLiveContributionForLane(AnimationLaneKey key)
     {
+        _hasLiveContributionForLaneCallCount++;
         foreach (var storyboard in _storyboards)
         {
             foreach (var entry in storyboard.Entries)
@@ -458,11 +517,13 @@ public sealed class AnimationManager
 
                 if (entry.TryGetContribution(out _))
                 {
+                    _hasLiveContributionForLaneTrueCount++;
                     return true;
                 }
             }
         }
 
+        _hasLiveContributionForLaneFalseCount++;
         return false;
     }
 
@@ -500,7 +561,34 @@ public sealed class AnimationManager
             TicksToMilliseconds(_cleanupCompletedElapsedTicks),
             SummarizeSetValuePaths(limit: 4),
             _hottestSetValueWriteSummary,
-            TicksToMilliseconds(_hottestSetValueWriteElapsedTicks));
+            TicksToMilliseconds(_hottestSetValueWriteElapsedTicks),
+            // New telemetry fields
+            _pauseStoryboardCallCount,
+            _resumeStoryboardCallCount,
+            _stopStoryboardCallCount,
+            _removeStoryboardCallCount,
+            _seekStoryboardCallCount,
+            _setStoryboardSpeedRatioCallCount,
+            _skipStoryboardToFillCallCount,
+            _findInstancesCallCount,
+            _findInstancesIterations,
+            _hasLiveContributionForLaneCallCount,
+            _hasLiveContributionForLaneTrueCount,
+            _hasLiveContributionForLaneFalseCount,
+            _invalidateFrozenLaneStateKeyCallCount,
+            _removeFromLaneCallCount,
+            _removeFromLaneNoopCount,
+            _removeFromLanesCallCount,
+            _removeFromLanesNoopCount,
+            _tryResolveControllableCallCount,
+            _tryResolveControllableHitCount,
+            _tryResolveControllableMissCount,
+            _setControllableSpeedRatioCallCount,
+            _cleanupCompletedStoryboardsCallCount,
+            _cleanupCompletedStoryboardsRemovedCount,
+            _clearActiveLaneBufferCallCount,
+            _preparedStoryboardMetadataCacheHits,
+            _preparedStoryboardMetadataCacheMisses);
     }
 
     internal void ResetTelemetryForTests()
@@ -526,6 +614,33 @@ public sealed class AnimationManager
         _setValueByPath.Clear();
         _hottestSetValueWriteElapsedTicks = 0;
         _hottestSetValueWriteSummary = "none";
+        // New telemetry fields
+        _pauseStoryboardCallCount = 0;
+        _resumeStoryboardCallCount = 0;
+        _stopStoryboardCallCount = 0;
+        _removeStoryboardCallCount = 0;
+        _seekStoryboardCallCount = 0;
+        _setStoryboardSpeedRatioCallCount = 0;
+        _skipStoryboardToFillCallCount = 0;
+        _findInstancesCallCount = 0;
+        _findInstancesIterations = 0;
+        _hasLiveContributionForLaneCallCount = 0;
+        _hasLiveContributionForLaneTrueCount = 0;
+        _hasLiveContributionForLaneFalseCount = 0;
+        _invalidateFrozenLaneStateKeyCallCount = 0;
+        _removeFromLaneCallCount = 0;
+        _removeFromLaneNoopCount = 0;
+        _removeFromLanesCallCount = 0;
+        _removeFromLanesNoopCount = 0;
+        _tryResolveControllableCallCount = 0;
+        _tryResolveControllableHitCount = 0;
+        _tryResolveControllableMissCount = 0;
+        _setControllableSpeedRatioCallCount = 0;
+        _cleanupCompletedStoryboardsCallCount = 0;
+        _cleanupCompletedStoryboardsRemovedCount = 0;
+        _clearActiveLaneBufferCallCount = 0;
+        _preparedStoryboardMetadataCacheHits = 0;
+        _preparedStoryboardMetadataCacheMisses = 0;
     }
 
     private void RecordSetValuePathTiming(string targetPropertyPath, long ticks)
@@ -629,6 +744,7 @@ public sealed class AnimationManager
 
     private void InvalidateFrozenLaneState(AnimationLaneKey key)
     {
+        _invalidateFrozenLaneStateKeyCallCount++;
         if (!_appliedLanes.TryGetValue(key, out var state))
         {
             return;
@@ -837,6 +953,7 @@ public sealed class AnimationManager
 
     private void CleanupCompletedStoryboards()
     {
+        _cleanupCompletedStoryboardsCallCount++;
         for (var i = _storyboards.Count - 1; i >= 0; i--)
         {
             var instance = _storyboards[i];
@@ -846,6 +963,7 @@ public sealed class AnimationManager
             }
 
             _storyboards.RemoveAt(i);
+            _cleanupCompletedStoryboardsRemovedCount++;
             if (instance.ControlName != null)
             {
                 _controllableByName.Remove(new StoryboardControlKey(instance.Scope, instance.ControlName));

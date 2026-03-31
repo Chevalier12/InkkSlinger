@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -452,22 +453,4 @@ internal sealed class TemplateTriggerEngine
 
 }
 
-internal readonly record struct TemplateTriggerTelemetrySnapshot(
-    long ApplyCallCount,
-    double ApplyMilliseconds,
-    long ReapplyCallCount,
-    double ReapplyMilliseconds,
-    long TriggerMatchCount,
-    long MatchedTriggerCount,
-    double TriggerMatchMilliseconds,
-    long SetterResolveCount,
-    double SetterResolveMilliseconds,
-    long SetTemplateTriggerValueCount,
-    double SetTemplateTriggerValueMilliseconds,
-    long ClearTemplateTriggerValueCount,
-    double ClearTemplateTriggerValueMilliseconds,
-    double ApplyActionsMilliseconds,
-    long InvokeActionsCount,
-    double InvokeActionsMilliseconds,
-    double PrewarmStoryboardMilliseconds,
-    double PrewarmSetterMilliseconds);
+

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -264,7 +265,4 @@ public class Thumb : Control
     }
 }
 
-internal readonly record struct ThumbDragTelemetrySnapshot(
-    int HandlePointerMoveCallCount,
-    double HandlePointerMoveMilliseconds,
-    double RaiseDragDeltaMilliseconds);
+

@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Xunit;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger.Tests;
 

@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -1784,6 +1785,4 @@ public class Grid : Panel
     }
 }
 
-internal readonly record struct GridTimingSnapshot(
-    long MeasureOverrideElapsedTicks,
-    long ArrangeOverrideElapsedTicks);
+

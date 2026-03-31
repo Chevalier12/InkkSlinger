@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -723,26 +724,6 @@ public class Button : ContentControl
         OnClick();
     }
 }
-
-internal readonly record struct ButtonTimingSnapshot(
-    long MeasureOverrideElapsedTicks,
-    long RenderElapsedTicks,
-    long ResolveTextLayoutElapsedTicks,
-    long RenderChromeElapsedTicks,
-    long RenderTextPreparationElapsedTicks,
-    long RenderTextDrawDispatchElapsedTicks,
-    int RenderTextPreparationCallCount,
-    int RenderTextDrawDispatchCallCount,
-    int ContentPropertyChangedCount,
-    int TextLayoutCacheHitCount,
-    int TextLayoutCacheMissCount,
-    int IntrinsicNoWrapMeasureCacheHitCount,
-    int IntrinsicNoWrapMeasureCacheMissCount,
-    int TextLayoutInvalidationCount,
-    int IntrinsicNoWrapMeasureInvalidationCount,
-    int PlainTextMeasureFastPathCount,
-    int IntrinsicNoWrapMeasurePathCount,
-    int TextLayoutMeasurePathCount);
 
 internal readonly record struct ButtonTextRenderPlan(
     TextLayout.TextLayoutResult Layout,

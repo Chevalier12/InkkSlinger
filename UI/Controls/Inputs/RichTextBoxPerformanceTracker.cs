@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 

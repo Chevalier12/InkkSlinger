@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -206,16 +207,3 @@ public abstract class Freezable
         return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 }
-
-internal readonly record struct FreezableTelemetrySnapshot(
-    int BatchBeginCount,
-    int BatchEndCount,
-    int PendingChangedDuringBatchCount,
-    int OnChangedCallCount,
-    int EndBatchFlushCount,
-    double OnChangedMilliseconds,
-    double EndBatchMilliseconds,
-    string HottestOnChangedType,
-    double HottestOnChangedMilliseconds,
-    string HottestEndBatchType,
-    double HottestEndBatchMilliseconds);

@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Xunit;
 using Xunit.Abstractions;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger.Tests;
 

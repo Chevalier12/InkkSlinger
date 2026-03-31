@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -481,17 +482,3 @@ public class UniformGrid : Panel
             (HasExplicitHeight || HasAvailableIndependentDesiredSize);
     }
 }
-
-internal readonly record struct UniformGridTimingSnapshot(
-    long MeasureOverrideElapsedTicks,
-    long ArrangeOverrideElapsedTicks,
-    long MeasureChildrenCacheElapsedTicks,
-    long MeasureDimensionResolutionElapsedTicks,
-    long MeasureAggregateCheckElapsedTicks,
-    long MeasureChildLoopElapsedTicks,
-    long MeasureChildMeasureElapsedTicks,
-    int MeasureChildrenCacheRefreshCount,
-    int MeasureAggregateReuseHitCount,
-    int MeasureAggregateReuseMissCount,
-    int MeasureChildReuseCount,
-    int MeasureChildMeasureCount);

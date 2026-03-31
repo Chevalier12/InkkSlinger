@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -588,17 +589,4 @@ public class Style
     }
 }
 
-internal readonly record struct StyleTelemetrySnapshot(
-    long ApplyCallCount,
-    double ApplyMilliseconds,
-    double ApplySettersMilliseconds,
-    double ApplyTriggersMilliseconds,
-    double CollectTriggeredValuesMilliseconds,
-    long TriggerMatchCount,
-    long MatchedTriggerCount,
-    long SetStyleValueCount,
-    long SetStyleTriggerValueCount,
-    long ClearStyleTriggerValueCount,
-    double ApplyTriggerActionsMilliseconds,
-    long InvokeActionsCount,
-    double InvokeActionsMilliseconds);
+

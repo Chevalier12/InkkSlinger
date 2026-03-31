@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
@@ -211,7 +212,3 @@ public sealed class CalendarDayButton : Button
     }
 }
 
-internal readonly record struct CalendarDayButtonTimingSnapshot(
-    long RenderElapsedTicks,
-    int RenderCallCount,
-    int NonEmptyRenderCallCount);

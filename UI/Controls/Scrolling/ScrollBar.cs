@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -570,11 +571,4 @@ public class ScrollBar : RangeBase
     }
 }
 
-internal readonly record struct ScrollBarThumbDragTelemetrySnapshot(
-    int OnThumbDragDeltaCallCount,
-    double OnThumbDragDeltaMilliseconds,
-    double OnThumbDragDeltaValueSetMilliseconds,
-    double OnValueChangedBaseMilliseconds,
-    double OnValueChangedSyncTrackStateMilliseconds,
-    double SyncTrackStateMilliseconds,
-    double RefreshTrackLayoutMilliseconds);
+

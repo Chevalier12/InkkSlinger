@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 
 namespace InkkSlinger;
 
