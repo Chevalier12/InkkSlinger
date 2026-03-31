@@ -302,6 +302,39 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
+    public void AutoBars_RemainVisible_ForOversizedCanvasContent()
+    {
+        var root = new Panel();
+        var canvas = new Canvas
+        {
+            Width = 720f,
+            Height = 380f,
+            MinWidth = 720f,
+            MinHeight = 380f
+        };
+        canvas.AddChild(new Border { Width = 120f, Height = 80f });
+
+        var viewer = new ScrollViewer
+        {
+            Width = 558f,
+            Height = 190f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = canvas
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 800, 600, 16);
+
+        Assert.True(viewer.ExtentWidth > viewer.ViewportWidth);
+        Assert.True(viewer.ExtentHeight > viewer.ViewportHeight);
+        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
+        Assert.True(viewportClip.Width < canvas.DesiredSize.X);
+        Assert.True(viewportClip.Height < canvas.DesiredSize.Y);
+    }
+
+    [Fact]
     public void TransformDefault_DoesNotTriggerRootLayoutInvalidation_OnOffsetOnlyChanges()
     {
         var root = new Panel();

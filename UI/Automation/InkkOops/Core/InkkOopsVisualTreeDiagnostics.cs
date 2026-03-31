@@ -24,7 +24,9 @@ public sealed class InkkOopsVisualTreeDiagnostics
         {
             return new InkkOopsVisualTreeSnapshot
             {
-                Nodes = Array.Empty<InkkOopsVisualTreeNodeSnapshot>()
+                Nodes = Array.Empty<InkkOopsVisualTreeNodeSnapshot>(),
+                IsFiltered = context.Filter.IsActive,
+                NodeRetention = context.Filter.NodeRetention
             };
         }
 
@@ -32,13 +34,16 @@ public sealed class InkkOopsVisualTreeDiagnostics
         Append(nodes, root, depth: 0, context);
         return new InkkOopsVisualTreeSnapshot
         {
-            Nodes = nodes
+            Nodes = nodes,
+            IsFiltered = context.Filter.IsActive,
+            NodeRetention = context.Filter.NodeRetention
         };
     }
 
     private void Append(List<InkkOopsVisualTreeNodeSnapshot> nodes, UIElement element, int depth, InkkOopsDiagnosticsContext context)
     {
-        var builder = new InkkOopsElementDiagnosticsBuilder();
+        var displayName = InkkOopsTargetResolver.DescribeElement(element);
+        var builder = new InkkOopsElementDiagnosticsBuilder(displayName, element.GetType().Name, context.Filter);
         for (var i = 0; i < _contributors.Count; i++)
         {
             _contributors[i].Contribute(context, element, builder);
@@ -47,8 +52,9 @@ public sealed class InkkOopsVisualTreeDiagnostics
         nodes.Add(new InkkOopsVisualTreeNodeSnapshot
         {
             Depth = depth,
-            DisplayName = InkkOopsTargetResolver.DescribeElement(element),
-            Facts = builder.Facts.ToArray()
+            DisplayName = displayName,
+            Facts = builder.Facts.ToArray(),
+            MatchedFilter = builder.MatchedFilter
         });
 
         foreach (var child in element.GetVisualChildren())

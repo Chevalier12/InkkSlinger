@@ -155,7 +155,6 @@ dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code><
                     <ul>
                         <li><code>result.json</code>: overall run result, command count, failure metadata, duration</li>
                         <li><code>commands.log</code>: execution timeline</li>
-                        <li><code>command-###.json</code>: per-command diagnostics</li>
                         <li><code>*.png</code>: frame captures</li>
                         <li><code>*.txt</code>: telemetry dumps</li>
                     </ul>
@@ -167,8 +166,6 @@ dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code><
                     <p>Read this first. It tells you whether the run completed, how long it took, and which command failed if the run aborted.</p>
                     <h3><code>commands.log</code></h3>
                     <p>Use this for the linear timeline of what actually ran.</p>
-                    <h3><code>command-###.json</code></h3>
-                    <p>Use these files to inspect selector choice, resolution status, bounds, viewport, action point, matched peer, before/after hover and focus state, and the final failure category for a specific command.</p>
                     <h3>Frame capture</h3>
                     <p>The final frame answers what the user actually saw.</p>
                     <h3>Telemetry dump</h3>
@@ -198,7 +195,7 @@ dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code><
                         <li>Replay the recording and confirm that the run completed.</li>
                         <li>Open the final frame capture to confirm the visible end state.</li>
                         <li>Open the telemetry dump to inspect the structural end state.</li>
-                        <li>If the run failed, inspect the failed <code>command-###.json</code> file first.</li>
+                        <li>If the run failed, inspect <code>result.json</code> first for the failure category and failed command metadata.</li>
                         <li>Reduce the recording to a focused built-in script if the replay is useful but too long for rapid iteration.</li>
                     </ol>
                 </section>

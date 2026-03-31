@@ -22,6 +22,8 @@ public class UIElement : DependencyObject
     private static string _lastFreezableBatchFlushTargetSummary = "none";
     [ThreadStatic]
     private static int _retainedSelfDrawDepth;
+    [ThreadStatic]
+    private static InvalidationContext? _currentInvalidationContext;
     private static int _freezableBatchFlushCount;
     private static int _freezableBatchFlushTargetCount;
     private static int _freezableBatchQueuedTargetCount;
@@ -52,6 +54,7 @@ public class UIElement : DependencyObject
     private int _measureInvalidationCount;
     private int _arrangeInvalidationCount;
     private int _renderInvalidationCount;
+    private ElementInvalidationDiagnostics? _invalidationDiagnostics;
     private int _renderVersionStamp;
     private int _layoutVersionStamp;
     private int _updateCallCount;
@@ -292,6 +295,37 @@ public class UIElement : DependencyObject
     public int UpdateCallCount => _updateCallCount;
 
     public int DrawCallCount => _drawCallCount;
+
+    internal UIElementInvalidationDiagnosticsSnapshot InvalidationDiagnosticsForTests
+    {
+        get
+        {
+            if (_invalidationDiagnostics is null)
+            {
+                return UIElementInvalidationDiagnosticsSnapshot.Empty;
+            }
+
+            return new UIElementInvalidationDiagnosticsSnapshot(
+                _invalidationDiagnostics.DirectMeasureInvalidationCount,
+                _invalidationDiagnostics.PropagatedMeasureInvalidationCount,
+                _invalidationDiagnostics.LastMeasureInvalidationSummary,
+                SummarizeInvalidationSourceCounts(_invalidationDiagnostics.MeasureSources, limit: 4),
+                _invalidationDiagnostics.LastMeasureInvalidationLayoutFrame,
+                _invalidationDiagnostics.LastMeasureInvalidationDrawFrame,
+                _invalidationDiagnostics.DirectArrangeInvalidationCount,
+                _invalidationDiagnostics.PropagatedArrangeInvalidationCount,
+                _invalidationDiagnostics.LastArrangeInvalidationSummary,
+                SummarizeInvalidationSourceCounts(_invalidationDiagnostics.ArrangeSources, limit: 4),
+                _invalidationDiagnostics.LastArrangeInvalidationLayoutFrame,
+                _invalidationDiagnostics.LastArrangeInvalidationDrawFrame,
+                _invalidationDiagnostics.DirectRenderInvalidationCount,
+                _invalidationDiagnostics.PropagatedRenderInvalidationCount,
+                _invalidationDiagnostics.LastRenderInvalidationSummary,
+                SummarizeInvalidationSourceCounts(_invalidationDiagnostics.RenderSources, limit: 4),
+                _invalidationDiagnostics.LastRenderInvalidationLayoutFrame,
+                _invalidationDiagnostics.LastRenderInvalidationDrawFrame);
+        }
+    }
 
     internal int RenderVersionStamp => _renderVersionStamp;
 
@@ -545,53 +579,29 @@ public class UIElement : DependencyObject
 
     public virtual void InvalidateMeasure()
     {
-        Dispatcher.VerifyAccess();
-        if (NeedsMeasure)
-        {
-            return;
-        }
-
-        NeedsMeasure = true;
-        _measureInvalidationCount++;
-        _layoutVersionStamp++;
-        MarkSubtreeDirty();
-        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Measure, this);
-        InvalidateArrange();
-        GetInvalidationParent()?.InvalidateMeasure();
+        var context = _currentInvalidationContext;
+        InvalidateMeasureCore(
+            context?.Origin ?? this,
+            context?.ImmediateSource,
+            context?.Reason ?? "direct-call");
     }
 
     public virtual void InvalidateArrange()
     {
-        Dispatcher.VerifyAccess();
-        if (NeedsArrange)
-        {
-            return;
-        }
-
-        NeedsArrange = true;
-        _arrangeInvalidationCount++;
-        _layoutVersionStamp++;
-        MarkSubtreeDirty();
-        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Arrange, this);
-        InvalidateVisual();
-        GetInvalidationParent()?.InvalidateArrange();
+        var context = _currentInvalidationContext;
+        InvalidateArrangeCore(
+            context?.Origin ?? this,
+            context?.ImmediateSource,
+            context?.Reason ?? "direct-call");
     }
 
     public virtual void InvalidateVisual()
     {
-        Dispatcher.VerifyAccess();
-        if (NeedsRender)
-        {
-            UiRoot.Current?.EnsureRenderInvalidationTracked(this);
-
-            return;
-        }
-
-        NeedsRender = true;
-        _renderInvalidationCount++;
-        _renderVersionStamp++;
-        MarkSubtreeDirty();
-        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, this);
+        var context = _currentInvalidationContext;
+        InvalidateVisualCore(
+            context?.Origin ?? this,
+            context?.ImmediateSource,
+            context?.Reason ?? "direct-call");
     }
 
     public void InvalidateRender()
@@ -1129,19 +1139,22 @@ public class UIElement : DependencyObject
 
         var metadata = args.Property.GetMetadata(this);
         var options = metadata.Options;
-        if ((options & FrameworkPropertyMetadataOptions.AffectsMeasure) != 0)
+        if ((options & FrameworkPropertyMetadataOptions.AffectsMeasure) != 0 &&
+            ShouldInvalidateMeasureForPropertyChange(args, metadata))
         {
-            InvalidateMeasure();
+            InvalidateMeasureCore(this, source: null, reason: $"property:{args.Property.Name}");
         }
 
-        if ((options & FrameworkPropertyMetadataOptions.AffectsArrange) != 0)
+        if ((options & FrameworkPropertyMetadataOptions.AffectsArrange) != 0 &&
+            ShouldInvalidateArrangeForPropertyChange(args, metadata))
         {
-            InvalidateArrange();
+            InvalidateArrangeCore(this, source: null, reason: $"property:{args.Property.Name}");
         }
 
-        if ((options & FrameworkPropertyMetadataOptions.AffectsRender) != 0)
+        if ((options & FrameworkPropertyMetadataOptions.AffectsRender) != 0 &&
+            ShouldInvalidateVisualForPropertyChange(args, metadata))
         {
-            InvalidateVisual();
+            InvalidateVisualCore(this, source: null, reason: $"property:{args.Property.Name}");
         }
 
         if (!metadata.Inherits)
@@ -1153,6 +1166,33 @@ public class UIElement : DependencyObject
         {
             child.NotifyInheritedPropertyChanged(args.Property);
         }
+    }
+
+    protected virtual bool ShouldInvalidateMeasureForPropertyChange(
+        DependencyPropertyChangedEventArgs args,
+        FrameworkPropertyMetadata metadata)
+    {
+        _ = args;
+        _ = metadata;
+        return true;
+    }
+
+    protected virtual bool ShouldInvalidateArrangeForPropertyChange(
+        DependencyPropertyChangedEventArgs args,
+        FrameworkPropertyMetadata metadata)
+    {
+        _ = args;
+        _ = metadata;
+        return true;
+    }
+
+    protected virtual bool ShouldInvalidateVisualForPropertyChange(
+        DependencyPropertyChangedEventArgs args,
+        FrameworkPropertyMetadata metadata)
+    {
+        _ = args;
+        _ = metadata;
+        return true;
     }
 
     private bool TryGetTransformFromRootToThisInverse(out Matrix inverseTransform)
@@ -1584,6 +1624,196 @@ public class UIElement : DependencyObject
         return string.Join(" | ", summaries);
     }
 
+    private void InvalidateMeasureCore(UIElement origin, UIElement? source, string reason)
+    {
+        Dispatcher.VerifyAccess();
+        if (NeedsMeasure)
+        {
+            return;
+        }
+
+        NeedsMeasure = true;
+        _measureInvalidationCount++;
+        _layoutVersionStamp++;
+        RecordInvalidationDiagnostics(UiInvalidationType.Measure, origin, source, reason);
+        MarkSubtreeDirty();
+        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Measure, this);
+        RunWithInvalidationContext(origin, this, $"measure<={reason}", InvalidateArrange);
+        var invalidationParent = GetInvalidationParent();
+        if (invalidationParent != null)
+        {
+            RunWithInvalidationContext(origin, this, reason, invalidationParent.InvalidateMeasure);
+        }
+    }
+
+    private void InvalidateArrangeCore(UIElement origin, UIElement? source, string reason)
+    {
+        Dispatcher.VerifyAccess();
+        if (NeedsArrange)
+        {
+            return;
+        }
+
+        NeedsArrange = true;
+        _arrangeInvalidationCount++;
+        _layoutVersionStamp++;
+        RecordInvalidationDiagnostics(UiInvalidationType.Arrange, origin, source, reason);
+        MarkSubtreeDirty();
+        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Arrange, this);
+        RunWithInvalidationContext(origin, this, $"arrange<={reason}", InvalidateVisual);
+        var invalidationParent = GetInvalidationParent();
+        if (invalidationParent != null)
+        {
+            RunWithInvalidationContext(origin, this, reason, invalidationParent.InvalidateArrange);
+        }
+    }
+
+    private void InvalidateVisualCore(UIElement origin, UIElement? source, string reason)
+    {
+        Dispatcher.VerifyAccess();
+        if (NeedsRender)
+        {
+            UiRoot.Current?.EnsureRenderInvalidationTracked(this);
+            return;
+        }
+
+        NeedsRender = true;
+        _renderInvalidationCount++;
+        _renderVersionStamp++;
+        RecordInvalidationDiagnostics(UiInvalidationType.Render, origin, source, reason);
+        MarkSubtreeDirty();
+        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, this);
+    }
+
+    private void RecordInvalidationDiagnostics(UiInvalidationType type, UIElement origin, UIElement? source, string reason)
+    {
+        var diagnostics = _invalidationDiagnostics ??= new ElementInvalidationDiagnostics();
+        var immediateSource = source ?? this;
+        var summary = BuildInvalidationSummary(origin, immediateSource, reason);
+        var currentRoot = UiRoot.Current;
+        var layoutFrame = currentRoot?.LayoutExecutedFrameCount ?? -1;
+        var drawFrame = currentRoot?.DrawExecutedFrameCount ?? -1;
+        var propagated = !ReferenceEquals(immediateSource, this);
+
+        switch (type)
+        {
+            case UiInvalidationType.Measure:
+                if (propagated)
+                {
+                    diagnostics.PropagatedMeasureInvalidationCount++;
+                }
+                else
+                {
+                    diagnostics.DirectMeasureInvalidationCount++;
+                }
+
+                diagnostics.LastMeasureInvalidationSummary = summary;
+                diagnostics.LastMeasureInvalidationLayoutFrame = layoutFrame;
+                diagnostics.LastMeasureInvalidationDrawFrame = drawFrame;
+                RecordInvalidationSource(diagnostics.MeasureSources, summary);
+                break;
+
+            case UiInvalidationType.Arrange:
+                if (propagated)
+                {
+                    diagnostics.PropagatedArrangeInvalidationCount++;
+                }
+                else
+                {
+                    diagnostics.DirectArrangeInvalidationCount++;
+                }
+
+                diagnostics.LastArrangeInvalidationSummary = summary;
+                diagnostics.LastArrangeInvalidationLayoutFrame = layoutFrame;
+                diagnostics.LastArrangeInvalidationDrawFrame = drawFrame;
+                RecordInvalidationSource(diagnostics.ArrangeSources, summary);
+                break;
+
+            case UiInvalidationType.Render:
+                if (propagated)
+                {
+                    diagnostics.PropagatedRenderInvalidationCount++;
+                }
+                else
+                {
+                    diagnostics.DirectRenderInvalidationCount++;
+                }
+
+                diagnostics.LastRenderInvalidationSummary = summary;
+                diagnostics.LastRenderInvalidationLayoutFrame = layoutFrame;
+                diagnostics.LastRenderInvalidationDrawFrame = drawFrame;
+                RecordInvalidationSource(diagnostics.RenderSources, summary);
+                break;
+        }
+    }
+
+    private static string BuildInvalidationSummary(UIElement origin, UIElement source, string reason)
+    {
+        var originSummary = DescribeElementForInvalidation(origin);
+        if (ReferenceEquals(origin, source))
+        {
+            return $"{reason}@{originSummary}";
+        }
+
+        return $"{reason}@{originSummary} via {DescribeElementForInvalidation(source)}";
+    }
+
+    private static void RecordInvalidationSource(Dictionary<string, int> sourceCounts, string summary)
+    {
+        if (sourceCounts.TryGetValue(summary, out var existing))
+        {
+            sourceCounts[summary] = existing + 1;
+            return;
+        }
+
+        if (sourceCounts.Count < 8)
+        {
+            sourceCounts[summary] = 1;
+            return;
+        }
+
+        sourceCounts["other"] = sourceCounts.TryGetValue("other", out var otherCount)
+            ? otherCount + 1
+            : 1;
+    }
+
+    private static string SummarizeInvalidationSourceCounts(IReadOnlyDictionary<string, int> sourceCounts, int limit)
+    {
+        if (sourceCounts.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join(
+            " | ",
+            sourceCounts
+                .OrderByDescending(static pair => pair.Value)
+                .ThenBy(static pair => pair.Key, StringComparer.Ordinal)
+                .Take(limit)
+                .Select(static pair => $"{pair.Value}x {pair.Key}"));
+    }
+
+    private static string DescribeElementForInvalidation(UIElement element)
+    {
+        return element is FrameworkElement { Name.Length: > 0 } frameworkElement
+            ? $"{frameworkElement.GetType().Name}#{frameworkElement.Name}"
+            : element.GetType().Name;
+    }
+
+    private static void RunWithInvalidationContext(UIElement origin, UIElement immediateSource, string reason, Action action)
+    {
+        var previous = _currentInvalidationContext;
+        _currentInvalidationContext = new InvalidationContext(origin, immediateSource, reason);
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _currentInvalidationContext = previous;
+        }
+    }
+
     private static bool TryInvertMatrix(Matrix matrix, out Matrix inverse)
     {
         inverse = Matrix.Invert(matrix);
@@ -1646,6 +1876,37 @@ public class UIElement : DependencyObject
     {
         return (long)Math.Round(milliseconds * Stopwatch.Frequency / 1000d);
     }
+
+    private sealed class ElementInvalidationDiagnostics
+    {
+        public int DirectMeasureInvalidationCount;
+        public int PropagatedMeasureInvalidationCount;
+        public string LastMeasureInvalidationSummary = "none";
+        public int LastMeasureInvalidationLayoutFrame = -1;
+        public int LastMeasureInvalidationDrawFrame = -1;
+        public Dictionary<string, int> MeasureSources { get; } = new(StringComparer.Ordinal);
+        public int DirectArrangeInvalidationCount;
+        public int PropagatedArrangeInvalidationCount;
+        public string LastArrangeInvalidationSummary = "none";
+        public int LastArrangeInvalidationLayoutFrame = -1;
+        public int LastArrangeInvalidationDrawFrame = -1;
+        public Dictionary<string, int> ArrangeSources { get; } = new(StringComparer.Ordinal);
+        public int DirectRenderInvalidationCount;
+        public int PropagatedRenderInvalidationCount;
+        public string LastRenderInvalidationSummary = "none";
+        public int LastRenderInvalidationLayoutFrame = -1;
+        public int LastRenderInvalidationDrawFrame = -1;
+        public Dictionary<string, int> RenderSources { get; } = new(StringComparer.Ordinal);
+    }
+
+    private sealed class InvalidationContext(UIElement origin, UIElement immediateSource, string reason)
+    {
+        public UIElement Origin { get; } = origin;
+
+        public UIElement ImmediateSource { get; } = immediateSource;
+
+        public string Reason { get; } = reason;
+    }
 }
 
 internal readonly record struct UIElementRenderTimingSnapshot(
@@ -1666,3 +1927,44 @@ internal readonly record struct ValueChangedRoutedEventTelemetrySnapshot(
     double InstancePrepareMilliseconds,
     double InstanceInvokeMilliseconds,
     int MaxRouteLength);
+
+internal readonly record struct UIElementInvalidationDiagnosticsSnapshot(
+    int DirectMeasureInvalidationCount,
+    int PropagatedMeasureInvalidationCount,
+    string LastMeasureInvalidationSummary,
+    string TopMeasureInvalidationSources,
+    int LastMeasureInvalidationLayoutFrame,
+    int LastMeasureInvalidationDrawFrame,
+    int DirectArrangeInvalidationCount,
+    int PropagatedArrangeInvalidationCount,
+    string LastArrangeInvalidationSummary,
+    string TopArrangeInvalidationSources,
+    int LastArrangeInvalidationLayoutFrame,
+    int LastArrangeInvalidationDrawFrame,
+    int DirectRenderInvalidationCount,
+    int PropagatedRenderInvalidationCount,
+    string LastRenderInvalidationSummary,
+    string TopRenderInvalidationSources,
+    int LastRenderInvalidationLayoutFrame,
+    int LastRenderInvalidationDrawFrame)
+{
+    public static UIElementInvalidationDiagnosticsSnapshot Empty => new(
+        0,
+        0,
+        "none",
+        "none",
+        -1,
+        -1,
+        0,
+        0,
+        "none",
+        "none",
+        -1,
+        -1,
+        0,
+        0,
+        "none",
+        "none",
+        -1,
+        -1);
+}

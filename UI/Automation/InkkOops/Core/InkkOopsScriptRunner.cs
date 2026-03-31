@@ -25,17 +25,8 @@ public sealed class InkkOopsScriptRunner
                 cancellationToken.ThrowIfCancellationRequested();
                 currentIndex = i;
                 currentDescription = script.Commands[i].Describe();
-                session.BeginCommand(i, currentDescription, script.Commands[i].ExecutionMode);
                 session.Artifacts.LogCommand(i, currentDescription);
-                try
-                {
-                    await script.Commands[i].ExecuteAsync(session, cancellationToken).ConfigureAwait(false);
-                    session.CompleteCommand();
-                }
-                catch
-                {
-                    throw;
-                }
+                await script.Commands[i].ExecuteAsync(session, cancellationToken).ConfigureAwait(false);
             }
 
             return new InkkOopsRunResult(
@@ -47,7 +38,9 @@ public sealed class InkkOopsScriptRunner
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            session.FailCommand(ex);
+            var failureCategory = ex is InkkOopsCommandException commandException
+                ? commandException.Category
+                : InkkOopsFailureCategory.None;
             return new InkkOopsRunResult(
                 InkkOopsRunStatus.Failed,
                 script.Name,
@@ -55,6 +48,7 @@ public sealed class InkkOopsScriptRunner
                 script.Commands.Count,
                 failedCommandIndex: currentIndex >= 0 ? currentIndex : TryGetLastLoggedCommandIndex(session.Artifacts.GetCommandLogPath()),
                 failedCommandDescription: currentDescription,
+                failureCategory: failureCategory,
                 failureMessage: ex.ToString(),
                 duration: Stopwatch.GetElapsedTime(started));
         }

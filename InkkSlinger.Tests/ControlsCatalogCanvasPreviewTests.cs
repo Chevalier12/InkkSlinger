@@ -140,6 +140,61 @@ public sealed class ControlsCatalogCanvasPreviewTests
     }
 
     [Fact]
+    public void CanvasPreview_DraggingFocusHandle_WithStableTelemetrySize_DoesNotRemeasureInfoRail()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var catalog = new ControlsCatalogView();
+            catalog.ShowControl("Canvas");
+
+            var uiRoot = new UiRoot(catalog);
+            RunLayoutFrames(uiRoot, 1280, 820, 3);
+
+            var previewHost = Assert.IsType<ContentControl>(catalog.FindName("PreviewHost"));
+            var canvasView = Assert.IsType<CanvasView>(previewHost.Content);
+            var focusCard = Assert.IsType<Border>(canvasView.FindName("CanvasSceneRootCard"));
+            var dragThumb = Assert.IsType<Thumb>(canvasView.FindName("CanvasSceneDragThumb"));
+            var infoViewer = Assert.IsType<ScrollViewer>(canvasView.FindName("CanvasViewInfoScrollViewer"));
+            var positionText = Assert.IsType<TextBlock>(canvasView.FindName("PositionValueText"));
+
+            var beforeInfoViewerMeasureWork = infoViewer.MeasureWorkCount;
+            var beforeInfoViewerMeasureInvalidations = infoViewer.MeasureInvalidationCount;
+            var beforePositionMeasureWork = positionText.MeasureWorkCount;
+            var beforePositionMeasureInvalidations = positionText.MeasureInvalidationCount;
+            var beforePositionRenderInvalidations = positionText.RenderInvalidationCount;
+            var beforePositionText = positionText.Text;
+            var beforeDesired = positionText.DesiredSize;
+
+            var dragStart = GetCenter(dragThumb.LayoutSlot);
+            var dragEnd = dragStart + new Vector2(36f, 24f);
+
+            Assert.True(dragThumb.HandlePointerDownFromInput(dragStart));
+            Assert.True(dragThumb.HandlePointerMoveFromInput(dragEnd));
+            Assert.True(dragThumb.HandlePointerUpFromInput());
+
+            RunLayoutFrames(uiRoot, 1280, 820, 3);
+
+            Assert.NotEqual(beforePositionText, positionText.Text);
+            Assert.True(positionText.RenderInvalidationCount > beforePositionRenderInvalidations);
+            Assert.Equal(beforePositionMeasureInvalidations, positionText.MeasureInvalidationCount);
+            Assert.Equal(beforeInfoViewerMeasureInvalidations, infoViewer.MeasureInvalidationCount);
+            Assert.Equal(beforePositionMeasureWork, positionText.MeasureWorkCount);
+            Assert.Equal(beforeInfoViewerMeasureWork, infoViewer.MeasureWorkCount);
+            Assert.Equal(beforeDesired.X, positionText.DesiredSize.X, 0.01f);
+            Assert.Equal(beforeDesired.Y, positionText.DesiredSize.Y, 0.01f);
+            Assert.Equal(88f, Canvas.GetLeft(focusCard), 0.5f);
+            Assert.Equal(92f, Canvas.GetTop(focusCard), 0.5f);
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
+    [Fact]
     public void CanvasPreview_DraggingFocusHandleInRightBottomMode_ShouldPreserveFarEdgeInsets()
     {
         var backup = CaptureApplicationResources();

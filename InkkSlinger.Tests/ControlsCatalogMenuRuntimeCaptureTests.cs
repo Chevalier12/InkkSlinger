@@ -69,25 +69,18 @@ public sealed class ControlsCatalogMenuRuntimeCaptureTests
             var commandLogPath = Path.Combine(runDirectory, "commands.log");
             var framePath = Path.Combine(runDirectory, "menu-workbench-file-open.png");
             var telemetryPath = Path.Combine(runDirectory, "menu-workbench-file-open.txt");
-            var clickDiagnosticsPath = Path.Combine(runDirectory, "command-005.json");
-            var fileClickDiagnosticsPath = Path.Combine(runDirectory, "command-007.json");
-            var captureDiagnosticsPath = Path.Combine(runDirectory, "command-009.json");
-            var assertDiagnosticsPath = Path.Combine(runDirectory, "command-011.json");
 
             Assert.True(File.Exists(resultPath));
             Assert.True(File.Exists(commandLogPath));
             Assert.True(File.Exists(framePath));
             Assert.True(File.Exists(telemetryPath));
-            Assert.True(File.Exists(clickDiagnosticsPath));
-            Assert.True(File.Exists(fileClickDiagnosticsPath));
-            Assert.True(File.Exists(captureDiagnosticsPath));
-            Assert.True(File.Exists(assertDiagnosticsPath));
 
             var result = JsonSerializer.Deserialize<RuntimeResult>(File.ReadAllText(resultPath), JsonOptions);
             Assert.NotNull(result);
             Assert.Equal("Completed", result!.Status);
             Assert.Equal("controls-catalog-menu-capture", result.ScriptName);
             Assert.Equal(12, result.CommandCount);
+            Assert.Equal("None", result.FailureCategory);
             Assert.True(string.IsNullOrEmpty(result.FailureMessage));
 
             var commandLog = File.ReadAllText(commandLogPath);
@@ -96,31 +89,6 @@ public sealed class ControlsCatalogMenuRuntimeCaptureTests
             Assert.Contains("Click(Within(Name('WorkspaceMenuHost'), AutomationName('File')[0])", commandLog, StringComparison.Ordinal);
             Assert.Contains("CaptureFrame(menu-workbench-file-open)", commandLog, StringComparison.Ordinal);
             Assert.Contains("AssertProperty(Name('SelectedControlLabel'), Content, Selected: Menu)", commandLog, StringComparison.Ordinal);
-
-            var clickDiagnostics = JsonSerializer.Deserialize<InkkOopsCommandDiagnostics>(File.ReadAllText(clickDiagnosticsPath), JsonOptions);
-            Assert.NotNull(clickDiagnostics);
-            Assert.Equal("Completed", clickDiagnostics!.Status);
-            Assert.Equal(InkkOopsExecutionMode.Pointer, clickDiagnostics.ExecutionMode);
-            Assert.Equal("Resolved", clickDiagnostics.ResolutionStatus);
-            Assert.NotEmpty(clickDiagnostics.MatchedElement);
-
-            var fileClickDiagnostics = JsonSerializer.Deserialize<InkkOopsCommandDiagnostics>(File.ReadAllText(fileClickDiagnosticsPath), JsonOptions);
-            Assert.NotNull(fileClickDiagnostics);
-            Assert.Equal("Completed", fileClickDiagnostics!.Status);
-            Assert.Equal(InkkOopsExecutionMode.Pointer, fileClickDiagnostics.ExecutionMode);
-            Assert.Equal("Resolved", fileClickDiagnostics.ResolutionStatus);
-            Assert.NotEmpty(fileClickDiagnostics.MatchedElement);
-
-            var captureDiagnostics = JsonSerializer.Deserialize<InkkOopsCommandDiagnostics>(File.ReadAllText(captureDiagnosticsPath), JsonOptions);
-            Assert.NotNull(captureDiagnostics);
-            Assert.Equal("Completed", captureDiagnostics!.Status);
-            Assert.Equal(InkkOopsExecutionMode.Diagnostic, captureDiagnostics.ExecutionMode);
-
-            var assertDiagnostics = JsonSerializer.Deserialize<InkkOopsCommandDiagnostics>(File.ReadAllText(assertDiagnosticsPath), JsonOptions);
-            Assert.NotNull(assertDiagnostics);
-            Assert.Equal("Completed", assertDiagnostics!.Status);
-            Assert.Equal("Resolved", assertDiagnostics.ResolutionStatus);
-            Assert.Contains("SelectedControlLabel", assertDiagnostics.MatchedElement, StringComparison.Ordinal);
 
             var telemetry = File.ReadAllText(telemetryPath);
             Assert.False(string.IsNullOrWhiteSpace(telemetry));
@@ -166,6 +134,8 @@ public sealed class ControlsCatalogMenuRuntimeCaptureTests
         public string ScriptName { get; set; } = string.Empty;
 
         public int CommandCount { get; set; }
+
+        public string FailureCategory { get; set; } = string.Empty;
 
         public string FailureMessage { get; set; } = string.Empty;
     }

@@ -1,10 +1,18 @@
 using System;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
 public class Canvas : Panel
 {
+    private static int _diagMeasureCallCount;
+    private static long _diagMeasureElapsedTicks;
+    private static int _diagMeasureChildCount;
+    private static int _diagArrangeCallCount;
+    private static long _diagArrangeElapsedTicks;
+    private static int _diagArrangeChildCount;
+
     public static readonly DependencyProperty LeftProperty =
         DependencyProperty.RegisterAttached(
             "Left",
@@ -75,7 +83,9 @@ public class Canvas : Panel
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var desired = Vector2.Zero;
+        var measuredChildren = 0;
 
         foreach (var child in Children)
         {
@@ -85,6 +95,7 @@ public class Canvas : Panel
             }
 
             frameworkChild.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
+            measuredChildren++;
 
             var left = GetLeft(frameworkChild);
             var top = GetTop(frameworkChild);
@@ -98,17 +109,25 @@ public class Canvas : Panel
             desired.Y = MathF.Max(desired.Y, top + frameworkChild.DesiredSize.Y);
         }
 
+        _diagMeasureCallCount++;
+        _diagMeasureElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _diagMeasureChildCount += measuredChildren;
+
         return desired;
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        var arrangedChildren = 0;
         foreach (var child in Children)
         {
             if (child is not FrameworkElement frameworkChild)
             {
                 continue;
             }
+
+            arrangedChildren++;
 
             var left = GetLeft(frameworkChild);
             var top = GetTop(frameworkChild);
@@ -125,7 +144,29 @@ public class Canvas : Panel
                 frameworkChild.DesiredSize.Y));
         }
 
+        _diagArrangeCallCount++;
+        _diagArrangeElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _diagArrangeChildCount += arrangedChildren;
+
         return finalSize;
+    }
+
+    internal new static CanvasTelemetrySnapshot GetTelemetryAndReset()
+    {
+        var snapshot = new CanvasTelemetrySnapshot(
+            _diagMeasureCallCount,
+            (double)_diagMeasureElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagMeasureChildCount,
+            _diagArrangeCallCount,
+            (double)_diagArrangeElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagArrangeChildCount);
+        _diagMeasureCallCount = 0;
+        _diagMeasureElapsedTicks = 0L;
+        _diagMeasureChildCount = 0;
+        _diagArrangeCallCount = 0;
+        _diagArrangeElapsedTicks = 0L;
+        _diagArrangeChildCount = 0;
+        return snapshot;
     }
 
     protected override bool TryGetClipRect(out LayoutRect clipRect)
@@ -164,3 +205,11 @@ public class Canvas : Panel
         return 0f;
     }
 }
+
+internal readonly record struct CanvasTelemetrySnapshot(
+    int MeasureCallCount,
+    double MeasureMilliseconds,
+    int MeasuredChildCount,
+    int ArrangeCallCount,
+    double ArrangeMilliseconds,
+    int ArrangedChildCount);

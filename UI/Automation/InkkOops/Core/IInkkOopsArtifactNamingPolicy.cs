@@ -12,8 +12,6 @@ public interface IInkkOopsArtifactNamingPolicy
 
     string GetResultFileName();
 
-    string GetCommandDiagnosticsFileName(int commandIndex);
-
     string GetRecordingJsonFileName();
 
     string GetRecordedScriptFileName();

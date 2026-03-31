@@ -19,6 +19,7 @@ public sealed class InkkOopsRunResult
         int commandCount,
         int? failedCommandIndex = null,
         string? failedCommandDescription = null,
+        InkkOopsFailureCategory failureCategory = InkkOopsFailureCategory.None,
         string? failureMessage = null,
         TimeSpan? duration = null)
     {
@@ -28,6 +29,7 @@ public sealed class InkkOopsRunResult
         CommandCount = commandCount;
         FailedCommandIndex = failedCommandIndex;
         FailedCommandDescription = failedCommandDescription ?? string.Empty;
+        FailureCategory = failureCategory;
         FailureMessage = failureMessage ?? string.Empty;
         Duration = duration ?? TimeSpan.Zero;
     }
@@ -43,6 +45,8 @@ public sealed class InkkOopsRunResult
     public int? FailedCommandIndex { get; }
 
     public string FailedCommandDescription { get; }
+
+    public InkkOopsFailureCategory FailureCategory { get; }
 
     public string FailureMessage { get; }
 

@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -18,6 +21,31 @@ public partial class CanvasView : UserControl
     private const float MaximumFocusHeight = 196f;
     private static readonly Thickness DefaultWorkbenchMargin = new(0f, 0f, 0f, 12f);
     private static readonly Thickness StackedWorkbenchMargin = new(0f, 0f, 0f, 18f);
+    private static int _diagHandleFocusCardDragDeltaCallCount;
+    private static long _diagHandleFocusCardDragDeltaElapsedTicks;
+    private static int _diagMoveFocusByCallCount;
+    private static long _diagMoveFocusByElapsedTicks;
+    private static int _diagApplySceneStateCallCount;
+    private static long _diagApplySceneStateElapsedTicks;
+    private static int _diagApplyFocusAnchorsCallCount;
+    private static long _diagApplyFocusAnchorsElapsedTicks;
+    private static int _diagApplyBadgeLayerCallCount;
+    private static long _diagApplyBadgeLayerElapsedTicks;
+    private static int _diagApplyGuideVisibilityCallCount;
+    private static long _diagApplyGuideVisibilityElapsedTicks;
+    private static int _diagUpdateLiveTextCallCount;
+    private static long _diagUpdateLiveTextElapsedTicks;
+    private static int _diagUpdateTelemetryCallCount;
+    private static long _diagUpdateTelemetryElapsedTicks;
+    private static int _diagSyncOverlayLayoutCallCount;
+    private static long _diagSyncOverlayLayoutElapsedTicks;
+    private static int _diagSetTextChangeCount;
+    private static long _diagSetTextElapsedTicks;
+    private static int _diagSetCanvasLeftChangeCount;
+    private static long _diagSetCanvasLeftElapsedTicks;
+    private static int _diagSetCanvasTopChangeCount;
+    private static long _diagSetCanvasTopElapsedTicks;
+    private static readonly Dictionary<string, (int Count, long Ticks)> DiagSetTextTargets = new(StringComparer.Ordinal);
 
     private Grid? _contentGrid;
     private Border? _bodyBorder;
@@ -134,6 +162,7 @@ public partial class CanvasView : UserControl
 
     private void HandleFocusCardDragDelta(object? sender, DragDeltaEventArgs args)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         _ = sender;
         if (CanvasThumbInvestigationLog.IsEnabled)
         {
@@ -143,6 +172,9 @@ public partial class CanvasView : UserControl
         }
 
         MoveFocusBy(args.HorizontalChange, args.VerticalChange);
+
+        _diagHandleFocusCardDragDeltaCallCount++;
+        _diagHandleFocusCardDragDeltaElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void NudgeHorizontal(float delta)
@@ -159,6 +191,7 @@ public partial class CanvasView : UserControl
 
     private void MoveFocusBy(float horizontalDelta, float verticalDelta)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var useRightBottom = _anchorFromRightBottomCheckBox?.IsChecked == true;
         var horizontalDirection = useRightBottom ? -1f : 1f;
         var verticalDirection = useRightBottom ? -1f : 1f;
@@ -166,6 +199,9 @@ public partial class CanvasView : UserControl
         _focusHorizontalInset = ClampFocusHorizontalInset(_focusHorizontalInset + (horizontalDelta * horizontalDirection));
         _focusVerticalInset = ClampFocusVerticalInset(_focusVerticalInset + (verticalDelta * verticalDirection));
         ApplySceneState();
+
+        _diagMoveFocusByCallCount++;
+        _diagMoveFocusByElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void ResizeFocus(float widthDelta, float heightDelta)
@@ -235,6 +271,7 @@ public partial class CanvasView : UserControl
 
     private void ApplySceneState()
     {
+        var startTicks = Stopwatch.GetTimestamp();
         EnsureReferences();
 
         if (_workbench == null || _focusCard == null || _badge == null)
@@ -260,10 +297,14 @@ public partial class CanvasView : UserControl
                 "CanvasState",
                 $"ApplySceneState inset=({_focusHorizontalInset:0.##},{_focusVerticalInset:0.##}) size=({_focusWidth:0.##},{_focusHeight:0.##}) thumb={CanvasThumbInvestigationLog.DescribeElement(_focusDragThumb)} card={CanvasThumbInvestigationLog.DescribeElement(_focusCard)} badge={CanvasThumbInvestigationLog.DescribeElement(_badge)} workbenchInvalidations=({_workbench.MeasureInvalidationCount},{_workbench.ArrangeInvalidationCount},{_workbench.RenderInvalidationCount})");
         }
+
+        _diagApplySceneStateCallCount++;
+        _diagApplySceneStateElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void ApplyFocusAnchors()
     {
+        var startTicks = Stopwatch.GetTimestamp();
         if (_focusCard == null)
         {
             return;
@@ -284,10 +325,14 @@ public partial class CanvasView : UserControl
             Canvas.SetLeft(_focusCard, _focusHorizontalInset);
             Canvas.SetTop(_focusCard, _focusVerticalInset);
         }
+
+        _diagApplyFocusAnchorsCallCount++;
+        _diagApplyFocusAnchorsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void ApplyBadgeLayer()
     {
+        var startTicks = Stopwatch.GetTimestamp();
         if (_badge == null || _focusCard == null)
         {
             return;
@@ -300,10 +345,14 @@ public partial class CanvasView : UserControl
         }
 
         Panel.SetZIndex(_badge, _bringBadgeToFrontCheckBox?.IsChecked == true ? 4 : 1);
+
+        _diagApplyBadgeLayerCallCount++;
+        _diagApplyBadgeLayerElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void ApplyGuideVisibility()
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var guidesVisible = _showGuidesCheckBox?.IsChecked == true;
         var visibility = guidesVisible ? Visibility.Visible : Visibility.Collapsed;
 
@@ -326,10 +375,14 @@ public partial class CanvasView : UserControl
         {
             _guideYLabel.Visibility = visibility;
         }
+
+        _diagApplyGuideVisibilityCallCount++;
+        _diagApplyGuideVisibilityElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void UpdateLiveText()
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var useRightBottom = _anchorFromRightBottomCheckBox?.IsChecked == true;
         SetText(_sceneAnchorBadgeText, useRightBottom ? "Right / Bottom active" : "Left / Top active");
         SetText(
@@ -340,6 +393,9 @@ public partial class CanvasView : UserControl
             useRightBottom
                 ? "Pinned diagnostics remain on the far edges while the focus card now measures its inset from the same edges."
                 : "Pinned diagnostics stay on the far edges while the focus card uses direct Left/Top offsets from the canvas origin.");
+
+        _diagUpdateLiveTextCallCount++;
+        _diagUpdateLiveTextElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void UpdateResponsiveLayout(float availableWidth)
@@ -410,6 +466,7 @@ public partial class CanvasView : UserControl
 
     private void SyncOverlayLayout()
     {
+        var startTicks = Stopwatch.GetTimestamp();
         EnsureReferences();
 
         if (_workbench == null || _focusCard == null || _badge == null)
@@ -487,10 +544,14 @@ public partial class CanvasView : UserControl
 
         SetText(_guideXLabelText, $"Center X {focusCenterX:0}");
         SetText(_guideYLabelText, $"Center Y {focusCenterY:0}");
+
+        _diagSyncOverlayLayoutCallCount++;
+        _diagSyncOverlayLayoutElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void UpdateTelemetry()
     {
+        var startTicks = Stopwatch.GetTimestamp();
         EnsureReferences();
 
         if (_workbench == null || _focusCard == null)
@@ -529,6 +590,9 @@ public partial class CanvasView : UserControl
                 ? "Right/Bottom mode makes the focus card measure its inset from the far edges while the pinned inspector keeps its own separate far-edge anchor."
                 : "Left/Top mode keeps the focus card measured from the canvas origin while the legend, chip, and inspector continue to exercise mixed edge combinations.");
         SetText(_stageMetricsBadgeText, $"{stageWidth:0} x {stageHeight:0} stage");
+
+            _diagUpdateTelemetryCallCount++;
+            _diagUpdateTelemetryElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private static float ResolveActualWidth(FrameworkElement element)
@@ -624,7 +688,10 @@ public partial class CanvasView : UserControl
     {
         if (!AreClose(Canvas.GetLeft(element), value))
         {
+            var startTicks = Stopwatch.GetTimestamp();
             Canvas.SetLeft(element, value);
+            _diagSetCanvasLeftChangeCount++;
+            _diagSetCanvasLeftElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         }
     }
 
@@ -632,7 +699,10 @@ public partial class CanvasView : UserControl
     {
         if (!AreClose(Canvas.GetTop(element), value))
         {
+            var startTicks = Stopwatch.GetTimestamp();
             Canvas.SetTop(element, value);
+            _diagSetCanvasTopChangeCount++;
+            _diagSetCanvasTopElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         }
     }
 
@@ -643,7 +713,19 @@ public partial class CanvasView : UserControl
             return;
         }
 
+        var startTicks = Stopwatch.GetTimestamp();
         target.Text = value;
+        var targetName = string.IsNullOrWhiteSpace(target.Name) ? target.GetType().Name : target.Name;
+        if (DiagSetTextTargets.TryGetValue(targetName, out var existing))
+        {
+            DiagSetTextTargets[targetName] = (existing.Count + 1, existing.Ticks + (Stopwatch.GetTimestamp() - startTicks));
+        }
+        else
+        {
+            DiagSetTextTargets[targetName] = (1, Stopwatch.GetTimestamp() - startTicks);
+        }
+        _diagSetTextChangeCount++;
+        _diagSetTextElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private static bool AreClose(float left, float right)
@@ -665,7 +747,122 @@ public partial class CanvasView : UserControl
 
         return value;
     }
+
+    internal static CanvasViewDiagnosticsSnapshot GetDiagnosticsSnapshotForDiagnostics()
+    {
+        return CreateDiagnosticsSnapshot();
+    }
+
+    internal static CanvasViewDiagnosticsSnapshot GetDiagnosticsAndReset()
+    {
+        var snapshot = CreateDiagnosticsSnapshot();
+        _diagHandleFocusCardDragDeltaCallCount = 0;
+        _diagHandleFocusCardDragDeltaElapsedTicks = 0L;
+        _diagMoveFocusByCallCount = 0;
+        _diagMoveFocusByElapsedTicks = 0L;
+        _diagApplySceneStateCallCount = 0;
+        _diagApplySceneStateElapsedTicks = 0L;
+        _diagApplyFocusAnchorsCallCount = 0;
+        _diagApplyFocusAnchorsElapsedTicks = 0L;
+        _diagApplyBadgeLayerCallCount = 0;
+        _diagApplyBadgeLayerElapsedTicks = 0L;
+        _diagApplyGuideVisibilityCallCount = 0;
+        _diagApplyGuideVisibilityElapsedTicks = 0L;
+        _diagUpdateLiveTextCallCount = 0;
+        _diagUpdateLiveTextElapsedTicks = 0L;
+        _diagUpdateTelemetryCallCount = 0;
+        _diagUpdateTelemetryElapsedTicks = 0L;
+        _diagSyncOverlayLayoutCallCount = 0;
+        _diagSyncOverlayLayoutElapsedTicks = 0L;
+        _diagSetTextChangeCount = 0;
+        _diagSetTextElapsedTicks = 0L;
+        DiagSetTextTargets.Clear();
+        _diagSetCanvasLeftChangeCount = 0;
+        _diagSetCanvasLeftElapsedTicks = 0L;
+        _diagSetCanvasTopChangeCount = 0;
+        _diagSetCanvasTopElapsedTicks = 0L;
+        return snapshot;
+    }
+
+    private static CanvasViewDiagnosticsSnapshot CreateDiagnosticsSnapshot()
+    {
+        return new CanvasViewDiagnosticsSnapshot(
+            _diagHandleFocusCardDragDeltaCallCount,
+            TicksToMilliseconds(_diagHandleFocusCardDragDeltaElapsedTicks),
+            _diagMoveFocusByCallCount,
+            TicksToMilliseconds(_diagMoveFocusByElapsedTicks),
+            _diagApplySceneStateCallCount,
+            TicksToMilliseconds(_diagApplySceneStateElapsedTicks),
+            _diagApplyFocusAnchorsCallCount,
+            TicksToMilliseconds(_diagApplyFocusAnchorsElapsedTicks),
+            _diagApplyBadgeLayerCallCount,
+            TicksToMilliseconds(_diagApplyBadgeLayerElapsedTicks),
+            _diagApplyGuideVisibilityCallCount,
+            TicksToMilliseconds(_diagApplyGuideVisibilityElapsedTicks),
+            _diagUpdateLiveTextCallCount,
+            TicksToMilliseconds(_diagUpdateLiveTextElapsedTicks),
+            _diagUpdateTelemetryCallCount,
+            TicksToMilliseconds(_diagUpdateTelemetryElapsedTicks),
+            _diagSyncOverlayLayoutCallCount,
+            TicksToMilliseconds(_diagSyncOverlayLayoutElapsedTicks),
+            _diagSetTextChangeCount,
+            TicksToMilliseconds(_diagSetTextElapsedTicks),
+            SummarizeSetTextTargets(),
+            _diagSetCanvasLeftChangeCount,
+            TicksToMilliseconds(_diagSetCanvasLeftElapsedTicks),
+            _diagSetCanvasTopChangeCount,
+            TicksToMilliseconds(_diagSetCanvasTopElapsedTicks));
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
+    }
+
+    private static string SummarizeSetTextTargets()
+    {
+        if (DiagSetTextTargets.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join(
+            ", ",
+            DiagSetTextTargets
+                .OrderByDescending(static pair => pair.Value.Ticks)
+                .ThenByDescending(static pair => pair.Value.Count)
+                .Take(4)
+                .Select(static pair =>
+                    $"{pair.Key}(n={pair.Value.Count},ms={(double)pair.Value.Ticks * 1000d / Stopwatch.Frequency:0.###})"));
+    }
 }
+
+internal readonly record struct CanvasViewDiagnosticsSnapshot(
+    int HandleFocusCardDragDeltaCallCount,
+    double HandleFocusCardDragDeltaMilliseconds,
+    int MoveFocusByCallCount,
+    double MoveFocusByMilliseconds,
+    int ApplySceneStateCallCount,
+    double ApplySceneStateMilliseconds,
+    int ApplyFocusAnchorsCallCount,
+    double ApplyFocusAnchorsMilliseconds,
+    int ApplyBadgeLayerCallCount,
+    double ApplyBadgeLayerMilliseconds,
+    int ApplyGuideVisibilityCallCount,
+    double ApplyGuideVisibilityMilliseconds,
+    int UpdateLiveTextCallCount,
+    double UpdateLiveTextMilliseconds,
+    int UpdateTelemetryCallCount,
+    double UpdateTelemetryMilliseconds,
+    int SyncOverlayLayoutCallCount,
+    double SyncOverlayLayoutMilliseconds,
+    int SetTextChangeCount,
+    double SetTextMilliseconds,
+    string SetTextTargetSummary,
+    int SetCanvasLeftChangeCount,
+    double SetCanvasLeftMilliseconds,
+    int SetCanvasTopChangeCount,
+    double SetCanvasTopMilliseconds);
 
 
 

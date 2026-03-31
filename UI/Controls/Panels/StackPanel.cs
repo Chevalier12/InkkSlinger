@@ -100,15 +100,14 @@ public class StackPanel : Panel
         return finalSize;
     }
 
+    internal static StackPanelTelemetrySnapshot GetTelemetrySnapshotForDiagnostics()
+    {
+        return CreateTelemetrySnapshot();
+    }
+
     internal new static StackPanelTelemetrySnapshot GetTelemetryAndReset()
     {
-        var snapshot = new StackPanelTelemetrySnapshot(
-            _diagMeasureCallCount,
-            (double)_diagMeasureElapsedTicks * 1000d / Stopwatch.Frequency,
-            _diagMeasureChildCount,
-            _diagArrangeCallCount,
-            (double)_diagArrangeElapsedTicks * 1000d / Stopwatch.Frequency,
-            _diagArrangeChildCount);
+        var snapshot = CreateTelemetrySnapshot();
         _diagMeasureCallCount = 0;
         _diagMeasureElapsedTicks = 0L;
         _diagMeasureChildCount = 0;
@@ -116,6 +115,17 @@ public class StackPanel : Panel
         _diagArrangeElapsedTicks = 0L;
         _diagArrangeChildCount = 0;
         return snapshot;
+    }
+
+    private static StackPanelTelemetrySnapshot CreateTelemetrySnapshot()
+    {
+        return new StackPanelTelemetrySnapshot(
+            _diagMeasureCallCount,
+            (double)_diagMeasureElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagMeasureChildCount,
+            _diagArrangeCallCount,
+            (double)_diagArrangeElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagArrangeChildCount);
     }
 }
 

@@ -224,7 +224,9 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                     UiRoot = UiRoot,
                     Viewport = new LayoutRect(0f, 0f, viewport.Width, viewport.Height),
                     HoveredElement = hovered,
-                    FocusedElement = focused
+                    FocusedElement = focused,
+                    ArtifactName = artifactName,
+                    Filter = _hostConfiguration.DiagnosticsFilterPolicy.CreateFilter(artifactName)
                 };
                 var visualTree = _visualTreeDiagnostics.Capture(UiRoot.VisualRoot, diagnosticsContext);
                 var builder = new StringBuilder();

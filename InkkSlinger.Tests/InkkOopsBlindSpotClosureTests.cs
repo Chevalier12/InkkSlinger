@@ -76,7 +76,7 @@ public sealed class InkkOopsBlindSpotClosureTests
     }
 
     [Fact]
-    public async Task Click_Command_Uses_Configured_Anchor_And_Writes_Command_Diagnostics()
+    public void ResolveRequiredActionPoint_Uses_Configured_Anchor()
     {
         var button = new Button
         {
@@ -94,18 +94,10 @@ public sealed class InkkOopsBlindSpotClosureTests
         using var host = new InkkOopsTestHost(root);
         using var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "anchor-click");
         var session = new InkkOopsSession(host, artifacts);
-        var script = new InkkOopsScript("anchor-click")
-            .Add(new InkkOopsClickTargetCommand(new InkkOopsTargetReference("AnchorButton"), InkkOopsPointerAnchor.BottomRight));
+        var actionPoint = session.ResolveRequiredActionPoint(new InkkOopsTargetReference("AnchorButton"), InkkOopsPointerAnchor.BottomRight);
 
-        var runner = new InkkOopsScriptRunner();
-        var result = await runner.RunAsync(script, session);
-
-        Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
-
-        var diagnostics = File.ReadAllText(artifacts.GetPath("command-000.json"));
-        Assert.Contains("\"Anchor\": \"BottomRight\"", diagnostics);
-        Assert.Contains("\"ActionPointX\": 110", diagnostics);
-        Assert.Contains("\"ActionPointY\": 60", diagnostics);
+        Assert.Equal(110f, actionPoint.X, 0.01f);
+        Assert.Equal(60f, actionPoint.Y, 0.01f);
     }
 
     [Fact]
@@ -177,7 +169,7 @@ public sealed class InkkOopsBlindSpotClosureTests
     }
 
     [Fact]
-    public async Task Runner_Writes_Failure_Diagnostics_With_Category_And_Resolution()
+    public async Task Runner_FailedResult_Contains_Failure_Category()
     {
         var button = new Button
         {
@@ -201,11 +193,9 @@ public sealed class InkkOopsBlindSpotClosureTests
         var result = await runner.RunAsync(script, session);
 
         Assert.Equal(InkkOopsRunStatus.Failed, result.Status);
-
-        var diagnostics = File.ReadAllText(artifacts.GetPath("command-000.json"));
-        Assert.Contains("\"FailureCategory\": 4", diagnostics); // Offscreen
-        Assert.Contains("\"ResolutionStatus\": \"Resolved\"", diagnostics);
-        Assert.Contains("\"ExecutionMode\": 1", diagnostics); // Pointer
+        Assert.Equal(InkkOopsFailureCategory.Offscreen, result.FailureCategory);
+        Assert.Equal(0, result.FailedCommandIndex);
+        Assert.Contains("Click(FailureButton", result.FailedCommandDescription, StringComparison.Ordinal);
     }
 
     [Fact]

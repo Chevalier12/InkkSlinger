@@ -10,8 +10,6 @@ namespace InkkSlinger;
 
 public sealed class InkkOopsSession
 {
-    private InkkOopsCommandDiagnostics? _currentDiagnostics;
-    private int _commandAutomationEventStartIndex;
     private InkkOopsTargetResolutionReport? _lastResolutionReport;
     private Vector2? _lastActionPoint;
 
@@ -230,7 +228,11 @@ public sealed class InkkOopsSession
                 Reason = reason
             };
 
-            RecordTargetState(snapshot, chosenAnchor);
+            if (snapshot.HasActionPoint)
+            {
+                RecordActionPoint(snapshot.ActionPoint);
+            }
+
             return snapshot;
         }).GetAwaiter().GetResult();
     }
@@ -253,142 +255,13 @@ public sealed class InkkOopsSession
             $"Target '{target}' is not interactive. reason={state.Reason}{Environment.NewLine}{state.Resolution.Describe()}");
     }
 
-    public void BeginCommand(int commandIndex, string description, InkkOopsExecutionMode executionMode)
-    {
-        _currentDiagnostics = new InkkOopsCommandDiagnostics
-        {
-            CommandIndex = commandIndex,
-            Description = description,
-            ExecutionMode = executionMode,
-            StartedUtc = DateTime.UtcNow,
-            HoveredBefore = InkkOopsTargetResolver.DescribeElement(UiRoot.GetHoveredElementForDiagnostics()),
-            FocusedBefore = InkkOopsTargetResolver.DescribeElement(FocusManager.GetFocusedElement())
-        };
-        _commandAutomationEventStartIndex = Host.GetAutomationEventsSnapshot().Count;
-    }
-
-    public void CompleteCommand()
-    {
-        if (_currentDiagnostics == null)
-        {
-            return;
-        }
-
-        _currentDiagnostics.Status = "Completed";
-        CompleteCommandDiagnostics();
-    }
-
-    public void FailCommand(Exception exception)
-    {
-        if (_currentDiagnostics == null)
-        {
-            return;
-        }
-
-        _currentDiagnostics.Status = "Failed";
-        _currentDiagnostics.FailureMessage = exception.ToString();
-        _currentDiagnostics.FailureCategory = exception is InkkOopsCommandException commandException
-            ? commandException.Category
-            : InkkOopsFailureCategory.None;
-        CompleteCommandDiagnostics();
-    }
-
     public void RecordResolution(InkkOopsTargetResolutionReport report)
     {
         _lastResolutionReport = report;
-        if (_currentDiagnostics == null)
-        {
-            return;
-        }
-
-        _currentDiagnostics.Selector = report.Selector.ToString();
-        _currentDiagnostics.ResolutionStatus = report.Status.ToString();
-        _currentDiagnostics.ResolutionSource = report.Source.ToString();
-        _currentDiagnostics.ResolutionNotes.Clear();
-        _currentDiagnostics.ResolutionNotes.AddRange(report.Notes);
-        _currentDiagnostics.ResolutionCandidates.Clear();
-        _currentDiagnostics.ResolutionCandidates.AddRange(report.Candidates);
-        _currentDiagnostics.MatchedElement = InkkOopsTargetResolver.DescribeElement(report.Element);
-        _currentDiagnostics.MatchedPeer = report.Peer == null ? string.Empty : InkkOopsTargetResolver.DescribePeer(report.Peer);
-    }
-
-    public void RecordTargetState(InkkOopsTargetStateSnapshot state, InkkOopsPointerAnchor? anchor)
-    {
-        if (_currentDiagnostics == null)
-        {
-            return;
-        }
-
-        if (state.HasBounds)
-        {
-            _currentDiagnostics.BoundsX = state.Bounds.X;
-            _currentDiagnostics.BoundsY = state.Bounds.Y;
-            _currentDiagnostics.BoundsWidth = state.Bounds.Width;
-            _currentDiagnostics.BoundsHeight = state.Bounds.Height;
-        }
-
-        if (state.HasViewportBounds)
-        {
-            _currentDiagnostics.ViewportX = state.ViewportBounds.X;
-            _currentDiagnostics.ViewportY = state.ViewportBounds.Y;
-            _currentDiagnostics.ViewportWidth = state.ViewportBounds.Width;
-            _currentDiagnostics.ViewportHeight = state.ViewportBounds.Height;
-        }
-
-        _currentDiagnostics.Visible = state.IsVisible;
-        _currentDiagnostics.Enabled = state.IsEnabled;
-        _currentDiagnostics.InViewport = state.IsInViewport;
-        _currentDiagnostics.Interactive = state.IsInteractive;
-        _currentDiagnostics.Anchor = (anchor ?? InkkOopsPointerAnchor.Center).ToString();
-        if (state.HasActionPoint)
-        {
-            RecordActionPoint(state.ActionPoint);
-        }
     }
 
     public void RecordActionPoint(Vector2 position)
     {
         _lastActionPoint = position;
-        if (_currentDiagnostics == null)
-        {
-            return;
-        }
-
-        _currentDiagnostics.ActionPointX = position.X;
-        _currentDiagnostics.ActionPointY = position.Y;
-    }
-
-    public void RecordFailureCategory(InkkOopsFailureCategory category)
-    {
-        if (_currentDiagnostics != null)
-        {
-            _currentDiagnostics.FailureCategory = category;
-        }
-    }
-
-    private void CompleteCommandDiagnostics()
-    {
-        var diagnostics = _currentDiagnostics!;
-        diagnostics.HoveredAfter = InkkOopsTargetResolver.DescribeElement(UiRoot.GetHoveredElementForDiagnostics());
-        diagnostics.FocusedAfter = InkkOopsTargetResolver.DescribeElement(FocusManager.GetFocusedElement());
-        diagnostics.CompletedUtc = DateTime.UtcNow;
-
-        var events = Host.GetAutomationEventsSnapshot();
-        for (var i = _commandAutomationEventStartIndex; i < events.Count; i++)
-        {
-                diagnostics.AutomationEvents.Add(new
-                {
-                    eventType = events[i].EventType.ToString(),
-                    runtimeId = events[i].PeerRuntimeId,
-                    propertyName = events[i].PropertyName,
-                    oldValue = InkkOopsCommandUtilities.FormatObject(events[i].OldValue),
-                    newValue = InkkOopsCommandUtilities.FormatObject(events[i].NewValue),
-                oldPeerRuntimeId = events[i].OldPeerRuntimeId,
-                newPeerRuntimeId = events[i].NewPeerRuntimeId
-            });
-        }
-
-        Artifacts.WriteCommandDiagnostics(diagnostics);
-        _currentDiagnostics = null;
     }
 }

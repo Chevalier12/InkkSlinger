@@ -29,6 +29,22 @@ public sealed class InkkOopsTextBlockDiagnosticsContributor : IInkkOopsDiagnosti
         builder.Add("arrangeValid", textBlock.IsArrangeValidForTests);
         builder.Add("lineHeight", $"{lineHeight:0.###}");
         builder.Add("inkBounds", $"{inkBounds.X:0.##},{inkBounds.Y:0.##},{inkBounds.Width:0.##},{inkBounds.Height:0.##}");
+        var runtime = textBlock.GetRuntimeDiagnosticsForTests();
+        builder.Add("runtimeMeasureOverrideCalls", runtime.MeasureOverrideCallCount);
+        builder.Add("runtimeMeasureOverrideMs", $"{runtime.MeasureOverrideMilliseconds:0.###}");
+        builder.Add("runtimeEmptyMeasureCalls", runtime.EmptyMeasureCallCount);
+        builder.Add("runtimeSameTextSameWidthMeasureCalls", runtime.SameTextSameWidthMeasureCallCount);
+        builder.Add("runtimeIntrinsicMeasurePathCalls", runtime.IntrinsicMeasurePathCallCount);
+        builder.Add("runtimeIntrinsicMeasureCacheHits", runtime.IntrinsicMeasureCacheHitCount);
+        builder.Add("runtimeIntrinsicMeasureCacheMisses", runtime.IntrinsicMeasureCacheMissCount);
+        builder.Add("runtimeResolveLayoutCalls", runtime.ResolveLayoutCallCount);
+        builder.Add("runtimeResolveLayoutCacheHits", runtime.ResolveLayoutCacheHitCount);
+        builder.Add("runtimeResolveLayoutCacheMisses", runtime.ResolveLayoutCacheMissCount);
+        builder.Add("runtimeResolveLayoutSameTextSameWidthCalls", runtime.ResolveLayoutSameTextSameWidthCallCount);
+        builder.Add("runtimeTextPropertyChanges", runtime.TextPropertyChangeCount);
+        builder.Add("runtimeLayoutAffectingPropertyChanges", runtime.LayoutAffectingPropertyChangeCount);
+        builder.Add("runtimeLayoutCacheInvalidations", runtime.LayoutCacheInvalidationCount);
+        builder.Add("runtimeIntrinsicMeasureInvalidations", runtime.IntrinsicMeasureInvalidationCount);
         if (!string.IsNullOrWhiteSpace(textBlock.LastRenderedLayoutTextForTests))
         {
             builder.Add("renderText", Escape(textBlock.LastRenderedLayoutTextForTests));

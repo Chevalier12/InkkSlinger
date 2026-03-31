@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InkkSlinger Docs - InkkOops artifacts reference</title>
-    <meta name="description" content="Reference for InkkOops artifact bundles: result.json, commands.log, per-command diagnostics, frame captures, telemetry, and recording bundle files.">
+    <meta name="description" content="Reference for InkkOops artifact bundles: result.json, commands.log, frame captures, telemetry, and recording bundle files.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -106,7 +106,6 @@
                     <ul>
                         <li><code>result.json</code>: overall run result</li>
                         <li><code>commands.log</code>: text timeline of executed commands</li>
-                        <li><code>command-###.json</code>: one diagnostics file per command</li>
                         <li><code>*.png</code>: captured frames</li>
                         <li><code>*.txt</code>: telemetry dumps</li>
                     </ul>
@@ -122,6 +121,7 @@
                         <li><code>commandCount</code></li>
                         <li><code>failedCommandIndex</code></li>
                         <li><code>failedCommandDescription</code></li>
+                        <li><code>failureCategory</code></li>
                         <li><code>failureMessage</code></li>
                         <li><code>durationMilliseconds</code></li>
                     </ul>
@@ -129,22 +129,7 @@
 
                 <section class="doc-section">
                     <h2>commands.log</h2>
-                    <p>This file is optimized for timeline reconstruction. Each line contains a UTC timestamp and the command index that was logged. Read this when you want a quick operational view before opening per-command JSON.</p>
-                </section>
-
-                <section class="doc-section">
-                    <h2>command-###.json</h2>
-                    <p>Per-command diagnostics include runtime state relevant to that command, typically including:</p>
-                    <ul>
-                        <li>command description and execution mode</li>
-                        <li>selector and resolution status</li>
-                        <li>resolution notes and candidate matches</li>
-                        <li>matched element and matched automation peer</li>
-                        <li>target bounds and viewport</li>
-                        <li>pointer anchor and chosen action point</li>
-                        <li>hover and focus state before and after execution</li>
-                        <li>failure category and failure message if the command failed</li>
-                    </ul>
+                    <p>This file is optimized for timeline reconstruction. Each line contains a UTC timestamp and the command index that was logged. Read this when you want a quick operational view of the run.</p>
                 </section>
 
                 <section class="doc-section">
@@ -173,7 +158,7 @@
                     <h2>How to inspect a failed run</h2>
                     <ol>
                         <li>Open <code>result.json</code> to identify the failing command index.</li>
-                        <li>Open <code>command-###.json</code> for that command.</li>
+                        <li>Check the <code>failureCategory</code> and <code>failedCommandDescription</code> fields in <code>result.json</code>.</li>
                         <li>Use <code>commands.log</code> to understand the lead-up to the failure.</li>
                         <li>Check the final frame capture and telemetry dump to compare visible and structural state.</li>
                     </ol>

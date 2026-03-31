@@ -13,6 +13,8 @@ public sealed class InkkOopsHostConfiguration
 
     public required IInkkOopsDiagnosticsSerializer DiagnosticsSerializer { get; init; }
 
+    public required IInkkOopsDiagnosticsFilterPolicy DiagnosticsFilterPolicy { get; init; }
+
     public required IReadOnlyList<IInkkOopsDiagnosticsContributor> DiagnosticsContributors { get; init; }
 
     public string DefaultNamedPipeName { get; init; } = string.Empty;
@@ -32,14 +34,18 @@ public sealed class InkkOopsHostConfiguration
             ArtifactNamingPolicy = namingPolicy,
             ReplayPostamblePolicy = new DefaultInkkOopsReplayPostamblePolicy(),
             DiagnosticsSerializer = new DefaultInkkOopsDiagnosticsSerializer(),
+            DiagnosticsFilterPolicy = new DefaultInkkOopsDiagnosticsFilterPolicy(),
             DiagnosticsContributors =
             [
                 new InkkOopsGenericElementDiagnosticsContributor(),
                 new InkkOopsFrameworkElementDiagnosticsContributor(),
                 new InkkOopsContentTextDiagnosticsContributor(),
                 new InkkOopsTextBlockDiagnosticsContributor(),
-                new InkkOopsBorderDiagnosticsContributor(),
-                new InkkOopsGridDiagnosticsContributor()
+                new InkkOopsStackPanelDiagnosticsContributor(),
+                new InkkOopsCanvasDiagnosticsContributor(),
+                new InkkOopsGridDiagnosticsContributor(),
+                new InkkOopsCanvasViewDiagnosticsContributor(),
+                new InkkOopsScrollViewerDiagnosticsContributor()
             ],
             DefaultNamedPipeName = "InkkOops",
             DefaultArtifactRoot = "artifacts/inkkoops",

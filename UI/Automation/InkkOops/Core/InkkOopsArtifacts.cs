@@ -54,24 +54,12 @@ public sealed class InkkOopsArtifacts : IDisposable
                 commandCount = result.CommandCount,
                 failedCommandIndex = result.FailedCommandIndex,
                 failedCommandDescription = result.FailedCommandDescription,
+                failureCategory = result.FailureCategory.ToString(),
                 failureMessage = result.FailureMessage,
                 durationMilliseconds = result.Duration.TotalMilliseconds
             },
             new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(GetPath(_namingPolicy.GetResultFileName()), json, Encoding.UTF8);
-    }
-
-    public void WriteCommandDiagnostics(InkkOopsCommandDiagnostics diagnostics)
-    {
-        ArgumentNullException.ThrowIfNull(diagnostics);
-        var fileName = _namingPolicy.GetCommandDiagnosticsFileName(diagnostics.CommandIndex);
-        var json = JsonSerializer.Serialize(
-            diagnostics,
-            new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-        File.WriteAllText(GetPath(fileName), json, Encoding.UTF8);
     }
 
     public void Dispose()

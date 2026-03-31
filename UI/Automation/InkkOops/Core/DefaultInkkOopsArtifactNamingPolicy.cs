@@ -19,8 +19,6 @@ public sealed class DefaultInkkOopsArtifactNamingPolicy : IInkkOopsArtifactNamin
 
     public string GetResultFileName() => "result.json";
 
-    public string GetCommandDiagnosticsFileName(int commandIndex) => $"command-{commandIndex:000}.json";
-
     public string GetRecordingJsonFileName() => "recording.json";
 
     public string GetRecordedScriptFileName() => "recorded-script.txt";

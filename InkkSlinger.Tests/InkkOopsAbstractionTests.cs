@@ -33,16 +33,9 @@ public sealed class InkkOopsAbstractionTests
             using (var artifacts = new InkkOopsArtifacts(root, "demo-script", namingPolicy))
             {
                 artifacts.WriteResult(new InkkOopsRunResult(InkkOopsRunStatus.Completed, "demo-script", artifacts.DirectoryPath, 0));
-                artifacts.WriteCommandDiagnostics(new InkkOopsCommandDiagnostics
-                {
-                    CommandIndex = 7,
-                    Description = "noop",
-                    ExecutionMode = InkkOopsExecutionMode.Diagnostic
-                });
 
                 Assert.EndsWith("custom-demo-script", artifacts.DirectoryPath, StringComparison.Ordinal);
                 Assert.True(File.Exists(Path.Combine(artifacts.DirectoryPath, "summary.json")));
-                Assert.True(File.Exists(Path.Combine(artifacts.DirectoryPath, "diag-007.json")));
                 Assert.True(File.Exists(Path.Combine(artifacts.DirectoryPath, "commands-custom.log")));
             }
 
@@ -109,7 +102,8 @@ public sealed class InkkOopsAbstractionTests
                 UiRoot = host.UiRoot,
                 Viewport = host.GetViewportBounds(),
                 HoveredElement = null,
-                FocusedElement = null
+                FocusedElement = null,
+                ArtifactName = "generic"
             });
         var serializer = new DefaultInkkOopsDiagnosticsSerializer();
         var text = serializer.SerializeVisualTree(snapshot);
@@ -137,11 +131,101 @@ public sealed class InkkOopsAbstractionTests
                 UiRoot = host.UiRoot,
                 Viewport = host.GetViewportBounds(),
                 HoveredElement = null,
-                FocusedElement = null
+                FocusedElement = null,
+                ArtifactName = "ordered"
             });
         var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
 
         Assert.Contains("Canvas#Root early=1 late=2", text);
+    }
+
+    [Fact]
+    public void DefaultDiagnosticsFilterPolicy_Filters_RecordingFinal_Only()
+    {
+        var policy = new DefaultInkkOopsDiagnosticsFilterPolicy();
+
+        var finalFilter = policy.CreateFilter("recording-final");
+        var otherFilter = policy.CreateFilter("menu-workbench-file-open");
+
+        Assert.True(finalFilter.IsActive);
+        Assert.Equal(InkkOopsDiagnosticsNodeRetention.MatchedNodesAndAncestors, finalFilter.NodeRetention);
+        Assert.False(otherFilter.IsActive);
+    }
+
+    [Fact]
+    public void DiagnosticsSerializer_Prunes_To_Filtered_Matches_And_Ancestors()
+    {
+        var snapshot = new InkkOopsVisualTreeSnapshot
+        {
+            IsFiltered = true,
+            NodeRetention = InkkOopsDiagnosticsNodeRetention.MatchedNodesAndAncestors,
+            Nodes =
+            [
+                new InkkOopsVisualTreeNodeSnapshot
+                {
+                    Depth = 0,
+                    DisplayName = "Canvas#Root",
+                    Facts = Array.Empty<KeyValuePair<string, string>>(),
+                    MatchedFilter = false
+                },
+                new InkkOopsVisualTreeNodeSnapshot
+                {
+                    Depth = 1,
+                    DisplayName = "StackPanel#Branch",
+                    Facts = Array.Empty<KeyValuePair<string, string>>(),
+                    MatchedFilter = false
+                },
+                new InkkOopsVisualTreeNodeSnapshot
+                {
+                    Depth = 2,
+                    DisplayName = "TextBlock#Hotspot",
+                    Facts = [new KeyValuePair<string, string>("measureInvalidations", "3")],
+                    MatchedFilter = true
+                },
+                new InkkOopsVisualTreeNodeSnapshot
+                {
+                    Depth = 1,
+                    DisplayName = "Button#ColdLeaf",
+                    Facts = Array.Empty<KeyValuePair<string, string>>(),
+                    MatchedFilter = false
+                }
+            ]
+        };
+
+        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
+
+        Assert.Contains("Canvas#Root", text);
+        Assert.Contains("  StackPanel#Branch", text);
+        Assert.Contains("    TextBlock#Hotspot measureInvalidations=3", text);
+        Assert.DoesNotContain("Button#ColdLeaf", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DiagnosticsBuilder_Filters_Facts_Using_Rules()
+    {
+        var filter = new InkkOopsDiagnosticsFilter
+        {
+            NodeRetention = InkkOopsDiagnosticsNodeRetention.MatchedNodesAndAncestors,
+            Rules =
+            [
+                new InkkOopsDiagnosticsFactRule
+                {
+                    Key = "measureWork",
+                    Comparison = InkkOopsDiagnosticsComparison.GreaterThan,
+                    Value = 1
+                }
+            ]
+        };
+
+        var builder = new InkkOopsElementDiagnosticsBuilder("Grid#Workbench", "Grid", filter);
+        builder.Add("desired", "100,200");
+        builder.Add("measureWork", 1);
+        builder.Add("measureWork", 3);
+
+        Assert.True(builder.MatchedFilter);
+        Assert.Single(builder.Facts);
+        Assert.Equal("measureWork", builder.Facts[0].Key);
+        Assert.Equal("3", builder.Facts[0].Value);
     }
 
     [Fact]
@@ -178,8 +262,6 @@ public sealed class InkkOopsAbstractionTests
         public string GetCommandLogFileName() => "commands-custom.log";
 
         public string GetResultFileName() => "summary.json";
-
-        public string GetCommandDiagnosticsFileName(int commandIndex) => $"diag-{commandIndex:000}.json";
 
         public string GetRecordingJsonFileName() => "session.json";
 

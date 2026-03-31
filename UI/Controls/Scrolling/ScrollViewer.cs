@@ -141,8 +141,43 @@ public class ScrollViewer : ContentControl
     private LayoutRect _contentViewportRect;
     private bool _showHorizontalBar;
     private bool _showVerticalBar;
+    private bool _hasPreviousScrollBarResolution;
+    private bool _previousShowHorizontalScrollBar;
+    private bool _previousShowVerticalScrollBar;
     private int _inputScrollMutationDepth;
     private bool _suppressInternalScrollBarValueChange;
+    private int _runtimeMeasureOverrideCallCount;
+    private long _runtimeMeasureOverrideElapsedTicks;
+    private int _runtimeArrangeOverrideCallCount;
+    private long _runtimeArrangeOverrideElapsedTicks;
+    private int _runtimeResolveBarsAndMeasureContentCallCount;
+    private long _runtimeResolveBarsAndMeasureContentElapsedTicks;
+    private int _runtimeResolveBarsAndMeasureContentIterationCount;
+    private int _runtimeResolveBarsAndMeasureContentHorizontalFlipCount;
+    private int _runtimeResolveBarsAndMeasureContentVerticalFlipCount;
+    private int _runtimeResolveBarsAndMeasureContentSingleMeasurePathCount;
+    private int _runtimeResolveBarsAndMeasureContentRemeasurePathCount;
+    private int _runtimeResolveBarsAndMeasureContentFallbackCount;
+    private int _runtimeResolveBarsAndMeasureContentInitialHorizontalVisibleCount;
+    private int _runtimeResolveBarsAndMeasureContentInitialHorizontalHiddenCount;
+    private int _runtimeResolveBarsAndMeasureContentInitialVerticalVisibleCount;
+    private int _runtimeResolveBarsAndMeasureContentInitialVerticalHiddenCount;
+    private int _runtimeResolveBarsAndMeasureContentResolvedHorizontalVisibleCount;
+    private int _runtimeResolveBarsAndMeasureContentResolvedHorizontalHiddenCount;
+    private int _runtimeResolveBarsAndMeasureContentResolvedVerticalVisibleCount;
+    private int _runtimeResolveBarsAndMeasureContentResolvedVerticalHiddenCount;
+    private long _runtimeResolveBarsAndMeasureContentHottestTicks;
+    private string _runtimeResolveBarsAndMeasureContentLastTrace = "n/a";
+    private string _runtimeResolveBarsAndMeasureContentHottestTrace = "n/a";
+    private int _runtimeResolveBarsForArrangeCallCount;
+    private long _runtimeResolveBarsForArrangeElapsedTicks;
+    private int _runtimeResolveBarsForArrangeIterationCount;
+    private int _runtimeResolveBarsForArrangeHorizontalFlipCount;
+    private int _runtimeResolveBarsForArrangeVerticalFlipCount;
+    private int _runtimeMeasureContentCallCount;
+    private long _runtimeMeasureContentElapsedTicks;
+    private int _runtimeUpdateScrollBarsCallCount;
+    private long _runtimeUpdateScrollBarsElapsedTicks;
     private static int _diagWheelEvents;
     private static int _diagWheelHandled;
     private static int _diagSetOffsetCalls;
@@ -152,6 +187,24 @@ public class ScrollViewer : ContentControl
     private static int _diagVerticalValueChangedCallCount;
     private static long _diagVerticalValueChangedElapsedTicks;
     private static long _diagVerticalValueChangedSetOffsetsElapsedTicks;
+    private static int _diagMeasureOverrideCallCount;
+    private static long _diagMeasureOverrideElapsedTicks;
+    private static int _diagArrangeOverrideCallCount;
+    private static long _diagArrangeOverrideElapsedTicks;
+    private static int _diagResolveBarsAndMeasureContentCallCount;
+    private static long _diagResolveBarsAndMeasureContentElapsedTicks;
+    private static int _diagResolveBarsAndMeasureContentIterationCount;
+    private static int _diagResolveBarsAndMeasureContentHorizontalFlipCount;
+    private static int _diagResolveBarsAndMeasureContentVerticalFlipCount;
+    private static int _diagResolveBarsForArrangeCallCount;
+    private static long _diagResolveBarsForArrangeElapsedTicks;
+    private static int _diagResolveBarsForArrangeIterationCount;
+    private static int _diagResolveBarsForArrangeHorizontalFlipCount;
+    private static int _diagResolveBarsForArrangeVerticalFlipCount;
+    private static int _diagMeasureContentCallCount;
+    private static long _diagMeasureContentElapsedTicks;
+    private static int _diagUpdateScrollBarsCallCount;
+    private static long _diagUpdateScrollBarsElapsedTicks;
 
     public ScrollViewer()
     {
@@ -380,6 +433,97 @@ public class ScrollViewer : ContentControl
         return snapshot;
     }
 
+    internal static ScrollViewerLayoutTelemetrySnapshot GetLayoutTelemetryAndReset()
+    {
+        var snapshot = new ScrollViewerLayoutTelemetrySnapshot(
+            _diagMeasureOverrideCallCount,
+            (double)_diagMeasureOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagArrangeOverrideCallCount,
+            (double)_diagArrangeOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagResolveBarsAndMeasureContentCallCount,
+            (double)_diagResolveBarsAndMeasureContentElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagResolveBarsAndMeasureContentIterationCount,
+            _diagResolveBarsAndMeasureContentHorizontalFlipCount,
+            _diagResolveBarsAndMeasureContentVerticalFlipCount,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            "n/a",
+            "n/a",
+            _diagResolveBarsForArrangeCallCount,
+            (double)_diagResolveBarsForArrangeElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagResolveBarsForArrangeIterationCount,
+            _diagResolveBarsForArrangeHorizontalFlipCount,
+            _diagResolveBarsForArrangeVerticalFlipCount,
+            _diagMeasureContentCallCount,
+            (double)_diagMeasureContentElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagUpdateScrollBarsCallCount,
+            (double)_diagUpdateScrollBarsElapsedTicks * 1000d / Stopwatch.Frequency);
+        _diagMeasureOverrideCallCount = 0;
+        _diagMeasureOverrideElapsedTicks = 0L;
+        _diagArrangeOverrideCallCount = 0;
+        _diagArrangeOverrideElapsedTicks = 0L;
+        _diagResolveBarsAndMeasureContentCallCount = 0;
+        _diagResolveBarsAndMeasureContentElapsedTicks = 0L;
+        _diagResolveBarsAndMeasureContentIterationCount = 0;
+        _diagResolveBarsAndMeasureContentHorizontalFlipCount = 0;
+        _diagResolveBarsAndMeasureContentVerticalFlipCount = 0;
+        _diagResolveBarsForArrangeCallCount = 0;
+        _diagResolveBarsForArrangeElapsedTicks = 0L;
+        _diagResolveBarsForArrangeIterationCount = 0;
+        _diagResolveBarsForArrangeHorizontalFlipCount = 0;
+        _diagResolveBarsForArrangeVerticalFlipCount = 0;
+        _diagMeasureContentCallCount = 0;
+        _diagMeasureContentElapsedTicks = 0L;
+        _diagUpdateScrollBarsCallCount = 0;
+        _diagUpdateScrollBarsElapsedTicks = 0L;
+        return snapshot;
+    }
+
+    internal ScrollViewerLayoutTelemetrySnapshot GetRuntimeLayoutTelemetryForDiagnostics()
+    {
+        return new ScrollViewerLayoutTelemetrySnapshot(
+            _runtimeMeasureOverrideCallCount,
+            (double)_runtimeMeasureOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeArrangeOverrideCallCount,
+            (double)_runtimeArrangeOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeResolveBarsAndMeasureContentCallCount,
+            (double)_runtimeResolveBarsAndMeasureContentElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeResolveBarsAndMeasureContentIterationCount,
+            _runtimeResolveBarsAndMeasureContentHorizontalFlipCount,
+            _runtimeResolveBarsAndMeasureContentVerticalFlipCount,
+            _runtimeResolveBarsAndMeasureContentSingleMeasurePathCount,
+            _runtimeResolveBarsAndMeasureContentRemeasurePathCount,
+            _runtimeResolveBarsAndMeasureContentFallbackCount,
+            _runtimeResolveBarsAndMeasureContentInitialHorizontalVisibleCount,
+            _runtimeResolveBarsAndMeasureContentInitialHorizontalHiddenCount,
+            _runtimeResolveBarsAndMeasureContentInitialVerticalVisibleCount,
+            _runtimeResolveBarsAndMeasureContentInitialVerticalHiddenCount,
+            _runtimeResolveBarsAndMeasureContentResolvedHorizontalVisibleCount,
+            _runtimeResolveBarsAndMeasureContentResolvedHorizontalHiddenCount,
+            _runtimeResolveBarsAndMeasureContentResolvedVerticalVisibleCount,
+            _runtimeResolveBarsAndMeasureContentResolvedVerticalHiddenCount,
+            _runtimeResolveBarsAndMeasureContentLastTrace,
+            _runtimeResolveBarsAndMeasureContentHottestTrace,
+            _runtimeResolveBarsForArrangeCallCount,
+            (double)_runtimeResolveBarsForArrangeElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeResolveBarsForArrangeIterationCount,
+            _runtimeResolveBarsForArrangeHorizontalFlipCount,
+            _runtimeResolveBarsForArrangeVerticalFlipCount,
+            _runtimeMeasureContentCallCount,
+            (double)_runtimeMeasureContentElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeUpdateScrollBarsCallCount,
+            (double)_runtimeUpdateScrollBarsElapsedTicks * 1000d / Stopwatch.Frequency);
+    }
+
     internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
     {
         _ = pointerPosition;
@@ -399,6 +543,7 @@ public class ScrollViewer : ContentControl
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var border = MathF.Max(0f, BorderThickness);
         var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
         var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
@@ -412,6 +557,7 @@ public class ScrollViewer : ContentControl
         ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight, publishViewportMetrics: false);
         _showHorizontalBar = decision.ShowHorizontalBar;
         _showVerticalBar = decision.ShowVerticalBar;
+        CacheResolvedScrollBarVisibility(decision.ShowHorizontalBar, decision.ShowVerticalBar);
         _contentViewportRect = decision.ViewportRect;
         UpdateScrollBars();
 
@@ -424,11 +570,16 @@ public class ScrollViewer : ContentControl
 
         var desiredWidth = desiredViewportWidth + (border * 2f) + GetVerticalBarReservation(_showVerticalBar, verticalBarThickness);
         var desiredHeight = desiredViewportHeight + (border * 2f) + GetHorizontalBarReservation(_showHorizontalBar, horizontalBarThickness);
+        _diagMeasureOverrideCallCount++;
+        _diagMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeMeasureOverrideCallCount++;
+        _runtimeMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return new Vector2(MathF.Max(0f, desiredWidth), MathF.Max(0f, desiredHeight));
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var border = MathF.Max(0f, BorderThickness);
         var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
         var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
@@ -438,6 +589,7 @@ public class ScrollViewer : ContentControl
         SetOffsets(HorizontalOffset, VerticalOffset);
         _showHorizontalBar = decision.ShowHorizontalBar;
         _showVerticalBar = decision.ShowVerticalBar;
+        CacheResolvedScrollBarVisibility(decision.ShowHorizontalBar, decision.ShowVerticalBar);
         _contentViewportRect = decision.ViewportRect;
         ArrangeContentForCurrentOffsets();
 
@@ -460,6 +612,10 @@ public class ScrollViewer : ContentControl
         }
 
         UpdateScrollBars();
+        _diagArrangeOverrideCallCount++;
+        _diagArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeArrangeOverrideCallCount++;
+        _runtimeArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return finalSize;
     }
 
@@ -487,45 +643,183 @@ public class ScrollViewer : ContentControl
     private (bool ShowHorizontalBar, bool ShowVerticalBar, float ExtentWidth, float ExtentHeight, float ViewportWidth, float ViewportHeight, LayoutRect ViewportRect)
         ResolveBarsAndMeasureContent(LayoutRect bounds)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        var canResolveAutoBarsWithoutRemeasure = CanResolveAutoBarsWithoutRemeasure();
         var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
         var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
-        var showHorizontal = HorizontalScrollBarVisibility == ScrollBarVisibility.Visible;
-        var showVertical = VerticalScrollBarVisibility == ScrollBarVisibility.Visible;
-        var preferSinglePass = ShouldPreferSinglePassAutoBarMeasure();
-
-        for (var i = 0; i < 2; i++)
+        var showHorizontal = canResolveAutoBarsWithoutRemeasure
+            ? ResolveInitialHorizontalScrollBarVisibility()
+            : ResolveInitialHorizontalScrollBarVisibilityForRemeasure(bounds.Width);
+        var showVertical = canResolveAutoBarsWithoutRemeasure
+            ? ResolveInitialVerticalScrollBarVisibility()
+            : ResolveInitialVerticalScrollBarVisibilityForRemeasure(bounds.Height);
+        var initialShowHorizontal = showHorizontal;
+        var initialShowVertical = showVertical;
+        var trace = $"bounds={bounds.Width:0.##}x{bounds.Height:0.##};path={(canResolveAutoBarsWithoutRemeasure ? "single" : "remeasure")};initial={(showHorizontal ? 1 : 0)},{(showVertical ? 1 : 0)}";
+        _diagResolveBarsAndMeasureContentCallCount++;
+        _runtimeResolveBarsAndMeasureContentCallCount++;
+        if (showHorizontal)
         {
+            _runtimeResolveBarsAndMeasureContentInitialHorizontalVisibleCount++;
+        }
+        else
+        {
+            _runtimeResolveBarsAndMeasureContentInitialHorizontalHiddenCount++;
+        }
+
+        if (showVertical)
+        {
+            _runtimeResolveBarsAndMeasureContentInitialVerticalVisibleCount++;
+        }
+        else
+        {
+            _runtimeResolveBarsAndMeasureContentInitialVerticalHiddenCount++;
+        }
+
+        if (canResolveAutoBarsWithoutRemeasure)
+        {
+            _runtimeResolveBarsAndMeasureContentSingleMeasurePathCount++;
+            var extentWidth = 0f;
+            var extentHeight = 0f;
+
+            for (var i = 0; i < 3; i++)
+            {
+                _diagResolveBarsAndMeasureContentIterationCount++;
+                _runtimeResolveBarsAndMeasureContentIterationCount++;
+                var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
+                var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
+
+                if (i == 0)
+                {
+                    MeasureContent(viewportWidth, viewportHeight, out extentWidth, out extentHeight);
+                }
+
+                var nextShowHorizontal = ResolveHorizontalAutoBarVisibility(showHorizontal, extentWidth, viewportWidth);
+                var nextShowVertical = ResolveVerticalAutoBarVisibility(showVertical, extentHeight, viewportHeight);
+                trace += $"|i{i}:vp={viewportWidth:0.##}x{viewportHeight:0.##},ext={extentWidth:0.##}x{extentHeight:0.##},next={(nextShowHorizontal ? 1 : 0)},{(nextShowVertical ? 1 : 0)}";
+
+                if (nextShowHorizontal == showHorizontal && nextShowVertical == showVertical)
+                {
+                    RecordResolvedBarState(nextShowHorizontal, nextShowVertical);
+                    RecordResolveBarsMeasureTrace(trace + $"|result={(nextShowHorizontal ? 1 : 0)},{(nextShowVertical ? 1 : 0)}", Stopwatch.GetTimestamp() - startTicks);
+                    _diagResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+                    _runtimeResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+                    return (
+                        showHorizontal,
+                        showVertical,
+                        extentWidth,
+                        extentHeight,
+                        viewportWidth,
+                        viewportHeight,
+                        new LayoutRect(bounds.X, bounds.Y, viewportWidth, viewportHeight));
+                }
+
+                if (i > 0 && nextShowHorizontal == initialShowHorizontal && nextShowVertical == initialShowVertical)
+                {
+                    var fallbackShowHorizontal = showHorizontal || nextShowHorizontal;
+                    var fallbackShowVertical = showVertical || nextShowVertical;
+                    var fallbackViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(fallbackShowVertical, verticalBarThickness));
+                    var fallbackViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(fallbackShowHorizontal, horizontalBarThickness));
+                    _runtimeResolveBarsAndMeasureContentFallbackCount++;
+                    RecordResolvedBarState(fallbackShowHorizontal, fallbackShowVertical);
+                    RecordResolveBarsMeasureTrace(trace + $"|fallback=1,result={(fallbackShowHorizontal ? 1 : 0)},{(fallbackShowVertical ? 1 : 0)}", Stopwatch.GetTimestamp() - startTicks);
+                    _diagResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+                    _runtimeResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+                    return (
+                        fallbackShowHorizontal,
+                        fallbackShowVertical,
+                        extentWidth,
+                        extentHeight,
+                        fallbackViewportWidth,
+                        fallbackViewportHeight,
+                        new LayoutRect(bounds.X, bounds.Y, fallbackViewportWidth, fallbackViewportHeight));
+                }
+
+                showHorizontal = nextShowHorizontal;
+                showVertical = nextShowVertical;
+            }
+
+            var resolvedViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
+            var resolvedViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
+            RecordResolvedBarState(showHorizontal, showVertical);
+            RecordResolveBarsMeasureTrace(trace + $"|result={(showHorizontal ? 1 : 0)},{(showVertical ? 1 : 0)}", Stopwatch.GetTimestamp() - startTicks);
+            _diagResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            return (
+                showHorizontal,
+                showVertical,
+                extentWidth,
+                extentHeight,
+                resolvedViewportWidth,
+                resolvedViewportHeight,
+                new LayoutRect(bounds.X, bounds.Y, resolvedViewportWidth, resolvedViewportHeight));
+        }
+
+        _runtimeResolveBarsAndMeasureContentRemeasurePathCount++;
+        for (var i = 0; i < 3; i++)
+        {
+            _diagResolveBarsAndMeasureContentIterationCount++;
+            _runtimeResolveBarsAndMeasureContentIterationCount++;
             var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
             var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
 
             MeasureContent(viewportWidth, viewportHeight, out var extentWidth, out var extentHeight);
+            var nextShowHorizontal = showHorizontal;
+            var nextShowVertical = showVertical;
 
-            if (HorizontalScrollBarVisibility == ScrollBarVisibility.Auto)
-            {
-                showHorizontal = extentWidth > viewportWidth + 0.01f;
-            }
+            nextShowHorizontal = ResolveHorizontalAutoBarVisibility(showHorizontal, extentWidth, viewportWidth);
+            nextShowVertical = ResolveVerticalAutoBarVisibility(showVertical, extentHeight, viewportHeight);
+            trace += $"|i{i}:vp={viewportWidth:0.##}x{viewportHeight:0.##},ext={extentWidth:0.##}x{extentHeight:0.##},next={(nextShowHorizontal ? 1 : 0)},{(nextShowVertical ? 1 : 0)}";
 
-            if (VerticalScrollBarVisibility == ScrollBarVisibility.Auto)
+            if (nextShowHorizontal == showHorizontal && nextShowVertical == showVertical)
             {
-                showVertical = extentHeight > viewportHeight + 0.01f;
-            }
-
-            if (preferSinglePass)
-            {
+                RecordResolvedBarState(nextShowHorizontal, nextShowVertical);
+                RecordResolveBarsMeasureTrace(trace + $"|result={(nextShowHorizontal ? 1 : 0)},{(nextShowVertical ? 1 : 0)}", Stopwatch.GetTimestamp() - startTicks);
+                _diagResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+                _runtimeResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
                 return (
-                    showHorizontal,
-                    showVertical,
+                    nextShowHorizontal,
+                    nextShowVertical,
                     extentWidth,
                     extentHeight,
                     viewportWidth,
                     viewportHeight,
                     new LayoutRect(bounds.X, bounds.Y, viewportWidth, viewportHeight));
             }
+
+            if (i > 0 && nextShowHorizontal == initialShowHorizontal && nextShowVertical == initialShowVertical)
+            {
+                var fallbackShowHorizontal = showHorizontal || nextShowHorizontal;
+                var fallbackShowVertical = showVertical || nextShowVertical;
+                var fallbackViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(fallbackShowVertical, verticalBarThickness));
+                var fallbackViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(fallbackShowHorizontal, horizontalBarThickness));
+                MeasureContent(fallbackViewportWidth, fallbackViewportHeight, out var fallbackExtentWidth, out var fallbackExtentHeight);
+                _runtimeResolveBarsAndMeasureContentFallbackCount++;
+                RecordResolvedBarState(fallbackShowHorizontal, fallbackShowVertical);
+                RecordResolveBarsMeasureTrace(trace + $"|fallback=1,fallbackVp={fallbackViewportWidth:0.##}x{fallbackViewportHeight:0.##},fallbackExt={fallbackExtentWidth:0.##}x{fallbackExtentHeight:0.##},result={(fallbackShowHorizontal ? 1 : 0)},{(fallbackShowVertical ? 1 : 0)}", Stopwatch.GetTimestamp() - startTicks);
+                _diagResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+                _runtimeResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+                return (
+                    fallbackShowHorizontal,
+                    fallbackShowVertical,
+                    fallbackExtentWidth,
+                    fallbackExtentHeight,
+                    fallbackViewportWidth,
+                    fallbackViewportHeight,
+                    new LayoutRect(bounds.X, bounds.Y, fallbackViewportWidth, fallbackViewportHeight));
+            }
+
+            showHorizontal = nextShowHorizontal;
+            showVertical = nextShowVertical;
         }
 
         var finalViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
         var finalViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
         MeasureContent(finalViewportWidth, finalViewportHeight, out var finalExtentWidth, out var finalExtentHeight);
+    RecordResolvedBarState(showHorizontal, showVertical);
+    RecordResolveBarsMeasureTrace(trace + $"|finalVp={finalViewportWidth:0.##}x{finalViewportHeight:0.##},finalExt={finalExtentWidth:0.##}x{finalExtentHeight:0.##},result={(showHorizontal ? 1 : 0)},{(showVertical ? 1 : 0)}", Stopwatch.GetTimestamp() - startTicks);
+        _diagResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
 
         return (
             showHorizontal,
@@ -537,34 +831,103 @@ public class ScrollViewer : ContentControl
             new LayoutRect(bounds.X, bounds.Y, finalViewportWidth, finalViewportHeight));
     }
 
+    private void RecordResolvedBarState(bool showHorizontal, bool showVertical)
+    {
+        if (showHorizontal)
+        {
+            _runtimeResolveBarsAndMeasureContentResolvedHorizontalVisibleCount++;
+        }
+        else
+        {
+            _runtimeResolveBarsAndMeasureContentResolvedHorizontalHiddenCount++;
+        }
+
+        if (showVertical)
+        {
+            _runtimeResolveBarsAndMeasureContentResolvedVerticalVisibleCount++;
+        }
+        else
+        {
+            _runtimeResolveBarsAndMeasureContentResolvedVerticalHiddenCount++;
+        }
+    }
+
+    private void RecordResolveBarsMeasureTrace(string trace, long elapsedTicks)
+    {
+        _runtimeResolveBarsAndMeasureContentLastTrace = trace;
+        if (elapsedTicks > _runtimeResolveBarsAndMeasureContentHottestTicks)
+        {
+            _runtimeResolveBarsAndMeasureContentHottestTicks = elapsedTicks;
+            _runtimeResolveBarsAndMeasureContentHottestTrace = trace;
+        }
+    }
+
     private (bool ShowHorizontalBar, bool ShowVerticalBar, float ExtentWidth, float ExtentHeight, float ViewportWidth, float ViewportHeight, LayoutRect ViewportRect)
         ResolveBarsForArrange(LayoutRect bounds)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
         var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
         var extentWidth = MathF.Max(0f, ExtentWidth);
         var extentHeight = MathF.Max(0f, ExtentHeight);
-        var showHorizontal = HorizontalScrollBarVisibility == ScrollBarVisibility.Visible;
-        var showVertical = VerticalScrollBarVisibility == ScrollBarVisibility.Visible;
+        var showHorizontal = ResolveInitialHorizontalScrollBarVisibility();
+        var showVertical = ResolveInitialVerticalScrollBarVisibility();
+        var initialShowHorizontal = showHorizontal;
+        var initialShowVertical = showVertical;
+        _diagResolveBarsForArrangeCallCount++;
+        _runtimeResolveBarsForArrangeCallCount++;
 
-        for (var i = 0; i < 2; i++)
+        for (var i = 0; i < 3; i++)
         {
+            _diagResolveBarsForArrangeIterationCount++;
+            _runtimeResolveBarsForArrangeIterationCount++;
             var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
             var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
+            var nextShowHorizontal = showHorizontal;
+            var nextShowVertical = showVertical;
 
             if (HorizontalScrollBarVisibility == ScrollBarVisibility.Auto)
             {
-                showHorizontal = extentWidth > viewportWidth + 0.01f;
+                nextShowHorizontal = extentWidth > viewportWidth + 0.01f;
+                if (showHorizontal != nextShowHorizontal)
+                {
+                    _diagResolveBarsForArrangeHorizontalFlipCount++;
+                    _runtimeResolveBarsForArrangeHorizontalFlipCount++;
+                }
             }
 
             if (VerticalScrollBarVisibility == ScrollBarVisibility.Auto)
             {
-                showVertical = extentHeight > viewportHeight + 0.01f;
+                nextShowVertical = extentHeight > viewportHeight + 0.01f;
+                if (showVertical != nextShowVertical)
+                {
+                    _diagResolveBarsForArrangeVerticalFlipCount++;
+                    _runtimeResolveBarsForArrangeVerticalFlipCount++;
+                }
             }
+
+            if (nextShowHorizontal == showHorizontal && nextShowVertical == showVertical)
+            {
+                showHorizontal = nextShowHorizontal;
+                showVertical = nextShowVertical;
+                break;
+            }
+
+            if (i > 0 && nextShowHorizontal == initialShowHorizontal && nextShowVertical == initialShowVertical)
+            {
+                showHorizontal = showHorizontal || nextShowHorizontal;
+                showVertical = showVertical || nextShowVertical;
+                break;
+            }
+
+            showHorizontal = nextShowHorizontal;
+            showVertical = nextShowVertical;
         }
 
         var finalViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
         var finalViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
+        _diagResolveBarsForArrangeElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeResolveBarsForArrangeElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
 
         return (
             showHorizontal,
@@ -578,6 +941,7 @@ public class ScrollViewer : ContentControl
 
     private void MeasureContent(float viewportWidth, float viewportHeight, out float extentWidth, out float extentHeight)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var canScrollHorizontally = HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled;
         var canScrollVertically = VerticalScrollBarVisibility != ScrollBarVisibility.Disabled;
 
@@ -591,6 +955,108 @@ public class ScrollViewer : ContentControl
 
         extentWidth = (ContentElement as FrameworkElement)?.DesiredSize.X ?? 0f;
         extentHeight = (ContentElement as FrameworkElement)?.DesiredSize.Y ?? 0f;
+        _diagMeasureContentCallCount++;
+        _diagMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeMeasureContentCallCount++;
+        _runtimeMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+    }
+
+    private bool CanResolveAutoBarsWithoutRemeasure()
+    {
+        var horizontalCanUseSingleMeasure = HorizontalScrollBarVisibility != ScrollBarVisibility.Auto ||
+                                            VerticalScrollBarVisibility != ScrollBarVisibility.Disabled;
+        var verticalCanUseSingleMeasure = VerticalScrollBarVisibility != ScrollBarVisibility.Auto ||
+                                          HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled;
+        return horizontalCanUseSingleMeasure && verticalCanUseSingleMeasure;
+    }
+
+    private bool ResolveHorizontalAutoBarVisibility(bool currentShowHorizontal, float extentWidth, float viewportWidth)
+    {
+        if (HorizontalScrollBarVisibility != ScrollBarVisibility.Auto)
+        {
+            return currentShowHorizontal;
+        }
+
+        var nextShowHorizontal = extentWidth > viewportWidth + 0.01f;
+        if (currentShowHorizontal != nextShowHorizontal)
+        {
+            _diagResolveBarsAndMeasureContentHorizontalFlipCount++;
+            _runtimeResolveBarsAndMeasureContentHorizontalFlipCount++;
+        }
+
+        return nextShowHorizontal;
+    }
+
+    private bool ResolveVerticalAutoBarVisibility(bool currentShowVertical, float extentHeight, float viewportHeight)
+    {
+        if (VerticalScrollBarVisibility != ScrollBarVisibility.Auto)
+        {
+            return currentShowVertical;
+        }
+
+        var nextShowVertical = extentHeight > viewportHeight + 0.01f;
+        if (currentShowVertical != nextShowVertical)
+        {
+            _diagResolveBarsAndMeasureContentVerticalFlipCount++;
+            _runtimeResolveBarsAndMeasureContentVerticalFlipCount++;
+        }
+
+        return nextShowVertical;
+    }
+
+    private void CacheResolvedScrollBarVisibility(bool showHorizontalBar, bool showVerticalBar)
+    {
+        _hasPreviousScrollBarResolution = true;
+        _previousShowHorizontalScrollBar = showHorizontalBar;
+        _previousShowVerticalScrollBar = showVerticalBar;
+    }
+
+    private bool ResolveInitialHorizontalScrollBarVisibility()
+    {
+        return HorizontalScrollBarVisibility switch
+        {
+            ScrollBarVisibility.Visible => true,
+            ScrollBarVisibility.Disabled => false,
+            ScrollBarVisibility.Hidden => false,
+            ScrollBarVisibility.Auto => _hasPreviousScrollBarResolution && _previousShowHorizontalScrollBar,
+            _ => false
+        };
+    }
+
+    private bool ResolveInitialVerticalScrollBarVisibility()
+    {
+        return VerticalScrollBarVisibility switch
+        {
+            ScrollBarVisibility.Visible => true,
+            ScrollBarVisibility.Disabled => false,
+            ScrollBarVisibility.Hidden => false,
+            ScrollBarVisibility.Auto => _hasPreviousScrollBarResolution && _previousShowVerticalScrollBar,
+            _ => false
+        };
+    }
+
+    private bool ResolveInitialHorizontalScrollBarVisibilityForRemeasure(float availableWidth)
+    {
+        return HorizontalScrollBarVisibility switch
+        {
+            ScrollBarVisibility.Visible => true,
+            ScrollBarVisibility.Disabled => false,
+            ScrollBarVisibility.Hidden => false,
+            ScrollBarVisibility.Auto => _hasPreviousScrollBarResolution && ExtentWidth > availableWidth + 0.01f,
+            _ => false
+        };
+    }
+
+    private bool ResolveInitialVerticalScrollBarVisibilityForRemeasure(float availableHeight)
+    {
+        return VerticalScrollBarVisibility switch
+        {
+            ScrollBarVisibility.Visible => true,
+            ScrollBarVisibility.Disabled => false,
+            ScrollBarVisibility.Hidden => false,
+            ScrollBarVisibility.Auto => _hasPreviousScrollBarResolution && ExtentHeight > availableHeight + 0.01f,
+            _ => false
+        };
     }
 
     private void ApplyScrollMetrics(
@@ -766,17 +1232,6 @@ public class ScrollViewer : ContentControl
         content.InvalidateVisual();
     }
 
-    private bool ShouldPreferSinglePassAutoBarMeasure()
-    {
-        if (ContentElement is not VirtualizingStackPanel)
-        {
-            return false;
-        }
-
-        return HorizontalScrollBarVisibility == ScrollBarVisibility.Auto ||
-               VerticalScrollBarVisibility == ScrollBarVisibility.Auto;
-    }
-
     private bool UsesTransformBasedContentScrolling()
     {
         if (ContentElement is IScrollTransformContent)
@@ -791,6 +1246,8 @@ public class ScrollViewer : ContentControl
 
     private void UpdateScrollBars()
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeUpdateScrollBarsCallCount++;
         _suppressInternalScrollBarValueChange = true;
         try
         {
@@ -809,8 +1266,11 @@ public class ScrollViewer : ContentControl
         }
         finally
         {
+                _runtimeUpdateScrollBarsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             _suppressInternalScrollBarValueChange = false;
         }
+        _diagUpdateScrollBarsCallCount++;
+        _diagUpdateScrollBarsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private float ResolveHorizontalBarThicknessForLayout()
@@ -1017,4 +1477,37 @@ internal readonly record struct ScrollViewerValueChangedTelemetrySnapshot(
     int VerticalValueChangedCallCount,
     double VerticalValueChangedMilliseconds,
     double VerticalValueChangedSetOffsetsMilliseconds);
+
+internal readonly record struct ScrollViewerLayoutTelemetrySnapshot(
+    int MeasureOverrideCallCount,
+    double MeasureOverrideMilliseconds,
+    int ArrangeOverrideCallCount,
+    double ArrangeOverrideMilliseconds,
+    int ResolveBarsAndMeasureContentCallCount,
+    double ResolveBarsAndMeasureContentMilliseconds,
+    int ResolveBarsAndMeasureContentIterationCount,
+    int ResolveBarsAndMeasureContentHorizontalFlipCount,
+    int ResolveBarsAndMeasureContentVerticalFlipCount,
+    int ResolveBarsAndMeasureContentSingleMeasurePathCount,
+    int ResolveBarsAndMeasureContentRemeasurePathCount,
+    int ResolveBarsAndMeasureContentFallbackCount,
+    int ResolveBarsAndMeasureContentInitialHorizontalVisibleCount,
+    int ResolveBarsAndMeasureContentInitialHorizontalHiddenCount,
+    int ResolveBarsAndMeasureContentInitialVerticalVisibleCount,
+    int ResolveBarsAndMeasureContentInitialVerticalHiddenCount,
+    int ResolveBarsAndMeasureContentResolvedHorizontalVisibleCount,
+    int ResolveBarsAndMeasureContentResolvedHorizontalHiddenCount,
+    int ResolveBarsAndMeasureContentResolvedVerticalVisibleCount,
+    int ResolveBarsAndMeasureContentResolvedVerticalHiddenCount,
+    string ResolveBarsAndMeasureContentLastTrace,
+    string ResolveBarsAndMeasureContentHottestTrace,
+    int ResolveBarsForArrangeCallCount,
+    double ResolveBarsForArrangeMilliseconds,
+    int ResolveBarsForArrangeIterationCount,
+    int ResolveBarsForArrangeHorizontalFlipCount,
+    int ResolveBarsForArrangeVerticalFlipCount,
+    int MeasureContentCallCount,
+    double MeasureContentMilliseconds,
+    int UpdateScrollBarsCallCount,
+    double UpdateScrollBarsMilliseconds);
 
