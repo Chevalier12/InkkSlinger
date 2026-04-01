@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using Microsoft.Xna.Framework;
 using InkkSlinger.UI.Telemetry;
 
@@ -198,6 +199,67 @@ public class FrameworkElement : UIElement
     private long _measureElapsedTicks;
     private long _measureExclusiveElapsedTicks;
     private long _arrangeElapsedTicks;
+    private long _runtimeMeasureSkippedInvisibleCount;
+    private long _runtimeMeasureCachedReuseCount;
+    private long _runtimeMeasureReusableSizeReuseCount;
+    private long _runtimeMeasureParentInvalidationCount;
+    private long _runtimeMeasureInvalidatedDuringMeasureCount;
+    private long _runtimeArrangeCachedReuseCount;
+    private long _runtimeArrangeSkippedInvisibleCount;
+    private long _runtimeArrangeRemeasureCount;
+    private long _runtimeArrangeParentInvalidationCount;
+    private long _runtimeArrangeInvalidatedDuringArrangeCount;
+    private long _runtimeLayoutUpdatedRaiseCount;
+    private long _runtimeUpdateLayoutCallCount;
+    private long _runtimeUpdateLayoutPassCount;
+    private long _runtimeUpdateLayoutRecursiveChildCount;
+    private long _runtimeUpdateLayoutStableExitCount;
+    private long _runtimeUpdateLayoutMaxPassExitCount;
+    private long _runtimeUpdateLayoutMeasureRepairCount;
+    private long _runtimeUpdateLayoutArrangeRepairCount;
+    private long _runtimeInvalidateMeasureCallCount;
+    private long _runtimeInvalidateArrangeCallCount;
+    private long _runtimeInvalidateVisualCallCount;
+    private long _runtimeInvalidateArrangeDirectLayoutOnlyCallCount;
+    private long _runtimeInvalidateArrangeDirectLayoutOnlyWithoutRenderCount;
+    private long _runtimeSetResourceReferenceCallCount;
+    private long _runtimeRefreshResourceBindingsCallCount;
+    private long _runtimeResourceBindingRefreshEntryCount;
+    private long _runtimeUpdateResourceBindingCallCount;
+    private long _runtimeUpdateResourceBindingHitCount;
+    private long _runtimeUpdateResourceBindingMissCount;
+    private long _runtimeLocalResourcesChangedCallCount;
+    private long _runtimeParentResourcesChangedCallCount;
+    private long _runtimeApplicationResourcesChangedCallCount;
+    private long _runtimeResourceScopeInvalidatedRaiseCount;
+    private long _runtimeResourceParentAttachCount;
+    private long _runtimeResourceParentDetachCount;
+    private long _runtimeDescendantResourcesChangedNotifyCallCount;
+    private long _runtimeDescendantDirectResourceRefreshCount;
+    private long _runtimeImplicitStyleUpdateCallCount;
+    private long _runtimeImplicitStyleSkipControlTypeCount;
+    private long _runtimeImplicitStyleSkipPolicyCount;
+    private long _runtimeImplicitStyleResourceFoundCount;
+    private long _runtimeImplicitStyleAppliedCount;
+    private long _runtimeImplicitStyleClearedCount;
+    private long _runtimeImplicitStyleNoChangeCount;
+    private long _runtimeVisualParentChangedCallCount;
+    private long _runtimeVisualParentResourceScopeChangedCount;
+    private long _runtimeVisualParentTriggeredUnloadCount;
+    private long _runtimeVisualParentTriggeredLoadCount;
+    private long _runtimeLogicalParentChangedCallCount;
+    private long _runtimeLogicalParentSkippedDueToVisualParentCount;
+    private long _runtimeLogicalParentResourceScopeChangedCount;
+    private long _runtimeRaiseInitializedCallCount;
+    private long _runtimeRaiseLoadedCallCount;
+    private long _runtimeRaiseLoadedNoOpCount;
+    private long _runtimeRaiseUnloadedCallCount;
+    private long _runtimeRaiseUnloadedNoOpCount;
+    private long _runtimeDependencyPropertyChangedCallCount;
+    private long _runtimeVisibilityPropertyChangedCount;
+    private long _runtimeStylePropertyChangedCount;
+    private long _runtimeStyleDetachCount;
+    private long _runtimeStyleApplyCount;
     private static long _frameMeasureElapsedTicks;
     private static long _frameMeasureExclusiveElapsedTicks;
     private static long _frameArrangeElapsedTicks;
@@ -207,6 +269,74 @@ public class FrameworkElement : UIElement
     private static string _frameHottestArrangeElementType = "none";
     private static string _frameHottestArrangeElementName = string.Empty;
     private static long _frameHottestArrangeElapsedTicks;
+    private static long _diagMeasureCallCount;
+    private static long _diagMeasureWorkCount;
+    private static long _diagMeasureElapsedTicks;
+    private static long _diagMeasureExclusiveElapsedTicks;
+    private static long _diagMeasureSkippedInvisibleCount;
+    private static long _diagMeasureCachedReuseCount;
+    private static long _diagMeasureReusableSizeReuseCount;
+    private static long _diagMeasureParentInvalidationCount;
+    private static long _diagMeasureInvalidatedDuringMeasureCount;
+    private static long _diagArrangeCallCount;
+    private static long _diagArrangeWorkCount;
+    private static long _diagArrangeElapsedTicks;
+    private static long _diagArrangeCachedReuseCount;
+    private static long _diagArrangeSkippedInvisibleCount;
+    private static long _diagArrangeRemeasureCount;
+    private static long _diagArrangeParentInvalidationCount;
+    private static long _diagArrangeInvalidatedDuringArrangeCount;
+    private static long _diagLayoutUpdatedRaiseCount;
+    private static long _diagUpdateLayoutCallCount;
+    private static long _diagUpdateLayoutPassCount;
+    private static long _diagUpdateLayoutRecursiveChildCount;
+    private static long _diagUpdateLayoutStableExitCount;
+    private static long _diagUpdateLayoutMaxPassExitCount;
+    private static long _diagUpdateLayoutMeasureRepairCount;
+    private static long _diagUpdateLayoutArrangeRepairCount;
+    private static long _diagInvalidateMeasureCallCount;
+    private static long _diagInvalidateArrangeCallCount;
+    private static long _diagInvalidateVisualCallCount;
+    private static long _diagInvalidateArrangeDirectLayoutOnlyCallCount;
+    private static long _diagInvalidateArrangeDirectLayoutOnlyWithoutRenderCount;
+    private static long _diagSetResourceReferenceCallCount;
+    private static long _diagRefreshResourceBindingsCallCount;
+    private static long _diagResourceBindingRefreshEntryCount;
+    private static long _diagUpdateResourceBindingCallCount;
+    private static long _diagUpdateResourceBindingHitCount;
+    private static long _diagUpdateResourceBindingMissCount;
+    private static long _diagLocalResourcesChangedCallCount;
+    private static long _diagParentResourcesChangedCallCount;
+    private static long _diagApplicationResourcesChangedCallCount;
+    private static long _diagResourceScopeInvalidatedRaiseCount;
+    private static long _diagResourceParentAttachCount;
+    private static long _diagResourceParentDetachCount;
+    private static long _diagDescendantResourcesChangedNotifyCallCount;
+    private static long _diagDescendantDirectResourceRefreshCount;
+    private static long _diagImplicitStyleUpdateCallCount;
+    private static long _diagImplicitStyleSkipControlTypeCount;
+    private static long _diagImplicitStyleSkipPolicyCount;
+    private static long _diagImplicitStyleResourceFoundCount;
+    private static long _diagImplicitStyleAppliedCount;
+    private static long _diagImplicitStyleClearedCount;
+    private static long _diagImplicitStyleNoChangeCount;
+    private static long _diagVisualParentChangedCallCount;
+    private static long _diagVisualParentResourceScopeChangedCount;
+    private static long _diagVisualParentTriggeredUnloadCount;
+    private static long _diagVisualParentTriggeredLoadCount;
+    private static long _diagLogicalParentChangedCallCount;
+    private static long _diagLogicalParentSkippedDueToVisualParentCount;
+    private static long _diagLogicalParentResourceScopeChangedCount;
+    private static long _diagRaiseInitializedCallCount;
+    private static long _diagRaiseLoadedCallCount;
+    private static long _diagRaiseLoadedNoOpCount;
+    private static long _diagRaiseUnloadedCallCount;
+    private static long _diagRaiseUnloadedNoOpCount;
+    private static long _diagDependencyPropertyChangedCallCount;
+    private static long _diagVisibilityPropertyChangedCount;
+    private static long _diagStylePropertyChangedCount;
+    private static long _diagStyleDetachCount;
+    private static long _diagStyleApplyCount;
 
     public FrameworkElement()
     {
@@ -407,6 +537,175 @@ public class FrameworkElement : UIElement
             _frameHottestArrangeElapsedTicks);
     }
 
+    internal FrameworkElementDiagnosticsSnapshot GetFrameworkElementSnapshotForDiagnostics()
+    {
+        return new FrameworkElementDiagnosticsSnapshot(
+            LayoutSlot,
+            DesiredSize,
+            RenderSize,
+            _previousAvailableSize,
+            _arrangeRect,
+            _lastArrangedDesiredSize,
+            _isMeasureValid,
+            _isArrangeValid,
+            IsLoaded,
+            IsVisible,
+            IsEnabled,
+            UseLayoutRounding,
+            _measureCallCount,
+            _measureWorkCount,
+            _arrangeCallCount,
+            _arrangeWorkCount,
+            TicksToMilliseconds(_measureElapsedTicks),
+            TicksToMilliseconds(_measureExclusiveElapsedTicks),
+            TicksToMilliseconds(_arrangeElapsedTicks),
+            _runtimeMeasureSkippedInvisibleCount,
+            _runtimeMeasureCachedReuseCount,
+            _runtimeMeasureReusableSizeReuseCount,
+            _runtimeMeasureParentInvalidationCount,
+            _runtimeMeasureInvalidatedDuringMeasureCount,
+            _runtimeArrangeCachedReuseCount,
+            _runtimeArrangeSkippedInvisibleCount,
+            _runtimeArrangeRemeasureCount,
+            _runtimeArrangeParentInvalidationCount,
+            _runtimeArrangeInvalidatedDuringArrangeCount,
+            _runtimeLayoutUpdatedRaiseCount,
+            _runtimeUpdateLayoutCallCount,
+            _runtimeUpdateLayoutPassCount,
+            _runtimeUpdateLayoutRecursiveChildCount,
+            _runtimeUpdateLayoutStableExitCount,
+            _runtimeUpdateLayoutMaxPassExitCount,
+            _runtimeUpdateLayoutMeasureRepairCount,
+            _runtimeUpdateLayoutArrangeRepairCount,
+            _runtimeInvalidateMeasureCallCount,
+            _runtimeInvalidateArrangeCallCount,
+            _runtimeInvalidateVisualCallCount,
+            _runtimeInvalidateArrangeDirectLayoutOnlyCallCount,
+            _runtimeInvalidateArrangeDirectLayoutOnlyWithoutRenderCount,
+            _runtimeSetResourceReferenceCallCount,
+            _runtimeRefreshResourceBindingsCallCount,
+            _runtimeResourceBindingRefreshEntryCount,
+            _runtimeUpdateResourceBindingCallCount,
+            _runtimeUpdateResourceBindingHitCount,
+            _runtimeUpdateResourceBindingMissCount,
+            _runtimeLocalResourcesChangedCallCount,
+            _runtimeParentResourcesChangedCallCount,
+            _runtimeApplicationResourcesChangedCallCount,
+            _runtimeResourceScopeInvalidatedRaiseCount,
+            _runtimeResourceParentAttachCount,
+            _runtimeResourceParentDetachCount,
+            _runtimeDescendantResourcesChangedNotifyCallCount,
+            _runtimeDescendantDirectResourceRefreshCount,
+            _runtimeImplicitStyleUpdateCallCount,
+            _runtimeImplicitStyleSkipControlTypeCount,
+            _runtimeImplicitStyleSkipPolicyCount,
+            _runtimeImplicitStyleResourceFoundCount,
+            _runtimeImplicitStyleAppliedCount,
+            _runtimeImplicitStyleClearedCount,
+            _runtimeImplicitStyleNoChangeCount,
+            _runtimeVisualParentChangedCallCount,
+            _runtimeVisualParentResourceScopeChangedCount,
+            _runtimeVisualParentTriggeredUnloadCount,
+            _runtimeVisualParentTriggeredLoadCount,
+            _runtimeLogicalParentChangedCallCount,
+            _runtimeLogicalParentSkippedDueToVisualParentCount,
+            _runtimeLogicalParentResourceScopeChangedCount,
+            _runtimeRaiseInitializedCallCount,
+            _runtimeRaiseLoadedCallCount,
+            _runtimeRaiseLoadedNoOpCount,
+            _runtimeRaiseUnloadedCallCount,
+            _runtimeRaiseUnloadedNoOpCount,
+            _runtimeDependencyPropertyChangedCallCount,
+            _runtimeVisibilityPropertyChangedCount,
+            _runtimeStylePropertyChangedCount,
+            _runtimeStyleDetachCount,
+            _runtimeStyleApplyCount,
+            InvalidationDiagnosticsForTests);
+    }
+
+    internal static FrameworkElementTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateAggregateTelemetrySnapshot(reset: true);
+    }
+
+    internal static FrameworkElementTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateAggregateTelemetrySnapshot(reset: false);
+    }
+
+    private static FrameworkElementTelemetrySnapshot CreateAggregateTelemetrySnapshot(bool reset)
+    {
+        return new FrameworkElementTelemetrySnapshot(
+            ReadOrReset(ref _diagMeasureCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagMeasureElapsedTicks, reset)),
+            ReadOrReset(ref _diagMeasureWorkCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagMeasureExclusiveElapsedTicks, reset)),
+            ReadOrReset(ref _diagMeasureSkippedInvisibleCount, reset),
+            ReadOrReset(ref _diagMeasureCachedReuseCount, reset),
+            ReadOrReset(ref _diagMeasureReusableSizeReuseCount, reset),
+            ReadOrReset(ref _diagMeasureParentInvalidationCount, reset),
+            ReadOrReset(ref _diagMeasureInvalidatedDuringMeasureCount, reset),
+            ReadOrReset(ref _diagArrangeCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagArrangeElapsedTicks, reset)),
+            ReadOrReset(ref _diagArrangeWorkCount, reset),
+            ReadOrReset(ref _diagArrangeCachedReuseCount, reset),
+            ReadOrReset(ref _diagArrangeSkippedInvisibleCount, reset),
+            ReadOrReset(ref _diagArrangeRemeasureCount, reset),
+            ReadOrReset(ref _diagArrangeParentInvalidationCount, reset),
+            ReadOrReset(ref _diagArrangeInvalidatedDuringArrangeCount, reset),
+            ReadOrReset(ref _diagLayoutUpdatedRaiseCount, reset),
+            ReadOrReset(ref _diagUpdateLayoutCallCount, reset),
+            ReadOrReset(ref _diagUpdateLayoutPassCount, reset),
+            ReadOrReset(ref _diagUpdateLayoutRecursiveChildCount, reset),
+            ReadOrReset(ref _diagUpdateLayoutStableExitCount, reset),
+            ReadOrReset(ref _diagUpdateLayoutMaxPassExitCount, reset),
+            ReadOrReset(ref _diagUpdateLayoutMeasureRepairCount, reset),
+            ReadOrReset(ref _diagUpdateLayoutArrangeRepairCount, reset),
+            ReadOrReset(ref _diagInvalidateMeasureCallCount, reset),
+            ReadOrReset(ref _diagInvalidateArrangeCallCount, reset),
+            ReadOrReset(ref _diagInvalidateVisualCallCount, reset),
+            ReadOrReset(ref _diagInvalidateArrangeDirectLayoutOnlyCallCount, reset),
+            ReadOrReset(ref _diagInvalidateArrangeDirectLayoutOnlyWithoutRenderCount, reset),
+            ReadOrReset(ref _diagSetResourceReferenceCallCount, reset),
+            ReadOrReset(ref _diagRefreshResourceBindingsCallCount, reset),
+            ReadOrReset(ref _diagResourceBindingRefreshEntryCount, reset),
+            ReadOrReset(ref _diagUpdateResourceBindingCallCount, reset),
+            ReadOrReset(ref _diagUpdateResourceBindingHitCount, reset),
+            ReadOrReset(ref _diagUpdateResourceBindingMissCount, reset),
+            ReadOrReset(ref _diagLocalResourcesChangedCallCount, reset),
+            ReadOrReset(ref _diagParentResourcesChangedCallCount, reset),
+            ReadOrReset(ref _diagApplicationResourcesChangedCallCount, reset),
+            ReadOrReset(ref _diagResourceScopeInvalidatedRaiseCount, reset),
+            ReadOrReset(ref _diagResourceParentAttachCount, reset),
+            ReadOrReset(ref _diagResourceParentDetachCount, reset),
+            ReadOrReset(ref _diagDescendantResourcesChangedNotifyCallCount, reset),
+            ReadOrReset(ref _diagDescendantDirectResourceRefreshCount, reset),
+            ReadOrReset(ref _diagImplicitStyleUpdateCallCount, reset),
+            ReadOrReset(ref _diagImplicitStyleSkipControlTypeCount, reset),
+            ReadOrReset(ref _diagImplicitStyleSkipPolicyCount, reset),
+            ReadOrReset(ref _diagImplicitStyleResourceFoundCount, reset),
+            ReadOrReset(ref _diagImplicitStyleAppliedCount, reset),
+            ReadOrReset(ref _diagImplicitStyleClearedCount, reset),
+            ReadOrReset(ref _diagImplicitStyleNoChangeCount, reset),
+            ReadOrReset(ref _diagVisualParentChangedCallCount, reset),
+            ReadOrReset(ref _diagVisualParentResourceScopeChangedCount, reset),
+            ReadOrReset(ref _diagVisualParentTriggeredUnloadCount, reset),
+            ReadOrReset(ref _diagVisualParentTriggeredLoadCount, reset),
+            ReadOrReset(ref _diagLogicalParentChangedCallCount, reset),
+            ReadOrReset(ref _diagLogicalParentSkippedDueToVisualParentCount, reset),
+            ReadOrReset(ref _diagLogicalParentResourceScopeChangedCount, reset),
+            ReadOrReset(ref _diagRaiseInitializedCallCount, reset),
+            ReadOrReset(ref _diagRaiseLoadedCallCount, reset),
+            ReadOrReset(ref _diagRaiseLoadedNoOpCount, reset),
+            ReadOrReset(ref _diagRaiseUnloadedCallCount, reset),
+            ReadOrReset(ref _diagRaiseUnloadedNoOpCount, reset),
+            ReadOrReset(ref _diagDependencyPropertyChangedCallCount, reset),
+            ReadOrReset(ref _diagVisibilityPropertyChangedCount, reset),
+            ReadOrReset(ref _diagStylePropertyChangedCount, reset),
+            ReadOrReset(ref _diagStyleDetachCount, reset),
+            ReadOrReset(ref _diagStyleApplyCount, reset));
+    }
+
     internal static void ResetFrameTimingForTests()
     {
         _frameMeasureElapsedTicks = 0L;
@@ -418,6 +717,42 @@ public class FrameworkElement : UIElement
         _frameHottestArrangeElementType = "none";
         _frameHottestArrangeElementName = string.Empty;
         _frameHottestArrangeElapsedTicks = 0L;
+    }
+
+    private static void IncrementAggregate(ref long counter)
+    {
+        Interlocked.Increment(ref counter);
+    }
+
+    private static void AddAggregate(ref long counter, long value)
+    {
+        Interlocked.Add(ref counter, value);
+    }
+
+    private static void IncrementDiagnostic(ref long runtimeCounter, ref long aggregateCounter)
+    {
+        runtimeCounter++;
+        Interlocked.Increment(ref aggregateCounter);
+    }
+
+    private static long ReadAggregate(ref long counter)
+    {
+        return Interlocked.Read(ref counter);
+    }
+
+    private static long ResetAggregate(ref long counter)
+    {
+        return Interlocked.Exchange(ref counter, 0L);
+    }
+
+    private static long ReadOrReset(ref long counter, bool reset)
+    {
+        return reset ? ResetAggregate(ref counter) : ReadAggregate(ref counter);
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return ticks * 1000d / Stopwatch.Frequency;
     }
 
     internal NameScope? GetLocalNameScope()
@@ -453,6 +788,7 @@ public class FrameworkElement : UIElement
 
     public void SetResourceReference(DependencyProperty dependencyProperty, object resourceKey)
     {
+        IncrementDiagnostic(ref _runtimeSetResourceReferenceCallCount, ref _diagSetResourceReferenceCallCount);
         _dynamicResourceBindings[dependencyProperty] = resourceKey;
         UpdateResourceBinding(dependencyProperty, resourceKey);
     }
@@ -461,6 +797,7 @@ public class FrameworkElement : UIElement
     {
         Dispatcher.VerifyAccess();
         _measureCallCount++;
+        IncrementAggregate(ref _diagMeasureCallCount);
         var useLayoutRounding = UseLayoutRounding;
         var effectiveAvailableSize = useLayoutRounding
             ? RoundLayoutSize(availableSize)
@@ -469,6 +806,8 @@ public class FrameworkElement : UIElement
         if (!IsVisible)
         {
             _measureWorkCount++;
+            IncrementAggregate(ref _diagMeasureWorkCount);
+            IncrementDiagnostic(ref _runtimeMeasureSkippedInvisibleCount, ref _diagMeasureSkippedInvisibleCount);
             DesiredSize = new Vector2(
                 0f,
                 0f);
@@ -480,17 +819,20 @@ public class FrameworkElement : UIElement
 
         if (_isMeasureValid && _previousAvailableSize == effectiveAvailableSize)
         {
+            IncrementDiagnostic(ref _runtimeMeasureCachedReuseCount, ref _diagMeasureCachedReuseCount);
             return;
         }
 
         if (_isMeasureValid &&
             CanReuseMeasureForAvailableSizeChange(_previousAvailableSize, effectiveAvailableSize))
         {
+            IncrementDiagnostic(ref _runtimeMeasureReusableSizeReuseCount, ref _diagMeasureReusableSizeReuseCount);
             _previousAvailableSize = effectiveAvailableSize;
             return;
         }
 
         _measureWorkCount++;
+        IncrementAggregate(ref _diagMeasureWorkCount);
         _previousAvailableSize = effectiveAvailableSize;
         var previousDesiredSize = DesiredSize;
         var measureStart = Stopwatch.GetTimestamp();
@@ -528,6 +870,7 @@ public class FrameworkElement : UIElement
                 VisualParent is FrameworkElement parent &&
                 !parent.NeedsMeasure)
             {
+                IncrementDiagnostic(ref _runtimeMeasureParentInvalidationCount, ref _diagMeasureParentInvalidationCount);
                 parent.InvalidateMeasure();
             }
 
@@ -538,6 +881,10 @@ public class FrameworkElement : UIElement
             {
                 _isMeasureValid = true;
                 ClearMeasureInvalidation();
+            }
+            else
+            {
+                IncrementDiagnostic(ref _runtimeMeasureInvalidatedDuringMeasureCount, ref _diagMeasureInvalidatedDuringMeasureCount);
             }
         }
         finally
@@ -550,6 +897,8 @@ public class FrameworkElement : UIElement
             _measureElapsedTicks += totalMeasureTicks;
             var exclusiveMeasureTicks = Math.Max(0L, totalMeasureTicks - childMeasureTicks);
             _measureExclusiveElapsedTicks += exclusiveMeasureTicks;
+            AddAggregate(ref _diagMeasureElapsedTicks, totalMeasureTicks);
+            AddAggregate(ref _diagMeasureExclusiveElapsedTicks, exclusiveMeasureTicks);
             _frameMeasureElapsedTicks += totalMeasureTicks;
             _frameMeasureExclusiveElapsedTicks += exclusiveMeasureTicks;
             if (totalMeasureTicks > _frameHottestMeasureElapsedTicks)
@@ -570,6 +919,7 @@ public class FrameworkElement : UIElement
     {
         Dispatcher.VerifyAccess();
         _arrangeCallCount++;
+        IncrementAggregate(ref _diagArrangeCallCount);
         var useLayoutRounding = UseLayoutRounding;
         var effectiveFinalRect = useLayoutRounding
             ? RoundLayoutRect(finalRect)
@@ -586,21 +936,25 @@ public class FrameworkElement : UIElement
             AreSizesEqual(_lastArrangedDesiredSize, DesiredSize) &&
             !requiresArrangeRemeasure)
         {
+            IncrementDiagnostic(ref _runtimeArrangeCachedReuseCount, ref _diagArrangeCachedReuseCount);
             return;
         }
 
         _arrangeWorkCount++;
+        IncrementAggregate(ref _diagArrangeWorkCount);
         _arrangeRect = effectiveFinalRect;
         var arrangeStart = Stopwatch.GetTimestamp();
 
         if (!IsVisible)
         {
+            IncrementDiagnostic(ref _runtimeArrangeSkippedInvisibleCount, ref _diagArrangeSkippedInvisibleCount);
             SetLayoutSlot(effectiveFinalRect);
             RenderSize = Vector2.Zero;
             _isArrangeValid = true;
             ClearArrangeInvalidation();
             var invisibleArrangeTicks = Stopwatch.GetTimestamp() - arrangeStart;
             _arrangeElapsedTicks += invisibleArrangeTicks;
+            AddAggregate(ref _diagArrangeElapsedTicks, invisibleArrangeTicks);
             _frameArrangeElapsedTicks += invisibleArrangeTicks;
             if (invisibleArrangeTicks > _frameHottestArrangeElapsedTicks)
             {
@@ -620,12 +974,14 @@ public class FrameworkElement : UIElement
             if (ShouldReMeasureForArrange(_previousAvailableSize, arrangeAvailableSize) &&
                 !CanReuseMeasureForAvailableSizeChange(_previousAvailableSize, arrangeAvailableSize))
             {
+                IncrementDiagnostic(ref _runtimeArrangeRemeasureCount, ref _diagArrangeRemeasureCount);
                 var previousDesiredSize = DesiredSize;
                 Measure(arrangeAvailableSize);
                 if (!AreSizesEqual(previousDesiredSize, DesiredSize) &&
                     VisualParent is FrameworkElement parent &&
                     !parent.NeedsMeasure)
                 {
+                    IncrementDiagnostic(ref _runtimeArrangeParentInvalidationCount, ref _diagArrangeParentInvalidationCount);
                     parent.InvalidateMeasure();
                 }
             }
@@ -681,10 +1037,16 @@ public class FrameworkElement : UIElement
         {
             _isArrangeValid = true;
             ClearArrangeInvalidation();
+            IncrementDiagnostic(ref _runtimeLayoutUpdatedRaiseCount, ref _diagLayoutUpdatedRaiseCount);
             LayoutUpdated?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            IncrementDiagnostic(ref _runtimeArrangeInvalidatedDuringArrangeCount, ref _diagArrangeInvalidatedDuringArrangeCount);
         }
         var arrangeTicks = Stopwatch.GetTimestamp() - arrangeStart;
         _arrangeElapsedTicks += arrangeTicks;
+        AddAggregate(ref _diagArrangeElapsedTicks, arrangeTicks);
         _frameArrangeElapsedTicks += arrangeTicks;
         if (arrangeTicks > _frameHottestArrangeElapsedTicks)
         {
@@ -697,6 +1059,7 @@ public class FrameworkElement : UIElement
     public override void InvalidateMeasure()
     {
         Dispatcher.VerifyAccess();
+        IncrementDiagnostic(ref _runtimeInvalidateMeasureCallCount, ref _diagInvalidateMeasureCallCount);
         _isMeasureValid = false;
         base.InvalidateMeasure();
     }
@@ -704,6 +1067,7 @@ public class FrameworkElement : UIElement
     public override void InvalidateArrange()
     {
         Dispatcher.VerifyAccess();
+        IncrementDiagnostic(ref _runtimeInvalidateArrangeCallCount, ref _diagInvalidateArrangeCallCount);
         _isArrangeValid = false;
         base.InvalidateArrange();
     }
@@ -711,11 +1075,13 @@ public class FrameworkElement : UIElement
     public override void InvalidateVisual()
     {
         Dispatcher.VerifyAccess();
+        IncrementDiagnostic(ref _runtimeInvalidateVisualCallCount, ref _diagInvalidateVisualCallCount);
         base.InvalidateVisual();
     }
 
     internal void InvalidateArrangeForDirectLayoutOnly(bool invalidateRender = true)
     {
+        IncrementDiagnostic(ref _runtimeInvalidateArrangeDirectLayoutOnlyCallCount, ref _diagInvalidateArrangeDirectLayoutOnlyCallCount);
         _isArrangeValid = false;
         if (invalidateRender)
         {
@@ -723,22 +1089,28 @@ public class FrameworkElement : UIElement
             return;
         }
 
+        IncrementDiagnostic(ref _runtimeInvalidateArrangeDirectLayoutOnlyWithoutRenderCount, ref _diagInvalidateArrangeDirectLayoutOnlyWithoutRenderCount);
         PrepareArrangeForDirectLayoutWithoutRenderInvalidation();
     }
 
     public void UpdateLayout()
     {
         Dispatcher.VerifyAccess();
+        IncrementDiagnostic(ref _runtimeUpdateLayoutCallCount, ref _diagUpdateLayoutCallCount);
         const int maxPasses = 8;
         for (var pass = 0; pass < maxPasses; pass++)
         {
+            _runtimeUpdateLayoutPassCount++;
+            IncrementAggregate(ref _diagUpdateLayoutPassCount);
             if (NeedsMeasure && _isMeasureValid)
             {
+                IncrementDiagnostic(ref _runtimeUpdateLayoutMeasureRepairCount, ref _diagUpdateLayoutMeasureRepairCount);
                 _isMeasureValid = false;
             }
 
             if (NeedsArrange && _isArrangeValid)
             {
+                IncrementDiagnostic(ref _runtimeUpdateLayoutArrangeRepairCount, ref _diagUpdateLayoutArrangeRepairCount);
                 _isArrangeValid = false;
             }
 
@@ -756,20 +1128,25 @@ public class FrameworkElement : UIElement
             {
                 if (child is FrameworkElement frameworkChild)
                 {
+                    IncrementDiagnostic(ref _runtimeUpdateLayoutRecursiveChildCount, ref _diagUpdateLayoutRecursiveChildCount);
                     frameworkChild.UpdateLayout();
                 }
             }
 
             if (_isMeasureValid && _isArrangeValid)
             {
+                IncrementDiagnostic(ref _runtimeUpdateLayoutStableExitCount, ref _diagUpdateLayoutStableExitCount);
                 return;
             }
         }
+
+        IncrementDiagnostic(ref _runtimeUpdateLayoutMaxPassExitCount, ref _diagUpdateLayoutMaxPassExitCount);
     }
 
     public void RaiseInitialized()
     {
         Dispatcher.VerifyAccess();
+        IncrementDiagnostic(ref _runtimeRaiseInitializedCallCount, ref _diagRaiseInitializedCallCount);
         Initialized?.Invoke(this, EventArgs.Empty);
     }
 
@@ -778,9 +1155,11 @@ public class FrameworkElement : UIElement
         Dispatcher.VerifyAccess();
         if (IsLoaded)
         {
+            IncrementDiagnostic(ref _runtimeRaiseLoadedNoOpCount, ref _diagRaiseLoadedNoOpCount);
             return;
         }
 
+        IncrementDiagnostic(ref _runtimeRaiseLoadedCallCount, ref _diagRaiseLoadedCallCount);
         IsLoaded = true;
         AttachResourceParent(VisualParent as FrameworkElement);
         UiApplication.Current.Resources.Changed += OnApplicationResourcesChanged;
@@ -794,9 +1173,11 @@ public class FrameworkElement : UIElement
         Dispatcher.VerifyAccess();
         if (!IsLoaded)
         {
+            IncrementDiagnostic(ref _runtimeRaiseUnloadedNoOpCount, ref _diagRaiseUnloadedNoOpCount);
             return;
         }
 
+        IncrementDiagnostic(ref _runtimeRaiseUnloadedCallCount, ref _diagRaiseUnloadedCallCount);
         IsLoaded = false;
         DetachResourceParent();
         UiApplication.Current.Resources.Changed -= OnApplicationResourcesChanged;
@@ -827,10 +1208,12 @@ public class FrameworkElement : UIElement
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
+        IncrementDiagnostic(ref _runtimeDependencyPropertyChangedCallCount, ref _diagDependencyPropertyChangedCallCount);
         base.OnDependencyPropertyChanged(args);
 
         if (ReferenceEquals(args.Property, IsVisibleProperty))
         {
+            IncrementDiagnostic(ref _runtimeVisibilityPropertyChangedCount, ref _diagVisibilityPropertyChangedCount);
             var visibilityMetadata = VisibilityProperty.GetMetadata(this);
             if (visibilityMetadata.VisibilityAffectsMeasure)
             {
@@ -840,6 +1223,7 @@ public class FrameworkElement : UIElement
 
         if (args.Property == StyleProperty)
         {
+            IncrementDiagnostic(ref _runtimeStylePropertyChangedCount, ref _diagStylePropertyChangedCount);
             if (!IsControlType() && !_isApplyingImplicitStyle)
             {
                 _activeImplicitStyle = null;
@@ -847,11 +1231,13 @@ public class FrameworkElement : UIElement
 
             if (args.OldValue is Style oldStyle)
             {
+                IncrementDiagnostic(ref _runtimeStyleDetachCount, ref _diagStyleDetachCount);
                 oldStyle.Detach(this);
             }
 
             if (args.NewValue is Style newStyle)
             {
+                IncrementDiagnostic(ref _runtimeStyleApplyCount, ref _diagStyleApplyCount);
                 newStyle.Apply(this);
             }
         }
@@ -859,9 +1245,14 @@ public class FrameworkElement : UIElement
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
+        IncrementDiagnostic(ref _runtimeVisualParentChangedCallCount, ref _diagVisualParentChangedCallCount);
         base.OnVisualParentChanged(oldParent, newParent);
 
         var resourceScopeChanged = HasMaterialResourceScopeChange(oldParent, newParent);
+        if (resourceScopeChanged)
+        {
+            IncrementDiagnostic(ref _runtimeVisualParentResourceScopeChangedCount, ref _diagVisualParentResourceScopeChangedCount);
+        }
         DetachResourceParent();
         AttachResourceParent(newParent as FrameworkElement);
         if (resourceScopeChanged)
@@ -872,25 +1263,33 @@ public class FrameworkElement : UIElement
         }
         if (oldParent is FrameworkElement oldFrameworkParent && oldFrameworkParent.IsLoaded && IsLoaded)
         {
+            IncrementDiagnostic(ref _runtimeVisualParentTriggeredUnloadCount, ref _diagVisualParentTriggeredUnloadCount);
             RaiseUnloaded();
         }
 
         if (newParent is FrameworkElement newFrameworkParent && newFrameworkParent.IsLoaded && !IsLoaded)
         {
+            IncrementDiagnostic(ref _runtimeVisualParentTriggeredLoadCount, ref _diagVisualParentTriggeredLoadCount);
             RaiseLoaded();
         }
     }
 
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
     {
+        IncrementDiagnostic(ref _runtimeLogicalParentChangedCallCount, ref _diagLogicalParentChangedCallCount);
         base.OnLogicalParentChanged(oldParent, newParent);
 
         if (VisualParent != null)
         {
+            IncrementDiagnostic(ref _runtimeLogicalParentSkippedDueToVisualParentCount, ref _diagLogicalParentSkippedDueToVisualParentCount);
             return;
         }
 
         var resourceScopeChanged = HasMaterialResourceScopeChange(oldParent, newParent);
+        if (resourceScopeChanged)
+        {
+            IncrementDiagnostic(ref _runtimeLogicalParentResourceScopeChangedCount, ref _diagLogicalParentResourceScopeChangedCount);
+        }
         DetachResourceParent();
         AttachResourceParent(newParent as FrameworkElement);
         if (resourceScopeChanged)
@@ -912,6 +1311,9 @@ public class FrameworkElement : UIElement
 
     private void RefreshResourceBindings()
     {
+        IncrementDiagnostic(ref _runtimeRefreshResourceBindingsCallCount, ref _diagRefreshResourceBindingsCallCount);
+        _runtimeResourceBindingRefreshEntryCount += _dynamicResourceBindings.Count;
+        AddAggregate(ref _diagResourceBindingRefreshEntryCount, _dynamicResourceBindings.Count);
         foreach (var pair in _dynamicResourceBindings)
         {
             UpdateResourceBinding(pair.Key, pair.Value);
@@ -920,47 +1322,65 @@ public class FrameworkElement : UIElement
 
     private void UpdateResourceBinding(DependencyProperty dependencyProperty, object resourceKey)
     {
+        IncrementDiagnostic(ref _runtimeUpdateResourceBindingCallCount, ref _diagUpdateResourceBindingCallCount);
         if (TryFindResource(resourceKey, out var value))
         {
+            IncrementDiagnostic(ref _runtimeUpdateResourceBindingHitCount, ref _diagUpdateResourceBindingHitCount);
             SetValue(dependencyProperty, value);
+            return;
         }
+
+        IncrementDiagnostic(ref _runtimeUpdateResourceBindingMissCount, ref _diagUpdateResourceBindingMissCount);
     }
 
     private void OnResourcesChanged(object? sender, ResourceDictionaryChangedEventArgs e)
     {
+        IncrementDiagnostic(ref _runtimeLocalResourcesChangedCallCount, ref _diagLocalResourcesChangedCallCount);
         RefreshResourceBindings();
         UpdateImplicitStyle();
-        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
+        RaiseResourceScopeInvalidated();
         NotifyDescendantResourcesChanged();
     }
 
     private void OnParentResourcesChanged(object? sender, ResourceDictionaryChangedEventArgs e)
     {
+        IncrementDiagnostic(ref _runtimeParentResourcesChangedCallCount, ref _diagParentResourcesChangedCallCount);
         RefreshResourceBindings();
         UpdateImplicitStyle();
-        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
+        RaiseResourceScopeInvalidated();
         NotifyDescendantResourcesChanged();
     }
 
     private void OnApplicationResourcesChanged(object? sender, ResourceDictionaryChangedEventArgs e)
     {
+        IncrementDiagnostic(ref _runtimeApplicationResourcesChangedCallCount, ref _diagApplicationResourcesChangedCallCount);
         RefreshResourceBindings();
         UpdateImplicitStyle();
-        ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
+        RaiseResourceScopeInvalidated();
         NotifyDescendantResourcesChanged();
     }
 
     private void UpdateImplicitStyle()
     {
-        if (IsControlType() || !ImplicitStylePolicy.ShouldApply(Style, _activeImplicitStyle))
+        IncrementDiagnostic(ref _runtimeImplicitStyleUpdateCallCount, ref _diagImplicitStyleUpdateCallCount);
+        if (IsControlType())
         {
+            IncrementDiagnostic(ref _runtimeImplicitStyleSkipControlTypeCount, ref _diagImplicitStyleSkipControlTypeCount);
+            return;
+        }
+
+        if (!ImplicitStylePolicy.ShouldApply(Style, _activeImplicitStyle))
+        {
+            IncrementDiagnostic(ref _runtimeImplicitStyleSkipPolicyCount, ref _diagImplicitStyleSkipPolicyCount);
             return;
         }
 
         if (TryFindResource(GetType(), out var resource) && resource is Style style)
         {
+            IncrementDiagnostic(ref _runtimeImplicitStyleResourceFoundCount, ref _diagImplicitStyleResourceFoundCount);
             if (!ReferenceEquals(Style, style))
             {
+                IncrementDiagnostic(ref _runtimeImplicitStyleAppliedCount, ref _diagImplicitStyleAppliedCount);
                 _isApplyingImplicitStyle = true;
                 try
                 {
@@ -971,6 +1391,10 @@ public class FrameworkElement : UIElement
                     _isApplyingImplicitStyle = false;
                 }
             }
+            else
+            {
+                IncrementDiagnostic(ref _runtimeImplicitStyleNoChangeCount, ref _diagImplicitStyleNoChangeCount);
+            }
 
             _activeImplicitStyle = style;
             return;
@@ -978,6 +1402,7 @@ public class FrameworkElement : UIElement
 
         if (ImplicitStylePolicy.CanClearImplicit(Style, _activeImplicitStyle))
         {
+            IncrementDiagnostic(ref _runtimeImplicitStyleClearedCount, ref _diagImplicitStyleClearedCount);
             _isApplyingImplicitStyle = true;
             try
             {
@@ -987,6 +1412,10 @@ public class FrameworkElement : UIElement
             {
                 _isApplyingImplicitStyle = false;
             }
+        }
+        else
+        {
+            IncrementDiagnostic(ref _runtimeImplicitStyleNoChangeCount, ref _diagImplicitStyleNoChangeCount);
         }
 
         _activeImplicitStyle = null;
@@ -1013,6 +1442,7 @@ public class FrameworkElement : UIElement
 
         if (_resourceParent != null)
         {
+            IncrementDiagnostic(ref _runtimeResourceParentAttachCount, ref _diagResourceParentAttachCount);
             _resourceParent.Resources.Changed += OnParentResourcesChanged;
         }
     }
@@ -1024,18 +1454,21 @@ public class FrameworkElement : UIElement
             return;
         }
 
+        IncrementDiagnostic(ref _runtimeResourceParentDetachCount, ref _diagResourceParentDetachCount);
         _resourceParent.Resources.Changed -= OnParentResourcesChanged;
         _resourceParent = null;
     }
 
     private void NotifyDescendantResourcesChanged()
     {
+        IncrementDiagnostic(ref _runtimeDescendantResourcesChangedNotifyCallCount, ref _diagDescendantResourcesChangedNotifyCallCount);
         foreach (var child in GetVisualChildren())
         {
             if (child is FrameworkElement frameworkChild)
             {
                 if (frameworkChild.RequiresDirectResourceScopeRefresh())
                 {
+                    IncrementDiagnostic(ref _runtimeDescendantDirectResourceRefreshCount, ref _diagDescendantDirectResourceRefreshCount);
                     frameworkChild.RefreshResourceBindings();
                     frameworkChild.RaiseResourceScopeInvalidated();
                 }
@@ -1059,6 +1492,7 @@ public class FrameworkElement : UIElement
 
     private void RaiseResourceScopeInvalidated()
     {
+        IncrementDiagnostic(ref _runtimeResourceScopeInvalidatedRaiseCount, ref _diagResourceScopeInvalidatedRaiseCount);
         ResourceScopeInvalidated?.Invoke(this, EventArgs.Empty);
     }
 

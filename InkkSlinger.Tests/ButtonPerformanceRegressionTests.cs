@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Xunit;
 
@@ -291,6 +292,92 @@ public sealed class ButtonPerformanceRegressionTests
         Assert.True(withText.TextLayoutBuildCount > withoutText.TextLayoutBuildCount);
         Assert.True(withText.FontMeasureWidthCallCount > withoutText.FontMeasureWidthCallCount);
         Assert.True(withText.RenderTextPreparationElapsedTicks > withoutText.RenderTextPreparationElapsedTicks);
+    }
+
+    [Fact]
+    public void TelemetrySnapshots_ReportCacheUsage_StateTransitions_AndReset()
+    {
+        _ = Button.GetTelemetryAndReset();
+
+        var button = new Button
+        {
+            Content = "Telemetry",
+            Padding = new Thickness(2f),
+            BorderThickness = 1f,
+            FontSize = 14f
+        };
+
+        button.Measure(new Vector2(120f, 40f));
+
+        var slot = new LayoutRect(0f, 0f, 120f, 40f);
+        var firstPlan = button.PrepareTextRenderPlanForTests(slot);
+        var cachedPlan = button.PrepareTextRenderPlanForTests(slot);
+        var shiftedPlan = button.PrepareTextRenderPlanForTests(new LayoutRect(4f, 0f, 120f, 40f));
+
+        button.Content = "Telemetry Updated";
+        var updatedPlan = button.PrepareTextRenderPlanForTests(slot);
+
+        var getFallbackStyle = typeof(Button).GetMethod("GetFallbackStyle", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(getFallbackStyle);
+        Assert.NotNull((Style?)getFallbackStyle!.Invoke(button, null));
+        Assert.NotNull((Style?)getFallbackStyle.Invoke(button, null));
+
+        button.SetMouseOverFromInput(true);
+        button.SetMouseOverFromInput(true);
+        button.SetPressedFromInput(true);
+        button.SetPressedFromInput(true);
+        button.InvokeFromInput();
+        _ = button.HasAvailableIndependentDesiredSizeForUniformGrid();
+
+        var runtime = button.GetButtonSnapshotForDiagnostics();
+
+        Assert.True(firstPlan.HasValue);
+        Assert.True(cachedPlan.HasValue);
+        Assert.True(shiftedPlan.HasValue);
+        Assert.True(updatedPlan.HasValue);
+        Assert.Equal(nameof(String), runtime.ContentType);
+        Assert.Equal("Telemetry Updated", runtime.DisplayText);
+        Assert.True(runtime.MeasureOverrideCallCount > 0);
+        Assert.True(runtime.ResolveTextLayoutCallCount > 0);
+        Assert.True(runtime.TextLayoutCacheHitCount > 0);
+        Assert.True(runtime.TextLayoutCacheMissCount > 0);
+        Assert.True(runtime.TextLayoutInvalidationCount > 0);
+        Assert.True(runtime.TextRenderPlanCacheHitCount > 0);
+        Assert.True(runtime.TextRenderPlanCacheMissCount > 0);
+        Assert.True(runtime.TextRenderPlanInvalidationCount > 0);
+        Assert.True(runtime.RenderTextPreparationCallCount > 0);
+        Assert.True(runtime.SetMouseOverFromInputChangedCount > 0);
+        Assert.True(runtime.SetMouseOverFromInputNoOpCount > 0);
+        Assert.True(runtime.SetPressedFromInputChangedCount > 0);
+        Assert.True(runtime.SetPressedFromInputNoOpCount > 0);
+        Assert.Equal(1, runtime.OnClickCallCount);
+        Assert.Equal(1, runtime.RaiseClickEventCallCount);
+        Assert.Equal(1, runtime.InvokeFromInputCallCount);
+        Assert.Equal(1, runtime.OnClickAutomationNotifyCount + runtime.OnClickAutomationSkipCount);
+
+        var aggregate = Button.GetTelemetryAndReset();
+
+        Assert.True(aggregate.MeasureOverrideCallCount > 0);
+        Assert.True(aggregate.ResolveTextLayoutCallCount > 0);
+        Assert.True(aggregate.TextLayoutCacheHitCount > 0);
+        Assert.True(aggregate.TextLayoutCacheMissCount > 0);
+        Assert.True(aggregate.TextLayoutInvalidationCount > 0);
+        Assert.True(aggregate.TextRenderPlanCacheHitCount > 0);
+        Assert.True(aggregate.TextRenderPlanCacheMissCount > 0);
+        Assert.True(aggregate.TextRenderPlanInvalidationCount > 0);
+        Assert.True(aggregate.GetFallbackStyleCallCount >= 2);
+        Assert.Equal(aggregate.GetFallbackStyleCallCount, aggregate.GetFallbackStyleCacheHitCount + aggregate.GetFallbackStyleCacheMissCount);
+        Assert.True(aggregate.SetMouseOverFromInputChangedCount > 0);
+        Assert.True(aggregate.SetPressedFromInputChangedCount > 0);
+        Assert.Equal(1, aggregate.OnClickCallCount);
+        Assert.Equal(1, aggregate.InvokeFromInputCallCount);
+
+        var cleared = Button.GetTelemetryAndReset();
+
+        Assert.Equal(0, cleared.MeasureOverrideCallCount);
+        Assert.Equal(0, cleared.ResolveTextLayoutCallCount);
+        Assert.Equal(0, cleared.TextRenderPlanCacheMissCount);
+        Assert.Equal(0, cleared.OnClickCallCount);
     }
 
     private static RenderPreparationMetrics MeasureRenderPreparation(int buttonCount, bool includeText)

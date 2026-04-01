@@ -40,8 +40,10 @@ public sealed class InkkOopsHostConfiguration
                 new InkkOopsGenericElementDiagnosticsContributor(),
                 new InkkOopsFrameworkElementDiagnosticsContributor(),
                 new InkkOopsContentTextDiagnosticsContributor(),
+                new InkkOopsButtonDiagnosticsContributor(),
                 new InkkOopsTextBlockDiagnosticsContributor(),
                 new InkkOopsStackPanelDiagnosticsContributor(),
+                new InkkOopsWrapPanelDiagnosticsContributor(),
                 new InkkOopsGridDiagnosticsContributor(),
                 new InkkOopsScrollViewerDiagnosticsContributor(),
                 new InkkOopsExpanderDiagnosticsContributor()

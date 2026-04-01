@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -80,6 +81,88 @@ public sealed class LabelControlTests
 
         label.Target = null;
         Assert.Null(AutomationProperties.GetLabeledBy(second));
+    }
+
+    [Fact]
+    public void Label_RuntimeTelemetry_CapturesInstanceBehavior()
+    {
+        _ = Label.GetTelemetryAndReset();
+
+        var first = new TextBox();
+        var second = new TextBox();
+        var label = new Label
+        {
+            Content = "_Name"
+        };
+
+        Assert.Same(label, label.ResolveAccessKeyTarget());
+
+        label.Target = first;
+        Assert.Same(first, label.ResolveAccessKeyTarget());
+        Assert.Equal("Name", label.GetAutomationContentText());
+
+        var getFallbackStyle = typeof(Label).GetMethod("GetFallbackStyle", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(getFallbackStyle);
+        Assert.NotNull((Style?)getFallbackStyle!.Invoke(label, null));
+
+        label.Target = second;
+        label.Target = null;
+
+        var snapshot = label.GetLabelSnapshotForDiagnostics();
+
+        Assert.False(snapshot.HasTarget);
+        Assert.Equal(nameof(String), snapshot.ContentType);
+        Assert.Equal("Name", snapshot.CurrentAutomationText);
+        Assert.False(snapshot.Focusable);
+        Assert.Equal(2, snapshot.ResolveAccessKeyTargetCallCount);
+        Assert.Equal(1, snapshot.ResolveAccessKeyTargetReturnedTargetCount);
+        Assert.Equal(1, snapshot.ResolveAccessKeyTargetReturnedSelfCount);
+        Assert.Equal(1, snapshot.GetAutomationContentTextCallCount);
+        Assert.Equal(1, snapshot.GetFallbackStyleCallCount);
+        Assert.Equal(1, snapshot.GetFallbackStyleCacheHitCount + snapshot.GetFallbackStyleCacheMissCount);
+        Assert.Equal(3, snapshot.OnTargetChangedCallCount);
+        Assert.Equal(2, snapshot.OnTargetChangedClearedOldTargetCount);
+        Assert.Equal(0, snapshot.OnTargetChangedSkippedClearOldTargetCount);
+        Assert.Equal(2, snapshot.OnTargetChangedAttachedNewTargetCount);
+        Assert.Equal(1, snapshot.OnTargetChangedNoNewTargetCount);
+    }
+
+    [Fact]
+    public void Label_AggregateTelemetry_CapturesExtractionPaths_AndResets()
+    {
+        _ = Label.GetTelemetryAndReset();
+
+        var nestedLabel = new Label
+        {
+            Content = "_Nested"
+        };
+
+        Assert.Equal(string.Empty, Label.ExtractAutomationText(null));
+        Assert.Equal("File", Label.ExtractAutomationText("_File"));
+        Assert.Equal("Open", Label.ExtractAutomationText(new AccessText { Text = "_Open" }));
+        Assert.Equal("Block", Label.ExtractAutomationText(new TextBlock { Text = "Block" }));
+        Assert.Equal("Nested", Label.ExtractAutomationText(nestedLabel));
+        Assert.Equal("42", Label.ExtractAutomationText(new Button { Content = 42 }));
+        Assert.Equal("1.2", Label.ExtractAutomationText(new Version(1, 2)));
+
+        var snapshot = Label.GetTelemetryAndReset();
+
+        Assert.Equal(1, snapshot.ConstructorCallCount);
+        Assert.Equal(9, snapshot.ExtractAutomationTextCallCount);
+        Assert.Equal(1, snapshot.ExtractAutomationTextNullPathCount);
+        Assert.Equal(2, snapshot.ExtractAutomationTextStringPathCount);
+        Assert.Equal(1, snapshot.ExtractAutomationTextAccessTextPathCount);
+        Assert.Equal(1, snapshot.ExtractAutomationTextLabelPathCount);
+        Assert.Equal(1, snapshot.ExtractAutomationTextTextBlockPathCount);
+        Assert.Equal(1, snapshot.ExtractAutomationTextContentControlPathCount);
+        Assert.Equal(2, snapshot.ExtractAutomationTextFallbackPathCount);
+        Assert.Equal(1, snapshot.GetAutomationContentTextCallCount);
+
+        var cleared = Label.GetTelemetryAndReset();
+
+        Assert.Equal(0, cleared.ConstructorCallCount);
+        Assert.Equal(0, cleared.ExtractAutomationTextCallCount);
+        Assert.Equal(0, cleared.GetAutomationContentTextCallCount);
     }
 
     [Fact]

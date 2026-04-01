@@ -114,6 +114,132 @@ public sealed class InkkOopsAbstractionTests
     }
 
     [Fact]
+    public void DiagnosticsPipeline_Emits_ButtonContributorFacts()
+    {
+        _ = FrameworkElement.GetTelemetryAndReset();
+        _ = Button.GetTelemetryAndReset();
+
+        var button = new Button
+        {
+            Name = "Child",
+            Content = "Click me",
+            Width = 120f,
+            Height = 40f,
+            Padding = new Thickness(2f),
+            BorderThickness = 1f
+        };
+        var root = new Canvas { Name = "Root" };
+        root.AddChild(button);
+
+        using var host = new InkkOopsTestHost(root);
+
+        button.Measure(new Vector2(120f, 40f));
+        button.Arrange(new LayoutRect(0f, 0f, 120f, 40f));
+        _ = button.PrepareTextRenderPlanForTests(new LayoutRect(0f, 0f, 120f, 40f));
+        _ = button.PrepareTextRenderPlanForTests(new LayoutRect(0f, 0f, 120f, 40f));
+        button.SetMouseOverFromInput(true);
+        button.SetPressedFromInput(true);
+
+        var diagnostics = new InkkOopsVisualTreeDiagnostics(
+        [
+            new InkkOopsGenericElementDiagnosticsContributor(),
+            new InkkOopsFrameworkElementDiagnosticsContributor(),
+            new InkkOopsButtonDiagnosticsContributor()
+        ]);
+
+        var snapshot = diagnostics.Capture(
+            root,
+            new InkkOopsDiagnosticsContext
+            {
+                UiRoot = host.UiRoot,
+                Viewport = host.GetViewportBounds(),
+                HoveredElement = button,
+                FocusedElement = null,
+                ArtifactName = "button"
+            });
+        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
+
+        Assert.Contains("Button#Child", text);
+        Assert.Contains("buttonDisplayText=Click me", text);
+        Assert.Contains("buttonHasTextLayoutCache=True", text);
+        Assert.Contains("buttonIsMouseOver=True", text);
+        Assert.Contains("buttonIsPressed=True", text);
+        Assert.Contains("buttonRuntimeTextLayoutCacheHits=", text);
+        Assert.Contains("buttonTextLayoutCacheHits=", text);
+        Assert.Contains("buttonTextRenderPlanCacheHits=", text);
+        Assert.Contains("frameworkGlobalMeasureCalls=", text);
+        Assert.Contains("frameworkGlobalArrangeCalls=", text);
+        Assert.Contains("frameworkMeasureMs=", text);
+        Assert.Contains("frameworkStylePropertyChanged=", text);
+    }
+
+    [Fact]
+    public void FrameworkElementTelemetry_Captures_Runtime_And_Aggregate_Data()
+    {
+        var hostRoot = new Canvas { Name = "HostRoot" };
+        using var host = new InkkOopsTestHost(hostRoot);
+        var subject = new ProbeFrameworkElement { Name = "Probe" };
+
+        _ = FrameworkElement.GetTelemetryAndReset();
+
+        subject.SetResourceReference(FrameworkElement.WidthProperty, "dynamicWidth");
+        subject.Resources["dynamicWidth"] = 120f;
+        subject.Measure(new Vector2(200f, 80f));
+        subject.Arrange(new LayoutRect(0f, 0f, 200f, 80f));
+        subject.UpdateLayout();
+        subject.InvalidateMeasure();
+        subject.InvalidateArrange();
+        subject.InvalidateVisual();
+        subject.InvalidateArrangeForDirectLayoutOnly(invalidateRender: false);
+        subject.RaiseInitialized();
+        subject.RaiseLoaded();
+        subject.RaiseLoaded();
+        subject.RaiseUnloaded();
+        subject.RaiseUnloaded();
+
+        var runtime = subject.GetFrameworkElementSnapshotForDiagnostics();
+
+        Assert.Equal(1, runtime.MeasureCallCount);
+        Assert.Equal(1, runtime.ArrangeCallCount);
+        Assert.Equal(1, runtime.UpdateLayoutCallCount);
+        Assert.Equal(1, runtime.SetResourceReferenceCallCount);
+        Assert.True(runtime.UpdateResourceBindingCallCount >= 2);
+        Assert.True(runtime.UpdateResourceBindingHitCount >= 1);
+        Assert.True(runtime.UpdateResourceBindingMissCount >= 1);
+        Assert.True(runtime.InvalidateMeasureCallCount >= 1);
+        Assert.True(runtime.InvalidateArrangeCallCount >= 1);
+        Assert.True(runtime.InvalidateVisualCallCount >= 1);
+        Assert.Equal(1, runtime.InvalidateArrangeDirectLayoutOnlyCallCount);
+        Assert.Equal(1, runtime.InvalidateArrangeDirectLayoutOnlyWithoutRenderCount);
+        Assert.Equal(1, runtime.RaiseInitializedCallCount);
+        Assert.Equal(1, runtime.RaiseLoadedCallCount);
+        Assert.Equal(1, runtime.RaiseLoadedNoOpCount);
+        Assert.Equal(1, runtime.RaiseUnloadedCallCount);
+        Assert.Equal(1, runtime.RaiseUnloadedNoOpCount);
+        Assert.True(runtime.MeasureMilliseconds >= 0d);
+        Assert.True(runtime.ArrangeMilliseconds >= 0d);
+
+        var aggregate = FrameworkElement.GetTelemetryAndReset();
+
+        Assert.True(aggregate.MeasureCallCount >= 1);
+        Assert.True(aggregate.ArrangeCallCount >= 1);
+        Assert.True(aggregate.UpdateLayoutCallCount >= 1);
+        Assert.True(aggregate.UpdateResourceBindingHitCount >= 1);
+        Assert.True(aggregate.UpdateResourceBindingMissCount >= 1);
+        Assert.True(aggregate.RaiseLoadedCallCount >= 1);
+        Assert.True(aggregate.RaiseLoadedNoOpCount >= 1);
+        Assert.True(aggregate.RaiseUnloadedCallCount >= 1);
+        Assert.True(aggregate.RaiseUnloadedNoOpCount >= 1);
+
+        var cleared = FrameworkElement.GetTelemetryAndReset();
+        Assert.Equal(0, cleared.MeasureCallCount);
+        Assert.Equal(0, cleared.ArrangeCallCount);
+        Assert.Equal(0, cleared.UpdateLayoutCallCount);
+        Assert.Equal(0, cleared.UpdateResourceBindingHitCount);
+        Assert.Equal(0, cleared.RaiseLoadedCallCount);
+    }
+
+    [Fact]
     public void DiagnosticsPipeline_UsesContributorOrder_Deterministically()
     {
         var root = new Canvas { Name = "Root" };
@@ -137,6 +263,14 @@ public sealed class InkkOopsAbstractionTests
         var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
 
         Assert.Contains("Canvas#Root early=1 late=2", text);
+    }
+
+    [Fact]
+    public void DefaultHostConfiguration_Registers_ButtonContributor()
+    {
+        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
+
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsButtonDiagnosticsContributor);
     }
 
     [Fact]
@@ -303,6 +437,20 @@ public sealed class InkkOopsAbstractionTests
         public void Contribute(InkkOopsDiagnosticsContext context, UIElement element, InkkOopsElementDiagnosticsBuilder builder)
         {
             builder.Add(_key, _value);
+        }
+    }
+
+    private sealed class ProbeFrameworkElement : FrameworkElement
+    {
+        protected override Vector2 MeasureOverride(Vector2 availableSize)
+        {
+            _ = availableSize;
+            return new Vector2(48f, 18f);
+        }
+
+        protected override Vector2 ArrangeOverride(Vector2 finalSize)
+        {
+            return finalSize;
         }
     }
 }

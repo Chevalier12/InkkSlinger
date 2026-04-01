@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -9,6 +11,53 @@ namespace InkkSlinger;
 public class Border : Decorator
 {
     private static readonly Dictionary<GraphicsDevice, Dictionary<RoundedTextureCacheKey, Texture2D>> RoundedTextureCaches = new();
+    private static long _diagMeasureOverrideCallCount;
+    private static long _diagMeasureOverrideElapsedTicks;
+    private static long _diagMeasureOverrideNoChildCount;
+    private static long _diagMeasureOverrideChildMeasureCount;
+    private static long _diagArrangeOverrideCallCount;
+    private static long _diagArrangeOverrideElapsedTicks;
+    private static long _diagArrangeOverrideNoChildCount;
+    private static long _diagArrangeOverrideChildArrangeCount;
+    private static long _diagRenderCallCount;
+    private static long _diagRenderElapsedTicks;
+    private static long _diagRenderSkippedZeroSlotCount;
+    private static long _diagRenderSkippedInvisibleCount;
+    private static long _diagRenderRectangularPathCount;
+    private static long _diagRenderRoundedPathCount;
+    private static long _diagRenderTextureCacheHitCount;
+    private static long _diagRenderTextureCacheMissCount;
+    private static long _diagRenderTextureCacheRejectedAreaCount;
+    private static long _diagRenderAxisAlignedFastPathHitCount;
+    private static long _diagRenderAxisAlignedFastPathMissCount;
+    private static long _diagRenderRectangularFallbackPathCount;
+    private static long _diagRenderRoundedFillCallCount;
+    private static long _diagRenderRoundedBorderCallCount;
+    private static long _diagRenderStateCacheHitCount;
+    private static long _diagRenderStateCacheMissCount;
+    private static long _diagOuterRadiiCacheHitCount;
+    private static long _diagOuterRadiiCacheMissCount;
+    private static long _diagRoundedGeometryCacheHitCount;
+    private static long _diagRoundedGeometryCacheMissCount;
+    private static long _diagBackgroundBrushChangeCount;
+    private static long _diagBackgroundBrushMutationCount;
+    private static long _diagBackgroundBrushAttachCount;
+    private static long _diagBackgroundBrushDetachCount;
+    private static long _diagBorderBrushChangeCount;
+    private static long _diagBorderBrushMutationCount;
+    private static long _diagBorderBrushAttachCount;
+    private static long _diagBorderBrushDetachCount;
+    private static long _diagBorderThicknessPropertyChangeCount;
+    private static long _diagCornerRadiusPropertyChangeCount;
+    private static long _diagRenderStateInvalidationCount;
+    private static long _diagRenderStateInvalidationNoOpCount;
+    private static long _diagOuterRadiiInvalidationCount;
+    private static long _diagOuterRadiiInvalidationNoOpCount;
+    private static long _diagTextureBuildCount;
+    private static long _diagTextureBuildElapsedTicks;
+    private static long _diagTextureBuildPixelCount;
+    private static long _diagTextureCacheBucketCreateCount;
+    private static long _diagRoundedGeometryBuildPointCount;
     private BorderRenderState _renderStateCache;
     private bool _hasRenderStateCache;
     private RoundedRectRadii _outerRadiiCache;
@@ -29,6 +78,53 @@ public class Border : Decorator
     private int _bottomLeftCornerBorderPolygonPointCount;
     private static int _roundedGeometryCacheBuildCount;
     private static int _renderStateCacheBuildCount;
+    private long _runtimeMeasureOverrideCallCount;
+    private long _runtimeMeasureOverrideElapsedTicks;
+    private long _runtimeMeasureOverrideNoChildCount;
+    private long _runtimeMeasureOverrideChildMeasureCount;
+    private long _runtimeArrangeOverrideCallCount;
+    private long _runtimeArrangeOverrideElapsedTicks;
+    private long _runtimeArrangeOverrideNoChildCount;
+    private long _runtimeArrangeOverrideChildArrangeCount;
+    private long _runtimeRenderCallCount;
+    private long _runtimeRenderElapsedTicks;
+    private long _runtimeRenderSkippedZeroSlotCount;
+    private long _runtimeRenderSkippedInvisibleCount;
+    private long _runtimeRenderRectangularPathCount;
+    private long _runtimeRenderRoundedPathCount;
+    private long _runtimeRenderTextureCacheHitCount;
+    private long _runtimeRenderTextureCacheMissCount;
+    private long _runtimeRenderTextureCacheRejectedAreaCount;
+    private long _runtimeRenderAxisAlignedFastPathHitCount;
+    private long _runtimeRenderAxisAlignedFastPathMissCount;
+    private long _runtimeRenderRectangularFallbackPathCount;
+    private long _runtimeRenderRoundedFillCallCount;
+    private long _runtimeRenderRoundedBorderCallCount;
+    private long _runtimeRenderStateCacheHitCount;
+    private long _runtimeRenderStateCacheMissCount;
+    private long _runtimeOuterRadiiCacheHitCount;
+    private long _runtimeOuterRadiiCacheMissCount;
+    private long _runtimeRoundedGeometryCacheHitCount;
+    private long _runtimeRoundedGeometryCacheMissCount;
+    private long _runtimeBackgroundBrushChangeCount;
+    private long _runtimeBackgroundBrushMutationCount;
+    private long _runtimeBackgroundBrushAttachCount;
+    private long _runtimeBackgroundBrushDetachCount;
+    private long _runtimeBorderBrushChangeCount;
+    private long _runtimeBorderBrushMutationCount;
+    private long _runtimeBorderBrushAttachCount;
+    private long _runtimeBorderBrushDetachCount;
+    private long _runtimeBorderThicknessPropertyChangeCount;
+    private long _runtimeCornerRadiusPropertyChangeCount;
+    private long _runtimeRenderStateInvalidationCount;
+    private long _runtimeRenderStateInvalidationNoOpCount;
+    private long _runtimeOuterRadiiInvalidationCount;
+    private long _runtimeOuterRadiiInvalidationNoOpCount;
+    private long _runtimeTextureBuildCount;
+    private long _runtimeTextureBuildElapsedTicks;
+    private long _runtimeTextureBuildPixelCount;
+    private long _runtimeTextureCacheBucketCreateCount;
+    private long _runtimeRoundedGeometryBuildPointCount;
 
     public static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
@@ -153,111 +249,293 @@ public class Border : Decorator
         _ = ResolveRenderState();
     }
 
+    internal BorderRuntimeDiagnosticsSnapshot GetBorderSnapshotForDiagnostics()
+    {
+        var backgroundColor = _hasRenderStateCache
+            ? _renderStateCache.BackgroundColor
+            : Background?.ToColor() ?? Color.Transparent;
+        var borderThickness = _hasRenderStateCache
+            ? _renderStateCache.BorderThickness
+            : GetRenderBorderThickness();
+        var borderColor = _hasRenderStateCache
+            ? _renderStateCache.BorderColor
+            : BorderBrush?.ToColor() ?? Color.Transparent;
+
+        return new BorderRuntimeDiagnosticsSnapshot(
+            Child is FrameworkElement,
+            backgroundColor.A > 0,
+            HasVisibleBorder(borderThickness, borderColor),
+            _hasRenderStateCache,
+            _hasOuterRadiiCache,
+            _hasRoundedGeometryCache,
+            LayoutSlot.Width,
+            LayoutSlot.Height,
+            _outerRadiiCacheWidth,
+            _outerRadiiCacheHeight,
+            _roundedFillPolygonPointCount,
+            _topLeftCornerBorderPolygonPointCount,
+            _topRightCornerBorderPolygonPointCount,
+            _bottomRightCornerBorderPolygonPointCount,
+            _bottomLeftCornerBorderPolygonPointCount,
+            _runtimeMeasureOverrideCallCount,
+            TicksToMilliseconds(_runtimeMeasureOverrideElapsedTicks),
+            _runtimeMeasureOverrideNoChildCount,
+            _runtimeMeasureOverrideChildMeasureCount,
+            _runtimeArrangeOverrideCallCount,
+            TicksToMilliseconds(_runtimeArrangeOverrideElapsedTicks),
+            _runtimeArrangeOverrideNoChildCount,
+            _runtimeArrangeOverrideChildArrangeCount,
+            _runtimeRenderCallCount,
+            TicksToMilliseconds(_runtimeRenderElapsedTicks),
+            _runtimeRenderSkippedZeroSlotCount,
+            _runtimeRenderSkippedInvisibleCount,
+            _runtimeRenderRectangularPathCount,
+            _runtimeRenderRoundedPathCount,
+            _runtimeRenderTextureCacheHitCount,
+            _runtimeRenderTextureCacheMissCount,
+            _runtimeRenderTextureCacheRejectedAreaCount,
+            _runtimeRenderAxisAlignedFastPathHitCount,
+            _runtimeRenderAxisAlignedFastPathMissCount,
+            _runtimeRenderRectangularFallbackPathCount,
+            _runtimeRenderRoundedFillCallCount,
+            _runtimeRenderRoundedBorderCallCount,
+            _runtimeRenderStateCacheHitCount,
+            _runtimeRenderStateCacheMissCount,
+            _runtimeOuterRadiiCacheHitCount,
+            _runtimeOuterRadiiCacheMissCount,
+            _runtimeRoundedGeometryCacheHitCount,
+            _runtimeRoundedGeometryCacheMissCount,
+            _runtimeBackgroundBrushChangeCount,
+            _runtimeBackgroundBrushMutationCount,
+            _runtimeBackgroundBrushAttachCount,
+            _runtimeBackgroundBrushDetachCount,
+            _runtimeBorderBrushChangeCount,
+            _runtimeBorderBrushMutationCount,
+            _runtimeBorderBrushAttachCount,
+            _runtimeBorderBrushDetachCount,
+            _runtimeBorderThicknessPropertyChangeCount,
+            _runtimeCornerRadiusPropertyChangeCount,
+            _runtimeRenderStateInvalidationCount,
+            _runtimeRenderStateInvalidationNoOpCount,
+            _runtimeOuterRadiiInvalidationCount,
+            _runtimeOuterRadiiInvalidationNoOpCount,
+            _runtimeTextureBuildCount,
+            TicksToMilliseconds(_runtimeTextureBuildElapsedTicks),
+            _runtimeTextureBuildPixelCount,
+            _runtimeTextureCacheBucketCreateCount,
+            _runtimeRoundedGeometryBuildPointCount);
+    }
+
+    internal static BorderTelemetrySnapshot GetTelemetryAndReset()
+    {
+        var snapshot = CreateAggregateTelemetrySnapshot();
+        _diagMeasureOverrideCallCount = 0;
+        _diagMeasureOverrideElapsedTicks = 0;
+        _diagMeasureOverrideNoChildCount = 0;
+        _diagMeasureOverrideChildMeasureCount = 0;
+        _diagArrangeOverrideCallCount = 0;
+        _diagArrangeOverrideElapsedTicks = 0;
+        _diagArrangeOverrideNoChildCount = 0;
+        _diagArrangeOverrideChildArrangeCount = 0;
+        _diagRenderCallCount = 0;
+        _diagRenderElapsedTicks = 0;
+        _diagRenderSkippedZeroSlotCount = 0;
+        _diagRenderSkippedInvisibleCount = 0;
+        _diagRenderRectangularPathCount = 0;
+        _diagRenderRoundedPathCount = 0;
+        _diagRenderTextureCacheHitCount = 0;
+        _diagRenderTextureCacheMissCount = 0;
+        _diagRenderTextureCacheRejectedAreaCount = 0;
+        _diagRenderAxisAlignedFastPathHitCount = 0;
+        _diagRenderAxisAlignedFastPathMissCount = 0;
+        _diagRenderRectangularFallbackPathCount = 0;
+        _diagRenderRoundedFillCallCount = 0;
+        _diagRenderRoundedBorderCallCount = 0;
+        _diagRenderStateCacheHitCount = 0;
+        _diagRenderStateCacheMissCount = 0;
+        _diagOuterRadiiCacheHitCount = 0;
+        _diagOuterRadiiCacheMissCount = 0;
+        _diagRoundedGeometryCacheHitCount = 0;
+        _diagRoundedGeometryCacheMissCount = 0;
+        _diagBackgroundBrushChangeCount = 0;
+        _diagBackgroundBrushMutationCount = 0;
+        _diagBackgroundBrushAttachCount = 0;
+        _diagBackgroundBrushDetachCount = 0;
+        _diagBorderBrushChangeCount = 0;
+        _diagBorderBrushMutationCount = 0;
+        _diagBorderBrushAttachCount = 0;
+        _diagBorderBrushDetachCount = 0;
+        _diagBorderThicknessPropertyChangeCount = 0;
+        _diagCornerRadiusPropertyChangeCount = 0;
+        _diagRenderStateInvalidationCount = 0;
+        _diagRenderStateInvalidationNoOpCount = 0;
+        _diagOuterRadiiInvalidationCount = 0;
+        _diagOuterRadiiInvalidationNoOpCount = 0;
+        _diagTextureBuildCount = 0;
+        _diagTextureBuildElapsedTicks = 0;
+        _diagTextureBuildPixelCount = 0;
+        _diagTextureCacheBucketCreateCount = 0;
+        _diagRoundedGeometryBuildPointCount = 0;
+        return snapshot;
+    }
+
+    internal static BorderTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateAggregateTelemetrySnapshot();
+    }
+
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        var chrome = GetChromeThickness();
-        var innerAvailable = new Vector2(
-            MathF.Max(0f, availableSize.X - chrome.Horizontal),
-            MathF.Max(0f, availableSize.Y - chrome.Vertical));
-
-        if (Child is not FrameworkElement childElement)
+        var start = Stopwatch.GetTimestamp();
+        _runtimeMeasureOverrideCallCount++;
+        try
         {
-            return new Vector2(chrome.Horizontal, chrome.Vertical);
-        }
+            var chrome = GetChromeThickness();
+            var innerAvailable = new Vector2(
+                MathF.Max(0f, availableSize.X - chrome.Horizontal),
+                MathF.Max(0f, availableSize.Y - chrome.Vertical));
 
-        childElement.Measure(innerAvailable);
-        return new Vector2(
-            childElement.DesiredSize.X + chrome.Horizontal,
-            childElement.DesiredSize.Y + chrome.Vertical);
+            if (Child is not FrameworkElement childElement)
+            {
+                _runtimeMeasureOverrideNoChildCount++;
+                IncrementAggregate(ref _diagMeasureOverrideNoChildCount);
+                return new Vector2(chrome.Horizontal, chrome.Vertical);
+            }
+
+            _runtimeMeasureOverrideChildMeasureCount++;
+            IncrementAggregate(ref _diagMeasureOverrideChildMeasureCount);
+            childElement.Measure(innerAvailable);
+            return new Vector2(
+                childElement.DesiredSize.X + chrome.Horizontal,
+                childElement.DesiredSize.Y + chrome.Vertical);
+        }
+        finally
+        {
+            _runtimeMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
+            RecordAggregateElapsed(ref _diagMeasureOverrideCallCount, ref _diagMeasureOverrideElapsedTicks, start);
+        }
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
-        if (Child is not FrameworkElement childElement)
+        var start = Stopwatch.GetTimestamp();
+        _runtimeArrangeOverrideCallCount++;
+        try
         {
+            if (Child is not FrameworkElement childElement)
+            {
+                _runtimeArrangeOverrideNoChildCount++;
+                IncrementAggregate(ref _diagArrangeOverrideNoChildCount);
+                return finalSize;
+            }
+
+            var border = BorderThickness;
+            var padding = Padding;
+            var left = border.Left + padding.Left;
+            var top = border.Top + padding.Top;
+            var right = border.Right + padding.Right;
+            var bottom = border.Bottom + padding.Bottom;
+
+            var childRect = new LayoutRect(
+                LayoutSlot.X + left,
+                LayoutSlot.Y + top,
+                MathF.Max(0f, finalSize.X - left - right),
+                MathF.Max(0f, finalSize.Y - top - bottom));
+
+            _runtimeArrangeOverrideChildArrangeCount++;
+            IncrementAggregate(ref _diagArrangeOverrideChildArrangeCount);
+            childElement.Arrange(childRect);
             return finalSize;
         }
-
-        var border = BorderThickness;
-        var padding = Padding;
-        var left = border.Left + padding.Left;
-        var top = border.Top + padding.Top;
-        var right = border.Right + padding.Right;
-        var bottom = border.Bottom + padding.Bottom;
-
-        var childRect = new LayoutRect(
-            LayoutSlot.X + left,
-            LayoutSlot.Y + top,
-            MathF.Max(0f, finalSize.X - left - right),
-            MathF.Max(0f, finalSize.Y - top - bottom));
-
-        childElement.Arrange(childRect);
-        return finalSize;
+        finally
+        {
+            _runtimeArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
+            RecordAggregateElapsed(ref _diagArrangeOverrideCallCount, ref _diagArrangeOverrideElapsedTicks, start);
+        }
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        var start = Stopwatch.GetTimestamp();
+        _runtimeRenderCallCount++;
         base.OnRender(spriteBatch);
-
-        var slot = LayoutSlot;
-        if (slot.Width <= 0f || slot.Height <= 0f)
+        try
         {
-            return;
-        }
+            var slot = LayoutSlot;
+            if (slot.Width <= 0f || slot.Height <= 0f)
+            {
+                _runtimeRenderSkippedZeroSlotCount++;
+                IncrementAggregate(ref _diagRenderSkippedZeroSlotCount);
+                return;
+            }
 
-        var renderState = ResolveRenderState();
-        var backgroundBrush = renderState.BackgroundBrush;
-        var borderBrush = renderState.BorderBrush;
-        var backgroundColor = renderState.BackgroundColor;
-        var borderColor = renderState.BorderColor;
-        var borderThickness = renderState.BorderThickness;
-        var hasVisibleBackground = renderState.HasVisibleBackground;
-        var hasVisibleBorder = renderState.HasVisibleBorder;
-        if (!hasVisibleBackground && !hasVisibleBorder)
-        {
-            return;
-        }
+            var renderState = ResolveRenderState();
+            var backgroundBrush = renderState.BackgroundBrush;
+            var borderBrush = renderState.BorderBrush;
+            var backgroundColor = renderState.BackgroundColor;
+            var borderColor = renderState.BorderColor;
+            var borderThickness = renderState.BorderThickness;
+            var hasVisibleBackground = renderState.HasVisibleBackground;
+            var hasVisibleBorder = renderState.HasVisibleBorder;
+            if (!hasVisibleBackground && !hasVisibleBorder)
+            {
+                _runtimeRenderSkippedInvisibleCount++;
+                IncrementAggregate(ref _diagRenderSkippedInvisibleCount);
+                return;
+            }
 
-        var cornerRadius = CornerRadius;
-        if (!HasAnyCornerRadius(cornerRadius))
-        {
-            if (TryDrawCachedBorderTexture(spriteBatch, slot, RoundedRectRadii.Empty, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder))
+            var cornerRadius = CornerRadius;
+            if (!HasAnyCornerRadius(cornerRadius))
+            {
+                _runtimeRenderRectangularPathCount++;
+                IncrementAggregate(ref _diagRenderRectangularPathCount);
+                if (TryDrawCachedBorderTexture(spriteBatch, slot, RoundedRectRadii.Empty, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder))
+                {
+                    return;
+                }
+
+                DrawRectangularBorder(spriteBatch, slot, borderThickness, backgroundColor, borderColor);
+                return;
+            }
+
+            var outerRadii = ResolveOuterRadii(slot);
+            if (!outerRadii.HasAnyRadius)
+            {
+                _runtimeRenderRectangularPathCount++;
+                IncrementAggregate(ref _diagRenderRectangularPathCount);
+                if (TryDrawCachedBorderTexture(spriteBatch, slot, RoundedRectRadii.Empty, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder))
+                {
+                    return;
+                }
+
+                DrawRectangularBorder(spriteBatch, slot, borderThickness, backgroundColor, borderColor);
+                return;
+            }
+
+            _runtimeRenderRoundedPathCount++;
+            IncrementAggregate(ref _diagRenderRoundedPathCount);
+            if (TryDrawCachedBorderTexture(spriteBatch, slot, outerRadii, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder))
             {
                 return;
             }
 
-            DrawRectangularBorder(spriteBatch, slot, borderThickness, backgroundColor, borderColor);
-            return;
-        }
+            if (hasVisibleBackground)
+            {
+                DrawRoundedRectFill(spriteBatch, slot, outerRadii, borderThickness, backgroundColor);
+            }
 
-        var outerRadii = ResolveOuterRadii(slot);
-        if (!outerRadii.HasAnyRadius)
-        {
-            if (TryDrawCachedBorderTexture(spriteBatch, slot, RoundedRectRadii.Empty, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder))
+            if (!hasVisibleBorder)
             {
                 return;
             }
 
-            DrawRectangularBorder(spriteBatch, slot, borderThickness, backgroundColor, borderColor);
-            return;
+            DrawRoundedBorder(spriteBatch, slot, borderThickness, outerRadii, borderColor);
         }
-
-        if (TryDrawCachedBorderTexture(spriteBatch, slot, outerRadii, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder))
+        finally
         {
-            return;
+            _runtimeRenderElapsedTicks += Stopwatch.GetTimestamp() - start;
+            RecordAggregateElapsed(ref _diagRenderCallCount, ref _diagRenderElapsedTicks, start);
         }
-
-        if (hasVisibleBackground)
-        {
-            DrawRoundedRectFill(spriteBatch, slot, outerRadii, borderThickness, backgroundColor);
-        }
-
-        if (!hasVisibleBorder)
-        {
-            return;
-        }
-
-        DrawRoundedBorder(spriteBatch, slot, borderThickness, outerRadii, borderColor);
     }
 
     private Thickness GetChromeThickness()
@@ -283,40 +561,56 @@ public class Border : Decorator
 
     private void OnBackgroundBrushChanged(DependencyPropertyChangedEventArgs args)
     {
+        _runtimeBackgroundBrushChangeCount++;
+        IncrementAggregate(ref _diagBackgroundBrushChangeCount);
         InvalidateRenderStateCache();
         if (args.OldValue is Brush oldBrush)
         {
+            _runtimeBackgroundBrushDetachCount++;
+            IncrementAggregate(ref _diagBackgroundBrushDetachCount);
             oldBrush.Changed -= OnBackgroundBrushMutated;
         }
 
         if (args.NewValue is Brush newBrush)
         {
+            _runtimeBackgroundBrushAttachCount++;
+            IncrementAggregate(ref _diagBackgroundBrushAttachCount);
             newBrush.Changed += OnBackgroundBrushMutated;
         }
     }
 
     private void OnBorderBrushChanged(DependencyPropertyChangedEventArgs args)
     {
+        _runtimeBorderBrushChangeCount++;
+        IncrementAggregate(ref _diagBorderBrushChangeCount);
         InvalidateRenderStateCache();
         if (args.OldValue is Brush oldBrush)
         {
+            _runtimeBorderBrushDetachCount++;
+            IncrementAggregate(ref _diagBorderBrushDetachCount);
             oldBrush.Changed -= OnBorderBrushMutated;
         }
 
         if (args.NewValue is Brush newBrush)
         {
+            _runtimeBorderBrushAttachCount++;
+            IncrementAggregate(ref _diagBorderBrushAttachCount);
             newBrush.Changed += OnBorderBrushMutated;
         }
     }
 
     private void OnBackgroundBrushMutated()
     {
+        _runtimeBackgroundBrushMutationCount++;
+        IncrementAggregate(ref _diagBackgroundBrushMutationCount);
         InvalidateRenderStateCache();
         InvalidateVisual();
     }
 
     private void OnBorderBrushMutated()
     {
+        _runtimeBorderBrushMutationCount++;
+        IncrementAggregate(ref _diagBorderBrushMutationCount);
         InvalidateRenderStateCache();
         InvalidateVisual();
     }
@@ -327,6 +621,8 @@ public class Border : Decorator
 
         if (ReferenceEquals(args.Property, BorderThicknessProperty))
         {
+            _runtimeBorderThicknessPropertyChangeCount++;
+            IncrementAggregate(ref _diagBorderThicknessPropertyChangeCount);
             InvalidateRenderStateCache();
             InvalidateOuterRadiiCache();
             return;
@@ -334,6 +630,8 @@ public class Border : Decorator
 
         if (ReferenceEquals(args.Property, CornerRadiusProperty))
         {
+            _runtimeCornerRadiusPropertyChangeCount++;
+            IncrementAggregate(ref _diagCornerRadiusPropertyChangeCount);
             InvalidateOuterRadiiCache();
         }
     }
@@ -349,6 +647,9 @@ public class Border : Decorator
         {
             return;
         }
+
+        _runtimeRenderRectangularFallbackPathCount++;
+        IncrementAggregate(ref _diagRenderRectangularFallbackPathCount);
 
         if (backgroundColor.A > 0)
         {
@@ -406,8 +707,13 @@ public class Border : Decorator
     {
         if (!UiDrawing.TryGetAxisAligned2DTransformInfo(spriteBatch, out var scaleX, out var scaleY, out var offsetX, out var offsetY))
         {
+            _runtimeRenderAxisAlignedFastPathMissCount++;
+            IncrementAggregate(ref _diagRenderAxisAlignedFastPathMissCount);
             return false;
         }
+
+        _runtimeRenderAxisAlignedFastPathHitCount++;
+        IncrementAggregate(ref _diagRenderAxisAlignedFastPathHitCount);
 
         var pixelRect = UiDrawing.TransformRectToPixelBounds(spriteBatch, slot);
         if (pixelRect.Width <= 0 || pixelRect.Height <= 0)
@@ -475,6 +781,8 @@ public class Border : Decorator
         Thickness borderThickness,
         Color color)
     {
+        _runtimeRenderRoundedFillCallCount++;
+        IncrementAggregate(ref _diagRenderRoundedFillCallCount);
         EnsureRoundedGeometryCache(rect, radii, borderThickness);
         var polygon = _roundedFillPolygon;
         var pointCount = _roundedFillPolygonPointCount;
@@ -491,6 +799,8 @@ public class Border : Decorator
         RoundedRectRadii outerRadii,
         Color borderColor)
     {
+        _runtimeRenderRoundedBorderCallCount++;
+        IncrementAggregate(ref _diagRenderRoundedBorderCallCount);
         EnsureRoundedGeometryCache(outerRect, outerRadii, borderThickness);
         var innerRect = new LayoutRect(
             outerRect.X + borderThickness.Left,
@@ -543,9 +853,13 @@ public class Border : Decorator
     {
         if (_hasRenderStateCache)
         {
+            _runtimeRenderStateCacheHitCount++;
+            IncrementAggregate(ref _diagRenderStateCacheHitCount);
             return _renderStateCache;
         }
 
+        _runtimeRenderStateCacheMissCount++;
+        IncrementAggregate(ref _diagRenderStateCacheMissCount);
         _renderStateCacheBuildCount++;
         var backgroundBrush = Background;
         var borderBrush = BorderBrush;
@@ -570,9 +884,13 @@ public class Border : Decorator
             AreClose(_outerRadiiCacheWidth, slot.Width) &&
             AreClose(_outerRadiiCacheHeight, slot.Height))
         {
+            _runtimeOuterRadiiCacheHitCount++;
+            IncrementAggregate(ref _diagOuterRadiiCacheHitCount);
             return _outerRadiiCache;
         }
 
+        _runtimeOuterRadiiCacheMissCount++;
+        IncrementAggregate(ref _diagOuterRadiiCacheMissCount);
         _outerRadiiCache = CreateOuterRadii(CornerRadius, slot.Width, slot.Height);
         _outerRadiiCacheWidth = slot.Width;
         _outerRadiiCacheHeight = slot.Height;
@@ -582,11 +900,27 @@ public class Border : Decorator
 
     private void InvalidateRenderStateCache()
     {
+        _runtimeRenderStateInvalidationCount++;
+        IncrementAggregate(ref _diagRenderStateInvalidationCount);
+        if (!_hasRenderStateCache)
+        {
+            _runtimeRenderStateInvalidationNoOpCount++;
+            IncrementAggregate(ref _diagRenderStateInvalidationNoOpCount);
+        }
+
         _hasRenderStateCache = false;
     }
 
     private void InvalidateOuterRadiiCache()
     {
+        _runtimeOuterRadiiInvalidationCount++;
+        IncrementAggregate(ref _diagOuterRadiiInvalidationCount);
+        if (!_hasOuterRadiiCache)
+        {
+            _runtimeOuterRadiiInvalidationNoOpCount++;
+            IncrementAggregate(ref _diagOuterRadiiInvalidationNoOpCount);
+        }
+
         _hasOuterRadiiCache = false;
         _outerRadiiCacheWidth = float.NaN;
         _outerRadiiCacheHeight = float.NaN;
@@ -612,6 +946,8 @@ public class Border : Decorator
 
         if ((long)pixelWidth * pixelHeight > 1_048_576L)
         {
+            _runtimeRenderTextureCacheRejectedAreaCount++;
+            IncrementAggregate(ref _diagRenderTextureCacheRejectedAreaCount);
             return false;
         }
 
@@ -620,6 +956,8 @@ public class Border : Decorator
         {
             cache = new Dictionary<RoundedTextureCacheKey, Texture2D>();
             RoundedTextureCaches[graphicsDevice] = cache;
+            _runtimeTextureCacheBucketCreateCount++;
+            IncrementAggregate(ref _diagTextureCacheBucketCreateCount);
         }
 
         var cacheKey = new RoundedTextureCacheKey(
@@ -633,8 +971,24 @@ public class Border : Decorator
             hasVisibleBorder);
         if (!cache.TryGetValue(cacheKey, out var texture))
         {
+            _runtimeRenderTextureCacheMissCount++;
+            IncrementAggregate(ref _diagRenderTextureCacheMissCount);
+            _runtimeTextureBuildCount++;
+            IncrementAggregate(ref _diagTextureBuildCount);
+            var buildStart = Stopwatch.GetTimestamp();
             texture = BuildBorderTexture(graphicsDevice, pixelWidth, pixelHeight, outerRadii, borderThickness, backgroundBrush, borderBrush, hasVisibleBackground, hasVisibleBorder);
+            var elapsed = Stopwatch.GetTimestamp() - buildStart;
+            _runtimeTextureBuildElapsedTicks += elapsed;
+            AddAggregate(ref _diagTextureBuildElapsedTicks, elapsed);
+            var pixelCount = (long)pixelWidth * pixelHeight;
+            _runtimeTextureBuildPixelCount += pixelCount;
+            AddAggregate(ref _diagTextureBuildPixelCount, pixelCount);
             cache[cacheKey] = texture;
+        }
+        else
+        {
+            _runtimeRenderTextureCacheHitCount++;
+            IncrementAggregate(ref _diagRenderTextureCacheHitCount);
         }
 
         UiDrawing.DrawTexture(spriteBatch, texture, slot, color: Color.White, opacity: Opacity);
@@ -744,9 +1098,13 @@ public class Border : Decorator
         if (_hasRoundedGeometryCache &&
             RoundedGeometryCacheKeyClose(_roundedGeometryCacheKey, cacheKey))
         {
+            _runtimeRoundedGeometryCacheHitCount++;
+            IncrementAggregate(ref _diagRoundedGeometryCacheHitCount);
             return;
         }
 
+        _runtimeRoundedGeometryCacheMissCount++;
+        IncrementAggregate(ref _diagRoundedGeometryCacheMissCount);
         _roundedGeometryCacheBuildCount++;
         _roundedGeometryCacheKey = cacheKey;
         _hasRoundedGeometryCache = true;
@@ -790,6 +1148,15 @@ public class Border : Decorator
         CacheCornerBorderPolygon(BorderCorner.TopRight, outerRect, innerRect, outerRadii, innerRadii, ref _topRightCornerBorderPolygon, ref _topRightCornerBorderPolygonPointCount);
         CacheCornerBorderPolygon(BorderCorner.BottomRight, outerRect, innerRect, outerRadii, innerRadii, ref _bottomRightCornerBorderPolygon, ref _bottomRightCornerBorderPolygonPointCount);
         CacheCornerBorderPolygon(BorderCorner.BottomLeft, outerRect, innerRect, outerRadii, innerRadii, ref _bottomLeftCornerBorderPolygon, ref _bottomLeftCornerBorderPolygonPointCount);
+
+        var totalPointCount =
+            _roundedFillPolygonPointCount +
+            _topLeftCornerBorderPolygonPointCount +
+            _topRightCornerBorderPolygonPointCount +
+            _bottomRightCornerBorderPolygonPointCount +
+            _bottomLeftCornerBorderPolygonPointCount;
+        _runtimeRoundedGeometryBuildPointCount += totalPointCount;
+        AddAggregate(ref _diagRoundedGeometryBuildPointCount, totalPointCount);
     }
 
     private static void CacheCornerBorderPolygon(
@@ -1197,4 +1564,82 @@ public class Border : Decorator
         Thickness BorderThickness,
         bool HasVisibleBackground,
         bool HasVisibleBorder);
+
+    private static BorderTelemetrySnapshot CreateAggregateTelemetrySnapshot()
+    {
+        return new BorderTelemetrySnapshot(
+            _diagMeasureOverrideCallCount,
+            TicksToMilliseconds(_diagMeasureOverrideElapsedTicks),
+            _diagMeasureOverrideNoChildCount,
+            _diagMeasureOverrideChildMeasureCount,
+            _diagArrangeOverrideCallCount,
+            TicksToMilliseconds(_diagArrangeOverrideElapsedTicks),
+            _diagArrangeOverrideNoChildCount,
+            _diagArrangeOverrideChildArrangeCount,
+            _diagRenderCallCount,
+            TicksToMilliseconds(_diagRenderElapsedTicks),
+            _diagRenderSkippedZeroSlotCount,
+            _diagRenderSkippedInvisibleCount,
+            _diagRenderRectangularPathCount,
+            _diagRenderRoundedPathCount,
+            _diagRenderTextureCacheHitCount,
+            _diagRenderTextureCacheMissCount,
+            _diagRenderTextureCacheRejectedAreaCount,
+            _diagRenderAxisAlignedFastPathHitCount,
+            _diagRenderAxisAlignedFastPathMissCount,
+            _diagRenderRectangularFallbackPathCount,
+            _diagRenderRoundedFillCallCount,
+            _diagRenderRoundedBorderCallCount,
+            _diagRenderStateCacheHitCount,
+            _diagRenderStateCacheMissCount,
+            _diagOuterRadiiCacheHitCount,
+            _diagOuterRadiiCacheMissCount,
+            _diagRoundedGeometryCacheHitCount,
+            _diagRoundedGeometryCacheMissCount,
+            _diagBackgroundBrushChangeCount,
+            _diagBackgroundBrushMutationCount,
+            _diagBackgroundBrushAttachCount,
+            _diagBackgroundBrushDetachCount,
+            _diagBorderBrushChangeCount,
+            _diagBorderBrushMutationCount,
+            _diagBorderBrushAttachCount,
+            _diagBorderBrushDetachCount,
+            _diagBorderThicknessPropertyChangeCount,
+            _diagCornerRadiusPropertyChangeCount,
+            _diagRenderStateInvalidationCount,
+            _diagRenderStateInvalidationNoOpCount,
+            _diagOuterRadiiInvalidationCount,
+            _diagOuterRadiiInvalidationNoOpCount,
+            _diagTextureBuildCount,
+            TicksToMilliseconds(_diagTextureBuildElapsedTicks),
+            _diagTextureBuildPixelCount,
+            _diagTextureCacheBucketCreateCount,
+            _diagRoundedGeometryBuildPointCount);
+    }
+
+    private static void IncrementAggregate(ref long counter)
+    {
+        System.Threading.Interlocked.Increment(ref counter);
+    }
+
+    private static void AddAggregate(ref long counter, long value)
+    {
+        System.Threading.Interlocked.Add(ref counter, value);
+    }
+
+    private static void RecordAggregateElapsed(ref long callCount, ref long elapsedTicks, long startTicks)
+    {
+        IncrementAggregate(ref callCount);
+        System.Threading.Interlocked.Add(ref elapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+    }
+
+    private static void RecordAggregateElapsed(ref long elapsedTicks, long startTicks)
+    {
+        System.Threading.Interlocked.Add(ref elapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+    }
+
+    private static double TicksToMilliseconds(long elapsedTicks)
+    {
+        return (double)elapsedTicks * 1000d / Stopwatch.Frequency;
+    }
 }

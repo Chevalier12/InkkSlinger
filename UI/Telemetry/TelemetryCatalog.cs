@@ -12,7 +12,7 @@ namespace InkkSlinger.UI.Telemetry;
 /// - Style: Styling, templating, and visual state telemetry (StyleSnapshots.cs)
 /// - Control-specific: Individual control telemetry in per-control snapshot files
 /// - Panel: Panel layout telemetry (PanelSnapshots.cs)
-/// - VisualTree: Visual tree and hit testing telemetry (VisualTreeSnapshots.cs)
+/// - VisualTree: Visual tree and hit testing telemetry (split across dedicated snapshot files)
 /// - View: View-specific telemetry (ViewSnapshots.cs)
 /// - Freezable: Freezable object telemetry (FreezableSnapshots.cs)
 /// - Effects: Effect telemetry (EffectsSnapshots.cs)
@@ -59,6 +59,8 @@ public static class TelemetryCatalog
     // 
     // Control-specific
     // - Button (UI/Telemetry/ButtonSnapshots.cs)
+    // - ButtonTelemetrySnapshot
+    // - ButtonRuntimeDiagnosticsSnapshot
     // - ButtonTimingSnapshot
     // - Thumb (UI/Telemetry/ThumbSnapshots.cs)
     // - ThumbDragTelemetrySnapshot
@@ -71,6 +73,12 @@ public static class TelemetryCatalog
     // - CalendarRefreshTimingDiagnostics
     // - CalendarDayButton (UI/Telemetry/CalendarDayButtonSnapshots.cs)
     // - CalendarDayButtonTimingSnapshot
+    // - Border (UI/Telemetry/BorderSnapshots.cs)
+    // - BorderTelemetrySnapshot
+    // - BorderRuntimeDiagnosticsSnapshot
+    // - Label (UI/Telemetry/LabelSnapshots.cs)
+    // - LabelTelemetrySnapshot
+    // - LabelRuntimeDiagnosticsSnapshot
     // - TextBlock (UI/Telemetry/TextBlockSnapshots.cs)
     // - TextBlockPerformanceSnapshot
     // - TextBlockRuntimeDiagnosticsSnapshot
@@ -85,15 +93,19 @@ public static class TelemetryCatalog
     // - PanelTelemetrySnapshot
     // - CanvasTelemetrySnapshot
     // - StackPanelTelemetrySnapshot
+    // - WrapPanelTelemetrySnapshot
     // - GridTimingSnapshot
     // - UniformGridTimingSnapshot
     // 
-    // VisualTree (UI/Telemetry/VisualTreeSnapshots.cs)
-    // - HitTestInstrumentationSnapshot
-    // - UIElementRenderTimingSnapshot
-    // - UIElementInvalidationDiagnosticsSnapshot
-    // - ValueChangedRoutedEventTelemetrySnapshot
-    // - FrameworkLayoutTimingSnapshot
+    // VisualTree
+    // - HitTestInstrumentationSnapshot (UI/Telemetry/HitTestInstrumentationSnapshot.cs)
+    // - UIElementRenderTimingSnapshot (UI/Telemetry/UIElementRenderTimingSnapshot.cs)
+    // - UIElementInvalidationDiagnosticsSnapshot (UI/Telemetry/UIElementInvalidationDiagnosticsSnapshot.cs)
+    // - ValueChangedRoutedEventTelemetrySnapshot (UI/Telemetry/ValueChangedRoutedEventTelemetrySnapshot.cs)
+    // - FrameworkLayoutTimingSnapshot (UI/Telemetry/FrameworkLayoutTimingSnapshot.cs)
+    // - FrameworkElement (UI/Telemetry/FrameworkElementSnapshot.cs)
+    // - FrameworkElementTelemetrySnapshot
+    // - FrameworkElementDiagnosticsSnapshot
     // 
     // View (UI/Telemetry/ViewSnapshots.cs)
     // - CanvasViewDiagnosticsSnapshot
