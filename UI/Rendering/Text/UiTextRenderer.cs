@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -826,28 +827,6 @@ internal static class UiTextRenderer
             color);
     }
 }
-
-internal readonly record struct UiTextRendererTimingSnapshot(
-    long MeasureWidthElapsedTicks,
-    int MeasureWidthCallCount,
-    long GetLineHeightElapsedTicks,
-    int GetLineHeightCallCount,
-    long DrawStringElapsedTicks,
-    int DrawStringCallCount,
-    int TypefaceCacheHitCount,
-    int TypefaceCacheMissCount,
-    int MetricsCacheHitCount,
-    int MetricsCacheMissCount,
-    int LineHeightCacheHitCount,
-    int LineHeightCacheMissCount,
-    string HottestDrawStringText,
-    string HottestDrawStringTypography,
-    double HottestDrawStringMilliseconds,
-    string HottestMeasureWidthText,
-    string HottestMeasureWidthTypography,
-    double HottestMeasureWidthMilliseconds,
-    string HottestLineHeightTypography,
-    double HottestLineHeightMilliseconds);
 
 internal readonly record struct UiTextMetricsCacheKey(
     UiTypography Typography,

@@ -133,7 +133,7 @@ public sealed class CalendarTextDiagnosticsTests
         UiRuntimeFontBackendTimingSnapshot backendTiming,
         GridTimingSnapshot gridTiming,
         UniformGridTimingSnapshot uniformGridTiming,
-        TextLayout.TextLayoutMetricsSnapshot textLayoutMetrics)
+        TextLayoutMetricsSnapshot textLayoutMetrics)
     {
         _output.WriteLine(
             $"scenario={scenario} refreshCount={calendarDiagnostics.RefreshCount} " +

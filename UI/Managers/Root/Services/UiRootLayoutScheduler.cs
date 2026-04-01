@@ -10,6 +10,7 @@ public sealed partial class UiRoot
 {
     private void ResetUpdatePhaseState()
     {
+        _telemetryResetUpdatePhaseStateCallCount++;
         _lastUpdatePhaseOrder.Clear();
         LastInputPhaseMs = 0d;
         LastBindingPhaseMs = 0d;

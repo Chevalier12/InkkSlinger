@@ -33,6 +33,7 @@ Docs/
 ARCHITECTURE-SUMMARY.md
 BEHAVIOR-PARITY-MAP.md
 TEST-MAP.md
+Guide.md
 
 # Local automation scripts
 scripts/

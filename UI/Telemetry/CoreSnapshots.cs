@@ -186,3 +186,18 @@ internal readonly record struct UiFreezableInvalidationBatchSnapshot(
     int MaxPendingTargetCount,
     double FlushMilliseconds,
     string LastFlushTargetSummary);
+
+/// <summary>
+/// UiRoot entry-point telemetry snapshot for tracking call counts and elapsed time.
+/// </summary>
+internal readonly record struct UiRootTelemetrySnapshot(
+    int UpdateCallCount,
+    double UpdateElapsedMs,
+    int EnqueueDeferredOperationCallCount,
+    int EnqueueTextInputCallCount,
+    int ForceFullRedrawForSurfaceResetCallCount,
+    int ForceFullRedrawForDiagnosticsCaptureCallCount,
+    int RebuildRetainedRenderListCallCount,
+    int SynchronizeRetainedRenderListCallCount,
+    int ClearDirtyRenderQueueCallCount,
+    int ResetUpdatePhaseStateCallCount);

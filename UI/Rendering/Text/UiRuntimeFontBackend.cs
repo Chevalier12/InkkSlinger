@@ -7,6 +7,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using FreeTypeSharp;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Win32;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -790,19 +791,3 @@ internal readonly record struct UiFaceVerticalMetrics(
     float LineHeight,
     float Ascent,
     float Descent);
-
-internal readonly record struct UiRuntimeFontBackendTimingSnapshot(
-    long MeasureElapsedTicks,
-    int MeasureCallCount,
-    long RasterizeElapsedTicks,
-    int RasterizeCallCount,
-    int FaceCacheHitCount,
-    int FaceCacheMissCount,
-    int FaceSizeReuseHitCount,
-    int FaceSizeChangeCount,
-    int GlyphAdvanceCacheHitCount,
-    int GlyphAdvanceCacheMissCount,
-    int KerningCacheHitCount,
-    int KerningCacheMissCount,
-    int VerticalMetricsCacheHitCount,
-    int VerticalMetricsCacheMissCount);

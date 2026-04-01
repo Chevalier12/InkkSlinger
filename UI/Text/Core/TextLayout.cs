@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -124,19 +125,6 @@ public static class TextLayout
             _buildElapsedTicks += Stopwatch.GetTimestamp() - start;
         }
     }
-
-    public readonly record struct TextLayoutMetricsSnapshot(
-        int LayoutRequestCount,
-        int CacheHitCount,
-        int CacheMissCount,
-        int BuildCount,
-        int NoWrapBuildCount,
-        int WrappedBuildCount,
-        int TotalMeasuredTextLength,
-        int TotalProducedLineCount,
-        int CacheEntryCount,
-        long LayoutElapsedTicks,
-        long BuildElapsedTicks);
 
     private static TextLayoutResult BuildNoWrapLayout(string text, UiTypography typography, float fontSize)
     {

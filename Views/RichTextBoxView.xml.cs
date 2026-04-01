@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
 using System.Text;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -1079,28 +1080,6 @@ public partial class RichTextBoxView : UserControl
     }
 
     private readonly record struct FormatOption(string Label, string Format);
-
-    internal readonly record struct RichTextBoxViewDiagnosticsSnapshot(
-        int RequestUiRefreshCount,
-        int QueuedEditorRefreshCount,
-        int RefreshUiStateCount,
-        double RefreshUiStateTotalMilliseconds,
-        int RefreshEditorUiStateCount,
-        double RefreshEditorUiStateTotalMilliseconds,
-        int DocumentStatsCount,
-        double DocumentStatsTotalMilliseconds,
-        int UpdateCommandStatesCount,
-        double UpdateCommandStatesTotalMilliseconds,
-        int UpdateEditorCommandStatesCount,
-        double UpdateEditorCommandStatesTotalMilliseconds,
-        int UpdateStatusLabelsCount,
-        double UpdateStatusLabelsTotalMilliseconds,
-        int UpdatePayloadMetaCount,
-        double UpdatePayloadMetaTotalMilliseconds,
-        int UpdateHeroSummaryCount,
-        double UpdateHeroSummaryTotalMilliseconds,
-        int UpdatePresetHintsCount,
-        double UpdatePresetHintsTotalMilliseconds);
 
     private readonly record struct DocumentStats(
         int BlockCount,

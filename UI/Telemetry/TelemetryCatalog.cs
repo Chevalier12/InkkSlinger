@@ -17,10 +17,6 @@ namespace InkkSlinger.UI.Telemetry;
 /// - Freezable: Freezable object telemetry (FreezableSnapshots.cs)
 /// - Effects: Effect telemetry (EffectsSnapshots.cs)
 /// - Automation: UI Automation telemetry (AutomationSnapshots.cs)
-/// 
-/// Note: These snapshot definitions exist in parallel with the original definitions
-/// in their respective source files. To complete the physical reorganization,
-/// the definitions should be removed from original locations and references updated.
 /// </summary>
 public static class TelemetryCatalog
 {
@@ -63,6 +59,7 @@ public static class TelemetryCatalog
     // Control (UI/Telemetry/ControlSnapshots.cs)
     // - ButtonTimingSnapshot
     // - ThumbDragTelemetrySnapshot
+    // - ExpanderTimingSnapshot
     // - CalendarDiagnosticsSnapshot
     // - CalendarDayButtonTimingSnapshot
     // - TextBlockPerformanceSnapshot
@@ -88,7 +85,6 @@ public static class TelemetryCatalog
     // View (UI/Telemetry/ViewSnapshots.cs)
     // - CanvasViewDiagnosticsSnapshot
     // - RichTextBoxViewDiagnosticsSnapshot
-    // 
     // Freezable (UI/Telemetry/FreezableSnapshots.cs)
     // - FreezableTelemetrySnapshot
     // 

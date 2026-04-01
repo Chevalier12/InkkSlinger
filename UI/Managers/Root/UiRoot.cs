@@ -172,6 +172,18 @@ public sealed partial class UiRoot
     private UIElement? _cachedKeyboardMenuScopeFocusedElement;
     private bool _activeUpdateParticipantsDirty = true;
 
+    // Entry-point telemetry
+    private long _telemetryUpdateCallCount;
+    private long _telemetryUpdateElapsedTicks;
+    private long _telemetryEnqueueDeferredOperationCallCount;
+    private long _telemetryEnqueueTextInputCallCount;
+    private long _telemetryForceFullRedrawForSurfaceResetCallCount;
+    private long _telemetryForceFullRedrawForDiagnosticsCaptureCallCount;
+    private long _telemetryRebuildRetainedRenderListCallCount;
+    private long _telemetrySynchronizeRetainedRenderListCallCount;
+    private long _telemetryClearDirtyRenderQueueCallCount;
+    private long _telemetryResetUpdatePhaseStateCallCount;
+
     public UiRoot(UIElement visualRoot)
     {
         _visualRoot = visualRoot ?? throw new ArgumentNullException(nameof(visualRoot));
@@ -454,6 +466,35 @@ public sealed partial class UiRoot
             _lastPointerResolvePath);
     }
 
+    internal UiRootTelemetrySnapshot GetUiRootTelemetrySnapshot()
+    {
+        return new UiRootTelemetrySnapshot(
+            (int)_telemetryUpdateCallCount,
+            _telemetryUpdateElapsedTicks * 1_000_000.0 / Stopwatch.Frequency,
+            (int)_telemetryEnqueueDeferredOperationCallCount,
+            (int)_telemetryEnqueueTextInputCallCount,
+            (int)_telemetryForceFullRedrawForSurfaceResetCallCount,
+            (int)_telemetryForceFullRedrawForDiagnosticsCaptureCallCount,
+            (int)_telemetryRebuildRetainedRenderListCallCount,
+            (int)_telemetrySynchronizeRetainedRenderListCallCount,
+            (int)_telemetryClearDirtyRenderQueueCallCount,
+            (int)_telemetryResetUpdatePhaseStateCallCount);
+    }
+
+    public void GetTelemetryAndReset()
+    {
+        _telemetryUpdateCallCount = 0;
+        _telemetryUpdateElapsedTicks = 0;
+        _telemetryEnqueueDeferredOperationCallCount = 0;
+        _telemetryEnqueueTextInputCallCount = 0;
+        _telemetryForceFullRedrawForSurfaceResetCallCount = 0;
+        _telemetryForceFullRedrawForDiagnosticsCaptureCallCount = 0;
+        _telemetryRebuildRetainedRenderListCallCount = 0;
+        _telemetrySynchronizeRetainedRenderListCallCount = 0;
+        _telemetryClearDirtyRenderQueueCallCount = 0;
+        _telemetryResetUpdatePhaseStateCallCount = 0;
+    }
+
     internal UIElement? GetHoveredElementForDiagnostics()
     {
         return _inputState.HoveredElement;
@@ -507,7 +548,7 @@ public sealed partial class UiRoot
             accumulator.ArrangeWorkCount);
     }
 
-    public TextLayout.TextLayoutMetricsSnapshot GetTextLayoutMetricsSnapshot()
+    public TextLayoutMetricsSnapshot GetTextLayoutMetricsSnapshot()
     {
         return TextLayout.GetMetricsSnapshot();
     }
@@ -519,6 +560,7 @@ public sealed partial class UiRoot
 
     internal void ForceFullRedrawForSurfaceReset()
     {
+        _telemetryForceFullRedrawForSurfaceResetCallCount++;
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
         ArmFullRedrawSettleWindowForResize();
@@ -527,6 +569,7 @@ public sealed partial class UiRoot
 
     internal void ForceFullRedrawForDiagnosticsCapture()
     {
+        _telemetryForceFullRedrawForDiagnosticsCaptureCallCount++;
         _hasRenderInvalidation = true;
         _mustDrawNextFrame = true;
         _dirtyRegions.MarkFullFrameDirty(dueToFragmentation: false);
@@ -551,9 +594,11 @@ public sealed partial class UiRoot
 
     public void Update(GameTime gameTime, Viewport viewport)
     {
+        _telemetryUpdateCallCount++;
+        var callStart = Stopwatch.GetTimestamp();
+
         Dispatcher.VerifyAccess();
         Automation.BeginFrame();
-        var updateStart = Stopwatch.GetTimestamp();
 
         ResetUpdatePhaseState();
 
@@ -573,22 +618,26 @@ public sealed partial class UiRoot
             UiUpdatePhase.RenderScheduling,
             () => RunRenderSchedulingPhase(viewport));
 
-        LastUpdateMs = Stopwatch.GetElapsedTime(updateStart).TotalMilliseconds;
+        LastUpdateMs = Stopwatch.GetElapsedTime(callStart).TotalMilliseconds;
+        _telemetryUpdateElapsedTicks += Stopwatch.GetTimestamp() - callStart;
         Automation.EndFrameAndFlush();
     }
 
     public void EnqueueDeferredOperation(Action operation)
     {
+        _telemetryEnqueueDeferredOperationCallCount++;
         Dispatcher.EnqueueDeferred(operation);
     }
 
     public void EnqueueTextInput(char character)
     {
+        _telemetryEnqueueTextInputCallCount++;
         _inputManager.EnqueueTextInput(character);
     }
 
     internal void RebuildRenderListForTests()
     {
+        _telemetryRebuildRetainedRenderListCallCount++;
         RebuildRetainedRenderList();
     }
 
@@ -701,6 +750,7 @@ public sealed partial class UiRoot
 
     internal void ResetDirtyStateForTests()
     {
+        _telemetryClearDirtyRenderQueueCallCount++;
         _dirtyRegions.Clear();
         ClearDirtyRenderQueue();
         ResetRetainedSyncTrackingState();
@@ -710,6 +760,7 @@ public sealed partial class UiRoot
 
     internal void SynchronizeRetainedRenderListForTests()
     {
+        _telemetrySynchronizeRetainedRenderListCallCount++;
         SynchronizeRetainedRenderList();
     }
 

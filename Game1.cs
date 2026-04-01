@@ -1014,13 +1014,13 @@ public class Game1 : Game
             int TextLengthBefore,
             int CaretIndexBefore,
             RichTextBoxPerformanceSnapshot EditorBefore,
-            RichTextBoxView.RichTextBoxViewDiagnosticsSnapshot ViewBefore,
+            RichTextBoxViewDiagnosticsSnapshot ViewBefore,
             UiRootPerformanceTelemetrySnapshot RootPerfBefore,
             UiRenderTelemetrySnapshot RenderBefore,
             UiTextRendererTimingSnapshot TextBefore,
             UIElementRenderTimingSnapshot ElementRenderBefore,
             ButtonTimingSnapshot ButtonBefore,
-            TextLayout.TextLayoutMetricsSnapshot TextLayoutBefore);
+            TextLayoutMetricsSnapshot TextLayoutBefore);
     }
 
     private sealed class ControlsCatalogSidebarScrollRuntimeDiagnosticsSession : IDisposable
@@ -1195,7 +1195,7 @@ public class Game1 : Game
             UiTextRendererTimingSnapshot TextBefore,
             UIElementRenderTimingSnapshot ElementRenderBefore,
             ButtonTimingSnapshot ButtonBefore,
-            TextLayout.TextLayoutMetricsSnapshot TextLayoutBefore);
+            TextLayoutMetricsSnapshot TextLayoutBefore);
     }
 
     private static ScrollViewer? FindSidebarScrollViewer(ControlsCatalogView catalog)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -836,33 +837,6 @@ public partial class CanvasView : UserControl
                     $"{pair.Key}(n={pair.Value.Count},ms={(double)pair.Value.Ticks * 1000d / Stopwatch.Frequency:0.###})"));
     }
 }
-
-internal readonly record struct CanvasViewDiagnosticsSnapshot(
-    int HandleFocusCardDragDeltaCallCount,
-    double HandleFocusCardDragDeltaMilliseconds,
-    int MoveFocusByCallCount,
-    double MoveFocusByMilliseconds,
-    int ApplySceneStateCallCount,
-    double ApplySceneStateMilliseconds,
-    int ApplyFocusAnchorsCallCount,
-    double ApplyFocusAnchorsMilliseconds,
-    int ApplyBadgeLayerCallCount,
-    double ApplyBadgeLayerMilliseconds,
-    int ApplyGuideVisibilityCallCount,
-    double ApplyGuideVisibilityMilliseconds,
-    int UpdateLiveTextCallCount,
-    double UpdateLiveTextMilliseconds,
-    int UpdateTelemetryCallCount,
-    double UpdateTelemetryMilliseconds,
-    int SyncOverlayLayoutCallCount,
-    double SyncOverlayLayoutMilliseconds,
-    int SetTextChangeCount,
-    double SetTextMilliseconds,
-    string SetTextTargetSummary,
-    int SetCanvasLeftChangeCount,
-    double SetCanvasLeftMilliseconds,
-    int SetCanvasTopChangeCount,
-    double SetCanvasTopMilliseconds);
 
 
 

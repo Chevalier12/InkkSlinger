@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -7,6 +9,24 @@ namespace InkkSlinger;
 
 public class Expander : ContentControl
 {
+    private static long _diagMeasureOverrideCallCount;
+    private static long _diagMeasureOverrideElapsedTicks;
+    private static long _diagHeaderMeasureCount;
+    private static long _diagContentMeasuredWhenExpandedCount;
+    private static long _diagContentMeasuredWhenCollapsedCount;
+    private static long _diagArrangeOverrideCallCount;
+    private static long _diagArrangeOverrideElapsedTicks;
+    private static long _diagExpandDirectionDownCount;
+    private static long _diagExpandDirectionUpCount;
+    private static long _diagExpandDirectionLeftCount;
+    private static long _diagExpandDirectionRightCount;
+    private static long _diagRenderCallCount;
+    private static long _diagRenderElapsedTicks;
+    private static long _diagExpandCount;
+    private static long _diagCollapseCount;
+    private static long _diagHeaderPointerDownCount;
+    private static long _diagHeaderPointerUpToggleCount;
+    private static long _diagHeaderUpdateCount;
     public static readonly RoutedEvent ExpandedEvent =
         new(nameof(Expanded), RoutingStrategy.Bubble);
 
@@ -41,6 +61,15 @@ public class Expander : ContentControl
                 {
                     if (d is Expander expander && args.NewValue is bool expanded)
                     {
+                        if (expanded)
+                        {
+                            _diagExpandCount++;
+                        }
+                        else
+                        {
+                            _diagCollapseCount++;
+                        }
+
                         expander.RaiseRoutedEvent(
                             expanded ? ExpandedEvent : CollapsedEvent,
                             new RoutedSimpleEventArgs(expanded ? ExpandedEvent : CollapsedEvent));
@@ -278,7 +307,9 @@ public class Expander : ContentControl
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var headerSize = MeasureHeader(availableSize);
+        _diagHeaderMeasureCount++;
         var contentSize = Vector2.Zero;
 
         if (IsExpanded && ContentElement is FrameworkElement content)
@@ -286,13 +317,21 @@ public class Expander : ContentControl
             var contentAvailable = GetContentAvailableSize(availableSize, headerSize);
             content.Measure(contentAvailable);
             contentSize = content.DesiredSize;
+            _diagContentMeasuredWhenExpandedCount++;
+        }
+        else
+        {
+            _diagContentMeasuredWhenCollapsedCount++;
         }
 
+        _diagMeasureOverrideCallCount++;
+        _diagMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return ComposeDesiredSize(headerSize, contentSize);
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var headerSize = MeasureHeader(finalSize);
         var arrangedSize = IsExpanded
             ? finalSize
@@ -304,6 +343,22 @@ public class Expander : ContentControl
         var slots = ComputeSlots(arrangedSize, headerSize);
         _headerRect = slots.HeaderRect;
         _contentRect = slots.ContentRect;
+
+        switch (ExpandDirection)
+        {
+            case ExpandDirection.Down:
+                _diagExpandDirectionDownCount++;
+                break;
+            case ExpandDirection.Up:
+                _diagExpandDirectionUpCount++;
+                break;
+            case ExpandDirection.Left:
+                _diagExpandDirectionLeftCount++;
+                break;
+            case ExpandDirection.Right:
+                _diagExpandDirectionRightCount++;
+                break;
+        }
 
         if (_headerElement is FrameworkElement header)
         {
@@ -322,11 +377,14 @@ public class Expander : ContentControl
             }
         }
 
+        _diagArrangeOverrideCallCount++;
+        _diagArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return arrangedSize;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var slot = LayoutSlot;
         UiDrawing.DrawFilledRect(spriteBatch, slot, Background, Opacity);
         if (BorderThickness > 0f)
@@ -343,6 +401,9 @@ public class Expander : ContentControl
         {
             DrawHeaderText(spriteBatch, _headerRect);
         }
+
+        _diagRenderCallCount++;
+        _diagRenderElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
 
@@ -538,6 +599,8 @@ public class Expander : ContentControl
         {
             _headerElement = null;
         }
+
+        _diagHeaderUpdateCount++;
     }
 
     private static bool Contains(LayoutRect rect, Vector2 point)
@@ -551,6 +614,11 @@ public class Expander : ContentControl
     internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
     {
         _isHeaderPressed = Contains(_headerRect, pointerPosition);
+        if (_isHeaderPressed)
+        {
+            _diagHeaderPointerDownCount++;
+        }
+
         return _isHeaderPressed;
     }
 
@@ -563,8 +631,74 @@ public class Expander : ContentControl
             return false;
         }
 
+        _diagHeaderPointerUpToggleCount++;
         IsExpanded = !IsExpanded;
         return true;
+    }
+
+    internal static ExpanderTimingSnapshot GetTelemetryAndReset()
+    {
+        var snapshot = new ExpanderTimingSnapshot(
+            _diagMeasureOverrideCallCount,
+            (double)_diagMeasureOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagHeaderMeasureCount,
+            _diagContentMeasuredWhenExpandedCount,
+            _diagContentMeasuredWhenCollapsedCount,
+            _diagArrangeOverrideCallCount,
+            (double)_diagArrangeOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagExpandDirectionDownCount,
+            _diagExpandDirectionUpCount,
+            _diagExpandDirectionLeftCount,
+            _diagExpandDirectionRightCount,
+            _diagRenderCallCount,
+            (double)_diagRenderElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagExpandCount,
+            _diagCollapseCount,
+            _diagHeaderPointerDownCount,
+            _diagHeaderPointerUpToggleCount,
+            _diagHeaderUpdateCount);
+        _diagMeasureOverrideCallCount = 0;
+        _diagMeasureOverrideElapsedTicks = 0;
+        _diagHeaderMeasureCount = 0;
+        _diagContentMeasuredWhenExpandedCount = 0;
+        _diagContentMeasuredWhenCollapsedCount = 0;
+        _diagArrangeOverrideCallCount = 0;
+        _diagArrangeOverrideElapsedTicks = 0;
+        _diagExpandDirectionDownCount = 0;
+        _diagExpandDirectionUpCount = 0;
+        _diagExpandDirectionLeftCount = 0;
+        _diagExpandDirectionRightCount = 0;
+        _diagRenderCallCount = 0;
+        _diagRenderElapsedTicks = 0;
+        _diagExpandCount = 0;
+        _diagCollapseCount = 0;
+        _diagHeaderPointerDownCount = 0;
+        _diagHeaderPointerUpToggleCount = 0;
+        _diagHeaderUpdateCount = 0;
+        return snapshot;
+    }
+
+    internal static ExpanderTimingSnapshot GetExpanderSnapshotForDiagnostics()
+    {
+        return new ExpanderTimingSnapshot(
+            _diagMeasureOverrideCallCount,
+            (double)_diagMeasureOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagHeaderMeasureCount,
+            _diagContentMeasuredWhenExpandedCount,
+            _diagContentMeasuredWhenCollapsedCount,
+            _diagArrangeOverrideCallCount,
+            (double)_diagArrangeOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagExpandDirectionDownCount,
+            _diagExpandDirectionUpCount,
+            _diagExpandDirectionLeftCount,
+            _diagExpandDirectionRightCount,
+            _diagRenderCallCount,
+            (double)_diagRenderElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagExpandCount,
+            _diagCollapseCount,
+            _diagHeaderPointerDownCount,
+            _diagHeaderPointerUpToggleCount,
+            _diagHeaderUpdateCount);
     }
 }
 

@@ -3,6 +3,29 @@ namespace InkkSlinger.UI.Telemetry;
 using InkkSlinger;
 
 /// <summary>
+/// Expander timing telemetry snapshot.
+/// </summary>
+internal readonly record struct ExpanderTimingSnapshot(
+    long MeasureOverrideCallCount,
+    double MeasureOverrideMilliseconds,
+    long HeaderMeasureCount,
+    long ContentMeasuredWhenExpandedCount,
+    long ContentMeasuredWhenCollapsedCount,
+    long ArrangeOverrideCallCount,
+    double ArrangeOverrideMilliseconds,
+    long ExpandDirectionDownCount,
+    long ExpandDirectionUpCount,
+    long ExpandDirectionLeftCount,
+    long ExpandDirectionRightCount,
+    long RenderCallCount,
+    double RenderMilliseconds,
+    long ExpandCount,
+    long CollapseCount,
+    long HeaderPointerDownCount,
+    long HeaderPointerUpToggleCount,
+    long HeaderUpdateCount);
+
+/// <summary>
 /// Button timing telemetry snapshot.
 /// </summary>
 internal readonly record struct ButtonTimingSnapshot(
