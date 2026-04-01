@@ -121,6 +121,27 @@ public sealed class ComboBoxPopupEdgeParityTests
     }
 
     [Fact]
+    public void OpenDropDown_WithFewItems_ShouldSizeViewportToContent()
+    {
+        var (uiRoot, comboBox) = CreateFixture();
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var dropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var scrollViewer = FindScrollViewer(dropDown);
+
+        Assert.True(scrollViewer.ExtentHeight > 0f, $"Expected dropdown extent height to be positive, got {scrollViewer.ExtentHeight:0.##}.");
+        Assert.InRange(
+            scrollViewer.ViewportHeight - scrollViewer.ExtentHeight,
+            -0.5f,
+            6f);
+        Assert.True(
+            dropDown.LayoutSlot.Height < comboBox.MaxDropDownHeight - 20f,
+            $"Expected dropdown with few items to size below the max cap. height={dropDown.LayoutSlot.Height:0.##} max={comboBox.MaxDropDownHeight:0.##} viewport={scrollViewer.ViewportHeight:0.##} extent={scrollViewer.ExtentHeight:0.##}");
+    }
+
+    [Fact]
     public void DropDown_InNestedScrollViewerUserControl_ShouldAnchorToComboBoxInsteadOfFlowingAfterSiblingContent()
     {
         var rootView = new UserControl();
@@ -472,6 +493,19 @@ public sealed class ComboBoxPopupEdgeParityTests
         }
 
         throw new InvalidOperationException("Could not resolve ListBox items host panel.");
+    }
+
+    private static ScrollViewer FindScrollViewer(ListBox listBox)
+    {
+        foreach (var child in listBox.GetVisualChildren())
+        {
+            if (child is ScrollViewer viewer)
+            {
+                return viewer;
+            }
+        }
+
+        throw new InvalidOperationException("Could not resolve ListBox ScrollViewer.");
     }
 
     private static void Click(UiRoot uiRoot, Vector2 pointer)

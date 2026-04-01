@@ -408,6 +408,11 @@ public class ComboBox : Selector
         IncrementMetric(ref _runtimeDependencyPropertyChangedCallCount, ref _diagDependencyPropertyChangedCallCount);
         base.OnDependencyPropertyChanged(args);
 
+        if (args.Property == MaxDropDownHeightProperty)
+        {
+            ApplyDropDownSizing();
+        }
+
         if (args.Property == ItemContainerStyleProperty ||
             args.Property == ItemContainerStyleSelectorProperty ||
             args.Property == DisplayMemberPathProperty ||
@@ -576,7 +581,7 @@ public class ComboBox : Selector
             _dropDownPopup.HorizontalOffset = 0f;
             _dropDownPopup.VerticalOffset = 2f;
             _dropDownPopup.Width = Math.Max(ActualWidth > 0f ? ActualWidth : Width, 80f);
-            _dropDownPopup.Height = MaxDropDownHeight;
+            ApplyDropDownSizing();
 
             IncrementMetric(ref _runtimeOpenDropDownPopupShowCount, ref _diagOpenDropDownPopupShowCount);
             _dropDownPopup.Show(host);
@@ -638,10 +643,27 @@ public class ComboBox : Selector
             };
 
             _dropDownPopup.Closed += OnDropDownPopupClosed;
+            ApplyDropDownSizing();
         }
         finally
         {
             AddMetric(ref _runtimeEnsureDropDownControlsElapsedTicks, ref _diagEnsureDropDownControlsElapsedTicks, Stopwatch.GetTimestamp() - start);
+        }
+    }
+
+    private void ApplyDropDownSizing()
+    {
+        var popupChromeHeight = 0f;
+        if (_dropDownPopup != null)
+        {
+            _dropDownPopup.Height = float.NaN;
+            _dropDownPopup.MaxHeight = MaxDropDownHeight;
+            popupChromeHeight = (_dropDownPopup.BorderThickness * 2f) + _dropDownPopup.TitleBarHeight + _dropDownPopup.Padding.Vertical;
+        }
+
+        if (_dropDownList != null)
+        {
+            _dropDownList.MaxHeight = MathF.Max(0f, MaxDropDownHeight - popupChromeHeight);
         }
     }
 

@@ -9,6 +9,32 @@ namespace InkkSlinger.Tests;
 public sealed class ScrollViewerContentGutterTests
 {
     [Fact]
+    public void Measure_WithFiniteViewportAndShortContent_ShrinksDesiredHeightToContent()
+    {
+        var host = new StackPanel();
+        host.AddChild(new Border { Height = 24f, Margin = new Thickness(0f, 0f, 0f, 4f) });
+        host.AddChild(new Border { Height = 24f, Margin = new Thickness(0f, 0f, 0f, 4f) });
+        host.AddChild(new Border { Height = 24f });
+
+        var viewer = new ScrollViewer
+        {
+            Width = 220f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = host
+        };
+
+        viewer.Measure(new Vector2(220f, 180f));
+
+        Assert.True(
+            viewer.DesiredSize.Y < 120f,
+            $"Expected ScrollViewer desired height to shrink to short content under finite measure. desired={viewer.DesiredSize.Y:0.##}");
+        Assert.True(
+            viewer.DesiredSize.Y >= 76f,
+            $"Expected ScrollViewer desired height to still cover content. desired={viewer.DesiredSize.Y:0.##}");
+    }
+
+    [Fact]
     public void VerticalScrollbar_ShouldReserveContentGutter()
     {
         var host = new StackPanel();

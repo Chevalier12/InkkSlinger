@@ -806,10 +806,10 @@ public class ScrollViewer : ContentControl
         UpdateScrollBars();
 
         var desiredViewportWidth = float.IsFinite(contentBounds.Width)
-            ? decision.ViewportRect.Width
+            ? MathF.Min(decision.ExtentWidth, decision.ViewportRect.Width)
             : decision.ExtentWidth;
         var desiredViewportHeight = float.IsFinite(contentBounds.Height)
-            ? decision.ViewportRect.Height
+            ? MathF.Min(decision.ExtentHeight, decision.ViewportRect.Height)
             : decision.ExtentHeight;
 
         var desiredWidth = desiredViewportWidth + (border * 2f) + GetVerticalBarReservation(_showVerticalBar, verticalBarThickness);
