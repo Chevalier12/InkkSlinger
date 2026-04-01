@@ -1006,6 +1006,13 @@ public sealed partial class UiRoot
             _lastInputPointerMoveHandlerMs += elapsed;
             _lastInputPointerMoveCapturedScrollViewerHandlerMs += elapsed;
         }
+        else if (_inputState.CapturedPointerElement is InkCanvas dragInkCanvas)
+        {
+            var handlerStart = Stopwatch.GetTimestamp();
+            dragInkCanvas.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+        }
         else if (_inputState.CapturedPointerElement is Slider dragSlider)
         {
             var handlerStart = Stopwatch.GetTimestamp();
@@ -1211,6 +1218,11 @@ public sealed partial class UiRoot
         {
             CapturePointer(target);
         }
+        else if (button == MouseButton.Left && target is InkCanvas inkCanvas &&
+                 inkCanvas.HandlePointerDownFromInput(pointerPosition))
+        {
+            CapturePointer(target);
+        }
         else if (button == MouseButton.Left && target is Slider slider &&
                  slider.HandlePointerDownFromInput(pointerPosition))
         {
@@ -1307,6 +1319,10 @@ public sealed partial class UiRoot
         else if (_inputState.CapturedPointerElement is ScrollViewer scrollViewer && button == MouseButton.Left)
         {
             scrollViewer.HandlePointerUpFromInput();
+        }
+        else if (_inputState.CapturedPointerElement is InkCanvas inkCanvas && button == MouseButton.Left)
+        {
+            inkCanvas.HandlePointerUpFromInput();
         }
         else if (_inputState.CapturedPointerElement is Slider slider && button == MouseButton.Left)
         {
