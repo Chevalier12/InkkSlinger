@@ -60,6 +60,12 @@ public static class TelemetryCatalog
     // - ButtonTelemetrySnapshot
     // - ButtonRuntimeDiagnosticsSnapshot
     // - ButtonTimingSnapshot
+    // - CheckBox (UI/Telemetry/CheckBoxSnapshots.cs)
+    // - CheckBoxTelemetrySnapshot
+    // - CheckBoxRuntimeDiagnosticsSnapshot
+    // - ComboBox (UI/Telemetry/ComboBoxSnapshots.cs)
+    // - ComboBoxTelemetrySnapshot
+    // - ComboBoxRuntimeDiagnosticsSnapshot
     // - Thumb (UI/Telemetry/ThumbSnapshots.cs)
     // - ThumbDragTelemetrySnapshot
     // - Expander (UI/Telemetry/ExpanderSnapshots.cs)

@@ -37,6 +37,9 @@ public sealed class InkkOopsHostConfiguration
             DiagnosticsFilterPolicy = new DefaultInkkOopsDiagnosticsFilterPolicy(),
             DiagnosticsContributors =
             [
+                new InkkOopsButtonDiagnosticsContributor(),
+                new InkkOopsCheckBoxDiagnosticsContributor(),
+                new InkkOopsComboBoxDiagnosticsContributor(),
                 new InkkOopsGridDiagnosticsContributor(),
             ],
             DefaultNamedPipeName = "InkkOops",

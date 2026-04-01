@@ -174,6 +174,62 @@ public sealed class InkkOopsAbstractionTests
     }
 
     [Fact]
+    public void DiagnosticsPipeline_Emits_CheckBoxContributorFacts()
+    {
+        _ = CheckBox.GetTelemetryAndReset();
+
+        var checkBox = new CheckBox
+        {
+            Name = "AcceptTerms",
+            Content = "Accept terms",
+            Width = 160f,
+            Height = 32f,
+            Padding = new Thickness(2f),
+            IsChecked = null,
+            IsThreeState = true
+        };
+        var root = new Canvas { Name = "Root" };
+        root.AddChild(checkBox);
+
+        using var host = new InkkOopsTestHost(root);
+
+        checkBox.Measure(new Vector2(160f, 32f));
+        checkBox.Arrange(new LayoutRect(0f, 0f, 160f, 32f));
+
+        var getFallbackStyle = typeof(CheckBox).GetMethod("GetFallbackStyle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(getFallbackStyle);
+        Assert.NotNull((Style?)getFallbackStyle!.Invoke(checkBox, null));
+
+        var diagnostics = new InkkOopsVisualTreeDiagnostics(
+        [
+            new InkkOopsGenericElementDiagnosticsContributor(),
+            new InkkOopsFrameworkElementDiagnosticsContributor(),
+            new InkkOopsCheckBoxDiagnosticsContributor()
+        ]);
+
+        var snapshot = diagnostics.Capture(
+            root,
+            new InkkOopsDiagnosticsContext
+            {
+                UiRoot = host.UiRoot,
+                Viewport = host.GetViewportBounds(),
+                HoveredElement = null,
+                FocusedElement = null,
+                ArtifactName = "checkbox"
+            });
+        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
+
+        Assert.Contains("CheckBox#AcceptTerms", text);
+        Assert.Contains("checkBoxDisplayText=Accept terms", text);
+        Assert.Contains("checkBoxIsChecked=null", text);
+        Assert.Contains("checkBoxIsThreeState=True", text);
+        Assert.Contains("checkBoxRuntimeMeasureOverrideCalls=", text);
+        Assert.Contains("checkBoxRuntimeMeasureTextLayoutCalls=", text);
+        Assert.Contains("checkBoxMeasureOverrideCalls=", text);
+        Assert.Contains("checkBoxGetFallbackStyleCalls=", text);
+    }
+
+    [Fact]
     public void FrameworkElementTelemetry_Captures_Runtime_And_Aggregate_Data()
     {
         var hostRoot = new Canvas { Name = "HostRoot" };
@@ -271,6 +327,14 @@ public sealed class InkkOopsAbstractionTests
         var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
 
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsButtonDiagnosticsContributor);
+    }
+
+    [Fact]
+    public void DefaultHostConfiguration_Registers_CheckBoxContributor()
+    {
+        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
+
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsCheckBoxDiagnosticsContributor);
     }
 
     [Fact]
