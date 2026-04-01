@@ -2522,6 +2522,20 @@ public sealed partial class UiRoot
             }
         }
 
+        for (var current = anchor.VisualParent ?? anchor.LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is Expander expander)
+            {
+                hostAnchor = expander;
+                return true;
+            }
+        }
+
+        if (!IsHoverHostElement(anchor))
+        {
+            return false;
+        }
+
         return TryGetClickHostAnchor(anchor, out hostAnchor);
     }
 

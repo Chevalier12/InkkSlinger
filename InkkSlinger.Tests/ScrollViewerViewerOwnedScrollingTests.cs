@@ -99,6 +99,87 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
+    public void ViewerOwnedScrolling_HitTest_UsesVisibleChildCoordinates()
+    {
+        var root = new Panel();
+        var content = new StackPanel();
+        ScrollViewer.SetUseTransformContentScrolling(content, false);
+
+        var first = new Button { Content = "First", Height = 40f, Margin = new Thickness(0f, 0f, 0f, 8f) };
+        var second = new Button { Content = "Second", Height = 40f, Margin = new Thickness(0f, 0f, 0f, 8f) };
+        var third = new Button { Content = "Third", Height = 40f };
+        content.AddChild(first);
+        content.AddChild(second);
+        content.AddChild(third);
+
+        var viewer = new ScrollViewer
+        {
+            Width = 180f,
+            Height = 90f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 220, 16);
+
+        viewer.ScrollToVerticalOffset(48f);
+        RunLayout(uiRoot, 320, 220, 32);
+
+        var probe = new Vector2(
+            second.LayoutSlot.X + (second.LayoutSlot.Width * 0.5f),
+            second.LayoutSlot.Y + (second.LayoutSlot.Height * 0.5f));
+
+        var hit = VisualTreeHelper.HitTest(root, probe);
+
+        Assert.Same(second, hit);
+        Assert.False(first.HitTest(probe));
+        Assert.False(third.HitTest(probe));
+    }
+
+    [Fact]
+    public void TransformScrolling_HitTest_UsesVisibleChildCoordinates()
+    {
+        var root = new Panel();
+        var content = new StackPanel();
+
+        var first = new Button { Content = "First", Height = 40f, Margin = new Thickness(0f, 0f, 0f, 8f) };
+        var second = new Button { Content = "Second", Height = 40f, Margin = new Thickness(0f, 0f, 0f, 8f) };
+        var third = new Button { Content = "Third", Height = 40f };
+        content.AddChild(first);
+        content.AddChild(second);
+        content.AddChild(third);
+
+        var viewer = new ScrollViewer
+        {
+            Width = 180f,
+            Height = 90f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 220, 16);
+
+        viewer.ScrollToVerticalOffset(48f);
+
+        Assert.True(content.HasLocalRenderTransform());
+
+        var renderedSecondY = second.LayoutSlot.Y - viewer.VerticalOffset;
+        var probe = new Vector2(
+            second.LayoutSlot.X + (second.LayoutSlot.Width * 0.5f),
+            renderedSecondY + (second.LayoutSlot.Height * 0.5f));
+
+        var hit = VisualTreeHelper.HitTest(root, probe);
+
+        Assert.Same(second, hit);
+    }
+
+    [Fact]
     public void VirtualizingStackPanel_ChangesRealizedRange_WhenViewerOffsetChanges()
     {
         var root = new Panel();

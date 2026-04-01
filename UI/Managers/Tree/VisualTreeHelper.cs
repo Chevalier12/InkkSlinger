@@ -210,11 +210,6 @@ public static class VisualTreeHelper
 
             var nextHorizontalOffset = accumulatedHorizontalOffset;
             var nextVerticalOffset = accumulatedVerticalOffset;
-            if (root is ScrollViewer scrollViewerForOffset)
-            {
-                nextHorizontalOffset += scrollViewerForOffset.HorizontalOffset;
-                nextVerticalOffset += scrollViewerForOffset.VerticalOffset;
-            }
 
             // Hot path: avoid per-node allocations and sorting (ItemsPresenter can have thousands of children).
             if (root is Panel panel)
@@ -757,6 +752,11 @@ public static class VisualTreeHelper
     {
         hit = null;
         if (children.Count == 0)
+        {
+            return false;
+        }
+
+        if (hasAncestorTransformToRoot || hasRootToAncestorInverse || panel.TryGetLocalRenderTransformSnapshot(out _))
         {
             return false;
         }

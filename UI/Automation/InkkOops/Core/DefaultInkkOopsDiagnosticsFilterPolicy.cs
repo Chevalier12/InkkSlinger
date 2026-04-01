@@ -10,42 +10,42 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
         Rules =
         [
             new InkkOopsDiagnosticsFactRule { Key = "hovered", Comparison = InkkOopsDiagnosticsComparison.Equal, Value = true },
-            new InkkOopsDiagnosticsFactRule { Key = "focused", Comparison = InkkOopsDiagnosticsComparison.Equal, Value = true },
-            new InkkOopsDiagnosticsFactRule { Key = "measureWork", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 1 },
-            new InkkOopsDiagnosticsFactRule { Key = "arrangeWork", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 1 },
-            new InkkOopsDiagnosticsFactRule { Key = "measureInvalidations", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
-            new InkkOopsDiagnosticsFactRule { Key = "arrangeInvalidations", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
-            new InkkOopsDiagnosticsFactRule { Key = "renderInvalidations", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
-            new InkkOopsDiagnosticsFactRule { Key = "measureMs", Comparison = InkkOopsDiagnosticsComparison.GreaterThanOrEqual, Value = 0.1d },
-            new InkkOopsDiagnosticsFactRule { Key = "measureExclusiveMs", Comparison = InkkOopsDiagnosticsComparison.GreaterThanOrEqual, Value = 0.1d },
-            new InkkOopsDiagnosticsFactRule { Key = "arrangeMs", Comparison = InkkOopsDiagnosticsComparison.GreaterThanOrEqual, Value = 0.1d },
-            new InkkOopsDiagnosticsFactRule { Key = "runtimeMeasureOverrideMs", Comparison = InkkOopsDiagnosticsComparison.GreaterThanOrEqual, Value = 0.1d },
-            new InkkOopsDiagnosticsFactRule { Key = "runtimeTextPropertyChanges", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
-            new InkkOopsDiagnosticsFactRule { Key = "runtimeResolveLayoutCacheMisses", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
-            new InkkOopsDiagnosticsFactRule { Key = "canvasViewUpdateTelemetryCalls", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
-            new InkkOopsDiagnosticsFactRule { Key = "canvasViewSetTextChanges", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
-            new InkkOopsDiagnosticsFactRule { Key = "measureInvalidationTopSources", Comparison = InkkOopsDiagnosticsComparison.Contains, Value = "property:" },
-            new InkkOopsDiagnosticsFactRule { Key = "renderText", Comparison = InkkOopsDiagnosticsComparison.Exists },
-            new InkkOopsDiagnosticsFactRule { Key = "text", DisplayNameContains = "TextBlock#PositionValueText", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "name", Comparison = InkkOopsDiagnosticsComparison.Contains, Value = "Playground" },
+            new InkkOopsDiagnosticsFactRule { Key = "slot", DisplayNameContains = "Playground", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "actual", DisplayNameContains = "Playground", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "renderSize", DisplayNameContains = "Playground", Comparison = InkkOopsDiagnosticsComparison.Exists },
 
-            // Control name capture
-            new InkkOopsDiagnosticsFactRule { Key = "name", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            // Hovered button state in the playground toolbar.
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Button", Key = "buttonDisplayText", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Button", Key = "buttonLayoutSlot", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Button", Key = "buttonIsMouseOver", Comparison = InkkOopsDiagnosticsComparison.Equal, Value = true },
 
-            // Expander state and failure detection
-            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "isExpanded", Comparison = InkkOopsDiagnosticsComparison.Exists },
-            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "expandCount", Comparison = InkkOopsDiagnosticsComparison.Exists },
-            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "collapseCount", Comparison = InkkOopsDiagnosticsComparison.Exists },
-            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "headerPressed", Comparison = InkkOopsDiagnosticsComparison.Exists },
-            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "headerPointerUpMiss", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
-            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "headerPointerUpToggleCount", Comparison = InkkOopsDiagnosticsComparison.Exists },
-            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "contentRect", Comparison = InkkOopsDiagnosticsComparison.Exists },
-            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "headerRect", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            // ScrollViewer offset and viewport state after the repro scroll.
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "slot", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "actual", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "renderSize", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "verticalOffset", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "viewport", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "contentViewport", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "runtimeContentViewportRect", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "contentSlot", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "contentActual", Comparison = InkkOopsDiagnosticsComparison.Exists },
 
-            // ScrollViewer content tracking for expander failures
-            new InkkOopsDiagnosticsFactRule { Key = "contentType", Comparison = InkkOopsDiagnosticsComparison.Exists },
-            new InkkOopsDiagnosticsFactRule { Key = "contentActual", Comparison = InkkOopsDiagnosticsComparison.Exists },
-            new InkkOopsDiagnosticsFactRule { Key = "contentMeasureWork", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
-            new InkkOopsDiagnosticsFactRule { Key = "contentArrangeWork", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 }
+            // The target Expander geometry and state.
+            new InkkOopsDiagnosticsFactRule { Key = "slot", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "actual", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "renderSize", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "isExpanded", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "expandDirection", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "hasHeaderElement", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "hasContent", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "headerRect", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "contentRect", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "measuredHeaderSize", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
+
+            // Header text that should remain under the pointer when the bug reproduces.
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "TextBlock", Key = "text", Comparison = InkkOopsDiagnosticsComparison.Contains, Value = "Release checklist" },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "TextBlock", Key = "text", Comparison = InkkOopsDiagnosticsComparison.Contains, Value = "Composed header content" }
         ]
     };
 

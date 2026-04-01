@@ -304,6 +304,83 @@ public class InputDispatchOptimizationTests
     }
 
     [Fact]
+    public void PointerMove_WithinScrolledExpanderHeader_DoesNotHoverSiblingToolbarButtons()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 700f, 420f));
+
+        var content = new StackPanel();
+        content.AddChild(new Border { Height = 48f });
+
+        var toolbarHost = new WrapPanel
+        {
+            Margin = new Thickness(0f, 0f, 0f, 12f)
+        };
+        var expandButton = new Button { Content = "Expand", Margin = new Thickness(0f, 0f, 8f, 8f) };
+        var collapseButton = new Button { Content = "Collapse", Margin = new Thickness(0f, 0f, 8f, 8f) };
+        toolbarHost.AddChild(expandButton);
+        toolbarHost.AddChild(collapseButton);
+        content.AddChild(toolbarHost);
+
+        var headerPanel = new StackPanel();
+        var titleText = new TextBlock { Text = "Release checklist" };
+        var subtitleText = new TextBlock { Text = "Composed header content plus accent colors on the same Expander instance." };
+        headerPanel.AddChild(titleText);
+        headerPanel.AddChild(subtitleText);
+
+        var expander = new Expander
+        {
+            Header = headerPanel,
+            IsExpanded = true,
+            Margin = new Thickness(0f, 0f, 0f, 12f)
+        };
+        expander.Content = new Border { Height = 280f };
+        content.AddChild(expander);
+        for (var i = 0; i < 20; i++)
+        {
+            content.AddChild(new Border { Height = 48f, Margin = new Thickness(0f, 0f, 0f, 4f) });
+        }
+
+        var scrollViewer = new ScrollViewer
+        {
+            Content = content,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            LineScrollAmount = 30f
+        };
+        root.AddChild(scrollViewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 700, 420, 16);
+
+        scrollViewer.ScrollToVerticalOffset(72f);
+        RunLayout(uiRoot, 700, 420, 32);
+        Assert.True(content.HasLocalRenderTransform());
+
+        var scrollOffset = scrollViewer.VerticalOffset;
+        var titlePoint = GetScrolledCenter(titleText.LayoutSlot, scrollOffset);
+        var subtitlePoint = GetScrolledCenter(subtitleText.LayoutSlot, scrollOffset);
+
+        var directTitleHit = VisualTreeHelper.HitTest(root, titlePoint);
+        Assert.NotSame(expandButton, directTitleHit);
+        Assert.NotSame(collapseButton, directTitleHit);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: titlePoint));
+        Assert.False(expandButton.IsMouseOver);
+        Assert.False(collapseButton.IsMouseOver);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: subtitlePoint));
+        Assert.False(expandButton.IsMouseOver);
+        Assert.False(collapseButton.IsMouseOver);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: titlePoint));
+        Assert.False(expandButton.IsMouseOver);
+        Assert.False(collapseButton.IsMouseOver);
+        Assert.NotSame(expandButton, uiRoot.GetHoveredElementForDiagnostics());
+        Assert.NotSame(collapseButton, uiRoot.GetHoveredElementForDiagnostics());
+    }
+
+    [Fact]
     public void PointerMove_AndClick_StaleHoveredContentFallbacksToThumbHitTest()
     {
         var root = new Canvas
@@ -632,6 +709,11 @@ public class InputDispatchOptimizationTests
     private static Vector2 GetCenter(LayoutRect rect)
     {
         return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
+    }
+
+    private static Vector2 GetScrolledCenter(LayoutRect rect, float verticalOffset)
+    {
+        return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f) - verticalOffset);
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)

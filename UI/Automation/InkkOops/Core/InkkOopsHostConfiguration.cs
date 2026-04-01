@@ -31,7 +31,11 @@ public sealed class InkkOopsHostConfiguration
 
         var namingPolicy = new DefaultInkkOopsArtifactNamingPolicy();
         var semanticLogContributors = new InkkOopsSemanticLogContributorRegistry()
-            .Register<Expander>(InkkOopsSemanticLogTarget.RawTarget, static expander => expander.IsExpanded)
+            .Register<Expander>(InkkOopsSemanticLogTarget.Owner, static expander => expander.IsExpanded)
+            .Register<Expander>(InkkOopsSemanticLogTarget.Owner, static expander => expander.ExpandDirection)
+            .Register<TextBlock>(InkkOopsSemanticLogTarget.Hovered, static textBlock => textBlock.Text)
+            .Register<Button>(InkkOopsSemanticLogTarget.Hovered, static button => button.Content)
+            .Register<Button>(InkkOopsSemanticLogTarget.Hovered, static button => button.IsMouseOver)
             .Build();
         return new InkkOopsHostConfiguration
         {
@@ -42,6 +46,10 @@ public sealed class InkkOopsHostConfiguration
             DiagnosticsFilterPolicy = new DefaultInkkOopsDiagnosticsFilterPolicy(),
             DiagnosticsContributors =
             [
+                new InkkOopsGenericElementDiagnosticsContributor(),
+                new InkkOopsFrameworkElementDiagnosticsContributor(),
+                new InkkOopsTextBlockDiagnosticsContributor(),
+                new InkkOopsButtonDiagnosticsContributor(),
                 new InkkOopsExpanderDiagnosticsContributor(),
                 new InkkOopsScrollViewerDiagnosticsContributor(),
             ],

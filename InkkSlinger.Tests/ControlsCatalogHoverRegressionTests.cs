@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -157,9 +158,263 @@ public sealed class ControlsCatalogHoverRegressionTests
             $"Expected sidebar hover to activate after leaving ListBox. sidebar={firstSidebarButton.GetContentText()}, listBoxPoint=({previewItemPoint.X:0.###},{previewItemPoint.Y:0.###}), sidebarPoint=({sidebarButtonPoint.X:0.###},{sidebarButtonPoint.Y:0.###}), preMoveHit={preMoveHit?.GetType().Name ?? "null"}, preMoveButton={preMoveButton?.GetContentText() ?? "null"}");
     }
 
+    [Fact]
+    public void HoveringRenderedExpanderHeader_ShouldNotResolveToolbarButtons()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var host = new Canvas
+            {
+                Width = 1920f,
+                Height = 991f
+            };
+            var catalog = new ControlsCatalogView
+            {
+                Width = 1920f,
+                Height = 991f
+            };
+            host.AddChild(catalog);
+            catalog.ShowControl("Expander");
+
+            var uiRoot = new UiRoot(host);
+            RunLayout(uiRoot, 1920, 991, 16);
+
+            var previewHost = Assert.IsType<ContentControl>(catalog.FindName("PreviewHost"));
+            var previewRoot = Assert.IsType<ExpanderView>(previewHost.Content);
+            var previewViewer = FindFirstVisualChild<ScrollViewer>(previewRoot);
+            Assert.NotNull(previewViewer);
+            var expander = Assert.IsType<Expander>(previewRoot.FindName("PlaygroundExpander"));
+            var expandButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundExpandButton"));
+            var collapseButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundCollapseButton"));
+            var toggleButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundToggleButton"));
+            var resetButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundResetButton"));
+
+            previewViewer!.ScrollToVerticalOffset(96f);
+            RunLayout(uiRoot, 1920, 991, 32);
+
+            var snapshot = expander.GetExpanderSnapshotForDiagnostics();
+            var renderedHeaderRect = new LayoutRect(
+                snapshot.HeaderRectX,
+                snapshot.HeaderRectY - previewViewer.VerticalOffset,
+                snapshot.HeaderRectWidth,
+                snapshot.HeaderRectHeight);
+
+            Button? badButton = null;
+            UIElement? badHit = null;
+            Vector2 badPoint = default;
+
+            var minX = Math.Max(0, (int)MathF.Floor(renderedHeaderRect.X));
+            var maxX = Math.Max(minX, (int)MathF.Ceiling(renderedHeaderRect.X + MathF.Min(renderedHeaderRect.Width, 220f)));
+            var minY = Math.Max(0, (int)MathF.Floor(renderedHeaderRect.Y));
+            var maxY = Math.Max(minY, (int)MathF.Ceiling(renderedHeaderRect.Y + renderedHeaderRect.Height));
+
+            for (var y = minY; y < maxY && badButton == null; y += 2)
+            {
+                for (var x = minX; x < maxX; x += 2)
+                {
+                    var point = new Vector2(x, y);
+                    var hit = VisualTreeHelper.HitTest(host, point);
+                    var button = FindAncestor<Button>(hit);
+                    if (ReferenceEquals(button, expandButton) ||
+                        ReferenceEquals(button, collapseButton) ||
+                        ReferenceEquals(button, toggleButton) ||
+                        ReferenceEquals(button, resetButton))
+                    {
+                        badButton = button;
+                        badHit = hit;
+                        badPoint = point;
+                        break;
+                    }
+                }
+            }
+
+            Assert.True(
+                badButton == null,
+                $"Expected rendered Expander header area to stay isolated from toolbar buttons after scroll, but point=({badPoint.X:0.###},{badPoint.Y:0.###}) hit={badHit?.GetType().Name ?? "null"} button={badButton?.GetContentText() ?? "null"} header=({renderedHeaderRect.X:0.###},{renderedHeaderRect.Y:0.###},{renderedHeaderRect.Width:0.###},{renderedHeaderRect.Height:0.###}) viewerOffset={previewViewer.VerticalOffset:0.###}.");
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
+    [Fact]
+    public void MovingFromExpanderSubtitleIntoHeaderEdge_ShouldNotActivateToolbarHover()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var host = new Canvas
+            {
+                Width = 1920f,
+                Height = 991f
+            };
+            var catalog = new ControlsCatalogView
+            {
+                Width = 1920f,
+                Height = 991f
+            };
+            host.AddChild(catalog);
+            catalog.ShowControl("Expander");
+
+            var uiRoot = new UiRoot(host);
+            RunLayout(uiRoot, 1920, 991, 16);
+
+            var previewHost = Assert.IsType<ContentControl>(catalog.FindName("PreviewHost"));
+            var previewRoot = Assert.IsType<ExpanderView>(previewHost.Content);
+            var previewViewer = FindFirstVisualChild<ScrollViewer>(previewRoot);
+            Assert.NotNull(previewViewer);
+            var expander = Assert.IsType<Expander>(previewRoot.FindName("PlaygroundExpander"));
+            var expandButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundExpandButton"));
+            var collapseButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundCollapseButton"));
+            var toggleButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundToggleButton"));
+            var resetButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundResetButton"));
+            var headerStack = Assert.IsType<StackPanel>(expander.Header);
+            var titleText = Assert.IsType<TextBlock>(headerStack.Children[0]);
+            var subtitleText = Assert.IsType<TextBlock>(headerStack.Children[1]);
+
+            previewViewer!.ScrollToVerticalOffset(96f);
+            RunLayout(uiRoot, 1920, 991, 48);
+
+            var subtitlePoint = GetScrolledCenter(subtitleText.LayoutSlot, previewViewer.VerticalOffset);
+            MovePointer(uiRoot, subtitlePoint);
+
+            var snapshot = expander.GetExpanderSnapshotForDiagnostics();
+            var edgePoint = new Vector2(
+                snapshot.HeaderRectX - 3f,
+                snapshot.HeaderRectY - previewViewer.VerticalOffset + MathF.Min(snapshot.HeaderRectHeight - 1f, 32f));
+
+            Button? badButton = null;
+            Vector2 badPoint = default;
+            string? badPath = null;
+
+            var sweepSteps = 24;
+            for (var i = 1; i <= sweepSteps; i++)
+            {
+                var point = Vector2.Lerp(subtitlePoint, edgePoint, i / (float)sweepSteps);
+                MovePointer(uiRoot, point);
+
+                if (expandButton.IsMouseOver || collapseButton.IsMouseOver || toggleButton.IsMouseOver || resetButton.IsMouseOver)
+                {
+                    badButton = new[] { expandButton, collapseButton, toggleButton, resetButton }.First(static button => button.IsMouseOver);
+                    badPoint = point;
+                    badPath = uiRoot.LastPointerResolvePathForDiagnostics;
+                    break;
+                }
+            }
+
+            Assert.True(
+                badButton == null,
+                $"Expected moving from the rendered Expander subtitle into the header edge to keep toolbar hover off, but point=({badPoint.X:0.###},{badPoint.Y:0.###}) activated={badButton?.GetContentText() ?? "null"} resolvePath={badPath ?? "null"} subtitle=({subtitlePoint.X:0.###},{subtitlePoint.Y:0.###}) edge=({edgePoint.X:0.###},{edgePoint.Y:0.###}) viewerOffset={previewViewer.VerticalOffset:0.###} titleText={titleText.Text}.");
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
+    [Fact]
+    public void ArtifactReplay_ExpanderHeaderTrace_ShouldNotActivateToolbarHover()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var host = new Canvas
+            {
+                Width = 1920f,
+                Height = 991f
+            };
+            var catalog = new ControlsCatalogView
+            {
+                Width = 1920f,
+                Height = 991f
+            };
+            host.AddChild(catalog);
+            catalog.ShowControl("Expander");
+
+            var uiRoot = new UiRoot(host);
+            RunLayout(uiRoot, 1920, 991, 16);
+
+            var previewHost = Assert.IsType<ContentControl>(catalog.FindName("PreviewHost"));
+            var previewRoot = Assert.IsType<ExpanderView>(previewHost.Content);
+            var previewViewer = FindFirstVisualChild<ScrollViewer>(previewRoot);
+            Assert.NotNull(previewViewer);
+            var expandButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundExpandButton"));
+            var collapseButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundCollapseButton"));
+            var toggleButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundToggleButton"));
+            var resetButton = Assert.IsType<Button>(previewRoot.FindName("PlaygroundResetButton"));
+
+            previewViewer!.ScrollToVerticalOffset(96f);
+            RunLayout(uiRoot, 1920, 991, 32);
+
+            var trace = new[]
+            {
+                new Vector2(374f, 313f),
+                new Vector2(373f, 310f),
+                new Vector2(371f, 306f),
+                new Vector2(369f, 303f),
+                new Vector2(367f, 300f),
+                new Vector2(366f, 299f),
+                new Vector2(366f, 297f),
+                new Vector2(364f, 295f),
+                new Vector2(362f, 293f),
+                new Vector2(359f, 291f),
+                new Vector2(359f, 290f),
+                new Vector2(358f, 290f),
+                new Vector2(357f, 290f),
+                new Vector2(356f, 290f),
+                new Vector2(356f, 289f),
+                new Vector2(355f, 289f),
+                new Vector2(354f, 289f),
+                new Vector2(353f, 289f)
+            };
+
+            Button? badButton = null;
+            Vector2 badPoint = default;
+            string? badPath = null;
+
+            foreach (var point in trace)
+            {
+                MovePointer(uiRoot, point);
+                if (expandButton.IsMouseOver || collapseButton.IsMouseOver || toggleButton.IsMouseOver || resetButton.IsMouseOver)
+                {
+                    badButton = new[] { expandButton, collapseButton, toggleButton, resetButton }.First(static button => button.IsMouseOver);
+                    badPoint = point;
+                    badPath = uiRoot.LastPointerResolvePathForDiagnostics;
+                    break;
+                }
+            }
+
+            Assert.True(
+                badButton == null,
+                $"Expected artifact replay trace to stay off toolbar buttons, but point=({badPoint.X:0.###},{badPoint.Y:0.###}) activated={badButton?.GetContentText() ?? "null"} resolvePath={badPath ?? "null"} viewerOffset={previewViewer.VerticalOffset:0.###}.");
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
     private static void MovePointer(UiRoot uiRoot, Vector2 point)
     {
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(point, pointerMoved: true));
+    }
+
+    private static Vector2 GetCenter(LayoutRect rect)
+    {
+        return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
+    }
+
+    private static Vector2 GetScrolledCenter(LayoutRect rect, float verticalOffset)
+    {
+        return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f) - verticalOffset);
     }
 
     private static LayoutRect GetViewerViewportRect(ScrollViewer viewer)
@@ -272,4 +527,32 @@ public sealed class ControlsCatalogHoverRegressionTests
             new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
             new Viewport(0, 0, width, height));
     }
+
+    private static ResourceSnapshot CaptureApplicationResources()
+    {
+        var resources = UiApplication.Current.Resources;
+        return new ResourceSnapshot(resources.ToList(), resources.MergedDictionaries.ToList());
+    }
+
+    private static void RestoreApplicationResources(ResourceSnapshot snapshot)
+    {
+        TestApplicationResources.Restore(snapshot.Entries, snapshot.MergedDictionaries);
+    }
+
+    private static void LoadRootAppResources()
+    {
+        var appPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "App.xml"));
+        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
+        XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+    }
+
+    private readonly record struct ResourceSnapshot(
+        IReadOnlyList<KeyValuePair<object, object>> Entries,
+        IReadOnlyList<ResourceDictionary> MergedDictionaries);
 }
