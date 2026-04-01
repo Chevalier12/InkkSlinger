@@ -26,7 +26,26 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             new InkkOopsDiagnosticsFactRule { Key = "canvasViewSetTextChanges", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
             new InkkOopsDiagnosticsFactRule { Key = "measureInvalidationTopSources", Comparison = InkkOopsDiagnosticsComparison.Contains, Value = "property:" },
             new InkkOopsDiagnosticsFactRule { Key = "renderText", Comparison = InkkOopsDiagnosticsComparison.Exists },
-            new InkkOopsDiagnosticsFactRule { Key = "text", DisplayNameContains = "TextBlock#PositionValueText", Comparison = InkkOopsDiagnosticsComparison.Exists }
+            new InkkOopsDiagnosticsFactRule { Key = "text", DisplayNameContains = "TextBlock#PositionValueText", Comparison = InkkOopsDiagnosticsComparison.Exists },
+
+            // Control name capture
+            new InkkOopsDiagnosticsFactRule { Key = "name", Comparison = InkkOopsDiagnosticsComparison.Exists },
+
+            // Expander state and failure detection
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "isExpanded", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "expandCount", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "collapseCount", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "headerPressed", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "headerPointerUpMiss", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "headerPointerUpToggleCount", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "contentRect", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { ElementTypeName = "Expander", Key = "headerRect", Comparison = InkkOopsDiagnosticsComparison.Exists },
+
+            // ScrollViewer content tracking for expander failures
+            new InkkOopsDiagnosticsFactRule { Key = "contentType", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "contentActual", Comparison = InkkOopsDiagnosticsComparison.Exists },
+            new InkkOopsDiagnosticsFactRule { Key = "contentMeasureWork", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 },
+            new InkkOopsDiagnosticsFactRule { Key = "contentArrangeWork", Comparison = InkkOopsDiagnosticsComparison.GreaterThan, Value = 0 }
         ]
     };
 

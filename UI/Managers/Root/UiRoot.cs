@@ -500,6 +500,16 @@ public sealed partial class UiRoot
         return _inputState.HoveredElement;
     }
 
+    internal UIElement? GetLastClickDownTargetForDiagnostics()
+    {
+        return _lastClickDownTarget;
+    }
+
+    internal UIElement? GetLastClickUpTargetForDiagnostics()
+    {
+        return _lastClickUpTarget;
+    }
+
     internal Vector2 GetLastPointerPositionForDiagnostics()
     {
         return _inputState.LastPointerPosition;

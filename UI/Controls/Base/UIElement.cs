@@ -634,6 +634,30 @@ public class UIElement : DependencyObject
                point.Y <= transformedBounds.Y + transformedBounds.Height;
     }
 
+    internal bool HitTestRect(Vector2 point, LayoutRect rect)
+    {
+        if (!IsVisible || !IsEnabled || !IsHitTestVisible)
+        {
+            return false;
+        }
+
+        if (!IsPointVisibleThroughClipChain(point))
+        {
+            return false;
+        }
+
+        var transformedBounds = rect;
+        if (TryGetTransformFromThisToRoot(out var transform))
+        {
+            transformedBounds = TransformRect(transformedBounds, transform);
+        }
+
+        return point.X >= transformedBounds.X &&
+               point.X <= transformedBounds.X + transformedBounds.Width &&
+               point.Y >= transformedBounds.Y &&
+               point.Y <= transformedBounds.Y + transformedBounds.Height;
+    }
+
     protected bool IsPointVisibleThroughClipChain(Vector2 point)
     {
         var accumulatedTransform = Matrix.Identity;

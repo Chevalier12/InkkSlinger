@@ -17,6 +17,7 @@ public sealed class InkkOopsFrameworkElementDiagnosticsContributor : IInkkOopsDi
         var invalidation = snapshot.Invalidation;
         var telemetry = FrameworkElement.GetAggregateTelemetrySnapshotForDiagnostics();
 
+        builder.Add("name", frameworkElement.Name);
         builder.Add("slot", FormatRect(snapshot.Slot));
         builder.Add("desired", FormatSize(snapshot.DesiredSize));
         builder.Add("actual", FormatSize(snapshot.RenderSize));

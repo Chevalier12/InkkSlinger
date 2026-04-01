@@ -10,6 +10,8 @@ public interface IInkkOopsHost
 {
     UiRoot UiRoot { get; }
 
+    IReadOnlyList<IInkkOopsSemanticLogContributor> SemanticLogContributors { get; }
+
     string ArtifactRoot { get; }
 
     UIElement? GetVisualRootElement();

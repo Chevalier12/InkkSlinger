@@ -10,6 +10,8 @@ public interface IInkkOopsArtifactNamingPolicy
 
     string GetCommandLogFileName();
 
+    string GetSemanticLogFileName();
+
     string GetResultFileName();
 
     string GetRecordingJsonFileName();

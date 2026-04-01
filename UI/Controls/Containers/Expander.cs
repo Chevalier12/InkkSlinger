@@ -742,17 +742,9 @@ public class Expander : ContentControl
         _runtimeHeaderUpdateCount++;
     }
 
-    private static bool Contains(LayoutRect rect, Vector2 point)
-    {
-        return point.X >= rect.X &&
-               point.X <= rect.X + rect.Width &&
-               point.Y >= rect.Y &&
-               point.Y <= rect.Y + rect.Height;
-    }
-
     internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
     {
-        _isHeaderPressed = Contains(_headerRect, pointerPosition);
+        _isHeaderPressed = HitTestRect(pointerPosition, _headerRect);
         if (_isHeaderPressed)
         {
             IncrementAggregate(ref _diagHeaderPointerDownCount);
@@ -770,7 +762,7 @@ public class Expander : ContentControl
     internal bool HandlePointerUpFromInput(Vector2 pointerPosition)
     {
         var wasHeaderPressed = _isHeaderPressed;
-        var releasedInsideHeader = Contains(_headerRect, pointerPosition);
+        var releasedInsideHeader = HitTestRect(pointerPosition, _headerRect);
         var shouldToggle = wasHeaderPressed && releasedInsideHeader;
         _isHeaderPressed = false;
         if (!shouldToggle)

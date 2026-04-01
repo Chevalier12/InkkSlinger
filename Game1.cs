@@ -30,6 +30,7 @@ public class Game1 : Game
     private bool _shouldDrawUiThisFrame = true;
     private int _fpsFrameCount;
     private double _fpsElapsedSeconds;
+    private string _displayedFps = "0.0";
     private readonly List<CalendarHoverRuntimeFrame> _calendarHoverFrames = new(MaxCalendarHoverDiagnosticsFrames);
     private bool _calendarHoverDiagnosticsSessionStarted;
     private long _lastCalendarHoverFrameTimestamp;
@@ -53,7 +54,7 @@ public class Game1 : Game
         _window.IsMouseVisible = true;
         _window.AllowUserResizing = true;
         _window.SetClientSize(1280, 820);
-        _window.Title = BaseWindowTitle;
+        _window.Title = BuildWindowTitle(BaseWindowTitle, _displayedFps, "null");
     }
 
     protected override void Initialize()
@@ -146,6 +147,8 @@ public class Game1 : Game
             }
         }
 
+        UpdateWindowTitleWithFps(gameTime);
+
         base.Update(gameTime);
     }
 
@@ -213,28 +216,30 @@ public class Game1 : Game
                 Color.White);
             _spriteBatch.End();
         }
-
-        UpdateWindowTitleWithFps(gameTime);
         base.Draw(gameTime);
     }
 
-    internal static bool TryBuildFpsWindowTitle(
-        string baseTitle,
+    internal static bool TryComputeDisplayedFps(
         int accumulatedFrameCount,
         double accumulatedElapsedSeconds,
-        out string title)
+        out string displayedFps)
     {
         if (accumulatedElapsedSeconds < FpsWindowTitleRefreshIntervalSeconds)
         {
-            title = baseTitle;
+            displayedFps = string.Empty;
             return false;
         }
 
         var fps = accumulatedElapsedSeconds <= 0d
             ? 0d
             : accumulatedFrameCount / accumulatedElapsedSeconds;
-        title = $"{baseTitle} | FPS: {fps:0.0}";
+        displayedFps = $"{fps:0.0}";
         return true;
+    }
+
+    internal static string BuildWindowTitle(string baseTitle, string displayedFps, string hoveredElement)
+    {
+        return $"{baseTitle} | FPS: {displayedFps} | Hovered: {hoveredElement}";
     }
 
     protected override void OnExiting(object sender, ExitingEventArgs args)
@@ -339,15 +344,27 @@ public class Game1 : Game
     {
         _fpsFrameCount++;
         _fpsElapsedSeconds += gameTime.ElapsedGameTime.TotalSeconds;
-
-        if (!TryBuildFpsWindowTitle(BaseWindowTitle, _fpsFrameCount, _fpsElapsedSeconds, out var title))
+        if (TryComputeDisplayedFps(_fpsFrameCount, _fpsElapsedSeconds, out var displayedFps))
         {
-            return;
+            _displayedFps = displayedFps;
+            _fpsFrameCount = 0;
+            _fpsElapsedSeconds = 0d;
         }
 
-        _window.Title = title;
-        _fpsFrameCount = 0;
-        _fpsElapsedSeconds = 0d;
+        var hoveredElement = DescribeElementForWindowTitle(_uiRoot.GetHoveredElementForDiagnostics());
+        _window.Title = BuildWindowTitle(BaseWindowTitle, _displayedFps, hoveredElement);
+    }
+
+    internal static string DescribeElementForWindowTitle(UIElement? element)
+    {
+        if (element == null)
+        {
+            return "null";
+        }
+
+        return element is FrameworkElement { Name.Length: > 0 } frameworkElement
+            ? $"{element.GetType().Name}#{frameworkElement.Name}"
+            : element.GetType().Name;
     }
 
     private void EnsureCalendarHoverDiagnosticsSessionStarted()

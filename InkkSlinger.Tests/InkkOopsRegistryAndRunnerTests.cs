@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.Xna.Framework;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -63,6 +64,152 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
         Assert.Equal(1, result.FailedCommandIndex);
         Assert.Contains("Throw(boom)", result.FailedCommandDescription);
         Assert.Contains("boom", result.FailureMessage);
+    }
+
+    [Fact]
+    public async Task Runner_Writes_Semantic_Log_With_Hovered_And_Clicked_Targets()
+    {
+        var button = new Button
+        {
+            Name = "TargetButton",
+            Content = "Click Me",
+            Width = 120f,
+            Height = 32f
+        };
+        var root = new Canvas();
+        root.AddChild(button);
+
+        using var host = new InkkOopsTestHost(root);
+        string semanticLogPath;
+        InkkOopsRunResult result;
+
+        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-semantic-log"))
+        {
+            var session = new InkkOopsSession(host, artifacts);
+            var script = new InkkOopsScript("runner-semantic-log")
+                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("TargetButton")))
+                .Add(new InkkOopsClickTargetCommand(new InkkOopsTargetReference("TargetButton")));
+
+            var runner = new InkkOopsScriptRunner();
+            result = await runner.RunAsync(script, session, CancellationToken.None);
+            semanticLogPath = artifacts.GetSemanticLogPath();
+        }
+
+        var semanticLogLines = File.ReadAllLines(semanticLogPath);
+
+        Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
+        Assert.Contains("Button#TargetButton", semanticLogLines);
+        Assert.Contains(semanticLogLines, static line => line.Contains("Hover[0]", StringComparison.Ordinal));
+        Assert.Contains(semanticLogLines, static line => line.Contains("Click[1]", StringComparison.Ordinal));
+        Assert.Contains(semanticLogLines, static line => line.Contains("owner=Button#TargetButton", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Runner_Suppresses_Repeated_Semantic_Hover_Noise_When_Owner_Does_Not_Change()
+    {
+        var button = new Button
+        {
+            Name = "TargetButton",
+            Content = "Hover Me",
+            Width = 120f,
+            Height = 32f
+        };
+        var root = new Canvas();
+        root.AddChild(button);
+
+        using var host = new InkkOopsTestHost(root);
+        string semanticLogPath;
+
+        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-semantic-noise"))
+        {
+            var session = new InkkOopsSession(host, artifacts);
+            var script = new InkkOopsScript("runner-semantic-noise")
+                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("TargetButton")))
+                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("TargetButton")));
+
+            var runner = new InkkOopsScriptRunner();
+            var result = await runner.RunAsync(script, session, CancellationToken.None);
+
+            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
+            semanticLogPath = artifacts.GetSemanticLogPath();
+        }
+
+        var semanticLogLines = File.ReadAllLines(semanticLogPath);
+
+        Assert.Equal(2, semanticLogLines.Length);
+        Assert.Equal("Button#TargetButton", semanticLogLines[0]);
+        Assert.Contains("Hover[0]", semanticLogLines[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Runner_Appends_Registered_Semantic_Log_Properties_For_Raw_Target()
+    {
+        var expander = new Expander
+        {
+            Name = "MyExpander",
+            Header = "Header",
+            Content = new Label { Content = "Body" },
+            IsExpanded = true,
+            Width = 240f
+        };
+        var root = new Canvas();
+        root.AddChild(expander);
+        var semanticLogContributors = new InkkOopsSemanticLogContributorRegistry()
+            .Register<Expander>(InkkOopsSemanticLogTarget.RawTarget, static element => element.IsExpanded)
+            .Build();
+
+        using var host = new InkkOopsTestHost(root, semanticLogContributors: semanticLogContributors);
+        string semanticLogPath;
+
+        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-semantic-log-properties"))
+        {
+            var session = new InkkOopsSession(host, artifacts);
+            var script = new InkkOopsScript("runner-semantic-log-properties")
+                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("MyExpander"), InkkOopsPointerAnchor.OffsetBy(8f, 8f)))
+                .Add(new InkkOopsClickTargetCommand(new InkkOopsTargetReference("MyExpander"), InkkOopsPointerAnchor.OffsetBy(8f, 8f)));
+
+            var runner = new InkkOopsScriptRunner();
+            var result = await runner.RunAsync(script, session, CancellationToken.None);
+
+            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
+            semanticLogPath = artifacts.GetSemanticLogPath();
+        }
+
+        var semanticLogLines = File.ReadAllLines(semanticLogPath);
+        Assert.Contains("Expander#MyExpander", semanticLogLines);
+        Assert.Contains(semanticLogLines, static line => line.Contains("Click[1]", StringComparison.Ordinal));
+        Assert.Contains(semanticLogLines, static line => line.Contains("rawProps=IsExpanded=True->IsExpanded=False", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Runner_Groups_Unnamed_Semantic_Targets_Using_Indexed_Chain_Subjects()
+    {
+        var root = new Canvas { Name = "RootCanvas" };
+        var hostPanel = new StackPanel();
+        hostPanel.AddChild(new Expander { Header = "First", Content = new Label { Content = "One" }, Width = 200f });
+        hostPanel.AddChild(new Expander { Header = "Second", Content = new Label { Content = "Two" }, Width = 200f });
+        root.AddChild(hostPanel);
+
+        using var host = new InkkOopsTestHost(root);
+        string semanticLogPath;
+
+        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-semantic-chain-subject"))
+        {
+            var session = new InkkOopsSession(host, artifacts);
+            var script = new InkkOopsScript("runner-semantic-chain-subject")
+                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("Second")));
+
+            var runner = new InkkOopsScriptRunner();
+            var result = await runner.RunAsync(script, session, CancellationToken.None);
+
+            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
+            semanticLogPath = artifacts.GetSemanticLogPath();
+        }
+
+        var semanticLogLines = File.ReadAllLines(semanticLogPath);
+
+        Assert.Contains(semanticLogLines, static line => line.Contains("RootCanvas", StringComparison.Ordinal) && line.Contains("StackPanel[0]", StringComparison.Ordinal) && line.Contains("Expander[1]", StringComparison.Ordinal));
+        Assert.Contains(semanticLogLines, static line => line.Contains("Hover[0]", StringComparison.Ordinal));
     }
 
     [Fact]

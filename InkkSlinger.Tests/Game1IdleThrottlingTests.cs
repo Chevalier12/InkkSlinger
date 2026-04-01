@@ -48,28 +48,55 @@ public sealed class Game1IdleThrottlingTests
     }
 
     [Fact]
-    public void FpsTitle_DoesNotUpdateBeforeOneSecond()
+    public void DisplayedFps_DoesNotUpdateBeforeRefreshInterval()
     {
-        var shouldUpdate = Game1.TryBuildFpsWindowTitle(
-            "InkkSlinger Controls Catalog",
+        var shouldUpdate = Game1.TryComputeDisplayedFps(
             accumulatedFrameCount: 30,
-            accumulatedElapsedSeconds: 0.5d,
-            out var title);
+            accumulatedElapsedSeconds: 0.05d,
+            out var displayedFps);
 
         Assert.False(shouldUpdate);
-        Assert.Equal("InkkSlinger Controls Catalog", title);
+        Assert.Equal(string.Empty, displayedFps);
     }
 
     [Fact]
-    public void FpsTitle_FormatsFramesPerSecondAfterOneSecond()
+    public void DisplayedFps_FormatsFramesPerSecondAfterRefreshInterval()
     {
-        var shouldUpdate = Game1.TryBuildFpsWindowTitle(
-            "InkkSlinger Controls Catalog",
+        var shouldUpdate = Game1.TryComputeDisplayedFps(
             accumulatedFrameCount: 120,
             accumulatedElapsedSeconds: 2d,
-            out var title);
+            out var displayedFps);
 
         Assert.True(shouldUpdate);
-        Assert.Equal("InkkSlinger Controls Catalog | FPS: 60.0", title);
+        Assert.Equal("60.0", displayedFps);
+    }
+
+    [Fact]
+    public void WindowTitle_BuildsWithDisplayedFpsAndHoveredElement()
+    {
+        var title = Game1.BuildWindowTitle(
+            "InkkSlinger Controls Catalog",
+            "60.0",
+            "Button#HoverTarget");
+
+        Assert.Equal("InkkSlinger Controls Catalog | FPS: 60.0 | Hovered: Button#HoverTarget", title);
+    }
+
+    [Fact]
+    public void WindowTitleElementFormatter_UsesTypeAndName()
+    {
+        var button = new Button { Name = "HoverTarget" };
+
+        var description = Game1.DescribeElementForWindowTitle(button);
+
+        Assert.Equal("Button#HoverTarget", description);
+    }
+
+    [Fact]
+    public void WindowTitleElementFormatter_UsesNullWhenNothingHovered()
+    {
+        var description = Game1.DescribeElementForWindowTitle(null);
+
+        Assert.Equal("null", description);
     }
 }

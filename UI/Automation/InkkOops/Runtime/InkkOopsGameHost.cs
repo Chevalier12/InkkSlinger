@@ -50,6 +50,8 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
 
     public UiRoot UiRoot { get; }
 
+    public IReadOnlyList<IInkkOopsSemanticLogContributor> SemanticLogContributors => _hostConfiguration.SemanticLogContributors;
+
     public string ArtifactRoot => _artifactRoot;
 
     public UIElement? GetVisualRootElement()

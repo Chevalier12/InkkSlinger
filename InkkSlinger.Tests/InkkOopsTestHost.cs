@@ -11,6 +11,7 @@ namespace InkkSlinger.Tests;
 
 internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
 {
+    private readonly IReadOnlyList<IInkkOopsSemanticLogContributor> _semanticLogContributors;
     private readonly UIElement _visualRoot;
     private readonly List<AutomationEventRecord> _automationEvents = new();
     private Vector2 _pointerPosition;
@@ -18,11 +19,16 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
     private int _width;
     private int _height;
 
-    public InkkOopsTestHost(UIElement visualRoot, int width = 800, int height = 600)
+    public InkkOopsTestHost(
+        UIElement visualRoot,
+        int width = 800,
+        int height = 600,
+        IReadOnlyList<IInkkOopsSemanticLogContributor>? semanticLogContributors = null)
     {
         Dispatcher.ResetForTests();
         Dispatcher.InitializeForCurrentThread();
         _visualRoot = visualRoot;
+        _semanticLogContributors = semanticLogContributors ?? Array.Empty<IInkkOopsSemanticLogContributor>();
         _width = width;
         _height = height;
         UiRoot = new UiRoot(visualRoot);
@@ -33,6 +39,8 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
     }
 
     public UiRoot UiRoot { get; }
+
+    public IReadOnlyList<IInkkOopsSemanticLogContributor> SemanticLogContributors => _semanticLogContributors;
 
     public string ArtifactRoot { get; }
 

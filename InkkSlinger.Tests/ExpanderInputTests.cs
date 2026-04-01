@@ -46,6 +46,67 @@ public sealed class ExpanderInputTests
     }
 
     [Fact]
+    public void ClickingScrolledHeader_ShouldToggleIsExpanded()
+    {
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 260f
+        };
+
+        var contentPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Width = 360f
+        };
+
+        contentPanel.AddChild(new Border
+        {
+            Height = 120f,
+            Child = new Label { Content = "Spacer" }
+        });
+
+        var expander = new Expander
+        {
+            Width = 360f,
+            Height = 180f,
+            Header = "Scrolled Expander Header",
+            Content = new Label { Content = "Expander Content" },
+            IsExpanded = true
+        };
+        contentPanel.AddChild(expander);
+
+        var viewer = new ScrollViewer
+        {
+            Width = 380f,
+            Height = 140f,
+            Content = contentPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        host.AddChild(viewer);
+        Canvas.SetLeft(viewer, 20f);
+        Canvas.SetTop(viewer, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        viewer.ScrollToVerticalOffset(80f);
+        RunLayout(uiRoot);
+
+        Assert.True(expander.TryGetRenderBoundsInRootSpace(out var expanderBounds));
+        var headerPoint = new Vector2(expanderBounds.X + 8f, expanderBounds.Y + 8f);
+
+        Click(uiRoot, headerPoint);
+        RunLayout(uiRoot);
+        Assert.False(expander.IsExpanded);
+
+        Click(uiRoot, headerPoint);
+        RunLayout(uiRoot);
+        Assert.True(expander.IsExpanded);
+    }
+
+    [Fact]
     public void CollapsedExpander_ShouldExcludeContentFromRetainedVisualOrder()
     {
         var host = new Canvas

@@ -24,9 +24,12 @@ public sealed class InkkOopsScriptRunner
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 currentIndex = i;
-                currentDescription = script.Commands[i].Describe();
+                var command = script.Commands[i];
+                currentDescription = command.Describe();
+                var semanticBefore = await CaptureSemanticSnapshotAsync(session, command, i, currentDescription, cancellationToken).ConfigureAwait(false);
                 session.Artifacts.LogCommand(i, currentDescription);
-                await script.Commands[i].ExecuteAsync(session, cancellationToken).ConfigureAwait(false);
+                await command.ExecuteAsync(session, cancellationToken).ConfigureAwait(false);
+                await LogSemanticStateAsync(session, command, i, currentDescription, semanticBefore, cancellationToken).ConfigureAwait(false);
             }
 
             return new InkkOopsRunResult(
@@ -83,4 +86,65 @@ public sealed class InkkOopsScriptRunner
 
         return null;
     }
+
+    private static bool ShouldLogSemanticEntry(IInkkOopsCommand command)
+    {
+        return command is InkkOopsHoverTargetCommand or
+               InkkOopsMovePointerCommand or
+               InkkOopsClickTargetCommand or
+               InkkOopsPointerDownCommand or
+               InkkOopsPointerUpCommand or
+               InkkOopsWheelCommand or
+               InkkOopsDragTargetCommand or
+               InkkOopsInvokeTargetCommand or
+               InkkOopsScrollByCommand or
+               InkkOopsScrollToCommand or
+               InkkOopsScrollIntoViewCommand;
+    }
+
+    private static async Task<InkkOopsSemanticSnapshot> CaptureSemanticSnapshotAsync(
+        InkkOopsSession session,
+        IInkkOopsCommand command,
+        int index,
+        string commandDescription,
+        CancellationToken cancellationToken)
+    {
+        return await session.QueryOnUiThreadAsync(
+            () => InkkOopsSemanticLogFormatter.Capture(
+                command,
+                session.UiRoot,
+                session.Host.SemanticLogContributors,
+                index,
+                commandDescription),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task LogSemanticStateAsync(
+        InkkOopsSession session,
+        IInkkOopsCommand command,
+        int index,
+        string commandDescription,
+        InkkOopsSemanticSnapshot semanticBefore,
+        CancellationToken cancellationToken)
+    {
+        if (!ShouldLogSemanticEntry(command))
+        {
+            return;
+        }
+
+        var semanticAfter = await CaptureSemanticSnapshotAsync(session, command, index, commandDescription, cancellationToken).ConfigureAwait(false);
+        var entry = InkkOopsSemanticLogFormatter.Format(
+            command,
+            index,
+            commandDescription,
+            semanticBefore,
+            semanticAfter,
+            session.Host.SemanticLogContributors);
+
+        if (entry is { } semanticEntry)
+        {
+            session.Artifacts.LogSemanticEntry(semanticEntry.Subject, semanticEntry.Details);
+        }
+    }
+
 }

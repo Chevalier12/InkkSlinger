@@ -37,6 +37,7 @@ public sealed class InkkOopsAbstractionTests
                 Assert.EndsWith("custom-demo-script", artifacts.DirectoryPath, StringComparison.Ordinal);
                 Assert.True(File.Exists(Path.Combine(artifacts.DirectoryPath, "summary.json")));
                 Assert.True(File.Exists(Path.Combine(artifacts.DirectoryPath, "commands-custom.log")));
+                Assert.True(File.Exists(Path.Combine(artifacts.DirectoryPath, "semantic-custom.log")));
             }
 
             string recordingDirectory;
@@ -346,6 +347,14 @@ public sealed class InkkOopsAbstractionTests
     }
 
     [Fact]
+    public void DefaultHostConfiguration_Registers_UserControlContributor()
+    {
+        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
+
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsUserControlDiagnosticsContributor);
+    }
+
+    [Fact]
     public async Task DiagnosticsPipeline_Includes_GridContributorFacts()
     {
         var root = new Canvas { Name = "Root", Width = 400f, Height = 240f };
@@ -513,6 +522,8 @@ public sealed class InkkOopsAbstractionTests
         public string CreateRecordingDirectoryName(DateTime timestampUtc) => "session-custom";
 
         public string GetCommandLogFileName() => "commands-custom.log";
+
+        public string GetSemanticLogFileName() => "semantic-custom.log";
 
         public string GetResultFileName() => "summary.json";
 

@@ -17,6 +17,8 @@ public sealed class DefaultInkkOopsArtifactNamingPolicy : IInkkOopsArtifactNamin
 
     public string GetCommandLogFileName() => "commands.log";
 
+    public string GetSemanticLogFileName() => "semantic.log.txt";
+
     public string GetResultFileName() => "result.json";
 
     public string GetRecordingJsonFileName() => "recording.json";

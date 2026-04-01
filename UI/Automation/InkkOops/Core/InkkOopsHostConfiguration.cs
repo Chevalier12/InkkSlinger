@@ -17,6 +17,8 @@ public sealed class InkkOopsHostConfiguration
 
     public required IReadOnlyList<IInkkOopsDiagnosticsContributor> DiagnosticsContributors { get; init; }
 
+    public required IReadOnlyList<IInkkOopsSemanticLogContributor> SemanticLogContributors { get; init; }
+
     public string DefaultNamedPipeName { get; init; } = string.Empty;
 
     public string DefaultArtifactRoot { get; init; } = string.Empty;
@@ -28,6 +30,9 @@ public sealed class InkkOopsHostConfiguration
         ArgumentNullException.ThrowIfNull(scriptAssembly);
 
         var namingPolicy = new DefaultInkkOopsArtifactNamingPolicy();
+        var semanticLogContributors = new InkkOopsSemanticLogContributorRegistry()
+            .Register<Expander>(InkkOopsSemanticLogTarget.RawTarget, static expander => expander.IsExpanded)
+            .Build();
         return new InkkOopsHostConfiguration
         {
             ScriptCatalog = new ReflectionInkkOopsScriptCatalog(scriptAssembly),
@@ -37,11 +42,10 @@ public sealed class InkkOopsHostConfiguration
             DiagnosticsFilterPolicy = new DefaultInkkOopsDiagnosticsFilterPolicy(),
             DiagnosticsContributors =
             [
-                new InkkOopsButtonDiagnosticsContributor(),
-                new InkkOopsCheckBoxDiagnosticsContributor(),
-                new InkkOopsComboBoxDiagnosticsContributor(),
-                new InkkOopsGridDiagnosticsContributor(),
+                new InkkOopsExpanderDiagnosticsContributor(),
+                new InkkOopsScrollViewerDiagnosticsContributor(),
             ],
+            SemanticLogContributors = semanticLogContributors,
             DefaultNamedPipeName = "InkkOops",
             DefaultArtifactRoot = "artifacts/inkkoops",
             DefaultRecordingRoot = "artifacts/inkkoops-recordings"
