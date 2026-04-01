@@ -12,20 +12,38 @@ public class Expander : ContentControl
     private static long _diagMeasureOverrideCallCount;
     private static long _diagMeasureOverrideElapsedTicks;
     private static long _diagHeaderMeasureCount;
+    private static long _diagHeaderMeasureElapsedTicks;
+    private static long _diagHeaderMeasureElementPathCount;
+    private static long _diagHeaderMeasureTextPathCount;
+    private static long _diagHeaderMeasureEmptyTextCount;
     private static long _diagContentMeasuredWhenExpandedCount;
     private static long _diagContentMeasuredWhenCollapsedCount;
+    private static long _diagContentMeasureSkippedWithoutContentCount;
     private static long _diagArrangeOverrideCallCount;
     private static long _diagArrangeOverrideElapsedTicks;
+    private static long _diagArrangeHeaderMeasureCacheHitCount;
+    private static long _diagArrangeHeaderMeasureCacheMissCount;
+    private static long _diagArrangeExpandedContentCount;
+    private static long _diagArrangeCollapsedContentCount;
+    private static long _diagArrangeNoContentCount;
     private static long _diagExpandDirectionDownCount;
     private static long _diagExpandDirectionUpCount;
     private static long _diagExpandDirectionLeftCount;
     private static long _diagExpandDirectionRightCount;
     private static long _diagRenderCallCount;
     private static long _diagRenderElapsedTicks;
+    private static long _diagHeaderBackgroundStyleOverrideCount;
+    private static long _diagHeaderBackgroundInheritedCount;
+    private static long _diagRenderHeaderTextCount;
+    private static long _diagRenderHeaderTextSkippedEmptyCount;
+    private static long _diagRenderHeaderElementCount;
     private static long _diagExpandCount;
     private static long _diagCollapseCount;
     private static long _diagHeaderPointerDownCount;
+    private static long _diagHeaderPointerDownMissCount;
     private static long _diagHeaderPointerUpToggleCount;
+    private static long _diagHeaderPointerUpMissCount;
+    private static long _diagHeaderPointerUpReleaseOutsideCount;
     private static long _diagHeaderUpdateCount;
     public static readonly RoutedEvent ExpandedEvent =
         new(nameof(Expanded), RoutingStrategy.Bubble);
@@ -63,11 +81,13 @@ public class Expander : ContentControl
                     {
                         if (expanded)
                         {
-                            _diagExpandCount++;
+                            IncrementAggregate(ref _diagExpandCount);
+                            expander._runtimeExpandCount++;
                         }
                         else
                         {
-                            _diagCollapseCount++;
+                            IncrementAggregate(ref _diagCollapseCount);
+                            expander._runtimeCollapseCount++;
                         }
 
                         expander.RaiseRoutedEvent(
@@ -147,6 +167,45 @@ public class Expander : ContentControl
     private LayoutRect _contentRect;
     private Vector2 _measuredHeaderSize;
     private bool _isHeaderPressed;
+    private long _runtimeMeasureOverrideCallCount;
+    private long _runtimeMeasureOverrideElapsedTicks;
+    private long _runtimeHeaderMeasureCount;
+    private long _runtimeHeaderMeasureElapsedTicks;
+    private long _runtimeHeaderMeasureElementPathCount;
+    private long _runtimeHeaderMeasureTextPathCount;
+    private long _runtimeHeaderMeasureEmptyTextCount;
+    private long _runtimeContentMeasuredWhenExpandedCount;
+    private long _runtimeContentMeasuredWhenCollapsedCount;
+    private long _runtimeContentMeasureSkippedWithoutContentCount;
+    private long _runtimeArrangeOverrideCallCount;
+    private long _runtimeArrangeOverrideElapsedTicks;
+    private long _runtimeArrangeHeaderMeasureCacheHitCount;
+    private long _runtimeArrangeHeaderMeasureCacheMissCount;
+    private long _runtimeArrangeExpandedContentCount;
+    private long _runtimeArrangeCollapsedContentCount;
+    private long _runtimeArrangeNoContentCount;
+    private long _runtimeExpandDirectionDownCount;
+    private long _runtimeExpandDirectionUpCount;
+    private long _runtimeExpandDirectionLeftCount;
+    private long _runtimeExpandDirectionRightCount;
+    private long _runtimeRenderCallCount;
+    private long _runtimeRenderElapsedTicks;
+    private long _runtimeHeaderBackgroundStyleOverrideCount;
+    private long _runtimeHeaderBackgroundInheritedCount;
+    private long _runtimeRenderHeaderTextCount;
+    private long _runtimeRenderHeaderTextSkippedEmptyCount;
+    private long _runtimeRenderHeaderElementCount;
+    private long _runtimeExpandCount;
+    private long _runtimeCollapseCount;
+    private long _runtimeHeaderPointerDownCount;
+    private long _runtimeHeaderPointerDownMissCount;
+    private long _runtimeHeaderPointerUpToggleCount;
+    private long _runtimeHeaderPointerUpMissCount;
+    private long _runtimeHeaderPointerUpReleaseOutsideCount;
+    private long _runtimeHeaderUpdateCount;
+    private long _runtimeHeaderUpdateAttachElementCount;
+    private long _runtimeHeaderUpdateDetachElementCount;
+    private long _runtimeHeaderUpdateTextHeaderCount;
 
     public Expander()
     {
@@ -311,7 +370,6 @@ public class Expander : ContentControl
         var startTicks = Stopwatch.GetTimestamp();
         var headerSize = MeasureHeader(availableSize);
         _measuredHeaderSize = headerSize;
-        _diagHeaderMeasureCount++;
         var contentSize = Vector2.Zero;
 
         if (IsExpanded && ContentElement is FrameworkElement content)
@@ -319,15 +377,23 @@ public class Expander : ContentControl
             var contentAvailable = GetContentAvailableSize(availableSize, headerSize);
             content.Measure(contentAvailable);
             contentSize = content.DesiredSize;
-            _diagContentMeasuredWhenExpandedCount++;
+            IncrementAggregate(ref _diagContentMeasuredWhenExpandedCount);
+            _runtimeContentMeasuredWhenExpandedCount++;
         }
         else
         {
-            _diagContentMeasuredWhenCollapsedCount++;
+            IncrementAggregate(ref _diagContentMeasuredWhenCollapsedCount);
+            _runtimeContentMeasuredWhenCollapsedCount++;
+            if (ContentElement is not FrameworkElement)
+            {
+                IncrementAggregate(ref _diagContentMeasureSkippedWithoutContentCount);
+                _runtimeContentMeasureSkippedWithoutContentCount++;
+            }
         }
 
-        _diagMeasureOverrideCallCount++;
-        _diagMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        RecordElapsed(ref _diagMeasureOverrideCallCount, ref _diagMeasureOverrideElapsedTicks, startTicks);
+        _runtimeMeasureOverrideCallCount++;
+        _runtimeMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return ComposeDesiredSize(headerSize, contentSize);
     }
 
@@ -337,8 +403,16 @@ public class Expander : ContentControl
         var headerSize = _measuredHeaderSize;
         if (headerSize == Vector2.Zero)
         {
+            IncrementAggregate(ref _diagArrangeHeaderMeasureCacheMissCount);
+            _runtimeArrangeHeaderMeasureCacheMissCount++;
             headerSize = MeasureHeader(finalSize);
         }
+        else
+        {
+            IncrementAggregate(ref _diagArrangeHeaderMeasureCacheHitCount);
+            _runtimeArrangeHeaderMeasureCacheHitCount++;
+        }
+
         var arrangedSize = IsExpanded
             ? finalSize
             : ExpandDirection switch
@@ -353,16 +427,20 @@ public class Expander : ContentControl
         switch (ExpandDirection)
         {
             case ExpandDirection.Down:
-                _diagExpandDirectionDownCount++;
+                IncrementAggregate(ref _diagExpandDirectionDownCount);
+                _runtimeExpandDirectionDownCount++;
                 break;
             case ExpandDirection.Up:
-                _diagExpandDirectionUpCount++;
+                IncrementAggregate(ref _diagExpandDirectionUpCount);
+                _runtimeExpandDirectionUpCount++;
                 break;
             case ExpandDirection.Left:
-                _diagExpandDirectionLeftCount++;
+                IncrementAggregate(ref _diagExpandDirectionLeftCount);
+                _runtimeExpandDirectionLeftCount++;
                 break;
             case ExpandDirection.Right:
-                _diagExpandDirectionRightCount++;
+                IncrementAggregate(ref _diagExpandDirectionRightCount);
+                _runtimeExpandDirectionRightCount++;
                 break;
         }
 
@@ -375,16 +453,26 @@ public class Expander : ContentControl
         {
             if (IsExpanded)
             {
+                IncrementAggregate(ref _diagArrangeExpandedContentCount);
+                _runtimeArrangeExpandedContentCount++;
                 content.Arrange(_contentRect);
             }
             else
             {
+                IncrementAggregate(ref _diagArrangeCollapsedContentCount);
+                _runtimeArrangeCollapsedContentCount++;
                 content.Arrange(new LayoutRect(_contentRect.X, _contentRect.Y, 0f, 0f));
             }
         }
+        else
+        {
+            IncrementAggregate(ref _diagArrangeNoContentCount);
+            _runtimeArrangeNoContentCount++;
+        }
 
-        _diagArrangeOverrideCallCount++;
-        _diagArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        RecordElapsed(ref _diagArrangeOverrideCallCount, ref _diagArrangeOverrideElapsedTicks, startTicks);
+        _runtimeArrangeOverrideCallCount++;
+        _runtimeArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return arrangedSize;
     }
 
@@ -400,6 +488,17 @@ public class Expander : ContentControl
 
         var hasStyleDrivenHeaderBackground = GetValueSource(HeaderBackgroundProperty) != DependencyPropertyValueSource.Default;
         var headerFill = hasStyleDrivenHeaderBackground ? HeaderBackground : Background;
+        if (hasStyleDrivenHeaderBackground)
+        {
+            IncrementAggregate(ref _diagHeaderBackgroundStyleOverrideCount);
+            _runtimeHeaderBackgroundStyleOverrideCount++;
+        }
+        else
+        {
+            IncrementAggregate(ref _diagHeaderBackgroundInheritedCount);
+            _runtimeHeaderBackgroundInheritedCount++;
+        }
+
         UiDrawing.DrawFilledRect(spriteBatch, _headerRect, headerFill, Opacity);
 
         DrawChevron(spriteBatch, _headerRect);
@@ -407,9 +506,15 @@ public class Expander : ContentControl
         {
             DrawHeaderText(spriteBatch, _headerRect);
         }
+        else
+        {
+            IncrementAggregate(ref _diagRenderHeaderElementCount);
+            _runtimeRenderHeaderElementCount++;
+        }
 
-        _diagRenderCallCount++;
-        _diagRenderElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        RecordElapsed(ref _diagRenderCallCount, ref _diagRenderElapsedTicks, startTicks);
+        _runtimeRenderCallCount++;
+        _runtimeRenderElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
 
@@ -418,18 +523,37 @@ public class Expander : ContentControl
 
     private Vector2 MeasureHeader(Vector2 availableSize)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         var padding = HeaderPadding;
         if (_headerElement is FrameworkElement header)
         {
             header.Measure(availableSize);
+            IncrementAggregate(ref _diagHeaderMeasureCount);
+            IncrementAggregate(ref _diagHeaderMeasureElementPathCount);
+            RecordElapsed(ref _diagHeaderMeasureElapsedTicks, startTicks);
+            _runtimeHeaderMeasureCount++;
+            _runtimeHeaderMeasureElementPathCount++;
+            _runtimeHeaderMeasureElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return new Vector2(
                 header.DesiredSize.X + padding.Horizontal + 16f,
                 MathF.Max(16f, header.DesiredSize.Y) + padding.Vertical);
         }
 
         var text = Header?.ToString() ?? string.Empty;
+        IncrementAggregate(ref _diagHeaderMeasureCount);
+        IncrementAggregate(ref _diagHeaderMeasureTextPathCount);
+        _runtimeHeaderMeasureCount++;
+        _runtimeHeaderMeasureTextPathCount++;
+        if (text.Length == 0)
+        {
+            IncrementAggregate(ref _diagHeaderMeasureEmptyTextCount);
+            _runtimeHeaderMeasureEmptyTextCount++;
+        }
+
         var textWidth = UiTextRenderer.MeasureWidth(this, text, FontSize);
         var textHeight = UiTextRenderer.GetLineHeight(this, FontSize);
+        RecordElapsed(ref _diagHeaderMeasureElapsedTicks, startTicks);
+        _runtimeHeaderMeasureElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return new Vector2(
             textWidth + padding.Horizontal + 16f,
             MathF.Max(16f, textHeight) + padding.Vertical);
@@ -532,8 +656,13 @@ public class Expander : ContentControl
         var text = Header?.ToString() ?? string.Empty;
         if (string.IsNullOrEmpty(text))
         {
+            IncrementAggregate(ref _diagRenderHeaderTextSkippedEmptyCount);
+            _runtimeRenderHeaderTextSkippedEmptyCount++;
             return;
         }
+
+        IncrementAggregate(ref _diagRenderHeaderTextCount);
+        _runtimeRenderHeaderTextCount++;
 
         var padding = HeaderPadding;
         var textX = headerRect.X + padding.Left + 14f;
@@ -593,6 +722,7 @@ public class Expander : ContentControl
             oldElement.SetVisualParent(null);
             oldElement.SetLogicalParent(null);
             _headerElement = null;
+            _runtimeHeaderUpdateDetachElementCount++;
         }
 
         if (newHeader is UIElement newElement)
@@ -600,13 +730,16 @@ public class Expander : ContentControl
             _headerElement = newElement;
             _headerElement.SetVisualParent(this);
             _headerElement.SetLogicalParent(this);
+            _runtimeHeaderUpdateAttachElementCount++;
         }
         else
         {
             _headerElement = null;
+            _runtimeHeaderUpdateTextHeaderCount++;
         }
 
-        _diagHeaderUpdateCount++;
+        IncrementAggregate(ref _diagHeaderUpdateCount);
+        _runtimeHeaderUpdateCount++;
     }
 
     private static bool Contains(LayoutRect rect, Vector2 point)
@@ -622,7 +755,13 @@ public class Expander : ContentControl
         _isHeaderPressed = Contains(_headerRect, pointerPosition);
         if (_isHeaderPressed)
         {
-            _diagHeaderPointerDownCount++;
+            IncrementAggregate(ref _diagHeaderPointerDownCount);
+            _runtimeHeaderPointerDownCount++;
+        }
+        else
+        {
+            IncrementAggregate(ref _diagHeaderPointerDownMissCount);
+            _runtimeHeaderPointerDownMissCount++;
         }
 
         return _isHeaderPressed;
@@ -630,81 +769,195 @@ public class Expander : ContentControl
 
     internal bool HandlePointerUpFromInput(Vector2 pointerPosition)
     {
-        var shouldToggle = _isHeaderPressed && Contains(_headerRect, pointerPosition);
+        var wasHeaderPressed = _isHeaderPressed;
+        var releasedInsideHeader = Contains(_headerRect, pointerPosition);
+        var shouldToggle = wasHeaderPressed && releasedInsideHeader;
         _isHeaderPressed = false;
         if (!shouldToggle)
         {
+            IncrementAggregate(ref _diagHeaderPointerUpMissCount);
+            _runtimeHeaderPointerUpMissCount++;
+            if (wasHeaderPressed && !releasedInsideHeader)
+            {
+                IncrementAggregate(ref _diagHeaderPointerUpReleaseOutsideCount);
+                _runtimeHeaderPointerUpReleaseOutsideCount++;
+            }
+
             return false;
         }
 
-        _diagHeaderPointerUpToggleCount++;
+        IncrementAggregate(ref _diagHeaderPointerUpToggleCount);
+        _runtimeHeaderPointerUpToggleCount++;
         IsExpanded = !IsExpanded;
         return true;
     }
 
+    internal ExpanderRuntimeDiagnosticsSnapshot GetExpanderSnapshotForDiagnostics()
+    {
+        return new ExpanderRuntimeDiagnosticsSnapshot(
+            IsExpanded,
+            ExpandDirection,
+            _isHeaderPressed,
+            _headerElement != null,
+            ContentElement != null,
+            _measuredHeaderSize.X,
+            _measuredHeaderSize.Y,
+            _headerRect.X,
+            _headerRect.Y,
+            _headerRect.Width,
+            _headerRect.Height,
+            _contentRect.X,
+            _contentRect.Y,
+            _contentRect.Width,
+            _contentRect.Height,
+            _runtimeMeasureOverrideCallCount,
+            TicksToMilliseconds(_runtimeMeasureOverrideElapsedTicks),
+            _runtimeHeaderMeasureCount,
+            TicksToMilliseconds(_runtimeHeaderMeasureElapsedTicks),
+            _runtimeHeaderMeasureElementPathCount,
+            _runtimeHeaderMeasureTextPathCount,
+            _runtimeHeaderMeasureEmptyTextCount,
+            _runtimeContentMeasuredWhenExpandedCount,
+            _runtimeContentMeasuredWhenCollapsedCount,
+            _runtimeContentMeasureSkippedWithoutContentCount,
+            _runtimeArrangeOverrideCallCount,
+            TicksToMilliseconds(_runtimeArrangeOverrideElapsedTicks),
+            _runtimeArrangeHeaderMeasureCacheHitCount,
+            _runtimeArrangeHeaderMeasureCacheMissCount,
+            _runtimeArrangeExpandedContentCount,
+            _runtimeArrangeCollapsedContentCount,
+            _runtimeArrangeNoContentCount,
+            _runtimeExpandDirectionDownCount,
+            _runtimeExpandDirectionUpCount,
+            _runtimeExpandDirectionLeftCount,
+            _runtimeExpandDirectionRightCount,
+            _runtimeRenderCallCount,
+            TicksToMilliseconds(_runtimeRenderElapsedTicks),
+            _runtimeHeaderBackgroundStyleOverrideCount,
+            _runtimeHeaderBackgroundInheritedCount,
+            _runtimeRenderHeaderTextCount,
+            _runtimeRenderHeaderTextSkippedEmptyCount,
+            _runtimeRenderHeaderElementCount,
+            _runtimeExpandCount,
+            _runtimeCollapseCount,
+            _runtimeHeaderPointerDownCount,
+            _runtimeHeaderPointerDownMissCount,
+            _runtimeHeaderPointerUpToggleCount,
+            _runtimeHeaderPointerUpMissCount,
+            _runtimeHeaderPointerUpReleaseOutsideCount,
+            _runtimeHeaderUpdateCount,
+            _runtimeHeaderUpdateAttachElementCount,
+            _runtimeHeaderUpdateDetachElementCount,
+            _runtimeHeaderUpdateTextHeaderCount);
+    }
+
     internal static ExpanderTimingSnapshot GetTelemetryAndReset()
     {
-        var snapshot = new ExpanderTimingSnapshot(
-            _diagMeasureOverrideCallCount,
-            (double)_diagMeasureOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
-            _diagHeaderMeasureCount,
-            _diagContentMeasuredWhenExpandedCount,
-            _diagContentMeasuredWhenCollapsedCount,
-            _diagArrangeOverrideCallCount,
-            (double)_diagArrangeOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
-            _diagExpandDirectionDownCount,
-            _diagExpandDirectionUpCount,
-            _diagExpandDirectionLeftCount,
-            _diagExpandDirectionRightCount,
-            _diagRenderCallCount,
-            (double)_diagRenderElapsedTicks * 1000d / Stopwatch.Frequency,
-            _diagExpandCount,
-            _diagCollapseCount,
-            _diagHeaderPointerDownCount,
-            _diagHeaderPointerUpToggleCount,
-            _diagHeaderUpdateCount);
+        var snapshot = CreateAggregateTelemetrySnapshot();
         _diagMeasureOverrideCallCount = 0;
         _diagMeasureOverrideElapsedTicks = 0;
         _diagHeaderMeasureCount = 0;
+        _diagHeaderMeasureElapsedTicks = 0;
+        _diagHeaderMeasureElementPathCount = 0;
+        _diagHeaderMeasureTextPathCount = 0;
+        _diagHeaderMeasureEmptyTextCount = 0;
         _diagContentMeasuredWhenExpandedCount = 0;
         _diagContentMeasuredWhenCollapsedCount = 0;
+        _diagContentMeasureSkippedWithoutContentCount = 0;
         _diagArrangeOverrideCallCount = 0;
         _diagArrangeOverrideElapsedTicks = 0;
+        _diagArrangeHeaderMeasureCacheHitCount = 0;
+        _diagArrangeHeaderMeasureCacheMissCount = 0;
+        _diagArrangeExpandedContentCount = 0;
+        _diagArrangeCollapsedContentCount = 0;
+        _diagArrangeNoContentCount = 0;
         _diagExpandDirectionDownCount = 0;
         _diagExpandDirectionUpCount = 0;
         _diagExpandDirectionLeftCount = 0;
         _diagExpandDirectionRightCount = 0;
         _diagRenderCallCount = 0;
         _diagRenderElapsedTicks = 0;
+        _diagHeaderBackgroundStyleOverrideCount = 0;
+        _diagHeaderBackgroundInheritedCount = 0;
+        _diagRenderHeaderTextCount = 0;
+        _diagRenderHeaderTextSkippedEmptyCount = 0;
+        _diagRenderHeaderElementCount = 0;
         _diagExpandCount = 0;
         _diagCollapseCount = 0;
         _diagHeaderPointerDownCount = 0;
+        _diagHeaderPointerDownMissCount = 0;
         _diagHeaderPointerUpToggleCount = 0;
+        _diagHeaderPointerUpMissCount = 0;
+        _diagHeaderPointerUpReleaseOutsideCount = 0;
         _diagHeaderUpdateCount = 0;
         return snapshot;
     }
 
-    internal static ExpanderTimingSnapshot GetExpanderSnapshotForDiagnostics()
+    internal static ExpanderTimingSnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateAggregateTelemetrySnapshot();
+    }
+
+    private static ExpanderTimingSnapshot CreateAggregateTelemetrySnapshot()
     {
         return new ExpanderTimingSnapshot(
             _diagMeasureOverrideCallCount,
-            (double)_diagMeasureOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
+            TicksToMilliseconds(_diagMeasureOverrideElapsedTicks),
             _diagHeaderMeasureCount,
+            TicksToMilliseconds(_diagHeaderMeasureElapsedTicks),
+            _diagHeaderMeasureElementPathCount,
+            _diagHeaderMeasureTextPathCount,
+            _diagHeaderMeasureEmptyTextCount,
             _diagContentMeasuredWhenExpandedCount,
             _diagContentMeasuredWhenCollapsedCount,
+            _diagContentMeasureSkippedWithoutContentCount,
             _diagArrangeOverrideCallCount,
-            (double)_diagArrangeOverrideElapsedTicks * 1000d / Stopwatch.Frequency,
+            TicksToMilliseconds(_diagArrangeOverrideElapsedTicks),
+            _diagArrangeHeaderMeasureCacheHitCount,
+            _diagArrangeHeaderMeasureCacheMissCount,
+            _diagArrangeExpandedContentCount,
+            _diagArrangeCollapsedContentCount,
+            _diagArrangeNoContentCount,
             _diagExpandDirectionDownCount,
             _diagExpandDirectionUpCount,
             _diagExpandDirectionLeftCount,
             _diagExpandDirectionRightCount,
             _diagRenderCallCount,
-            (double)_diagRenderElapsedTicks * 1000d / Stopwatch.Frequency,
+            TicksToMilliseconds(_diagRenderElapsedTicks),
+            _diagHeaderBackgroundStyleOverrideCount,
+            _diagHeaderBackgroundInheritedCount,
+            _diagRenderHeaderTextCount,
+            _diagRenderHeaderTextSkippedEmptyCount,
+            _diagRenderHeaderElementCount,
             _diagExpandCount,
             _diagCollapseCount,
             _diagHeaderPointerDownCount,
+            _diagHeaderPointerDownMissCount,
             _diagHeaderPointerUpToggleCount,
+            _diagHeaderPointerUpMissCount,
+            _diagHeaderPointerUpReleaseOutsideCount,
             _diagHeaderUpdateCount);
+    }
+
+    private static void IncrementAggregate(ref long counter)
+    {
+        System.Threading.Interlocked.Increment(ref counter);
+    }
+
+    private static void RecordElapsed(ref long callCount, ref long elapsedTicks, long startTicks)
+    {
+        IncrementAggregate(ref callCount);
+        System.Threading.Interlocked.Add(ref elapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+    }
+
+    private static void RecordElapsed(ref long elapsedTicks, long startTicks)
+    {
+        System.Threading.Interlocked.Add(ref elapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+    }
+
+    private static double TicksToMilliseconds(long elapsedTicks)
+    {
+        return (double)elapsedTicks * 1000d / Stopwatch.Frequency;
     }
 }
 

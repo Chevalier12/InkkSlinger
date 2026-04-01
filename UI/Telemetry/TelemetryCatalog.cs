@@ -10,7 +10,7 @@ namespace InkkSlinger.UI.Telemetry;
 /// - Rendering: Rendering and text telemetry (RenderingSnapshots.cs)
 /// - Scrolling: ScrollViewer, ScrollBar, Track telemetry (ScrollingSnapshots.cs)
 /// - Style: Styling, templating, and visual state telemetry (StyleSnapshots.cs)
-/// - Control: Individual control telemetry (ControlSnapshots.cs)
+/// - Control-specific: Individual control telemetry in per-control snapshot files
 /// - Panel: Panel layout telemetry (PanelSnapshots.cs)
 /// - VisualTree: Visual tree and hit testing telemetry (VisualTreeSnapshots.cs)
 /// - View: View-specific telemetry (ViewSnapshots.cs)
@@ -46,6 +46,7 @@ public static class TelemetryCatalog
     // 
     // Scrolling (UI/Telemetry/ScrollingSnapshots.cs)
     // - ScrollViewerScrollMetricsSnapshot
+    // - ScrollViewerInteractionTelemetrySnapshot
     // - ScrollViewerValueChangedTelemetrySnapshot
     // - ScrollViewerLayoutTelemetrySnapshot
     // - ScrollBarThumbDragTelemetrySnapshot
@@ -56,16 +57,28 @@ public static class TelemetryCatalog
     // - VisualStateTelemetrySnapshot
     // - TemplateTriggerTelemetrySnapshot
     // 
-    // Control (UI/Telemetry/ControlSnapshots.cs)
+    // Control-specific
+    // - Button (UI/Telemetry/ButtonSnapshots.cs)
     // - ButtonTimingSnapshot
+    // - Thumb (UI/Telemetry/ThumbSnapshots.cs)
     // - ThumbDragTelemetrySnapshot
+    // - Expander (UI/Telemetry/ExpanderSnapshots.cs)
     // - ExpanderTimingSnapshot
+    // - ExpanderRuntimeDiagnosticsSnapshot
+    // - Calendar (UI/Telemetry/CalendarSnapshots.cs)
     // - CalendarDiagnosticsSnapshot
+    // - CalendarRefreshDiagnostics
+    // - CalendarRefreshTimingDiagnostics
+    // - CalendarDayButton (UI/Telemetry/CalendarDayButtonSnapshots.cs)
     // - CalendarDayButtonTimingSnapshot
+    // - TextBlock (UI/Telemetry/TextBlockSnapshots.cs)
     // - TextBlockPerformanceSnapshot
     // - TextBlockRuntimeDiagnosticsSnapshot
+    // - TextBox (UI/Telemetry/TextBoxSnapshots.cs)
     // - TextBoxPerformanceSnapshot
+    // - PasswordBox (UI/Telemetry/PasswordBoxSnapshots.cs)
     // - PasswordBoxPerformanceSnapshot
+    // - RichTextBox (UI/Telemetry/RichTextBoxSnapshots.cs)
     // - RichTextBoxPerformanceSnapshot
     // 
     // Panel (UI/Telemetry/PanelSnapshots.cs)

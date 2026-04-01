@@ -168,6 +168,106 @@ public sealed class ExpanderInputTests
             $"Expected playground Expander to restore full actual height after re-expand, but got {expander.ActualHeight:0.##} from initial {expandedHeight:0.##}.");
     }
 
+    [Fact]
+    public void ExpanderTelemetry_CapturesRuntimeBranchesAndAggregateReset()
+    {
+        _ = Expander.GetTelemetryAndReset();
+
+        var host = new Canvas
+        {
+            Width = 520f,
+            Height = 320f
+        };
+
+        var expander = new Expander
+        {
+            Width = 360f,
+            Height = 220f,
+            Header = "Telemetry Header",
+            Content = new Border
+            {
+                Padding = new Thickness(10f),
+                Child = new TextBlock
+                {
+                    Text = "Telemetry content body",
+                    TextWrapping = TextWrapping.Wrap
+                }
+            },
+            IsExpanded = true
+        };
+
+        host.AddChild(expander);
+        Canvas.SetLeft(expander, 30f);
+        Canvas.SetTop(expander, 24f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 520, 320);
+
+        var headerElement = new TextBlock { Text = "Telemetry Header Element" };
+        expander.Header = headerElement;
+        RunLayout(uiRoot, 520, 320);
+
+        expander.Header = "Telemetry Header";
+        RunLayout(uiRoot, 520, 320);
+
+        Assert.False(expander.HandlePointerDownFromInput(new Vector2(4f, 4f)));
+        Assert.False(expander.HandlePointerUpFromInput(new Vector2(4f, 4f)));
+
+        var headerPoint = new Vector2(expander.LayoutSlot.X + 8f, expander.LayoutSlot.Y + 8f);
+        Assert.True(expander.HandlePointerDownFromInput(headerPoint));
+        Assert.True(expander.HandlePointerUpFromInput(headerPoint));
+        RunLayout(uiRoot, 520, 320);
+
+        Assert.True(expander.HandlePointerDownFromInput(headerPoint));
+        Assert.False(expander.HandlePointerUpFromInput(new Vector2(headerPoint.X, headerPoint.Y + expander.ActualHeight + 20f)));
+
+        Assert.True(expander.HandlePointerDownFromInput(headerPoint));
+        Assert.True(expander.HandlePointerUpFromInput(headerPoint));
+        RunLayout(uiRoot, 520, 320);
+
+        var runtime = expander.GetExpanderSnapshotForDiagnostics();
+        Assert.True(runtime.MeasureOverrideCallCount > 0);
+        Assert.True(runtime.HeaderMeasureCount > 0);
+        Assert.True(runtime.HeaderMeasureTextPathCount > 0);
+        Assert.True(runtime.HeaderMeasureElementPathCount > 0);
+        Assert.True(runtime.ContentMeasuredWhenExpandedCount > 0);
+        Assert.True(runtime.ArrangeOverrideCallCount > 0);
+        Assert.True(runtime.ArrangeHeaderMeasureCacheHitCount > 0 || runtime.ArrangeHeaderMeasureCacheMissCount > 0);
+        Assert.True(runtime.ExpandCount > 0);
+        Assert.True(runtime.CollapseCount > 0);
+        Assert.True(runtime.HeaderPointerDownCount > 0);
+        Assert.True(runtime.HeaderPointerDownMissCount > 0);
+        Assert.True(runtime.HeaderPointerUpToggleCount > 0);
+        Assert.True(runtime.HeaderPointerUpMissCount > 0);
+        Assert.True(runtime.HeaderPointerUpReleaseOutsideCount > 0);
+        Assert.True(runtime.HeaderUpdateCount >= 2);
+        Assert.True(runtime.HeaderUpdateAttachElementCount > 0);
+        Assert.True(runtime.HeaderUpdateTextHeaderCount > 0);
+
+        var aggregate = Expander.GetTelemetryAndReset();
+        Assert.True(aggregate.MeasureOverrideCallCount > 0);
+        Assert.True(aggregate.HeaderMeasureCount > 0);
+        Assert.True(aggregate.HeaderMeasureTextPathCount > 0);
+        Assert.True(aggregate.HeaderMeasureElementPathCount > 0);
+        Assert.True(aggregate.ContentMeasuredWhenExpandedCount > 0);
+        Assert.True(aggregate.ArrangeOverrideCallCount > 0);
+        Assert.True(aggregate.ExpandCount > 0);
+        Assert.True(aggregate.CollapseCount > 0);
+        Assert.True(aggregate.HeaderPointerDownCount > 0);
+        Assert.True(aggregate.HeaderPointerDownMissCount > 0);
+        Assert.True(aggregate.HeaderPointerUpToggleCount > 0);
+        Assert.True(aggregate.HeaderPointerUpMissCount > 0);
+        Assert.True(aggregate.HeaderPointerUpReleaseOutsideCount > 0);
+        Assert.True(aggregate.HeaderUpdateCount >= 2);
+
+        var cleared = Expander.GetTelemetryAndReset();
+        Assert.Equal(0, cleared.MeasureOverrideCallCount);
+        Assert.Equal(0, cleared.HeaderMeasureCount);
+        Assert.Equal(0, cleared.ArrangeOverrideCallCount);
+        Assert.Equal(0, cleared.ExpandCount);
+        Assert.Equal(0, cleared.HeaderPointerDownCount);
+    }
+
     private static Border CreateChecklistItem(string text)
     {
         return new Border

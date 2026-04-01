@@ -179,15 +179,94 @@ public class ScrollViewer : ContentControl
     private long _runtimeMeasureContentElapsedTicks;
     private int _runtimeUpdateScrollBarsCallCount;
     private long _runtimeUpdateScrollBarsElapsedTicks;
+    private int _runtimeScrollToHorizontalOffsetCallCount;
+    private int _runtimeScrollToVerticalOffsetCallCount;
+    private int _runtimeInvalidateScrollInfoCallCount;
+    private int _runtimeHandleMouseWheelCallCount;
+    private long _runtimeHandleMouseWheelElapsedTicks;
+    private int _runtimeHandleMouseWheelHandledCount;
+    private int _runtimeHandleMouseWheelIgnoredDisabledCount;
+    private int _runtimeHandleMouseWheelIgnoredZeroDeltaCount;
+    private int _runtimeSetOffsetsCallCount;
+    private long _runtimeSetOffsetsElapsedTicks;
+    private int _runtimeSetOffsetsExternalSourceCount;
+    private int _runtimeSetOffsetsHorizontalScrollBarSourceCount;
+    private int _runtimeSetOffsetsVerticalScrollBarSourceCount;
+    private int _runtimeSetOffsetsWorkCount;
+    private int _runtimeSetOffsetsNoOpCount;
+    private int _runtimeSetOffsetsDeferredLayoutPathCount;
+    private int _runtimeSetOffsetsVirtualizingMeasureInvalidationPathCount;
+    private int _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount;
+    private int _runtimeSetOffsetsTransformInvalidationPathCount;
+    private int _runtimeSetOffsetsManualArrangePathCount;
+    private int _runtimePopupCloseCallCount;
+    private int _runtimeArrangeContentForCurrentOffsetsCallCount;
+    private long _runtimeArrangeContentForCurrentOffsetsElapsedTicks;
+    private int _runtimeArrangeContentSkippedNoContentCount;
+    private int _runtimeArrangeContentSkippedZeroViewportCount;
+    private int _runtimeArrangeContentTransformPathCount;
+    private int _runtimeArrangeContentOffsetPathCount;
+    private int _runtimeUpdateScrollBarValuesCallCount;
+    private long _runtimeUpdateScrollBarValuesElapsedTicks;
+    private int _runtimeUpdateHorizontalScrollBarValueCallCount;
+    private long _runtimeUpdateHorizontalScrollBarValueElapsedTicks;
+    private int _runtimeUpdateVerticalScrollBarValueCallCount;
+    private long _runtimeUpdateVerticalScrollBarValueElapsedTicks;
+    private int _runtimeHorizontalValueChangedCallCount;
+    private long _runtimeHorizontalValueChangedElapsedTicks;
+    private long _runtimeHorizontalValueChangedSetOffsetsElapsedTicks;
+    private int _runtimeHorizontalValueChangedSuppressedCount;
+    private int _runtimeVerticalValueChangedCallCount;
+    private long _runtimeVerticalValueChangedElapsedTicks;
+    private long _runtimeVerticalValueChangedSetOffsetsElapsedTicks;
+    private int _runtimeVerticalValueChangedSuppressedCount;
     private static int _diagWheelEvents;
     private static int _diagWheelHandled;
     private static int _diagSetOffsetCalls;
     private static int _diagSetOffsetNoOp;
     private static float _diagVerticalDelta;
     private static float _diagHorizontalDelta;
+    private static int _diagScrollToHorizontalOffsetCallCount;
+    private static int _diagScrollToVerticalOffsetCallCount;
+    private static int _diagInvalidateScrollInfoCallCount;
+    private static int _diagHandleMouseWheelCallCount;
+    private static long _diagHandleMouseWheelElapsedTicks;
+    private static int _diagHandleMouseWheelHandledCount;
+    private static int _diagHandleMouseWheelIgnoredDisabledCount;
+    private static int _diagHandleMouseWheelIgnoredZeroDeltaCount;
+    private static int _diagInteractionSetOffsetsCallCount;
+    private static int _diagInteractionSetOffsetsNoOpCount;
+    private static long _diagSetOffsetsElapsedTicks;
+    private static int _diagSetOffsetsExternalSourceCount;
+    private static int _diagSetOffsetsHorizontalScrollBarSourceCount;
+    private static int _diagSetOffsetsVerticalScrollBarSourceCount;
+    private static int _diagSetOffsetsWorkCount;
+    private static int _diagSetOffsetsDeferredLayoutPathCount;
+    private static int _diagSetOffsetsVirtualizingMeasureInvalidationPathCount;
+    private static int _diagSetOffsetsVirtualizingArrangeOnlyPathCount;
+    private static int _diagSetOffsetsTransformInvalidationPathCount;
+    private static int _diagSetOffsetsManualArrangePathCount;
+    private static int _diagPopupCloseCallCount;
+    private static int _diagArrangeContentForCurrentOffsetsCallCount;
+    private static long _diagArrangeContentForCurrentOffsetsElapsedTicks;
+    private static int _diagArrangeContentSkippedNoContentCount;
+    private static int _diagArrangeContentSkippedZeroViewportCount;
+    private static int _diagArrangeContentTransformPathCount;
+    private static int _diagArrangeContentOffsetPathCount;
+    private static int _diagUpdateScrollBarValuesCallCount;
+    private static long _diagUpdateScrollBarValuesElapsedTicks;
+    private static int _diagUpdateHorizontalScrollBarValueCallCount;
+    private static long _diagUpdateHorizontalScrollBarValueElapsedTicks;
+    private static int _diagUpdateVerticalScrollBarValueCallCount;
+    private static long _diagUpdateVerticalScrollBarValueElapsedTicks;
+    private static int _diagHorizontalValueChangedCallCount;
+    private static long _diagHorizontalValueChangedElapsedTicks;
+    private static long _diagHorizontalValueChangedSetOffsetsElapsedTicks;
+    private static int _diagHorizontalValueChangedSuppressedCount;
     private static int _diagVerticalValueChangedCallCount;
     private static long _diagVerticalValueChangedElapsedTicks;
     private static long _diagVerticalValueChangedSetOffsetsElapsedTicks;
+    private static int _diagVerticalValueChangedSuppressedCount;
     private static int _diagMeasureOverrideCallCount;
     private static long _diagMeasureOverrideElapsedTicks;
     private static int _diagArrangeOverrideCallCount;
@@ -385,16 +464,22 @@ public class ScrollViewer : ContentControl
 
     public void ScrollToHorizontalOffset(float offset)
     {
+        _diagScrollToHorizontalOffsetCallCount++;
+        _runtimeScrollToHorizontalOffsetCallCount++;
         SetOffsets(offset, VerticalOffset);
     }
 
     public void ScrollToVerticalOffset(float offset)
     {
+        _diagScrollToVerticalOffsetCallCount++;
+        _runtimeScrollToVerticalOffsetCallCount++;
         SetOffsets(HorizontalOffset, offset);
     }
 
     public void InvalidateScrollInfo()
     {
+        _diagInvalidateScrollInfoCallCount++;
+        _runtimeInvalidateScrollInfoCallCount++;
         InvalidateMeasure();
     }
 
@@ -425,12 +510,94 @@ public class ScrollViewer : ContentControl
     internal static ScrollViewerValueChangedTelemetrySnapshot GetValueChangedTelemetryAndReset()
     {
         var snapshot = new ScrollViewerValueChangedTelemetrySnapshot(
+            _diagHorizontalValueChangedCallCount,
+            (double)_diagHorizontalValueChangedElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_diagHorizontalValueChangedSetOffsetsElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagHorizontalValueChangedSuppressedCount,
             _diagVerticalValueChangedCallCount,
             (double)_diagVerticalValueChangedElapsedTicks * 1000d / Stopwatch.Frequency,
-            (double)_diagVerticalValueChangedSetOffsetsElapsedTicks * 1000d / Stopwatch.Frequency);
+            (double)_diagVerticalValueChangedSetOffsetsElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagVerticalValueChangedSuppressedCount);
+        _diagHorizontalValueChangedCallCount = 0;
+        _diagHorizontalValueChangedElapsedTicks = 0L;
+        _diagHorizontalValueChangedSetOffsetsElapsedTicks = 0L;
+        _diagHorizontalValueChangedSuppressedCount = 0;
         _diagVerticalValueChangedCallCount = 0;
         _diagVerticalValueChangedElapsedTicks = 0L;
         _diagVerticalValueChangedSetOffsetsElapsedTicks = 0L;
+        _diagVerticalValueChangedSuppressedCount = 0;
+        return snapshot;
+    }
+
+    internal static ScrollViewerInteractionTelemetrySnapshot GetInteractionTelemetryAndReset()
+    {
+        var snapshot = new ScrollViewerInteractionTelemetrySnapshot(
+            _diagScrollToHorizontalOffsetCallCount,
+            _diagScrollToVerticalOffsetCallCount,
+            _diagInvalidateScrollInfoCallCount,
+            _diagHandleMouseWheelCallCount,
+            (double)_diagHandleMouseWheelElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagHandleMouseWheelHandledCount,
+            _diagHandleMouseWheelIgnoredDisabledCount,
+            _diagHandleMouseWheelIgnoredZeroDeltaCount,
+            _diagInteractionSetOffsetsCallCount,
+            (double)_diagSetOffsetsElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagSetOffsetsExternalSourceCount,
+            _diagSetOffsetsHorizontalScrollBarSourceCount,
+            _diagSetOffsetsVerticalScrollBarSourceCount,
+            _diagSetOffsetsWorkCount,
+            _diagInteractionSetOffsetsNoOpCount,
+            _diagSetOffsetsDeferredLayoutPathCount,
+            _diagSetOffsetsVirtualizingMeasureInvalidationPathCount,
+            _diagSetOffsetsVirtualizingArrangeOnlyPathCount,
+            _diagSetOffsetsTransformInvalidationPathCount,
+            _diagSetOffsetsManualArrangePathCount,
+            _diagPopupCloseCallCount,
+            _diagArrangeContentForCurrentOffsetsCallCount,
+            (double)_diagArrangeContentForCurrentOffsetsElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagArrangeContentSkippedNoContentCount,
+            _diagArrangeContentSkippedZeroViewportCount,
+            _diagArrangeContentTransformPathCount,
+            _diagArrangeContentOffsetPathCount,
+            _diagUpdateScrollBarValuesCallCount,
+            (double)_diagUpdateScrollBarValuesElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagUpdateHorizontalScrollBarValueCallCount,
+            (double)_diagUpdateHorizontalScrollBarValueElapsedTicks * 1000d / Stopwatch.Frequency,
+            _diagUpdateVerticalScrollBarValueCallCount,
+            (double)_diagUpdateVerticalScrollBarValueElapsedTicks * 1000d / Stopwatch.Frequency);
+        _diagScrollToHorizontalOffsetCallCount = 0;
+        _diagScrollToVerticalOffsetCallCount = 0;
+        _diagInvalidateScrollInfoCallCount = 0;
+        _diagHandleMouseWheelCallCount = 0;
+        _diagHandleMouseWheelElapsedTicks = 0L;
+        _diagHandleMouseWheelHandledCount = 0;
+        _diagHandleMouseWheelIgnoredDisabledCount = 0;
+        _diagHandleMouseWheelIgnoredZeroDeltaCount = 0;
+        _diagInteractionSetOffsetsCallCount = 0;
+        _diagInteractionSetOffsetsNoOpCount = 0;
+        _diagSetOffsetsElapsedTicks = 0L;
+        _diagSetOffsetsExternalSourceCount = 0;
+        _diagSetOffsetsHorizontalScrollBarSourceCount = 0;
+        _diagSetOffsetsVerticalScrollBarSourceCount = 0;
+        _diagSetOffsetsWorkCount = 0;
+        _diagPopupCloseCallCount = 0;
+        _diagArrangeContentForCurrentOffsetsCallCount = 0;
+        _diagArrangeContentForCurrentOffsetsElapsedTicks = 0L;
+        _diagArrangeContentSkippedNoContentCount = 0;
+        _diagArrangeContentSkippedZeroViewportCount = 0;
+        _diagArrangeContentTransformPathCount = 0;
+        _diagArrangeContentOffsetPathCount = 0;
+        _diagSetOffsetsDeferredLayoutPathCount = 0;
+        _diagSetOffsetsVirtualizingMeasureInvalidationPathCount = 0;
+        _diagSetOffsetsVirtualizingArrangeOnlyPathCount = 0;
+        _diagSetOffsetsTransformInvalidationPathCount = 0;
+        _diagSetOffsetsManualArrangePathCount = 0;
+        _diagUpdateScrollBarValuesCallCount = 0;
+        _diagUpdateScrollBarValuesElapsedTicks = 0L;
+        _diagUpdateHorizontalScrollBarValueCallCount = 0;
+        _diagUpdateHorizontalScrollBarValueElapsedTicks = 0L;
+        _diagUpdateVerticalScrollBarValueCallCount = 0;
+        _diagUpdateVerticalScrollBarValueElapsedTicks = 0L;
         return snapshot;
     }
 
@@ -523,6 +690,57 @@ public class ScrollViewer : ContentControl
             (double)_runtimeMeasureContentElapsedTicks * 1000d / Stopwatch.Frequency,
             _runtimeUpdateScrollBarsCallCount,
             (double)_runtimeUpdateScrollBarsElapsedTicks * 1000d / Stopwatch.Frequency);
+    }
+
+    internal ScrollViewerInteractionTelemetrySnapshot GetRuntimeInteractionTelemetryForDiagnostics()
+    {
+        return new ScrollViewerInteractionTelemetrySnapshot(
+            _runtimeScrollToHorizontalOffsetCallCount,
+            _runtimeScrollToVerticalOffsetCallCount,
+            _runtimeInvalidateScrollInfoCallCount,
+            _runtimeHandleMouseWheelCallCount,
+            (double)_runtimeHandleMouseWheelElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeHandleMouseWheelHandledCount,
+            _runtimeHandleMouseWheelIgnoredDisabledCount,
+            _runtimeHandleMouseWheelIgnoredZeroDeltaCount,
+            _runtimeSetOffsetsCallCount,
+            (double)_runtimeSetOffsetsElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeSetOffsetsExternalSourceCount,
+            _runtimeSetOffsetsHorizontalScrollBarSourceCount,
+            _runtimeSetOffsetsVerticalScrollBarSourceCount,
+            _runtimeSetOffsetsWorkCount,
+            _runtimeSetOffsetsNoOpCount,
+            _runtimeSetOffsetsDeferredLayoutPathCount,
+            _runtimeSetOffsetsVirtualizingMeasureInvalidationPathCount,
+            _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount,
+            _runtimeSetOffsetsTransformInvalidationPathCount,
+            _runtimeSetOffsetsManualArrangePathCount,
+            _runtimePopupCloseCallCount,
+            _runtimeArrangeContentForCurrentOffsetsCallCount,
+            (double)_runtimeArrangeContentForCurrentOffsetsElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeArrangeContentSkippedNoContentCount,
+            _runtimeArrangeContentSkippedZeroViewportCount,
+            _runtimeArrangeContentTransformPathCount,
+            _runtimeArrangeContentOffsetPathCount,
+            _runtimeUpdateScrollBarValuesCallCount,
+            (double)_runtimeUpdateScrollBarValuesElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeUpdateHorizontalScrollBarValueCallCount,
+            (double)_runtimeUpdateHorizontalScrollBarValueElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeUpdateVerticalScrollBarValueCallCount,
+            (double)_runtimeUpdateVerticalScrollBarValueElapsedTicks * 1000d / Stopwatch.Frequency);
+    }
+
+    internal ScrollViewerValueChangedTelemetrySnapshot GetRuntimeValueChangedTelemetryForDiagnostics()
+    {
+        return new ScrollViewerValueChangedTelemetrySnapshot(
+            _runtimeHorizontalValueChangedCallCount,
+            (double)_runtimeHorizontalValueChangedElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_runtimeHorizontalValueChangedSetOffsetsElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeHorizontalValueChangedSuppressedCount,
+            _runtimeVerticalValueChangedCallCount,
+            (double)_runtimeVerticalValueChangedElapsedTicks * 1000d / Stopwatch.Frequency,
+            (double)_runtimeVerticalValueChangedSetOffsetsElapsedTicks * 1000d / Stopwatch.Frequency,
+            _runtimeVerticalValueChangedSuppressedCount);
     }
 
     internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
@@ -1085,9 +1303,26 @@ public class ScrollViewer : ContentControl
 
     internal bool HandleMouseWheelFromInput(int delta)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         _diagWheelEvents++;
+        _diagHandleMouseWheelCallCount++;
+        _runtimeHandleMouseWheelCallCount++;
         if (!IsEnabled || delta == 0)
         {
+            if (!IsEnabled)
+            {
+                _diagHandleMouseWheelIgnoredDisabledCount++;
+                _runtimeHandleMouseWheelIgnoredDisabledCount++;
+            }
+            else
+            {
+                _diagHandleMouseWheelIgnoredZeroDeltaCount++;
+                _runtimeHandleMouseWheelIgnoredZeroDeltaCount++;
+            }
+
+            var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagHandleMouseWheelElapsedTicks += elapsedTicks;
+            _runtimeHandleMouseWheelElapsedTicks += elapsedTicks;
             return false;
         }
 
@@ -1110,14 +1345,38 @@ public class ScrollViewer : ContentControl
         if (handled)
         {
             _diagWheelHandled++;
+            _diagHandleMouseWheelHandledCount++;
+            _runtimeHandleMouseWheelHandledCount++;
         }
+
+        var totalElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagHandleMouseWheelElapsedTicks += totalElapsedTicks;
+        _runtimeHandleMouseWheelElapsedTicks += totalElapsedTicks;
 
         return handled;
     }
 
     private void SetOffsets(float horizontal, float vertical, ScrollOffsetUpdateSource updateSource = ScrollOffsetUpdateSource.External)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         _diagSetOffsetCalls++;
+        _diagInteractionSetOffsetsCallCount++;
+        _runtimeSetOffsetsCallCount++;
+        switch (updateSource)
+        {
+            case ScrollOffsetUpdateSource.External:
+                _diagSetOffsetsExternalSourceCount++;
+                _runtimeSetOffsetsExternalSourceCount++;
+                break;
+            case ScrollOffsetUpdateSource.HorizontalScrollBar:
+                _diagSetOffsetsHorizontalScrollBarSourceCount++;
+                _runtimeSetOffsetsHorizontalScrollBarSourceCount++;
+                break;
+            case ScrollOffsetUpdateSource.VerticalScrollBar:
+                _diagSetOffsetsVerticalScrollBarSourceCount++;
+                _runtimeSetOffsetsVerticalScrollBarSourceCount++;
+                break;
+        }
         var beforeHorizontal = HorizontalOffset;
         var beforeVertical = VerticalOffset;
         var maxHorizontal = MathF.Max(0f, ExtentWidth - ViewportWidth);
@@ -1132,14 +1391,21 @@ public class ScrollViewer : ContentControl
         if (horizontalDelta <= 0.001f && verticalDelta <= 0.001f)
         {
             _diagSetOffsetNoOp++;
+            _diagInteractionSetOffsetsNoOpCount++;
+            _runtimeSetOffsetsNoOpCount++;
             if (updateSource == ScrollOffsetUpdateSource.External)
             {
                 UpdateScrollBarValues();
             }
 
+            _diagSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+
             return;
         }
 
+        _diagSetOffsetsWorkCount++;
+        _runtimeSetOffsetsWorkCount++;
         SetIfChanged(HorizontalOffsetProperty, nextHorizontal);
         SetIfChanged(VerticalOffsetProperty, nextVertical);
 
@@ -1150,16 +1416,22 @@ public class ScrollViewer : ContentControl
             {
                 if (virtualizingStackPanel.RequiresMeasureForViewerOwnedOffsetChange(beforeHorizontal, nextHorizontal, beforeVertical, nextVertical))
                 {
+                    _diagSetOffsetsVirtualizingMeasureInvalidationPathCount++;
+                    _runtimeSetOffsetsVirtualizingMeasureInvalidationPathCount++;
                     InvalidateMeasure();
                     InvalidateArrange();
                 }
                 else
                 {
+                    _diagSetOffsetsVirtualizingArrangeOnlyPathCount++;
+                    _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount++;
                     InvalidateArrange();
                 }
             }
             else if (UsesTransformBasedContentScrolling())
             {
+                _diagSetOffsetsTransformInvalidationPathCount++;
+                _runtimeSetOffsetsTransformInvalidationPathCount++;
                 if (ContentElement is UIElement contentElement)
                 {
                     UiRoot.Current?.NotifyDirectRenderInvalidation(contentElement);
@@ -1167,9 +1439,16 @@ public class ScrollViewer : ContentControl
             }
             else
             {
+                _diagSetOffsetsManualArrangePathCount++;
+                _runtimeSetOffsetsManualArrangePathCount++;
                 ArrangeContentForCurrentOffsets();
                 InvalidateVisual();
             }
+        }
+        else
+        {
+            _diagSetOffsetsDeferredLayoutPathCount++;
+            _runtimeSetOffsetsDeferredLayoutPathCount++;
         }
 
         if (ContentElement is UIElement transformScrollContent &&
@@ -1193,6 +1472,10 @@ public class ScrollViewer : ContentControl
         }
 
         Popup.CloseAnchoredPopupsWithin(this);
+        _diagPopupCloseCallCount++;
+        _runtimePopupCloseCallCount++;
+        _diagSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void BeginInputScrollMutation()
@@ -1207,13 +1490,24 @@ public class ScrollViewer : ContentControl
 
     private void ArrangeContentForCurrentOffsets()
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagArrangeContentForCurrentOffsetsCallCount++;
+        _runtimeArrangeContentForCurrentOffsetsCallCount++;
         if (ContentElement is not FrameworkElement content)
         {
+            _diagArrangeContentSkippedNoContentCount++;
+            _runtimeArrangeContentSkippedNoContentCount++;
+            _diagArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
         if (_contentViewportRect.Width <= 0f || _contentViewportRect.Height <= 0f)
         {
+            _diagArrangeContentSkippedZeroViewportCount++;
+            _runtimeArrangeContentSkippedZeroViewportCount++;
+            _diagArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
@@ -1222,6 +1516,16 @@ public class ScrollViewer : ContentControl
             : MathF.Max(ViewportWidth, ExtentWidth);
         var arrangedHeight = MathF.Max(ViewportHeight, ExtentHeight);
         var useTransformScrolling = UsesTransformBasedContentScrolling();
+        if (useTransformScrolling)
+        {
+            _diagArrangeContentTransformPathCount++;
+            _runtimeArrangeContentTransformPathCount++;
+        }
+        else
+        {
+            _diagArrangeContentOffsetPathCount++;
+            _runtimeArrangeContentOffsetPathCount++;
+        }
         var contentX = useTransformScrolling ? _contentViewportRect.X : _contentViewportRect.X - HorizontalOffset;
         var contentY = useTransformScrolling ? _contentViewportRect.Y : _contentViewportRect.Y - VerticalOffset;
 
@@ -1231,6 +1535,8 @@ public class ScrollViewer : ContentControl
             arrangedWidth,
             arrangedHeight));
         content.InvalidateVisual();
+        _diagArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private bool UsesTransformBasedContentScrolling()
@@ -1300,6 +1606,9 @@ public class ScrollViewer : ContentControl
 
     private void UpdateScrollBarValues()
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagUpdateScrollBarValuesCallCount++;
+        _runtimeUpdateScrollBarValuesCallCount++;
         _suppressInternalScrollBarValueChange = true;
         try
         {
@@ -1310,10 +1619,16 @@ public class ScrollViewer : ContentControl
         {
             _suppressInternalScrollBarValueChange = false;
         }
+
+        _diagUpdateScrollBarValuesElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeUpdateScrollBarValuesElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void UpdateHorizontalScrollBarValue()
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagUpdateHorizontalScrollBarValueCallCount++;
+        _runtimeUpdateHorizontalScrollBarValueCallCount++;
         _suppressInternalScrollBarValueChange = true;
         try
         {
@@ -1323,10 +1638,16 @@ public class ScrollViewer : ContentControl
         {
             _suppressInternalScrollBarValueChange = false;
         }
+
+        _diagUpdateHorizontalScrollBarValueElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeUpdateHorizontalScrollBarValueElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void UpdateVerticalScrollBarValue()
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagUpdateVerticalScrollBarValueCallCount++;
+        _runtimeUpdateVerticalScrollBarValueCallCount++;
         _suppressInternalScrollBarValueChange = true;
         try
         {
@@ -1336,17 +1657,26 @@ public class ScrollViewer : ContentControl
         {
             _suppressInternalScrollBarValueChange = false;
         }
+
+        _diagUpdateVerticalScrollBarValueElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeUpdateVerticalScrollBarValueElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void OnHorizontalScrollBarValueChanged(object? sender, RoutedSimpleEventArgs args)
     {
+        var startTicks = Stopwatch.GetTimestamp();
         _ = sender;
         _ = args;
         if (_suppressInternalScrollBarValueChange)
         {
+            _diagHorizontalValueChangedSuppressedCount++;
+            _runtimeHorizontalValueChangedSuppressedCount++;
+            _diagHorizontalValueChangedElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeHorizontalValueChangedElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
+        var setOffsetsStartTicks = Stopwatch.GetTimestamp();
         BeginInputScrollMutation();
         try
         {
@@ -1356,6 +1686,13 @@ public class ScrollViewer : ContentControl
         {
             EndInputScrollMutation();
         }
+
+        _diagHorizontalValueChangedSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - setOffsetsStartTicks;
+        _runtimeHorizontalValueChangedSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - setOffsetsStartTicks;
+        _diagHorizontalValueChangedCallCount++;
+        _runtimeHorizontalValueChangedCallCount++;
+        _diagHorizontalValueChangedElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeHorizontalValueChangedElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void OnVerticalScrollBarValueChanged(object? sender, RoutedSimpleEventArgs args)
@@ -1365,7 +1702,10 @@ public class ScrollViewer : ContentControl
         _ = args;
         if (_suppressInternalScrollBarValueChange)
         {
+            _diagVerticalValueChangedSuppressedCount++;
+            _runtimeVerticalValueChangedSuppressedCount++;
             _diagVerticalValueChangedElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeVerticalValueChangedElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
             return;
         }
 
@@ -1380,8 +1720,11 @@ public class ScrollViewer : ContentControl
             EndInputScrollMutation();
         }
         _diagVerticalValueChangedSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - setOffsetsStartTicks;
+        _runtimeVerticalValueChangedSetOffsetsElapsedTicks += Stopwatch.GetTimestamp() - setOffsetsStartTicks;
         _diagVerticalValueChangedCallCount++;
+        _runtimeVerticalValueChangedCallCount++;
         _diagVerticalValueChangedElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeVerticalValueChangedElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
     private void SetIfChanged(DependencyProperty property, float value, string? diagnosticsCounterName = null)

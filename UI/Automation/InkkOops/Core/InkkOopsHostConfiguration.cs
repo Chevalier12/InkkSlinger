@@ -42,9 +42,7 @@ public sealed class InkkOopsHostConfiguration
                 new InkkOopsContentTextDiagnosticsContributor(),
                 new InkkOopsTextBlockDiagnosticsContributor(),
                 new InkkOopsStackPanelDiagnosticsContributor(),
-                new InkkOopsCanvasDiagnosticsContributor(),
                 new InkkOopsGridDiagnosticsContributor(),
-                new InkkOopsCanvasViewDiagnosticsContributor(),
                 new InkkOopsScrollViewerDiagnosticsContributor(),
                 new InkkOopsExpanderDiagnosticsContributor()
             ],

@@ -91,6 +91,51 @@ public sealed class InkkOopsScrollViewerDiagnosticsContributor : IInkkOopsDiagno
         builder.Add("runtimeUpdateScrollBarsCalls", runtimeLayout.UpdateScrollBarsCallCount);
         builder.Add("runtimeUpdateScrollBarsMs", $"{runtimeLayout.UpdateScrollBarsMilliseconds:0.###}");
 
+        var runtimeInteraction = scrollViewer.GetRuntimeInteractionTelemetryForDiagnostics();
+        builder.Add("runtimeScrollToHorizontalCalls", runtimeInteraction.ScrollToHorizontalOffsetCallCount);
+        builder.Add("runtimeScrollToVerticalCalls", runtimeInteraction.ScrollToVerticalOffsetCallCount);
+        builder.Add("runtimeInvalidateScrollInfoCalls", runtimeInteraction.InvalidateScrollInfoCallCount);
+        builder.Add("runtimeMouseWheelCalls", runtimeInteraction.HandleMouseWheelCallCount);
+        builder.Add("runtimeMouseWheelMs", $"{runtimeInteraction.HandleMouseWheelMilliseconds:0.###}");
+        builder.Add("runtimeMouseWheelHandled", runtimeInteraction.HandleMouseWheelHandledCount);
+        builder.Add("runtimeMouseWheelIgnoredDisabled", runtimeInteraction.HandleMouseWheelIgnoredDisabledCount);
+        builder.Add("runtimeMouseWheelIgnoredZeroDelta", runtimeInteraction.HandleMouseWheelIgnoredZeroDeltaCount);
+        builder.Add("runtimeSetOffsetsCalls", runtimeInteraction.SetOffsetsCallCount);
+        builder.Add("runtimeSetOffsetsMs", $"{runtimeInteraction.SetOffsetsMilliseconds:0.###}");
+        builder.Add("runtimeSetOffsetsExternal", runtimeInteraction.SetOffsetsExternalSourceCount);
+        builder.Add("runtimeSetOffsetsHorizontalBar", runtimeInteraction.SetOffsetsHorizontalScrollBarSourceCount);
+        builder.Add("runtimeSetOffsetsVerticalBar", runtimeInteraction.SetOffsetsVerticalScrollBarSourceCount);
+        builder.Add("runtimeSetOffsetsWork", runtimeInteraction.SetOffsetsWorkCount);
+        builder.Add("runtimeSetOffsetsNoOp", runtimeInteraction.SetOffsetsNoOpCount);
+        builder.Add("runtimeSetOffsetsDeferredLayout", runtimeInteraction.SetOffsetsDeferredLayoutPathCount);
+        builder.Add("runtimeSetOffsetsVirtualizingMeasureInvalidation", runtimeInteraction.SetOffsetsVirtualizingMeasureInvalidationPathCount);
+        builder.Add("runtimeSetOffsetsVirtualizingArrangeOnly", runtimeInteraction.SetOffsetsVirtualizingArrangeOnlyPathCount);
+        builder.Add("runtimeSetOffsetsTransformInvalidation", runtimeInteraction.SetOffsetsTransformInvalidationPathCount);
+        builder.Add("runtimeSetOffsetsManualArrange", runtimeInteraction.SetOffsetsManualArrangePathCount);
+        builder.Add("runtimePopupCloseCalls", runtimeInteraction.PopupCloseCallCount);
+        builder.Add("runtimeArrangeContentCalls", runtimeInteraction.ArrangeContentForCurrentOffsetsCallCount);
+        builder.Add("runtimeArrangeContentMs", $"{runtimeInteraction.ArrangeContentForCurrentOffsetsMilliseconds:0.###}");
+        builder.Add("runtimeArrangeContentSkippedNoContent", runtimeInteraction.ArrangeContentSkippedNoContentCount);
+        builder.Add("runtimeArrangeContentSkippedZeroViewport", runtimeInteraction.ArrangeContentSkippedZeroViewportCount);
+        builder.Add("runtimeArrangeContentTransformPath", runtimeInteraction.ArrangeContentTransformPathCount);
+        builder.Add("runtimeArrangeContentOffsetPath", runtimeInteraction.ArrangeContentOffsetPathCount);
+        builder.Add("runtimeUpdateScrollBarValuesCalls", runtimeInteraction.UpdateScrollBarValuesCallCount);
+        builder.Add("runtimeUpdateScrollBarValuesMs", $"{runtimeInteraction.UpdateScrollBarValuesMilliseconds:0.###}");
+        builder.Add("runtimeUpdateHorizontalScrollBarValueCalls", runtimeInteraction.UpdateHorizontalScrollBarValueCallCount);
+        builder.Add("runtimeUpdateHorizontalScrollBarValueMs", $"{runtimeInteraction.UpdateHorizontalScrollBarValueMilliseconds:0.###}");
+        builder.Add("runtimeUpdateVerticalScrollBarValueCalls", runtimeInteraction.UpdateVerticalScrollBarValueCallCount);
+        builder.Add("runtimeUpdateVerticalScrollBarValueMs", $"{runtimeInteraction.UpdateVerticalScrollBarValueMilliseconds:0.###}");
+
+        var runtimeValueChanged = scrollViewer.GetRuntimeValueChangedTelemetryForDiagnostics();
+        builder.Add("runtimeHorizontalValueChangedCalls", runtimeValueChanged.HorizontalValueChangedCallCount);
+        builder.Add("runtimeHorizontalValueChangedMs", $"{runtimeValueChanged.HorizontalValueChangedMilliseconds:0.###}");
+        builder.Add("runtimeHorizontalValueChangedSetOffsetsMs", $"{runtimeValueChanged.HorizontalValueChangedSetOffsetsMilliseconds:0.###}");
+        builder.Add("runtimeHorizontalValueChangedSuppressed", runtimeValueChanged.HorizontalValueChangedSuppressedCount);
+        builder.Add("runtimeVerticalValueChangedCalls", runtimeValueChanged.VerticalValueChangedCallCount);
+        builder.Add("runtimeVerticalValueChangedMs", $"{runtimeValueChanged.VerticalValueChangedMilliseconds:0.###}");
+        builder.Add("runtimeVerticalValueChangedSetOffsetsMs", $"{runtimeValueChanged.VerticalValueChangedSetOffsetsMilliseconds:0.###}");
+        builder.Add("runtimeVerticalValueChangedSuppressed", runtimeValueChanged.VerticalValueChangedSuppressedCount);
+
         if (scrollViewer.TryGetContentViewportClipRect(out var clipRect))
         {
             builder.Add("contentViewport", $"{clipRect.X:0.##},{clipRect.Y:0.##},{clipRect.Width:0.##},{clipRect.Height:0.##}");

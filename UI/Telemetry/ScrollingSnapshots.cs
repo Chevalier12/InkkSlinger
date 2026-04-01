@@ -12,12 +12,55 @@ public readonly record struct ScrollViewerScrollMetricsSnapshot(
     float TotalVerticalDelta);
 
 /// <summary>
+/// ScrollViewer interaction telemetry snapshot.
+/// </summary>
+internal readonly record struct ScrollViewerInteractionTelemetrySnapshot(
+    int ScrollToHorizontalOffsetCallCount,
+    int ScrollToVerticalOffsetCallCount,
+    int InvalidateScrollInfoCallCount,
+    int HandleMouseWheelCallCount,
+    double HandleMouseWheelMilliseconds,
+    int HandleMouseWheelHandledCount,
+    int HandleMouseWheelIgnoredDisabledCount,
+    int HandleMouseWheelIgnoredZeroDeltaCount,
+    int SetOffsetsCallCount,
+    double SetOffsetsMilliseconds,
+    int SetOffsetsExternalSourceCount,
+    int SetOffsetsHorizontalScrollBarSourceCount,
+    int SetOffsetsVerticalScrollBarSourceCount,
+    int SetOffsetsWorkCount,
+    int SetOffsetsNoOpCount,
+    int SetOffsetsDeferredLayoutPathCount,
+    int SetOffsetsVirtualizingMeasureInvalidationPathCount,
+    int SetOffsetsVirtualizingArrangeOnlyPathCount,
+    int SetOffsetsTransformInvalidationPathCount,
+    int SetOffsetsManualArrangePathCount,
+    int PopupCloseCallCount,
+    int ArrangeContentForCurrentOffsetsCallCount,
+    double ArrangeContentForCurrentOffsetsMilliseconds,
+    int ArrangeContentSkippedNoContentCount,
+    int ArrangeContentSkippedZeroViewportCount,
+    int ArrangeContentTransformPathCount,
+    int ArrangeContentOffsetPathCount,
+    int UpdateScrollBarValuesCallCount,
+    double UpdateScrollBarValuesMilliseconds,
+    int UpdateHorizontalScrollBarValueCallCount,
+    double UpdateHorizontalScrollBarValueMilliseconds,
+    int UpdateVerticalScrollBarValueCallCount,
+    double UpdateVerticalScrollBarValueMilliseconds);
+
+/// <summary>
 /// ScrollViewer value changed telemetry snapshot.
 /// </summary>
 internal readonly record struct ScrollViewerValueChangedTelemetrySnapshot(
+    int HorizontalValueChangedCallCount,
+    double HorizontalValueChangedMilliseconds,
+    double HorizontalValueChangedSetOffsetsMilliseconds,
+    int HorizontalValueChangedSuppressedCount,
     int VerticalValueChangedCallCount,
     double VerticalValueChangedMilliseconds,
-    double VerticalValueChangedSetOffsetsMilliseconds);
+    double VerticalValueChangedSetOffsetsMilliseconds,
+    int VerticalValueChangedSuppressedCount);
 
 /// <summary>
 /// ScrollViewer layout telemetry snapshot.
