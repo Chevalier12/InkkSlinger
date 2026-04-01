@@ -82,6 +82,11 @@ public sealed class InkkOopsSession
         return Host.ResizeWindowAsync(width, height, cancellationToken);
     }
 
+    public Task MaximizeWindowAsync(CancellationToken cancellationToken = default)
+    {
+        return Host.MaximizeWindowAsync(cancellationToken);
+    }
+
     public Task WaitFramesAsync(int frameCount, CancellationToken cancellationToken = default)
     {
         return Host.AdvanceFrameAsync(frameCount, cancellationToken);

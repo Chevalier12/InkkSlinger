@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -111,6 +112,12 @@ internal sealed class GraphicsDeviceManagerAdapter : IWindowGraphicsAdapter
 
 public sealed class Window : DependencyObject, IDisposable
 {
+    private const int MonitorDefaultToNearest = 2;
+    private const int SmCxSizeFrame = 32;
+    private const int SmCySizeFrame = 33;
+    private const int SmCyCaption = 4;
+    private const int SmCxPaddedBorder = 92;
+
     public static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
@@ -364,6 +371,64 @@ public sealed class Window : DependencyObject, IDisposable
         Position = new Point(x, y);
     }
 
+    public void Maximize()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Window maximization is currently only implemented on Windows.");
+        }
+
+        var clientSize = ClientSize;
+        var centerPoint = new NativeMethods.POINT
+        {
+            X = Position.X + Math.Max(1, clientSize.X / 2),
+            Y = Position.Y + Math.Max(1, clientSize.Y / 2)
+        };
+
+        var monitor = NativeMethods.MonitorFromPoint(centerPoint, MonitorDefaultToNearest);
+        if (monitor == IntPtr.Zero)
+        {
+            throw new InvalidOperationException("Unable to resolve the target monitor for window maximization.");
+        }
+
+        var monitorInfo = NativeMethods.MONITORINFO.Create();
+        if (!NativeMethods.GetMonitorInfo(monitor, ref monitorInfo))
+        {
+            throw new InvalidOperationException("Unable to read monitor bounds for window maximization.");
+        }
+
+        var workArea = monitorInfo.rcWork;
+        var width = workArea.Right - workArea.Left;
+        var height = workArea.Bottom - workArea.Top;
+        if (width <= 0 || height <= 0)
+        {
+            throw new InvalidOperationException("Monitor work area reported an invalid size for window maximization.");
+        }
+
+        var horizontalChrome = 0;
+        var verticalChrome = 0;
+        if (!IsBorderless)
+        {
+            var frameWidth = NativeMethods.GetSystemMetrics(SmCxSizeFrame);
+            var frameHeight = NativeMethods.GetSystemMetrics(SmCySizeFrame);
+            var captionHeight = NativeMethods.GetSystemMetrics(SmCyCaption);
+            var paddedBorder = NativeMethods.GetSystemMetrics(SmCxPaddedBorder);
+            horizontalChrome = (frameWidth * 2) + (paddedBorder * 2);
+            verticalChrome = (frameHeight * 2) + (paddedBorder * 2) + captionHeight;
+        }
+
+        var clientWidth = Math.Max(1, width - horizontalChrome);
+        var clientHeight = Math.Max(1, height - verticalChrome);
+        if (clientWidth <= 0 || clientHeight <= 0)
+        {
+            throw new InvalidOperationException("Native window maximization produced an invalid client size.");
+        }
+
+        Position = new Point(workArea.Left, workArea.Top);
+        SetClientSize(clientWidth, clientHeight, applyChanges: true);
+        Position = new Point(workArea.Left, workArea.Top);
+    }
+
     public void ApplyChanges()
     {
         _graphics.ApplyChanges();
@@ -464,5 +529,51 @@ public sealed class Window : DependencyObject, IDisposable
     private bool ShouldApplyImplicitStyle()
     {
         return ImplicitStylePolicy.ShouldApply(Style, _activeImplicitStyle);
+    }
+
+    private static class NativeMethods
+    {
+        [DllImport("user32.dll")]
+        public static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern int GetSystemMetrics(int nIndex);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public int dwFlags;
+
+            public static MONITORINFO Create()
+            {
+                return new MONITORINFO
+                {
+                    cbSize = Marshal.SizeOf<MONITORINFO>()
+                };
+            }
+        }
     }
 }

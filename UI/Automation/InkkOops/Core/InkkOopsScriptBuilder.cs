@@ -23,6 +23,11 @@ public sealed class InkkOopsScriptBuilder
         return Add(new InkkOopsResizeWindowCommand(width, height));
     }
 
+    public InkkOopsScriptBuilder MaximizeWindow()
+    {
+        return Add(new InkkOopsMaximizeWindowCommand());
+    }
+
     public InkkOopsScriptBuilder WaitFrames(int frameCount)
     {
         return Add(new InkkOopsWaitFramesCommand(frameCount));

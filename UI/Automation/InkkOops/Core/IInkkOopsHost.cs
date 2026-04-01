@@ -18,6 +18,8 @@ public interface IInkkOopsHost
 
     Task ResizeWindowAsync(int width, int height, CancellationToken cancellationToken = default);
 
+    Task MaximizeWindowAsync(CancellationToken cancellationToken = default);
+
     Task AdvanceFrameAsync(int frameCount, CancellationToken cancellationToken = default);
 
     Task WaitForIdleAsync(InkkOopsIdlePolicy policy, CancellationToken cancellationToken = default);

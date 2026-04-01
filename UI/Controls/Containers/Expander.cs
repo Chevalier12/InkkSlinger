@@ -145,6 +145,7 @@ public class Expander : ContentControl
     private UIElement? _headerElement;
     private LayoutRect _headerRect;
     private LayoutRect _contentRect;
+    private Vector2 _measuredHeaderSize;
     private bool _isHeaderPressed;
 
     public Expander()
@@ -309,6 +310,7 @@ public class Expander : ContentControl
     {
         var startTicks = Stopwatch.GetTimestamp();
         var headerSize = MeasureHeader(availableSize);
+        _measuredHeaderSize = headerSize;
         _diagHeaderMeasureCount++;
         var contentSize = Vector2.Zero;
 
@@ -332,7 +334,11 @@ public class Expander : ContentControl
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var startTicks = Stopwatch.GetTimestamp();
-        var headerSize = MeasureHeader(finalSize);
+        var headerSize = _measuredHeaderSize;
+        if (headerSize == Vector2.Zero)
+        {
+            headerSize = MeasureHeader(finalSize);
+        }
         var arrangedSize = IsExpanded
             ? finalSize
             : ExpandDirection switch

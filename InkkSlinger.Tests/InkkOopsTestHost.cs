@@ -53,6 +53,11 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         return AdvanceFrameAsync(1, cancellationToken);
     }
 
+    public Task MaximizeWindowAsync(CancellationToken cancellationToken = default)
+    {
+        return AdvanceFrameAsync(1, cancellationToken);
+    }
+
     public Task AdvanceFrameAsync(int frameCount, CancellationToken cancellationToken = default)
     {
         for (var i = 0; i < frameCount; i++)

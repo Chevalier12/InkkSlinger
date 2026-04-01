@@ -103,7 +103,24 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                 _window.SetClientSize(width, height, applyChanges: true);
                 lock (_sync)
                 {
-                    _pendingResizes.Add(new PendingResize(width, height, completion));
+                    _pendingResizes.Add(PendingResize.ForExactSize(width, height, completion));
+                }
+            },
+            completion,
+            cancellationToken);
+    }
+
+    public Task MaximizeWindowAsync(CancellationToken cancellationToken = default)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        return ExecuteOnUiThreadAsync(
+            () =>
+            {
+                var previousSize = _window.ClientSize;
+                _window.Maximize();
+                lock (_sync)
+                {
+                    _pendingResizes.Add(PendingResize.ForSizeChange(previousSize.X, previousSize.Y, completion));
                 }
             },
             completion,
@@ -364,13 +381,24 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
             for (var i = _pendingResizes.Count - 1; i >= 0; i--)
             {
                 var request = _pendingResizes[i];
-                var ready =
-                    _window.ClientSize.X == request.Width &&
-                    _window.ClientSize.Y == request.Height &&
-                    _window.BackBufferSize.X == request.Width &&
-                    _window.BackBufferSize.Y == request.Height &&
-                    viewport.Width == request.Width &&
-                    viewport.Height == request.Height;
+                                var clientWidth = _window.ClientSize.X;
+                                var clientHeight = _window.ClientSize.Y;
+                                var backBufferWidth = _window.BackBufferSize.X;
+                                var backBufferHeight = _window.BackBufferSize.Y;
+                                var ready = request.RequiresChangeFromPreviousSize
+                                        ? clientWidth > 0 &&
+                                            clientHeight > 0 &&
+                                            (clientWidth != request.PreviousWidth || clientHeight != request.PreviousHeight) &&
+                                            backBufferWidth == clientWidth &&
+                                            backBufferHeight == clientHeight &&
+                                            viewport.Width == clientWidth &&
+                                            viewport.Height == clientHeight
+                                        : clientWidth == request.Width &&
+                                            clientHeight == request.Height &&
+                                            backBufferWidth == request.Width &&
+                                            backBufferHeight == request.Height &&
+                                            viewport.Width == request.Width &&
+                                            viewport.Height == request.Height;
 
                 if (!ready)
                 {
@@ -560,7 +588,24 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
 
     private readonly record struct PendingFrameGate(int RemainingFrames, TaskCompletionSource Completion);
 
-    private readonly record struct PendingResize(int Width, int Height, TaskCompletionSource Completion);
+    private readonly record struct PendingResize(
+        int Width,
+        int Height,
+        int PreviousWidth,
+        int PreviousHeight,
+        bool RequiresChangeFromPreviousSize,
+        TaskCompletionSource Completion)
+    {
+        public static PendingResize ForExactSize(int width, int height, TaskCompletionSource completion)
+        {
+            return new PendingResize(width, height, 0, 0, false, completion);
+        }
+
+        public static PendingResize ForSizeChange(int previousWidth, int previousHeight, TaskCompletionSource completion)
+        {
+            return new PendingResize(0, 0, previousWidth, previousHeight, true, completion);
+        }
+    }
 
     private readonly record struct PendingCapture(string ArtifactName, TaskCompletionSource Completion);
 

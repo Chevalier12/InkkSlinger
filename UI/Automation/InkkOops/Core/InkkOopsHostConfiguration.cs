@@ -45,7 +45,8 @@ public sealed class InkkOopsHostConfiguration
                 new InkkOopsCanvasDiagnosticsContributor(),
                 new InkkOopsGridDiagnosticsContributor(),
                 new InkkOopsCanvasViewDiagnosticsContributor(),
-                new InkkOopsScrollViewerDiagnosticsContributor()
+                new InkkOopsScrollViewerDiagnosticsContributor(),
+                new InkkOopsExpanderDiagnosticsContributor()
             ],
             DefaultNamedPipeName = "InkkOops",
             DefaultArtifactRoot = "artifacts/inkkoops",

@@ -123,6 +123,11 @@ public sealed partial class UiRoot
             RecordLayoutArrangeTelemetry(_layoutSamplesAfterMeasure, _layoutSamplesAfterArrange);
             LayoutPasses++;
 
+            if (HasInvalidLayout(_layoutRoot))
+            {
+                _layoutRoot.UpdateLayout();
+            }
+
             if (!HasInvalidLayout(_layoutRoot))
             {
                 return;

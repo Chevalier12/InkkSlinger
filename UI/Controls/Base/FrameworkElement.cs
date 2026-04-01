@@ -25,6 +25,7 @@ public class FrameworkElement : UIElement
     private NameScope? _nameScope;
     private Style? _activeImplicitStyle;
     private bool _isApplyingImplicitStyle;
+    private Vector2 _lastArrangedDesiredSize = new(float.NaN, float.NaN);
 
     public static readonly DependencyProperty NameProperty =
         DependencyProperty.Register(nameof(Name), typeof(string), typeof(FrameworkElement), new FrameworkPropertyMetadata(string.Empty));
@@ -524,7 +525,8 @@ public class FrameworkElement : UIElement
             DesiredSize = desired;
             if (!AreSizesEqual(previousDesiredSize, DesiredSize) &&
                 _measureCallCount > 1 &&
-                VisualParent is FrameworkElement parent)
+                VisualParent is FrameworkElement parent &&
+                !parent.NeedsMeasure)
             {
                 parent.InvalidateMeasure();
             }
@@ -581,6 +583,7 @@ public class FrameworkElement : UIElement
         if (_isArrangeValid &&
             _isMeasureValid &&
             AreRectsEqual(_arrangeRect, effectiveFinalRect) &&
+            AreSizesEqual(_lastArrangedDesiredSize, DesiredSize) &&
             !requiresArrangeRemeasure)
         {
             return;
@@ -620,7 +623,8 @@ public class FrameworkElement : UIElement
                 var previousDesiredSize = DesiredSize;
                 Measure(arrangeAvailableSize);
                 if (!AreSizesEqual(previousDesiredSize, DesiredSize) &&
-                    VisualParent is FrameworkElement parent)
+                    VisualParent is FrameworkElement parent &&
+                    !parent.NeedsMeasure)
                 {
                     parent.InvalidateMeasure();
                 }
@@ -668,6 +672,7 @@ public class FrameworkElement : UIElement
         }
 
         SetLayoutSlot(finalLayoutSlot);
+        _lastArrangedDesiredSize = DesiredSize;
 
         var invalidatedDuringArrange =
             MeasureInvalidationCount != measureInvalidationCountBeforeOverride ||
@@ -727,6 +732,16 @@ public class FrameworkElement : UIElement
         const int maxPasses = 8;
         for (var pass = 0; pass < maxPasses; pass++)
         {
+            if (NeedsMeasure && _isMeasureValid)
+            {
+                _isMeasureValid = false;
+            }
+
+            if (NeedsArrange && _isArrangeValid)
+            {
+                _isArrangeValid = false;
+            }
+
             if (!_isMeasureValid)
             {
                 Measure(new Vector2(_arrangeRect.Width, _arrangeRect.Height));
@@ -1225,7 +1240,9 @@ public class FrameworkElement : UIElement
     private static bool ShouldReMeasureForArrange(Vector2 measuredAvailableSize, Vector2 arrangedAvailableSize)
     {
         return IsFiniteShrink(measuredAvailableSize.X, arrangedAvailableSize.X) ||
-               IsFiniteShrink(measuredAvailableSize.Y, arrangedAvailableSize.Y);
+               IsFiniteShrink(measuredAvailableSize.Y, arrangedAvailableSize.Y) ||
+               IsFiniteZeroGrowth(measuredAvailableSize.X, arrangedAvailableSize.X) ||
+               IsFiniteZeroGrowth(measuredAvailableSize.Y, arrangedAvailableSize.Y);
     }
 
     private static bool IsFiniteShrink(float previous, float next)
@@ -1233,6 +1250,14 @@ public class FrameworkElement : UIElement
         return float.IsFinite(previous) &&
                float.IsFinite(next) &&
                next + 0.0001f < previous;
+    }
+
+    private static bool IsFiniteZeroGrowth(float previous, float next)
+    {
+        return float.IsFinite(previous) &&
+               float.IsFinite(next) &&
+               previous <= 0.0001f &&
+               next > previous + 0.0001f;
     }
 
     private static LayoutRect RoundLayoutRect(LayoutRect rect)
