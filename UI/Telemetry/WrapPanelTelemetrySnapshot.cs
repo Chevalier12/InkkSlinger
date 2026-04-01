@@ -1,0 +1,42 @@
+namespace InkkSlinger.UI.Telemetry;
+
+/// <summary>
+/// WrapPanel telemetry snapshot.
+/// </summary>
+internal readonly record struct WrapPanelTelemetrySnapshot(
+    long MeasureCallCount,
+    double MeasureMilliseconds,
+    long MeasuredChildCount,
+    long MeasureSkippedChildCount,
+    long MeasureHorizontalCount,
+    long MeasureVerticalCount,
+    long MeasureInfiniteLineLimitCount,
+    long MeasureNaNLineLimitCount,
+    long MeasureNonPositiveLineLimitCount,
+    long MeasureWrapCount,
+    long MeasureCommittedLineCount,
+    long MeasureEmptyCount,
+    long MeasureExplicitItemWidthCount,
+    long MeasureAvailableWidthCount,
+    long MeasureExplicitItemHeightCount,
+    long MeasureAvailableHeightCount,
+    long ArrangeCallCount,
+    double ArrangeMilliseconds,
+    long ArrangedChildCount,
+    long ArrangeSkippedChildCount,
+    long ArrangeHorizontalCount,
+    long ArrangeVerticalCount,
+    long ArrangeInfiniteLineLimitCount,
+    long ArrangeNaNLineLimitCount,
+    long ArrangeNonPositiveLineLimitCount,
+    long ArrangeWrapCount,
+    long ArrangeCommittedLineCount,
+    long ArrangeEmptyCount,
+    long GetChildSizeCallCount,
+    double GetChildSizeMilliseconds,
+    long GetChildSizeFromMeasureCount,
+    long GetChildSizeFromArrangeCount,
+    long GetChildSizeExplicitWidthCount,
+    long GetChildSizeDesiredWidthCount,
+    long GetChildSizeExplicitHeightCount,
+    long GetChildSizeDesiredHeightCount);

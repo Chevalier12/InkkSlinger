@@ -11,23 +11,80 @@ public sealed class InkkOopsGridDiagnosticsContributor : IInkkOopsDiagnosticsCon
             return;
         }
 
-        var timing = Grid.GetTimingSnapshotForTests();
-        builder.Add("desired", $"{grid.DesiredSize.X:0.##},{grid.DesiredSize.Y:0.##}");
-        builder.Add("actual", $"{grid.ActualWidth:0.##},{grid.ActualHeight:0.##}");
-        builder.Add("previousAvailable", $"{grid.PreviousAvailableSizeForTests.X:0.##},{grid.PreviousAvailableSizeForTests.Y:0.##}");
-        builder.Add("measureCalls", grid.MeasureCallCount);
-        builder.Add("measureWork", grid.MeasureWorkCount);
-        builder.Add("arrangeCalls", grid.ArrangeCallCount);
-        builder.Add("arrangeWork", grid.ArrangeWorkCount);
-        builder.Add("measureValid", grid.IsMeasureValidForTests);
-        builder.Add("arrangeValid", grid.IsArrangeValidForTests);
-        builder.Add("measureInvalidations", grid.MeasureInvalidationCount);
-        builder.Add("arrangeInvalidations", grid.ArrangeInvalidationCount);
-        builder.Add("renderInvalidations", grid.RenderInvalidationCount);
-        builder.Add("measureMs", FormatMilliseconds(grid.MeasureElapsedTicksForTests));
-        builder.Add("arrangeMs", FormatMilliseconds(grid.ArrangeElapsedTicksForTests));
-        builder.Add("gridGlobalMeasureOverrideMs", FormatMilliseconds(timing.MeasureOverrideElapsedTicks));
-        builder.Add("gridGlobalArrangeOverrideMs", FormatMilliseconds(timing.ArrangeOverrideElapsedTicks));
+        var runtime = grid.GetGridSnapshotForDiagnostics();
+        var telemetry = Grid.GetAggregateTelemetrySnapshotForDiagnostics();
+        builder.Add("desired", $"{runtime.DesiredWidth:0.##},{runtime.DesiredHeight:0.##}");
+        builder.Add("actual", $"{runtime.ActualWidth:0.##},{runtime.ActualHeight:0.##}");
+        builder.Add("renderSize", $"{runtime.RenderWidth:0.##},{runtime.RenderHeight:0.##}");
+        builder.Add("previousAvailable", $"{runtime.PreviousAvailableWidth:0.##},{runtime.PreviousAvailableHeight:0.##}");
+        builder.Add("measureCalls", runtime.MeasureCallCount);
+        builder.Add("measureWork", runtime.MeasureWorkCount);
+        builder.Add("arrangeCalls", runtime.ArrangeCallCount);
+        builder.Add("arrangeWork", runtime.ArrangeWorkCount);
+        builder.Add("measureValid", runtime.IsMeasureValid);
+        builder.Add("arrangeValid", runtime.IsArrangeValid);
+        builder.Add("measureInvalidations", runtime.MeasureInvalidationCount);
+        builder.Add("arrangeInvalidations", runtime.ArrangeInvalidationCount);
+        builder.Add("renderInvalidations", runtime.RenderInvalidationCount);
+        builder.Add("measureMs", FormatMilliseconds(runtime.MeasureMilliseconds));
+        builder.Add("measureExclusiveMs", FormatMilliseconds(runtime.MeasureExclusiveMilliseconds));
+        builder.Add("arrangeMs", FormatMilliseconds(runtime.ArrangeMilliseconds));
+        builder.Add("showGridLines", runtime.ShowGridLines);
+        builder.Add("gridRuntimeColumnDefinitions", runtime.ColumnDefinitionCount);
+        builder.Add("gridRuntimeRowDefinitions", runtime.RowDefinitionCount);
+        builder.Add("gridRuntimeChildren", runtime.ChildCount);
+        builder.Add("gridRuntimeFrameworkChildren", runtime.FrameworkChildCount);
+        builder.Add("gridRuntimeMeasuredColumns", runtime.MeasuredColumnCount);
+        builder.Add("gridRuntimeMeasuredRows", runtime.MeasuredRowCount);
+        builder.Add("gridRuntimeMetadataEntries", runtime.ChildLayoutMetadataCacheCount);
+        builder.Add("gridRuntimeMetadataDirty", runtime.IsChildLayoutMetadataDirty);
+        builder.Add("gridRuntimeSharedScopeAttached", runtime.HasSharedSizeScope);
+        builder.Add("gridRuntimeSharedScopeOwner", runtime.IsSharedSizeScopeOwner);
+        builder.Add("gridGlobalMeasureCalls", telemetry.MeasureCallCount);
+        builder.Add("gridGlobalMeasureMs", FormatMilliseconds(telemetry.MeasureMilliseconds));
+        builder.Add("gridGlobalMeasureChildren", telemetry.MeasureChildCount);
+        builder.Add("gridGlobalDeferredRowSpanChildren", telemetry.MeasureDeferredRowSpanChildCount);
+        builder.Add("gridGlobalFirstPassChildren", telemetry.MeasureFirstPassChildCount);
+        builder.Add("gridGlobalSecondPassChildren", telemetry.MeasureSecondPassChildCount);
+        builder.Add("gridGlobalRemeasureChecks", telemetry.MeasureRemeasureCheckCount);
+        builder.Add("gridGlobalRemeasures", telemetry.MeasureRemeasureCount);
+        builder.Add("gridGlobalRemeasureSkips", telemetry.MeasureRemeasureSkipCount);
+        builder.Add("gridGlobalArrangeCalls", telemetry.ArrangeCallCount);
+        builder.Add("gridGlobalArrangeMs", FormatMilliseconds(telemetry.ArrangeMilliseconds));
+        builder.Add("gridGlobalArrangedChildren", telemetry.ArrangeChildCount);
+        builder.Add("gridGlobalArrangeSkippedChildren", telemetry.ArrangeSkippedChildCount);
+        builder.Add("gridGlobalPrepareMetadataCalls", telemetry.PrepareChildLayoutMetadataCallCount);
+        builder.Add("gridGlobalPrepareMetadataMs", FormatMilliseconds(telemetry.PrepareChildLayoutMetadataMilliseconds));
+        builder.Add("gridGlobalMetadataCacheRefreshes", telemetry.ChildLayoutMetadataCacheRefreshCount);
+        builder.Add("gridGlobalMetadataEntryRefreshes", telemetry.ChildLayoutMetadataEntryRefreshCount);
+        builder.Add("gridGlobalMetadataEntryReuses", telemetry.ChildLayoutMetadataEntryReuseCount);
+        builder.Add("gridGlobalMetadataInvalidations", telemetry.ChildLayoutMetadataInvalidationCount);
+        builder.Add("gridGlobalMeasureChildCalls", telemetry.MeasureChildCallCount);
+        builder.Add("gridGlobalMeasureChildMs", FormatMilliseconds(telemetry.MeasureChildMilliseconds));
+        builder.Add("gridGlobalMeasureChildCacheHits", telemetry.MeasureChildCacheHitCount);
+        builder.Add("gridGlobalMeasureChildCacheMisses", telemetry.MeasureChildCacheMissCount);
+        builder.Add("gridGlobalResolveDefinitionCalls", telemetry.ResolveDefinitionSizesCallCount);
+        builder.Add("gridGlobalResolveDefinitionMs", FormatMilliseconds(telemetry.ResolveDefinitionSizesMilliseconds));
+        builder.Add("gridGlobalResolveFiniteAvailable", telemetry.ResolveDefinitionFiniteAvailableCount);
+        builder.Add("gridGlobalResolveInfiniteAvailable", telemetry.ResolveDefinitionInfiniteAvailableCount);
+        builder.Add("gridGlobalResolveNaNAvailable", telemetry.ResolveDefinitionNaNAvailableCount);
+        builder.Add("gridGlobalApplyRequirementCalls", telemetry.ApplyChildRequirementCallCount);
+        builder.Add("gridGlobalApplyRequirementMs", FormatMilliseconds(telemetry.ApplyChildRequirementMilliseconds));
+        builder.Add("gridGlobalApplyRequirementChanges", telemetry.ApplyChildRequirementChangedCount);
+        builder.Add("gridGlobalApplyRequirementNoOps", telemetry.ApplyChildRequirementNoOpCount);
+        builder.Add("gridGlobalFiniteStarConstraintUses", telemetry.ApplyChildRequirementFiniteStarConstraintCount);
+        builder.Add("gridGlobalOverflowChecks", telemetry.NormalizeDefinitionOverflowCallCount);
+        builder.Add("gridGlobalOverflowTriggers", telemetry.NormalizeDefinitionOverflowTriggeredCount);
+        builder.Add("gridGlobalDistributeExtraCalls", telemetry.DistributeExtraSizeCallCount);
+        builder.Add("gridGlobalReduceOverflowCalls", telemetry.ReduceOverflowCallCount);
+        builder.Add("gridGlobalSharedScopeRefreshes", telemetry.SharedSizeScopeRefreshCallCount);
+        builder.Add("gridGlobalSharedScopeHits", telemetry.SharedSizeScopeHitCount);
+        builder.Add("gridGlobalSharedScopeMisses", telemetry.SharedSizeScopeMissCount);
+        builder.Add("gridGlobalSharedScopeChanges", telemetry.SharedSizeScopeChangedCount);
+        builder.Add("gridGlobalApplySharedSizesCalls", telemetry.ApplySharedSizesCallCount);
+        builder.Add("gridGlobalApplySharedSizeDefinitions", telemetry.ApplySharedSizeDefinitionCount);
+        builder.Add("gridGlobalPublishSharedSizesCalls", telemetry.PublishSharedSizesCallCount);
+        builder.Add("gridGlobalPublishSharedSizeDefinitions", telemetry.PublishSharedSizeDefinitionCount);
         builder.Add("columns", BuildColumnSummary(grid));
         builder.Add("rows", BuildRowSummary(grid));
         builder.Add("children", BuildChildrenSummary(grid));
@@ -113,9 +170,9 @@ public sealed class InkkOopsGridDiagnosticsContributor : IInkkOopsDiagnosticsCon
         return $"{length.Value:0.##}";
     }
 
-    private static string FormatMilliseconds(long ticks)
+    private static string FormatMilliseconds(double milliseconds)
     {
-        return $"{ticks * 1000d / System.Diagnostics.Stopwatch.Frequency:0.###}";
+        return milliseconds.ToString("0.###");
     }
 
     private static string FormatRect(LayoutRect rect)

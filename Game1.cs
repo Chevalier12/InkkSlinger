@@ -1104,14 +1104,14 @@ public class Game1 : Game
         {
             if (_pendingSample == null || catalogView == null)
             {
-                ScrollViewer.GetScrollMetricsAndReset();
+                ScrollViewer.GetTelemetryAndReset();
                 return;
             }
 
             var pending = _pendingSample.Value;
             _pendingSample = null;
 
-            var scroll = ScrollViewer.GetScrollMetricsAndReset();
+            var scroll = ScrollViewer.GetTelemetryAndReset();
             var now = Stopwatch.GetTimestamp();
             var hasPreviousFrame = _lastFrameTimestamp != 0;
             var fps = !hasPreviousFrame

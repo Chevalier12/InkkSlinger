@@ -6,8 +6,6 @@ public sealed class InkkOopsButtonDiagnosticsContributor : IInkkOopsDiagnosticsC
 
     public void Contribute(InkkOopsDiagnosticsContext context, UIElement element, InkkOopsElementDiagnosticsBuilder builder)
     {
-        _ = context;
-
         if (element is not Button button)
         {
             return;

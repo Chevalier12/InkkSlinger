@@ -452,7 +452,7 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         var beforeRender = uiRoot.GetRenderTelemetrySnapshotForTests();
         var beforeFreezable = Freezable.GetTelemetrySnapshotForTests();
         var beforeInvalidationBatch = UIElement.GetFreezableInvalidationBatchSnapshotForTests();
-        _ = ScrollViewer.GetScrollMetricsAndReset();
+        _ = ScrollViewer.GetTelemetryAndReset();
         AnimationValueSink.ResetTelemetryForTests();
 
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
@@ -466,7 +466,7 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         var afterRender = uiRoot.GetRenderTelemetrySnapshotForTests();
         var afterFreezable = Freezable.GetTelemetrySnapshotForTests();
         var afterInvalidationBatch = UIElement.GetFreezableInvalidationBatchSnapshotForTests();
-        var scrollMetrics = ScrollViewer.GetScrollMetricsAndReset();
+        var scrollMetrics = ScrollViewer.GetTelemetryAndReset();
         var sinkTelemetry = AnimationValueSink.GetTelemetrySnapshotForTests();
         var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
 
@@ -777,7 +777,7 @@ public sealed class ControlsCatalogCalendarHoverHotspotDiagnosticsTests
         string Label,
         Vector2 Pointer,
         UiPointerMoveTelemetrySnapshot PointerMove,
-        ScrollViewerScrollMetricsSnapshot ScrollViewer,
+        ScrollViewerTelemetrySnapshot ScrollViewer,
         AnimationSinkTelemetrySnapshot SinkTelemetry,
         int BeginStoryboardCalls,
         int StoryboardStarts,

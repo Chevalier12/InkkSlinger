@@ -11,7 +11,7 @@ namespace InkkSlinger.UI.Telemetry;
 /// - Scrolling: ScrollViewer, ScrollBar, Track telemetry (ScrollingSnapshots.cs)
 /// - Style: Styling, templating, and visual state telemetry (StyleSnapshots.cs)
 /// - Control-specific: Individual control telemetry in per-control snapshot files
-/// - Panel: Panel layout telemetry (PanelSnapshots.cs)
+/// - Panel: Panel layout telemetry (individual *TelemetrySnapshot.cs and *TimingSnapshot.cs files)
 /// - VisualTree: Visual tree and hit testing telemetry (split across dedicated snapshot files)
 /// - View: View-specific telemetry (ViewSnapshots.cs)
 /// - Freezable: Freezable object telemetry (FreezableSnapshots.cs)
@@ -45,10 +45,8 @@ public static class TelemetryCatalog
     // - TextClipboardReadTelemetrySnapshot
     // 
     // Scrolling (UI/Telemetry/ScrollingSnapshots.cs)
-    // - ScrollViewerScrollMetricsSnapshot
-    // - ScrollViewerInteractionTelemetrySnapshot
-    // - ScrollViewerValueChangedTelemetrySnapshot
-    // - ScrollViewerLayoutTelemetrySnapshot
+    // - ScrollViewerTelemetrySnapshot
+    // - ScrollViewerRuntimeDiagnosticsSnapshot
     // - ScrollBarThumbDragTelemetrySnapshot
     // - TrackThumbTravelTelemetrySnapshot
     // 
@@ -80,6 +78,7 @@ public static class TelemetryCatalog
     // - LabelTelemetrySnapshot
     // - LabelRuntimeDiagnosticsSnapshot
     // - TextBlock (UI/Telemetry/TextBlockSnapshots.cs)
+    // - TextBlockTelemetrySnapshot
     // - TextBlockPerformanceSnapshot
     // - TextBlockRuntimeDiagnosticsSnapshot
     // - TextBox (UI/Telemetry/TextBoxSnapshots.cs)
@@ -89,13 +88,16 @@ public static class TelemetryCatalog
     // - RichTextBox (UI/Telemetry/RichTextBoxSnapshots.cs)
     // - RichTextBoxPerformanceSnapshot
     // 
-    // Panel (UI/Telemetry/PanelSnapshots.cs)
-    // - PanelTelemetrySnapshot
-    // - CanvasTelemetrySnapshot
-    // - StackPanelTelemetrySnapshot
-    // - WrapPanelTelemetrySnapshot
-    // - GridTimingSnapshot
-    // - UniformGridTimingSnapshot
+    // Panel
+    // - PanelTelemetrySnapshot (UI/Telemetry/PanelTelemetrySnapshot.cs)
+    // - CanvasTelemetrySnapshot (UI/Telemetry/CanvasTelemetrySnapshot.cs)
+    // - StackPanelTelemetrySnapshot (UI/Telemetry/StackPanelTelemetrySnapshot.cs)
+    // - StackPanelRuntimeDiagnosticsSnapshot (UI/Telemetry/StackPanelTelemetrySnapshot.cs)
+    // - WrapPanelTelemetrySnapshot (UI/Telemetry/WrapPanelTelemetrySnapshot.cs)
+    // - GridTelemetrySnapshot (UI/Telemetry/GridTelemetrySnapshot.cs)
+    // - GridRuntimeDiagnosticsSnapshot (UI/Telemetry/GridTelemetrySnapshot.cs)
+    // - GridTimingSnapshot (UI/Telemetry/GridTimingSnapshot.cs)
+    // - UniformGridTimingSnapshot (UI/Telemetry/UniformGridTimingSnapshot.cs)
     // 
     // VisualTree
     // - HitTestInstrumentationSnapshot (UI/Telemetry/HitTestInstrumentationSnapshot.cs)

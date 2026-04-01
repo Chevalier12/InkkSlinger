@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -249,8 +250,52 @@ public sealed class RowDefinition
 
 public class Grid : Panel
 {
+    private static long _diagMeasureCallCount;
     private static long _measureOverrideElapsedTicks;
+    private static long _diagMeasureChildCount;
+    private static long _diagMeasureDeferredRowSpanChildCount;
+    private static long _diagMeasureFirstPassChildCount;
+    private static long _diagMeasureSecondPassChildCount;
+    private static long _diagMeasureRemeasureCheckCount;
+    private static long _diagMeasureRemeasureCount;
+    private static long _diagMeasureRemeasureSkipCount;
+    private static long _diagArrangeCallCount;
     private static long _arrangeOverrideElapsedTicks;
+    private static long _diagArrangeChildCount;
+    private static long _diagArrangeSkippedChildCount;
+    private static long _diagPrepareChildLayoutMetadataCallCount;
+    private static long _diagPrepareChildLayoutMetadataElapsedTicks;
+    private static long _diagChildLayoutMetadataCacheRefreshCount;
+    private static long _diagChildLayoutMetadataEntryRefreshCount;
+    private static long _diagChildLayoutMetadataEntryReuseCount;
+    private static long _diagChildLayoutMetadataFrameworkChildCount;
+    private static long _diagChildLayoutMetadataInvalidationCount;
+    private static long _diagMeasureChildCallCount;
+    private static long _diagMeasureChildElapsedTicks;
+    private static long _diagMeasureChildCacheHitCount;
+    private static long _diagMeasureChildCacheMissCount;
+    private static long _diagResolveDefinitionSizesCallCount;
+    private static long _diagResolveDefinitionSizesElapsedTicks;
+    private static long _diagResolveDefinitionFiniteAvailableCount;
+    private static long _diagResolveDefinitionInfiniteAvailableCount;
+    private static long _diagResolveDefinitionNaNAvailableCount;
+    private static long _diagApplyChildRequirementCallCount;
+    private static long _diagApplyChildRequirementElapsedTicks;
+    private static long _diagApplyChildRequirementChangedCount;
+    private static long _diagApplyChildRequirementNoOpCount;
+    private static long _diagApplyChildRequirementFiniteStarConstraintCount;
+    private static long _diagNormalizeDefinitionOverflowCallCount;
+    private static long _diagNormalizeDefinitionOverflowTriggeredCount;
+    private static long _diagDistributeExtraSizeCallCount;
+    private static long _diagReduceOverflowCallCount;
+    private static long _diagSharedSizeScopeRefreshCallCount;
+    private static long _diagSharedSizeScopeHitCount;
+    private static long _diagSharedSizeScopeMissCount;
+    private static long _diagSharedSizeScopeChangedCount;
+    private static long _diagApplySharedSizesCallCount;
+    private static long _diagApplySharedSizeDefinitionCount;
+    private static long _diagPublishSharedSizesCallCount;
+    private static long _diagPublishSharedSizeDefinitionCount;
     private static readonly ConditionalWeakTable<UIElement, SharedSizeScopeState> SharedSizeScopes = new();
     public static readonly DependencyProperty RowProperty =
         DependencyProperty.RegisterAttached(
@@ -469,6 +514,14 @@ public class Grid : Panel
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var start = Stopwatch.GetTimestamp();
+        var measuredChildCount = 0;
+        var deferredRowSpanChildCount = 0;
+        var firstPassMeasuredChildCount = 0;
+        var secondPassMeasuredChildCount = 0;
+        var remeasureCheckCount = 0;
+        var remeasureCount = 0;
+        var remeasureSkipCount = 0;
+        IncrementAggregate(ref _diagMeasureCallCount);
         try
         {
         var columns = PrepareColumnSnapshots(_measureColumns);
@@ -477,6 +530,15 @@ public class Grid : Panel
         ApplySharedSizes(columns, isColumnAxis: true);
         ApplySharedSizes(rows, isColumnAxis: false);
         var childLayoutMetadata = PrepareChildLayoutMetadata(rows, columns);
+        measuredChildCount = childLayoutMetadata.Length;
+
+        for (var childMetadataIndex = 0; childMetadataIndex < childLayoutMetadata.Length; childMetadataIndex++)
+        {
+            if (ShouldDeferRowSpanMeasurement(childLayoutMetadata[childMetadataIndex]))
+            {
+                deferredRowSpanChildCount++;
+            }
+        }
 
         ResolveDefinitionSizes(columns, availableSize.X);
         ResolveDefinitionSizes(rows, availableSize.Y);
@@ -494,6 +556,7 @@ public class Grid : Panel
 
                 var firstPassAvailable = ResolveFirstPassAvailableSize(metadata, rows, columns);
                 var desiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, firstPassAvailable);
+                firstPassMeasuredChildCount++;
 
                 _firstPassMeasureRecords[childMeasureIndex] = new FirstPassMeasureRecord(
                     metadata.Cell,
@@ -538,13 +601,17 @@ public class Grid : Panel
                     var childAvailable = new Vector2(
                         SumRange(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan),
                         SumRange(rows, metadata.Cell.Row, metadata.Cell.RowSpan));
+                    remeasureCheckCount++;
 
                     if (!ShouldReMeasureChild(_firstPassMeasureRecords[childMeasureIndex], childAvailable))
                     {
+                        remeasureSkipCount++;
                         continue;
                     }
 
                     var desiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, childAvailable);
+                    remeasureCount++;
+                    secondPassMeasuredChildCount++;
                     definitionsChanged |= ApplyChildRequirement(
                         columns,
                         metadata.Cell.Column,
@@ -579,13 +646,23 @@ public class Grid : Panel
         }
         finally
         {
-            _measureOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
+            AddAggregate(ref _measureOverrideElapsedTicks, Stopwatch.GetTimestamp() - start);
+            AddAggregate(ref _diagMeasureChildCount, measuredChildCount);
+            AddAggregate(ref _diagMeasureDeferredRowSpanChildCount, deferredRowSpanChildCount);
+            AddAggregate(ref _diagMeasureFirstPassChildCount, firstPassMeasuredChildCount);
+            AddAggregate(ref _diagMeasureSecondPassChildCount, secondPassMeasuredChildCount);
+            AddAggregate(ref _diagMeasureRemeasureCheckCount, remeasureCheckCount);
+            AddAggregate(ref _diagMeasureRemeasureCount, remeasureCount);
+            AddAggregate(ref _diagMeasureRemeasureSkipCount, remeasureSkipCount);
         }
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var start = Stopwatch.GetTimestamp();
+        var arrangedChildCount = 0;
+        var skippedChildCount = 0;
+        IncrementAggregate(ref _diagArrangeCallCount);
         try
         {
         var columns = PrepareColumnSnapshots(_arrangeColumns);
@@ -605,9 +682,11 @@ public class Grid : Panel
         {
             if (child is not FrameworkElement frameworkChild)
             {
+                skippedChildCount++;
                 continue;
             }
 
+            arrangedChildCount++;
             var cell = NormalizeCell(child, rows.Count, columns.Count);
             var x = _columnOffsets[cell.Column];
             var y = _rowOffsets[cell.Row];
@@ -620,7 +699,9 @@ public class Grid : Panel
         }
         finally
         {
-            _arrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
+            AddAggregate(ref _arrangeOverrideElapsedTicks, Stopwatch.GetTimestamp() - start);
+            AddAggregate(ref _diagArrangeChildCount, arrangedChildCount);
+            AddAggregate(ref _diagArrangeSkippedChildCount, skippedChildCount);
         }
     }
 
@@ -770,6 +851,23 @@ public class Grid : Panel
         float available,
         IReadOnlyList<float>? measuredSizes = null)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        IncrementAggregate(ref _diagResolveDefinitionSizesCallCount);
+        if (float.IsNaN(available))
+        {
+            IncrementAggregate(ref _diagResolveDefinitionNaNAvailableCount);
+        }
+        else if (float.IsInfinity(available))
+        {
+            IncrementAggregate(ref _diagResolveDefinitionInfiniteAvailableCount);
+        }
+        else
+        {
+            IncrementAggregate(ref _diagResolveDefinitionFiniteAvailableCount);
+        }
+
+        try
+        {
         var fixedTotal = 0f;
         var starWeight = 0f;
 
@@ -820,6 +918,11 @@ public class Grid : Panel
         }
 
         NormalizeDefinitionOverflow(definitions, available);
+        }
+        finally
+        {
+            AddAggregate(ref _diagResolveDefinitionSizesElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+        }
     }
 
     private static bool ApplyChildRequirement(
@@ -829,6 +932,12 @@ public class Grid : Panel
         float requiredSize,
         bool hasFiniteConstraint)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        var changed = false;
+        IncrementAggregate(ref _diagApplyChildRequirementCallCount);
+
+        try
+        {
         if (requiredSize <= 0f || float.IsNaN(requiredSize) || float.IsInfinity(requiredSize))
         {
             return false;
@@ -847,9 +956,9 @@ public class Grid : Panel
             return false;
         }
 
-        var changed = false;
         if (hasFiniteConstraint && HasDefinitionType(definitions, start, end, static definition => definition.Length.IsStar))
         {
+            IncrementAggregate(ref _diagApplyChildRequirementFiniteStarConstraintCount);
             extra = DistributeExtraSize(definitions, start, end, extra, static definition => definition.Length.IsAuto, ref changed);
             return changed;
         }
@@ -860,6 +969,19 @@ public class Grid : Panel
         var fallbackPreviousSize = fallback.Size;
         fallback.Size = Clamp(fallback.Size + extra, fallback.EffectiveMin, fallback.Max);
         return changed || !AreFloatsClose(fallbackPreviousSize, fallback.Size);
+        }
+        finally
+        {
+            AddAggregate(ref _diagApplyChildRequirementElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+            if (changed)
+            {
+                IncrementAggregate(ref _diagApplyChildRequirementChangedCount);
+            }
+            else
+            {
+                IncrementAggregate(ref _diagApplyChildRequirementNoOpCount);
+            }
+        }
     }
 
     private static void FinalizeDefinitionSizes(IReadOnlyList<DefinitionSnapshot> definitions, float available)
@@ -869,6 +991,7 @@ public class Grid : Panel
 
     private static void NormalizeDefinitionOverflow(IReadOnlyList<DefinitionSnapshot> definitions, float available)
     {
+        IncrementAggregate(ref _diagNormalizeDefinitionOverflowCallCount);
         if (float.IsInfinity(available) || float.IsNaN(available) || available < 0f)
         {
             return;
@@ -881,6 +1004,7 @@ public class Grid : Panel
             return;
         }
 
+        IncrementAggregate(ref _diagNormalizeDefinitionOverflowTriggeredCount);
         overflow = ReduceOverflow(definitions, overflow, static definition => definition.Length.IsStar);
         overflow = ReduceOverflow(definitions, overflow, static definition => definition.Length.IsAuto);
         ReduceOverflow(definitions, overflow, static definition => definition.Length.IsPixel);
@@ -891,6 +1015,7 @@ public class Grid : Panel
         float overflow,
         Predicate<DefinitionSnapshot> match)
     {
+        IncrementAggregate(ref _diagReduceOverflowCallCount);
         if (overflow <= 0f)
         {
             return 0f;
@@ -1025,7 +1150,17 @@ public class Grid : Panel
         IReadOnlyList<DefinitionSnapshot> rows,
         IReadOnlyList<DefinitionSnapshot> columns)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        var refreshedEntryCount = 0;
+        var reusedEntryCount = 0;
+        IncrementAggregate(ref _diagPrepareChildLayoutMetadataCallCount);
         var frameworkChildCount = CountFrameworkChildren();
+        AddAggregate(ref _diagChildLayoutMetadataFrameworkChildCount, frameworkChildCount);
+        if (_childLayoutMetadataDirty || _childLayoutMetadataCache.Length != frameworkChildCount)
+        {
+            IncrementAggregate(ref _diagChildLayoutMetadataCacheRefreshCount);
+        }
+
         if (_childLayoutMetadataCache.Length != frameworkChildCount)
         {
             _childLayoutMetadataCache = new ChildLayoutMetadata[frameworkChildCount];
@@ -1043,6 +1178,7 @@ public class Grid : Panel
             ref var metadata = ref _childLayoutMetadataCache[metadataIndex];
             if (_childLayoutMetadataDirty || !ReferenceEquals(metadata.Child, frameworkChild))
             {
+                refreshedEntryCount++;
                 var cell = NormalizeCell(child, rows.Count, columns.Count);
                 metadata = new ChildLayoutMetadata(
                     frameworkChild,
@@ -1056,6 +1192,7 @@ public class Grid : Panel
             }
             else
             {
+                reusedEntryCount++;
                 metadata = metadata with
                 {
                     HasExplicitWidth = HasExplicitSize(frameworkChild.Width),
@@ -1067,6 +1204,9 @@ public class Grid : Panel
         }
 
         _childLayoutMetadataDirty = false;
+        AddAggregate(ref _diagChildLayoutMetadataEntryRefreshCount, refreshedEntryCount);
+        AddAggregate(ref _diagChildLayoutMetadataEntryReuseCount, reusedEntryCount);
+        AddAggregate(ref _diagPrepareChildLayoutMetadataElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
         return _childLayoutMetadataCache;
     }
 
@@ -1199,6 +1339,7 @@ public class Grid : Panel
 
     private void InvalidateChildLayoutMetadataCache()
     {
+        IncrementAggregate(ref _diagChildLayoutMetadataInvalidationCount);
         _childLayoutMetadataDirty = true;
     }
 
@@ -1207,14 +1348,21 @@ public class Grid : Panel
         in ChildLayoutMetadata metadata,
         Vector2 availableSize)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        IncrementAggregate(ref _diagMeasureChildCallCount);
+
+        try
+        {
         if (!metadata.Child.NeedsMeasure &&
             childMeasureIndex >= 0 &&
             childMeasureIndex < _cachedChildMeasureStates.Length &&
             CanReuseCachedMeasure(_cachedChildMeasureStates[childMeasureIndex], metadata.Child, availableSize))
         {
+            IncrementAggregate(ref _diagMeasureChildCacheHitCount);
             return _cachedChildMeasureStates[childMeasureIndex].DesiredSize;
         }
 
+        IncrementAggregate(ref _diagMeasureChildCacheMissCount);
         metadata.Child.Measure(availableSize);
         if (childMeasureIndex >= 0 && childMeasureIndex < _cachedChildMeasureStates.Length)
         {
@@ -1230,6 +1378,11 @@ public class Grid : Panel
         }
 
         return metadata.Child.DesiredSize;
+        }
+        finally
+        {
+            AddAggregate(ref _diagMeasureChildElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+        }
     }
 
     private static bool CanReuseCachedMeasure(
@@ -1364,7 +1517,17 @@ public class Grid : Panel
 
     private void RefreshSharedSizeScopeState()
     {
+        IncrementAggregate(ref _diagSharedSizeScopeRefreshCallCount);
         var scopeOwner = FindSharedSizeScopeOwner();
+        if (scopeOwner == null)
+        {
+            IncrementAggregate(ref _diagSharedSizeScopeMissCount);
+        }
+        else
+        {
+            IncrementAggregate(ref _diagSharedSizeScopeHitCount);
+        }
+
         var nextScopeState = scopeOwner != null
             ? SharedSizeScopes.GetValue(scopeOwner, static _ => new SharedSizeScopeState())
             : null;
@@ -1374,6 +1537,7 @@ public class Grid : Panel
             return;
         }
 
+        IncrementAggregate(ref _diagSharedSizeScopeChangedCount);
         _sharedSizeScopeState?.RemoveGrid(this);
         _sharedSizeScopeState = nextScopeState;
     }
@@ -1399,6 +1563,7 @@ public class Grid : Panel
 
     private void ApplySharedSizes(IReadOnlyList<DefinitionSnapshot> definitions, bool isColumnAxis)
     {
+        IncrementAggregate(ref _diagApplySharedSizesCallCount);
         if (_sharedSizeScopeState == null)
         {
             return;
@@ -1412,15 +1577,25 @@ public class Grid : Panel
                 continue;
             }
 
+            IncrementAggregate(ref _diagApplySharedSizeDefinitionCount);
             definitions[i].ApplySharedSize(_sharedSizeScopeState.GetSharedSize(group, isColumnAxis));
         }
     }
 
     private void PublishSharedSizes(IReadOnlyList<DefinitionSnapshot> definitions, bool isColumnAxis)
     {
+        IncrementAggregate(ref _diagPublishSharedSizesCallCount);
         if (_sharedSizeScopeState == null)
         {
             return;
+        }
+
+        for (var i = 0; i < definitions.Count; i++)
+        {
+            if (!string.IsNullOrEmpty(definitions[i].SharedSizeGroup))
+            {
+                IncrementAggregate(ref _diagPublishSharedSizeDefinitionCount);
+            }
         }
 
         _sharedSizeScopeState.Publish(this, definitions, isColumnAxis);
@@ -1466,6 +1641,7 @@ public class Grid : Panel
         ref bool changed,
         bool useStarWeights = false)
     {
+        IncrementAggregate(ref _diagDistributeExtraSizeCallCount);
         if (extra <= 0f)
         {
             return 0f;
@@ -1627,15 +1803,153 @@ public class Grid : Panel
         bool HeightWasUnconstrained,
         bool IsValid);
 
+    internal GridRuntimeDiagnosticsSnapshot GetGridSnapshotForDiagnostics()
+    {
+        return new GridRuntimeDiagnosticsSnapshot(
+            ShowGridLines,
+            _columnDefinitions.Count,
+            _rowDefinitions.Count,
+            Children.Count,
+            CountFrameworkChildren(),
+            DesiredSize.X,
+            DesiredSize.Y,
+            RenderSize.X,
+            RenderSize.Y,
+            ActualWidth,
+            ActualHeight,
+            PreviousAvailableSizeForTests.X,
+            PreviousAvailableSizeForTests.Y,
+            _measuredColumnSizes.Length,
+            _measuredRowSizes.Length,
+            _columnOffsets.Length,
+            _rowOffsets.Length,
+            _childLayoutMetadataCache.Length,
+            _firstPassMeasureRecords.Length,
+            _cachedChildMeasureStates.Length,
+            _childLayoutMetadataDirty,
+            _sharedSizeScopeState is not null,
+            GetIsSharedSizeScope(this),
+            MeasureCallCount,
+            MeasureWorkCount,
+            ArrangeCallCount,
+            ArrangeWorkCount,
+            TicksToMilliseconds(MeasureElapsedTicksForTests),
+            TicksToMilliseconds(MeasureExclusiveElapsedTicksForTests),
+            TicksToMilliseconds(ArrangeElapsedTicksForTests),
+            IsMeasureValidForTests,
+            IsArrangeValidForTests,
+            MeasureInvalidationCount,
+            ArrangeInvalidationCount,
+                RenderInvalidationCount);
+    }
+
+    internal new static GridTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateTelemetrySnapshot(reset: false);
+    }
+
+    internal static GridTelemetrySnapshot GetTelemetrySnapshotForDiagnostics()
+    {
+        return GetAggregateTelemetrySnapshotForDiagnostics();
+    }
+
+    internal new static GridTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateTelemetrySnapshot(reset: true);
+    }
+
     internal static GridTimingSnapshot GetTimingSnapshotForTests()
     {
-        return new GridTimingSnapshot(_measureOverrideElapsedTicks, _arrangeOverrideElapsedTicks);
+        return new GridTimingSnapshot(
+            ReadAggregate(ref _measureOverrideElapsedTicks),
+            ReadAggregate(ref _arrangeOverrideElapsedTicks));
     }
 
     internal static void ResetTimingForTests()
     {
-        _measureOverrideElapsedTicks = 0;
-        _arrangeOverrideElapsedTicks = 0;
+        ResetAggregate(ref _measureOverrideElapsedTicks);
+        ResetAggregate(ref _arrangeOverrideElapsedTicks);
+    }
+
+    private static GridTelemetrySnapshot CreateTelemetrySnapshot(bool reset)
+    {
+        return new GridTelemetrySnapshot(
+            ReadOrReset(ref _diagMeasureCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _measureOverrideElapsedTicks, reset)),
+            ReadOrReset(ref _diagMeasureChildCount, reset),
+            ReadOrReset(ref _diagMeasureDeferredRowSpanChildCount, reset),
+            ReadOrReset(ref _diagMeasureFirstPassChildCount, reset),
+            ReadOrReset(ref _diagMeasureSecondPassChildCount, reset),
+            ReadOrReset(ref _diagMeasureRemeasureCheckCount, reset),
+            ReadOrReset(ref _diagMeasureRemeasureCount, reset),
+            ReadOrReset(ref _diagMeasureRemeasureSkipCount, reset),
+            ReadOrReset(ref _diagArrangeCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _arrangeOverrideElapsedTicks, reset)),
+            ReadOrReset(ref _diagArrangeChildCount, reset),
+            ReadOrReset(ref _diagArrangeSkippedChildCount, reset),
+            ReadOrReset(ref _diagPrepareChildLayoutMetadataCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagPrepareChildLayoutMetadataElapsedTicks, reset)),
+            ReadOrReset(ref _diagChildLayoutMetadataCacheRefreshCount, reset),
+            ReadOrReset(ref _diagChildLayoutMetadataEntryRefreshCount, reset),
+            ReadOrReset(ref _diagChildLayoutMetadataEntryReuseCount, reset),
+            ReadOrReset(ref _diagChildLayoutMetadataFrameworkChildCount, reset),
+            ReadOrReset(ref _diagChildLayoutMetadataInvalidationCount, reset),
+            ReadOrReset(ref _diagMeasureChildCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagMeasureChildElapsedTicks, reset)),
+            ReadOrReset(ref _diagMeasureChildCacheHitCount, reset),
+            ReadOrReset(ref _diagMeasureChildCacheMissCount, reset),
+            ReadOrReset(ref _diagResolveDefinitionSizesCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagResolveDefinitionSizesElapsedTicks, reset)),
+            ReadOrReset(ref _diagResolveDefinitionFiniteAvailableCount, reset),
+            ReadOrReset(ref _diagResolveDefinitionInfiniteAvailableCount, reset),
+            ReadOrReset(ref _diagResolveDefinitionNaNAvailableCount, reset),
+            ReadOrReset(ref _diagApplyChildRequirementCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagApplyChildRequirementElapsedTicks, reset)),
+            ReadOrReset(ref _diagApplyChildRequirementChangedCount, reset),
+            ReadOrReset(ref _diagApplyChildRequirementNoOpCount, reset),
+            ReadOrReset(ref _diagApplyChildRequirementFiniteStarConstraintCount, reset),
+            ReadOrReset(ref _diagNormalizeDefinitionOverflowCallCount, reset),
+            ReadOrReset(ref _diagNormalizeDefinitionOverflowTriggeredCount, reset),
+            ReadOrReset(ref _diagDistributeExtraSizeCallCount, reset),
+            ReadOrReset(ref _diagReduceOverflowCallCount, reset),
+            ReadOrReset(ref _diagSharedSizeScopeRefreshCallCount, reset),
+            ReadOrReset(ref _diagSharedSizeScopeHitCount, reset),
+            ReadOrReset(ref _diagSharedSizeScopeMissCount, reset),
+            ReadOrReset(ref _diagSharedSizeScopeChangedCount, reset),
+            ReadOrReset(ref _diagApplySharedSizesCallCount, reset),
+            ReadOrReset(ref _diagApplySharedSizeDefinitionCount, reset),
+            ReadOrReset(ref _diagPublishSharedSizesCallCount, reset),
+            ReadOrReset(ref _diagPublishSharedSizeDefinitionCount, reset));
+    }
+
+    private static void IncrementAggregate(ref long counter)
+    {
+        Interlocked.Increment(ref counter);
+    }
+
+    private static void AddAggregate(ref long counter, long value)
+    {
+        Interlocked.Add(ref counter, value);
+    }
+
+    private static long ReadAggregate(ref long counter)
+    {
+        return Interlocked.Read(ref counter);
+    }
+
+    private static long ResetAggregate(ref long counter)
+    {
+        return Interlocked.Exchange(ref counter, 0L);
+    }
+
+    private static long ReadOrReset(ref long counter, bool reset)
+    {
+        return reset ? ResetAggregate(ref counter) : ReadAggregate(ref counter);
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return ticks * 1000d / Stopwatch.Frequency;
     }
 
     private sealed class SharedSizeScopeState

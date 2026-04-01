@@ -13,31 +13,50 @@ public sealed class InkkOopsStackPanelDiagnosticsContributor : IInkkOopsDiagnost
             return;
         }
 
-        builder.Add("type", stackPanel.GetType().Name);
-        builder.Add("orientation", stackPanel.Orientation);
-        builder.Add("children", stackPanel.Children.Count);
-        builder.Add("desired", $"{stackPanel.DesiredSize.X:0.##},{stackPanel.DesiredSize.Y:0.##}");
-        builder.Add("renderSize", $"{stackPanel.RenderSize.X:0.##},{stackPanel.RenderSize.Y:0.##}");
-        builder.Add("actual", $"{stackPanel.ActualWidth:0.##},{stackPanel.ActualHeight:0.##}");
-        builder.Add("previousAvailable", $"{stackPanel.PreviousAvailableSizeForTests.X:0.##},{stackPanel.PreviousAvailableSizeForTests.Y:0.##}");
-        builder.Add("measureCalls", stackPanel.MeasureCallCount);
-        builder.Add("measureWork", stackPanel.MeasureWorkCount);
-        builder.Add("arrangeCalls", stackPanel.ArrangeCallCount);
-        builder.Add("arrangeWork", stackPanel.ArrangeWorkCount);
-        builder.Add("measureMs", FormatMilliseconds(stackPanel.MeasureElapsedTicksForTests));
-        builder.Add("measureExclusiveMs", FormatMilliseconds(stackPanel.MeasureExclusiveElapsedTicksForTests));
-        builder.Add("arrangeMs", FormatMilliseconds(stackPanel.ArrangeElapsedTicksForTests));
-        builder.Add("measureValid", stackPanel.IsMeasureValidForTests);
-        builder.Add("arrangeValid", stackPanel.IsArrangeValidForTests);
-        builder.Add("childSummary", BuildChildSummary(stackPanel));
+        var runtime = stackPanel.GetStackPanelSnapshotForDiagnostics();
+        var telemetry = StackPanel.GetAggregateTelemetrySnapshotForDiagnostics();
 
-        var telemetry = StackPanel.GetTelemetrySnapshotForDiagnostics();
+        builder.Add("type", stackPanel.GetType().Name);
+        builder.Add("orientation", runtime.Orientation);
+        builder.Add("children", runtime.ChildCount);
+        builder.Add("desired", $"{runtime.DesiredWidth:0.##},{runtime.DesiredHeight:0.##}");
+        builder.Add("renderSize", $"{runtime.RenderWidth:0.##},{runtime.RenderHeight:0.##}");
+        builder.Add("actual", $"{runtime.ActualWidth:0.##},{runtime.ActualHeight:0.##}");
+        builder.Add("previousAvailable", $"{runtime.PreviousAvailableWidth:0.##},{runtime.PreviousAvailableHeight:0.##}");
+        builder.Add("measureCalls", runtime.MeasureCallCount);
+        builder.Add("measureWork", runtime.MeasureWorkCount);
+        builder.Add("arrangeCalls", runtime.ArrangeCallCount);
+        builder.Add("arrangeWork", runtime.ArrangeWorkCount);
+        builder.Add("measureMs", $"{runtime.MeasureMilliseconds:0.###}");
+        builder.Add("measureExclusiveMs", $"{runtime.MeasureExclusiveMilliseconds:0.###}");
+        builder.Add("arrangeMs", $"{runtime.ArrangeMilliseconds:0.###}");
+        builder.Add("measureValid", runtime.IsMeasureValid);
+        builder.Add("arrangeValid", runtime.IsArrangeValid);
+        builder.Add("childSummary", BuildChildSummary(stackPanel));
         builder.Add("stackPanelGlobalMeasureCalls", telemetry.MeasureCallCount);
         builder.Add("stackPanelGlobalMeasureMs", $"{telemetry.MeasureMilliseconds:0.###}");
         builder.Add("stackPanelGlobalMeasuredChildren", telemetry.MeasuredChildCount);
+        builder.Add("stackPanelGlobalMeasureSkippedChildren", telemetry.MeasureSkippedChildCount);
+        builder.Add("stackPanelGlobalMeasureVertical", telemetry.MeasureVerticalCount);
+        builder.Add("stackPanelGlobalMeasureHorizontal", telemetry.MeasureHorizontalCount);
+        builder.Add("stackPanelGlobalMeasureEmpty", telemetry.MeasureEmptyCount);
+        builder.Add("stackPanelGlobalMeasureInfiniteCrossAxis", telemetry.MeasureInfiniteCrossAxisCount);
+        builder.Add("stackPanelGlobalMeasureNaNCrossAxis", telemetry.MeasureNaNCrossAxisCount);
+        builder.Add("stackPanelGlobalMeasureNonPositiveCrossAxis", telemetry.MeasureNonPositiveCrossAxisCount);
+        builder.Add("stackPanelGlobalMeasurePrimaryDesired", $"{telemetry.MeasureTotalPrimaryDesired:0.###}");
+        builder.Add("stackPanelGlobalMeasureCrossDesired", $"{telemetry.MeasureTotalCrossDesired:0.###}");
         builder.Add("stackPanelGlobalArrangeCalls", telemetry.ArrangeCallCount);
         builder.Add("stackPanelGlobalArrangeMs", $"{telemetry.ArrangeMilliseconds:0.###}");
         builder.Add("stackPanelGlobalArrangedChildren", telemetry.ArrangedChildCount);
+        builder.Add("stackPanelGlobalArrangeSkippedChildren", telemetry.ArrangeSkippedChildCount);
+        builder.Add("stackPanelGlobalArrangeVertical", telemetry.ArrangeVerticalCount);
+        builder.Add("stackPanelGlobalArrangeHorizontal", telemetry.ArrangeHorizontalCount);
+        builder.Add("stackPanelGlobalArrangeEmpty", telemetry.ArrangeEmptyCount);
+        builder.Add("stackPanelGlobalArrangeInfinitePrimary", telemetry.ArrangeInfinitePrimarySizeCount);
+        builder.Add("stackPanelGlobalArrangeNaNPrimary", telemetry.ArrangeNaNPrimarySizeCount);
+        builder.Add("stackPanelGlobalArrangeNonPositivePrimary", telemetry.ArrangeNonPositivePrimarySizeCount);
+        builder.Add("stackPanelGlobalArrangePrimarySpan", $"{telemetry.ArrangeTotalPrimarySpan:0.###}");
+        builder.Add("stackPanelGlobalArrangeCrossSpan", $"{telemetry.ArrangeTotalCrossSpan:0.###}");
     }
 
     private static string BuildChildSummary(StackPanel stackPanel)

@@ -138,7 +138,7 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
         var beforeStyle = Style.GetTelemetrySnapshotForTests();
         var beforeTemplateTrigger = TemplateTriggerEngine.GetTelemetrySnapshotForTests();
         var beforeVisualState = VisualStateManager.GetTelemetrySnapshotForTests();
-        _ = ScrollViewer.GetScrollMetricsAndReset();
+        _ = ScrollViewer.GetTelemetryAndReset();
         AnimationValueSink.ResetTelemetryForTests();
 
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
@@ -150,7 +150,7 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
         var afterAnimation = AnimationManager.Current.GetTelemetrySnapshotForTests();
         var afterHitTest = VisualTreeHelper.GetInstrumentationSnapshotForTests();
         var afterRender = uiRoot.GetRenderTelemetrySnapshotForTests();
-        var scrollMetrics = ScrollViewer.GetScrollMetricsAndReset();
+        var scrollMetrics = ScrollViewer.GetTelemetryAndReset();
         var sinkTelemetry = AnimationValueSink.GetTelemetrySnapshotForTests();
         var afterStyle = Style.GetTelemetrySnapshotForTests();
         var afterTemplateTrigger = TemplateTriggerEngine.GetTelemetrySnapshotForTests();
@@ -457,7 +457,7 @@ public sealed class ControlsCatalogSidebarScrollViewerHoverHotspotDiagnosticsTes
         string Label,
         Vector2 Pointer,
         UiPointerMoveTelemetrySnapshot PointerMove,
-        ScrollViewerScrollMetricsSnapshot ScrollViewer,
+        ScrollViewerTelemetrySnapshot ScrollViewer,
         AnimationSinkTelemetrySnapshot SinkTelemetry,
         int BeginStoryboardCalls,
         int StoryboardStarts,

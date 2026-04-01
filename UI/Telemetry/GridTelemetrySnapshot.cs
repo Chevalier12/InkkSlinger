@@ -1,0 +1,99 @@
+namespace InkkSlinger.UI.Telemetry;
+
+/// <summary>
+/// Grid timing snapshot.
+/// </summary>
+internal readonly record struct GridTimingSnapshot(
+    long MeasureOverrideElapsedTicks,
+    long ArrangeOverrideElapsedTicks);
+    
+/// <summary>
+/// Grid telemetry snapshot.
+/// </summary>
+internal readonly record struct GridTelemetrySnapshot(
+    long MeasureCallCount,
+    double MeasureMilliseconds,
+    long MeasureChildCount,
+    long MeasureDeferredRowSpanChildCount,
+    long MeasureFirstPassChildCount,
+    long MeasureSecondPassChildCount,
+    long MeasureRemeasureCheckCount,
+    long MeasureRemeasureCount,
+    long MeasureRemeasureSkipCount,
+    long ArrangeCallCount,
+    double ArrangeMilliseconds,
+    long ArrangeChildCount,
+    long ArrangeSkippedChildCount,
+    long PrepareChildLayoutMetadataCallCount,
+    double PrepareChildLayoutMetadataMilliseconds,
+    long ChildLayoutMetadataCacheRefreshCount,
+    long ChildLayoutMetadataEntryRefreshCount,
+    long ChildLayoutMetadataEntryReuseCount,
+    long ChildLayoutMetadataFrameworkChildCount,
+    long ChildLayoutMetadataInvalidationCount,
+    long MeasureChildCallCount,
+    double MeasureChildMilliseconds,
+    long MeasureChildCacheHitCount,
+    long MeasureChildCacheMissCount,
+    long ResolveDefinitionSizesCallCount,
+    double ResolveDefinitionSizesMilliseconds,
+    long ResolveDefinitionFiniteAvailableCount,
+    long ResolveDefinitionInfiniteAvailableCount,
+    long ResolveDefinitionNaNAvailableCount,
+    long ApplyChildRequirementCallCount,
+    double ApplyChildRequirementMilliseconds,
+    long ApplyChildRequirementChangedCount,
+    long ApplyChildRequirementNoOpCount,
+    long ApplyChildRequirementFiniteStarConstraintCount,
+    long NormalizeDefinitionOverflowCallCount,
+    long NormalizeDefinitionOverflowTriggeredCount,
+    long DistributeExtraSizeCallCount,
+    long ReduceOverflowCallCount,
+    long SharedSizeScopeRefreshCallCount,
+    long SharedSizeScopeHitCount,
+    long SharedSizeScopeMissCount,
+    long SharedSizeScopeChangedCount,
+    long ApplySharedSizesCallCount,
+    long ApplySharedSizeDefinitionCount,
+    long PublishSharedSizesCallCount,
+    long PublishSharedSizeDefinitionCount);
+
+/// <summary>
+/// Grid per-instance runtime diagnostics snapshot.
+/// </summary>
+internal readonly record struct GridRuntimeDiagnosticsSnapshot(
+    bool ShowGridLines,
+    int ColumnDefinitionCount,
+    int RowDefinitionCount,
+    int ChildCount,
+    int FrameworkChildCount,
+    float DesiredWidth,
+    float DesiredHeight,
+    float RenderWidth,
+    float RenderHeight,
+    float ActualWidth,
+    float ActualHeight,
+    float PreviousAvailableWidth,
+    float PreviousAvailableHeight,
+    int MeasuredColumnCount,
+    int MeasuredRowCount,
+    int ColumnOffsetCount,
+    int RowOffsetCount,
+    int ChildLayoutMetadataCacheCount,
+    int FirstPassMeasureRecordCapacity,
+    int CachedChildMeasureStateCapacity,
+    bool IsChildLayoutMetadataDirty,
+    bool HasSharedSizeScope,
+    bool IsSharedSizeScopeOwner,
+    int MeasureCallCount,
+    int MeasureWorkCount,
+    int ArrangeCallCount,
+    int ArrangeWorkCount,
+    double MeasureMilliseconds,
+    double MeasureExclusiveMilliseconds,
+    double ArrangeMilliseconds,
+    bool IsMeasureValid,
+    bool IsArrangeValid,
+    int MeasureInvalidationCount,
+    int ArrangeInvalidationCount,
+    int RenderInvalidationCount);

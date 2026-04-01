@@ -37,16 +37,7 @@ public sealed class InkkOopsHostConfiguration
             DiagnosticsFilterPolicy = new DefaultInkkOopsDiagnosticsFilterPolicy(),
             DiagnosticsContributors =
             [
-                new InkkOopsGenericElementDiagnosticsContributor(),
-                new InkkOopsFrameworkElementDiagnosticsContributor(),
-                new InkkOopsContentTextDiagnosticsContributor(),
-                new InkkOopsButtonDiagnosticsContributor(),
-                new InkkOopsTextBlockDiagnosticsContributor(),
-                new InkkOopsStackPanelDiagnosticsContributor(),
-                new InkkOopsWrapPanelDiagnosticsContributor(),
                 new InkkOopsGridDiagnosticsContributor(),
-                new InkkOopsScrollViewerDiagnosticsContributor(),
-                new InkkOopsExpanderDiagnosticsContributor()
             ],
             DefaultNamedPipeName = "InkkOops",
             DefaultArtifactRoot = "artifacts/inkkoops",

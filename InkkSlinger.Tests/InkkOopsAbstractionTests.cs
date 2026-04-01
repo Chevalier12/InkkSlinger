@@ -274,6 +274,61 @@ public sealed class InkkOopsAbstractionTests
     }
 
     [Fact]
+    public void DefaultHostConfiguration_Registers_GridContributor()
+    {
+        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
+
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsGridDiagnosticsContributor);
+    }
+
+    [Fact]
+    public async Task DiagnosticsPipeline_Includes_GridContributorFacts()
+    {
+        var root = new Canvas { Name = "Root", Width = 400f, Height = 240f };
+        var grid = new Grid { Name = "LayoutGrid", Width = 220f, Height = 120f };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = "SharedColumn" });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
+
+        var child = new Border { Width = 48f, Height = 32f, Name = "Child" };
+        Grid.SetColumn(child, 0);
+        Grid.SetRow(child, 0);
+        grid.AddChild(child);
+        root.AddChild(grid);
+
+        using var host = new InkkOopsTestHost(root);
+        await host.AdvanceFrameAsync(1);
+
+        var diagnostics = new InkkOopsVisualTreeDiagnostics([
+            new InkkOopsGenericElementDiagnosticsContributor(),
+            new InkkOopsFrameworkElementDiagnosticsContributor(),
+            new InkkOopsGridDiagnosticsContributor()
+        ]);
+
+        var snapshot = diagnostics.Capture(
+            root,
+            new InkkOopsDiagnosticsContext
+            {
+                UiRoot = host.UiRoot,
+                Viewport = host.GetViewportBounds(),
+                HoveredElement = null,
+                FocusedElement = null,
+                ArtifactName = "grid-diagnostics"
+            });
+        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
+
+        Assert.Contains("Grid#LayoutGrid", text);
+        Assert.Contains("gridRuntimeColumnDefinitions=", text);
+        Assert.Contains("gridRuntimeSharedScopeAttached=", text);
+        Assert.Contains("gridGlobalMeasureCalls=", text);
+        Assert.Contains("gridGlobalPrepareMetadataCalls=", text);
+        Assert.Contains("gridGlobalApplySharedSizesCalls=", text);
+        Assert.Contains("columns=", text);
+        Assert.Contains("children=", text);
+    }
+
+    [Fact]
     public void DefaultDiagnosticsFilterPolicy_Filters_RecordingFinal_Only()
     {
         var policy = new DefaultInkkOopsDiagnosticsFilterPolicy();

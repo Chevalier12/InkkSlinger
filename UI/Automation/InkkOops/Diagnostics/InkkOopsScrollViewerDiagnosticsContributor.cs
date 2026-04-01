@@ -9,10 +9,14 @@ public sealed class InkkOopsScrollViewerDiagnosticsContributor : IInkkOopsDiagno
 
     public void Contribute(InkkOopsDiagnosticsContext context, UIElement element, InkkOopsElementDiagnosticsBuilder builder)
     {
+
         if (element is not ScrollViewer scrollViewer)
         {
             return;
         }
+
+        var runtime = scrollViewer.GetScrollViewerSnapshotForDiagnostics();
+        var telemetry = ScrollViewer.GetAggregateTelemetrySnapshotForDiagnostics();
 
         builder.Add("type", scrollViewer.GetType().Name);
         builder.Add("slot", FormatRect(scrollViewer.LayoutSlot));
@@ -58,83 +62,125 @@ public sealed class InkkOopsScrollViewerDiagnosticsContributor : IInkkOopsDiagno
         builder.Add("scrollBarThickness", $"{scrollViewer.ScrollBarThickness:0.##}");
         builder.Add("lineScrollAmount", $"{scrollViewer.LineScrollAmount:0.##}");
 
-        var runtimeLayout = scrollViewer.GetRuntimeLayoutTelemetryForDiagnostics();
-        builder.Add("runtimeMeasureOverrideCalls", runtimeLayout.MeasureOverrideCallCount);
-        builder.Add("runtimeMeasureOverrideMs", $"{runtimeLayout.MeasureOverrideMilliseconds:0.###}");
-        builder.Add("runtimeArrangeOverrideCalls", runtimeLayout.ArrangeOverrideCallCount);
-        builder.Add("runtimeArrangeOverrideMs", $"{runtimeLayout.ArrangeOverrideMilliseconds:0.###}");
-        builder.Add("runtimeResolveBarsMeasureCalls", runtimeLayout.ResolveBarsAndMeasureContentCallCount);
-        builder.Add("runtimeResolveBarsMeasureMs", $"{runtimeLayout.ResolveBarsAndMeasureContentMilliseconds:0.###}");
-        builder.Add("runtimeResolveBarsMeasureIterations", runtimeLayout.ResolveBarsAndMeasureContentIterationCount);
-        builder.Add("runtimeResolveBarsMeasureHorizontalFlips", runtimeLayout.ResolveBarsAndMeasureContentHorizontalFlipCount);
-        builder.Add("runtimeResolveBarsMeasureVerticalFlips", runtimeLayout.ResolveBarsAndMeasureContentVerticalFlipCount);
-        builder.Add("runtimeResolveBarsMeasureSinglePathCalls", runtimeLayout.ResolveBarsAndMeasureContentSingleMeasurePathCount);
-        builder.Add("runtimeResolveBarsMeasureRemeasurePathCalls", runtimeLayout.ResolveBarsAndMeasureContentRemeasurePathCount);
-        builder.Add("runtimeResolveBarsMeasureFallbacks", runtimeLayout.ResolveBarsAndMeasureContentFallbackCount);
-        builder.Add("runtimeResolveBarsMeasureInitialHorizontalVisible", runtimeLayout.ResolveBarsAndMeasureContentInitialHorizontalVisibleCount);
-        builder.Add("runtimeResolveBarsMeasureInitialHorizontalHidden", runtimeLayout.ResolveBarsAndMeasureContentInitialHorizontalHiddenCount);
-        builder.Add("runtimeResolveBarsMeasureInitialVerticalVisible", runtimeLayout.ResolveBarsAndMeasureContentInitialVerticalVisibleCount);
-        builder.Add("runtimeResolveBarsMeasureInitialVerticalHidden", runtimeLayout.ResolveBarsAndMeasureContentInitialVerticalHiddenCount);
-        builder.Add("runtimeResolveBarsMeasureResolvedHorizontalVisible", runtimeLayout.ResolveBarsAndMeasureContentResolvedHorizontalVisibleCount);
-        builder.Add("runtimeResolveBarsMeasureResolvedHorizontalHidden", runtimeLayout.ResolveBarsAndMeasureContentResolvedHorizontalHiddenCount);
-        builder.Add("runtimeResolveBarsMeasureResolvedVerticalVisible", runtimeLayout.ResolveBarsAndMeasureContentResolvedVerticalVisibleCount);
-        builder.Add("runtimeResolveBarsMeasureResolvedVerticalHidden", runtimeLayout.ResolveBarsAndMeasureContentResolvedVerticalHiddenCount);
-        builder.Add("runtimeResolveBarsMeasureLastTrace", runtimeLayout.ResolveBarsAndMeasureContentLastTrace);
-        builder.Add("runtimeResolveBarsMeasureHottestTrace", runtimeLayout.ResolveBarsAndMeasureContentHottestTrace);
-        builder.Add("runtimeResolveBarsArrangeCalls", runtimeLayout.ResolveBarsForArrangeCallCount);
-        builder.Add("runtimeResolveBarsArrangeMs", $"{runtimeLayout.ResolveBarsForArrangeMilliseconds:0.###}");
-        builder.Add("runtimeResolveBarsArrangeIterations", runtimeLayout.ResolveBarsForArrangeIterationCount);
-        builder.Add("runtimeResolveBarsArrangeHorizontalFlips", runtimeLayout.ResolveBarsForArrangeHorizontalFlipCount);
-        builder.Add("runtimeResolveBarsArrangeVerticalFlips", runtimeLayout.ResolveBarsForArrangeVerticalFlipCount);
-        builder.Add("runtimeMeasureContentCalls", runtimeLayout.MeasureContentCallCount);
-        builder.Add("runtimeMeasureContentMs", $"{runtimeLayout.MeasureContentMilliseconds:0.###}");
-        builder.Add("runtimeUpdateScrollBarsCalls", runtimeLayout.UpdateScrollBarsCallCount);
-        builder.Add("runtimeUpdateScrollBarsMs", $"{runtimeLayout.UpdateScrollBarsMilliseconds:0.###}");
+        builder.Add("runtimeMeasureOverrideCalls", runtime.MeasureOverrideCallCount);
+        builder.Add("runtimeMeasureOverrideMs", $"{runtime.MeasureOverrideMilliseconds:0.###}");
+        builder.Add("runtimeArrangeOverrideCalls", runtime.ArrangeOverrideCallCount);
+        builder.Add("runtimeArrangeOverrideMs", $"{runtime.ArrangeOverrideMilliseconds:0.###}");
+        builder.Add("runtimeResolveBarsMeasureCalls", runtime.ResolveBarsAndMeasureContentCallCount);
+        builder.Add("runtimeResolveBarsMeasureMs", $"{runtime.ResolveBarsAndMeasureContentMilliseconds:0.###}");
+        builder.Add("runtimeResolveBarsMeasureIterations", runtime.ResolveBarsAndMeasureContentIterationCount);
+        builder.Add("runtimeResolveBarsMeasureHorizontalFlips", runtime.ResolveBarsAndMeasureContentHorizontalFlipCount);
+        builder.Add("runtimeResolveBarsMeasureVerticalFlips", runtime.ResolveBarsAndMeasureContentVerticalFlipCount);
+        builder.Add("runtimeResolveBarsMeasureSinglePathCalls", runtime.ResolveBarsAndMeasureContentSingleMeasurePathCount);
+        builder.Add("runtimeResolveBarsMeasureRemeasurePathCalls", runtime.ResolveBarsAndMeasureContentRemeasurePathCount);
+        builder.Add("runtimeResolveBarsMeasureFallbacks", runtime.ResolveBarsAndMeasureContentFallbackCount);
+        builder.Add("runtimeResolveBarsMeasureInitialHorizontalVisible", runtime.ResolveBarsAndMeasureContentInitialHorizontalVisibleCount);
+        builder.Add("runtimeResolveBarsMeasureInitialHorizontalHidden", runtime.ResolveBarsAndMeasureContentInitialHorizontalHiddenCount);
+        builder.Add("runtimeResolveBarsMeasureInitialVerticalVisible", runtime.ResolveBarsAndMeasureContentInitialVerticalVisibleCount);
+        builder.Add("runtimeResolveBarsMeasureInitialVerticalHidden", runtime.ResolveBarsAndMeasureContentInitialVerticalHiddenCount);
+        builder.Add("runtimeResolveBarsMeasureResolvedHorizontalVisible", runtime.ResolveBarsAndMeasureContentResolvedHorizontalVisibleCount);
+        builder.Add("runtimeResolveBarsMeasureResolvedHorizontalHidden", runtime.ResolveBarsAndMeasureContentResolvedHorizontalHiddenCount);
+        builder.Add("runtimeResolveBarsMeasureResolvedVerticalVisible", runtime.ResolveBarsAndMeasureContentResolvedVerticalVisibleCount);
+        builder.Add("runtimeResolveBarsMeasureResolvedVerticalHidden", runtime.ResolveBarsAndMeasureContentResolvedVerticalHiddenCount);
+        builder.Add("runtimeResolveBarsMeasureLastTrace", runtime.ResolveBarsAndMeasureContentLastTrace);
+        builder.Add("runtimeResolveBarsMeasureHottestTrace", runtime.ResolveBarsAndMeasureContentHottestTrace);
+        builder.Add("runtimeResolveBarsMeasureHottestMs", $"{runtime.ResolveBarsAndMeasureContentHottestMilliseconds:0.###}");
+        builder.Add("runtimeResolveBarsArrangeCalls", runtime.ResolveBarsForArrangeCallCount);
+        builder.Add("runtimeResolveBarsArrangeMs", $"{runtime.ResolveBarsForArrangeMilliseconds:0.###}");
+        builder.Add("runtimeResolveBarsArrangeIterations", runtime.ResolveBarsForArrangeIterationCount);
+        builder.Add("runtimeResolveBarsArrangeHorizontalFlips", runtime.ResolveBarsForArrangeHorizontalFlipCount);
+        builder.Add("runtimeResolveBarsArrangeVerticalFlips", runtime.ResolveBarsForArrangeVerticalFlipCount);
+        builder.Add("runtimeMeasureContentCalls", runtime.MeasureContentCallCount);
+        builder.Add("runtimeMeasureContentMs", $"{runtime.MeasureContentMilliseconds:0.###}");
+        builder.Add("runtimeUpdateScrollBarsCalls", runtime.UpdateScrollBarsCallCount);
+        builder.Add("runtimeUpdateScrollBarsMs", $"{runtime.UpdateScrollBarsMilliseconds:0.###}");
+        builder.Add("runtimeScrollToHorizontalCalls", runtime.ScrollToHorizontalOffsetCallCount);
+        builder.Add("runtimeScrollToVerticalCalls", runtime.ScrollToVerticalOffsetCallCount);
+        builder.Add("runtimeInvalidateScrollInfoCalls", runtime.InvalidateScrollInfoCallCount);
+        builder.Add("runtimeMouseWheelCalls", runtime.HandleMouseWheelCallCount);
+        builder.Add("runtimeMouseWheelEvents", runtime.WheelEvents);
+        builder.Add("runtimeMouseWheelHandled", runtime.HandleMouseWheelHandledCount);
+        builder.Add("runtimeMouseWheelMs", $"{runtime.HandleMouseWheelMilliseconds:0.###}");
+        builder.Add("runtimeMouseWheelIgnoredDisabled", runtime.HandleMouseWheelIgnoredDisabledCount);
+        builder.Add("runtimeMouseWheelIgnoredZeroDelta", runtime.HandleMouseWheelIgnoredZeroDeltaCount);
+        builder.Add("runtimeSetOffsetsCalls", runtime.SetOffsetsCallCount);
+        builder.Add("runtimeSetOffsetsMs", $"{runtime.SetOffsetsMilliseconds:0.###}");
+        builder.Add("runtimeSetOffsetsExternal", runtime.SetOffsetsExternalSourceCount);
+        builder.Add("runtimeSetOffsetsHorizontalBar", runtime.SetOffsetsHorizontalScrollBarSourceCount);
+        builder.Add("runtimeSetOffsetsVerticalBar", runtime.SetOffsetsVerticalScrollBarSourceCount);
+        builder.Add("runtimeSetOffsetsWork", runtime.SetOffsetsWorkCount);
+        builder.Add("runtimeSetOffsetsNoOp", runtime.SetOffsetsNoOpCount);
+        builder.Add("runtimeSetOffsetsDeferredLayout", runtime.SetOffsetsDeferredLayoutPathCount);
+        builder.Add("runtimeSetOffsetsVirtualizingMeasureInvalidation", runtime.SetOffsetsVirtualizingMeasureInvalidationPathCount);
+        builder.Add("runtimeSetOffsetsVirtualizingArrangeOnly", runtime.SetOffsetsVirtualizingArrangeOnlyPathCount);
+        builder.Add("runtimeSetOffsetsTransformInvalidation", runtime.SetOffsetsTransformInvalidationPathCount);
+        builder.Add("runtimeSetOffsetsManualArrange", runtime.SetOffsetsManualArrangePathCount);
+        builder.Add("runtimeSetOffsetsHorizontalDelta", $"{runtime.TotalHorizontalDelta:0.###}");
+        builder.Add("runtimeSetOffsetsVerticalDelta", $"{runtime.TotalVerticalDelta:0.###}");
+        builder.Add("runtimePopupCloseCalls", runtime.PopupCloseCallCount);
+        builder.Add("runtimeArrangeContentCalls", runtime.ArrangeContentForCurrentOffsetsCallCount);
+        builder.Add("runtimeArrangeContentMs", $"{runtime.ArrangeContentForCurrentOffsetsMilliseconds:0.###}");
+        builder.Add("runtimeArrangeContentSkippedNoContent", runtime.ArrangeContentSkippedNoContentCount);
+        builder.Add("runtimeArrangeContentSkippedZeroViewport", runtime.ArrangeContentSkippedZeroViewportCount);
+        builder.Add("runtimeArrangeContentTransformPath", runtime.ArrangeContentTransformPathCount);
+        builder.Add("runtimeArrangeContentOffsetPath", runtime.ArrangeContentOffsetPathCount);
+        builder.Add("runtimeUpdateScrollBarValuesCalls", runtime.UpdateScrollBarValuesCallCount);
+        builder.Add("runtimeUpdateScrollBarValuesMs", $"{runtime.UpdateScrollBarValuesMilliseconds:0.###}");
+        builder.Add("runtimeUpdateHorizontalScrollBarValueCalls", runtime.UpdateHorizontalScrollBarValueCallCount);
+        builder.Add("runtimeUpdateHorizontalScrollBarValueMs", $"{runtime.UpdateHorizontalScrollBarValueMilliseconds:0.###}");
+        builder.Add("runtimeUpdateVerticalScrollBarValueCalls", runtime.UpdateVerticalScrollBarValueCallCount);
+        builder.Add("runtimeUpdateVerticalScrollBarValueMs", $"{runtime.UpdateVerticalScrollBarValueMilliseconds:0.###}");
+        builder.Add("runtimeHorizontalValueChangedCalls", runtime.HorizontalValueChangedCallCount);
+        builder.Add("runtimeHorizontalValueChangedMs", $"{runtime.HorizontalValueChangedMilliseconds:0.###}");
+        builder.Add("runtimeHorizontalValueChangedSetOffsetsMs", $"{runtime.HorizontalValueChangedSetOffsetsMilliseconds:0.###}");
+        builder.Add("runtimeHorizontalValueChangedSuppressed", runtime.HorizontalValueChangedSuppressedCount);
+        builder.Add("runtimeVerticalValueChangedCalls", runtime.VerticalValueChangedCallCount);
+        builder.Add("runtimeVerticalValueChangedMs", $"{runtime.VerticalValueChangedMilliseconds:0.###}");
+        builder.Add("runtimeVerticalValueChangedSetOffsetsMs", $"{runtime.VerticalValueChangedSetOffsetsMilliseconds:0.###}");
+        builder.Add("runtimeVerticalValueChangedSuppressed", runtime.VerticalValueChangedSuppressedCount);
+        builder.Add("runtimeShowHorizontalBar", runtime.ShowHorizontalBar);
+        builder.Add("runtimeShowVerticalBar", runtime.ShowVerticalBar);
+        builder.Add("runtimeHasPreviousBarResolution", runtime.HasPreviousScrollBarResolution);
+        builder.Add("runtimePreviousHorizontalBar", runtime.PreviousShowHorizontalScrollBar);
+        builder.Add("runtimePreviousVerticalBar", runtime.PreviousShowVerticalScrollBar);
+        builder.Add("runtimeSuppressValueChanged", runtime.SuppressInternalScrollBarValueChange);
+        builder.Add("runtimeInputScrollMutationDepth", runtime.InputScrollMutationDepth);
+        builder.Add("runtimeContentViewportRect", $"{runtime.ContentViewportX:0.##},{runtime.ContentViewportY:0.##},{runtime.ContentViewportWidth:0.##},{runtime.ContentViewportHeight:0.##}");
 
-        var runtimeInteraction = scrollViewer.GetRuntimeInteractionTelemetryForDiagnostics();
-        builder.Add("runtimeScrollToHorizontalCalls", runtimeInteraction.ScrollToHorizontalOffsetCallCount);
-        builder.Add("runtimeScrollToVerticalCalls", runtimeInteraction.ScrollToVerticalOffsetCallCount);
-        builder.Add("runtimeInvalidateScrollInfoCalls", runtimeInteraction.InvalidateScrollInfoCallCount);
-        builder.Add("runtimeMouseWheelCalls", runtimeInteraction.HandleMouseWheelCallCount);
-        builder.Add("runtimeMouseWheelMs", $"{runtimeInteraction.HandleMouseWheelMilliseconds:0.###}");
-        builder.Add("runtimeMouseWheelHandled", runtimeInteraction.HandleMouseWheelHandledCount);
-        builder.Add("runtimeMouseWheelIgnoredDisabled", runtimeInteraction.HandleMouseWheelIgnoredDisabledCount);
-        builder.Add("runtimeMouseWheelIgnoredZeroDelta", runtimeInteraction.HandleMouseWheelIgnoredZeroDeltaCount);
-        builder.Add("runtimeSetOffsetsCalls", runtimeInteraction.SetOffsetsCallCount);
-        builder.Add("runtimeSetOffsetsMs", $"{runtimeInteraction.SetOffsetsMilliseconds:0.###}");
-        builder.Add("runtimeSetOffsetsExternal", runtimeInteraction.SetOffsetsExternalSourceCount);
-        builder.Add("runtimeSetOffsetsHorizontalBar", runtimeInteraction.SetOffsetsHorizontalScrollBarSourceCount);
-        builder.Add("runtimeSetOffsetsVerticalBar", runtimeInteraction.SetOffsetsVerticalScrollBarSourceCount);
-        builder.Add("runtimeSetOffsetsWork", runtimeInteraction.SetOffsetsWorkCount);
-        builder.Add("runtimeSetOffsetsNoOp", runtimeInteraction.SetOffsetsNoOpCount);
-        builder.Add("runtimeSetOffsetsDeferredLayout", runtimeInteraction.SetOffsetsDeferredLayoutPathCount);
-        builder.Add("runtimeSetOffsetsVirtualizingMeasureInvalidation", runtimeInteraction.SetOffsetsVirtualizingMeasureInvalidationPathCount);
-        builder.Add("runtimeSetOffsetsVirtualizingArrangeOnly", runtimeInteraction.SetOffsetsVirtualizingArrangeOnlyPathCount);
-        builder.Add("runtimeSetOffsetsTransformInvalidation", runtimeInteraction.SetOffsetsTransformInvalidationPathCount);
-        builder.Add("runtimeSetOffsetsManualArrange", runtimeInteraction.SetOffsetsManualArrangePathCount);
-        builder.Add("runtimePopupCloseCalls", runtimeInteraction.PopupCloseCallCount);
-        builder.Add("runtimeArrangeContentCalls", runtimeInteraction.ArrangeContentForCurrentOffsetsCallCount);
-        builder.Add("runtimeArrangeContentMs", $"{runtimeInteraction.ArrangeContentForCurrentOffsetsMilliseconds:0.###}");
-        builder.Add("runtimeArrangeContentSkippedNoContent", runtimeInteraction.ArrangeContentSkippedNoContentCount);
-        builder.Add("runtimeArrangeContentSkippedZeroViewport", runtimeInteraction.ArrangeContentSkippedZeroViewportCount);
-        builder.Add("runtimeArrangeContentTransformPath", runtimeInteraction.ArrangeContentTransformPathCount);
-        builder.Add("runtimeArrangeContentOffsetPath", runtimeInteraction.ArrangeContentOffsetPathCount);
-        builder.Add("runtimeUpdateScrollBarValuesCalls", runtimeInteraction.UpdateScrollBarValuesCallCount);
-        builder.Add("runtimeUpdateScrollBarValuesMs", $"{runtimeInteraction.UpdateScrollBarValuesMilliseconds:0.###}");
-        builder.Add("runtimeUpdateHorizontalScrollBarValueCalls", runtimeInteraction.UpdateHorizontalScrollBarValueCallCount);
-        builder.Add("runtimeUpdateHorizontalScrollBarValueMs", $"{runtimeInteraction.UpdateHorizontalScrollBarValueMilliseconds:0.###}");
-        builder.Add("runtimeUpdateVerticalScrollBarValueCalls", runtimeInteraction.UpdateVerticalScrollBarValueCallCount);
-        builder.Add("runtimeUpdateVerticalScrollBarValueMs", $"{runtimeInteraction.UpdateVerticalScrollBarValueMilliseconds:0.###}");
-
-        var runtimeValueChanged = scrollViewer.GetRuntimeValueChangedTelemetryForDiagnostics();
-        builder.Add("runtimeHorizontalValueChangedCalls", runtimeValueChanged.HorizontalValueChangedCallCount);
-        builder.Add("runtimeHorizontalValueChangedMs", $"{runtimeValueChanged.HorizontalValueChangedMilliseconds:0.###}");
-        builder.Add("runtimeHorizontalValueChangedSetOffsetsMs", $"{runtimeValueChanged.HorizontalValueChangedSetOffsetsMilliseconds:0.###}");
-        builder.Add("runtimeHorizontalValueChangedSuppressed", runtimeValueChanged.HorizontalValueChangedSuppressedCount);
-        builder.Add("runtimeVerticalValueChangedCalls", runtimeValueChanged.VerticalValueChangedCallCount);
-        builder.Add("runtimeVerticalValueChangedMs", $"{runtimeValueChanged.VerticalValueChangedMilliseconds:0.###}");
-        builder.Add("runtimeVerticalValueChangedSetOffsetsMs", $"{runtimeValueChanged.VerticalValueChangedSetOffsetsMilliseconds:0.###}");
-        builder.Add("runtimeVerticalValueChangedSuppressed", runtimeValueChanged.VerticalValueChangedSuppressedCount);
+        builder.Add("telemetryWheelEvents", telemetry.WheelEvents);
+        builder.Add("telemetryWheelHandled", telemetry.WheelHandled);
+        builder.Add("telemetrySetOffsetsCalls", telemetry.SetOffsetsCallCount);
+        builder.Add("telemetrySetOffsetsNoOp", telemetry.SetOffsetsNoOpCount);
+        builder.Add("telemetrySetOffsetsHorizontalDelta", $"{telemetry.TotalHorizontalDelta:0.###}");
+        builder.Add("telemetrySetOffsetsVerticalDelta", $"{telemetry.TotalVerticalDelta:0.###}");
+        builder.Add("telemetryScrollToHorizontalCalls", telemetry.ScrollToHorizontalOffsetCallCount);
+        builder.Add("telemetryScrollToVerticalCalls", telemetry.ScrollToVerticalOffsetCallCount);
+        builder.Add("telemetryInvalidateScrollInfoCalls", telemetry.InvalidateScrollInfoCallCount);
+        builder.Add("telemetryMouseWheelCalls", telemetry.HandleMouseWheelCallCount);
+        builder.Add("telemetryMouseWheelMs", FormatMilliseconds(telemetry.HandleMouseWheelMilliseconds));
+        builder.Add("telemetrySetOffsetsMs", FormatMilliseconds(telemetry.SetOffsetsMilliseconds));
+        builder.Add("telemetryHorizontalValueChangedCalls", telemetry.HorizontalValueChangedCallCount);
+        builder.Add("telemetryHorizontalValueChangedMs", FormatMilliseconds(telemetry.HorizontalValueChangedMilliseconds));
+        builder.Add("telemetryHorizontalValueChangedSuppressed", telemetry.HorizontalValueChangedSuppressedCount);
+        builder.Add("telemetryVerticalValueChangedCalls", telemetry.VerticalValueChangedCallCount);
+        builder.Add("telemetryVerticalValueChangedMs", FormatMilliseconds(telemetry.VerticalValueChangedMilliseconds));
+        builder.Add("telemetryVerticalValueChangedSuppressed", telemetry.VerticalValueChangedSuppressedCount);
+        builder.Add("telemetryMeasureOverrideCalls", telemetry.MeasureOverrideCallCount);
+        builder.Add("telemetryMeasureOverrideMs", FormatMilliseconds(telemetry.MeasureOverrideMilliseconds));
+        builder.Add("telemetryArrangeOverrideCalls", telemetry.ArrangeOverrideCallCount);
+        builder.Add("telemetryArrangeOverrideMs", FormatMilliseconds(telemetry.ArrangeOverrideMilliseconds));
+        builder.Add("telemetryResolveBarsMeasureCalls", telemetry.ResolveBarsAndMeasureContentCallCount);
+        builder.Add("telemetryResolveBarsMeasureMs", FormatMilliseconds(telemetry.ResolveBarsAndMeasureContentMilliseconds));
+        builder.Add("telemetryResolveBarsMeasureIterations", telemetry.ResolveBarsAndMeasureContentIterationCount);
+        builder.Add("telemetryResolveBarsMeasureSinglePathCalls", telemetry.ResolveBarsAndMeasureContentSingleMeasurePathCount);
+        builder.Add("telemetryResolveBarsMeasureRemeasurePathCalls", telemetry.ResolveBarsAndMeasureContentRemeasurePathCount);
+        builder.Add("telemetryResolveBarsMeasureFallbacks", telemetry.ResolveBarsAndMeasureContentFallbackCount);
+        builder.Add("telemetryResolveBarsArrangeCalls", telemetry.ResolveBarsForArrangeCallCount);
+        builder.Add("telemetryResolveBarsArrangeMs", FormatMilliseconds(telemetry.ResolveBarsForArrangeMilliseconds));
+        builder.Add("telemetryMeasureContentCalls", telemetry.MeasureContentCallCount);
+        builder.Add("telemetryMeasureContentMs", FormatMilliseconds(telemetry.MeasureContentMilliseconds));
+        builder.Add("telemetryUpdateScrollBarsCalls", telemetry.UpdateScrollBarsCallCount);
+        builder.Add("telemetryUpdateScrollBarsMs", FormatMilliseconds(telemetry.UpdateScrollBarsMilliseconds));
 
         if (scrollViewer.TryGetContentViewportClipRect(out var clipRect))
         {
@@ -372,6 +418,11 @@ public sealed class InkkOopsScrollViewerDiagnosticsContributor : IInkkOopsDiagno
     private static string FormatMilliseconds(long ticks)
     {
         return ((double)ticks * 1000d / System.Diagnostics.Stopwatch.Frequency).ToString("0.###");
+    }
+
+    private static string FormatMilliseconds(double milliseconds)
+    {
+        return milliseconds.ToString("0.###");
     }
 
     private static string FormatFloat(float value)

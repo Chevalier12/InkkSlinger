@@ -16,7 +16,7 @@ public sealed class ScrollViewerAutoBarHotspotRegressionTests
         Assert.True(viewer.ExtentHeight > viewer.ViewportHeight,
             $"Expected the initial layout to require a vertical bar. extent={viewer.ExtentHeight}, viewport={viewer.ViewportHeight}");
 
-        var beforeLargeLayout = viewer.GetRuntimeLayoutTelemetryForDiagnostics();
+        var beforeLargeLayout = viewer.GetScrollViewerSnapshotForDiagnostics();
 
         viewer.Height = 760f;
         RunLayout(uiRoot, 640, 1000, 32);
@@ -24,7 +24,7 @@ public sealed class ScrollViewerAutoBarHotspotRegressionTests
         Assert.True(viewer.ExtentHeight <= viewer.ViewportHeight + 0.01f,
             $"Expected the taller layout to fit content without a vertical bar. extent={viewer.ExtentHeight}, viewport={viewer.ViewportHeight}");
 
-        var afterLargeLayout = viewer.GetRuntimeLayoutTelemetryForDiagnostics();
+        var afterLargeLayout = viewer.GetScrollViewerSnapshotForDiagnostics();
         var deltaIterations = afterLargeLayout.ResolveBarsAndMeasureContentIterationCount - beforeLargeLayout.ResolveBarsAndMeasureContentIterationCount;
         var deltaMeasureContentCalls = afterLargeLayout.MeasureContentCallCount - beforeLargeLayout.MeasureContentCallCount;
         var deltaVerticalFlips = afterLargeLayout.ResolveBarsAndMeasureContentVerticalFlipCount - beforeLargeLayout.ResolveBarsAndMeasureContentVerticalFlipCount;
@@ -52,7 +52,7 @@ public sealed class ScrollViewerAutoBarHotspotRegressionTests
         Assert.True(viewer.ExtentHeight <= viewer.ViewportHeight + 0.01f,
             $"Expected the taller layout to start without a vertical bar. extent={viewer.ExtentHeight}, viewport={viewer.ViewportHeight}");
 
-        var beforeSmallLayout = viewer.GetRuntimeLayoutTelemetryForDiagnostics();
+        var beforeSmallLayout = viewer.GetScrollViewerSnapshotForDiagnostics();
 
         viewer.Height = 605f;
         RunLayout(uiRoot, 640, 900, 32);
@@ -60,7 +60,7 @@ public sealed class ScrollViewerAutoBarHotspotRegressionTests
         Assert.True(viewer.ExtentHeight > viewer.ViewportHeight,
             $"Expected the shorter layout to require a vertical bar. extent={viewer.ExtentHeight}, viewport={viewer.ViewportHeight}");
 
-        var afterSmallLayout = viewer.GetRuntimeLayoutTelemetryForDiagnostics();
+        var afterSmallLayout = viewer.GetScrollViewerSnapshotForDiagnostics();
         var deltaIterations = afterSmallLayout.ResolveBarsAndMeasureContentIterationCount - beforeSmallLayout.ResolveBarsAndMeasureContentIterationCount;
         var deltaMeasureContentCalls = afterSmallLayout.MeasureContentCallCount - beforeSmallLayout.MeasureContentCallCount;
         var deltaVerticalFlips = afterSmallLayout.ResolveBarsAndMeasureContentVerticalFlipCount - beforeSmallLayout.ResolveBarsAndMeasureContentVerticalFlipCount;

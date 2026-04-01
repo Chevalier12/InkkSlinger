@@ -11,8 +11,7 @@ public sealed class ScrollViewerTelemetryTests
     [Fact]
     public void ScrollViewerTelemetry_CapturesInteractionRuntimeAndAggregateReset()
     {
-        _ = ScrollViewer.GetInteractionTelemetryAndReset();
-        _ = ScrollViewer.GetValueChangedTelemetryAndReset();
+        _ = ScrollViewer.GetTelemetryAndReset();
 
         var root = new Canvas();
         var viewer = new ScrollViewer
@@ -60,60 +59,54 @@ public sealed class ScrollViewerTelemetryTests
         viewer.ScrollToVerticalOffset(84f);
         RunLayout(uiRoot, 240, 180, 32);
 
-        var runtimeInteraction = viewer.GetRuntimeInteractionTelemetryForDiagnostics();
-        Assert.True(runtimeInteraction.ScrollToHorizontalOffsetCallCount > 0);
-        Assert.True(runtimeInteraction.ScrollToVerticalOffsetCallCount > 1);
-        Assert.True(runtimeInteraction.InvalidateScrollInfoCallCount > 0);
-        Assert.True(runtimeInteraction.HandleMouseWheelCallCount >= 3);
-        Assert.True(runtimeInteraction.HandleMouseWheelHandledCount > 0);
-        Assert.True(runtimeInteraction.HandleMouseWheelIgnoredZeroDeltaCount > 0);
-        Assert.True(runtimeInteraction.HandleMouseWheelIgnoredDisabledCount > 0);
-        Assert.True(runtimeInteraction.SetOffsetsExternalSourceCount > 0);
-        Assert.True(runtimeInteraction.SetOffsetsHorizontalScrollBarSourceCount > 0);
-        Assert.True(runtimeInteraction.SetOffsetsVerticalScrollBarSourceCount > 0);
-        Assert.True(runtimeInteraction.SetOffsetsWorkCount > 0);
-        Assert.True(runtimeInteraction.SetOffsetsDeferredLayoutPathCount > 0);
-        Assert.True(runtimeInteraction.SetOffsetsManualArrangePathCount > 0);
-        Assert.True(runtimeInteraction.ArrangeContentForCurrentOffsetsCallCount > 0);
-        Assert.True(runtimeInteraction.ArrangeContentOffsetPathCount > 0);
-        Assert.True(runtimeInteraction.UpdateScrollBarValuesCallCount > 0);
-        Assert.True(runtimeInteraction.UpdateHorizontalScrollBarValueCallCount > 0);
-        Assert.True(runtimeInteraction.UpdateVerticalScrollBarValueCallCount > 0);
-        Assert.True(runtimeInteraction.PopupCloseCallCount > 0);
+        var runtime = viewer.GetScrollViewerSnapshotForDiagnostics();
+        Assert.True(runtime.ScrollToHorizontalOffsetCallCount > 0);
+        Assert.True(runtime.ScrollToVerticalOffsetCallCount > 1);
+        Assert.True(runtime.InvalidateScrollInfoCallCount > 0);
+        Assert.True(runtime.HandleMouseWheelCallCount >= 3);
+        Assert.True(runtime.HandleMouseWheelHandledCount > 0);
+        Assert.True(runtime.HandleMouseWheelIgnoredZeroDeltaCount > 0);
+        Assert.True(runtime.HandleMouseWheelIgnoredDisabledCount > 0);
+        Assert.True(runtime.SetOffsetsExternalSourceCount > 0);
+        Assert.True(runtime.SetOffsetsHorizontalScrollBarSourceCount > 0);
+        Assert.True(runtime.SetOffsetsVerticalScrollBarSourceCount > 0);
+        Assert.True(runtime.SetOffsetsWorkCount > 0);
+        Assert.True(runtime.SetOffsetsDeferredLayoutPathCount > 0);
+        Assert.True(runtime.SetOffsetsManualArrangePathCount > 0);
+        Assert.True(runtime.ArrangeContentForCurrentOffsetsCallCount > 0);
+        Assert.True(runtime.ArrangeContentOffsetPathCount > 0);
+        Assert.True(runtime.UpdateScrollBarValuesCallCount > 0);
+        Assert.True(runtime.UpdateHorizontalScrollBarValueCallCount > 0);
+        Assert.True(runtime.UpdateVerticalScrollBarValueCallCount > 0);
+        Assert.True(runtime.PopupCloseCallCount > 0);
+        Assert.True(runtime.HorizontalValueChangedCallCount > 0);
+        Assert.True(runtime.VerticalValueChangedCallCount > 0);
+        Assert.True(runtime.HorizontalValueChangedSuppressedCount > 0);
+        Assert.True(runtime.VerticalValueChangedSuppressedCount > 0);
 
-        var runtimeValueChanged = viewer.GetRuntimeValueChangedTelemetryForDiagnostics();
-        Assert.True(runtimeValueChanged.HorizontalValueChangedCallCount > 0);
-        Assert.True(runtimeValueChanged.VerticalValueChangedCallCount > 0);
-        Assert.True(runtimeValueChanged.HorizontalValueChangedSuppressedCount > 0);
-        Assert.True(runtimeValueChanged.VerticalValueChangedSuppressedCount > 0);
+        var aggregate = ScrollViewer.GetTelemetryAndReset();
+        Assert.True(aggregate.ScrollToHorizontalOffsetCallCount > 0);
+        Assert.True(aggregate.ScrollToVerticalOffsetCallCount > 1);
+        Assert.True(aggregate.HandleMouseWheelCallCount >= 3);
+        Assert.True(aggregate.SetOffsetsExternalSourceCount > 0);
+        Assert.True(aggregate.SetOffsetsHorizontalScrollBarSourceCount > 0);
+        Assert.True(aggregate.SetOffsetsVerticalScrollBarSourceCount > 0);
+        Assert.True(aggregate.SetOffsetsDeferredLayoutPathCount > 0);
+        Assert.True(aggregate.ArrangeContentForCurrentOffsetsCallCount > 0);
+        Assert.True(aggregate.UpdateScrollBarValuesCallCount > 0);
+        Assert.True(aggregate.UpdateHorizontalScrollBarValueCallCount > 0);
+        Assert.True(aggregate.UpdateVerticalScrollBarValueCallCount > 0);
+        Assert.True(aggregate.HorizontalValueChangedCallCount > 0);
+        Assert.True(aggregate.VerticalValueChangedCallCount > 0);
+        Assert.True(aggregate.HorizontalValueChangedSuppressedCount > 0);
+        Assert.True(aggregate.VerticalValueChangedSuppressedCount > 0);
 
-        var aggregateInteraction = ScrollViewer.GetInteractionTelemetryAndReset();
-        Assert.True(aggregateInteraction.ScrollToHorizontalOffsetCallCount > 0);
-        Assert.True(aggregateInteraction.ScrollToVerticalOffsetCallCount > 1);
-        Assert.True(aggregateInteraction.HandleMouseWheelCallCount >= 3);
-        Assert.True(aggregateInteraction.SetOffsetsExternalSourceCount > 0);
-        Assert.True(aggregateInteraction.SetOffsetsHorizontalScrollBarSourceCount > 0);
-        Assert.True(aggregateInteraction.SetOffsetsVerticalScrollBarSourceCount > 0);
-        Assert.True(aggregateInteraction.SetOffsetsDeferredLayoutPathCount > 0);
-        Assert.True(aggregateInteraction.ArrangeContentForCurrentOffsetsCallCount > 0);
-        Assert.True(aggregateInteraction.UpdateScrollBarValuesCallCount > 0);
-        Assert.True(aggregateInteraction.UpdateHorizontalScrollBarValueCallCount > 0);
-        Assert.True(aggregateInteraction.UpdateVerticalScrollBarValueCallCount > 0);
-
-        var aggregateValueChanged = ScrollViewer.GetValueChangedTelemetryAndReset();
-        Assert.True(aggregateValueChanged.HorizontalValueChangedCallCount > 0);
-        Assert.True(aggregateValueChanged.VerticalValueChangedCallCount > 0);
-        Assert.True(aggregateValueChanged.HorizontalValueChangedSuppressedCount > 0);
-        Assert.True(aggregateValueChanged.VerticalValueChangedSuppressedCount > 0);
-
-        var clearedInteraction = ScrollViewer.GetInteractionTelemetryAndReset();
-        Assert.Equal(0, clearedInteraction.ScrollToHorizontalOffsetCallCount);
-        Assert.Equal(0, clearedInteraction.SetOffsetsCallCount);
-        Assert.Equal(0, clearedInteraction.UpdateScrollBarValuesCallCount);
-
-        var clearedValueChanged = ScrollViewer.GetValueChangedTelemetryAndReset();
-        Assert.Equal(0, clearedValueChanged.HorizontalValueChangedCallCount);
-        Assert.Equal(0, clearedValueChanged.VerticalValueChangedCallCount);
+        var cleared = ScrollViewer.GetTelemetryAndReset();
+        Assert.Equal(0, cleared.ScrollToHorizontalOffsetCallCount);
+        Assert.Equal(0, cleared.SetOffsetsCallCount);
+        Assert.Equal(0, cleared.UpdateScrollBarValuesCallCount);
+        Assert.Equal(0, cleared.HorizontalValueChangedCallCount);
+        Assert.Equal(0, cleared.VerticalValueChangedCallCount);
 
         uiRoot.Shutdown();
     }

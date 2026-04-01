@@ -139,7 +139,7 @@ public sealed class ControlsCatalogSidebarScrollHotspotDiagnosticsTests
         var beforeRender = uiRoot.GetRenderTelemetrySnapshotForTests();
         var beforeFreezable = Freezable.GetTelemetrySnapshotForTests();
         var beforeFreezableBatch = UIElement.GetFreezableInvalidationBatchSnapshotForTests();
-        _ = ScrollViewer.GetScrollMetricsAndReset();
+        _ = ScrollViewer.GetTelemetryAndReset();
 
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, wheelDelta: wheelDelta));
         var pointerTelemetry = uiRoot.GetPointerMoveTelemetrySnapshotForTests();
@@ -153,7 +153,7 @@ public sealed class ControlsCatalogSidebarScrollHotspotDiagnosticsTests
         var renderInvalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
         var afterFreezable = Freezable.GetTelemetrySnapshotForTests();
         var afterFreezableBatch = UIElement.GetFreezableInvalidationBatchSnapshotForTests();
-        var scrollMetrics = ScrollViewer.GetScrollMetricsAndReset();
+        var scrollMetrics = ScrollViewer.GetTelemetryAndReset();
 
         return new ScrollStepMetrics(
             stepIndex,
@@ -486,7 +486,7 @@ public sealed class ControlsCatalogSidebarScrollHotspotDiagnosticsTests
         int StepIndex,
         string Label,
         Vector2 Pointer,
-        ScrollViewerScrollMetricsSnapshot ScrollViewer,
+        ScrollViewerTelemetrySnapshot ScrollViewer,
         UiPointerMoveTelemetrySnapshot PointerTelemetry,
         double LastUpdateMs,
         double LastInputPhaseMs,

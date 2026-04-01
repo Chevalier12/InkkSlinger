@@ -1,20 +1,15 @@
 namespace InkkSlinger.UI.Telemetry;
 
 /// <summary>
-/// ScrollViewer scroll metrics snapshot.
+/// ScrollViewer aggregate telemetry snapshot.
 /// </summary>
-public readonly record struct ScrollViewerScrollMetricsSnapshot(
+internal readonly record struct ScrollViewerTelemetrySnapshot(
     int WheelEvents,
     int WheelHandled,
     int SetOffsetCalls,
     int SetOffsetNoOpCalls,
     float TotalHorizontalDelta,
-    float TotalVerticalDelta);
-
-/// <summary>
-/// ScrollViewer interaction telemetry snapshot.
-/// </summary>
-internal readonly record struct ScrollViewerInteractionTelemetrySnapshot(
+    float TotalVerticalDelta,
     int ScrollToHorizontalOffsetCallCount,
     int ScrollToVerticalOffsetCallCount,
     int InvalidateScrollInfoCallCount,
@@ -23,13 +18,11 @@ internal readonly record struct ScrollViewerInteractionTelemetrySnapshot(
     int HandleMouseWheelHandledCount,
     int HandleMouseWheelIgnoredDisabledCount,
     int HandleMouseWheelIgnoredZeroDeltaCount,
-    int SetOffsetsCallCount,
     double SetOffsetsMilliseconds,
     int SetOffsetsExternalSourceCount,
     int SetOffsetsHorizontalScrollBarSourceCount,
     int SetOffsetsVerticalScrollBarSourceCount,
     int SetOffsetsWorkCount,
-    int SetOffsetsNoOpCount,
     int SetOffsetsDeferredLayoutPathCount,
     int SetOffsetsVirtualizingMeasureInvalidationPathCount,
     int SetOffsetsVirtualizingArrangeOnlyPathCount,
@@ -47,12 +40,7 @@ internal readonly record struct ScrollViewerInteractionTelemetrySnapshot(
     int UpdateHorizontalScrollBarValueCallCount,
     double UpdateHorizontalScrollBarValueMilliseconds,
     int UpdateVerticalScrollBarValueCallCount,
-    double UpdateVerticalScrollBarValueMilliseconds);
-
-/// <summary>
-/// ScrollViewer value changed telemetry snapshot.
-/// </summary>
-internal readonly record struct ScrollViewerValueChangedTelemetrySnapshot(
+    double UpdateVerticalScrollBarValueMilliseconds,
     int HorizontalValueChangedCallCount,
     double HorizontalValueChangedMilliseconds,
     double HorizontalValueChangedSetOffsetsMilliseconds,
@@ -60,12 +48,7 @@ internal readonly record struct ScrollViewerValueChangedTelemetrySnapshot(
     int VerticalValueChangedCallCount,
     double VerticalValueChangedMilliseconds,
     double VerticalValueChangedSetOffsetsMilliseconds,
-    int VerticalValueChangedSuppressedCount);
-
-/// <summary>
-/// ScrollViewer layout telemetry snapshot.
-/// </summary>
-internal readonly record struct ScrollViewerLayoutTelemetrySnapshot(
+    int VerticalValueChangedSuppressedCount,
     int MeasureOverrideCallCount,
     double MeasureOverrideMilliseconds,
     int ArrangeOverrideCallCount,
@@ -86,8 +69,6 @@ internal readonly record struct ScrollViewerLayoutTelemetrySnapshot(
     int ResolveBarsAndMeasureContentResolvedHorizontalHiddenCount,
     int ResolveBarsAndMeasureContentResolvedVerticalVisibleCount,
     int ResolveBarsAndMeasureContentResolvedVerticalHiddenCount,
-    string ResolveBarsAndMeasureContentLastTrace,
-    string ResolveBarsAndMeasureContentHottestTrace,
     int ResolveBarsForArrangeCallCount,
     double ResolveBarsForArrangeMilliseconds,
     int ResolveBarsForArrangeIterationCount,
@@ -96,7 +77,110 @@ internal readonly record struct ScrollViewerLayoutTelemetrySnapshot(
     int MeasureContentCallCount,
     double MeasureContentMilliseconds,
     int UpdateScrollBarsCallCount,
-    double UpdateScrollBarsMilliseconds);
+    double UpdateScrollBarsMilliseconds)
+{
+    public int SetOffsetsCallCount => SetOffsetCalls;
+
+    public int SetOffsetsNoOpCount => SetOffsetNoOpCalls;
+}
+
+/// <summary>
+/// ScrollViewer runtime diagnostics snapshot.
+/// </summary>
+internal readonly record struct ScrollViewerRuntimeDiagnosticsSnapshot(
+    bool ShowHorizontalBar,
+    bool ShowVerticalBar,
+    bool HasPreviousScrollBarResolution,
+    bool PreviousShowHorizontalScrollBar,
+    bool PreviousShowVerticalScrollBar,
+    bool SuppressInternalScrollBarValueChange,
+    int InputScrollMutationDepth,
+    float ContentViewportX,
+    float ContentViewportY,
+    float ContentViewportWidth,
+    float ContentViewportHeight,
+    string ResolveBarsAndMeasureContentLastTrace,
+    string ResolveBarsAndMeasureContentHottestTrace,
+    double ResolveBarsAndMeasureContentHottestMilliseconds,
+    int WheelEvents,
+    int WheelHandled,
+    int SetOffsetCalls,
+    int SetOffsetNoOpCalls,
+    float TotalHorizontalDelta,
+    float TotalVerticalDelta,
+    int ScrollToHorizontalOffsetCallCount,
+    int ScrollToVerticalOffsetCallCount,
+    int InvalidateScrollInfoCallCount,
+    int HandleMouseWheelCallCount,
+    double HandleMouseWheelMilliseconds,
+    int HandleMouseWheelHandledCount,
+    int HandleMouseWheelIgnoredDisabledCount,
+    int HandleMouseWheelIgnoredZeroDeltaCount,
+    double SetOffsetsMilliseconds,
+    int SetOffsetsExternalSourceCount,
+    int SetOffsetsHorizontalScrollBarSourceCount,
+    int SetOffsetsVerticalScrollBarSourceCount,
+    int SetOffsetsWorkCount,
+    int SetOffsetsDeferredLayoutPathCount,
+    int SetOffsetsVirtualizingMeasureInvalidationPathCount,
+    int SetOffsetsVirtualizingArrangeOnlyPathCount,
+    int SetOffsetsTransformInvalidationPathCount,
+    int SetOffsetsManualArrangePathCount,
+    int PopupCloseCallCount,
+    int ArrangeContentForCurrentOffsetsCallCount,
+    double ArrangeContentForCurrentOffsetsMilliseconds,
+    int ArrangeContentSkippedNoContentCount,
+    int ArrangeContentSkippedZeroViewportCount,
+    int ArrangeContentTransformPathCount,
+    int ArrangeContentOffsetPathCount,
+    int UpdateScrollBarValuesCallCount,
+    double UpdateScrollBarValuesMilliseconds,
+    int UpdateHorizontalScrollBarValueCallCount,
+    double UpdateHorizontalScrollBarValueMilliseconds,
+    int UpdateVerticalScrollBarValueCallCount,
+    double UpdateVerticalScrollBarValueMilliseconds,
+    int HorizontalValueChangedCallCount,
+    double HorizontalValueChangedMilliseconds,
+    double HorizontalValueChangedSetOffsetsMilliseconds,
+    int HorizontalValueChangedSuppressedCount,
+    int VerticalValueChangedCallCount,
+    double VerticalValueChangedMilliseconds,
+    double VerticalValueChangedSetOffsetsMilliseconds,
+    int VerticalValueChangedSuppressedCount,
+    int MeasureOverrideCallCount,
+    double MeasureOverrideMilliseconds,
+    int ArrangeOverrideCallCount,
+    double ArrangeOverrideMilliseconds,
+    int ResolveBarsAndMeasureContentCallCount,
+    double ResolveBarsAndMeasureContentMilliseconds,
+    int ResolveBarsAndMeasureContentIterationCount,
+    int ResolveBarsAndMeasureContentHorizontalFlipCount,
+    int ResolveBarsAndMeasureContentVerticalFlipCount,
+    int ResolveBarsAndMeasureContentSingleMeasurePathCount,
+    int ResolveBarsAndMeasureContentRemeasurePathCount,
+    int ResolveBarsAndMeasureContentFallbackCount,
+    int ResolveBarsAndMeasureContentInitialHorizontalVisibleCount,
+    int ResolveBarsAndMeasureContentInitialHorizontalHiddenCount,
+    int ResolveBarsAndMeasureContentInitialVerticalVisibleCount,
+    int ResolveBarsAndMeasureContentInitialVerticalHiddenCount,
+    int ResolveBarsAndMeasureContentResolvedHorizontalVisibleCount,
+    int ResolveBarsAndMeasureContentResolvedHorizontalHiddenCount,
+    int ResolveBarsAndMeasureContentResolvedVerticalVisibleCount,
+    int ResolveBarsAndMeasureContentResolvedVerticalHiddenCount,
+    int ResolveBarsForArrangeCallCount,
+    double ResolveBarsForArrangeMilliseconds,
+    int ResolveBarsForArrangeIterationCount,
+    int ResolveBarsForArrangeHorizontalFlipCount,
+    int ResolveBarsForArrangeVerticalFlipCount,
+    int MeasureContentCallCount,
+    double MeasureContentMilliseconds,
+    int UpdateScrollBarsCallCount,
+    double UpdateScrollBarsMilliseconds)
+{
+    public int SetOffsetsCallCount => SetOffsetCalls;
+
+    public int SetOffsetsNoOpCount => SetOffsetNoOpCalls;
+}
 
 /// <summary>
 /// ScrollBar thumb drag telemetry snapshot.
