@@ -18,11 +18,423 @@
     </Grid.RowDefinitions>
 
     <Border Grid.Row="0" Background="{StaticResource DarkElevatedBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
-      <Label Content="Control Demo: Border + ClipToBounds" Foreground="{StaticResource TextPrimaryBrush}" />
+      <Label Content="Control Demo: Border" Foreground="{StaticResource TextPrimaryBrush}" />
     </Border>
 
-    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <ContentControl x:Name="DemoHost" />
+    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="12">
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Text="Border is the framework's core chrome-and-layout wrapper. This workbench covers the box model, non-uniform edges, per-corner radii, nested composition, live property mutation, and ClipToBounds behavior." />
+
+          <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="16" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Box model" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="BorderThickness draws the chrome while Padding reserves interior layout space for the child. Each sample hosts the same content with different thickness and spacing values." />
+
+                  <StackPanel>
+                    <Border Background="{StaticResource DarkBgBrush}"
+                            BorderBrush="{StaticResource DarkBorderBrush}"
+                            BorderThickness="1"
+                            Padding="8"
+                            Margin="0,0,0,8">
+                      <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                 Text="1px border with compact padding" />
+                    </Border>
+
+                    <Border Background="#18212A"
+                            BorderBrush="{StaticResource OrangeSubtleBrush}"
+                            BorderThickness="3"
+                            Padding="16,12"
+                            Margin="0,0,0,8">
+                      <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                 Text="3px border with balanced padding" />
+                    </Border>
+
+                    <Border Background="Transparent"
+                            BorderBrush="{StaticResource OrangePrimaryBrush}"
+                            BorderThickness="1"
+                            Padding="20,14">
+                      <TextBlock Foreground="{StaticResource OrangePrimaryBrush}"
+                                 Text="Outline-only container with spacious padding" />
+                    </Border>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="CornerRadius" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="Border supports both symmetric and asymmetric radii. Non-uniform corners are useful for pills, callouts, segmented panels, and attached surfaces." />
+
+                  <WrapPanel>
+                    <Border Width="124"
+                            Height="70"
+                            Background="{StaticResource DarkBgBrush}"
+                            BorderBrush="{StaticResource DarkBorderBrush}"
+                            BorderThickness="1"
+                            Padding="10"
+                            Margin="0,0,8,8">
+                      <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                 VerticalAlignment="Center"
+                                 Text="Square" />
+                    </Border>
+
+                    <Border Width="124"
+                            Height="70"
+                            Background="#193229"
+                            BorderBrush="#2F8A63"
+                            BorderThickness="1"
+                            CornerRadius="18"
+                            Padding="10"
+                            Margin="0,0,8,8">
+                      <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                 VerticalAlignment="Center"
+                                 Text="Rounded" />
+                    </Border>
+
+                    <Border Width="124"
+                            Height="70"
+                            Background="#2A1C10"
+                            BorderBrush="#A96B2C"
+                            BorderThickness="1"
+                            CornerRadius="18,4,18,4"
+                            Padding="10"
+                            Margin="0,0,8,8">
+                      <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                 VerticalAlignment="Center"
+                                 Text="Asymmetric" />
+                    </Border>
+
+                    <Border Width="124"
+                            Height="70"
+                            Background="#2D1620"
+                            BorderBrush="#8E4767"
+                            BorderThickness="1"
+                            CornerRadius="24,24,6,6"
+                            Padding="10"
+                            Margin="0,0,0,8">
+                      <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                 VerticalAlignment="Center"
+                                 Text="Cap" />
+                    </Border>
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14">
+                <StackPanel>
+                  <Label Content="Non-uniform edges" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="Thickness values can vary per edge, which makes Border useful for dividers, accent rails, section headers, and stacked surfaces without needing separate line elements." />
+
+                  <Border Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="{StaticResource OrangePrimaryBrush}"
+                          BorderThickness="4,0,0,0"
+                          Padding="12"
+                          Margin="0,0,0,8">
+                    <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                               Text="Left rail for emphasized notes" />
+                  </Border>
+
+                  <Border Background="{StaticResource DarkBgBrush}"
+                          BorderBrush="#4E8DD8"
+                          BorderThickness="0,0,0,3"
+                          Padding="12"
+                          Margin="0,0,0,8">
+                    <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                               Text="Bottom divider for a footer region" />
+                  </Border>
+
+                  <Border Background="#18212A"
+                          BorderBrush="#7BA6D4"
+                          BorderThickness="1,1,1,0"
+                          CornerRadius="8,8,0,0"
+                          Padding="12">
+                    <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                               Text="Attached header chrome using top-only rounding" />
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2">
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Composition and child layout" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="Border is a Decorator, so it wraps exactly one child. That child can be any UIElement, including a layout panel with badges, metadata rows, and nested Borders." />
+
+                  <Border Background="#18212A"
+                          BorderBrush="#365574"
+                          BorderThickness="1"
+                          CornerRadius="14"
+                          Padding="16">
+                    <StackPanel>
+                      <WrapPanel Margin="0,0,0,10">
+                        <Border Background="{StaticResource OrangePrimaryBrush}"
+                                BorderBrush="{StaticResource OrangeDarkBrush}"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="10,4"
+                                Margin="0,0,8,8">
+                          <TextBlock Foreground="{StaticResource DarkBgBrush}"
+                                     Text="Pinned" />
+                        </Border>
+
+                        <Border Background="#223245"
+                                BorderBrush="#3F647E"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="10,4"
+                                Margin="0,0,0,8">
+                          <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                     Text="Retained render" />
+                        </Border>
+                      </WrapPanel>
+
+                      <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                 FontSize="16"
+                                 Margin="0,0,0,6"
+                                 Text="Incident summary" />
+
+                      <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Margin="0,0,0,12"
+                                 Text="A single Border can establish the outer frame while nested Borders provide badges, status pills, and attached panels inside the same composition." />
+
+                      <Border Background="{StaticResource DarkBgBrush}"
+                              BorderBrush="{StaticResource DarkBorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="12">
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+
+                          <TextBlock Grid.Column="0"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Text="Preview slot" />
+
+                          <Border Grid.Column="1"
+                                  Background="#193229"
+                                  BorderBrush="#2F8A63"
+                                  BorderThickness="1"
+                                  CornerRadius="10"
+                                  Padding="8,3">
+                            <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="Ready" />
+                          </Border>
+                        </Grid>
+                      </Border>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Live property mutation" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="These buttons mutate Border background, border brush, edge thickness, corner radius, and padding on a single instance. That demonstrates the property set Border actually reacts to at runtime." />
+
+                  <WrapPanel Margin="0,0,0,10">
+                    <Button x:Name="NextChromeButton" Content="Next chrome" Margin="0,0,8,8" />
+                    <Button x:Name="NextShapeButton" Content="Next shape" Margin="0,0,8,8" />
+                    <Button x:Name="NextSpacingButton" Content="Next spacing" Margin="0,0,0,8" />
+                  </WrapPanel>
+
+                  <Border x:Name="PresetBorder"
+                          Background="#18212A"
+                          BorderBrush="#365574"
+                          BorderThickness="1"
+                          CornerRadius="12"
+                          Padding="16">
+                    <StackPanel>
+                      <Border x:Name="PresetBadgeBorder"
+                              HorizontalAlignment="Left"
+                              Background="{StaticResource OrangePrimaryBrush}"
+                              BorderBrush="{StaticResource OrangeDarkBrush}"
+                              BorderThickness="1"
+                              CornerRadius="12"
+                              Padding="10,4"
+                              Margin="0,0,0,10">
+                        <TextBlock x:Name="PresetBadgeText"
+                                   Foreground="{StaticResource DarkBgBrush}"
+                                   Text="Radius 12" />
+                      </Border>
+
+                      <TextBlock x:Name="PresetHeaderText"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 FontSize="16"
+                                 Margin="0,0,0,6"
+                                 Text="Operations card" />
+
+                      <TextBlock x:Name="PresetBodyText"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Text="Padding changes the interior breathing room, while border thickness and radius change the frame without altering the child tree." />
+                    </StackPanel>
+                  </Border>
+
+                  <TextBlock x:Name="PresetStateText"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,10,0,0"
+                             Text="Chrome: Slate panel. Shape: Balanced frame. Spacing: Comfortable." />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14">
+                <StackPanel>
+                  <Label Content="ClipToBounds probe" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="This probe pushes a badge outside the Border frame with a translate transform. Toggle ClipToBounds to compare overflow against the Border layout slot." />
+
+                  <CheckBox x:Name="ClipToBoundsCheckBox"
+                            Content="ClipToBounds = True"
+                            Margin="0,0,0,6" />
+
+                  <TextBlock x:Name="ClipStateText"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="ClipToBounds is false. The badge can render past the frame when no ancestor clip blocks it." />
+
+                  <Border Background="#10161D"
+                          BorderBrush="#334A5C"
+                          BorderThickness="1"
+                          CornerRadius="12"
+                          Padding="12">
+                    <StackPanel>
+                      <TextBlock Foreground="#9BB4D2"
+                                 Margin="0,0,0,8"
+                                 Text="Interactive probe" />
+
+                      <Border x:Name="ClipProbeBorder"
+                              Width="228"
+                              Height="180"
+                              Background="#1B2735"
+                              BorderBrush="#7EA8D4"
+                              BorderThickness="2"
+                              CornerRadius="18"
+                              Padding="16"
+                              Margin="0,0,0,10">
+                        <Grid>
+                          <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                          </Grid.RowDefinitions>
+
+                          <TextBlock Grid.Row="0"
+                                     Foreground="#EDF3FC"
+                                     FontSize="17"
+                                     Margin="0,0,0,6"
+                                     Text="Session summary" />
+
+                          <TextBlock Grid.Row="1"
+                                     Foreground="#C8D6E7"
+                                     TextWrapping="Wrap"
+                                     Margin="0,0,0,12"
+                                     Text="Retained draw list warmed. Dirty regions active. Overflow badge should protrude past the frame when clipping is off." />
+
+                          <Border Grid.Row="2"
+                                  Width="126"
+                                  Height="12"
+                                  Background="#0C1015"
+                                  BorderBrush="#364961"
+                                  BorderThickness="1"
+                                  CornerRadius="6">
+                            <Border Width="82"
+                                    Height="10"
+                                    Background="#55B3DC"
+                                    CornerRadius="5" />
+                          </Border>
+
+                          <Border Grid.Row="0"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Top"
+                                  Width="130"
+                                  Background="#EB8E35"
+                                  BorderBrush="#FFD685"
+                                  BorderThickness="1"
+                                  CornerRadius="16"
+                                  Padding="12,7">
+                            <Border.RenderTransform>
+                              <TranslateTransform X="54" Y="-12" />
+                            </Border.RenderTransform>
+                            <TextBlock Foreground="#221308"
+                                       Text="Overflow badge" />
+                          </Border>
+                        </Grid>
+                      </Border>
+
+                      <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Text="The clip applied by Border is tied to its layout slot, so the probe is useful for spotting where overflow and rounded corners do not imply the same clip geometry." />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </ScrollViewer>
     </Border>
   </Grid>
 </UserControl>

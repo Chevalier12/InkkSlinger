@@ -27,6 +27,21 @@ public sealed class RenderTransformPhase1Tests
         Assert.Equal(new Vector2(0.5f, 0.5f), button.RenderTransformOrigin);
     }
 
+      [Fact]
+      public void LoadFromString_ButtonRenderTransformAttributeString_ThrowsHelpfulError()
+      {
+        const string xaml = """
+                  <Panel>
+                              <Button RenderTransform="translate(12,8)" />
+                  </Panel>
+                  """;
+
+        var ex = Assert.ThrowsAny<InvalidOperationException>(() => XamlLoader.LoadFromString(xaml));
+        var detail = ex.InnerException?.Message ?? ex.Message;
+
+        Assert.Contains("Use WPF-style property-element syntax", detail, StringComparison.Ordinal);
+      }
+
     [Fact]
     public void HitTest_WithTranslateRenderTransform_UsesTranslatedBounds()
     {

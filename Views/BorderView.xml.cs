@@ -8,226 +8,137 @@ public partial class BorderView : UserControl
     private Border? _clipProbeBorder;
     private CheckBox? _clipToBoundsCheckBox;
     private TextBlock? _clipStateText;
+    private Border? _presetBorder;
+    private Border? _presetBadgeBorder;
+    private TextBlock? _presetHeaderText;
+    private TextBlock? _presetBodyText;
+    private TextBlock? _presetBadgeText;
+    private TextBlock? _presetStateText;
+    private int _chromePresetIndex;
+    private int _shapePresetIndex;
+    private int _spacingPresetIndex;
+
+    private static readonly ChromePreset[] ChromePresets =
+    {
+        new("Slate panel", new Color(24, 33, 42), new Color(54, 85, 116), new Color(240, 240, 240), new Color(255, 140, 0), new Color(204, 112, 0), new Color(30, 30, 30)),
+        new("Success capsule", new Color(25, 50, 41), new Color(47, 138, 99), new Color(240, 240, 240), new Color(97, 211, 143), new Color(47, 138, 99), new Color(21, 27, 24)),
+        new("Alert shell", new Color(58, 28, 22), new Color(181, 78, 64), new Color(248, 237, 233), new Color(231, 76, 60), new Color(181, 78, 64), new Color(255, 244, 240))
+    };
+
+    private static readonly ShapePreset[] ShapePresets =
+    {
+        new("Balanced frame", new Thickness(1), new CornerRadius(12f), "Radius 12"),
+        new("Pill cap", new Thickness(2), new CornerRadius(22f, 22f, 8f, 8f), "Cap edge"),
+        new("Accent rail", new Thickness(5f, 1f, 1f, 1f), new CornerRadius(16f, 8f, 16f, 8f), "Left rail")
+    };
+
+    private static readonly SpacingPreset[] SpacingPresets =
+    {
+        new("Compact", new Thickness(8f), "Compact spacing keeps the content dense and lets the chrome read as a tighter utility container."),
+        new("Comfortable", new Thickness(16f, 12f, 16f, 12f), "Balanced spacing is the default card treatment: enough breathing room without making the frame feel oversized."),
+        new("Showcase", new Thickness(24f, 18f, 24f, 18f), "Large padding turns the same Border into a display surface where the frame becomes part of the composition.")
+    };
 
     public BorderView()
     {
         InitializeComponent();
-        if (this.FindName("DemoHost") is ContentControl demoHost)
-        {
-            demoHost.Content = BuildDemoSurface();
-        }
 
+        ResolveNamedParts();
+        WireEvents();
+        ApplyPresetSurface();
         ApplyClipMode();
     }
 
-    private UIElement BuildDemoSurface()
+    private void ResolveNamedParts()
     {
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
-
-        var introCard = new Border
-        {
-            Margin = new Thickness(0, 0, 0, 10),
-            Padding = new Thickness(10),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new Color(63, 90, 118),
-            Background = new Color(18, 26, 37),
-            CornerRadius = new CornerRadius(10f),
-            Child = new TextBlock
-            {
-                Text = "Toggle ClipToBounds to compare Border overflow against rectangular clipping. The orange badge is translated beyond the right and top edges so the change is visible immediately.",
-                TextWrapping = TextWrapping.Wrap,
-                Foreground = new Color(220, 231, 245)
-            }
-        };
-        Grid.SetRow(introCard, 0);
-        root.AddChild(introCard);
-
-        var controlsPanel = new StackPanel
-        {
-            Margin = new Thickness(0, 0, 0, 10)
-        };
-        Grid.SetRow(controlsPanel, 1);
-        root.AddChild(controlsPanel);
-
-        _clipToBoundsCheckBox = new CheckBox
-        {
-            Content = "ClipToBounds = True",
-            IsChecked = false,
-            Margin = new Thickness(0, 0, 0, 6)
-        };
-        _clipToBoundsCheckBox.Checked += HandleClipToggleChanged;
-        _clipToBoundsCheckBox.Unchecked += HandleClipToggleChanged;
-        controlsPanel.AddChild(_clipToBoundsCheckBox);
-
-        _clipStateText = new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = new Color(197, 212, 228)
-        };
-        controlsPanel.AddChild(_clipStateText);
-
-        var previewCard = new Border
-        {
-            Padding = new Thickness(14),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new Color(52, 73, 97),
-            Background = new Color(14, 18, 24),
-            CornerRadius = new CornerRadius(12f)
-        };
-        Grid.SetRow(previewCard, 2);
-        root.AddChild(previewCard);
-
-        previewCard.Child = BuildPreviewSurface();
-        return root;
+        _clipProbeBorder = this.FindName("ClipProbeBorder") as Border;
+        _clipToBoundsCheckBox = this.FindName("ClipToBoundsCheckBox") as CheckBox;
+        _clipStateText = this.FindName("ClipStateText") as TextBlock;
+        _presetBorder = this.FindName("PresetBorder") as Border;
+        _presetBadgeBorder = this.FindName("PresetBadgeBorder") as Border;
+        _presetHeaderText = this.FindName("PresetHeaderText") as TextBlock;
+        _presetBodyText = this.FindName("PresetBodyText") as TextBlock;
+        _presetBadgeText = this.FindName("PresetBadgeText") as TextBlock;
+        _presetStateText = this.FindName("PresetStateText") as TextBlock;
     }
 
-    private UIElement BuildPreviewSurface()
+    private void WireEvents()
     {
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var caption = new TextBlock
+        if (this.FindName("NextChromeButton") is Button nextChromeButton)
         {
-            Text = "Interactive probe",
-            Foreground = new Color(239, 244, 252),
-            FontSize = 16f,
-            Margin = new Thickness(0, 0, 0, 10)
-        };
-        Grid.SetRow(caption, 0);
-        root.AddChild(caption);
+            nextChromeButton.Click += HandleNextChromeClick;
+        }
 
-        var previewHost = new Border
+        if (this.FindName("NextShapeButton") is Button nextShapeButton)
         {
-            Padding = new Thickness(16),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new Color(44, 64, 89),
-            Background = new Color(12, 16, 21),
-            CornerRadius = new CornerRadius(14f)
-        };
-        Grid.SetRow(previewHost, 1);
-        root.AddChild(previewHost);
+            nextShapeButton.Click += HandleNextShapeClick;
+        }
 
-        var stage = new Grid
+        if (this.FindName("NextSpacingButton") is Button nextSpacingButton)
         {
-            MaxWidth = 320f,
-            MinHeight = 210f,
-            Background = new Color(14, 20, 28)
-        };
-        stage.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        stage.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        stage.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        previewHost.Child = stage;
+            nextSpacingButton.Click += HandleNextSpacingClick;
+        }
 
-        var targetLabel = new TextBlock
+        if (_clipToBoundsCheckBox != null)
         {
-            Text = "Target Border",
-            Foreground = new Color(155, 180, 210),
-            Margin = new Thickness(0, 0, 0, 8)
-        };
-        Grid.SetRow(targetLabel, 0);
-        stage.AddChild(targetLabel);
-
-        _clipProbeBorder = new Border
-        {
-            Width = 228f,
-            Height = 180f,
-            Padding = new Thickness(16),
-            BorderThickness = new Thickness(2),
-            BorderBrush = new Color(126, 168, 212),
-            Background = new Color(27, 39, 53),
-            CornerRadius = new CornerRadius(18f),
-            Margin = new Thickness(0, 0, 0, 10)
-        };
-        Grid.SetRow(_clipProbeBorder, 1);
-        stage.AddChild(_clipProbeBorder);
-
-        _clipProbeBorder.Child = BuildProbeContent();
-
-        var footer = new TextBlock
-        {
-            Text = "The badge is intentionally translated beyond the frame. ClipToBounds crops it to the Border layout slot, and that clip is rectangular rather than rounded.",
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = new Color(175, 191, 209)
-        };
-        Grid.SetRow(footer, 2);
-        stage.AddChild(footer);
-
-        return root;
+            _clipToBoundsCheckBox.Checked += HandleClipToggleChanged;
+            _clipToBoundsCheckBox.Unchecked += HandleClipToggleChanged;
+        }
     }
 
-    private static UIElement BuildProbeContent()
+    private void HandleNextChromeClick(object? sender, RoutedSimpleEventArgs args)
     {
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _chromePresetIndex = (_chromePresetIndex + 1) % ChromePresets.Length;
+        ApplyPresetSurface();
+    }
 
-        var title = new TextBlock
-        {
-            Text = "Session summary",
-            Foreground = new Color(237, 243, 252),
-            FontSize = 17f,
-            Margin = new Thickness(0, 0, 0, 6)
-        };
-        Grid.SetRow(title, 0);
-        root.AddChild(title);
+    private void HandleNextShapeClick(object? sender, RoutedSimpleEventArgs args)
+    {
+        _shapePresetIndex = (_shapePresetIndex + 1) % ShapePresets.Length;
+        ApplyPresetSurface();
+    }
 
-        var summary = new TextBlock
-        {
-            Text = "Retained draw list warmed. Dirty regions active. Overflow badge should protrude past the frame when clipping is off.",
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = new Color(200, 214, 231),
-            Margin = new Thickness(0, 0, 0, 12)
-        };
-        Grid.SetRow(summary, 1);
-        root.AddChild(summary);
+    private void HandleNextSpacingClick(object? sender, RoutedSimpleEventArgs args)
+    {
+        _spacingPresetIndex = (_spacingPresetIndex + 1) % SpacingPresets.Length;
+        ApplyPresetSurface();
+    }
 
-        var progressShell = new Border
+    private void ApplyPresetSurface()
+    {
+        if (_presetBorder == null ||
+            _presetBadgeBorder == null ||
+            _presetHeaderText == null ||
+            _presetBodyText == null ||
+            _presetBadgeText == null ||
+            _presetStateText == null)
         {
-            Width = 126f,
-            Height = 12f,
-            Background = new Color(12, 16, 21),
-            CornerRadius = new CornerRadius(6f),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new Color(54, 73, 97),
-            Margin = new Thickness(0, 0, 0, 0)
-        };
-        Grid.SetRow(progressShell, 2);
-        root.AddChild(progressShell);
-        progressShell.Child = new Border
-        {
-            Width = 82f,
-            Height = 10f,
-            Background = new Color(85, 179, 220),
-            CornerRadius = new CornerRadius(5f)
-        };
+            return;
+        }
 
-        var badge = new Border
-        {
-            Width = 130f,
-            Padding = new Thickness(12, 7, 12, 7),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new Color(255, 214, 133),
-            Background = new Color(235, 142, 53),
-            CornerRadius = new CornerRadius(16f),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            RenderTransform = new TranslateTransform { X = 54f, Y = -12f }
-        };
-        Panel.SetZIndex(badge, 4);
-        badge.Child = new TextBlock
-        {
-            Text = "Overflow badge",
-            Foreground = new Color(34, 19, 8)
-        };
-        Grid.SetRow(badge, 0);
-        root.AddChild(badge);
+        var chrome = ChromePresets[_chromePresetIndex];
+        var shape = ShapePresets[_shapePresetIndex];
+        var spacing = SpacingPresets[_spacingPresetIndex];
 
-        return root;
+        _presetBorder.Background = chrome.Background;
+        _presetBorder.BorderBrush = chrome.BorderBrush;
+        _presetBorder.BorderThickness = shape.BorderThickness;
+        _presetBorder.CornerRadius = shape.CornerRadius;
+        _presetBorder.Padding = spacing.Padding;
+
+        _presetBadgeBorder.Background = chrome.BadgeBackground;
+        _presetBadgeBorder.BorderBrush = chrome.BadgeBorderBrush;
+
+        _presetHeaderText.Text = chrome.Name;
+        _presetHeaderText.Foreground = chrome.HeaderForeground;
+
+        _presetBodyText.Text = spacing.Description;
+        _presetBodyText.Foreground = chrome.BodyForeground;
+
+        _presetBadgeText.Text = shape.BadgeText;
+        _presetBadgeText.Foreground = chrome.BadgeForeground;
+
+        _presetStateText.Text = $"Chrome: {chrome.Name}. Shape: {shape.Name} ({FormatThickness(shape.BorderThickness)}, radius {FormatCornerRadius(shape.CornerRadius)}). Spacing: {spacing.Name} ({FormatThickness(spacing.Padding)}).";
     }
 
     private void HandleClipToggleChanged(object? sender, RoutedSimpleEventArgs args)
@@ -250,6 +161,46 @@ public partial class BorderView : UserControl
                 : "ClipToBounds is false. The orange badge can render and receive hits beyond the Border frame when no ancestor clip blocks it.";
         }
     }
+
+    private static string FormatThickness(Thickness thickness)
+    {
+        return $"{FormatNumber(thickness.Left)},{FormatNumber(thickness.Top)},{FormatNumber(thickness.Right)},{FormatNumber(thickness.Bottom)}";
+    }
+
+    private static string FormatCornerRadius(CornerRadius cornerRadius)
+    {
+        return $"{FormatNumber(cornerRadius.TopLeft)},{FormatNumber(cornerRadius.TopRight)},{FormatNumber(cornerRadius.BottomRight)},{FormatNumber(cornerRadius.BottomLeft)}";
+    }
+
+    private static string FormatNumber(float value)
+    {
+        return MathF.Abs(value - MathF.Round(value)) < 0.01f
+            ? MathF.Round(value).ToString("0")
+            : value.ToString("0.##");
+    }
+
+    private readonly record struct ChromePreset(
+        string Name,
+        Color Background,
+        Color BorderBrush,
+        Color HeaderForeground,
+        Color BadgeBackground,
+        Color BadgeBorderBrush,
+        Color BadgeForeground)
+    {
+        public Color BodyForeground => new(208, 216, 226);
+    }
+
+    private readonly record struct ShapePreset(
+        string Name,
+        Thickness BorderThickness,
+        CornerRadius CornerRadius,
+        string BadgeText);
+
+    private readonly record struct SpacingPreset(
+        string Name,
+        Thickness Padding,
+        string Description);
 }
 
 

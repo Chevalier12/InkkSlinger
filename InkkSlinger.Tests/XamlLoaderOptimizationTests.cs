@@ -142,8 +142,11 @@ public sealed class XamlLoaderOptimizationTests
 <Border xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Probe"
         Background="CornflowerBlue"
-        Padding="21,3,4,9"
-        RenderTransform="matrix(1,0,0,1,5,6)" />
+      Padding="21,3,4,9">
+      <Border.RenderTransform>
+    <TranslateTransform X="5" Y="6" />
+      </Border.RenderTransform>
+    </Border>
 """;
 
         for (var i = 0; i < 20; i++)
@@ -152,9 +155,9 @@ public sealed class XamlLoaderOptimizationTests
             AssertBrushColor(new Microsoft.Xna.Framework.Color(100, 149, 237), border.Background);
             Assert.Equal(new Thickness(21f, 3f, 4f, 9f), border.Padding);
 
-            var transform = Assert.IsType<MatrixTransform>(border.RenderTransform);
-            Assert.Equal(5f, transform.Matrix.M41);
-            Assert.Equal(6f, transform.Matrix.M42);
+            var transform = Assert.IsType<TranslateTransform>(border.RenderTransform);
+            Assert.Equal(5f, transform.X);
+            Assert.Equal(6f, transform.Y);
         }
     }
 

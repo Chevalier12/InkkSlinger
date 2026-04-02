@@ -157,7 +157,10 @@ public static partial class XamlLoader
 
         if (targetType == typeof(Transform))
         {
-            return ParseTransform(rawValue);
+            throw CreateXamlException(
+                $"Cannot convert value '{rawValue}' to type '{targetType.Name}'.",
+                code: XamlDiagnosticCode.InvalidValue,
+                hint: "Use WPF-style property-element syntax, for example <Element.RenderTransform><TranslateTransform X=\"54\" Y=\"-12\" /></Element.RenderTransform>." );
         }
 
         if (targetType == typeof(TimeSpan))
@@ -562,79 +565,6 @@ public static partial class XamlLoader
         }
 
         return new GridLength(float.Parse(trimmed, CultureInfo.InvariantCulture), GridUnitType.Pixel);
-    }
-
-
-    private static Transform ParseTransform(string rawValue)
-    {
-        var trimmed = rawValue.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed))
-        {
-            return new MatrixTransform(Matrix.Identity);
-        }
-
-        if (trimmed.StartsWith("translate(", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith(")"))
-        {
-            var args = ParseFloatList(trimmed["translate(".Length..^1]);
-            return new TranslateTransform
-            {
-                X = args.Length > 0 ? args[0] : 0f,
-                Y = args.Length > 1 ? args[1] : 0f
-            };
-        }
-
-        if (trimmed.StartsWith("scale(", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith(")"))
-        {
-            var args = ParseFloatList(trimmed["scale(".Length..^1]);
-            return new ScaleTransform
-            {
-                ScaleX = args.Length > 0 ? args[0] : 1f,
-                ScaleY = args.Length > 1 ? args[1] : (args.Length > 0 ? args[0] : 1f),
-                CenterX = args.Length > 2 ? args[2] : 0f,
-                CenterY = args.Length > 3 ? args[3] : 0f
-            };
-        }
-
-        if (trimmed.StartsWith("rotate(", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith(")"))
-        {
-            var args = ParseFloatList(trimmed["rotate(".Length..^1]);
-            return new RotateTransform
-            {
-                Angle = args.Length > 0 ? args[0] : 0f,
-                CenterX = args.Length > 1 ? args[1] : 0f,
-                CenterY = args.Length > 2 ? args[2] : 0f
-            };
-        }
-
-        if (trimmed.StartsWith("skew(", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith(")"))
-        {
-            var args = ParseFloatList(trimmed["skew(".Length..^1]);
-            return new SkewTransform
-            {
-                AngleX = args.Length > 0 ? args[0] : 0f,
-                AngleY = args.Length > 1 ? args[1] : 0f,
-                CenterX = args.Length > 2 ? args[2] : 0f,
-                CenterY = args.Length > 3 ? args[3] : 0f
-            };
-        }
-
-        if (trimmed.StartsWith("matrix(", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith(")"))
-        {
-            var args = ParseFloatList(trimmed["matrix(".Length..^1]);
-            if (args.Length != 6)
-            {
-                throw CreateXamlException("matrix(...) transform requires 6 values.");
-            }
-
-            var matrix = new Matrix(
-                args[0], args[1], 0f, 0f,
-                args[2], args[3], 0f, 0f,
-                0f, 0f, 1f, 0f,
-                args[4], args[5], 0f, 1f);
-            return new MatrixTransform(matrix);
-        }
-
-        throw CreateXamlException($"Transform value '{rawValue}' is not valid.");
     }
 
 
