@@ -32,20 +32,18 @@ public class RadioButton : ToggleButton
 
     protected override void OnIsCheckedChanged(bool? isChecked)
     {
-        base.OnIsCheckedChanged(isChecked);
-
-        if (isChecked != true)
+        if (isChecked == true)
         {
-            return;
-        }
-
-        foreach (var peer in EnumerateGroupPeers())
-        {
-            if (!ReferenceEquals(peer, this) && peer.IsChecked == true)
+            foreach (var peer in EnumerateGroupPeers())
             {
-                peer.IsChecked = false;
+                if (!ReferenceEquals(peer, this) && peer.IsChecked == true)
+                {
+                    peer.IsChecked = false;
+                }
             }
         }
+
+        base.OnIsCheckedChanged(isChecked);
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)

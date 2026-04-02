@@ -190,7 +190,7 @@
                 <Button Content="Centered"
                         HorizontalAlignment="Center"
                         Margin="0,0,0,6" />
-                <Button Content="Stretched — fills available width"
+                <Button Content="Stretched"
                         HorizontalAlignment="Stretch" />
               </StackPanel>
             </Border>
