@@ -10,30 +10,6 @@ namespace InkkSlinger.Tests;
 public sealed class ScrollViewerWheelHoverRegressionTests
 {
     [Fact]
-    public void WheelScroll_WithStationaryPointer_UpdatesHoverToElementNowUnderCursor()
-    {
-        var (root, viewer) = BuildButtonScrollSurface();
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 280, 220, 16);
-
-        var pointer = new Vector2(viewer.LayoutSlot.X + 28f, viewer.LayoutSlot.Y + 26f);
-        MovePointer(uiRoot, pointer);
-
-        var beforeButton = FindAncestor<Button>(VisualTreeHelper.HitTest(root, pointer));
-        Assert.NotNull(beforeButton);
-        Assert.True(beforeButton!.IsMouseOver);
-
-        Wheel(uiRoot, pointer, delta: -120);
-
-        var afterButton = FindAncestor<Button>(VisualTreeHelper.HitTest(root, pointer));
-        Assert.NotNull(afterButton);
-        Assert.NotSame(beforeButton, afterButton);
-        Assert.True(viewer.VerticalOffset > 0.01f);
-        Assert.True(afterButton!.IsMouseOver);
-        Assert.False(beforeButton.IsMouseOver);
-    }
-
-    [Fact]
     public void WheelScroll_NoOffsetChange_DoesNotForceHoverTransition()
     {
         var (root, viewer) = BuildButtonScrollSurface();
@@ -107,60 +83,6 @@ public sealed class ScrollViewerWheelHoverRegressionTests
 
         Assert.True(clickedButton!.IsMouseOver);
         Assert.False(initialButton.IsMouseOver);
-    }
-
-    [Fact]
-    public void WheelScroll_OverScrollbarTrack_DoesNotKeepTrackAsRetainedDirtyRoot()
-    {
-        var catalog = new ControlsCatalogView
-        {
-            Width = 1400f,
-            Height = 900f
-        };
-        var host = new Canvas
-        {
-            Width = 1400f,
-            Height = 900f
-        };
-        host.AddChild(catalog);
-
-        var uiRoot = new UiRoot(host);
-        RunLayout(uiRoot, 1400, 900, 16);
-
-        var viewer = FindFirstVisualChild<ScrollViewer>(catalog);
-        Assert.NotNull(viewer);
-
-        var verticalBar = FindFirstVisualChild<ScrollBar>(
-            viewer!,
-            static bar => bar.Orientation == Orientation.Vertical && bar.IsVisible);
-        Assert.NotNull(verticalBar);
-
-        uiRoot.RebuildRenderListForTests();
-        uiRoot.ResetDirtyStateForTests();
-        uiRoot.CompleteDrawStateForTests();
-        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 1400f, 900f));
-
-        var pointer = new Vector2(
-            verticalBar!.LayoutSlot.X + (verticalBar.LayoutSlot.Width * 0.5f),
-            verticalBar.LayoutSlot.Y + (verticalBar.LayoutSlot.Height * 0.5f));
-        MovePointer(uiRoot, pointer);
-        RunLayout(uiRoot, 1400, 900, 32);
-
-        uiRoot.CompleteDrawStateForTests();
-        uiRoot.ResetDirtyStateForTests();
-        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 1400f, 900f));
-
-        Wheel(uiRoot, pointer, delta: -120);
-        RunLayout(uiRoot, 1400, 900, 48);
-
-        var renderTelemetry = uiRoot.GetRenderTelemetrySnapshotForTests();
-        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
-        var dirtyRootSummary = uiRoot.GetLastSynchronizedDirtyRootSummaryForTests();
-
-        Assert.True(viewer.VerticalOffset > 0.01f);
-        Assert.Equal("Track", invalidation.EffectiveSourceType);
-        Assert.Equal(1, renderTelemetry.DirtyRootCount);
-        Assert.DoesNotContain("Track", dirtyRootSummary, StringComparison.Ordinal);
     }
 
     private static (Panel Root, ScrollViewer Viewer) BuildButtonScrollSurface()

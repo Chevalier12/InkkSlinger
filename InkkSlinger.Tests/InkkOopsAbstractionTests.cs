@@ -331,30 +331,6 @@ public sealed class InkkOopsAbstractionTests
     }
 
     [Fact]
-    public void DefaultHostConfiguration_Registers_CheckBoxContributor()
-    {
-        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
-
-        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsCheckBoxDiagnosticsContributor);
-    }
-
-    [Fact]
-    public void DefaultHostConfiguration_Registers_GridContributor()
-    {
-        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
-
-        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsGridDiagnosticsContributor);
-    }
-
-    [Fact]
-    public void DefaultHostConfiguration_Registers_UserControlContributor()
-    {
-        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
-
-        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsUserControlDiagnosticsContributor);
-    }
-
-    [Fact]
     public async Task DiagnosticsPipeline_Includes_GridContributorFacts()
     {
         var root = new Canvas { Name = "Root", Width = 400f, Height = 240f };

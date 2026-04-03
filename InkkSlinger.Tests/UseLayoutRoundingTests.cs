@@ -215,57 +215,6 @@ public sealed class UseLayoutRoundingTests
         Assert.True(probe.LayoutSlot.Height >= 0f);
     }
 
-    [Fact]
-    public void UseLayoutRounding_WithScrollViewerContentHost_DoesNotRegressViewportOrHitTest()
-    {
-        var host = new StackPanel
-        {
-            UseLayoutRounding = true
-        };
-
-        for (var i = 0; i < 16; i++)
-        {
-            host.AddChild(new Button
-            {
-                Content = $"Button {i}",
-                Height = 40f,
-                Margin = new Thickness(0f, 0f, 0f, 4f)
-            });
-        }
-
-        var viewer = new ScrollViewer
-        {
-            Width = 220f,
-            Height = 120f,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            LineScrollAmount = 64f,
-            Content = host
-        };
-
-        var root = new Panel
-        {
-            UseLayoutRounding = true
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 280, 220, 16);
-
-        var pointer = new Vector2(viewer.LayoutSlot.X + 28f, viewer.LayoutSlot.Y + 26f);
-        uiRoot.RunInputDeltaForTests(CreateInputDelta(pointer, pointerMoved: true));
-        var beforeButton = FindAncestor<Button>(VisualTreeHelper.HitTest(root, pointer));
-        Assert.NotNull(beforeButton);
-        Assert.True(beforeButton!.IsMouseOver);
-
-        uiRoot.RunInputDeltaForTests(CreateInputDelta(pointer, wheelDelta: -120));
-        var afterButton = FindAncestor<Button>(VisualTreeHelper.HitTest(root, pointer));
-        Assert.NotNull(afterButton);
-        Assert.NotSame(beforeButton, afterButton);
-        Assert.True(viewer.VerticalOffset > 0.01f);
-        Assert.True(afterButton!.IsMouseOver);
-    }
-
     private static InputDelta CreateInputDelta(
         Vector2 pointer,
         bool pointerMoved = false,

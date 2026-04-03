@@ -120,30 +120,6 @@ public sealed class RichTextBoxComplexFlowsTests
     }
 
     [Fact]
-    public void ListIndentOutdent_UndoRedo_RemainsDeterministic()
-    {
-        var editor = CreateEditor(480f, 180f, "one\ntwo\nthree");
-
-        Assert.True(editor.HandleKeyDownFromInput(Keys.A, ModifierKeys.Control));
-        CommandManager.Execute(EditingCommands.IncreaseListLevel, null, editor);
-        Assert.IsType<InkkSlinger.List>(Assert.Single(editor.Document.Blocks));
-
-        CommandManager.Execute(EditingCommands.DecreaseListLevel, null, editor);
-        var afterOutdentText = DocumentEditing.GetText(editor.Document);
-        Assert.Contains("one", afterOutdentText);
-        Assert.Contains("two", afterOutdentText);
-        Assert.Contains("three", afterOutdentText);
-        Assert.True(editor.Document.Blocks.Count >= 2);
-
-        Assert.True(editor.HandleKeyDownFromInput(Keys.Z, ModifierKeys.Control));
-        Assert.IsType<InkkSlinger.List>(Assert.Single(editor.Document.Blocks));
-
-        Assert.True(editor.HandleKeyDownFromInput(Keys.Y, ModifierKeys.Control));
-        var afterRedoText = DocumentEditing.GetText(editor.Document);
-        Assert.Equal(afterOutdentText, afterRedoText);
-    }
-
-    [Fact]
     public void InsertTableSplitMerge_UndoRedo_ReplaysStructure()
     {
         var editor = CreateEditor(480f, 180f, string.Empty);

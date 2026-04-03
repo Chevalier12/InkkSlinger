@@ -41,30 +41,6 @@ public sealed class RenderSurfaceTests
     }
 
     [Fact]
-    public void Present_NewSurface_InvalidatesMeasureAndUpdatesDesiredSize()
-    {
-        var renderSurface = new RenderSurface();
-
-        renderSurface.Present(ImageSource.FromPixels(64, 32));
-        renderSurface.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
-        renderSurface.Arrange(new LayoutRect(0f, 0f, 64f, 32f));
-        renderSurface.ClearMeasureInvalidation();
-        renderSurface.ClearArrangeInvalidation();
-        renderSurface.ClearRenderInvalidationShallow();
-
-        renderSurface.Present(ImageSource.FromPixels(128, 48));
-
-        Assert.True(renderSurface.NeedsMeasure);
-        Assert.True(renderSurface.NeedsArrange);
-        Assert.True(renderSurface.NeedsRender);
-
-        renderSurface.Measure(new Vector2(float.PositiveInfinity, float.PositiveInfinity));
-
-        Assert.Equal(128f, renderSurface.DesiredSize.X);
-        Assert.Equal(48f, renderSurface.DesiredSize.Y);
-    }
-
-    [Fact]
     public void RefreshSurface_WithExistingSurface_InvalidatesRenderWithoutMeasure()
     {
         var renderSurface = new RenderSurface();

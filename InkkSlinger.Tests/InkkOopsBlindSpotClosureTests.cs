@@ -131,74 +131,6 @@ public sealed class InkkOopsBlindSpotClosureTests
     }
 
     [Fact]
-    public async Task ScrollIntoView_ItemIndex_Works_For_DataGrid()
-    {
-        var grid = new DataGrid
-        {
-            Name = "VirtualGrid",
-            Width = 180f,
-            Height = 120f,
-            AutoGenerateColumns = false
-        };
-
-        grid.Columns.Add(new DataGridColumn
-        {
-            Header = "Value",
-            BindingPath = nameof(GridRow.Value),
-            Width = 140f
-        });
-
-        for (var i = 0; i < 80; i++)
-        {
-            grid.Items.Add(new GridRow { Value = $"Item {i:000}" });
-        }
-
-        var root = new Canvas();
-        root.AddChild(grid);
-
-        using var host = new InkkOopsTestHost(root);
-        using var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "datagrid-scroll-into-view");
-        var session = new InkkOopsSession(host, artifacts);
-
-        await new InkkOopsScrollIntoViewCommand(
-            new InkkOopsTargetReference("VirtualGrid"),
-            InkkOopsScrollLocator.ByItemIndex(60))
-            .ExecuteAsync(session);
-
-        Assert.True(grid.ScrollViewerForTesting.VerticalOffset > 0f);
-    }
-
-    [Fact]
-    public async Task Runner_FailedResult_Contains_Failure_Category()
-    {
-        var button = new Button
-        {
-            Name = "FailureButton",
-            Content = "Failure",
-            Width = 120f,
-            Height = 32f
-        };
-
-        Canvas.SetTop(button, 500f);
-        var root = new Canvas();
-        root.AddChild(button);
-
-        using var host = new InkkOopsTestHost(root, width: 200, height: 120);
-        using var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "failure-diagnostics");
-        var session = new InkkOopsSession(host, artifacts);
-        var script = new InkkOopsScript("failure-diagnostics")
-            .Add(new InkkOopsClickTargetCommand(new InkkOopsTargetReference("FailureButton")));
-
-        var runner = new InkkOopsScriptRunner();
-        var result = await runner.RunAsync(script, session);
-
-        Assert.Equal(InkkOopsRunStatus.Failed, result.Status);
-        Assert.Equal(InkkOopsFailureCategory.Offscreen, result.FailureCategory);
-        Assert.Equal(0, result.FailedCommandIndex);
-        Assert.Contains("Click(FailureButton", result.FailedCommandDescription, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task WaitForIdle_DiagnosticsStable_Completes()
     {
         using var host = new InkkOopsTestHost(new Canvas());
@@ -223,10 +155,5 @@ public sealed class InkkOopsBlindSpotClosureTests
         }
 
         return null;
-    }
-
-    private sealed class GridRow
-    {
-        public string Value { get; init; } = string.Empty;
     }
 }

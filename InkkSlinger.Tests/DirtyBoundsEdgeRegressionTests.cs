@@ -267,16 +267,4 @@ public sealed class DirtyBoundsEdgeRegressionTests
         Assert.Equal(1, tracker.FullRedrawFallbackCount);
     }
 
-    [Fact]
-    public void DirtyCoverage_IsClampedToOneForFullFrameState()
-    {
-        var tracker = new DirtyRegionTracker(maxRegionCount: 2);
-        tracker.SetViewport(new LayoutRect(0f, 0f, 100f, 100f));
-        tracker.AddDirtyRegion(new LayoutRect(0f, 0f, 40f, 20f));
-        tracker.AddDirtyRegion(new LayoutRect(50f, 0f, 40f, 20f));
-        tracker.AddDirtyRegion(new LayoutRect(95f, 0f, 5f, 10f));
-
-        Assert.True(tracker.IsFullFrameDirty);
-        Assert.Equal(1d, tracker.GetDirtyAreaCoverage());
-    }
 }

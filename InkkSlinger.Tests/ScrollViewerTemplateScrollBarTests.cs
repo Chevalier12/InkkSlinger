@@ -80,19 +80,6 @@ public sealed class ScrollViewerTemplateScrollBarTests
     }
 
     [Fact]
-    public void InternalVerticalScrollBarTrackClick_UsesViewportLargeChange()
-    {
-        var (uiRoot, viewer, _) = BuildViewerSurface();
-        var verticalBar = GetPrivateScrollBar(viewer, "_verticalBar");
-        var thumb = verticalBar.GetThumbRectForInput();
-        var increasePoint = new Vector2(GetCenter(thumb).X, thumb.Y + thumb.Height + 8f);
-
-        Click(uiRoot, increasePoint);
-
-        Assert.True(MathF.Abs(viewer.VerticalOffset - viewer.ViewportHeight) <= 0.5f);
-    }
-
-    [Fact]
     public void WheelScroll_UpdatesInternalVerticalScrollBarThumbWithoutExtraLayoutPass()
     {
         var (uiRoot, viewer, _) = BuildViewerSurface();

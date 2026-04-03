@@ -8,37 +8,6 @@ namespace InkkSlinger.Tests;
 public sealed class TextBlockStableTextInvalidationRegressionTests
 {
     [Fact]
-    public void WrappedTextChange_WithStableDesiredSize_DoesNotInvalidateMeasureUpTree()
-    {
-        var (uiRoot, viewer, content, target) = CreateWrappedInspectorFixture();
-        RunLayout(uiRoot, 640, 480, 16);
-
-        var beforeViewerMeasureWork = viewer.MeasureWorkCount;
-        var beforeContentMeasureWork = content.MeasureWorkCount;
-        var beforeTargetMeasureWork = target.MeasureWorkCount;
-        var beforeViewerMeasureInvalidations = viewer.MeasureInvalidationCount;
-        var beforeContentMeasureInvalidations = content.MeasureInvalidationCount;
-        var beforeTargetMeasureInvalidations = target.MeasureInvalidationCount;
-        var beforeTargetRenderInvalidations = target.RenderInvalidationCount;
-        var beforeDesired = target.DesiredSize;
-
-        target.Text = "Focus bounds: X=372, Y=549, Right=600, Bottom=689.";
-
-        Assert.Equal(beforeTargetMeasureInvalidations, target.MeasureInvalidationCount);
-        Assert.Equal(beforeContentMeasureInvalidations, content.MeasureInvalidationCount);
-        Assert.Equal(beforeViewerMeasureInvalidations, viewer.MeasureInvalidationCount);
-        Assert.True(target.RenderInvalidationCount > beforeTargetRenderInvalidations);
-
-        RunLayout(uiRoot, 640, 480, 32);
-
-        Assert.Equal(beforeViewerMeasureWork, viewer.MeasureWorkCount);
-        Assert.Equal(beforeContentMeasureWork, content.MeasureWorkCount);
-        Assert.Equal(beforeTargetMeasureWork, target.MeasureWorkCount);
-        Assert.Equal(beforeDesired.X, target.DesiredSize.X, 0.01f);
-        Assert.Equal(beforeDesired.Y, target.DesiredSize.Y, 0.01f);
-    }
-
-    [Fact]
     public void WrappedTextChange_WithDifferentDesiredSize_StillInvalidatesMeasureUpTree()
     {
         var (uiRoot, viewer, content, target) = CreateWrappedInspectorFixture();

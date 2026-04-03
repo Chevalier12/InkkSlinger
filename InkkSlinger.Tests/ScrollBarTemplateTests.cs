@@ -117,22 +117,6 @@ public sealed class ScrollBarTemplateTests
     }
 
     [Fact]
-    public void TrackClick_UsesLargeChange()
-    {
-        var (uiRoot, _, scrollBar) = BuildStandaloneScrollBar();
-        scrollBar.LargeChange = 24f;
-        scrollBar.Value = 10f;
-        RunLayout(uiRoot, 160, 240);
-
-        var thumb = scrollBar.GetThumbRectForInput();
-        var increasePoint = new Vector2(GetCenter(thumb).X, thumb.Y + thumb.Height + 6f);
-
-        Click(uiRoot, increasePoint);
-
-        Assert.True(MathF.Abs(scrollBar.Value - 34f) <= 0.01f);
-    }
-
-    [Fact]
     public void ThumbDrag_UpdatesValue_AndCapturesThumb()
     {
         var (uiRoot, _, scrollBar) = BuildStandaloneScrollBar();

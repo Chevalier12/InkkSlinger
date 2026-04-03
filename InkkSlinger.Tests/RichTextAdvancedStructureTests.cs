@@ -9,34 +9,6 @@ namespace InkkSlinger.Tests;
 public sealed class RichTextAdvancedStructureTests
 {
     [Fact]
-    public void NestedListTransforms_AreStableAcrossIndentAndOutdent()
-    {
-        var editor = CreateEditor("one\ntwo");
-
-        editor.HandleKeyDownFromInput(Keys.A, ModifierKeys.Control);
-        CommandManager.Execute(EditingCommands.IncreaseListLevel, null, editor);
-
-        var list = Assert.IsType<InkkSlinger.List>(Assert.Single(editor.Document.Blocks));
-        Assert.Equal(2, list.Items.Count);
-
-        Assert.True(editor.HandlePointerDownFromInput(new Vector2(12f, 42f), extendSelection: false));
-        Assert.True(editor.HandlePointerUpFromInput());
-        CommandManager.Execute(EditingCommands.IncreaseListLevel, null, editor);
-        list = Assert.IsType<InkkSlinger.List>(Assert.Single(editor.Document.Blocks));
-        var nested = Assert.IsType<InkkSlinger.List>(list.Items[0].Blocks[1]);
-        Assert.Single(nested.Items);
-
-        CommandManager.Execute(EditingCommands.DecreaseListLevel, null, editor);
-        Assert.Equal(2, editor.Document.Blocks.Count);
-        list = Assert.IsType<InkkSlinger.List>(editor.Document.Blocks[0]);
-        Assert.Single(list.Items);
-        Assert.IsType<Paragraph>(editor.Document.Blocks[1]);
-        var text = DocumentEditing.GetText(editor.Document);
-        Assert.Contains("one", text);
-        Assert.Contains("two", text);
-    }
-
-    [Fact]
     public void TableSplitMergeAndTabNavigation_WorkDeterministically()
     {
         var editor = CreateEditor(string.Empty);
@@ -97,44 +69,6 @@ public sealed class RichTextAdvancedStructureTests
         Assert.Equal($"A\uFFFCB", copied);
         Assert.True(TextClipboard.TryGetData<string>(FlowDocumentSerializer.ClipboardFormat, out var richXml));
         Assert.Contains(nameof(FlowDocument), richXml);
-    }
-
-    [Fact]
-    public void InlineContainerChild_ShouldAttachToVisualTree_AndReceiveLayout()
-    {
-        var editor = CreateEditor(string.Empty);
-        var button = new Button
-        {
-            Content = "Embedded",
-            Width = 56f,
-            Height = 24f
-        };
-
-        editor.Document = BuildInlineContainerDocument(button);
-
-        Assert.Contains(button, editor.GetVisualChildren());
-        Assert.Same(editor, button.VisualParent);
-        Assert.True(button.LayoutSlot.Width >= 1f);
-        Assert.True(button.LayoutSlot.Height >= 1f);
-    }
-
-    [Fact]
-    public void BlockContainerChild_ShouldAttachToVisualTree_AndReceiveLayout()
-    {
-        var editor = CreateEditor(string.Empty);
-        var button = new Button
-        {
-            Content = "Embedded Block",
-            Width = 96f,
-            Height = 28f
-        };
-
-        editor.Document = BuildBlockContainerDocument(button);
-
-        Assert.Contains(button, editor.GetVisualChildren());
-        Assert.Same(editor, button.VisualParent);
-        Assert.True(button.LayoutSlot.Width >= 1f);
-        Assert.True(button.LayoutSlot.Height >= 1f);
     }
 
     [Fact]

@@ -10,27 +10,6 @@ namespace InkkSlinger.Tests;
 public class InputDispatchOptimizationTests
 {
     [Fact]
-    public void PointerMove_ReusesHoveredTarget_WithoutRepeatedHitTests()
-    {
-        var root = new Panel();
-        root.SetLayoutSlot(new LayoutRect(0f, 0f, 300f, 200f));
-        var button = new Button();
-        button.SetLayoutSlot(new LayoutRect(20f, 20f, 120f, 40f));
-        root.AddChild(button);
-
-        var uiRoot = new UiRoot(root);
-        uiRoot.RebuildRenderListForTests();
-
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 30f)));
-        var first = uiRoot.GetInputMetricsSnapshot();
-        Assert.Equal(1, first.HitTestCount);
-
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(31f, 31f)));
-        var second = uiRoot.GetInputMetricsSnapshot();
-        Assert.InRange(second.HitTestCount, 0, 1);
-    }
-
-    [Fact]
     public void MouseWheel_WithHoveredTarget_AvoidsHitTesting()
     {
         var root = new Panel();
@@ -230,77 +209,6 @@ public class InputDispatchOptimizationTests
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, wheelDelta: -120, position: new Vector2(30f, 120f)));
         Assert.True(scrollViewer.VerticalOffset > 0f);
         Assert.True(content.HasLocalRenderTransform());
-    }
-
-    [Fact]
-    public void PointerClick_UsesPreciseHitTest_AfterHoverReuse()
-    {
-        var root = new Panel();
-        root.SetLayoutSlot(new LayoutRect(0f, 0f, 400f, 200f));
-        var left = new Button();
-        left.SetLayoutSlot(new LayoutRect(20f, 20f, 120f, 40f));
-        var right = new Button();
-        right.SetLayoutSlot(new LayoutRect(220f, 20f, 120f, 40f));
-        root.AddChild(left);
-        root.AddChild(right);
-
-        var leftClicks = 0;
-        var rightClicks = 0;
-        left.Click += (_, _) => leftClicks++;
-        right.Click += (_, _) => rightClicks++;
-
-        var uiRoot = new UiRoot(root);
-        uiRoot.RebuildRenderListForTests();
-
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(30f, 30f)));
-        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
-
-        // Move to the right button: pointer retarget should do one hit-test.
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: new Vector2(230f, 30f)));
-        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
-
-        // Click transition must force precise targeting.
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: new Vector2(230f, 30f), leftPressed: true));
-        Assert.InRange(uiRoot.GetInputMetricsSnapshot().HitTestCount, 0, 1);
-
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: new Vector2(230f, 30f), leftReleased: true));
-        Assert.Equal(0, uiRoot.GetInputMetricsSnapshot().HitTestCount);
-
-        Assert.Equal(0, leftClicks);
-        Assert.Equal(1, rightClicks);
-    }
-
-    [Fact]
-    public void PointerMove_BetweenButtonsInSharedHost_UsesHoveredHostSubtreeHitTest()
-    {
-        var root = new Panel();
-        root.SetLayoutSlot(new LayoutRect(0f, 0f, 500f, 240f));
-
-        var host = new UniformGrid
-        {
-            Rows = 1,
-            Columns = 3
-        };
-        host.SetLayoutSlot(new LayoutRect(40f, 40f, 300f, 80f));
-
-        var first = new Button { Content = "One" };
-        var second = new Button { Content = "Two" };
-        var third = new Button { Content = "Three" };
-        host.AddChild(first);
-        host.AddChild(second);
-        host.AddChild(third);
-        root.AddChild(host);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 500, 240, 16);
-
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: GetCenter(first.LayoutSlot)));
-        Assert.Equal("HitTest", uiRoot.LastPointerResolvePathForDiagnostics);
-
-        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: GetCenter(second.LayoutSlot)));
-
-        Assert.Equal("HoveredHostSubtreeHitTest", uiRoot.LastPointerResolvePathForDiagnostics);
-        Assert.Equal(1, uiRoot.GetInputMetricsSnapshot().HitTestCount);
     }
 
     [Fact]

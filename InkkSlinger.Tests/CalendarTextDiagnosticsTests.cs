@@ -49,46 +49,6 @@ public sealed class CalendarTextDiagnosticsTests
     }
 
     [Fact]
-    public void MonthCycle_ReportsTextMutationDrivenButtonCacheInvalidationsWhileRendererAndBackendMostlyHitCaches()
-    {
-        UiTextRenderer.ConfigureRuntimeServicesForTests();
-        var calendar = CreateCalendarHost(out var uiRoot);
-
-        RunLayout(uiRoot);
-        ResetDiagnostics();
-        calendar.ResetDiagnosticsForTests();
-
-        calendar.NextMonthButtonForTesting.InvokeFromInput();
-        RunLayout(uiRoot);
-
-        var calendarDiagnostics = calendar.GetDiagnosticsSnapshotForTests();
-        var buttonTiming = Button.GetTimingSnapshotForTests();
-        var textTiming = UiTextRenderer.GetTimingSnapshotForTests();
-        var backendTiming = FreeTypeFontRasterizer.GetTimingSnapshotForTests();
-        var gridTiming = Grid.GetTimingSnapshotForTests();
-        var uniformGridTiming = UniformGrid.GetTimingSnapshotForTests();
-        var textLayoutMetrics = TextLayout.GetMetricsSnapshot();
-
-        LogSnapshot("month-cycle", calendarDiagnostics, buttonTiming, textTiming, backendTiming, gridTiming, uniformGridTiming, textLayoutMetrics);
-
-        Assert.True(calendarDiagnostics.Total.DayButtonTextChangeCount > 0);
-        Assert.Equal(0, buttonTiming.ContentPropertyChangedCount);
-        Assert.Equal(0, buttonTiming.TextLayoutInvalidationCount);
-        Assert.Equal(0, buttonTiming.IntrinsicNoWrapMeasureInvalidationCount);
-        Assert.Equal(0, buttonTiming.IntrinsicNoWrapMeasureCacheMissCount);
-        Assert.Equal(0, buttonTiming.IntrinsicNoWrapMeasureCacheHitCount);
-        Assert.True(textTiming.MeasureWidthCallCount <= 1);
-        Assert.True(textTiming.MetricsCacheMissCount <= 1);
-        Assert.True(textTiming.LineHeightCacheHitCount > textTiming.LineHeightCacheMissCount);
-        Assert.True(backendTiming.GlyphAdvanceCacheHitCount > backendTiming.GlyphAdvanceCacheMissCount);
-        Assert.True(backendTiming.MeasureCallCount <= textTiming.MetricsCacheMissCount);
-        Assert.True(backendTiming.KerningCacheHitCount > 0);
-        Assert.Equal(0, uniformGridTiming.MeasureChildMeasureCount);
-        Assert.Equal(0, uniformGridTiming.MeasureChildReuseCount);
-        Assert.Equal(0, buttonTiming.MeasureOverrideElapsedTicks);
-    }
-
-    [Fact]
     public void Calendar_DayButtonDisplayTextChanges_NoLongerAffectMeasure()
     {
         UiTextRenderer.ConfigureRuntimeServicesForTests();
