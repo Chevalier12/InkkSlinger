@@ -29,13 +29,12 @@ public class Game1 : Game
     private WindowThemeBinding? _windowThemeBinding;
     private bool _shouldDrawUiThisFrame = true;
     private int _fpsFrameCount;
-    private double _fpsElapsedSeconds;
+    private long _fpsWindowStartTimestamp;
     private string _displayedFps = "0.0";
     private readonly List<CalendarHoverRuntimeFrame> _calendarHoverFrames = new(MaxCalendarHoverDiagnosticsFrames);
     private bool _calendarHoverDiagnosticsSessionStarted;
     private long _lastCalendarHoverFrameTimestamp;
     private RichTextBoxTypingDiagnosticsSession? _richTextBoxTypingDiagnostics;
-    private ControlsCatalogSidebarScrollRuntimeDiagnosticsSession? _sidebarScrollRuntimeDiagnostics;
     private InkkOopsGameHost? _inkkOopsHost;
     private InkkOopsRuntimeService? _inkkOopsRuntimeService;
 
@@ -82,7 +81,6 @@ public class Game1 : Game
             UseSoftwareCursor = false
         };
         _richTextBoxTypingDiagnostics = RichTextBoxTypingDiagnosticsSession.TryCreate();
-        _sidebarScrollRuntimeDiagnostics = ControlsCatalogSidebarScrollRuntimeDiagnosticsSession.CreateDefault();
         _inkkOopsHost = new InkkOopsGameHost(
             _uiRoot,
             _window,
@@ -147,7 +145,7 @@ public class Game1 : Game
             }
         }
 
-        UpdateWindowTitleWithFps(gameTime);
+        UpdateWindowTitleWithFps();
 
         base.Update(gameTime);
     }
@@ -166,6 +164,7 @@ public class Game1 : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        UpdateDisplayedFpsFromDrawCadence();
         var viewport = EnsureViewportMatchesBackBuffer();
         var targetRecreated = EnsureUiCompositeTarget(viewport);
         var shouldDrawUiThisFrame = ShouldDrawUiOnCurrentFrame(_shouldDrawUiThisFrame, targetRecreated);
@@ -187,7 +186,6 @@ public class Game1 : Game
                 EnsureCalendarHoverDiagnosticsSessionStarted();
             }
 
-            _sidebarScrollRuntimeDiagnostics?.TryCaptureBeforeDraw(gameTime, _uiRoot, _catalogView);
             GraphicsDevice.SetRenderTarget(_uiCompositeTarget);
             _uiRoot.Draw(_spriteBatch, gameTime);
             GraphicsDevice.SetRenderTarget(null);
@@ -198,7 +196,6 @@ public class Game1 : Game
             }
 
             _richTextBoxTypingDiagnostics?.TryCaptureAfterDraw(gameTime, _uiRoot, _catalogView);
-            _sidebarScrollRuntimeDiagnostics?.TryCaptureAfterDraw(gameTime, _uiRoot, _catalogView);
             _inkkOopsRuntimeService?.AfterDraw();
         }
 
@@ -250,8 +247,6 @@ public class Game1 : Game
         _windowThemeBinding = null;
         _richTextBoxTypingDiagnostics?.Dispose();
         _richTextBoxTypingDiagnostics = null;
-        _sidebarScrollRuntimeDiagnostics?.Dispose();
-        _sidebarScrollRuntimeDiagnostics = null;
         _inkkOopsRuntimeService?.Dispose();
         _inkkOopsRuntimeService = null;
         _inkkOopsHost = null;
@@ -340,19 +335,28 @@ public class Game1 : Game
         return viewport;
     }
 
-    private void UpdateWindowTitleWithFps(GameTime gameTime)
+    private void UpdateWindowTitleWithFps()
     {
+        var hoveredElement = DescribeElementForWindowTitle(_uiRoot.GetHoveredElementForDiagnostics());
+        _window.Title = BuildWindowTitle(BaseWindowTitle, _displayedFps, hoveredElement);
+    }
+
+    private void UpdateDisplayedFpsFromDrawCadence()
+    {
+        var now = Stopwatch.GetTimestamp();
+        if (_fpsWindowStartTimestamp == 0)
+        {
+            _fpsWindowStartTimestamp = now;
+        }
+
         _fpsFrameCount++;
-        _fpsElapsedSeconds += gameTime.ElapsedGameTime.TotalSeconds;
-        if (TryComputeDisplayedFps(_fpsFrameCount, _fpsElapsedSeconds, out var displayedFps))
+        var elapsedSeconds = (double)(now - _fpsWindowStartTimestamp) / Stopwatch.Frequency;
+        if (TryComputeDisplayedFps(_fpsFrameCount, elapsedSeconds, out var displayedFps))
         {
             _displayedFps = displayedFps;
             _fpsFrameCount = 0;
-            _fpsElapsedSeconds = 0d;
+            _fpsWindowStartTimestamp = now;
         }
-
-        var hoveredElement = DescribeElementForWindowTitle(_uiRoot.GetHoveredElementForDiagnostics());
-        _window.Title = BuildWindowTitle(BaseWindowTitle, _displayedFps, hoveredElement);
     }
 
     internal static string DescribeElementForWindowTitle(UIElement? element)
@@ -1040,218 +1044,4 @@ public class Game1 : Game
             TextLayoutMetricsSnapshot TextLayoutBefore);
     }
 
-    private sealed class ControlsCatalogSidebarScrollRuntimeDiagnosticsSession : IDisposable
-    {
-        private const string DefaultLogRelativePath = "artifacts/diagnostics/controls-catalog-sidebar-scroll-manual-runtime-hotspot.txt";
-        private const int MaxLoggedFrames = 2400;
-        private const double LoggedFrameFpsThreshold = 45d;
-        private readonly string _logPath;
-        private readonly StreamWriter _writer;
-        private int _frameIndex;
-        private int _loggedFrameCount;
-        private long _lastFrameTimestamp;
-        private PendingSidebarDrawSample? _pendingSample;
-
-        private ControlsCatalogSidebarScrollRuntimeDiagnosticsSession(string logPath)
-        {
-            _logPath = Path.GetFullPath(logPath);
-            Directory.CreateDirectory(Path.GetDirectoryName(_logPath)!);
-            _writer = new StreamWriter(_logPath, append: false, Encoding.UTF8)
-            {
-                AutoFlush = true
-            };
-
-            _writer.WriteLine("scenario=Controls Catalog sidebar scroll live runtime draw diagnostics");
-            _writer.WriteLine($"timestamp_utc={DateTime.UtcNow:O}");
-            _writer.WriteLine($"log_path={_logPath}");
-            _writer.WriteLine("step_1=open the app");
-            _writer.WriteLine("step_2=open Controls Catalog");
-            _writer.WriteLine("step_3=hover the sidebar vertical scrollbar");
-            _writer.WriteLine("step_4=scroll in the sidebar with and without ProgressBar view open");
-            _writer.WriteLine("step_5=close the app and inspect this log");
-            _writer.WriteLine($"logging_filter=only frames with fps < {LoggedFrameFpsThreshold:0.###}");
-            _writer.WriteLine();
-            _writer.WriteLine("frames:");
-        }
-
-        public static ControlsCatalogSidebarScrollRuntimeDiagnosticsSession CreateDefault()
-        {
-            return new ControlsCatalogSidebarScrollRuntimeDiagnosticsSession(
-                Path.Combine(Environment.CurrentDirectory, DefaultLogRelativePath));
-        }
-
-        public void TryCaptureBeforeDraw(GameTime gameTime, UiRoot uiRoot, ControlsCatalogView? catalogView)
-        {
-            if (_frameIndex >= MaxLoggedFrames ||
-                catalogView == null)
-            {
-                _pendingSample = null;
-                return;
-            }
-
-            var hovered = uiRoot.GetHoveredElementForDiagnostics();
-            var pointer = uiRoot.GetLastPointerPositionForDiagnostics();
-            var hoveredPath = BuildTypePath(hovered);
-            var selectedControl = catalogView.SelectedControlName;
-            var sidebarScrollViewer = FindSidebarScrollViewer(catalogView);
-            var hoveredScrollBar = FindAncestorOrSelf<ScrollBar>(hovered);
-            var isHoveredSidebarVerticalScrollBar =
-                hoveredScrollBar != null &&
-                hoveredScrollBar.Orientation == Orientation.Vertical &&
-                sidebarScrollViewer != null &&
-                IsDescendantOf(hoveredScrollBar, sidebarScrollViewer);
-
-            _pendingSample = new PendingSidebarDrawSample(
-                _frameIndex++,
-                gameTime.ElapsedGameTime.TotalMilliseconds,
-                selectedControl,
-                hovered?.GetType().Name ?? "null",
-                hoveredPath,
-                pointer,
-                isHoveredSidebarVerticalScrollBar,
-                uiRoot.GetPerformanceTelemetrySnapshotForTests(),
-                uiRoot.GetRenderTelemetrySnapshotForTests(),
-                UiTextRenderer.GetTimingSnapshotForTests(),
-                UIElement.GetRenderTimingSnapshotForTests(),
-                Button.GetTimingSnapshotForTests(),
-                TextLayout.GetMetricsSnapshot());
-        }
-
-        public void TryCaptureAfterDraw(GameTime gameTime, UiRoot uiRoot, ControlsCatalogView? catalogView)
-        {
-            if (_pendingSample == null || catalogView == null)
-            {
-                ScrollViewer.GetTelemetryAndReset();
-                return;
-            }
-
-            var pending = _pendingSample.Value;
-            _pendingSample = null;
-
-            var scroll = ScrollViewer.GetTelemetryAndReset();
-            var now = Stopwatch.GetTimestamp();
-            var hasPreviousFrame = _lastFrameTimestamp != 0;
-            var fps = !hasPreviousFrame
-                ? 0d
-                : (double)Stopwatch.Frequency / Math.Max(1L, now - _lastFrameTimestamp);
-            _lastFrameTimestamp = now;
-
-            if (!hasPreviousFrame || fps >= LoggedFrameFpsThreshold)
-            {
-                return;
-            }
-
-            var perf = uiRoot.GetPerformanceTelemetrySnapshotForTests();
-            var render = uiRoot.GetRenderTelemetrySnapshotForTests();
-            var text = UiTextRenderer.GetTimingSnapshotForTests();
-            var elementRender = UIElement.GetRenderTimingSnapshotForTests();
-            var button = Button.GetTimingSnapshotForTests();
-            var textLayout = TextLayout.GetMetricsSnapshot();
-            var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
-            var freezableBatch = UIElement.GetFreezableInvalidationBatchSnapshotForTests();
-            var dirtyQueueSummary = uiRoot.GetDirtyRenderQueueSummaryForTests();
-            var syncedDirtyRootsSummary = uiRoot.GetLastSynchronizedDirtyRootSummaryForTests();
-            var dirtyRegionSummary = uiRoot.GetDirtyRegionSummaryForTests();
-            var textDrawMs = TicksToMilliseconds(text.DrawStringElapsedTicks - pending.TextBefore.DrawStringElapsedTicks);
-            var textMeasureMs = TicksToMilliseconds(text.MeasureWidthElapsedTicks - pending.TextBefore.MeasureWidthElapsedTicks);
-            var lineHeightMs = TicksToMilliseconds(text.GetLineHeightElapsedTicks - pending.TextBefore.GetLineHeightElapsedTicks);
-            var textLayoutMs = TicksToMilliseconds(textLayout.LayoutElapsedTicks - pending.TextLayoutBefore.LayoutElapsedTicks);
-            var textLayoutBuildMs = TicksToMilliseconds(textLayout.BuildElapsedTicks - pending.TextLayoutBefore.BuildElapsedTicks);
-            var uiElementRenderMs = TicksToMilliseconds(elementRender.RenderSelfElapsedTicks - pending.ElementRenderBefore.RenderSelfElapsedTicks);
-            var buttonRenderMs = TicksToMilliseconds(button.RenderElapsedTicks - pending.ButtonBefore.RenderElapsedTicks);
-            var buttonChromeMs = TicksToMilliseconds(button.RenderChromeElapsedTicks - pending.ButtonBefore.RenderChromeElapsedTicks);
-            var buttonTextPrepMs = TicksToMilliseconds(button.RenderTextPreparationElapsedTicks - pending.ButtonBefore.RenderTextPreparationElapsedTicks);
-            var buttonTextDrawMs = TicksToMilliseconds(button.RenderTextDrawDispatchElapsedTicks - pending.ButtonBefore.RenderTextDrawDispatchElapsedTicks);
-            var drawAccountedMs =
-                render.DrawClearMilliseconds +
-                render.DrawInitialBatchBeginMilliseconds +
-                render.DrawVisualTreeMilliseconds +
-                render.DrawCursorMilliseconds +
-                render.SpriteBatchRestartMilliseconds +
-                render.DrawFinalBatchEndMilliseconds +
-                render.DrawCleanupMilliseconds;
-            var drawUnaccountedMs = Math.Max(0d, uiRoot.LastDrawMs - drawAccountedMs);
-
-            var previewRoot = catalogView.FindName("PreviewHost") as ContentControl;
-            var previewType = (previewRoot?.Content as UIElement)?.GetType().Name ?? "null";
-
-            _loggedFrameCount++;
-            _writer.WriteLine(
-                $"frame={pending.FrameIndex:0000} selected={pending.SelectedControlName} preview={previewType} fps={fps:0.###} drawMs={uiRoot.LastDrawMs:0.###} updateMs={uiRoot.LastUpdateMs:0.###} gameElapsedMs={gameTime.ElapsedGameTime.TotalMilliseconds:0.###} " +
-                $"pointer=({pending.PointerPosition.X:0.#},{pending.PointerPosition.Y:0.#}) hovered={pending.HoveredType} hoveredPath={pending.HoveredPath} hoveredSidebarVBar={pending.HoveredSidebarVerticalScrollBar} " +
-                $"wheelEvents={scroll.WheelEvents} wheelHandled={scroll.WheelHandled} setOffsetCalls={scroll.SetOffsetCalls} setOffsetNoOps={scroll.SetOffsetNoOpCalls} verticalDelta={scroll.TotalVerticalDelta:0.###} " +
-                $"inputMs={perf.InputPhaseMilliseconds:0.###} layoutMs={perf.LayoutPhaseMilliseconds:0.###} animationMs={perf.AnimationPhaseMilliseconds:0.###} renderScheduleMs={perf.RenderSchedulingPhaseMilliseconds:0.###} frameParticipants={perf.FrameUpdateParticipantCount} frameParticipantMs={perf.FrameUpdateParticipantUpdateMilliseconds:0.###} hottestParticipant={perf.HottestFrameUpdateParticipantType}:{perf.HottestFrameUpdateParticipantMilliseconds:0.###} " +
-                $"dirtyRoots={render.DirtyRootCount} dirtyFallbacks={render.DirtyRegionThresholdFallbackCount} spriteBatchRestarts={render.SpriteBatchRestartCount} spriteBatchRestartMs={render.SpriteBatchRestartMilliseconds:0.###} clipPushes={render.ClipPushCount} retainedVisited={render.RetainedNodesVisited} retainedDrawn={render.RetainedNodesDrawn} retainedTraversals={render.RetainedTraversalCount} dirtyTraversals={render.DirtyRegionTraversalCount} " +
-                $"dirtyQueue={dirtyQueueSummary} syncedDirtyRoots={syncedDirtyRootsSummary} dirtyRegions={dirtyRegionSummary} freezableFlushTargets={freezableBatch.LastFlushTargetSummary} " +
-                $"drawClearMs={render.DrawClearMilliseconds:0.###} drawBeginMs={render.DrawInitialBatchBeginMilliseconds:0.###} drawVisualTreeMs={render.DrawVisualTreeMilliseconds:0.###} drawCursorMs={render.DrawCursorMilliseconds:0.###} drawEndMs={render.DrawFinalBatchEndMilliseconds:0.###} drawCleanupMs={render.DrawCleanupMilliseconds:0.###} drawAccountedMs={drawAccountedMs:0.###} drawUnaccountedMs={drawUnaccountedMs:0.###} " +
-                $"effectiveRenderSource={invalidation.EffectiveSourceType}#{invalidation.EffectiveSourceName} dirtyBoundsVisual={invalidation.DirtyBoundsVisualType}#{invalidation.DirtyBoundsVisualName} dirtyBoundsHint={invalidation.DirtyBoundsUsedHint} " +
-                $"textDrawMs={textDrawMs:0.###} textDrawCalls={text.DrawStringCallCount - pending.TextBefore.DrawStringCallCount} textMeasureMs={textMeasureMs:0.###} textMeasureCalls={text.MeasureWidthCallCount - pending.TextBefore.MeasureWidthCallCount} lineHeightMs={lineHeightMs:0.###} lineHeightCalls={text.GetLineHeightCallCount - pending.TextBefore.GetLineHeightCallCount} " +
-                $"textLayoutMs={textLayoutMs:0.###} textLayoutBuildMs={textLayoutBuildMs:0.###} textLayoutBuilds={textLayout.BuildCount - pending.TextLayoutBefore.BuildCount} textLayoutMisses={textLayout.CacheMissCount - pending.TextLayoutBefore.CacheMissCount} " +
-                $"uiElementRenderMs={uiElementRenderMs:0.###} uiElementRenderCalls={elementRender.RenderSelfCallCount - pending.ElementRenderBefore.RenderSelfCallCount} hottestUiElement={elementRender.HottestRenderSelfType}({elementRender.HottestRenderSelfName}):{elementRender.HottestRenderSelfMilliseconds:0.###} hottestUiElementTypes={elementRender.HottestRenderSelfTypeSummary} " +
-                $"buttonRenderMs={buttonRenderMs:0.###} buttonChromeMs={buttonChromeMs:0.###} buttonTextPrepMs={buttonTextPrepMs:0.###} buttonTextDrawMs={buttonTextDrawMs:0.###} buttonTextPrepCalls={button.RenderTextPreparationCallCount - pending.ButtonBefore.RenderTextPreparationCallCount} buttonTextDrawCalls={button.RenderTextDrawDispatchCallCount - pending.ButtonBefore.RenderTextDrawDispatchCallCount} " +
-                $"textHotDraw={text.HottestDrawStringText}|{text.HottestDrawStringTypography}:{text.HottestDrawStringMilliseconds:0.###} textHotMeasure={text.HottestMeasureWidthText}|{text.HottestMeasureWidthTypography}:{text.HottestMeasureWidthMilliseconds:0.###}");
-        }
-
-        public void Dispose()
-        {
-            _writer.WriteLine();
-            _writer.WriteLine($"logged_low_fps_frames={_loggedFrameCount}");
-            _writer.Dispose();
-        }
-
-        private readonly record struct PendingSidebarDrawSample(
-            int FrameIndex,
-            double GameElapsedMilliseconds,
-            string SelectedControlName,
-            string HoveredType,
-            string HoveredPath,
-            Vector2 PointerPosition,
-            bool HoveredSidebarVerticalScrollBar,
-            UiRootPerformanceTelemetrySnapshot PerfBefore,
-            UiRenderTelemetrySnapshot RenderBefore,
-            UiTextRendererTimingSnapshot TextBefore,
-            UIElementRenderTimingSnapshot ElementRenderBefore,
-            ButtonTimingSnapshot ButtonBefore,
-            TextLayoutMetricsSnapshot TextLayoutBefore);
-    }
-
-    private static ScrollViewer? FindSidebarScrollViewer(ControlsCatalogView catalog)
-    {
-        return FindFirstVisualChild<ScrollViewer>(catalog, viewer =>
-            viewer.Content is StackPanel host &&
-            string.Equals(host.Name, "ControlButtonsHost", StringComparison.Ordinal));
-    }
-
-    private static TElement? FindFirstVisualChild<TElement>(UIElement root, Func<TElement, bool> predicate)
-        where TElement : UIElement
-    {
-        if (root is TElement match && predicate(match))
-        {
-            return match;
-        }
-
-        foreach (var child in root.GetVisualChildren())
-        {
-            var found = FindFirstVisualChild(child, predicate);
-            if (found != null)
-            {
-                return found;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsDescendantOf(UIElement element, UIElement ancestor)
-    {
-        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
-        {
-            if (ReferenceEquals(current, ancestor))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }
