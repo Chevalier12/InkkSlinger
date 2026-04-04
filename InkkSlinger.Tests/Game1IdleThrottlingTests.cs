@@ -79,7 +79,25 @@ public sealed class Game1IdleThrottlingTests
             "60.0",
             "Button#HoverTarget");
 
-        Assert.Equal("InkkSlinger Controls Catalog | FPS: 60.0 | Hovered: Button#HoverTarget", title);
+        Assert.Equal("InkkSlinger Controls Catalog | App FPS: 60.0 | Hovered: Button#HoverTarget", title);
+    }
+
+    [Fact]
+    public void WindowTitleParser_ExtractsAppFpsFromCurrentTitleFormat()
+    {
+        var displayedFps = Game1.ExtractDisplayedFpsFromWindowTitle(
+            "InkkSlinger Controls Catalog | App FPS: 60.0 | Hovered: Button#HoverTarget");
+
+        Assert.Equal("60.0", displayedFps);
+    }
+
+    [Fact]
+    public void WindowTitleParser_ExtractsAppFpsFromLegacyTitleFormat()
+    {
+        var displayedFps = Game1.ExtractDisplayedFpsFromWindowTitle(
+            "InkkSlinger Controls Catalog | FPS: 60.0 | Hovered: Button#HoverTarget");
+
+        Assert.Equal("60.0", displayedFps);
     }
 
     [Fact]

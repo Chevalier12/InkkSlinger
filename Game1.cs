@@ -28,9 +28,9 @@ public class Game1 : Game
     private ControlsCatalogView? _catalogView;
     private WindowThemeBinding? _windowThemeBinding;
     private bool _shouldDrawUiThisFrame = true;
-    private int _fpsFrameCount;
-    private long _fpsWindowStartTimestamp;
-    private string _displayedFps = "0.0";
+    private int _appFrameCount;
+    private long _appFpsWindowStartTimestamp;
+    private string _displayedAppFps = "0.0";
     private readonly List<CalendarHoverRuntimeFrame> _calendarHoverFrames = new(MaxCalendarHoverDiagnosticsFrames);
     private bool _calendarHoverDiagnosticsSessionStarted;
     private long _lastCalendarHoverFrameTimestamp;
@@ -53,7 +53,7 @@ public class Game1 : Game
         _window.IsMouseVisible = true;
         _window.AllowUserResizing = true;
         _window.SetClientSize(1280, 820);
-        _window.Title = BuildWindowTitle(BaseWindowTitle, _displayedFps, "null");
+        _window.Title = BuildWindowTitle(BaseWindowTitle, _displayedAppFps, "null");
     }
 
     protected override void Initialize()
@@ -145,6 +145,7 @@ public class Game1 : Game
             }
         }
 
+        UpdateDisplayedFpsFromAppCadence();
         UpdateWindowTitleWithFps();
 
         base.Update(gameTime);
@@ -164,7 +165,6 @@ public class Game1 : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        UpdateDisplayedFpsFromDrawCadence();
         var viewport = EnsureViewportMatchesBackBuffer();
         var targetRecreated = EnsureUiCompositeTarget(viewport);
         var shouldDrawUiThisFrame = ShouldDrawUiOnCurrentFrame(_shouldDrawUiThisFrame, targetRecreated);
@@ -236,7 +236,7 @@ public class Game1 : Game
 
     internal static string BuildWindowTitle(string baseTitle, string displayedFps, string hoveredElement)
     {
-        return $"{baseTitle} | FPS: {displayedFps} | Hovered: {hoveredElement}";
+        return $"{baseTitle} | App FPS: {displayedFps} | Hovered: {hoveredElement}";
     }
 
     internal static string ExtractDisplayedFpsFromWindowTitle(string title)
@@ -246,9 +246,17 @@ public class Game1 : Game
             return "0.0";
         }
 
-        const string fpsMarker = " | FPS: ";
+        const string appFpsMarker = " | App FPS: ";
+        const string legacyFpsMarker = " | FPS: ";
         const string hoveredMarker = " | Hovered: ";
+        var fpsMarker = appFpsMarker;
         var fpsStart = title.IndexOf(fpsMarker, StringComparison.Ordinal);
+        if (fpsStart < 0)
+        {
+            fpsMarker = legacyFpsMarker;
+            fpsStart = title.IndexOf(fpsMarker, StringComparison.Ordinal);
+        }
+
         if (fpsStart < 0)
         {
             return "0.0";
@@ -364,24 +372,24 @@ public class Game1 : Game
     private void UpdateWindowTitleWithFps()
     {
         var hoveredElement = DescribeElementForWindowTitle(_uiRoot.GetHoveredElementForDiagnostics());
-        _window.Title = BuildWindowTitle(BaseWindowTitle, _displayedFps, hoveredElement);
+        _window.Title = BuildWindowTitle(BaseWindowTitle, _displayedAppFps, hoveredElement);
     }
 
-    private void UpdateDisplayedFpsFromDrawCadence()
+    private void UpdateDisplayedFpsFromAppCadence()
     {
         var now = Stopwatch.GetTimestamp();
-        if (_fpsWindowStartTimestamp == 0)
+        if (_appFpsWindowStartTimestamp == 0)
         {
-            _fpsWindowStartTimestamp = now;
+            _appFpsWindowStartTimestamp = now;
         }
 
-        _fpsFrameCount++;
-        var elapsedSeconds = (double)(now - _fpsWindowStartTimestamp) / Stopwatch.Frequency;
-        if (TryComputeDisplayedFps(_fpsFrameCount, elapsedSeconds, out var displayedFps))
+        _appFrameCount++;
+        var elapsedSeconds = (double)(now - _appFpsWindowStartTimestamp) / Stopwatch.Frequency;
+        if (TryComputeDisplayedFps(_appFrameCount, elapsedSeconds, out var displayedFps))
         {
-            _displayedFps = displayedFps;
-            _fpsFrameCount = 0;
-            _fpsWindowStartTimestamp = now;
+            _displayedAppFps = displayedFps;
+            _appFrameCount = 0;
+            _appFpsWindowStartTimestamp = now;
         }
     }
 
