@@ -17,13 +17,660 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <Border Grid.Row="0" Background="{StaticResource DarkElevatedBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
-      <Label Content="Control Demo: Slider" Foreground="{StaticResource TextPrimaryBrush}" />
+    <Border Grid.Row="0"
+            Background="{StaticResource DarkElevatedBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14"
+            Margin="0,0,0,10">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+          <Label Content="Control Demo: Slider Workbench"
+                 Foreground="{StaticResource TextPrimaryBrush}"
+                 FontSize="18"
+                 FontWeight="SemiBold" />
+          <TextBlock Text="A WPF-style playground for ticks, snapping, move-to-point behavior, selection ranges, orientation, direction reversal, sizing, tooltip precision, and keyboard input."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Column="1"
+                Background="{StaticResource DarkBgBrush}"
+                BorderBrush="{StaticResource OrangePrimaryBrush}"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="12,6"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center">
+          <Label Content="Interactive Slider Lab"
+                 Foreground="{StaticResource OrangePrimaryBrush}"
+                 FontWeight="SemiBold" />
+        </Border>
+      </Grid>
     </Border>
 
-    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <ContentControl x:Name="DemoHost" />
-    </Border>
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="340" />
+      </Grid.ColumnDefinitions>
+
+      <ScrollViewer Grid.Column="0"
+                    Margin="0,0,10,0"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="14"
+                  Margin="0,0,0,10">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <StackPanel Grid.Row="0">
+                <Label Content="Primary slider playground"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       FontSize="16"
+                       FontWeight="SemiBold" />
+                <TextBlock x:Name="PresetNarrativeText"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,0" />
+              </StackPanel>
+
+              <Slider x:Name="WorkbenchSlider"
+                      Grid.Row="1"
+                      Margin="0,14,0,12"
+                      Minimum="0"
+                      Maximum="100"
+                      Value="42"
+                      SmallChange="1"
+                      LargeChange="10"
+                      TickPlacement="Both"
+                      Ticks="0,10,20,35,50,65,80,90,100"
+                      AutoToolTipPlacement="TopLeft"
+                      AutoToolTipPrecision="0"
+                      IsSelectionRangeEnabled="True"
+                      SelectionStart="20"
+                      SelectionEnd="80"
+                      TrackThickness="6"
+                      ThumbSize="18"
+                      TrackBrush="#33475D"
+                      ThumbBrush="#E08C43"
+                      SelectionRangeBrush="#4FA6E8" />
+
+              <Grid Grid.Row="2"
+                    Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Background="{StaticResource DarkBgBrush}"
+                        BorderBrush="{StaticResource DarkBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="10"
+                        Margin="0,0,8,0">
+                  <StackPanel>
+                    <Label Content="Current value"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                    <TextBlock x:Name="WorkbenchValueText"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="22"
+                               FontWeight="SemiBold" />
+                  </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1"
+                        Background="{StaticResource DarkBgBrush}"
+                        BorderBrush="{StaticResource DarkBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="10"
+                        Margin="0,0,8,0">
+                  <StackPanel>
+                    <Label Content="Active range"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                    <TextBlock x:Name="WorkbenchRangeText"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="16"
+                               FontWeight="SemiBold" />
+                  </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2"
+                        Background="{StaticResource DarkBgBrush}"
+                        BorderBrush="{StaticResource DarkBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="10">
+                  <StackPanel>
+                    <Label Content="Input model"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                    <TextBlock x:Name="WorkbenchGestureText"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <WrapPanel Grid.Row="3">
+                <Button x:Name="StudioPresetButton"
+                        Content="Studio"
+                        Margin="0,0,8,8"
+                        Padding="12,6" />
+                <Button x:Name="PrecisionPresetButton"
+                        Content="Precision"
+                        Margin="0,0,8,8"
+                        Padding="12,6" />
+                <Button x:Name="ScrubberPresetButton"
+                        Content="Scrubber"
+                        Margin="0,0,8,8"
+                        Padding="12,6" />
+                <Button x:Name="RangePresetButton"
+                        Content="Range Select"
+                        Margin="0,0,16,8"
+                        Padding="12,6" />
+                <Button x:Name="WorkbenchMinButton"
+                        Content="Min"
+                        Margin="0,0,8,8"
+                        Padding="12,6" />
+                <Button x:Name="WorkbenchStepBackButton"
+                        Content="- Large"
+                        Margin="0,0,8,8"
+                        Padding="12,6" />
+                <Button x:Name="WorkbenchStepForwardButton"
+                        Content="+ Large"
+                        Margin="0,0,8,8"
+                        Padding="12,6" />
+                <Button x:Name="WorkbenchMaxButton"
+                        Content="Max"
+                        Margin="0,0,8,8"
+                        Padding="12,6" />
+              </WrapPanel>
+            </Grid>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="14"
+                  Margin="0,0,0,10">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Border Grid.Column="0"
+                      Background="{StaticResource DarkBgBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Padding="12"
+                      Margin="0,0,8,0">
+                <StackPanel>
+                  <Label Content="Explicit ticks and selection range"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         FontWeight="SemiBold" />
+                  <TextBlock Text="Fixed named stops, snap-to-tick, dual tick bars, and an emphasized selected span."
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,4,0,10" />
+                  <Slider x:Name="SnappedSelectionSlider"
+                          Minimum="0"
+                          Maximum="12"
+                          Value="5"
+                          SmallChange="1"
+                          LargeChange="2"
+                          IsSnapToTickEnabled="True"
+                          TickPlacement="Both"
+                          Ticks="0,1,2,3,5,8,12"
+                          IsSelectionRangeEnabled="True"
+                          SelectionStart="2"
+                          SelectionEnd="8"
+                          AutoToolTipPlacement="TopLeft"
+                          AutoToolTipPrecision="0"
+                          TrackThickness="5"
+                          ThumbSize="16"
+                          SelectionRangeBrush="#76B7F3" />
+                  <TextBlock x:Name="SnappedSelectionValueText"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,10,0,0" />
+                </StackPanel>
+              </Border>
+
+              <Border Grid.Column="1"
+                      Background="{StaticResource DarkBgBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Padding="12">
+                <StackPanel>
+                  <Label Content="Frequency-driven ruler"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         FontWeight="SemiBold" />
+                  <TextBlock Text="Regular tick frequency without snapping keeps the ruler visible while allowing in-between values."
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,4,0,10" />
+                  <Slider x:Name="FrequencySlider"
+                          Minimum="-50"
+                          Maximum="50"
+                          Value="12.5"
+                          SmallChange="2.5"
+                          LargeChange="10"
+                          TickPlacement="TopLeft"
+                          TickFrequency="5"
+                          AutoToolTipPlacement="TopLeft"
+                          AutoToolTipPrecision="1"
+                          TrackThickness="4"
+                          ThumbSize="14"
+                          TrackBrush="#304957"
+                          ThumbBrush="#89D5F7" />
+                  <TextBlock x:Name="FrequencyValueText"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,10,0,0" />
+                </StackPanel>
+              </Border>
+            </Grid>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="14"
+                  Margin="0,0,0,10">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+
+              <Border Grid.Column="0"
+                      Background="{StaticResource DarkBgBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Padding="12"
+                      Margin="0,0,8,0">
+                <StackPanel>
+                  <Label Content="Transport scrubber"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         FontWeight="SemiBold" />
+                  <TextBlock Text="Move-to-point track clicks, bottom tooltip placement, aggressive large changes, and a thicker chrome treatment for media-style scrubbing."
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,4,0,10" />
+                  <Slider x:Name="TransportSlider"
+                          Minimum="0"
+                          Maximum="300"
+                          Value="92"
+                          SmallChange="5"
+                          LargeChange="30"
+                          TickFrequency="15"
+                          TickPlacement="BottomRight"
+                          IsMoveToPointEnabled="True"
+                          IsSnapToTickEnabled="True"
+                          AutoToolTipPlacement="BottomRight"
+                          AutoToolTipPrecision="0"
+                          TrackThickness="8"
+                          ThumbSize="20"
+                          TrackBrush="#26434F"
+                          ThumbBrush="#F1C35A"
+                          SelectionRangeBrush="#5CC4A3" />
+                  <TextBlock x:Name="TransportValueText"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,10,0,0" />
+                </StackPanel>
+              </Border>
+
+              <Border Grid.Column="1"
+                      Background="{StaticResource DarkBgBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Padding="12">
+                <StackPanel>
+                  <Label Content="Disabled state"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         FontWeight="SemiBold" />
+                  <TextBlock Text="A non-interactive slider still renders ticks, value position, and track proportions for disabled workflows."
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,4,0,10" />
+                  <Slider x:Name="DisabledSlider"
+                          Minimum="0"
+                          Maximum="100"
+                          Value="68"
+                          TickPlacement="Both"
+                          TickFrequency="10"
+                          IsEnabled="False"
+                          TrackThickness="6"
+                          ThumbSize="18" />
+                  <TextBlock x:Name="DisabledValueText"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,10,0,0" />
+                </StackPanel>
+              </Border>
+            </Grid>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="14">
+            <StackPanel>
+              <Label Content="Orientation and direction gallery"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontSize="16"
+                     FontWeight="SemiBold" />
+              <TextBlock Text="Vertical layout, reversed direction, and custom brush treatments are shown side by side so parity issues are obvious without leaving one screen."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,4,0,12" />
+
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            HorizontalAlignment="Center">
+                  <Label Content="Vertical range"
+                         Foreground="{StaticResource TextSecondaryBrush}" />
+                  <Slider x:Name="VerticalRangeSlider"
+                          Width="40"
+                          Height="240"
+                          Orientation="Vertical"
+                          Minimum="0"
+                          Maximum="100"
+                          Value="58"
+                          TickPlacement="Both"
+                          TickFrequency="10"
+                          IsSelectionRangeEnabled="True"
+                          SelectionStart="20"
+                          SelectionEnd="75"
+                          AutoToolTipPlacement="TopLeft"
+                          TrackThickness="6"
+                          ThumbSize="18"
+                          SelectionRangeBrush="#73B4F0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            HorizontalAlignment="Center">
+                  <Label Content="Vertical reversed"
+                         Foreground="{StaticResource TextSecondaryBrush}" />
+                  <Slider x:Name="VerticalReverseSlider"
+                          Width="40"
+                          Height="240"
+                          Orientation="Vertical"
+                          Minimum="0"
+                          Maximum="1"
+                          Value="0.25"
+                          TickPlacement="TopLeft"
+                          TickFrequency="0.1"
+                          IsSnapToTickEnabled="True"
+                          IsDirectionReversed="True"
+                          AutoToolTipPlacement="BottomRight"
+                          AutoToolTipPrecision="1"
+                          TrackThickness="5"
+                          ThumbSize="16"
+                          TrackBrush="#334D62"
+                          ThumbBrush="#D69057" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2"
+                            HorizontalAlignment="Center">
+                  <Label Content="Custom palette"
+                         Foreground="{StaticResource TextSecondaryBrush}" />
+                  <Slider x:Name="VerticalThemeSlider"
+                          Width="44"
+                          Height="240"
+                          Orientation="Vertical"
+                          Minimum="-20"
+                          Maximum="20"
+                          Value="6"
+                          TickPlacement="BottomRight"
+                          TickFrequency="5"
+                          AutoToolTipPlacement="BottomRight"
+                          AutoToolTipPrecision="0"
+                          TrackThickness="10"
+                          ThumbSize="22"
+                          TrackBrush="#4B325B"
+                          ThumbBrush="#F89D74"
+                          SelectionRangeBrush="#D46A6A" />
+                </StackPanel>
+              </Grid>
+
+              <TextBlock x:Name="VerticalStateText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,12,0,0" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <ScrollViewer Grid.Column="1"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <Label Content="Workbench controls"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontWeight="SemiBold" />
+
+              <Label Content="Tick placement"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Margin="0,10,0,4" />
+              <ComboBox x:Name="TickPlacementComboBox"
+                        Padding="10,6" />
+
+              <Label Content="Tooltip placement"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Margin="0,10,0,4" />
+              <ComboBox x:Name="ToolTipPlacementComboBox"
+                        Padding="10,6" />
+
+              <CheckBox x:Name="SnapCheckBox"
+                        Content="Snap to available ticks"
+                        Margin="0,12,0,0" />
+              <CheckBox x:Name="MoveToPointCheckBox"
+                        Content="Jump to clicked track position"
+                        Margin="0,8,0,0" />
+              <CheckBox x:Name="ReversedCheckBox"
+                        Content="Reverse direction"
+                        Margin="0,8,0,0" />
+              <CheckBox x:Name="SelectionRangeCheckBox"
+                        Content="Show selection range"
+                        Margin="0,8,0,0" />
+
+              <Label Content="Track thickness"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Margin="0,12,0,4" />
+              <Slider x:Name="TrackThicknessSlider"
+                      Minimum="2"
+                      Maximum="14"
+                      Value="6"
+                      TickFrequency="1"
+                      IsSnapToTickEnabled="True"
+                      TickPlacement="BottomRight" />
+              <TextBlock x:Name="TrackThicknessValueText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Margin="0,4,0,0" />
+
+              <Label Content="Thumb size"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Margin="0,12,0,4" />
+              <Slider x:Name="ThumbSizeSlider"
+                      Minimum="10"
+                      Maximum="28"
+                      Value="18"
+                      TickFrequency="1"
+                      IsSnapToTickEnabled="True"
+                      TickPlacement="BottomRight" />
+              <TextBlock x:Name="ThumbSizeValueText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Margin="0,4,0,0" />
+
+              <Label Content="Tooltip precision"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Margin="0,12,0,4" />
+              <Slider x:Name="PrecisionSlider"
+                      Minimum="0"
+                      Maximum="3"
+                      Value="0"
+                      TickFrequency="1"
+                      IsSnapToTickEnabled="True"
+                      TickPlacement="BottomRight" />
+              <TextBlock x:Name="PrecisionValueText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Margin="0,4,0,0" />
+
+              <Label Content="Repeat delay (ms)"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Margin="0,12,0,4" />
+              <Slider x:Name="DelaySlider"
+                      Minimum="0"
+                      Maximum="500"
+                      Value="180"
+                      TickFrequency="20"
+                      IsSnapToTickEnabled="True"
+                      TickPlacement="BottomRight" />
+              <TextBlock x:Name="DelayValueText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Margin="0,4,0,0" />
+
+              <Label Content="Repeat interval (ms)"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Margin="0,12,0,4" />
+              <Slider x:Name="IntervalSlider"
+                      Minimum="20"
+                      Maximum="240"
+                      Value="90"
+                      TickFrequency="10"
+                      IsSnapToTickEnabled="True"
+                      TickPlacement="BottomRight" />
+              <TextBlock x:Name="IntervalValueText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Margin="0,4,0,0" />
+
+              <Label Content="Selection start"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Margin="0,12,0,4" />
+              <Slider x:Name="SelectionStartSlider"
+                      Minimum="0"
+                      Maximum="100"
+                      Value="20"
+                      TickPlacement="BottomRight"
+                      TickFrequency="5" />
+              <TextBlock x:Name="SelectionStartValueText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Margin="0,4,0,0" />
+
+              <Label Content="Selection end"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Margin="0,12,0,4" />
+              <Slider x:Name="SelectionEndSlider"
+                      Minimum="0"
+                      Maximum="100"
+                      Value="80"
+                      TickPlacement="BottomRight"
+                      TickFrequency="5" />
+              <TextBlock x:Name="SelectionEndValueText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Margin="0,4,0,0" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <Label Content="Live state"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontWeight="SemiBold" />
+              <TextBlock x:Name="WorkbenchSummaryText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock x:Name="WorkbenchConfigurationText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,8,0,0" />
+              <TextBlock x:Name="GallerySummaryText"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,8,0,0" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12">
+            <StackPanel>
+              <Label Content="What to try"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontWeight="SemiBold" />
+              <TextBlock Text="- Focus the main slider and use Arrow keys, PageUp or PageDown, Home, and End to validate keyboard commands."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock Text="- Toggle move-to-point and compare track clicks against the large-change repeat button behavior."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock Text="- Turn snap on and off, then switch between Studio, Precision, Scrubber, and Range presets to exercise both explicit ticks and tick-frequency mode."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock Text="- Use the selection controls to force narrow, wide, and edge-aligned highlighted ranges without leaving the page."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
   </Grid>
 </UserControl>
 
