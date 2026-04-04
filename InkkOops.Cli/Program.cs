@@ -37,6 +37,26 @@ static Dictionary<string, string> ParseOptions(string[] args, int startIndex)
     return options;
 }
 
+static int[] ParseActionDiagnosticsIndexes(Dictionary<string, string> options)
+{
+    if (!options.TryGetValue("action-diagnostics", out var text) || string.IsNullOrWhiteSpace(text))
+    {
+        return [];
+    }
+
+    var parts = text.Split([','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var values = new List<int>(parts.Length);
+    for (var i = 0; i < parts.Length; i++)
+    {
+        if (int.TryParse(parts[i], out var value) && value >= 0)
+        {
+            values.Add(value);
+        }
+    }
+
+    return [.. values];
+}
+
 static string ResolvePipeName(Dictionary<string, string> options, InkkOopsHostConfiguration hostConfiguration)
 {
     return options.TryGetValue("pipe", out var pipe) && !string.IsNullOrWhiteSpace(pipe)
@@ -63,6 +83,7 @@ static async Task<int> RunAttachAsync(Dictionary<string, string> options, InkkOo
     var request = new InkkOopsPipeRequest
     {
         ScriptName = scriptName,
+        ActionDiagnosticsIndexes = ParseActionDiagnosticsIndexes(options),
         TimeoutMilliseconds = timeoutMilliseconds,
         ArtifactRootOverride = options.TryGetValue("artifacts", out var artifacts) ? artifacts : string.Empty
     };
@@ -98,6 +119,11 @@ static int RunLaunch(Dictionary<string, string> options, InkkOopsHostConfigurati
     if (options.TryGetValue("artifacts", out var artifacts))
     {
         arguments.Append("--inkkoops-artifacts \"").Append(artifacts).Append("\" ");
+    }
+
+    if (options.TryGetValue("action-diagnostics", out var actionDiagnostics))
+    {
+        arguments.Append("--inkkoops-action-diagnostics \"").Append(actionDiagnostics).Append("\" ");
     }
 
     using var process = Process.Start(new ProcessStartInfo

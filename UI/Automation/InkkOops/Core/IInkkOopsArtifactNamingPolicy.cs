@@ -8,9 +8,7 @@ public interface IInkkOopsArtifactNamingPolicy
 
     string CreateRecordingDirectoryName(DateTime timestampUtc);
 
-    string GetCommandLogFileName();
-
-    string GetSemanticLogFileName();
+    string GetActionLogFileName();
 
     string GetResultFileName();
 
@@ -23,8 +21,6 @@ public interface IInkkOopsArtifactNamingPolicy
     string GetTelemetryFileName(string artifactName);
 
     string CreateReplayScriptName(string recordingPath);
-
-    string CreateReplayFinalArtifactBaseName(string recordingPath);
 
     string SanitizePathSegment(string value, string fallbackValue);
 }

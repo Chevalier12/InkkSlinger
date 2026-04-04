@@ -4,7 +4,7 @@ namespace InkkSlinger;
 
 public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnosticsFilterPolicy
 {
-    private static readonly InkkOopsDiagnosticsFilter RecordingFinalFilter = new()
+    private static readonly InkkOopsDiagnosticsFilter ActionFilter = new()
     {
         NodeRetention = InkkOopsDiagnosticsNodeRetention.MatchedNodesAndAncestors,
         Rules =
@@ -14,13 +14,9 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             new InkkOopsDiagnosticsFactRule { Key = "slot", DisplayNameContains = "Playground", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { Key = "actual", DisplayNameContains = "Playground", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { Key = "renderSize", DisplayNameContains = "Playground", Comparison = InkkOopsDiagnosticsComparison.Exists },
-
-            // Hovered button state in the playground toolbar.
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "Button", Key = "buttonDisplayText", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "Button", Key = "buttonLayoutSlot", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "Button", Key = "buttonIsMouseOver", Comparison = InkkOopsDiagnosticsComparison.Equal, Value = true },
-
-            // ScrollViewer offset and viewport state after the repro scroll.
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "slot", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "actual", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "renderSize", Comparison = InkkOopsDiagnosticsComparison.Exists },
@@ -30,8 +26,6 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "runtimeContentViewportRect", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "contentSlot", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "ScrollViewer", Key = "contentActual", Comparison = InkkOopsDiagnosticsComparison.Exists },
-
-            // The target Expander geometry and state.
             new InkkOopsDiagnosticsFactRule { Key = "slot", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { Key = "actual", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { Key = "renderSize", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
@@ -42,8 +36,6 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             new InkkOopsDiagnosticsFactRule { Key = "headerRect", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { Key = "contentRect", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
             new InkkOopsDiagnosticsFactRule { Key = "measuredHeaderSize", DisplayNameContains = "PlaygroundExpander", Comparison = InkkOopsDiagnosticsComparison.Exists },
-
-            // Header text that should remain under the pointer when the bug reproduces.
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "TextBlock", Key = "text", Comparison = InkkOopsDiagnosticsComparison.Contains, Value = "Release checklist" },
             new InkkOopsDiagnosticsFactRule { ElementTypeName = "TextBlock", Key = "text", Comparison = InkkOopsDiagnosticsComparison.Contains, Value = "Composed header content" }
         ]
@@ -51,8 +43,8 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
 
     public InkkOopsDiagnosticsFilter CreateFilter(string artifactName)
     {
-        return string.Equals(artifactName, "recording-final", StringComparison.OrdinalIgnoreCase)
-            ? RecordingFinalFilter
+        return artifactName.StartsWith("action[", StringComparison.OrdinalIgnoreCase)
+            ? ActionFilter
             : InkkOopsDiagnosticsFilter.None;
     }
 }

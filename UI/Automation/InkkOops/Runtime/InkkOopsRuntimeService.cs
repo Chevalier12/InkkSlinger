@@ -88,6 +88,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
             _pendingRequest = new PendingRunRequest(
                 request.ScriptName,
                 RecordingPath: string.Empty,
+                ActionDiagnosticsIndexes: request.ActionDiagnosticsIndexes ?? [],
                 ArtifactRoot: string.IsNullOrWhiteSpace(request.ArtifactRootOverride) ? ResolveArtifactRoot() : request.ArtifactRootOverride,
                 Completion: completion);
         }
@@ -171,6 +172,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 _pendingRequest = new PendingRunRequest(
                     _options.StartupScriptName,
                     _options.StartupRecordingPath,
+                    _options.ActionDiagnosticsIndexes,
                     ResolveArtifactRoot(),
                     Completion: null);
                 _startupRequestQueued = true;
@@ -208,11 +210,10 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 using var artifacts = new InkkOopsArtifacts(root, Path.GetFileNameWithoutExtension(request.RecordingPath), _hostConfiguration.ArtifactNamingPolicy);
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
-                var session = new InkkOopsSession(_host, artifacts);
+                var session = new InkkOopsSession(_host, artifacts, request.ActionDiagnosticsIndexes);
                 var script = InkkOopsRecordedSessionLoader.LoadFromJson(
                     request.RecordingPath,
-                    _hostConfiguration.ArtifactNamingPolicy,
-                    _hostConfiguration.ReplayPostamblePolicy);
+                    _hostConfiguration.ArtifactNamingPolicy);
                 result = await _runner.RunAsync(script, session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
             }
@@ -231,7 +232,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 using var artifacts = new InkkOopsArtifacts(root, request.ScriptName, _hostConfiguration.ArtifactNamingPolicy);
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
-                var session = new InkkOopsSession(_host, artifacts);
+                var session = new InkkOopsSession(_host, artifacts, request.ActionDiagnosticsIndexes);
                 result = await _runner.RunAsync(scriptDefinition.CreateScript(), session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
             }
@@ -295,6 +296,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
     private readonly record struct PendingRunRequest(
         string ScriptName,
         string RecordingPath,
+        int[] ActionDiagnosticsIndexes,
         string ArtifactRoot,
         TaskCompletionSource<InkkOopsRunResult>? Completion);
 

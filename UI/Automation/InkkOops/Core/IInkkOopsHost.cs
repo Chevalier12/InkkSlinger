@@ -10,13 +10,15 @@ public interface IInkkOopsHost
 {
     UiRoot UiRoot { get; }
 
-    IReadOnlyList<IInkkOopsSemanticLogContributor> SemanticLogContributors { get; }
-
     string ArtifactRoot { get; }
+
+    void SetArtifactRoot(string artifactRoot);
 
     UIElement? GetVisualRootElement();
 
     LayoutRect GetViewportBounds();
+
+    string GetDisplayedFps();
 
     Task ResizeWindowAsync(int width, int height, CancellationToken cancellationToken = default);
 
@@ -36,7 +38,7 @@ public interface IInkkOopsHost
 
     Task CaptureFrameAsync(string artifactName, CancellationToken cancellationToken = default);
 
-    Task WriteTelemetryAsync(string artifactName, CancellationToken cancellationToken = default);
+    Task<string> CaptureTelemetryAsync(string artifactName, CancellationToken cancellationToken = default);
 
     UIElement? FindElement(string identifier);
 

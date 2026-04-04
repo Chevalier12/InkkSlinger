@@ -1,4 +1,26 @@
+using System;
+using System.Collections.Generic;
 using InkkSlinger;
+
+static int[] ParseActionDiagnosticsIndexes(string? text)
+{
+    if (string.IsNullOrWhiteSpace(text))
+    {
+        return [];
+    }
+
+    var parts = text.Split([','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var values = new List<int>(parts.Length);
+    for (var i = 0; i < parts.Length; i++)
+    {
+        if (int.TryParse(parts[i], out var value) && value >= 0)
+        {
+            values.Add(value);
+        }
+    }
+
+    return [.. values];
+}
 
 static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
 {
@@ -11,6 +33,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = args[++i],
+                    ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
                     RecordUserSession = options.RecordUserSession,
@@ -24,6 +47,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = args[++i],
                     ArtifactRoot = options.ArtifactRoot,
                     RecordUserSession = options.RecordUserSession,
@@ -37,8 +61,23 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = args[++i],
+                    RecordUserSession = options.RecordUserSession,
+                    RecordingRoot = options.RecordingRoot,
+                    StartupRecordingPath = options.StartupRecordingPath,
+                    DisableRetainedRenderList = options.DisableRetainedRenderList,
+                    DisableDirtyRegionRendering = options.DisableDirtyRegionRendering
+                };
+                break;
+            case "--inkkoops-action-diagnostics" when i + 1 < args.Length:
+                options = new InkkOopsRuntimeOptions
+                {
+                    StartupScriptName = options.StartupScriptName,
+                    ActionDiagnosticsIndexes = ParseActionDiagnosticsIndexes(args[++i]),
+                    NamedPipeName = options.NamedPipeName,
+                    ArtifactRoot = options.ArtifactRoot,
                     RecordUserSession = options.RecordUserSession,
                     RecordingRoot = options.RecordingRoot,
                     StartupRecordingPath = options.StartupRecordingPath,
@@ -50,6 +89,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
                     RecordUserSession = true,
@@ -63,6 +103,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
                     RecordUserSession = options.RecordUserSession,
@@ -76,6 +117,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
                     RecordUserSession = options.RecordUserSession,
@@ -89,6 +131,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
                     RecordUserSession = options.RecordUserSession,
@@ -102,6 +145,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
                     RecordUserSession = options.RecordUserSession,

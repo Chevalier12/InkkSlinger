@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -7,10 +8,10 @@ namespace InkkSlinger;
 
 public sealed class InkkOopsArtifacts : IDisposable
 {
-    private readonly StreamWriter _commandLogWriter;
-    private readonly StreamWriter _semanticLogWriter;
     private readonly IInkkOopsArtifactNamingPolicy _namingPolicy;
-    private string? _lastSemanticLogSubject;
+    private readonly List<string> _actionLogLines = new();
+    private readonly Dictionary<string, string> _bufferedTextArtifacts = new(StringComparer.OrdinalIgnoreCase);
+    private string? _lastActionLogSubject;
 
     public InkkOopsArtifacts(string rootPath, string scriptName)
         : this(rootPath, scriptName, new DefaultInkkOopsArtifactNamingPolicy())
@@ -22,8 +23,6 @@ public sealed class InkkOopsArtifacts : IDisposable
         _namingPolicy = namingPolicy ?? throw new ArgumentNullException(nameof(namingPolicy));
         DirectoryPath = Path.GetFullPath(Path.Combine(rootPath, _namingPolicy.CreateRunDirectoryName(scriptName, DateTime.UtcNow)));
         Directory.CreateDirectory(DirectoryPath);
-        _commandLogWriter = CreateWriter(_namingPolicy.GetCommandLogFileName());
-        _semanticLogWriter = CreateWriter(_namingPolicy.GetSemanticLogFileName());
     }
 
     public string DirectoryPath { get; }
@@ -33,19 +32,54 @@ public sealed class InkkOopsArtifacts : IDisposable
         return Path.Combine(DirectoryPath, fileName);
     }
 
-    public string GetCommandLogPath()
+    public string GetActionLogPath()
     {
-        return GetPath(_namingPolicy.GetCommandLogFileName());
+        return GetPath(_namingPolicy.GetActionLogFileName());
     }
 
-    public string GetSemanticLogPath()
+    public void LogActionEntry(string subject, string details)
     {
-        return GetPath(_namingPolicy.GetSemanticLogFileName());
+        if (!string.Equals(_lastActionLogSubject, subject, StringComparison.Ordinal))
+        {
+            _actionLogLines.Add(subject);
+            _lastActionLogSubject = subject;
+        }
+
+        if (string.IsNullOrWhiteSpace(details))
+        {
+            return;
+        }
+
+        _actionLogLines.Add($"- {details}");
     }
 
-    public void LogCommand(int index, string description)
+    public void BufferTextArtifact(string fileName, string content)
     {
-        _commandLogWriter.WriteLine($"command[{index}]={description}");
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        _bufferedTextArtifacts[fileName] = content ?? string.Empty;
+    }
+
+    public int? GetLastLoggedActionIndex()
+    {
+        for (var i = _actionLogLines.Count - 1; i >= 0; i--)
+        {
+            var line = _actionLogLines[i];
+            var marker = "action[";
+            var start = line.IndexOf(marker, StringComparison.Ordinal);
+            if (start < 0)
+            {
+                continue;
+            }
+
+            start += marker.Length;
+            var end = line.IndexOf(']', start);
+            if (end > start && int.TryParse(line.AsSpan(start, end - start), out var index))
+            {
+                return index;
+            }
+        }
+
+        return null;
     }
 
     public void WriteResult(InkkOopsRunResult result)
@@ -69,33 +103,10 @@ public sealed class InkkOopsArtifacts : IDisposable
 
     public void Dispose()
     {
-        _semanticLogWriter.Dispose();
-        _commandLogWriter.Dispose();
-    }
-
-    public void LogSemanticEntry(string subject, string details)
-    {
-        if (!string.Equals(_lastSemanticLogSubject, subject, StringComparison.Ordinal))
+        File.WriteAllLines(GetActionLogPath(), _actionLogLines, Encoding.UTF8);
+        foreach (var pair in _bufferedTextArtifacts)
         {
-            _semanticLogWriter.WriteLine(subject);
-            _lastSemanticLogSubject = subject;
+            File.WriteAllText(GetPath(pair.Key), pair.Value, Encoding.UTF8);
         }
-
-        if (string.IsNullOrWhiteSpace(details))
-        {
-            return;
-        }
-
-        _semanticLogWriter.WriteLine($"- {details}");
-    }
-
-    private StreamWriter CreateWriter(string fileName)
-    {
-        return new StreamWriter(
-            new FileStream(GetPath(fileName), FileMode.Create, FileAccess.Write, FileShare.ReadWrite),
-            Encoding.UTF8)
-        {
-            AutoFlush = true
-        };
     }
 }

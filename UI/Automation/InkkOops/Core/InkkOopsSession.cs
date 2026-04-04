@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading;
@@ -12,11 +13,17 @@ public sealed class InkkOopsSession
 {
     private InkkOopsTargetResolutionReport? _lastResolutionReport;
     private Vector2? _lastActionPoint;
+    private int? _currentActionCommandIndex;
+    private readonly HashSet<int> _actionDiagnosticsIndexes;
 
-    public InkkOopsSession(IInkkOopsHost host, InkkOopsArtifacts artifacts)
+    public InkkOopsSession(IInkkOopsHost host, InkkOopsArtifacts artifacts, IEnumerable<int>? actionDiagnosticsIndexes = null)
     {
         Host = host ?? throw new ArgumentNullException(nameof(host));
         Artifacts = artifacts ?? throw new ArgumentNullException(nameof(artifacts));
+        _actionDiagnosticsIndexes = actionDiagnosticsIndexes == null
+            ? []
+            : [.. actionDiagnosticsIndexes.Where(static index => index >= 0)];
+        Host.SetArtifactRoot(artifacts.DirectoryPath);
     }
 
     public IInkkOopsHost Host { get; }
@@ -24,6 +31,8 @@ public sealed class InkkOopsSession
     public InkkOopsArtifacts Artifacts { get; }
 
     public UiRoot UiRoot => Host.UiRoot;
+
+    public IReadOnlyCollection<int> ActionDiagnosticsIndexes => new ReadOnlyCollection<int>(_actionDiagnosticsIndexes.OrderBy(static index => index).ToArray());
 
     public InkkOopsTargetResolutionReport ResolveTarget(InkkOopsTargetReference target)
     {
@@ -99,25 +108,37 @@ public sealed class InkkOopsSession
 
     public Task MovePointerAsync(Vector2 position, CancellationToken cancellationToken = default)
     {
-        RecordActionPoint(position);
-        return Host.MovePointerAsync(position, cancellationToken);
+        return TrackPointerMoveAsync(position, cancellationToken);
     }
 
     public Task PressPointerAsync(Vector2 position, CancellationToken cancellationToken = default)
     {
-        RecordActionPoint(position);
-        return Host.PressPointerAsync(position, cancellationToken);
+        return TrackPointerDownAsync(position, cancellationToken);
     }
 
     public Task ReleasePointerAsync(Vector2 position, CancellationToken cancellationToken = default)
     {
-        RecordActionPoint(position);
-        return Host.ReleasePointerAsync(position, cancellationToken);
+        return TrackPointerUpAsync(position, cancellationToken);
     }
 
     public Task WheelAsync(int delta, CancellationToken cancellationToken = default)
     {
-        return Host.WheelAsync(delta, cancellationToken);
+        return TrackWheelAsync(delta, cancellationToken);
+    }
+
+    internal void BeginActionCommand(int commandIndex)
+    {
+        _currentActionCommandIndex = commandIndex;
+    }
+
+    internal void EndActionCommand()
+    {
+        _currentActionCommandIndex = null;
+    }
+
+    internal bool ShouldCaptureActionDiagnostics(int actionIndex)
+    {
+        return _actionDiagnosticsIndexes.Contains(actionIndex);
     }
 
     public Task CaptureFrameAsync(string artifactName, CancellationToken cancellationToken = default)
@@ -127,24 +148,40 @@ public sealed class InkkOopsSession
 
     public async Task WriteTelemetryAsync(string artifactName, CancellationToken cancellationToken = default)
     {
-        await Host.WriteTelemetryAsync(artifactName, cancellationToken).ConfigureAwait(false);
-
-        var path = Artifacts.GetPath(artifactName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) ? artifactName : artifactName + ".txt");
+        var telemetryText = await Host.CaptureTelemetryAsync(artifactName, cancellationToken).ConfigureAwait(false);
         var builder = new StringBuilder();
-        if (File.Exists(path))
+        builder.Append(telemetryText);
+        if (builder.Length > 0 && builder[^1] != '\n')
         {
-            builder.Append(File.ReadAllText(path));
-            if (builder.Length > 0 && builder[^1] != '\n')
-            {
-                builder.AppendLine();
-            }
+            builder.AppendLine();
         }
 
         builder.AppendLine($"last_resolution={_lastResolutionReport?.Describe() ?? "none"}");
         builder.AppendLine(_lastActionPoint is Vector2 actionPoint
             ? $"last_action_point=({actionPoint.X:0.###},{actionPoint.Y:0.###})"
             : "last_action_point=none");
-        File.WriteAllText(path, builder.ToString(), Encoding.UTF8);
+        var fileName = artifactName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) ? artifactName : artifactName + ".txt";
+        Artifacts.BufferTextArtifact(fileName, builder.ToString());
+    }
+
+    public async Task WriteActionDiagnosticsAsync(int actionIndex, string actionDescription, CancellationToken cancellationToken = default)
+    {
+        var artifactName = $"action[{actionIndex}]";
+        var telemetryText = await Host.CaptureTelemetryAsync(artifactName, cancellationToken).ConfigureAwait(false);
+        var builder = new StringBuilder();
+        builder.AppendLine($"action_index={actionIndex}");
+        builder.AppendLine($"action_description={actionDescription}");
+        builder.Append(telemetryText);
+        if (builder.Length > 0 && builder[^1] != '\n')
+        {
+            builder.AppendLine();
+        }
+
+        builder.AppendLine($"last_resolution={_lastResolutionReport?.Describe() ?? "none"}");
+        builder.AppendLine(_lastActionPoint is Vector2 actionPoint
+            ? $"last_action_point=({actionPoint.X:0.###},{actionPoint.Y:0.###})"
+            : "last_action_point=none");
+        Artifacts.BufferTextArtifact(artifactName + ".txt", builder.ToString());
     }
 
     public IReadOnlyList<AutomationEventRecord> GetAutomationEventsSnapshot()
@@ -269,4 +306,80 @@ public sealed class InkkOopsSession
     {
         _lastActionPoint = position;
     }
+
+    private async Task TrackPointerMoveAsync(Vector2 position, CancellationToken cancellationToken)
+    {
+        RecordActionPoint(position);
+        var before = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        await Host.MovePointerAsync(position, cancellationToken).ConfigureAwait(false);
+        var after = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        var displayedFps = await CaptureDisplayedFpsAsync(cancellationToken).ConfigureAwait(false);
+
+        foreach (var entry in InkkOopsActionLogFormatter.CreatePointerMoveEntries(GetCurrentActionCommandIndex(), position, before.Hovered, after.Hovered, displayedFps))
+        {
+            Artifacts.LogActionEntry(entry.Subject, entry.Details);
+        }
+    }
+
+    private async Task TrackPointerDownAsync(Vector2 position, CancellationToken cancellationToken)
+    {
+        RecordActionPoint(position);
+        var before = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        await Host.PressPointerAsync(position, cancellationToken).ConfigureAwait(false);
+        var after = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        var displayedFps = await CaptureDisplayedFpsAsync(cancellationToken).ConfigureAwait(false);
+
+        var entry = InkkOopsActionLogFormatter.CreatePointerDownEntry(GetCurrentActionCommandIndex(), position, before.Hovered, before.Captured, after.Hovered, after.Captured, after.ClickDown, displayedFps);
+        Artifacts.LogActionEntry(entry.Subject, entry.Details);
+    }
+
+    private async Task TrackPointerUpAsync(Vector2 position, CancellationToken cancellationToken)
+    {
+        RecordActionPoint(position);
+        var before = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        await Host.ReleasePointerAsync(position, cancellationToken).ConfigureAwait(false);
+        var after = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        var displayedFps = await CaptureDisplayedFpsAsync(cancellationToken).ConfigureAwait(false);
+
+        var entry = InkkOopsActionLogFormatter.CreatePointerUpEntry(GetCurrentActionCommandIndex(), position, before.Hovered, before.Captured, after.Hovered, after.ClickUp, displayedFps);
+        Artifacts.LogActionEntry(entry.Subject, entry.Details);
+    }
+
+    private async Task TrackWheelAsync(int delta, CancellationToken cancellationToken)
+    {
+        var before = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        await Host.WheelAsync(delta, cancellationToken).ConfigureAwait(false);
+        var after = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        var displayedFps = await CaptureDisplayedFpsAsync(cancellationToken).ConfigureAwait(false);
+
+        var entry = InkkOopsActionLogFormatter.CreateWheelEntry(GetCurrentActionCommandIndex(), delta, before.Hovered, before.Captured, after.Hovered, after.Captured, displayedFps);
+        Artifacts.LogActionEntry(entry.Subject, entry.Details);
+    }
+
+    private Task<InkkOopsActionRuntimeSnapshot> CaptureActionSnapshotAsync(CancellationToken cancellationToken)
+    {
+        return QueryOnUiThreadAsync(
+            () => new InkkOopsActionRuntimeSnapshot(
+                UiRoot.GetHoveredElementForDiagnostics(),
+                FocusManager.GetCapturedPointerElement(),
+                UiRoot.GetLastClickDownTargetForDiagnostics(),
+                UiRoot.GetLastClickUpTargetForDiagnostics()),
+            cancellationToken);
+    }
+
+    private int GetCurrentActionCommandIndex()
+    {
+        return _currentActionCommandIndex ?? -1;
+    }
+
+    private Task<string> CaptureDisplayedFpsAsync(CancellationToken cancellationToken)
+    {
+        return QueryOnUiThreadAsync(() => Host.GetDisplayedFps(), cancellationToken);
+    }
+
+    private readonly record struct InkkOopsActionRuntimeSnapshot(
+        UIElement? Hovered,
+        UIElement? Captured,
+        UIElement? ClickDown,
+        UIElement? ClickUp);
 }

@@ -36,9 +36,9 @@ public sealed class InkkOopsAbstractionTests
 
                 Assert.EndsWith("custom-demo-script", artifacts.DirectoryPath, StringComparison.Ordinal);
                 Assert.True(File.Exists(Path.Combine(artifacts.DirectoryPath, "summary.json")));
-                Assert.True(File.Exists(Path.Combine(artifacts.DirectoryPath, "commands-custom.log")));
-                Assert.True(File.Exists(Path.Combine(artifacts.DirectoryPath, "semantic-custom.log")));
             }
+
+            Assert.True(File.Exists(Path.Combine(root, "custom-demo-script", "action-custom.log")));
 
             string recordingDirectory;
             using (var recorder = new InkkOopsInteractionRecorder(root, new Point(320, 240), namingPolicy))
@@ -49,39 +49,6 @@ public sealed class InkkOopsAbstractionTests
             Assert.EndsWith("session-custom", recordingDirectory, StringComparison.Ordinal);
             Assert.True(File.Exists(Path.Combine(recordingDirectory, "session.json")));
             Assert.True(File.Exists(Path.Combine(recordingDirectory, "builder.txt")));
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void ReplayPostamblePolicy_IsInjectable()
-    {
-        var root = Path.Combine(Path.GetTempPath(), $"inkkoops-replay-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(root);
-
-        try
-        {
-            var jsonPath = Path.Combine(root, "recording.json");
-            File.WriteAllText(
-                jsonPath,
-                """
-                {
-                  "actions": [
-                    { "Kind": 0, "FrameCount": 2 }
-                  ]
-                }
-                """);
-
-            var script = InkkOopsRecordedSessionLoader.LoadFromJson(
-                jsonPath,
-                new DefaultInkkOopsArtifactNamingPolicy(),
-                new CustomReplayPostamblePolicy());
-
-            var descriptions = script.Commands.Select(static command => command.Describe()).ToArray();
-            Assert.Equal(["WaitFrames(2)", "CaptureFrame(custom-tail)"], descriptions);
         }
         finally
         {
@@ -378,19 +345,6 @@ public sealed class InkkOopsAbstractionTests
     }
 
     [Fact]
-    public void DefaultDiagnosticsFilterPolicy_Filters_RecordingFinal_Only()
-    {
-        var policy = new DefaultInkkOopsDiagnosticsFilterPolicy();
-
-        var finalFilter = policy.CreateFilter("recording-final");
-        var otherFilter = policy.CreateFilter("menu-workbench-file-open");
-
-        Assert.True(finalFilter.IsActive);
-        Assert.Equal(InkkOopsDiagnosticsNodeRetention.MatchedNodesAndAncestors, finalFilter.NodeRetention);
-        Assert.False(otherFilter.IsActive);
-    }
-
-    [Fact]
     public void DiagnosticsSerializer_Prunes_To_Filtered_Matches_And_Ancestors()
     {
         var snapshot = new InkkOopsVisualTreeSnapshot
@@ -497,9 +451,7 @@ public sealed class InkkOopsAbstractionTests
 
         public string CreateRecordingDirectoryName(DateTime timestampUtc) => "session-custom";
 
-        public string GetCommandLogFileName() => "commands-custom.log";
-
-        public string GetSemanticLogFileName() => "semantic-custom.log";
+        public string GetActionLogFileName() => "action-custom.log";
 
         public string GetResultFileName() => "summary.json";
 
@@ -513,17 +465,7 @@ public sealed class InkkOopsAbstractionTests
 
         public string CreateReplayScriptName(string recordingPath) => "custom-replay";
 
-        public string CreateReplayFinalArtifactBaseName(string recordingPath) => "custom-final";
-
         public string SanitizePathSegment(string value, string fallbackValue) => string.IsNullOrWhiteSpace(value) ? fallbackValue : value;
-    }
-
-    private sealed class CustomReplayPostamblePolicy : IInkkOopsReplayPostamblePolicy
-    {
-        public void Apply(InkkOopsScriptBuilder builder, string recordingPath, IInkkOopsArtifactNamingPolicy namingPolicy)
-        {
-            builder.CaptureFrame("custom-tail");
-        }
     }
 
     private sealed class OrderedContributor : IInkkOopsDiagnosticsContributor

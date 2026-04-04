@@ -50,8 +50,6 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
 
     public UiRoot UiRoot { get; }
 
-    public IReadOnlyList<IInkkOopsSemanticLogContributor> SemanticLogContributors => _hostConfiguration.SemanticLogContributors;
-
     public string ArtifactRoot => _artifactRoot;
 
     public UIElement? GetVisualRootElement()
@@ -63,6 +61,11 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
     {
         var viewport = _viewportAccessor();
         return new LayoutRect(0f, 0f, viewport.Width, viewport.Height);
+    }
+
+    public string GetDisplayedFps()
+    {
+        return Game1.ExtractDisplayedFpsFromWindowTitle(_window.Title);
     }
 
     public void SetArtifactRoot(string artifactRoot)
@@ -228,13 +231,11 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
             cancellationToken);
     }
 
-    public Task WriteTelemetryAsync(string artifactName, CancellationToken cancellationToken = default)
+    public Task<string> CaptureTelemetryAsync(string artifactName, CancellationToken cancellationToken = default)
     {
-        return ExecuteOnUiThreadAsync(
+        return QueryOnUiThreadAsync(
             () =>
             {
-                Directory.CreateDirectory(ArtifactRoot);
-                var path = Path.Combine(ArtifactRoot, _artifactNamingPolicy.GetTelemetryFileName(artifactName));
                 var viewport = _viewportAccessor();
                 var hovered = UiRoot.GetHoveredElementForDiagnostics();
                 var focused = FocusManager.GetFocusedElement();
@@ -262,7 +263,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                 builder.AppendLine("visual_tree_begin");
                 builder.Append(_hostConfiguration.DiagnosticsSerializer.SerializeVisualTree(visualTree));
                 builder.AppendLine("visual_tree_end");
-                File.WriteAllText(path, builder.ToString(), Encoding.UTF8);
+                return builder.ToString();
             },
             cancellationToken);
     }

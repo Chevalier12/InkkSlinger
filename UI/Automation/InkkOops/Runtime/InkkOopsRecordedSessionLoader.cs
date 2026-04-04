@@ -15,24 +15,19 @@ public static class InkkOopsRecordedSessionLoader
 
     public static InkkOopsScript LoadFromJson(string recordingPath)
     {
-        return LoadFromJson(
-            recordingPath,
-            new DefaultInkkOopsArtifactNamingPolicy(),
-            new DefaultInkkOopsReplayPostamblePolicy());
+        return LoadFromJson(recordingPath, new DefaultInkkOopsArtifactNamingPolicy());
     }
 
     public static InkkOopsScript LoadFromJson(
         string recordingPath,
-        IInkkOopsArtifactNamingPolicy namingPolicy,
-        IInkkOopsReplayPostamblePolicy replayPostamblePolicy)
+        IInkkOopsArtifactNamingPolicy namingPolicy)
     {
         if (string.IsNullOrWhiteSpace(recordingPath))
         {
             throw new ArgumentException("Recording path is required.", nameof(recordingPath));
         }
-
+        
         ArgumentNullException.ThrowIfNull(namingPolicy);
-        ArgumentNullException.ThrowIfNull(replayPostamblePolicy);
 
         var fullPath = Path.GetFullPath(recordingPath);
         var json = File.ReadAllText(fullPath);
@@ -66,8 +61,6 @@ public static class InkkOopsRecordedSessionLoader
                     throw new InvalidOperationException($"Unsupported recorded action kind '{action.Kind}'.");
             }
         }
-
-        replayPostamblePolicy.Apply(builder, fullPath, namingPolicy);
 
         return builder.Build();
     }

@@ -61,39 +61,6 @@ public sealed class InkkOopsInteractionRecorderTests
     }
 
     [Fact]
-    public void RecordedSessionLoader_AppendsFinalCaptureAndTelemetry()
-    {
-        var root = Path.Combine(Path.GetTempPath(), $"inkkoops-recorder-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(root);
-
-        try
-        {
-            string jsonPath;
-            using (var recorder = new InkkOopsInteractionRecorder(root, new Point(1280, 820)))
-            {
-                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(40, 60));
-                recorder.RecordFrame(new Point(1200, 820), CreateMouseState(40, 60));
-                jsonPath = Path.Combine(recorder.DirectoryPath, "recording.json");
-            }
-
-            var script = InkkOopsRecordedSessionLoader.LoadFromJson(jsonPath);
-            var commandDescriptions = script.Commands.Select(static command => command.Describe()).ToArray();
-
-            Assert.True(commandDescriptions.Length >= 3);
-            Assert.Equal("WaitForIdle(DiagnosticsStable)", commandDescriptions[^3]);
-            Assert.Equal("CaptureFrame(recording-final)", commandDescriptions[^2]);
-            Assert.Equal("DumpTelemetry(recording-final)", commandDescriptions[^1]);
-        }
-        finally
-        {
-            if (Directory.Exists(root))
-            {
-                Directory.Delete(root, recursive: true);
-            }
-        }
-    }
-
-    [Fact]
     public void RecordedSessionLoader_DeserializesLowercaseActionsPayload()
     {
         var root = Path.Combine(Path.GetTempPath(), $"inkkoops-loader-{Guid.NewGuid():N}");
@@ -121,13 +88,10 @@ public sealed class InkkOopsInteractionRecorderTests
             var script = InkkOopsRecordedSessionLoader.LoadFromJson(jsonPath);
             var commandDescriptions = script.Commands.Select(static command => command.Describe()).ToArray();
 
-            Assert.Equal(6, commandDescriptions.Length);
+            Assert.Equal(3, commandDescriptions.Length);
             Assert.Equal("ResizeWindow(1280, 820)", commandDescriptions[0]);
             Assert.Equal("WaitFrames(51)", commandDescriptions[1]);
             Assert.Equal("MovePointer(685, 631)", commandDescriptions[2]);
-            Assert.Equal("WaitForIdle(DiagnosticsStable)", commandDescriptions[3]);
-            Assert.Equal("CaptureFrame(recording-final)", commandDescriptions[4]);
-            Assert.Equal("DumpTelemetry(recording-final)", commandDescriptions[5]);
         }
         finally
         {

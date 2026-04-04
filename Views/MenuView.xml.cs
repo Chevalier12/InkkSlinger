@@ -181,7 +181,7 @@ public partial class MenuView : UserControl
             "Bundled UI telemetry, automation logs, and captures.",
             () => UpdateWorkspaceSurface(
                 "Telemetry bundle ready",
-                "The export includes command logs, runtime telemetry, and the latest captures from the workspace shell.",
+                "The export includes action logs, runtime telemetry, and the latest captures from the workspace shell.",
                 "Leaf actions update the faux document surface so the demo remains useful even outside automated tests."));
         exportMenu.Items.Add(telemetryBundle);
         fileMenu.Items.Add(exportMenu);
@@ -721,7 +721,6 @@ public partial class MenuView : UserControl
         Color SubmenuBackground,
         Color SubmenuBorderBrush);
 }
-
 
 
 

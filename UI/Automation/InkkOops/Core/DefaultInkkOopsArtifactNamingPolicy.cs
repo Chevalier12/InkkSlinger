@@ -15,9 +15,7 @@ public sealed class DefaultInkkOopsArtifactNamingPolicy : IInkkOopsArtifactNamin
         return $"{timestampUtc:yyyyMMdd-HHmmssfff}-recorded-session";
     }
 
-    public string GetCommandLogFileName() => "commands.log";
-
-    public string GetSemanticLogFileName() => "semantic.log.txt";
+    public string GetActionLogFileName() => "action.log";
 
     public string GetResultFileName() => "result.json";
 
@@ -39,12 +37,6 @@ public sealed class DefaultInkkOopsArtifactNamingPolicy : IInkkOopsArtifactNamin
     {
         var scriptName = Path.GetFileNameWithoutExtension(recordingPath);
         return $"recording-replay-{SanitizePathSegment(scriptName, "recording")}";
-    }
-
-    public string CreateReplayFinalArtifactBaseName(string recordingPath)
-    {
-        var scriptName = Path.GetFileNameWithoutExtension(recordingPath);
-        return $"{SanitizePathSegment(scriptName, "recording")}-final";
     }
 
     public string SanitizePathSegment(string value, string fallbackValue)

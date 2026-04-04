@@ -4,6 +4,8 @@ public sealed class InkkOopsPipeRequest
 {
     public string ScriptName { get; set; } = string.Empty;
 
+    public int[] ActionDiagnosticsIndexes { get; set; } = [];
+
     public int TimeoutMilliseconds { get; set; }
 
     public string ArtifactRootOverride { get; set; } = string.Empty;

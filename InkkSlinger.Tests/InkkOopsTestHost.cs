@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
@@ -11,9 +12,12 @@ namespace InkkSlinger.Tests;
 
 internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
 {
-    private readonly IReadOnlyList<IInkkOopsSemanticLogContributor> _semanticLogContributors;
     private readonly UIElement _visualRoot;
     private readonly List<AutomationEventRecord> _automationEvents = new();
+    private readonly InkkOopsVisualTreeDiagnostics _visualTreeDiagnostics;
+    private readonly IInkkOopsDiagnosticsSerializer _diagnosticsSerializer;
+    private readonly IInkkOopsDiagnosticsFilterPolicy _diagnosticsFilterPolicy;
+    private readonly string _displayedFps;
     private Vector2 _pointerPosition;
     private bool _hasPointer;
     private int _width;
@@ -23,12 +27,26 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         UIElement visualRoot,
         int width = 800,
         int height = 600,
-        IReadOnlyList<IInkkOopsSemanticLogContributor>? semanticLogContributors = null)
+        string displayedFps = "60.0",
+        IReadOnlyList<IInkkOopsDiagnosticsContributor>? diagnosticsContributors = null,
+        IInkkOopsDiagnosticsSerializer? diagnosticsSerializer = null,
+        IInkkOopsDiagnosticsFilterPolicy? diagnosticsFilterPolicy = null)
     {
         Dispatcher.ResetForTests();
         Dispatcher.InitializeForCurrentThread();
         _visualRoot = visualRoot;
-        _semanticLogContributors = semanticLogContributors ?? Array.Empty<IInkkOopsSemanticLogContributor>();
+        _visualTreeDiagnostics = new InkkOopsVisualTreeDiagnostics(diagnosticsContributors ??
+        [
+            new InkkOopsGenericElementDiagnosticsContributor(),
+            new InkkOopsFrameworkElementDiagnosticsContributor(),
+            new InkkOopsTextBlockDiagnosticsContributor(),
+            new InkkOopsButtonDiagnosticsContributor(),
+            new InkkOopsExpanderDiagnosticsContributor(),
+            new InkkOopsScrollViewerDiagnosticsContributor()
+        ]);
+        _diagnosticsSerializer = diagnosticsSerializer ?? new DefaultInkkOopsDiagnosticsSerializer();
+        _diagnosticsFilterPolicy = diagnosticsFilterPolicy ?? new DefaultInkkOopsDiagnosticsFilterPolicy();
+        _displayedFps = displayedFps;
         _width = width;
         _height = height;
         UiRoot = new UiRoot(visualRoot);
@@ -40,9 +58,15 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
 
     public UiRoot UiRoot { get; }
 
-    public IReadOnlyList<IInkkOopsSemanticLogContributor> SemanticLogContributors => _semanticLogContributors;
+    public string ArtifactRoot { get; private set; }
 
-    public string ArtifactRoot { get; }
+    public int AdvancedFrameCount { get; private set; }
+
+    public void SetArtifactRoot(string artifactRoot)
+    {
+        ArtifactRoot = artifactRoot;
+        Directory.CreateDirectory(ArtifactRoot);
+    }
 
     public UIElement? GetVisualRootElement()
     {
@@ -52,6 +76,11 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
     public LayoutRect GetViewportBounds()
     {
         return new LayoutRect(0f, 0f, _width, _height);
+    }
+
+    public string GetDisplayedFps()
+    {
+        return _displayedFps;
     }
 
     public Task ResizeWindowAsync(int width, int height, CancellationToken cancellationToken = default)
@@ -71,6 +100,7 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         for (var i = 0; i < frameCount; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            AdvancedFrameCount++;
             UiRoot.Update(
                 new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
                 new Microsoft.Xna.Framework.Graphics.Viewport(0, 0, _width, _height));
@@ -135,10 +165,28 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         return Task.CompletedTask;
     }
 
-    public Task WriteTelemetryAsync(string artifactName, CancellationToken cancellationToken = default)
+    public Task<string> CaptureTelemetryAsync(string artifactName, CancellationToken cancellationToken = default)
     {
-        File.WriteAllText(Path.Combine(ArtifactRoot, artifactName + ".txt"), UiRoot.GetDirtyRegionSummaryForTests());
-        return Task.CompletedTask;
+        var hovered = UiRoot.GetHoveredElementForDiagnostics();
+        var focused = FocusManager.GetFocusedElement();
+        var diagnosticsContext = new InkkOopsDiagnosticsContext
+        {
+            UiRoot = UiRoot,
+            Viewport = new LayoutRect(0f, 0f, _width, _height),
+            HoveredElement = hovered,
+            FocusedElement = focused,
+            ArtifactName = artifactName,
+            Filter = _diagnosticsFilterPolicy.CreateFilter(artifactName)
+        };
+        var visualTree = _visualTreeDiagnostics.Capture(UiRoot.VisualRoot, diagnosticsContext);
+        var builder = new StringBuilder();
+        builder.AppendLine($"hovered={InkkOopsTargetResolver.DescribeElement(hovered)}");
+        builder.AppendLine($"focused={InkkOopsTargetResolver.DescribeElement(focused)}");
+        builder.AppendLine($"dirty_regions={UiRoot.GetDirtyRegionSummaryForTests()}");
+        builder.AppendLine("visual_tree_begin");
+        builder.Append(_diagnosticsSerializer.SerializeVisualTree(visualTree));
+        builder.AppendLine("visual_tree_end");
+        return Task.FromResult(builder.ToString());
     }
 
     public UIElement? FindElement(string identifier)

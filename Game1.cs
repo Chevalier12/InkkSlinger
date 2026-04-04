@@ -239,6 +239,32 @@ public class Game1 : Game
         return $"{baseTitle} | FPS: {displayedFps} | Hovered: {hoveredElement}";
     }
 
+    internal static string ExtractDisplayedFpsFromWindowTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return "0.0";
+        }
+
+        const string fpsMarker = " | FPS: ";
+        const string hoveredMarker = " | Hovered: ";
+        var fpsStart = title.IndexOf(fpsMarker, StringComparison.Ordinal);
+        if (fpsStart < 0)
+        {
+            return "0.0";
+        }
+
+        fpsStart += fpsMarker.Length;
+        var fpsEnd = title.IndexOf(hoveredMarker, fpsStart, StringComparison.Ordinal);
+        if (fpsEnd < 0)
+        {
+            fpsEnd = title.Length;
+        }
+
+        var displayedFps = title.Substring(fpsStart, fpsEnd - fpsStart).Trim();
+        return string.IsNullOrWhiteSpace(displayedFps) ? "0.0" : displayedFps;
+    }
+
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
         _window.ClientSizeChanged -= OnClientSizeChanged;
