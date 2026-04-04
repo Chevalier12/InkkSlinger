@@ -15,10 +15,10 @@ public sealed class InkkOopsAbstractionTests
     {
         var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
 
-        Assert.Contains("buttons-resize-hover-repro", configuration.ScriptCatalog.ListScripts());
-        Assert.True(configuration.ScriptCatalog.TryResolve("sidebar-button-richtextbox", out var script));
+        Assert.Contains("controls-catalog-menu-capture", configuration.ScriptCatalog.ListScripts());
+        Assert.True(configuration.ScriptCatalog.TryResolve("controls-catalog-sidebar-hover-fps-drop", out var script));
         Assert.NotNull(script);
-        Assert.Equal("sidebar-button-richtextbox", script!.Name);
+        Assert.Equal("controls-catalog-sidebar-hover-fps-drop", script!.Name);
     }
 
     [Fact]
@@ -48,7 +48,8 @@ public sealed class InkkOopsAbstractionTests
 
             Assert.EndsWith("session-custom", recordingDirectory, StringComparison.Ordinal);
             Assert.True(File.Exists(Path.Combine(recordingDirectory, "session.json")));
-            Assert.True(File.Exists(Path.Combine(recordingDirectory, "builder.txt")));
+            Assert.True(File.Exists(Path.Combine(recordingDirectory, "session.inkkr")));
+            Assert.False(File.Exists(Path.Combine(recordingDirectory, "builder.txt")));
         }
         finally
         {
@@ -457,13 +458,11 @@ public sealed class InkkOopsAbstractionTests
 
         public string GetRecordingJsonFileName() => "session.json";
 
-        public string GetRecordedScriptFileName() => "builder.txt";
+        public string GetRecordingInkkrFileName() => "session.inkkr";
 
         public string GetFrameCaptureFileName(string artifactName) => $"frame-{artifactName}.png";
 
         public string GetTelemetryFileName(string artifactName) => $"telemetry-{artifactName}.txt";
-
-        public string CreateReplayScriptName(string recordingPath) => "custom-replay";
 
         public string SanitizePathSegment(string value, string fallbackValue) => string.IsNullOrWhiteSpace(value) ? fallbackValue : value;
     }

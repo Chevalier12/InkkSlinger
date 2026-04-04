@@ -10,7 +10,7 @@ namespace InkkSlinger.Tests;
 public sealed class InkkOopsInteractionRecorderTests
 {
     [Fact]
-    public void Recorder_WritesReplayableScriptAndStructuredLog()
+    public void Recorder_WritesStructuredRecordingOnly()
     {
         var root = Path.Combine(Path.GetTempPath(), $"inkkoops-recorder-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
@@ -30,26 +30,21 @@ public sealed class InkkOopsInteractionRecorderTests
             }
 
             var jsonPath = Path.Combine(directoryPath, "recording.json");
-            var scriptPath = Path.Combine(directoryPath, "recorded-script.txt");
-
+            var inkkrPath = Path.Combine(directoryPath, "recording.inkkr");
             Assert.True(File.Exists(jsonPath));
-            Assert.True(File.Exists(scriptPath));
+            Assert.True(File.Exists(inkkrPath));
+            Assert.False(File.Exists(Path.Combine(directoryPath, "recorded-script.txt")));
 
             var json = File.ReadAllText(jsonPath);
-            var script = File.ReadAllText(scriptPath);
+            var inkkr = File.ReadAllText(inkkrPath);
+
+            Assert.Equal(json, inkkr);
 
             Assert.Contains("\"Kind\": 1", json); // ResizeWindow
             Assert.Contains("\"Kind\": 2", json); // MovePointer
             Assert.Contains("\"Kind\": 3", json); // PointerDown
             Assert.Contains("\"Kind\": 4", json); // PointerUp
             Assert.Contains("\"Kind\": 5", json); // Wheel
-
-            Assert.Contains(".ResizeWindow(1280, 820)", script);
-            Assert.Contains(".MovePointer(new Vector2(140f, 160f))", script);
-            Assert.Contains(".PointerDown(new Vector2(140f, 160f))", script);
-            Assert.Contains(".PointerUp(new Vector2(140f, 160f))", script);
-            Assert.Contains(".ResizeWindow(930, 610)", script);
-            Assert.Contains(".Wheel(120)", script);
         }
         finally
         {

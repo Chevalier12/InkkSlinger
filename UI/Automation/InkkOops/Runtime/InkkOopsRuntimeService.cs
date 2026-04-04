@@ -211,9 +211,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
                 var session = new InkkOopsSession(_host, artifacts, request.ActionDiagnosticsIndexes);
-                var script = InkkOopsRecordedSessionLoader.LoadFromJson(
-                    request.RecordingPath,
-                    _hostConfiguration.ArtifactNamingPolicy);
+                var script = InkkOopsRecordedSessionLoader.LoadFromJson(request.RecordingPath);
                 result = await _runner.RunAsync(script, session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
             }

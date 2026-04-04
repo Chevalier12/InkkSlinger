@@ -130,41 +130,8 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
             },
             new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(Path.Combine(_directoryPath, _namingPolicy.GetRecordingJsonFileName()), sessionJson, Encoding.UTF8);
+        File.WriteAllText(Path.Combine(_directoryPath, _namingPolicy.GetRecordingInkkrFileName()), sessionJson, Encoding.UTF8);
 
-        var builder = new StringBuilder();
-        builder.AppendLine("using System.Numerics;");
-        builder.AppendLine();
-        builder.AppendLine("return new InkkOopsScriptBuilder(\"recorded-session\")");
-        foreach (var action in _actions)
-        {
-            builder.Append("    .");
-            switch (action.Kind)
-            {
-                case RecordedActionKind.WaitFrames:
-                    builder.Append("WaitFrames(").Append(action.FrameCount).Append(')');
-                    break;
-                case RecordedActionKind.ResizeWindow:
-                    builder.Append("ResizeWindow(").Append(action.Width).Append(", ").Append(action.Height).Append(')');
-                    break;
-                case RecordedActionKind.MovePointer:
-                    builder.Append("MovePointer(new Vector2(").Append(action.X!.Value).Append("f, ").Append(action.Y!.Value).Append("f))");
-                    break;
-                case RecordedActionKind.PointerDown:
-                    builder.Append("PointerDown(new Vector2(").Append(action.X!.Value).Append("f, ").Append(action.Y!.Value).Append("f))");
-                    break;
-                case RecordedActionKind.PointerUp:
-                    builder.Append("PointerUp(new Vector2(").Append(action.X!.Value).Append("f, ").Append(action.Y!.Value).Append("f))");
-                    break;
-                case RecordedActionKind.Wheel:
-                    builder.Append("Wheel(").Append(action.WheelDelta).Append(')');
-                    break;
-            }
-
-            builder.AppendLine();
-        }
-
-        builder.AppendLine("    .Build();");
-        File.WriteAllText(Path.Combine(_directoryPath, _namingPolicy.GetRecordedScriptFileName()), builder.ToString(), Encoding.UTF8);
     }
 
     public enum RecordedActionKind

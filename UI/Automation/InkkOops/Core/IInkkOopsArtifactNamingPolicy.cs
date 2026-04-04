@@ -14,13 +14,11 @@ public interface IInkkOopsArtifactNamingPolicy
 
     string GetRecordingJsonFileName();
 
-    string GetRecordedScriptFileName();
+    string GetRecordingInkkrFileName();
 
     string GetFrameCaptureFileName(string artifactName);
 
     string GetTelemetryFileName(string artifactName);
-
-    string CreateReplayScriptName(string recordingPath);
 
     string SanitizePathSegment(string value, string fallbackValue);
 }

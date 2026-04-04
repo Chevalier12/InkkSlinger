@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Numerics;
 using System.Text.Json;
 
@@ -15,25 +14,16 @@ public static class InkkOopsRecordedSessionLoader
 
     public static InkkOopsScript LoadFromJson(string recordingPath)
     {
-        return LoadFromJson(recordingPath, new DefaultInkkOopsArtifactNamingPolicy());
-    }
-
-    public static InkkOopsScript LoadFromJson(
-        string recordingPath,
-        IInkkOopsArtifactNamingPolicy namingPolicy)
-    {
         if (string.IsNullOrWhiteSpace(recordingPath))
         {
             throw new ArgumentException("Recording path is required.", nameof(recordingPath));
         }
-        
-        ArgumentNullException.ThrowIfNull(namingPolicy);
 
-        var fullPath = Path.GetFullPath(recordingPath);
-        var json = File.ReadAllText(fullPath);
+        var fullPath = System.IO.Path.GetFullPath(recordingPath);
+        var json = System.IO.File.ReadAllText(fullPath);
         var session = JsonSerializer.Deserialize<RecordedSessionDocument>(json, JsonOptions)
                       ?? throw new InvalidOperationException($"Could not deserialize recording '{fullPath}'.");
-        var builder = new InkkOopsScriptBuilder(namingPolicy.CreateReplayScriptName(fullPath));
+        var builder = new InkkOopsScriptBuilder("recording-playback");
 
         foreach (var action in session.Actions)
         {

@@ -21,7 +21,7 @@ public sealed class DefaultInkkOopsArtifactNamingPolicy : IInkkOopsArtifactNamin
 
     public string GetRecordingJsonFileName() => "recording.json";
 
-    public string GetRecordedScriptFileName() => "recorded-script.txt";
+    public string GetRecordingInkkrFileName() => "recording.inkkr";
 
     public string GetFrameCaptureFileName(string artifactName)
     {
@@ -31,12 +31,6 @@ public sealed class DefaultInkkOopsArtifactNamingPolicy : IInkkOopsArtifactNamin
     public string GetTelemetryFileName(string artifactName)
     {
         return EnsureExtension(artifactName, ".txt", "artifact");
-    }
-
-    public string CreateReplayScriptName(string recordingPath)
-    {
-        var scriptName = Path.GetFileNameWithoutExtension(recordingPath);
-        return $"recording-replay-{SanitizePathSegment(scriptName, "recording")}";
     }
 
     public string SanitizePathSegment(string value, string fallbackValue)

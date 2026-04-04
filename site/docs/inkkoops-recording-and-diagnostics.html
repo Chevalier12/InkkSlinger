@@ -125,14 +125,13 @@ dotnet run --project InkkOops.Cli/InkkOops.Cli.csproj -- record --launch</code><
                     <h2>Recording bundle layout</h2>
                     <ul>
                         <li><code>recording.json</code> is the structured replay source.</li>
-                        <li><code>recorded-script.txt</code> is a readable builder-style representation of the same sequence.</li>
                     </ul>
-                    <p>The JSON file is what the runtime replays. The text file exists so a developer can inspect the session and manually reduce it into a focused built-in script.</p>
+                    <p>The JSON file is what the runtime replays.</p>
                 </section>
 
                 <section class="doc-section">
                     <h2>Replay conversion</h2>
-                    <p>Replay loads <code>recording.json</code>, turns each action into a normal builder command, and then applies the configured replay postamble policy. In this repository's default host profile, the postamble appends:</p>
+                    <p>Replay loads <code>recording.json</code> directly and replays the recorded actions. In this repository's default host profile, the replay postamble appends:</p>
                     <ul>
                         <li><code>WaitForIdle(InkkOopsIdlePolicy.DiagnosticsStable)</code></li>
                         <li><code>CaptureFrame("&lt;recording-name&gt;-final")</code></li>
