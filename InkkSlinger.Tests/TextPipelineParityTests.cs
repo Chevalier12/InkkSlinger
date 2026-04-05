@@ -178,4 +178,19 @@ public class TextPipelineParityTests
         Assert.True(snapshot.TotalProducedLineCount >= 2);
         Assert.True(snapshot.CacheEntryCount >= 2);
     }
+
+    [Fact]
+    public void TextLayout_Wrap_ZeroAvailableWidth_StillProducesWrappedLines()
+    {
+        var textBlock = new TextBlock
+        {
+            Text = "This center lane behaves like a WPF editor canvas: it absorbs most width, but still yields to splitter drags and keyboard nudges.",
+            TextWrapping = TextWrapping.Wrap
+        };
+
+        var layout = TextLayout.LayoutForElement(textBlock.Text, textBlock, textBlock.FontSize, 0f, TextWrapping.Wrap);
+
+        Assert.True(layout.Lines.Count > 1, $"Expected wrapped text to remain wrapped at zero available width. renderText='{string.Join("\\n", layout.Lines)}'");
+        Assert.DoesNotContain(layout.Lines, static line => string.IsNullOrWhiteSpace(line));
+    }
 }

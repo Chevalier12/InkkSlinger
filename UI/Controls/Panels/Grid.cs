@@ -549,12 +549,12 @@ public class Grid : Panel
             for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
             {
                 ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
-                if (ShouldDeferRowSpanMeasurement(metadata) != (deferredSpanPass == 1))
+                if (ShouldDeferSpanMeasurement(metadata) != (deferredSpanPass == 1))
                 {
                     continue;
                 }
 
-                var firstPassAvailable = ResolveFirstPassAvailableSize(metadata, rows, columns);
+                var firstPassAvailable = ResolveFirstPassAvailableSize(metadata, rows, columns, availableSize);
                 var desiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, firstPassAvailable);
                 firstPassMeasuredChildCount++;
 
@@ -593,7 +593,7 @@ public class Grid : Panel
                 for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
                 {
                     ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
-                    if (ShouldDeferRowSpanMeasurement(metadata) != (deferredSpanPass == 1))
+                    if (ShouldDeferSpanMeasurement(metadata) != (deferredSpanPass == 1))
                     {
                         continue;
                     }
@@ -814,11 +814,14 @@ public class Grid : Panel
         for (var i = 0; i < _columnDefinitions.Count; i++)
         {
             var definition = _columnDefinitions[i];
+            var length = definition.Width.IsStar && !string.IsNullOrEmpty(definition.SharedSizeGroup)
+                ? GridLength.Auto
+                : definition.Width;
             target[i].Reset(
-                definition.Width,
+                length,
                 definition.MinWidth,
                 definition.MaxWidth,
-                definition.Width.IsStar ? null : definition.SharedSizeGroup);
+                definition.SharedSizeGroup);
         }
 
         return target;
@@ -836,11 +839,14 @@ public class Grid : Panel
         for (var i = 0; i < _rowDefinitions.Count; i++)
         {
             var definition = _rowDefinitions[i];
+            var length = definition.Height.IsStar && !string.IsNullOrEmpty(definition.SharedSizeGroup)
+                ? GridLength.Auto
+                : definition.Height;
             target[i].Reset(
-                definition.Height,
+                length,
                 definition.MinHeight,
                 definition.MaxHeight,
-                definition.Height.IsStar ? null : definition.SharedSizeGroup);
+                definition.SharedSizeGroup);
         }
 
         return target;
@@ -943,6 +949,8 @@ public class Grid : Panel
             return false;
         }
 
+        ApplyContentRequirement(definitions, start, span, requiredSize, hasFiniteConstraint);
+
         var end = Math.Min(definitions.Count, start + span);
         var current = 0f;
         for (var i = start; i < end; i++)
@@ -982,6 +990,47 @@ public class Grid : Panel
                 IncrementAggregate(ref _diagApplyChildRequirementNoOpCount);
             }
         }
+    }
+
+    private static void ApplyContentRequirement(
+        IReadOnlyList<DefinitionSnapshot> definitions,
+        int start,
+        int span,
+        float requiredSize,
+        bool hasFiniteConstraint)
+    {
+        var end = Math.Min(definitions.Count, start + span);
+        var current = 0f;
+        for (var i = start; i < end; i++)
+        {
+            current += definitions[i].ContentSize;
+        }
+
+        var extra = requiredSize - current;
+        if (extra <= 0f)
+        {
+            return;
+        }
+
+        if (hasFiniteConstraint && HasDefinitionType(definitions, start, end, static definition => definition.Length.IsStar))
+        {
+            extra = DistributeExtraContentSize(definitions, start, end, extra, static definition => definition.Length.IsAuto);
+            if (extra <= 0.01f)
+            {
+                return;
+            }
+        }
+        else
+        {
+            extra = DistributeExtraContentSize(definitions, start, end, extra, static definition => definition.Length.IsAuto);
+            extra = DistributeExtraContentSize(definitions, start, end, extra, static definition => !definition.Length.IsPixel, useStarWeights: true);
+            if (extra <= 0.01f)
+            {
+                return;
+            }
+        }
+
+        definitions[end - 1].RecordContentSize(definitions[end - 1].ContentSize + extra);
     }
 
     private static void FinalizeDefinitionSizes(IReadOnlyList<DefinitionSnapshot> definitions, float available)
@@ -1213,7 +1262,8 @@ public class Grid : Panel
     private static Vector2 ResolveFirstPassAvailableSize(
         in ChildLayoutMetadata metadata,
         IReadOnlyList<DefinitionSnapshot> rows,
-        IReadOnlyList<DefinitionSnapshot> columns)
+        IReadOnlyList<DefinitionSnapshot> columns,
+        Vector2 parentAvailableSize)
     {
         var width = SumRange(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan);
         if (metadata.HasAutoWidth)
@@ -1222,6 +1272,10 @@ public class Grid : Panel
                 ? ResolveExplicitMeasureAvailable(metadata.Child.Width, metadata.Child.Margin.Horizontal)
                 : metadata.HasStarWidth ? width : float.PositiveInfinity;
         }
+        else if ((float.IsInfinity(parentAvailableSize.X) || float.IsNaN(parentAvailableSize.X)) && metadata.HasStarWidth)
+        {
+            width = float.PositiveInfinity;
+        }
 
         var height = SumRange(rows, metadata.Cell.Row, metadata.Cell.RowSpan);
         if (metadata.HasAutoHeight)
@@ -1229,6 +1283,10 @@ public class Grid : Panel
             height = metadata.HasExplicitHeight
                 ? ResolveExplicitMeasureAvailable(metadata.Child.Height, metadata.Child.Margin.Vertical)
                 : metadata.HasStarHeight ? height : float.PositiveInfinity;
+        }
+        else if ((float.IsInfinity(parentAvailableSize.Y) || float.IsNaN(parentAvailableSize.Y)) && metadata.HasStarHeight)
+        {
+            height = float.PositiveInfinity;
         }
 
         return new Vector2(width, height);
@@ -1335,6 +1393,11 @@ public class Grid : Panel
     private static bool ShouldDeferRowSpanMeasurement(in ChildLayoutMetadata metadata)
     {
         return metadata.Cell.RowSpan > 1;
+    }
+
+    private static bool ShouldDeferSpanMeasurement(in ChildLayoutMetadata metadata)
+    {
+        return metadata.Cell.RowSpan > 1 || metadata.Cell.ColumnSpan > 1;
     }
 
     private void InvalidateChildLayoutMetadataCache()
@@ -1714,6 +1777,84 @@ public class Grid : Panel
         return extra;
     }
 
+    private static float DistributeExtraContentSize(
+        IReadOnlyList<DefinitionSnapshot> definitions,
+        int start,
+        int end,
+        float extra,
+        Predicate<DefinitionSnapshot> match,
+        bool useStarWeights = false)
+    {
+        if (extra <= 0f)
+        {
+            return 0f;
+        }
+
+        while (extra > 0.01f)
+        {
+            var candidateCount = 0;
+            var totalWeight = 0f;
+            for (var i = start; i < end; i++)
+            {
+                var definition = definitions[i];
+                if (!match(definition) || definition.ContentSize >= definition.Max - 0.01f)
+                {
+                    continue;
+                }
+
+                candidateCount++;
+                totalWeight += useStarWeights && definition.Length.IsStar
+                    ? MathF.Max(0.0001f, definition.Length.Value)
+                    : 1f;
+            }
+
+            if (candidateCount == 0 || totalWeight <= 0f)
+            {
+                return extra;
+            }
+
+            var remainingExtra = extra;
+            var remainingCount = candidateCount;
+            var remainingWeight = totalWeight;
+            var madeProgress = false;
+
+            for (var i = start; i < end && remainingExtra > 0.01f; i++)
+            {
+                var definition = definitions[i];
+                if (!match(definition) || definition.ContentSize >= definition.Max - 0.01f)
+                {
+                    continue;
+                }
+
+                var weight = useStarWeights && definition.Length.IsStar
+                    ? MathF.Max(0.0001f, definition.Length.Value)
+                    : 1f;
+                var share = useStarWeights
+                    ? remainingExtra * (weight / remainingWeight)
+                    : remainingExtra / remainingCount;
+                var capacity = MathF.Max(0f, definition.Max - definition.ContentSize);
+                var added = MathF.Min(share, capacity);
+                if (added > 0f)
+                {
+                    definition.RecordContentSize(definition.ContentSize + added);
+                    remainingExtra -= added;
+                    madeProgress = true;
+                }
+
+                remainingCount--;
+                remainingWeight -= weight;
+            }
+
+            extra = remainingExtra;
+            if (!madeProgress)
+            {
+                return extra;
+            }
+        }
+
+        return extra;
+    }
+
     private sealed class DefinitionSnapshot
     {
         public DefinitionSnapshot(GridLength length, float min, float max, string? sharedSizeGroup)
@@ -1731,6 +1872,8 @@ public class Grid : Panel
 
         public float SharedSize { get; private set; }
 
+        public float ContentSize { get; private set; }
+
         public float EffectiveMin => MathF.Max(Min, SharedSize);
 
         public float Size { get; set; }
@@ -1743,6 +1886,9 @@ public class Grid : Panel
             SharedSizeGroup = sharedSizeGroup;
             SharedSize = 0f;
             Size = 0f;
+            ContentSize = length.IsPixel
+                ? Clamp(length.Value, min, max)
+                : Clamp(min, min, max);
         }
 
         public void ApplySharedSize(float sharedSize)
@@ -1752,6 +1898,11 @@ public class Grid : Panel
             {
                 Size = EffectiveMin;
             }
+        }
+
+        public void RecordContentSize(float size)
+        {
+            ContentSize = Clamp(MathF.Max(ContentSize, size), Min, Max);
         }
     }
 
@@ -1960,9 +2111,13 @@ public class Grid : Panel
         public float GetSharedSize(string sharedSizeGroup, bool isColumnAxis)
         {
             var registry = isColumnAxis ? _columnGroups : _rowGroups;
-            return registry.TryGetValue(sharedSizeGroup, out var axisState)
-                ? axisState.MaxSize
-                : 0f;
+            if (!registry.TryGetValue(sharedSizeGroup, out var axisState))
+            {
+                return 0f;
+            }
+
+            axisState.RemoveStaleContributions(this);
+            return axisState.MaxSize;
         }
 
         public void Publish(Grid grid, IReadOnlyList<DefinitionSnapshot> definitions, bool isColumnAxis)
@@ -1980,6 +2135,10 @@ public class Grid : Panel
                 }
 
                 var size = definitions[i].Size;
+                if (!definitions[i].Length.IsPixel)
+                {
+                    size = definitions[i].ContentSize;
+                }
                 if (contributions.TryGetValue(group, out var existing))
                 {
                     contributions[group] = MathF.Max(existing, size);
@@ -1997,6 +2156,8 @@ public class Grid : Panel
                     axisState = new SharedAxisState();
                     registry[contribution.Key] = axisState;
                 }
+
+                axisState.RemoveStaleContributions(this);
 
                 if (axisState.UpdateContribution(grid, contribution.Value))
                 {
@@ -2075,6 +2236,35 @@ public class Grid : Panel
                 grid.InvalidateMeasure();
                 grid.InvalidateArrange();
             }
+        }
+
+        public void RemoveStaleContributions(SharedSizeScopeState owner)
+        {
+            if (_contributions.Count == 0)
+            {
+                return;
+            }
+
+            var staleGrids = new List<Grid>();
+            foreach (var contribution in _contributions)
+            {
+                if (!ReferenceEquals(contribution.Key._sharedSizeScopeState, owner))
+                {
+                    staleGrids.Add(contribution.Key);
+                }
+            }
+
+            if (staleGrids.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < staleGrids.Count; i++)
+            {
+                _contributions.Remove(staleGrids[i]);
+            }
+
+            RecalculateMaxSize();
         }
 
         private bool RecalculateMaxSize()

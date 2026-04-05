@@ -11,6 +11,7 @@ namespace InkkSlinger;
 public static class TextLayout
 {
     private const int CacheCapacity = 512;
+    private const float MinimumWrappedWidth = 0.01f;
     private static readonly Dictionary<TextLayoutCacheKey, TextLayoutResult> Cache = new();
     private static readonly Queue<TextLayoutCacheKey> CacheOrder = new();
     private static int _layoutRequestCount;
@@ -110,15 +111,14 @@ public static class TextLayout
             _buildCount++;
             if (wrapping == TextWrapping.NoWrap ||
                 float.IsInfinity(availableWidth) ||
-                float.IsNaN(availableWidth) ||
-                availableWidth <= 0f)
+                float.IsNaN(availableWidth))
             {
                 _noWrapBuildCount++;
                 return BuildNoWrapLayout(text, typography, fontSize);
             }
 
             _wrappedBuildCount++;
-            return BuildWrappedLayout(text, typography, fontSize, availableWidth);
+            return BuildWrappedLayout(text, typography, fontSize, MathF.Max(availableWidth, MinimumWrappedWidth));
         }
         finally
         {
@@ -188,6 +188,11 @@ public static class TextLayout
 
             var tokenLength = index - tokenStart;
             if (tokenLength == 0)
+            {
+                continue;
+            }
+
+            if (tokenIsWhitespace && builder.Length == 0)
             {
                 continue;
             }
