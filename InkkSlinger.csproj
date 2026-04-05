@@ -23,8 +23,10 @@
         <Compile Remove="InkkSlinger.Tests\\**\\*.cs" />
         <Compile Remove="InkkSlinger.XamlNameGenerator\\**\\*.cs" />
         <Compile Remove="InkkOops.Cli\\**\\*.cs" />
+        <Compile Remove="InkkSlinger.WpfLab\\**\\*.cs" />
         <Compile Remove="artifacts\\**\\*.cs" />
         <None Remove="InkkOops.Cli\\**\\*" />
+        <None Remove="InkkSlinger.WpfLab\\**\\*" />
     </ItemGroup>
     <ItemGroup>
         <_CodeBehindXmlCs Include="**\\*.xml.cs"
