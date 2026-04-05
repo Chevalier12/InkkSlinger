@@ -295,6 +295,120 @@ public sealed class StoryboardScaleLaneReplacementTests
         Assert.True(telemetry.ComposeCollectMilliseconds < 5d, $"Compose collect unexpectedly high: {telemetry.ComposeCollectMilliseconds:0.###} ms");
     }
 
+    [Fact]
+    public void HoldEndLanes_DoNotTriggerComposePasses_WhenNoStoryboardsRemain()
+    {
+        const string xaml = """
+                            <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                              <UserControl.Resources>
+                                <Style x:Key="HoverScaleStyle" TargetType="{x:Type Button}">
+                                  <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                                  <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                      <ScaleTransform ScaleX="1" ScaleY="1" />
+                                    </Setter.Value>
+                                  </Setter>
+                                  <Style.Triggers>
+                                    <EventTrigger RoutedEvent="MouseEnter">
+                                      <BeginStoryboard>
+                                        <Storyboard>
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.3" Duration="0:0:0.15" />
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.3" Duration="0:0:0.15" />
+                                        </Storyboard>
+                                      </BeginStoryboard>
+                                    </EventTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </UserControl.Resources>
+                              <Canvas>
+                                <Button x:Name="Probe" Style="{StaticResource HoverScaleStyle}" Width="200" Height="80" Canvas.Left="40" Canvas.Top="40" />
+                              </Canvas>
+                            </UserControl>
+                            """;
+
+        AnimationManager.Current.ResetForTests();
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var button = Assert.IsType<Button>(root.FindName("Probe"));
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 420, 240, 16);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(GetCenter(button), pointerMoved: true));
+        AdvanceFrames(uiRoot, 420, 240, startMs: 32, frameCount: 14);
+
+        var settled = AnimationManager.Current.GetTelemetrySnapshotForTests();
+        Assert.Equal(0, settled.ActiveStoryboardCount);
+        Assert.True(settled.ActiveLaneCount > 0);
+
+        AnimationManager.Current.ResetTelemetryForTests();
+        AdvanceFrames(uiRoot, 420, 240, startMs: 320, frameCount: 10);
+
+        var idle = AnimationManager.Current.GetTelemetrySnapshotForTests();
+        Assert.Equal(0, idle.ComposePassCount);
+        Assert.Equal(0d, idle.ComposeMilliseconds, 3);
+        Assert.Equal(0d, idle.StoryboardUpdateMilliseconds, 3);
+    }
+
+    [Fact]
+    public void HoverAnimation_UsesBulkFreezableWrites_ForScaleAndShadowProperties()
+    {
+        const string xaml = """
+                            <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                              <UserControl.Resources>
+                                <Style x:Key="HoverScaleShadowStyle" TargetType="{x:Type Button}">
+                                  <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                                  <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                      <ScaleTransform ScaleX="1" ScaleY="1" />
+                                    </Setter.Value>
+                                  </Setter>
+                                  <Setter Property="Effect">
+                                    <Setter.Value>
+                                      <DropShadowEffect BlurRadius="0" Opacity="0" />
+                                    </Setter.Value>
+                                  </Setter>
+                                  <Style.Triggers>
+                                    <EventTrigger RoutedEvent="MouseEnter">
+                                      <BeginStoryboard>
+                                        <Storyboard>
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1.2" Duration="0:0:0.15" />
+                                          <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1.2" Duration="0:0:0.15" />
+                                          <DoubleAnimation Storyboard.TargetProperty="Effect.BlurRadius" To="10" Duration="0:0:0.15" />
+                                          <DoubleAnimation Storyboard.TargetProperty="Effect.Opacity" To="0.5" Duration="0:0:0.15" />
+                                        </Storyboard>
+                                      </BeginStoryboard>
+                                    </EventTrigger>
+                                  </Style.Triggers>
+                                </Style>
+                              </UserControl.Resources>
+                              <Canvas>
+                                <Button x:Name="Probe" Style="{StaticResource HoverScaleShadowStyle}" Width="200" Height="80" Canvas.Left="40" Canvas.Top="40" />
+                              </Canvas>
+                            </UserControl>
+                            """;
+
+        AnimationManager.Current.ResetForTests();
+        AnimationValueSink.ResetTelemetryForTests();
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var button = Assert.IsType<Button>(root.FindName("Probe"));
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 420, 240, 16);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(GetCenter(button), pointerMoved: true));
+        AdvanceFrames(uiRoot, 420, 240, startMs: 32, frameCount: 14);
+
+        var transform = Assert.IsType<ScaleTransform>(button.RenderTransform);
+        var effect = Assert.IsType<DropShadowEffect>(button.Effect);
+        var sinkTelemetry = AnimationValueSink.GetTelemetrySnapshotForTests();
+
+        Assert.Equal(0, sinkTelemetry.ClrPropertySetValueCount);
+        Assert.True(transform.ScaleX > 1f);
+        Assert.True(transform.ScaleY > 1f);
+        Assert.True(effect.BlurRadius > 0f);
+        Assert.True(effect.Opacity > 0f);
+    }
+
     private static void AdvanceFrames(UiRoot uiRoot, int width, int height, int startMs, int frameCount)
     {
         for (var i = 0; i < frameCount; i++)

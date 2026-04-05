@@ -22,6 +22,8 @@ public sealed class AnimationManager
     private readonly Dictionary<AnimationLaneKey, List<LaneContribution>> _activeLaneBuffer = new();
     private readonly List<AnimationLaneKey> _inactiveLaneBuffer = new();
     private readonly HashSet<AnimationLaneKey> _activeLaneKeys = new();
+    private readonly List<PendingAnimationWrite> _pendingWriteBuffer = new();
+    private readonly HashSet<Freezable> _batchedFreezables = new();
     private ConditionalWeakTable<Storyboard, StoryboardInstance.PreparedStoryboardMetadata> _preparedStoryboardMetadata = new();
     private long _nextSequence;
     private int _nextStoryboardInstanceId;
@@ -116,8 +118,14 @@ public sealed class AnimationManager
     public void Update(GameTime gameTime)
     {
         _currentTime = gameTime.TotalGameTime;
-        if (_storyboards.Count == 0 && _appliedLanes.Count == 0)
+        if (_storyboards.Count == 0)
         {
+            if (!HasPendingLaneWork())
+            {
+                return;
+            }
+
+            ComposeAndApplyActiveLanes();
             return;
         }
 
@@ -128,7 +136,11 @@ public sealed class AnimationManager
         }
         _storyboardUpdateElapsedTicks += Stopwatch.GetTimestamp() - updateStartTicks;
 
-        ComposeAndApplyActiveLanes();
+        if (_storyboards.Count > 0 || HasPendingLaneWork())
+        {
+            ComposeAndApplyActiveLanes();
+        }
+
         var cleanupStartTicks = Stopwatch.GetTimestamp();
         CleanupCompletedStoryboards();
         _cleanupCompletedElapsedTicks += Stopwatch.GetTimestamp() - cleanupStartTicks;
@@ -352,7 +364,8 @@ public sealed class AnimationManager
         _composePassCount++;
         try
         {
-            var pendingWrites = new List<PendingAnimationWrite>();
+            var pendingWrites = _pendingWriteBuffer;
+            pendingWrites.Clear();
             ClearActiveLaneBuffer();
             var collectStartTicks = Stopwatch.GetTimestamp();
             foreach (var storyboard in _storyboards)
@@ -501,6 +514,29 @@ public sealed class AnimationManager
         }
 
         _activeLaneKeys.Clear();
+    }
+
+    private bool HasPendingLaneWork()
+    {
+        if (_appliedLanes.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var state in _appliedLanes.Values)
+        {
+            if (!state.IsParkedFrozen)
+            {
+                return true;
+            }
+
+            if (state.HasLastAppliedValue && ValuesEqual(state.LastAppliedValue, state.BaseValue))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool HasLiveContributionForLane(AnimationLaneKey key)
@@ -681,7 +717,9 @@ public sealed class AnimationManager
             return;
         }
 
-        var batchedFreezables = new HashSet<Freezable>();
+        var batchedFreezables = _batchedFreezables;
+        batchedFreezables.Clear();
+        var handledWrites = new bool[pendingWrites.Count];
         try
         {
             var batchBeginStartTicks = Stopwatch.GetTimestamp();
@@ -699,7 +737,17 @@ public sealed class AnimationManager
 
             for (var i = 0; i < pendingWrites.Count; i++)
             {
+                if (handledWrites[i])
+                {
+                    continue;
+                }
+
                 var write = pendingWrites[i];
+                if (TryApplyOptimizedPendingWrites(pendingWrites, handledWrites, i, write))
+                {
+                    continue;
+                }
+
                 var setStartTicks = Stopwatch.GetTimestamp();
                 write.Sink.SetValue(write.Value);
                 var setElapsedTicks = Stopwatch.GetTimestamp() - setStartTicks;
@@ -725,8 +773,227 @@ public sealed class AnimationManager
             finally
             {
                 UIElement.EndFreezableInvalidationBatch();
+                batchedFreezables.Clear();
             }
             _composeBatchEndElapsedTicks += Stopwatch.GetTimestamp() - batchEndStartTicks;
+        }
+    }
+
+    private bool TryApplyOptimizedPendingWrites(
+        List<PendingAnimationWrite> pendingWrites,
+        bool[] handledWrites,
+        int startIndex,
+        PendingAnimationWrite firstWrite)
+    {
+        if (firstWrite.Sink is not ClrPropertyAnimationSink firstClrSink)
+        {
+            return false;
+        }
+
+        return firstClrSink.Target switch
+        {
+            ScaleTransform scaleTransform => TryApplyOptimizedScaleTransformWrites(
+                pendingWrites,
+                handledWrites,
+                startIndex,
+                scaleTransform),
+            DropShadowEffect dropShadowEffect => TryApplyOptimizedDropShadowWrites(
+                pendingWrites,
+                handledWrites,
+                startIndex,
+                dropShadowEffect),
+            _ => false
+        };
+    }
+
+    private bool TryApplyOptimizedScaleTransformWrites(
+        List<PendingAnimationWrite> pendingWrites,
+        bool[] handledWrites,
+        int startIndex,
+        ScaleTransform target)
+    {
+        var matchedCount = 0;
+        var hasScaleX = false;
+        var scaleX = 0f;
+        var hasScaleY = false;
+        var scaleY = 0f;
+        var hasCenterX = false;
+        var centerX = 0f;
+        var hasCenterY = false;
+        var centerY = 0f;
+
+        for (var i = startIndex; i < pendingWrites.Count; i++)
+        {
+            if (handledWrites[i] || pendingWrites[i].Sink is not ClrPropertyAnimationSink clrSink || !ReferenceEquals(clrSink.Target, target))
+            {
+                continue;
+            }
+
+            switch (clrSink.Property.Name)
+            {
+                case nameof(ScaleTransform.ScaleX) when pendingWrites[i].Value is float value:
+                    hasScaleX = true;
+                    scaleX = value;
+                    matchedCount++;
+                    break;
+                case nameof(ScaleTransform.ScaleY) when pendingWrites[i].Value is float value:
+                    hasScaleY = true;
+                    scaleY = value;
+                    matchedCount++;
+                    break;
+                case nameof(ScaleTransform.CenterX) when pendingWrites[i].Value is float value:
+                    hasCenterX = true;
+                    centerX = value;
+                    matchedCount++;
+                    break;
+                case nameof(ScaleTransform.CenterY) when pendingWrites[i].Value is float value:
+                    hasCenterY = true;
+                    centerY = value;
+                    matchedCount++;
+                    break;
+            }
+        }
+
+        if (matchedCount == 0)
+        {
+            return false;
+        }
+
+        var matchedIndices = new List<int>(matchedCount);
+        for (var i = startIndex; i < pendingWrites.Count; i++)
+        {
+            if (handledWrites[i] || pendingWrites[i].Sink is not ClrPropertyAnimationSink clrSink || !ReferenceEquals(clrSink.Target, target))
+            {
+                continue;
+            }
+
+            if (clrSink.Property.Name is nameof(ScaleTransform.ScaleX) or nameof(ScaleTransform.ScaleY) or nameof(ScaleTransform.CenterX) or nameof(ScaleTransform.CenterY))
+            {
+                matchedIndices.Add(i);
+            }
+        }
+
+        var setStartTicks = Stopwatch.GetTimestamp();
+        target.ApplyAnimatedValues(hasScaleX, scaleX, hasScaleY, scaleY, hasCenterX, centerX, hasCenterY, centerY);
+        var setElapsedTicks = Stopwatch.GetTimestamp() - setStartTicks;
+        RecordOptimizedPendingWriteSet(pendingWrites, handledWrites, matchedIndices, setElapsedTicks);
+        return true;
+    }
+
+    private bool TryApplyOptimizedDropShadowWrites(
+        List<PendingAnimationWrite> pendingWrites,
+        bool[] handledWrites,
+        int startIndex,
+        DropShadowEffect target)
+    {
+        var matchedCount = 0;
+        var hasColor = false;
+        var color = default(Color);
+        var hasShadowDepth = false;
+        var shadowDepth = 0f;
+        var hasBlurRadius = false;
+        var blurRadius = 0f;
+        var hasOpacity = false;
+        var opacity = 0f;
+        var hasDirection = false;
+        var direction = 0d;
+
+        for (var i = startIndex; i < pendingWrites.Count; i++)
+        {
+            if (handledWrites[i] || pendingWrites[i].Sink is not ClrPropertyAnimationSink clrSink || !ReferenceEquals(clrSink.Target, target))
+            {
+                continue;
+            }
+
+            switch (clrSink.Property.Name)
+            {
+                case nameof(DropShadowEffect.Color) when pendingWrites[i].Value is Color value:
+                    hasColor = true;
+                    color = value;
+                    matchedCount++;
+                    break;
+                case nameof(DropShadowEffect.ShadowDepth) when pendingWrites[i].Value is float value:
+                    hasShadowDepth = true;
+                    shadowDepth = value;
+                    matchedCount++;
+                    break;
+                case nameof(DropShadowEffect.BlurRadius) when pendingWrites[i].Value is float value:
+                    hasBlurRadius = true;
+                    blurRadius = value;
+                    matchedCount++;
+                    break;
+                case nameof(DropShadowEffect.Opacity) when pendingWrites[i].Value is float value:
+                    hasOpacity = true;
+                    opacity = value;
+                    matchedCount++;
+                    break;
+                case nameof(DropShadowEffect.Direction) when pendingWrites[i].Value is double value:
+                    hasDirection = true;
+                    direction = value;
+                    matchedCount++;
+                    break;
+            }
+        }
+
+        if (matchedCount == 0)
+        {
+            return false;
+        }
+
+        var matchedIndices = new List<int>(matchedCount);
+        for (var i = startIndex; i < pendingWrites.Count; i++)
+        {
+            if (handledWrites[i] || pendingWrites[i].Sink is not ClrPropertyAnimationSink clrSink || !ReferenceEquals(clrSink.Target, target))
+            {
+                continue;
+            }
+
+            if (clrSink.Property.Name is nameof(DropShadowEffect.Color) or nameof(DropShadowEffect.ShadowDepth) or nameof(DropShadowEffect.BlurRadius) or nameof(DropShadowEffect.Opacity) or nameof(DropShadowEffect.Direction))
+            {
+                matchedIndices.Add(i);
+            }
+        }
+
+        var setStartTicks = Stopwatch.GetTimestamp();
+        target.ApplyAnimatedValues(
+            hasColor,
+            color,
+            hasShadowDepth,
+            shadowDepth,
+            hasBlurRadius,
+            blurRadius,
+            hasOpacity,
+            opacity,
+            hasDirection,
+            direction);
+        var setElapsedTicks = Stopwatch.GetTimestamp() - setStartTicks;
+        RecordOptimizedPendingWriteSet(pendingWrites, handledWrites, matchedIndices, setElapsedTicks);
+        return true;
+    }
+
+    private void RecordOptimizedPendingWriteSet(
+        List<PendingAnimationWrite> pendingWrites,
+        bool[] handledWrites,
+        List<int> matchedIndices,
+        long setElapsedTicks)
+    {
+        if (matchedIndices.Count == 0)
+        {
+            return;
+        }
+
+        _sinkSetValueElapsedTicks += setElapsedTicks;
+        var perWriteElapsedTicks = Math.Max(1L, setElapsedTicks / matchedIndices.Count);
+        for (var i = 0; i < matchedIndices.Count; i++)
+        {
+            var matchedIndex = matchedIndices[i];
+            handledWrites[matchedIndex] = true;
+            var write = pendingWrites[matchedIndex];
+            RecordSetValuePathTiming(write.TargetPropertyPath, perWriteElapsedTicks);
+            RecordHottestSetValueWrite(write, perWriteElapsedTicks);
+            _sinkValueSetCount++;
+            write.AppliedState.LastAppliedValue = write.Value;
+            write.AppliedState.HasLastAppliedValue = true;
         }
     }
 
@@ -1057,8 +1324,8 @@ internal sealed class StoryboardInstance
     public void Start(HandoffBehavior handoff)
     {
         var laneKeysToReplace = new HashSet<AnimationLaneKey>();
-        var resolvedTargetCache = new Dictionary<string, object?>(StringComparer.Ordinal);
         var preparedMetadata = _manager.GetOrCreatePreparedStoryboardMetadata(Storyboard);
+        var resolvedTargetCache = preparedMetadata.GetOrCreateResolvedTargetCache(Scope);
 
         foreach (var descriptor in preparedMetadata.Lanes)
         {
@@ -1344,12 +1611,25 @@ internal sealed class StoryboardInstance
 
     internal sealed class PreparedStoryboardMetadata
     {
+        private readonly ConditionalWeakTable<FrameworkElement, Dictionary<string, object?>> _resolvedTargetsByScope = new();
+
         private PreparedStoryboardMetadata(List<LeafAnimationDescriptor> lanes)
         {
             Lanes = lanes;
         }
 
         internal IReadOnlyList<LeafAnimationDescriptor> Lanes { get; }
+
+        internal Dictionary<string, object?> GetOrCreateResolvedTargetCache(FrameworkElement scope)
+        {
+            var cache = _resolvedTargetsByScope.GetOrCreateValue(scope);
+            if (cache.Count != 0)
+            {
+                PruneStaleResolvedTargets(scope, cache);
+            }
+
+            return cache;
+        }
 
         internal static PreparedStoryboardMetadata Create(Storyboard storyboard)
         {
@@ -1360,6 +1640,44 @@ internal sealed class StoryboardInstance
             }
 
             return new PreparedStoryboardMetadata(lanes);
+        }
+
+        private static void PruneStaleResolvedTargets(FrameworkElement scope, Dictionary<string, object?> cache)
+        {
+            if (cache.Count == 0)
+            {
+                return;
+            }
+
+            var namesToRemove = new List<string>();
+            foreach (var pair in cache)
+            {
+                if (!IsCachedTargetUsable(scope, pair.Value))
+                {
+                    namesToRemove.Add(pair.Key);
+                }
+            }
+
+            for (var i = 0; i < namesToRemove.Count; i++)
+            {
+                cache.Remove(namesToRemove[i]);
+            }
+        }
+
+        private static bool IsCachedTargetUsable(FrameworkElement scope, object? cachedTarget)
+        {
+            if (cachedTarget == null)
+            {
+                return false;
+            }
+
+            if (cachedTarget is not UIElement cachedElement)
+            {
+                return true;
+            }
+
+            var scopeRoot = scope.GetVisualRoot();
+            return ReferenceEquals(cachedElement, scopeRoot) || ReferenceEquals(cachedElement.GetVisualRoot(), scopeRoot);
         }
     }
 

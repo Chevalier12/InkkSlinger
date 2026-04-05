@@ -139,6 +139,60 @@ public sealed partial class DropShadowEffect : Effect
         _direction = typedSource._direction;
     }
 
+    internal void ApplyAnimatedValues(
+        bool hasColor,
+        Color color,
+        bool hasShadowDepth,
+        float shadowDepth,
+        bool hasBlurRadius,
+        float blurRadius,
+        bool hasOpacity,
+        float opacity,
+        bool hasDirection,
+        double direction)
+    {
+        WritePreamble();
+
+        var changed = false;
+        if (hasColor && _color != color)
+        {
+            _color = color;
+            changed = true;
+        }
+
+        var clampedShadowDepth = shadowDepth;
+        if (hasShadowDepth && MathF.Abs(_shadowDepth - clampedShadowDepth) > 0.0001f)
+        {
+            _shadowDepth = clampedShadowDepth;
+            changed = true;
+        }
+
+        var clampedBlurRadius = blurRadius < 0f ? 0f : blurRadius;
+        if (hasBlurRadius && MathF.Abs(_blurRadius - clampedBlurRadius) > 0.0001f)
+        {
+            _blurRadius = clampedBlurRadius;
+            changed = true;
+        }
+
+        var clampedOpacity = Math.Clamp(opacity, 0f, 1f);
+        if (hasOpacity && MathF.Abs(_opacity - clampedOpacity) > 0.0001f)
+        {
+            _opacity = clampedOpacity;
+            changed = true;
+        }
+
+        if (hasDirection && Math.Abs(_direction - direction) > 0.0001d)
+        {
+            _direction = direction;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            WritePostscript();
+        }
+    }
+
     internal override void Render(UIElement element, SpriteBatch spriteBatch, float elementOpacity)
     {
         var renderStart = Stopwatch.GetTimestamp();

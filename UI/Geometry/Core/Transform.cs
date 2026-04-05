@@ -170,6 +170,49 @@ public sealed class ScaleTransform : Transform
         _centerY = typedSource._centerY;
     }
 
+    internal void ApplyAnimatedValues(
+        bool hasScaleX,
+        float scaleX,
+        bool hasScaleY,
+        float scaleY,
+        bool hasCenterX,
+        float centerX,
+        bool hasCenterY,
+        float centerY)
+    {
+        WritePreamble();
+
+        var changed = false;
+        if (hasScaleX && !NearlyEqual(_scaleX, scaleX))
+        {
+            _scaleX = scaleX;
+            changed = true;
+        }
+
+        if (hasScaleY && !NearlyEqual(_scaleY, scaleY))
+        {
+            _scaleY = scaleY;
+            changed = true;
+        }
+
+        if (hasCenterX && !NearlyEqual(_centerX, centerX))
+        {
+            _centerX = centerX;
+            changed = true;
+        }
+
+        if (hasCenterY && !NearlyEqual(_centerY, centerY))
+        {
+            _centerY = centerY;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            WritePostscript();
+        }
+    }
+
     public override Matrix ToMatrix()
     {
         if (MathF.Abs(CenterX) < 0.0001f && MathF.Abs(CenterY) < 0.0001f)

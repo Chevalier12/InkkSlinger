@@ -1344,7 +1344,7 @@ public class UIElement : DependencyObject
         {
             if (current.SubtreeDirty)
             {
-                continue;
+                break;
             }
 
             current.SubtreeDirty = true;

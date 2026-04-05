@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -119,6 +120,59 @@ public sealed class DirtyBoundsEdgeRegressionTests
         Assert.Equal(20f, regions[0].Width);
         Assert.Equal(60f, regions[1].X);
         Assert.Equal(20f, regions[1].Width);
+    }
+
+    [Fact]
+    public void EscapingRenderMutation_UsesLocalizedDirtyBoundsSource_InsteadOfCanvasClipAncestor()
+    {
+        var root = new Canvas
+        {
+            Width = 200f,
+            Height = 120f
+        };
+        var child = new Border
+        {
+            Width = 60f,
+            Height = 30f,
+            Effect = new DropShadowEffect
+            {
+                BlurRadius = 0f,
+                Opacity = 0.5f
+            },
+            RenderTransform = new ScaleTransform
+            {
+                ScaleX = 1f,
+                ScaleY = 1f
+            }
+        };
+        root.AddChild(child);
+        Canvas.SetLeft(child, 40f);
+        Canvas.SetTop(child, 30f);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 200, 120));
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 200f, 120f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        var transform = Assert.IsType<ScaleTransform>(child.RenderTransform);
+        transform.ScaleX = 1.2f;
+
+        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+
+        Assert.True(invalidation.HasDirtyBounds);
+        Assert.Equal(nameof(Border), invalidation.DirtyBoundsVisualType);
+        Assert.NotEmpty(dirtyRegions);
+        Assert.All(dirtyRegions, region =>
+        {
+            Assert.True(region.Width < root.Width, $"Expected localized dirty width, got {region.Width:0.##} for root width {root.Width:0.##}.");
+            Assert.True(region.Height < root.Height, $"Expected localized dirty height, got {region.Height:0.##} for root height {root.Height:0.##}.");
+        });
     }
 
     [Fact]

@@ -323,6 +323,7 @@ public sealed partial class UiRoot
 
     private UIElement? ResolveRetainedSyncSource(UIElement? requestedSource, UIElement? effectiveSource, bool requireDeepSync)
     {
+        _ = requireDeepSync;
         if (requestedSource != null &&
             TryGetIndexedVisualNodeCore(requestedSource, out _) &&
             IsTransformScrollRetainedSyncCandidate(requestedSource))
@@ -330,13 +331,7 @@ public sealed partial class UiRoot
             return requestedSource;
         }
 
-        // Keep retained sync anchored to the actual mutated subtree when clip promotion
-        // only exists to widen dirty bounds coverage for transformed/effected descendants.
-        if (requestedSource != null &&
-            effectiveSource != null &&
-            !ReferenceEquals(requestedSource, effectiveSource) &&
-            TryGetIndexedVisualNodeCore(requestedSource, out _) &&
-            ReferenceEquals(FindEscapingRenderClipAncestor(requestedSource), effectiveSource))
+        if (ShouldAnchorEscapingRenderInvalidationToRequestedSource(requestedSource, effectiveSource))
         {
             return requestedSource;
         }
@@ -353,7 +348,27 @@ public sealed partial class UiRoot
             return requestedSource;
         }
 
+        if (ShouldAnchorEscapingRenderInvalidationToRequestedSource(requestedSource, effectiveSource))
+        {
+            return requestedSource;
+        }
+
         return effectiveSource;
+    }
+
+    private bool ShouldAnchorEscapingRenderInvalidationToRequestedSource(UIElement? requestedSource, UIElement? effectiveSource)
+    {
+        if (requestedSource == null ||
+            effectiveSource == null ||
+            ReferenceEquals(requestedSource, effectiveSource) ||
+            !TryGetIndexedVisualNodeCore(requestedSource, out _))
+        {
+            return false;
+        }
+
+        // Keep retained sync and dirty-bounds tracking anchored to the actual mutated subtree
+        // when clip promotion only exists to widen coverage for transformed/effected descendants.
+        return ReferenceEquals(FindEscapingRenderClipAncestor(requestedSource), effectiveSource);
     }
 
     private static bool IsTransformScrollRetainedSyncCandidate(UIElement element)
