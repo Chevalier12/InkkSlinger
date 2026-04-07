@@ -429,17 +429,17 @@
                                     CornerRadius="6"
                                     Padding="12">
                               <StackPanel>
-                                <TextBlock Text="Viewport telemetry"
+                                <TextBlock Text="Viewport guide"
                                            Foreground="#EAF8FA"
                                            FontWeight="SemiBold"
                                            TextWrapping="Wrap" />
-                                <TextBlock Text="Actual column widths appear in the side rail so this pane can be treated like a live measurement target."
+                                <TextBlock Text="Actual column widths stay visible in the side rail so this pane can act as a quick reference while the shell shifts."
                                            Foreground="#BDD6DA"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,8" />
                                 <TextBlock Text="• left, center, right widths" Foreground="#D7ECEF" TextWrapping="Wrap" Margin="0,0,0,4" />
                                 <TextBlock Text="• drag and key increments" Foreground="#D7ECEF" TextWrapping="Wrap" Margin="0,0,0,4" />
-                                <TextBlock Text="• hover and drag state" Foreground="#D7ECEF" TextWrapping="Wrap" />
+                                <TextBlock Text="• min widths and lane balance" Foreground="#D7ECEF" TextWrapping="Wrap" />
                               </StackPanel>
                             </Border>
                           </Grid>
@@ -471,7 +471,7 @@
                                      Foreground="#FFF2E2"
                                      FontWeight="SemiBold"
                                      TextWrapping="Wrap" />
-                          <TextBlock Text="Right pane mirrors a property inspector or diagnostics rail that should stay narrow enough to read but never disappear."
+                          <TextBlock Text="Right pane mirrors a property inspector or supporting rail that should stay narrow enough to read but never disappear."
                                      Foreground="#E7CCAE"
                                      TextWrapping="Wrap"
                                      Margin="0,4,0,10" />
@@ -507,7 +507,6 @@
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
                     <Border Grid.Column="0"
@@ -534,31 +533,12 @@
                             BorderBrush="{StaticResource DarkBorderBrush}"
                             BorderThickness="1"
                             CornerRadius="6"
-                            Padding="10"
-                            Margin="0,0,8,0">
+                          Padding="10">
                       <StackPanel>
                         <TextBlock Text="Increment model"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    TextWrapping="Wrap" />
                         <TextBlock x:Name="IncrementSummaryText"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                   FontWeight="SemiBold"
-                                   TextWrapping="Wrap"
-                                   Margin="0,4,0,0" />
-                      </StackPanel>
-                    </Border>
-
-                    <Border Grid.Column="2"
-                            Background="{StaticResource DarkBgBrush}"
-                            BorderBrush="{StaticResource DarkBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="10">
-                      <StackPanel>
-                        <TextBlock Text="Interaction state"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap" />
-                        <TextBlock x:Name="InteractionSummaryText"
                                    Foreground="{StaticResource TextPrimaryBrush}"
                                    FontWeight="SemiBold"
                                    TextWrapping="Wrap"
@@ -665,7 +645,7 @@
                                 Padding="12"
                                 Margin="0,8,0,0">
                           <StackPanel>
-                            <TextBlock Text="Bottom diagnostics"
+                            <TextBlock Text="Bottom workspace"
                                        Foreground="#FFF6DE"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap" />
@@ -1127,41 +1107,6 @@
                   Padding="14"
                   Margin="0,0,0,10">
             <StackPanel>
-              <TextBlock Text="Live telemetry"
-                         Foreground="{StaticResource TextPrimaryBrush}"
-                         FontSize="15"
-                         FontWeight="SemiBold"
-                         TextWrapping="Wrap" />
-              <TextBlock x:Name="LayoutModeValueText"
-                         Foreground="{StaticResource TextSecondaryBrush}"
-                         TextWrapping="Wrap"
-                         Margin="0,8,0,0" />
-              <TextBlock x:Name="PrimaryMetricsText"
-                         Foreground="{StaticResource TextSecondaryBrush}"
-                         TextWrapping="Wrap"
-                         Margin="0,8,0,0" />
-              <TextBlock x:Name="SecondaryMetricsText"
-                         Foreground="{StaticResource TextSecondaryBrush}"
-                         TextWrapping="Wrap"
-                         Margin="0,8,0,0" />
-              <TextBlock x:Name="BehaviorMetricsText"
-                         Foreground="{StaticResource TextSecondaryBrush}"
-                         TextWrapping="Wrap"
-                         Margin="0,8,0,0" />
-              <TextBlock x:Name="AutoDirectionMetricsText"
-                         Foreground="{StaticResource TextSecondaryBrush}"
-                         TextWrapping="Wrap"
-                         Margin="0,8,0,0" />
-            </StackPanel>
-          </Border>
-
-          <Border Background="{StaticResource DarkSurfaceBrush}"
-                  BorderBrush="{StaticResource DarkBorderBrush}"
-                  BorderThickness="1"
-                  CornerRadius="8"
-                  Padding="14"
-                  Margin="0,0,0,10">
-            <StackPanel>
               <TextBlock Text="Capabilities surfaced"
                          Foreground="{StaticResource TextPrimaryBrush}"
                          FontSize="15"
@@ -1171,7 +1116,7 @@
                          Foreground="{StaticResource TextSecondaryBrush}"
                          TextWrapping="Wrap"
                          Margin="0,8,0,0" />
-              <TextBlock Text="• Dedicated-lane row splitter for timeline, console, or diagnostics layouts"
+              <TextBlock Text="• Dedicated-lane row splitter for timeline, console, or utility layouts"
                          Foreground="{StaticResource TextSecondaryBrush}"
                          TextWrapping="Wrap"
                          Margin="0,6,0,0" />

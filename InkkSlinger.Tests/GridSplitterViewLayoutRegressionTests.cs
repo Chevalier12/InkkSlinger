@@ -2136,6 +2136,7 @@ public sealed class GridSplitterViewLayoutRegressionTests
             new Viewport(0, 0, width, height));
     }
 
+
     private static Dictionary<object, object> SnapshotApplicationResources()
     {
         return new Dictionary<object, object>(UiApplication.Current.Resources);

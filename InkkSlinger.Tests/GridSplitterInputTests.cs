@@ -93,6 +93,65 @@ public sealed class GridSplitterInputTests
     }
 
     [Fact]
+    public void PointerDrag_RepeatedHeldMoveAtSamePosition_IsReportedAsNoOpAfterFirstApply()
+    {
+        var (uiRoot, grid, splitter) = CreateColumnSplitterFixture();
+
+        var start = GetCenter(splitter.LayoutSlot);
+        var end = new Vector2(start.X + 24f, start.Y);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, leftPressed: true));
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, pointerMoved: true));
+        RunLayout(uiRoot, 260, 120, 32);
+
+        var afterFirstMove = splitter.GetGridSplitterSnapshotForDiagnostics();
+        var leftAfterFirstMove = grid.ColumnDefinitions[0].ActualWidth;
+        var rightAfterFirstMove = grid.ColumnDefinitions[2].ActualWidth;
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, pointerMoved: true));
+        RunLayout(uiRoot, 260, 120, 32);
+
+        var afterSecondMove = splitter.GetGridSplitterSnapshotForDiagnostics();
+
+        Assert.Equal(leftAfterFirstMove, grid.ColumnDefinitions[0].ActualWidth, 0.01f);
+        Assert.Equal(rightAfterFirstMove, grid.ColumnDefinitions[2].ActualWidth, 0.01f);
+        Assert.Equal(afterFirstMove.PointerMoveApplyCount, afterSecondMove.PointerMoveApplyCount);
+        Assert.Equal(afterFirstMove.PointerMoveNoOpDeltaCount + 1, afterSecondMove.PointerMoveNoOpDeltaCount);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, leftReleased: true));
+    }
+
+    [Fact]
+    public void TelemetrySnapshot_RepeatedHeldMoveAtSamePosition_CountsSecondMoveAsNoOpNotApply()
+    {
+        _ = GridSplitter.GetTelemetryAndReset();
+
+        var (uiRoot, _, splitter) = CreateColumnSplitterFixture();
+
+        var start = GetCenter(splitter.LayoutSlot);
+        var end = new Vector2(start.X + 24f, start.Y);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, leftPressed: true));
+
+    uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, pointerMoved: true));
+        RunLayout(uiRoot, 260, 120, 32);
+
+    uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, pointerMoved: true));
+        RunLayout(uiRoot, 260, 120, 32);
+
+    uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, leftReleased: true));
+
+        var runtime = splitter.GetGridSplitterSnapshotForDiagnostics();
+        var aggregate = GridSplitter.GetTelemetryAndReset();
+
+        Assert.Equal(1L, runtime.PointerMoveApplyCount);
+        Assert.Equal(1L, runtime.PointerMoveNoOpDeltaCount);
+        Assert.Equal(1L, aggregate.PointerMoveApplyCount);
+        Assert.Equal(1L, aggregate.PointerMoveNoOpDeltaCount);
+    }
+
+    [Fact]
     public void TelemetrySnapshot_CapturesColumnPointerKeyboardAndHoverPaths()
     {
         _ = GridSplitter.GetTelemetryAndReset();

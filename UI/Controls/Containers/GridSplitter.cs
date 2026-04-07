@@ -421,7 +421,7 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
             RebaseDragAnchor(pointer);
         }
 
-        if (MathF.Abs(delta) > 0.001f)
+        if (producedChange)
         {
             IncrementMetric(ref _runtimePointerMoveApplyCount, ref _diagPointerMoveApplyCount);
         }
@@ -430,7 +430,7 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
             IncrementMetric(ref _runtimePointerMoveNoOpDeltaCount, ref _diagPointerMoveNoOpDeltaCount);
         }
 
-        return MathF.Abs(delta) > 0.001f;
+        return producedChange;
     }
 
     internal bool HandlePointerUpFromInput()
@@ -760,6 +760,16 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
             var bounded = Clamp(delta, minDelta, maxDelta);
             var newA = Clamp(startSizeA + bounded, left.MinWidth, left.MaxWidth);
             var newB = Clamp(startSizeB - bounded, right.MinWidth, right.MaxWidth);
+            var currentA = left.ActualWidth > 0f
+                ? left.ActualWidth
+                : left.Width.IsPixel
+                    ? left.Width.Value
+                    : 0f;
+            var currentB = right.ActualWidth > 0f
+                ? right.ActualWidth
+                : right.Width.IsPixel
+                    ? right.Width.Value
+                    : 0f;
             var total = startSizeA + startSizeB;
             var totalCorrected = false;
             if (newA + newB > 0f && MathF.Abs((newA + newB) - total) > 0.001f)
@@ -775,7 +785,7 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
                 bounded,
                 MathF.Abs(bounded - delta) > 0.001f,
                 totalCorrected,
-                MathF.Abs(newA - startSizeA) > 0.001f || MathF.Abs(newB - startSizeB) > 0.001f);
+                MathF.Abs(newA - currentA) > 0.001f || MathF.Abs(newB - currentB) > 0.001f);
         }
 
         if (indexA < 0 || indexA >= grid.RowDefinitions.Count ||
@@ -791,6 +801,16 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
         var boundedRows = Clamp(delta, minDeltaRows, maxDeltaRows);
         var newTop = Clamp(startSizeA + boundedRows, top.MinHeight, top.MaxHeight);
         var newBottom = Clamp(startSizeB - boundedRows, bottom.MinHeight, bottom.MaxHeight);
+        var currentTop = top.ActualHeight > 0f
+            ? top.ActualHeight
+            : top.Height.IsPixel
+                ? top.Height.Value
+                : 0f;
+        var currentBottom = bottom.ActualHeight > 0f
+            ? bottom.ActualHeight
+            : bottom.Height.IsPixel
+                ? bottom.Height.Value
+                : 0f;
         var rowTotal = startSizeA + startSizeB;
         var rowTotalCorrected = false;
         if (newTop + newBottom > 0f && MathF.Abs((newTop + newBottom) - rowTotal) > 0.001f)
@@ -806,7 +826,7 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
             boundedRows,
             MathF.Abs(boundedRows - delta) > 0.001f,
             rowTotalCorrected,
-            MathF.Abs(newTop - startSizeA) > 0.001f || MathF.Abs(newBottom - startSizeB) > 0.001f);
+            MathF.Abs(newTop - currentTop) > 0.001f || MathF.Abs(newBottom - currentBottom) > 0.001f);
     }
 
     private bool TryResolveResizeTargets(Grid grid, GridResizeDirection direction, out int indexA, out int indexB)
