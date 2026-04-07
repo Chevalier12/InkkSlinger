@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Text;
 using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 
@@ -11,9 +10,12 @@ namespace InkkSlinger;
 public static class TextLayout
 {
     private const int CacheCapacity = 512;
+    private const int ParagraphAnalysisCacheCapacity = 256;
     private const float MinimumWrappedWidth = 0.01f;
     private static readonly Dictionary<TextLayoutCacheKey, TextLayoutResult> Cache = new();
     private static readonly Queue<TextLayoutCacheKey> CacheOrder = new();
+    private static readonly Dictionary<TextParagraphAnalysisCacheKey, TextParagraphLayoutAnalysis> ParagraphAnalysisCache = new();
+    private static readonly Queue<TextParagraphAnalysisCacheKey> ParagraphAnalysisCacheOrder = new();
     private static int _layoutRequestCount;
     private static int _cacheHitCount;
     private static int _cacheMissCount;
@@ -55,6 +57,8 @@ public static class TextLayout
         _buildElapsedTicks = 0;
         Cache.Clear();
         CacheOrder.Clear();
+        ParagraphAnalysisCache.Clear();
+        ParagraphAnalysisCacheOrder.Clear();
     }
 
     internal static TextLayoutResult Layout(string? text, UiTypography typography, float availableWidth, TextWrapping wrapping)
@@ -138,33 +142,45 @@ public static class TextLayout
             widths.Add(line.Length == 0 ? 0f : UiTextRenderer.MeasureWidth(typography with { Size = fontSize }, line));
         }
 
-        return BuildResult(lines, widths, typography, fontSize);
+        return BuildResult(lines, widths, typography, fontSize, 0f, float.PositiveInfinity);
     }
 
     private static TextLayoutResult BuildWrappedLayout(string text, UiTypography typography, float fontSize, float availableWidth)
     {
         var lines = new List<string>();
         var widths = new List<float>();
-        var index = 0;
-        while (TryReadLogicalLine(text, ref index, out var start, out var length))
+        var reusableMinimumWidth = 0f;
+        var reusableMaximumWidth = float.PositiveInfinity;
+        var analysis = ResolveParagraphLayoutAnalysis(text, typography, fontSize);
+        foreach (var paragraph in analysis.Paragraphs)
         {
-            LayoutParagraph(text, start, length, typography, fontSize, availableWidth, lines, widths);
+            LayoutParagraph(
+                text,
+                paragraph,
+                typography,
+                fontSize,
+                availableWidth,
+                lines,
+                widths,
+                ref reusableMinimumWidth,
+                ref reusableMaximumWidth);
         }
 
-        return BuildResult(lines, widths, typography, fontSize);
+        return BuildResult(lines, widths, typography, fontSize, reusableMinimumWidth, reusableMaximumWidth);
     }
 
     private static void LayoutParagraph(
         string text,
-        int start,
-        int length,
+        ParagraphAnalysis paragraph,
         UiTypography typography,
         float fontSize,
         float availableWidth,
         IList<string> lines,
-        IList<float> widths)
+        IList<float> widths,
+        ref float reusableMinimumWidth,
+        ref float reusableMaximumWidth)
     {
-        if (length == 0)
+        if (paragraph.Length == 0)
         {
             lines.Add(string.Empty);
             widths.Add(0f);
@@ -172,57 +188,116 @@ public static class TextLayout
         }
 
         var initialLineCount = lines.Count;
-        var builder = new StringBuilder(length);
         var lineWidth = 0f;
-        var index = start;
-        var end = start + length;
-        while (index < end)
+        var trimmedLineWidth = 0f;
+        var lineStart = 0;
+        var lineLength = 0;
+        for (var tokenIndex = 0; tokenIndex < paragraph.Tokens.Length;)
         {
-            var tokenStart = index;
-            var tokenIsWhitespace = char.IsWhiteSpace(text[index]);
-            index++;
-            while (index < end && char.IsWhiteSpace(text[index]) == tokenIsWhitespace)
+            var token = paragraph.Tokens[tokenIndex];
+            if (token.IsWhitespace && lineLength == 0)
             {
-                index++;
-            }
-
-            var tokenLength = index - tokenStart;
-            if (tokenLength == 0)
-            {
+                tokenIndex++;
                 continue;
             }
 
-            if (tokenIsWhitespace && builder.Length == 0)
+            if ((lineWidth + token.Width) <= availableWidth)
             {
+                AppendTokenToLine(token, ref lineStart, ref lineLength);
+                lineWidth += token.Width;
+                if (!token.IsWhitespace)
+                {
+                    trimmedLineWidth = lineWidth;
+                }
+
+                tokenIndex++;
                 continue;
             }
 
-            var tokenWidth = MeasureSegment(text, tokenStart, tokenLength, typography, fontSize);
-            if ((lineWidth + tokenWidth) <= availableWidth)
+            if (lineLength > 0)
             {
-                builder.Append(text, tokenStart, tokenLength);
-                lineWidth += tokenWidth;
-                continue;
-            }
-
-            if (builder.Length > 0)
-            {
-                lines.Add(builder.ToString());
-                widths.Add(lineWidth);
-                builder.Clear();
+                FinalizeWrappedLine(
+                    text,
+                    lineStart,
+                    lineLength,
+                    lineWidth,
+                    trimmedLineWidth,
+                    lineWidth + token.Width,
+                    lines,
+                    widths,
+                    ref reusableMinimumWidth,
+                    ref reusableMaximumWidth);
                 lineWidth = 0f;
-                index = tokenStart;
+                trimmedLineWidth = 0f;
+                lineLength = 0;
                 continue;
             }
 
-            BreakLongToken(text, tokenStart, tokenLength, typography, fontSize, availableWidth, lines, widths);
+            BreakLongToken(
+                text,
+                token.Start,
+                token.Length,
+                typography,
+                fontSize,
+                availableWidth,
+                lines,
+                widths,
+                ref reusableMinimumWidth,
+                ref reusableMaximumWidth);
+
+            tokenIndex++;
         }
 
-        if (builder.Length > 0 || lines.Count == initialLineCount)
+        if (lineLength > 0 || lines.Count == initialLineCount)
         {
-            lines.Add(builder.ToString());
-            widths.Add(lineWidth);
+            FinalizeWrappedLine(
+                text,
+                lineStart,
+                lineLength,
+                lineWidth,
+                trimmedLineWidth,
+                float.PositiveInfinity,
+                lines,
+                widths,
+                ref reusableMinimumWidth,
+                ref reusableMaximumWidth);
         }
+    }
+
+    private static void AppendTokenToLine(TokenAnalysis token, ref int lineStart, ref int lineLength)
+    {
+        if (lineLength == 0)
+        {
+            lineStart = token.Start;
+            lineLength = token.Length;
+            return;
+        }
+
+        lineLength = (token.Start + token.Length) - lineStart;
+    }
+
+    private static void FinalizeWrappedLine(
+        string text,
+        int lineStart,
+        int lineLength,
+        float lineWidth,
+        float trimmedLineWidth,
+        float stableUpperWidth,
+        IList<string> lines,
+        IList<float> widths,
+        ref float reusableMinimumWidth,
+        ref float reusableMaximumWidth)
+    {
+        var line = lineLength == 0
+            ? string.Empty
+            : text.Substring(lineStart, lineLength);
+        lines.Add(line);
+        widths.Add(lineWidth);
+        UpdateReusableWidthBounds(
+            trimmedLineWidth,
+            stableUpperWidth,
+            ref reusableMinimumWidth,
+            ref reusableMaximumWidth);
     }
 
     private static void BreakLongToken(
@@ -233,7 +308,9 @@ public static class TextLayout
         float fontSize,
         float availableWidth,
         IList<string> lines,
-        IList<float> widths)
+        IList<float> widths,
+        ref float reusableMinimumWidth,
+        ref float reusableMaximumWidth)
     {
         var remainingStart = start;
         var remainingLength = length;
@@ -246,8 +323,17 @@ public static class TextLayout
             }
 
             var line = text.Substring(remainingStart, fitLength);
+            var lineWidth = line.Length == 0 ? 0f : UiTextRenderer.MeasureWidth(typography with { Size = fontSize }, line);
+            var stableUpperWidth = remainingLength > fitLength
+                ? MeasureSegment(text, remainingStart, fitLength + 1, typography, fontSize)
+                : float.PositiveInfinity;
             lines.Add(line);
-            widths.Add(line.Length == 0 ? 0f : UiTextRenderer.MeasureWidth(typography with { Size = fontSize }, line));
+            widths.Add(lineWidth);
+            UpdateReusableWidthBounds(
+                lineWidth,
+                stableUpperWidth,
+                ref reusableMinimumWidth,
+                ref reusableMaximumWidth);
             remainingStart += fitLength;
             remainingLength -= fitLength;
         }
@@ -297,6 +383,21 @@ public static class TextLayout
         return UiTextRenderer.MeasureWidth(typography with { Size = fontSize }, text.Substring(start, length));
     }
 
+    private static int QuantizeValue(float value)
+    {
+        if (float.IsInfinity(value))
+        {
+            return int.MaxValue;
+        }
+
+        if (float.IsNaN(value))
+        {
+            return int.MinValue;
+        }
+
+        return (int)MathF.Round(value * 100f);
+    }
+
     private static bool TryReadLogicalLine(string text, ref int index, out int start, out int length)
     {
         if (index > text.Length)
@@ -331,7 +432,80 @@ public static class TextLayout
         return true;
     }
 
-    private static TextLayoutResult BuildResult(IReadOnlyList<string> lines, IReadOnlyList<float> widths, UiTypography typography, float fontSize)
+    private static void UpdateReusableWidthBounds(
+        float trimmedLineWidth,
+        float stableUpperWidth,
+        ref float reusableMinimumWidth,
+        ref float reusableMaximumWidth)
+    {
+        reusableMinimumWidth = MathF.Max(reusableMinimumWidth, trimmedLineWidth);
+        reusableMaximumWidth = MathF.Min(reusableMaximumWidth, stableUpperWidth);
+    }
+
+    private static TextParagraphLayoutAnalysis ResolveParagraphLayoutAnalysis(string text, UiTypography typography, float fontSize)
+    {
+        var key = TextParagraphAnalysisCacheKey.Create(text, typography, fontSize);
+        if (ParagraphAnalysisCache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var analysis = BuildParagraphLayoutAnalysis(text, typography, fontSize);
+        ParagraphAnalysisCache[key] = analysis;
+        ParagraphAnalysisCacheOrder.Enqueue(key);
+
+        while (ParagraphAnalysisCacheOrder.Count > ParagraphAnalysisCacheCapacity)
+        {
+            var expired = ParagraphAnalysisCacheOrder.Dequeue();
+            ParagraphAnalysisCache.Remove(expired);
+        }
+
+        return analysis;
+    }
+
+    private static TextParagraphLayoutAnalysis BuildParagraphLayoutAnalysis(string text, UiTypography typography, float fontSize)
+    {
+        var paragraphs = new List<ParagraphAnalysis>();
+        var index = 0;
+        while (TryReadLogicalLine(text, ref index, out var start, out var length))
+        {
+            if (length == 0)
+            {
+                paragraphs.Add(new ParagraphAnalysis(start, 0, Array.Empty<TokenAnalysis>()));
+                continue;
+            }
+
+            var tokens = new List<TokenAnalysis>();
+            var paragraphEnd = start + length;
+            var tokenStart = start;
+            while (tokenStart < paragraphEnd)
+            {
+                var tokenIsWhitespace = char.IsWhiteSpace(text[tokenStart]);
+                var tokenEnd = tokenStart + 1;
+                while (tokenEnd < paragraphEnd && char.IsWhiteSpace(text[tokenEnd]) == tokenIsWhitespace)
+                {
+                    tokenEnd++;
+                }
+
+                var tokenLength = tokenEnd - tokenStart;
+                var tokenWidth = MeasureSegment(text, tokenStart, tokenLength, typography, fontSize);
+                tokens.Add(new TokenAnalysis(tokenStart, tokenLength, tokenIsWhitespace, tokenWidth));
+                tokenStart = tokenEnd;
+            }
+
+            paragraphs.Add(new ParagraphAnalysis(start, length, tokens.ToArray()));
+        }
+
+        return new TextParagraphLayoutAnalysis(paragraphs.ToArray());
+    }
+
+    private static TextLayoutResult BuildResult(
+        IReadOnlyList<string> lines,
+        IReadOnlyList<float> widths,
+        UiTypography typography,
+        float fontSize,
+        float reusableMinimumWidth,
+        float reusableMaximumWidth)
     {
         if (lines.Count == 0)
         {
@@ -348,7 +522,7 @@ public static class TextLayout
         }
 
         var size = new Vector2(maxWidth, lines.Count * UiTextRenderer.GetLineHeight(typography with { Size = fontSize }));
-        return new TextLayoutResult(lines, widths, size);
+        return new TextLayoutResult(lines, widths, size, reusableMinimumWidth, reusableMaximumWidth);
     }
 
     private static void AddToCache(TextLayoutCacheKey key, TextLayoutResult result)
@@ -365,13 +539,20 @@ public static class TextLayout
 
     public readonly struct TextLayoutResult
     {
-        public static readonly TextLayoutResult Empty = new(Array.Empty<string>(), Array.Empty<float>(), Vector2.Zero);
+        public static readonly TextLayoutResult Empty = new(Array.Empty<string>(), Array.Empty<float>(), Vector2.Zero, 0f, float.PositiveInfinity);
 
-        public TextLayoutResult(IReadOnlyList<string> lines, IReadOnlyList<float> lineWidths, Vector2 size)
+        public TextLayoutResult(
+            IReadOnlyList<string> lines,
+            IReadOnlyList<float> lineWidths,
+            Vector2 size,
+            float reusableMinimumWidth,
+            float reusableMaximumWidth)
         {
             Lines = lines;
             LineWidths = lineWidths;
             Size = size;
+            ReusableMinimumWidth = reusableMinimumWidth;
+            ReusableMaximumWidth = reusableMaximumWidth;
         }
 
         public IReadOnlyList<string> Lines { get; }
@@ -379,6 +560,10 @@ public static class TextLayout
         internal IReadOnlyList<float> LineWidths { get; }
 
         public Vector2 Size { get; }
+
+        internal float ReusableMinimumWidth { get; }
+
+        internal float ReusableMaximumWidth { get; }
     }
 
     private readonly struct TextLayoutCacheKey : IEquatable<TextLayoutCacheKey>
@@ -404,7 +589,7 @@ public static class TextLayout
 
         public static TextLayoutCacheKey Create(string text, UiTypography typography, float fontSize, float width, TextWrapping wrapping)
         {
-            return new TextLayoutCacheKey(text, typography with { Size = fontSize }, QuantizeValue(fontSize), QuantizeValue(width), wrapping);
+            return new TextLayoutCacheKey(text, typography with { Size = fontSize }, TextLayout.QuantizeValue(fontSize), TextLayout.QuantizeValue(width), wrapping);
         }
 
         public bool Equals(TextLayoutCacheKey other)
@@ -430,20 +615,91 @@ public static class TextLayout
                 WidthBucket,
                 (int)Wrapping);
         }
+    }
 
-        private static int QuantizeValue(float value)
+    private readonly struct TextParagraphAnalysisCacheKey : IEquatable<TextParagraphAnalysisCacheKey>
+    {
+        private TextParagraphAnalysisCacheKey(string text, UiTypography typography, int fontSizeBucket)
         {
-            if (float.IsInfinity(value))
-            {
-                return int.MaxValue;
-            }
-
-            if (float.IsNaN(value))
-            {
-                return int.MinValue;
-            }
-
-            return (int)MathF.Round(value * 100f);
+            Text = text;
+            Typography = typography;
+            FontSizeBucket = fontSizeBucket;
         }
+
+        private string Text { get; }
+
+        private UiTypography Typography { get; }
+
+        private int FontSizeBucket { get; }
+
+        public static TextParagraphAnalysisCacheKey Create(string text, UiTypography typography, float fontSize)
+        {
+            return new TextParagraphAnalysisCacheKey(text, typography with { Size = fontSize }, TextLayout.QuantizeValue(fontSize));
+        }
+
+        public bool Equals(TextParagraphAnalysisCacheKey other)
+        {
+            return FontSizeBucket == other.FontSizeBucket &&
+                   Typography.Equals(other.Typography) &&
+                   string.Equals(Text, other.Text, StringComparison.Ordinal);
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is TextParagraphAnalysisCacheKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(
+                StringComparer.Ordinal.GetHashCode(Text),
+                Typography,
+                FontSizeBucket);
+        }
+    }
+
+    private sealed class TextParagraphLayoutAnalysis
+    {
+        public TextParagraphLayoutAnalysis(ParagraphAnalysis[] paragraphs)
+        {
+            Paragraphs = paragraphs;
+        }
+
+        public ParagraphAnalysis[] Paragraphs { get; }
+    }
+
+    private readonly struct ParagraphAnalysis
+    {
+        public ParagraphAnalysis(int start, int length, TokenAnalysis[] tokens)
+        {
+            Start = start;
+            Length = length;
+            Tokens = tokens;
+        }
+
+        public int Start { get; }
+
+        public int Length { get; }
+
+        public TokenAnalysis[] Tokens { get; }
+    }
+
+    private readonly struct TokenAnalysis
+    {
+        public TokenAnalysis(int start, int length, bool isWhitespace, float width)
+        {
+            Start = start;
+            Length = length;
+            IsWhitespace = isWhitespace;
+            Width = width;
+        }
+
+        public int Start { get; }
+
+        public int Length { get; }
+
+        public bool IsWhitespace { get; }
+
+        public float Width { get; }
     }
 }

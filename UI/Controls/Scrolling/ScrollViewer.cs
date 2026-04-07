@@ -140,11 +140,15 @@ public class ScrollViewer : ContentControl
     private readonly ScrollBar _horizontalBar;
     private readonly ScrollBar _verticalBar;
     private LayoutRect _contentViewportRect;
+    private LayoutRect _lastArrangedContentRect;
+    private FrameworkElement? _lastArrangedContentElement;
     private bool _showHorizontalBar;
     private bool _showVerticalBar;
+    private bool _hasArrangedContentRect;
     private bool _hasPreviousScrollBarResolution;
     private bool _previousShowHorizontalScrollBar;
     private bool _previousShowVerticalScrollBar;
+    private bool _isReconcilingDescendantMeasureInvalidation;
     private int _inputScrollMutationDepth;
     private bool _suppressInternalScrollBarValueChange;
     private int _runtimeMeasureOverrideCallCount;
@@ -378,6 +382,95 @@ public class ScrollViewer : ContentControl
     public override void InvalidateMeasure()
     {
         base.InvalidateMeasure();
+    }
+
+    protected override bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        _ = source;
+        _ = reason;
+
+        if (ReferenceEquals(origin, this) ||
+            _isReconcilingDescendantMeasureInvalidation ||
+            NeedsMeasure ||
+            ContentElement is not FrameworkElement content ||
+            !IsContentDescendant(origin))
+        {
+            return false;
+        }
+
+        var availableSize = PreviousAvailableSizeForTests;
+        if (float.IsNaN(availableSize.X) || float.IsNaN(availableSize.Y))
+        {
+            return false;
+        }
+
+        var margin = Margin;
+        var innerAvailable = new Vector2(
+            MathF.Max(0f, availableSize.X - margin.Horizontal),
+            MathF.Max(0f, availableSize.Y - margin.Vertical));
+        var border = MathF.Max(0f, BorderThickness);
+        var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
+        var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
+        var contentBounds = new LayoutRect(
+            LayoutSlot.X + border,
+            LayoutSlot.Y + border,
+            MathF.Max(0f, innerAvailable.X - (border * 2f)),
+            MathF.Max(0f, innerAvailable.Y - (border * 2f)));
+
+        _isReconcilingDescendantMeasureInvalidation = true;
+        try
+        {
+            var decision = ResolveBarsAndMeasureContent(contentBounds);
+            var canPreserveArrangeRepairPath = CanPreserveArrangeRepairPath(decision.ShowHorizontalBar, decision.ShowVerticalBar, decision.ViewportRect);
+            var desiredViewportWidth = float.IsFinite(contentBounds.Width)
+                ? MathF.Min(decision.ExtentWidth, decision.ViewportRect.Width)
+                : decision.ExtentWidth;
+            var desiredViewportHeight = float.IsFinite(contentBounds.Height)
+                ? MathF.Min(decision.ExtentHeight, decision.ViewportRect.Height)
+                : decision.ExtentHeight;
+            var desiredWidth = desiredViewportWidth + (border * 2f) + GetVerticalBarReservation(decision.ShowVerticalBar, verticalBarThickness);
+            var desiredHeight = desiredViewportHeight + (border * 2f) + GetHorizontalBarReservation(decision.ShowHorizontalBar, horizontalBarThickness);
+            var measuredWidth = float.IsNaN(Width) ? desiredWidth : Width;
+            var measuredHeight = float.IsNaN(Height) ? desiredHeight : Height;
+            measuredWidth = Math.Clamp(measuredWidth, MinWidth, MaxWidth);
+            measuredHeight = Math.Clamp(measuredHeight, MinHeight, MaxHeight);
+            var reconciledDesired = new Vector2(
+                MathF.Max(0f, measuredWidth + margin.Horizontal),
+                MathF.Max(0f, measuredHeight + margin.Vertical));
+            if (!AreFloatsClose(reconciledDesired.X, DesiredSize.X) ||
+                !AreFloatsClose(reconciledDesired.Y, DesiredSize.Y))
+            {
+                return false;
+            }
+
+            ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight, publishViewportMetrics: false);
+            _showHorizontalBar = decision.ShowHorizontalBar;
+            _showVerticalBar = decision.ShowVerticalBar;
+            CacheResolvedScrollBarVisibility(decision.ShowHorizontalBar, decision.ShowVerticalBar);
+            MarkMeasureValidAfterLocalReconciliation();
+
+            if (canPreserveArrangeRepairPath)
+            {
+                _contentViewportRect = decision.ViewportRect;
+                SetOffsets(HorizontalOffset, VerticalOffset);
+                UpdateScrollBars();
+            }
+            else
+            {
+                InvalidateArrange();
+            }
+
+            return true;
+        }
+        finally
+        {
+            _isReconcilingDescendantMeasureInvalidation = false;
+        }
+    }
+
+    protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        return _isReconcilingDescendantMeasureInvalidation && IsContentDescendant(descendant);
     }
 
     public new Color Background
@@ -836,6 +929,7 @@ public class ScrollViewer : ContentControl
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var startTicks = Stopwatch.GetTimestamp();
+        var previousViewportRect = _contentViewportRect;
         var border = MathF.Max(0f, BorderThickness);
         var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
         var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
@@ -847,7 +941,7 @@ public class ScrollViewer : ContentControl
         _showVerticalBar = decision.ShowVerticalBar;
         CacheResolvedScrollBarVisibility(decision.ShowHorizontalBar, decision.ShowVerticalBar);
         _contentViewportRect = decision.ViewportRect;
-        ArrangeContentForCurrentOffsets();
+        ArrangeContentForCurrentOffsets(previousViewportRect);
 
         if (_showHorizontalBar)
         {
@@ -1315,6 +1409,24 @@ public class ScrollViewer : ContentControl
         _runtimeMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
+    private bool IsContentDescendant(UIElement element)
+    {
+        for (UIElement? current = element; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, ContentElement))
+            {
+                return true;
+            }
+
+            if (ReferenceEquals(current, this))
+            {
+                break;
+            }
+        }
+
+        return false;
+    }
+
     private bool CanResolveAutoBarsWithoutRemeasure()
     {
         var horizontalCanUseSingleMeasure = HorizontalScrollBarVisibility != ScrollBarVisibility.Auto ||
@@ -1393,6 +1505,23 @@ public class ScrollViewer : ContentControl
         };
     }
 
+
+    private bool CanPreserveArrangeRepairPath(bool showHorizontalBar, bool showVerticalBar, LayoutRect viewportRect)
+    {
+        return NeedsArrange &&
+               UsesTransformBasedContentScrolling() &&
+               showHorizontalBar == _showHorizontalBar &&
+               showVerticalBar == _showVerticalBar &&
+               AreLayoutRectsClose(viewportRect, _contentViewportRect);
+    }
+
+    private static bool AreLayoutRectsClose(LayoutRect left, LayoutRect right)
+    {
+        return AreFloatsClose(left.X, right.X) &&
+               AreFloatsClose(left.Y, right.Y) &&
+               AreFloatsClose(left.Width, right.Width) &&
+               AreFloatsClose(left.Height, right.Height);
+    }
     private bool ResolveInitialVerticalScrollBarVisibility()
     {
         return VerticalScrollBarVisibility switch
@@ -1658,11 +1787,18 @@ public class ScrollViewer : ContentControl
 
     private void ArrangeContentForCurrentOffsets()
     {
+        ArrangeContentForCurrentOffsets(_contentViewportRect);
+    }
+
+    private void ArrangeContentForCurrentOffsets(LayoutRect previousViewportRect)
+    {
         var startTicks = Stopwatch.GetTimestamp();
         _diagArrangeContentForCurrentOffsetsCallCount++;
         _runtimeArrangeContentForCurrentOffsetsCallCount++;
         if (ContentElement is not FrameworkElement content)
         {
+            _hasArrangedContentRect = false;
+            _lastArrangedContentElement = null;
             _diagArrangeContentSkippedNoContentCount++;
             _runtimeArrangeContentSkippedNoContentCount++;
             _diagArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
@@ -1672,6 +1808,8 @@ public class ScrollViewer : ContentControl
 
         if (_contentViewportRect.Width <= 0f || _contentViewportRect.Height <= 0f)
         {
+            _hasArrangedContentRect = false;
+            _lastArrangedContentElement = null;
             _diagArrangeContentSkippedZeroViewportCount++;
             _runtimeArrangeContentSkippedZeroViewportCount++;
             _diagArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
@@ -1679,10 +1817,8 @@ public class ScrollViewer : ContentControl
             return;
         }
 
-        var arrangedWidth = HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled
-            ? ViewportWidth
-            : MathF.Max(ViewportWidth, ExtentWidth);
-        var arrangedHeight = MathF.Max(ViewportHeight, ExtentHeight);
+        var arrangedWidth = ResolveContentArrangeWidth(content, previousViewportRect);
+        var arrangedHeight = ResolveContentArrangeHeight(content, previousViewportRect);
         var useTransformScrolling = UsesTransformBasedContentScrolling();
         if (useTransformScrolling)
         {
@@ -1697,14 +1833,117 @@ public class ScrollViewer : ContentControl
         var contentX = useTransformScrolling ? _contentViewportRect.X : _contentViewportRect.X - HorizontalOffset;
         var contentY = useTransformScrolling ? _contentViewportRect.Y : _contentViewportRect.Y - VerticalOffset;
 
-        content.Arrange(new LayoutRect(
+        var arrangeRect = new LayoutRect(
             contentX,
             contentY,
             arrangedWidth,
-            arrangedHeight));
+            arrangedHeight);
+
+        if (CanTranslateExistingContentArrange(content, arrangeRect) &&
+            content.TryTranslateArrangedSubtree(arrangeRect))
+        {
+            _hasArrangedContentRect = true;
+            _lastArrangedContentRect = arrangeRect;
+            _lastArrangedContentElement = content;
+            content.InvalidateVisual();
+            _diagArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            return;
+        }
+
+        content.Arrange(arrangeRect);
+        _hasArrangedContentRect = true;
+        _lastArrangedContentRect = arrangeRect;
+        _lastArrangedContentElement = content;
         content.InvalidateVisual();
         _diagArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         _runtimeArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+    }
+
+    private bool CanTranslateExistingContentArrange(FrameworkElement content, LayoutRect nextArrangeRect)
+    {
+        return UsesTransformBasedContentScrolling() &&
+               _hasArrangedContentRect &&
+               ReferenceEquals(_lastArrangedContentElement, content) &&
+               AreFloatsClose(_lastArrangedContentRect.Width, nextArrangeRect.Width) &&
+               AreFloatsClose(_lastArrangedContentRect.Height, nextArrangeRect.Height) &&
+               (!AreFloatsClose(_lastArrangedContentRect.X, nextArrangeRect.X) ||
+                !AreFloatsClose(_lastArrangedContentRect.Y, nextArrangeRect.Y));
+    }
+
+    private float ResolveContentArrangeWidth(FrameworkElement content, LayoutRect previousViewportRect)
+    {
+        var arrangedWidth = HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled
+            ? ViewportWidth
+            : MathF.Max(ViewportWidth, ExtentWidth);
+
+        if (HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled)
+        {
+            return arrangedWidth;
+        }
+
+        return TryPreservePreviousContentArrangeSpan(content, previousViewportRect, horizontalAxis: true, out var preservedWidth)
+            ? preservedWidth
+            : arrangedWidth;
+    }
+
+    private float ResolveContentArrangeHeight(FrameworkElement content, LayoutRect previousViewportRect)
+    {
+        var arrangedHeight = MathF.Max(ViewportHeight, ExtentHeight);
+
+        if (VerticalScrollBarVisibility != ScrollBarVisibility.Disabled)
+        {
+            return arrangedHeight;
+        }
+
+        return TryPreservePreviousContentArrangeSpan(content, previousViewportRect, horizontalAxis: false, out var preservedHeight)
+            ? preservedHeight
+            : arrangedHeight;
+    }
+
+    private bool TryPreservePreviousContentArrangeSpan(
+        FrameworkElement content,
+        LayoutRect previousViewportRect,
+        bool horizontalAxis,
+        out float preservedSpan)
+    {
+        preservedSpan = 0f;
+
+        if (!_hasArrangedContentRect ||
+            !ReferenceEquals(_lastArrangedContentElement, content) ||
+            content.NeedsMeasure)
+        {
+            return false;
+        }
+
+        var previousViewportSpan = horizontalAxis ? previousViewportRect.Width : previousViewportRect.Height;
+        var nextViewportSpan = horizontalAxis ? _contentViewportRect.Width : _contentViewportRect.Height;
+        var previousArrangedSpan = horizontalAxis ? _lastArrangedContentRect.Width : _lastArrangedContentRect.Height;
+        if (previousArrangedSpan <= nextViewportSpan + 0.01f ||
+            previousViewportSpan <= 0f ||
+            nextViewportSpan <= 0f)
+        {
+            return false;
+        }
+
+        var previousAvailable = CreateContentMeasureConstraint(previousViewportRect.Width, previousViewportRect.Height);
+        var nextAvailable = CreateContentMeasureConstraint(_contentViewportRect.Width, _contentViewportRect.Height);
+        if (!content.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailable, nextAvailable))
+        {
+            return false;
+        }
+
+        preservedSpan = previousArrangedSpan;
+        return true;
+    }
+
+    private Vector2 CreateContentMeasureConstraint(float viewportWidth, float viewportHeight)
+    {
+        var canScrollHorizontally = HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled;
+        var canScrollVertically = VerticalScrollBarVisibility != ScrollBarVisibility.Disabled;
+        return new Vector2(
+            canScrollHorizontally ? float.PositiveInfinity : MathF.Max(0f, viewportWidth),
+            canScrollVertically ? float.PositiveInfinity : MathF.Max(0f, viewportHeight));
     }
 
     private bool UsesTransformBasedContentScrolling()

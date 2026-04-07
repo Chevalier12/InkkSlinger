@@ -186,7 +186,12 @@ public sealed class ButtonPerformanceRegressionTests
     {
         Button.ResetRenderLineWidthFallbackCountForTests();
 
-        var layout = new TextLayout.TextLayoutResult(new[] { "Fallback" }, System.Array.Empty<float>(), new Vector2(0f, 14f));
+        var layout = new TextLayout.TextLayoutResult(
+            new[] { "Fallback" },
+            System.Array.Empty<float>(),
+            new Vector2(0f, 14f),
+            0f,
+            float.PositiveInfinity);
 
         var width = Button.ResolveRenderedLineWidth(layout, 0, "Fallback", 14f);
 

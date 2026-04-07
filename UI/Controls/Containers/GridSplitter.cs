@@ -778,14 +778,13 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
                 newB = MathF.Max(right.MinWidth, total - newA);
             }
 
-            left.Width = new GridLength(newA, GridUnitType.Pixel);
-            right.Width = new GridLength(newB, GridUnitType.Pixel);
+            var producedChange = grid.ApplySplitterColumnResize(indexA, indexB, newA, newB);
             return new ResizeApplicationResult(
                 true,
                 bounded,
                 MathF.Abs(bounded - delta) > 0.001f,
                 totalCorrected,
-                MathF.Abs(newA - currentA) > 0.001f || MathF.Abs(newB - currentB) > 0.001f);
+                producedChange || MathF.Abs(newA - currentA) > 0.001f || MathF.Abs(newB - currentB) > 0.001f);
         }
 
         if (indexA < 0 || indexA >= grid.RowDefinitions.Count ||
@@ -819,14 +818,13 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
             newBottom = MathF.Max(bottom.MinHeight, rowTotal - newTop);
         }
 
-        top.Height = new GridLength(newTop, GridUnitType.Pixel);
-        bottom.Height = new GridLength(newBottom, GridUnitType.Pixel);
+        var rowProducedChange = grid.ApplySplitterRowResize(indexA, indexB, newTop, newBottom);
         return new ResizeApplicationResult(
             true,
             boundedRows,
             MathF.Abs(boundedRows - delta) > 0.001f,
             rowTotalCorrected,
-            MathF.Abs(newTop - currentTop) > 0.001f || MathF.Abs(newBottom - currentBottom) > 0.001f);
+            rowProducedChange || MathF.Abs(newTop - currentTop) > 0.001f || MathF.Abs(newBottom - currentBottom) > 0.001f);
     }
 
     private bool TryResolveResizeTargets(Grid grid, GridResizeDirection direction, out int indexA, out int indexB)

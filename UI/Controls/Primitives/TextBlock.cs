@@ -519,7 +519,7 @@ public class TextBlock : FrameworkElement
 
         var previousWidth = ResolveMeasureTextLayoutWidth(previousAvailableSize.X);
         var nextWidth = ResolveMeasureTextLayoutWidth(nextAvailableSize.X);
-        if (CanReuseWrappedLayoutForNarrowerWidth(previousWidth, nextWidth))
+        if (CanReuseWrappedLayoutForWidthRange(previousWidth, nextWidth))
         {
             _runtimeCanReuseMeasureTrueCount++;
             _runtimeCanReuseMeasureIntrinsicFitCount++;
@@ -1011,74 +1011,100 @@ public class TextBlock : FrameworkElement
         return TextWrapping != TextWrapping.NoWrap && availableWidth <= 0.01f;
     }
 
-    private bool CanReuseWrappedLayoutForNarrowerWidth(float previousWidth, float nextWidth)
+    private bool CanReuseWrappedLayoutForWidthRange(float previousWidth, float nextWidth)
     {
         if (TextWrapping == TextWrapping.NoWrap ||
             !float.IsFinite(previousWidth) ||
             !float.IsFinite(nextWidth) ||
-            nextWidth > previousWidth ||
             ShouldCollapseWrappedMeasure(previousWidth) ||
             ShouldCollapseWrappedMeasure(nextWidth))
         {
             return false;
         }
 
+        var minimumWidth = MathF.Min(previousWidth, nextWidth);
+        var maximumWidth = MathF.Max(previousWidth, nextWidth);
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
+        var lineHeight = LineHeight;
+
         if (_hasLastMeasuredWrappedLayout &&
-            FloatMatches(_lastMeasuredWrappedLayoutWidth, previousWidth) &&
             _runtimeLastMeasureTextVersion == _textVersion &&
             _runtimeLastMeasureWrapping == TextWrapping &&
             FloatMatches(_runtimeLastMeasureFontSize, FontSize) &&
-            FloatMatches(_runtimeLastMeasureLineHeight, LineHeight))
+            FloatMatches(_runtimeLastMeasureLineHeight, lineHeight) &&
+            IsWrappedLayoutWidthRangeReusable(_lastMeasuredWrappedLayout, minimumWidth, maximumWidth))
         {
-            return nextWidth + 0.5f >= GetReusableWrappedLayoutWidth(_lastMeasuredWrappedLayout);
+            return true;
         }
 
-        if (!TryGetCachedWrappedLayoutForWidth(previousWidth, out var cachedLayout))
-        {
-            return false;
-        }
-
-        return nextWidth + 0.5f >= GetReusableWrappedLayoutWidth(cachedLayout);
-    }
-
-    private float GetReusableWrappedLayoutWidth(TextLayout.TextLayoutResult layout)
-    {
-        if (layout.Lines.Count == 0)
-        {
-            return 0f;
-        }
-
-        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
-        var maxWidth = 0f;
-        for (var i = 0; i < layout.Lines.Count; i++)
-        {
-            var line = layout.Lines[i].TrimEnd();
-            var lineWidth = string.IsNullOrEmpty(line)
-                ? 0f
-                : UiTextRenderer.MeasureWidth(typography, line);
-            maxWidth = MathF.Max(maxWidth, lineWidth);
-        }
-
-        return maxWidth;
-    }
-
-    private bool TryGetCachedWrappedLayoutForWidth(float width, out TextLayout.TextLayoutResult layout)
-    {
-        layout = TextLayout.TextLayoutResult.Empty;
-        if (TextWrapping == TextWrapping.NoWrap)
-        {
-            return false;
-        }
-
-        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
-        var lineHeight = LineHeight;
         if (_hasLayoutCache &&
             _layoutCacheTextVersion == _textVersion &&
             Nullable.Equals(_layoutCacheTypography, typography) &&
             FloatMatches(_layoutCacheFontSize, FontSize) &&
             _layoutCacheWrapping == TextWrapping &&
             FloatMatches(_layoutCacheLineHeight, lineHeight) &&
-            FloatMatches(_layoutCacheWidth, width))
+            IsWrappedLayoutWidthRangeReusable(_layoutCacheResult, minimumWidth, maximumWidth))
+        {
+            return true;
+        }
+
+        return _hasSecondaryLayoutCache &&
+               _secondaryLayoutCacheTextVersion == _textVersion &&
+               Nullable.Equals(_secondaryLayoutCacheTypography, typography) &&
+               FloatMatches(_secondaryLayoutCacheFontSize, FontSize) &&
+               _secondaryLayoutCacheWrapping == TextWrapping &&
+               FloatMatches(_secondaryLayoutCacheLineHeight, lineHeight) &&
+               IsWrappedLayoutWidthRangeReusable(_secondaryLayoutCacheResult, minimumWidth, maximumWidth);
+    }
+
+    private static bool IsWrappedLayoutWidthRangeReusable(TextLayout.TextLayoutResult layout, float minimumWidth, float maximumWidth)
+    {
+        if (layout.Lines.Count == 0)
+        {
+            return true;
+        }
+
+        if (minimumWidth + 0.5f < layout.ReusableMinimumWidth)
+        {
+            return false;
+        }
+
+        if (!float.IsFinite(layout.ReusableMaximumWidth))
+        {
+            return true;
+        }
+
+        return maximumWidth <= layout.ReusableMaximumWidth - 0.5f;
+    }
+
+    private bool TryGetReusableCachedWrappedLayoutForWidth(float width, UiTypography typography, float lineHeight, out TextLayout.TextLayoutResult layout)
+    {
+        layout = TextLayout.TextLayoutResult.Empty;
+        if (TextWrapping == TextWrapping.NoWrap ||
+            !float.IsFinite(width) ||
+            ShouldCollapseWrappedMeasure(width))
+        {
+            return false;
+        }
+
+        if (_hasLastMeasuredWrappedLayout &&
+            _runtimeLastMeasureTextVersion == _textVersion &&
+            _runtimeLastMeasureWrapping == TextWrapping &&
+            FloatMatches(_runtimeLastMeasureFontSize, FontSize) &&
+            FloatMatches(_runtimeLastMeasureLineHeight, lineHeight) &&
+            IsWrappedLayoutWidthRangeReusable(_lastMeasuredWrappedLayout, width, width))
+        {
+            layout = _lastMeasuredWrappedLayout;
+            return true;
+        }
+
+        if (_hasLayoutCache &&
+            _layoutCacheTextVersion == _textVersion &&
+            Nullable.Equals(_layoutCacheTypography, typography) &&
+            FloatMatches(_layoutCacheFontSize, FontSize) &&
+            _layoutCacheWrapping == TextWrapping &&
+            FloatMatches(_layoutCacheLineHeight, lineHeight) &&
+            IsWrappedLayoutWidthRangeReusable(_layoutCacheResult, width, width))
         {
             layout = _layoutCacheResult;
             return true;
@@ -1090,13 +1116,26 @@ public class TextBlock : FrameworkElement
             FloatMatches(_secondaryLayoutCacheFontSize, FontSize) &&
             _secondaryLayoutCacheWrapping == TextWrapping &&
             FloatMatches(_secondaryLayoutCacheLineHeight, lineHeight) &&
-            FloatMatches(_secondaryLayoutCacheWidth, width))
+            IsWrappedLayoutWidthRangeReusable(_secondaryLayoutCacheResult, width, width))
         {
             layout = _secondaryLayoutCacheResult;
             return true;
         }
 
         return false;
+    }
+
+    private void StorePrimaryLayoutCache(float width, UiTypography typography, float lineHeight, TextLayout.TextLayoutResult result)
+    {
+        CapturePrimaryLayoutCacheAsSecondary();
+        _layoutCacheTextVersion = _textVersion;
+        _layoutCacheWidth = width;
+        _layoutCacheTypography = typography;
+        _layoutCacheFontSize = FontSize;
+        _layoutCacheWrapping = TextWrapping;
+        _layoutCacheLineHeight = lineHeight;
+        _layoutCacheResult = result;
+        _hasLayoutCache = true;
     }
 
     private TextLayout.TextLayoutResult ResolveLayout(float width)
@@ -1156,19 +1195,20 @@ public class TextBlock : FrameworkElement
                 return _layoutCacheResult;
             }
 
+            if (TryGetReusableCachedWrappedLayoutForWidth(width, typography, lineHeight, out var reusableLayout))
+            {
+                _layoutCacheHitCount++;
+                _runtimeResolveLayoutCacheHitCount++;
+                IncrementAggregate(ref _diagResolveLayoutCacheHitCount);
+                StorePrimaryLayoutCache(width, typography, lineHeight, reusableLayout);
+                return _layoutCacheResult;
+            }
+
             _layoutCacheMissCount++;
             _runtimeResolveLayoutCacheMissCount++;
             IncrementAggregate(ref _diagResolveLayoutCacheMissCount);
             var result = ApplyLineHeight(TextLayout.Layout(layoutText, typography, FontSize, width, TextWrapping), lineHeight);
-            CapturePrimaryLayoutCacheAsSecondary();
-            _layoutCacheTextVersion = _textVersion;
-            _layoutCacheWidth = width;
-            _layoutCacheTypography = typography;
-            _layoutCacheFontSize = FontSize;
-            _layoutCacheWrapping = TextWrapping;
-            _layoutCacheLineHeight = lineHeight;
-            _layoutCacheResult = result;
-            _hasLayoutCache = true;
+            StorePrimaryLayoutCache(width, typography, lineHeight, result);
             return result;
         }
         finally
@@ -1302,7 +1342,9 @@ public class TextBlock : FrameworkElement
         return new TextLayout.TextLayoutResult(
             result.Lines,
             result.LineWidths,
-            new Vector2(result.Size.X, result.Lines.Count * lineHeight));
+            new Vector2(result.Size.X, result.Lines.Count * lineHeight),
+            result.ReusableMinimumWidth,
+            result.ReusableMaximumWidth);
     }
 
     private static bool FloatMatches(float cached, float current)

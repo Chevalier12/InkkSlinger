@@ -788,6 +788,47 @@ public sealed class GridLayoutTests
     }
 
     [Fact]
+    public void Arrange_WidthChange_SkipsUnchangedChildSubtree()
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100f) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100f) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var stableHost = new Grid();
+        stableHost.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        stableHost.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var stableLeaf = new FixedSizeElement(new Vector2(32f, 18f));
+        stableHost.AddChild(stableLeaf);
+        grid.AddChild(stableHost);
+
+        var resizableChild = new FixedSizeElement(new Vector2(180f, 18f));
+        Grid.SetColumn(resizableChild, 1);
+        grid.AddChild(resizableChild);
+
+        var shiftedChild = new FixedSizeElement(new Vector2(32f, 18f));
+        Grid.SetColumn(shiftedChild, 2);
+        grid.AddChild(shiftedChild);
+
+        grid.Measure(new Vector2(400f, 80f));
+        grid.Arrange(new LayoutRect(0f, 0f, 400f, 80f));
+
+        var stableHostArrangeCallsBefore = stableHost.ArrangeCallCount;
+        var stableLeafArrangeCallsBefore = stableLeaf.ArrangeCallCount;
+        var resizableArrangeCallsBefore = resizableChild.ArrangeCallCount;
+        var shiftedArrangeCallsBefore = shiftedChild.ArrangeCallCount;
+
+        grid.Measure(new Vector2(520f, 80f));
+        grid.Arrange(new LayoutRect(0f, 0f, 520f, 80f));
+
+        Assert.Equal(stableHostArrangeCallsBefore, stableHost.ArrangeCallCount);
+        Assert.Equal(stableLeafArrangeCallsBefore, stableLeaf.ArrangeCallCount);
+        Assert.True(resizableChild.ArrangeCallCount > resizableArrangeCallsBefore);
+        Assert.True(shiftedChild.ArrangeCallCount > shiftedArrangeCallsBefore);
+    }
+
+    [Fact]
     public void Arrange_ZeroStarColumn_DoesNotReceiveProportionalShare()
     {
         var grid = new Grid();

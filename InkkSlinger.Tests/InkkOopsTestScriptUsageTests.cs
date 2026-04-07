@@ -113,6 +113,24 @@ public sealed class InkkOopsTestScriptUsageTests
         }
     }
 
+    [Fact]
+    public async Task RuntimeRun_GridSplitter_Sidebar_Drag_Path_Passes_And_Preserves_Artifacts()
+    {
+        var artifactsRoot = CreatePreservedArtifactsRoot("runtime-grid-splitter-sidebar-drag-fps-drop");
+        var runDirectory = await RunRuntimeScenarioFromTestAssemblyAsync(
+            "runtime-grid-splitter-sidebar-drag-fps-drop-scenario",
+            artifactsRoot);
+
+        var resultJson = File.ReadAllText(Path.Combine(runDirectory, "result.json"));
+        var actionLogPath = Path.Combine(runDirectory, "action.log");
+        var actionLog = File.ReadAllText(actionLogPath);
+
+        Assert.Contains("\"status\": \"Completed\"", resultJson);
+        Assert.Contains("\"scriptName\": \"runtime-grid-splitter-sidebar-drag-fps-drop-scenario\"", resultJson);
+        Assert.True(File.Exists(actionLogPath));
+        Assert.Contains("NavigationSplitter", actionLog);
+    }
+
     private static async Task<string> RunRuntimeScenarioFromTestAssemblyAsync(string scriptName, string artifactsRoot)
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -162,6 +180,19 @@ public sealed class InkkOopsTestScriptUsageTests
         Assert.True(
             process.ExitCode == 0,
             $"{failurePrefix}{Environment.NewLine}ExitCode: {process.ExitCode}{Environment.NewLine}STDOUT:{Environment.NewLine}{stdout}{Environment.NewLine}STDERR:{Environment.NewLine}{stderr}");
+    }
+
+    private static string CreatePreservedArtifactsRoot(string scenarioSlug)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var artifactsRoot = Path.Combine(
+            repositoryRoot,
+            "artifacts",
+            "inkkoops-runtime-runs",
+            scenarioSlug,
+            $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(artifactsRoot);
+        return artifactsRoot;
     }
 
     private static string FindRepositoryRoot()
@@ -220,6 +251,42 @@ public sealed class InkkOopsTestScriptUsageTests
                 .Drag(NavigationSplitterName, -220f, 0f)
                 .Drag(NavigationSplitterName, 180f, 0f)
                 .Drag(NavigationSplitterName, -120f, 0f);
+        }
+    }
+
+    public sealed class RuntimeGridSplitterSidebarDragFpsDropScenario : InkkOopsRuntimeScenario
+    {
+        public override string Name => "runtime-grid-splitter-sidebar-drag-fps-drop-scenario";
+
+        protected override IEnumerable<int>? ActionDiagnosticsIndexes => [10, 11, 12, 13, 14];
+
+        protected override void Build(InkkOopsScriptBuilder builder)
+        {
+            var gridSplitterButton = InkkOopsTargetSelector.Within(
+                InkkOopsTargetSelector.Name(ButtonHostName),
+                InkkOopsTargetSelector.AutomationName("GridSplitter").WithIndex(0));
+            var dragMotion = InkkOopsPointerMotion.WithTravelFrames(14, stepDistance: 8f);
+
+            builder
+                .ResizeWindow(1600, 960)
+                .WaitFrames(6)
+                .WaitForElement(SidebarScrollViewerName)
+                .ScrollIntoView(InkkOopsTargetSelector.Name(SidebarScrollViewerName), gridSplitterButton, padding: 12f)
+                .WaitForInteractive(gridSplitterButton)
+                .Click(gridSplitterButton)
+                .WaitForElement(GridSplitterViewRootName)
+                .WaitFrames(10)
+                .ScrollIntoView(
+                    InkkOopsTargetSelector.Name(GridSplitterWorkbenchScrollViewerName),
+                    InkkOopsTargetSelector.Name(NavigationSplitterName),
+                    padding: 24f)
+                .WaitForInteractive(NavigationSplitterName)
+                .Drag(NavigationSplitterName, 180f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .Drag(NavigationSplitterName, -240f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .Drag(NavigationSplitterName, 220f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .Drag(NavigationSplitterName, -200f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .Drag(NavigationSplitterName, 160f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12);
         }
     }
 }

@@ -62,6 +62,8 @@ public class UIElement : DependencyObject
     private int _drawCallCount;
     private bool _suppressNextLogicalBindingTreeNotify;
     private bool _suppressNextLogicalParentChanged;
+    private bool _hasDirectMeasureInvalidation;
+    private bool _hasDirectArrangeInvalidation;
 
     public static readonly DependencyProperty IsVisibleProperty =
         DependencyProperty.Register(
@@ -332,6 +334,8 @@ public class UIElement : DependencyObject
 
     internal int LayoutVersionStamp => _layoutVersionStamp;
 
+    internal bool HasDirectArrangeInvalidationForLayoutRepair => _hasDirectArrangeInvalidation;
+
     public virtual IEnumerable<UIElement> GetVisualChildren()
     {
         yield break;
@@ -581,10 +585,18 @@ public class UIElement : DependencyObject
     public virtual void InvalidateMeasure()
     {
         var context = _currentInvalidationContext;
+        var origin = context?.Origin ?? this;
+        var immediateSource = context?.ImmediateSource;
+        var reason = context?.Reason ?? "direct-call";
+        if (TryHandleMeasureInvalidation(origin, immediateSource, reason))
+        {
+            return;
+        }
+
         InvalidateMeasureCore(
-            context?.Origin ?? this,
-            context?.ImmediateSource,
-            context?.Reason ?? "direct-call");
+            origin,
+            immediateSource,
+            reason);
     }
 
     public virtual void InvalidateArrange()
@@ -608,6 +620,14 @@ public class UIElement : DependencyObject
     public void InvalidateRender()
     {
         InvalidateVisual();
+    }
+
+    protected virtual bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        _ = origin;
+        _ = source;
+        _ = reason;
+        return false;
     }
 
     public virtual bool HitTest(Vector2 point)
@@ -1301,20 +1321,24 @@ public class UIElement : DependencyObject
     internal void ClearMeasureInvalidation()
     {
         NeedsMeasure = false;
+        _hasDirectMeasureInvalidation = false;
     }
 
     internal void ClearArrangeInvalidation()
     {
         NeedsArrange = false;
+        _hasDirectArrangeInvalidation = false;
     }
 
     internal void PrepareArrangeForDirectLayoutOnly()
     {
+        _hasDirectArrangeInvalidation = true;
         PrepareArrangeForDirectLayoutCore(invalidateRender: true);
     }
 
     internal void PrepareArrangeForDirectLayoutWithoutRenderInvalidation()
     {
+        _hasDirectArrangeInvalidation = true;
         PrepareArrangeForDirectLayoutCore(invalidateRender: false);
     }
 
@@ -1654,10 +1678,20 @@ public class UIElement : DependencyObject
         Dispatcher.VerifyAccess();
         if (NeedsMeasure)
         {
+            if (ReferenceEquals(origin, this))
+            {
+                _hasDirectMeasureInvalidation = true;
+            }
+
             return;
         }
 
         NeedsMeasure = true;
+        if (ReferenceEquals(origin, this))
+        {
+            _hasDirectMeasureInvalidation = true;
+        }
+
         _measureInvalidationCount++;
         _layoutVersionStamp++;
         RecordInvalidationDiagnostics(UiInvalidationType.Measure, origin, source, reason);
@@ -1676,10 +1710,20 @@ public class UIElement : DependencyObject
         Dispatcher.VerifyAccess();
         if (NeedsArrange)
         {
+            if (ReferenceEquals(origin, this))
+            {
+                _hasDirectArrangeInvalidation = true;
+            }
+
             return;
         }
 
         NeedsArrange = true;
+        if (ReferenceEquals(origin, this))
+        {
+            _hasDirectArrangeInvalidation = true;
+        }
+
         _arrangeInvalidationCount++;
         _layoutVersionStamp++;
         RecordInvalidationDiagnostics(UiInvalidationType.Arrange, origin, source, reason);

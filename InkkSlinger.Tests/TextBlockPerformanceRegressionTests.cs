@@ -141,6 +141,87 @@ public sealed class TextBlockPerformanceRegressionTests
     }
 
     [Fact]
+    public void Measure_WrappedText_WhenWideningInsideStableWrapBand_ReusesMeasure()
+    {
+        var textBlock = new TextBlock
+        {
+            Text = "Wednesday Thursday",
+            TextWrapping = TextWrapping.Wrap
+        };
+
+        var initialWidth = UiTextRenderer.MeasureWidth(textBlock, "Wednesday ", textBlock.FontSize) + 1f;
+
+        var initialLayout = TextLayout.LayoutForElement(
+            textBlock.Text,
+            textBlock,
+            textBlock.FontSize,
+            initialWidth,
+            TextWrapping.Wrap);
+        var widerWidth = MathF.Min(initialLayout.ReusableMaximumWidth - 1f, initialWidth + 12f);
+        Assert.True(widerWidth > initialWidth);
+
+        var widerLayout = TextLayout.LayoutForElement(
+            textBlock.Text,
+            textBlock,
+            textBlock.FontSize,
+            widerWidth,
+            TextWrapping.Wrap);
+
+        Assert.Equal(
+            initialLayout.Lines.Select(static line => line.TrimEnd()).ToArray(),
+            widerLayout.Lines.Select(static line => line.TrimEnd()).ToArray());
+
+        textBlock.Measure(new Vector2(initialWidth, 120f));
+        var wrappedDesired = textBlock.DesiredSize;
+
+        textBlock.Measure(new Vector2(widerWidth, 120f));
+
+        Assert.Equal(2, textBlock.MeasureCallCount);
+        Assert.Equal(1, textBlock.MeasureWorkCount);
+        Assert.Equal(wrappedDesired, textBlock.DesiredSize);
+    }
+
+    [Fact]
+    public void Measure_WrappedText_WhenWidthOscillatesInsideStableWrapBand_ReusesMeasure()
+    {
+        var textBlock = new TextBlock
+        {
+            Text = "Wednesday Thursday",
+            TextWrapping = TextWrapping.Wrap
+        };
+
+        var narrowWidth = UiTextRenderer.MeasureWidth(textBlock, "Wednesday ", textBlock.FontSize) + 1f;
+
+        var narrowLayout = TextLayout.LayoutForElement(
+            textBlock.Text,
+            textBlock,
+            textBlock.FontSize,
+            narrowWidth,
+            TextWrapping.Wrap);
+        var wideWidth = MathF.Min(narrowLayout.ReusableMaximumWidth - 1f, narrowWidth + 12f);
+        Assert.True(wideWidth > narrowWidth);
+
+        var wideLayout = TextLayout.LayoutForElement(
+            textBlock.Text,
+            textBlock,
+            textBlock.FontSize,
+            wideWidth,
+            TextWrapping.Wrap);
+
+        Assert.Equal(
+            narrowLayout.Lines.Select(static line => line.TrimEnd()).ToArray(),
+            wideLayout.Lines.Select(static line => line.TrimEnd()).ToArray());
+
+        textBlock.Measure(new Vector2(narrowWidth, 120f));
+        textBlock.Measure(new Vector2(wideWidth, 120f));
+        textBlock.Measure(new Vector2(narrowWidth + 4f, 120f));
+        textBlock.Measure(new Vector2(wideWidth - 4f, 120f));
+
+        Assert.Equal(4, textBlock.MeasureCallCount);
+        Assert.Equal(1, textBlock.MeasureWorkCount);
+    }
+
+    [Fact]
     public void Measure_WrappedText_WithZeroAvailableWidth_CollapsesWithoutBuildingLayout()
     {
         TextLayout.ResetMetricsForTests();

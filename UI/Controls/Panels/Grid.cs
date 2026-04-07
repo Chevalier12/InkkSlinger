@@ -374,13 +374,17 @@ public class Grid : Panel
     private readonly List<DefinitionSnapshot> _arrangeRows = new();
     private float[] _measuredColumnSizes = Array.Empty<float>();
     private float[] _measuredRowSizes = Array.Empty<float>();
+    private int _definitionInvalidationSuppressionDepth;
+    private bool _hasSuppressedDefinitionChange;
     private float[] _columnOffsets = Array.Empty<float>();
     private float[] _rowOffsets = Array.Empty<float>();
     private ChildLayoutMetadata[] _childLayoutMetadataCache = Array.Empty<ChildLayoutMetadata>();
     private FirstPassMeasureRecord[] _firstPassMeasureRecords = Array.Empty<FirstPassMeasureRecord>();
     private CachedChildMeasureState[] _cachedChildMeasureStates = Array.Empty<CachedChildMeasureState>();
+    private CachedChildArrangeState[] _cachedChildArrangeStates = Array.Empty<CachedChildArrangeState>();
     private bool _childLayoutMetadataDirty = true;
     private SharedSizeScopeState? _sharedSizeScopeState;
+    private bool _isReconcilingDescendantMeasureInvalidation;
 
     public Grid()
     {
@@ -703,6 +707,54 @@ public class Grid : Panel
                AreDefinitionSizesClose(rows, _measuredRowSizes);
     }
 
+    protected override bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
+    {
+        _ = source;
+        _ = reason;
+
+        if (ReferenceEquals(origin, this) ||
+            _isReconcilingDescendantMeasureInvalidation ||
+            NeedsMeasure ||
+            HasSharedSizeDefinitions() ||
+            !IsGridDescendant(origin))
+        {
+            return false;
+        }
+
+        var availableSize = PreviousAvailableSizeForTests;
+        if (float.IsNaN(availableSize.X) || float.IsNaN(availableSize.Y))
+        {
+            return false;
+        }
+
+        _isReconcilingDescendantMeasureInvalidation = true;
+        try
+        {
+            if (!TryReconcileDescendantMeasureInvalidation(availableSize, out var desiredSize))
+            {
+                return false;
+            }
+
+            if (!AreSizesClose(desiredSize, GetCurrentMeasuredDesiredSize()))
+            {
+                return false;
+            }
+
+            MarkMeasureValidAfterLocalReconciliation();
+            InvalidateArrange();
+            return true;
+        }
+        finally
+        {
+            _isReconcilingDescendantMeasureInvalidation = false;
+        }
+    }
+
+    protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        return _isReconcilingDescendantMeasureInvalidation && IsGridDescendant(descendant);
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var start = Stopwatch.GetTimestamp();
@@ -711,37 +763,55 @@ public class Grid : Panel
         IncrementAggregate(ref _diagArrangeCallCount);
         try
         {
-        var columns = PrepareColumnSnapshots(_arrangeColumns);
-        var rows = PrepareRowSnapshots(_arrangeRows);
-        RefreshSharedSizeScopeState();
-        ApplySharedSizes(columns, isColumnAxis: true);
-        ApplySharedSizes(rows, isColumnAxis: false);
+            var columns = PrepareColumnSnapshots(_arrangeColumns);
+            var rows = PrepareRowSnapshots(_arrangeRows);
+            RefreshSharedSizeScopeState();
+            ApplySharedSizes(columns, isColumnAxis: true);
+            ApplySharedSizes(rows, isColumnAxis: false);
 
-        ResolveDefinitionSizes(columns, finalSize.X, _measuredColumnSizes);
-        ResolveDefinitionSizes(rows, finalSize.Y, _measuredRowSizes);
-        SyncActualDefinitionSizes(columns, rows);
+            ResolveDefinitionSizes(columns, finalSize.X, _measuredColumnSizes);
+            ResolveDefinitionSizes(rows, finalSize.Y, _measuredRowSizes);
+            SyncActualDefinitionSizes(columns, rows);
 
-        FillOffsets(columns, LayoutSlot.X, ref _columnOffsets);
-        FillOffsets(rows, LayoutSlot.Y, ref _rowOffsets);
+            FillOffsets(columns, LayoutSlot.X, ref _columnOffsets);
+            FillOffsets(rows, LayoutSlot.Y, ref _rowOffsets);
 
-        foreach (var child in Children)
-        {
-            if (child is not FrameworkElement frameworkChild)
+            var childLayoutMetadata = PrepareChildLayoutMetadata(rows, columns);
+            EnsureChildMeasureRecordCapacity(childLayoutMetadata.Length);
+
+            foreach (ref readonly var metadata in childLayoutMetadata.AsSpan())
             {
-                skippedChildCount++;
-                continue;
+                arrangedChildCount++;
+                var cell = metadata.Cell;
+                var x = _columnOffsets[cell.Column];
+                var y = _rowOffsets[cell.Row];
+                var width = SumRange(columns, cell.Column, cell.ColumnSpan);
+                var height = SumRange(rows, cell.Row, cell.RowSpan);
+                var childRect = new LayoutRect(x, y, width, height);
+                var childArrangeIndex = arrangedChildCount - 1;
+                if (CanReuseCachedArrange(childArrangeIndex, metadata.Child, childRect))
+                {
+                    continue;
+                }
+
+                if (TryTranslateCachedArrange(childArrangeIndex, metadata.Child, childRect))
+                {
+                    continue;
+                }
+
+                metadata.Child.Arrange(childRect);
+                if (childArrangeIndex >= 0 && childArrangeIndex < _cachedChildArrangeStates.Length)
+                {
+                    _cachedChildArrangeStates[childArrangeIndex] = new CachedChildArrangeState(
+                        metadata.Child,
+                        childRect,
+                        metadata.Child.DesiredSize,
+                        true);
+                }
             }
 
-            arrangedChildCount++;
-            var cell = NormalizeCell(child, rows.Count, columns.Count);
-            var x = _columnOffsets[cell.Column];
-            var y = _rowOffsets[cell.Row];
-            var width = SumRange(columns, cell.Column, cell.ColumnSpan);
-            var height = SumRange(rows, cell.Row, cell.RowSpan);
-            frameworkChild.Arrange(new LayoutRect(x, y, width, height));
-        }
-
-        return finalSize;
+            skippedChildCount = CountNonFrameworkChildren();
+            return finalSize;
         }
         finally
         {
@@ -843,9 +913,121 @@ public class Grid : Panel
 
     private void OnDefinitionChanged(object? sender, EventArgs e)
     {
+        if (_definitionInvalidationSuppressionDepth > 0)
+        {
+            _hasSuppressedDefinitionChange = true;
+            return;
+        }
+
         DetachFromSharedSizeScope();
         InvalidateChildLayoutMetadataCache();
         InvalidateMeasure();
+    }
+
+    internal bool ApplySplitterColumnResize(int indexA, int indexB, float firstWidth, float secondWidth)
+    {
+        if (indexA < 0 || indexA >= _columnDefinitions.Count ||
+            indexB < 0 || indexB >= _columnDefinitions.Count)
+        {
+            return false;
+        }
+
+        BeginSuppressDefinitionInvalidation();
+        try
+        {
+            _columnDefinitions[indexA].Width = new GridLength(firstWidth, GridUnitType.Pixel);
+            _columnDefinitions[indexB].Width = new GridLength(secondWidth, GridUnitType.Pixel);
+        }
+        finally
+        {
+            EndSuppressDefinitionInvalidation();
+        }
+
+        return FinalizeSuppressedDefinitionResize();
+    }
+
+    internal bool ApplySplitterRowResize(int indexA, int indexB, float firstHeight, float secondHeight)
+    {
+        if (indexA < 0 || indexA >= _rowDefinitions.Count ||
+            indexB < 0 || indexB >= _rowDefinitions.Count)
+        {
+            return false;
+        }
+
+        BeginSuppressDefinitionInvalidation();
+        try
+        {
+            _rowDefinitions[indexA].Height = new GridLength(firstHeight, GridUnitType.Pixel);
+            _rowDefinitions[indexB].Height = new GridLength(secondHeight, GridUnitType.Pixel);
+        }
+        finally
+        {
+            EndSuppressDefinitionInvalidation();
+        }
+
+        return FinalizeSuppressedDefinitionResize();
+    }
+
+    private void BeginSuppressDefinitionInvalidation()
+    {
+        _definitionInvalidationSuppressionDepth++;
+    }
+
+    private void EndSuppressDefinitionInvalidation()
+    {
+        _definitionInvalidationSuppressionDepth = Math.Max(0, _definitionInvalidationSuppressionDepth - 1);
+    }
+
+    private bool FinalizeSuppressedDefinitionResize()
+    {
+        if (!_hasSuppressedDefinitionChange)
+        {
+            return false;
+        }
+
+        _hasSuppressedDefinitionChange = false;
+        DetachFromSharedSizeScope();
+        InvalidateChildLayoutMetadataCache();
+
+        if (TryResolveSplitterResizeAsArrangeOnly())
+        {
+            InvalidateArrange();
+            return true;
+        }
+
+        InvalidateMeasure();
+        return true;
+    }
+
+    private bool TryResolveSplitterResizeAsArrangeOnly()
+    {
+        if (NeedsMeasure || !IsMeasureValidForTests || HasSharedSizeDefinitions())
+        {
+            return false;
+        }
+
+        var availableSize = PreviousAvailableSizeForTests;
+        if (float.IsNaN(availableSize.X) || float.IsNaN(availableSize.Y))
+        {
+            return false;
+        }
+
+        var columns = PrepareColumnSnapshots(_measureColumns);
+        var rows = PrepareRowSnapshots(_measureRows);
+        var childLayoutMetadata = PrepareChildLayoutMetadata(rows, columns);
+        if (!TrySimulateMeasureWithCachedChildren(childLayoutMetadata, availableSize, columns, rows, out var desiredSize))
+        {
+            return false;
+        }
+
+        if (!AreSizesClose(desiredSize, GetCurrentMeasuredDesiredSize()))
+        {
+            return false;
+        }
+
+        CopySizesToBuffer(columns, ref _measuredColumnSizes);
+        CopySizesToBuffer(rows, ref _measuredRowSizes);
+        return true;
     }
 
     private List<DefinitionSnapshot> PrepareColumnSnapshots(List<DefinitionSnapshot> target)
@@ -1327,7 +1509,8 @@ public class Grid : Panel
     {
         if (_firstPassMeasureRecords.Length >= capacity)
         {
-            if (_cachedChildMeasureStates.Length >= capacity)
+            if (_cachedChildMeasureStates.Length >= capacity &&
+                _cachedChildArrangeStates.Length >= capacity)
             {
                 return;
             }
@@ -1341,6 +1524,11 @@ public class Grid : Panel
         if (_cachedChildMeasureStates.Length < capacity)
         {
             _cachedChildMeasureStates = new CachedChildMeasureState[capacity];
+        }
+
+        if (_cachedChildArrangeStates.Length < capacity)
+        {
+            _cachedChildArrangeStates = new CachedChildArrangeState[capacity];
         }
     }
 
@@ -1563,6 +1751,20 @@ public class Grid : Panel
         return count;
     }
 
+    private int CountNonFrameworkChildren()
+    {
+        var count = 0;
+        foreach (var child in Children)
+        {
+            if (child is not FrameworkElement)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     private static bool HasAutoDefinition(IReadOnlyList<DefinitionSnapshot> definitions, int start, int span)
     {
         var end = Math.Min(definitions.Count, start + span);
@@ -1705,6 +1907,59 @@ public class Grid : Panel
 
         segments.Reverse();
         return string.Join(" > ", segments);
+    }
+
+    private bool CanReuseCachedArrange(int childArrangeIndex, FrameworkElement child, LayoutRect finalRect)
+    {
+        if (child.NeedsMeasure ||
+            child.NeedsArrange ||
+            childArrangeIndex < 0 ||
+            childArrangeIndex >= _cachedChildArrangeStates.Length)
+        {
+            return false;
+        }
+
+        var cachedState = _cachedChildArrangeStates[childArrangeIndex];
+        return cachedState.IsValid &&
+               ReferenceEquals(cachedState.Child, child) &&
+               AreRectsClose(cachedState.FinalRect, finalRect) &&
+               AreSizesClose(cachedState.DesiredSize, child.DesiredSize);
+    }
+
+    private bool TryTranslateCachedArrange(int childArrangeIndex, FrameworkElement child, LayoutRect finalRect)
+    {
+        if (child.NeedsMeasure ||
+            child.NeedsArrange ||
+            childArrangeIndex < 0 ||
+            childArrangeIndex >= _cachedChildArrangeStates.Length)
+        {
+            return false;
+        }
+
+        var cachedState = _cachedChildArrangeStates[childArrangeIndex];
+        if (!cachedState.IsValid ||
+            !ReferenceEquals(cachedState.Child, child) ||
+            !AreSizesClose(cachedState.DesiredSize, child.DesiredSize) ||
+            !AreFloatsClose(cachedState.FinalRect.Width, finalRect.Width) ||
+            !AreFloatsClose(cachedState.FinalRect.Height, finalRect.Height) ||
+            (AreFloatsClose(cachedState.FinalRect.X, finalRect.X) &&
+             AreFloatsClose(cachedState.FinalRect.Y, finalRect.Y)))
+        {
+            return false;
+        }
+
+        if (!child.TryTranslateArrangedSubtree(finalRect))
+        {
+            return false;
+        }
+
+        child.InvalidateVisual();
+        _cachedChildArrangeStates[childArrangeIndex] = new CachedChildArrangeState(
+            child,
+            finalRect,
+            child.DesiredSize,
+            true);
+        return true;
     }
 
     private static bool CanReuseCachedMeasure(
@@ -1852,6 +2107,27 @@ public class Grid : Panel
         out Vector2 desiredSize)
     {
         desiredSize = Vector2.Zero;
+        if (!child.NeedsMeasure &&
+            child.IsMeasureValidForTests &&
+            child.CanReuseMeasureForAvailableSizeChangeForParentLayout(child.PreviousAvailableSizeForTests, availableSize))
+        {
+            desiredSize = child.DesiredSize;
+            if (childMeasureIndex >= 0 && childMeasureIndex < _cachedChildMeasureStates.Length)
+            {
+                _cachedChildMeasureStates[childMeasureIndex] = new CachedChildMeasureState(
+                    child,
+                    availableSize,
+                    desiredSize,
+                    !float.IsNaN(child.Width),
+                    !float.IsNaN(child.Height),
+                    float.IsPositiveInfinity(availableSize.X),
+                    float.IsPositiveInfinity(availableSize.Y),
+                    true);
+            }
+
+            return true;
+        }
+
         if (child.NeedsMeasure || childMeasureIndex < 0 || childMeasureIndex >= _cachedChildMeasureStates.Length)
         {
             return false;
@@ -1869,6 +2145,124 @@ public class Grid : Panel
         }
 
         desiredSize = cachedState.DesiredSize;
+        return true;
+    }
+
+    private bool TryReconcileDescendantMeasureInvalidation(Vector2 availableSize, out Vector2 desiredSize)
+    {
+        desiredSize = Vector2.Zero;
+
+        var columns = PrepareColumnSnapshots(_measureColumns);
+        var rows = PrepareRowSnapshots(_measureRows);
+        var childLayoutMetadata = PrepareChildLayoutMetadata(rows, columns);
+
+        ResolveDefinitionSizes(columns, availableSize.X);
+        ResolveDefinitionSizes(rows, availableSize.Y);
+        EnsureChildMeasureRecordCapacity(childLayoutMetadata.Length);
+
+        for (var deferredSpanPass = 0; deferredSpanPass < 2; deferredSpanPass++)
+        {
+            var useWidthPriority = ShouldUseWidthPriorityFirstPass(childLayoutMetadata, deferredSpanPass, availableSize.X);
+            for (var widthPriorityPass = 0; widthPriorityPass < (useWidthPriority ? 2 : 1); widthPriorityPass++)
+            {
+                var measuredAnyChild = false;
+                for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
+                {
+                    ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
+                    if (!ShouldMeasureInFirstPass(metadata, deferredSpanPass, widthPriorityPass, useWidthPriority))
+                    {
+                        continue;
+                    }
+
+                    var firstPassAvailable = ResolveFirstPassAvailableSize(metadata, rows, columns, availableSize);
+                    var measuredDesiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, firstPassAvailable);
+                    _firstPassMeasureRecords[childMeasureIndex] = new FirstPassMeasureRecord(
+                        metadata.Cell,
+                        firstPassAvailable,
+                        measuredDesiredSize,
+                        metadata.HasExplicitWidth,
+                        metadata.HasExplicitHeight,
+                        float.IsPositiveInfinity(firstPassAvailable.X),
+                        float.IsPositiveInfinity(firstPassAvailable.Y));
+                    measuredAnyChild = true;
+
+                    ApplyChildRequirement(
+                        columns,
+                        metadata.Cell.Column,
+                        metadata.Cell.ColumnSpan,
+                        measuredDesiredSize.X,
+                        !float.IsInfinity(availableSize.X) && !float.IsNaN(availableSize.X));
+                    ApplyChildRequirement(
+                        rows,
+                        metadata.Cell.Row,
+                        metadata.Cell.RowSpan,
+                        measuredDesiredSize.Y,
+                        !float.IsInfinity(availableSize.Y) && !float.IsNaN(availableSize.Y));
+                }
+
+                if (useWidthPriority && widthPriorityPass == 0 && measuredAnyChild)
+                {
+                    FinalizeDefinitionSizes(columns, availableSize.X);
+                    FinalizeDefinitionSizes(rows, availableSize.Y);
+                }
+            }
+        }
+
+        FinalizeDefinitionSizes(columns, availableSize.X);
+        FinalizeDefinitionSizes(rows, availableSize.Y);
+
+        for (var pass = 0; pass < 4; pass++)
+        {
+            var definitionsChanged = false;
+            for (var deferredSpanPass = 0; deferredSpanPass < 2; deferredSpanPass++)
+            {
+                for (var childMeasureIndex = 0; childMeasureIndex < childLayoutMetadata.Length; childMeasureIndex++)
+                {
+                    ref readonly var metadata = ref childLayoutMetadata[childMeasureIndex];
+                    if (ShouldDeferSpanMeasurement(metadata) != (deferredSpanPass == 1))
+                    {
+                        continue;
+                    }
+
+                    var childAvailable = new Vector2(
+                        SumRange(columns, metadata.Cell.Column, metadata.Cell.ColumnSpan),
+                        SumRange(rows, metadata.Cell.Row, metadata.Cell.RowSpan));
+                    if (!ShouldReMeasureChild(_firstPassMeasureRecords[childMeasureIndex], childAvailable))
+                    {
+                        continue;
+                    }
+
+                    var measuredDesiredSize = MeasureChildOrReuseCachedState(childMeasureIndex, metadata, childAvailable);
+                    definitionsChanged |= ApplyChildRequirement(
+                        columns,
+                        metadata.Cell.Column,
+                        metadata.Cell.ColumnSpan,
+                        measuredDesiredSize.X,
+                        !float.IsInfinity(availableSize.X) && !float.IsNaN(availableSize.X));
+                    definitionsChanged |= ApplyChildRequirement(
+                        rows,
+                        metadata.Cell.Row,
+                        metadata.Cell.RowSpan,
+                        measuredDesiredSize.Y,
+                        !float.IsInfinity(availableSize.Y) && !float.IsNaN(availableSize.Y));
+                }
+            }
+
+            if (!definitionsChanged)
+            {
+                desiredSize = new Vector2(SumSizes(columns), SumSizes(rows));
+                CopySizesToBuffer(columns, ref _measuredColumnSizes);
+                CopySizesToBuffer(rows, ref _measuredRowSizes);
+                return true;
+            }
+
+            FinalizeDefinitionSizes(columns, availableSize.X);
+            FinalizeDefinitionSizes(rows, availableSize.Y);
+        }
+
+        desiredSize = new Vector2(SumSizes(columns), SumSizes(rows));
+        CopySizesToBuffer(columns, ref _measuredColumnSizes);
+        CopySizesToBuffer(rows, ref _measuredRowSizes);
         return true;
     }
 
@@ -1893,6 +2287,19 @@ public class Grid : Panel
         return false;
     }
 
+    private bool IsGridDescendant(UIElement element)
+    {
+        for (UIElement? current = element; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, this))
+            {
+                return !ReferenceEquals(element, this);
+            }
+        }
+
+        return false;
+    }
+
     private Vector2 GetCurrentMeasuredDesiredSize()
     {
         return new Vector2(
@@ -1903,6 +2310,14 @@ public class Grid : Panel
     private static bool AreSizesClose(Vector2 first, Vector2 second)
     {
         return AreFloatsClose(first.X, second.X) && AreFloatsClose(first.Y, second.Y);
+    }
+
+    private static bool AreRectsClose(LayoutRect first, LayoutRect second)
+    {
+        return AreFloatsClose(first.X, second.X) &&
+               AreFloatsClose(first.Y, second.Y) &&
+               AreFloatsClose(first.Width, second.Width) &&
+               AreFloatsClose(first.Height, second.Height);
     }
 
     private static bool AreFloatsClose(float first, float second)
@@ -2389,6 +2804,12 @@ public class Grid : Panel
         bool HasExplicitHeight,
         bool WidthWasUnconstrained,
         bool HeightWasUnconstrained,
+        bool IsValid);
+
+    private readonly record struct CachedChildArrangeState(
+        FrameworkElement Child,
+        LayoutRect FinalRect,
+        Vector2 DesiredSize,
         bool IsValid);
 
     internal GridRuntimeDiagnosticsSnapshot GetGridSnapshotForDiagnostics()

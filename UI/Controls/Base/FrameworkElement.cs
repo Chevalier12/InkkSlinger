@@ -896,7 +896,8 @@ public class FrameworkElement : UIElement
             if (!AreSizesEqual(previousDesiredSize, DesiredSize) &&
                 _measureCallCount > 1 &&
                 VisualParent is FrameworkElement parent &&
-                !parent.NeedsMeasure)
+                !parent.NeedsMeasure &&
+                !parent.ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(this))
             {
                 IncrementDiagnostic(ref _runtimeMeasureParentInvalidationCount, ref _diagMeasureParentInvalidationCount);
                 parent.InvalidateMeasure();
@@ -995,6 +996,14 @@ public class FrameworkElement : UIElement
             return;
         }
 
+        if (CanRepairDescendantArrangeWithoutSelfArrange(effectiveFinalRect, requiresArrangeRemeasure) &&
+            TryRepairDescendantArrangeOnlySubtree())
+        {
+            _lastArrangedDesiredSize = DesiredSize;
+            FinalizeSuccessfulArrangePass(arrangeStart);
+            return;
+        }
+
         if (!_isMeasureValid)
         {
             Measure(new Vector2(effectiveFinalRect.Width, effectiveFinalRect.Height));
@@ -1009,7 +1018,8 @@ public class FrameworkElement : UIElement
                 Measure(arrangeAvailableSize);
                 if (!AreSizesEqual(previousDesiredSize, DesiredSize) &&
                     VisualParent is FrameworkElement parent &&
-                    !parent.NeedsMeasure)
+                    !parent.NeedsMeasure &&
+                    !parent.ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(this))
                 {
                     IncrementDiagnostic(ref _runtimeArrangeParentInvalidationCount, ref _diagArrangeParentInvalidationCount);
                     parent.InvalidateMeasure();
@@ -1074,6 +1084,173 @@ public class FrameworkElement : UIElement
         {
             IncrementDiagnostic(ref _runtimeArrangeInvalidatedDuringArrangeCount, ref _diagArrangeInvalidatedDuringArrangeCount);
         }
+        var arrangeTicks = Stopwatch.GetTimestamp() - arrangeStart;
+        _arrangeElapsedTicks += arrangeTicks;
+        AddAggregate(ref _diagArrangeElapsedTicks, arrangeTicks);
+        _frameArrangeElapsedTicks += arrangeTicks;
+        if (arrangeTicks > _frameHottestArrangeElapsedTicks)
+        {
+            _frameHottestArrangeElapsedTicks = arrangeTicks;
+            _frameHottestArrangeElementType = GetType().Name;
+            _frameHottestArrangeElementName = Name;
+            _frameHottestArrangeElementPath = BuildDiagnosticElementPath(this);
+        }
+    }
+
+    internal bool TryTranslateArrangedSubtree(LayoutRect nextArrangeRect)
+    {
+        if (!_isArrangeValid ||
+            !_isMeasureValid ||
+            NeedsMeasure ||
+            NeedsArrange ||
+            !AreScalarValuesEqual(_arrangeRect.Width, nextArrangeRect.Width) ||
+            !AreScalarValuesEqual(_arrangeRect.Height, nextArrangeRect.Height))
+        {
+            return false;
+        }
+
+        var deltaX = nextArrangeRect.X - _arrangeRect.X;
+        var deltaY = nextArrangeRect.Y - _arrangeRect.Y;
+        if (AreScalarValuesEqual(deltaX, 0f) && AreScalarValuesEqual(deltaY, 0f))
+        {
+            return false;
+        }
+
+        if (ContainsPendingLayoutInvalidation(this))
+        {
+            return false;
+        }
+
+        TranslateArrangedSubtree(this, new Vector2(deltaX, deltaY));
+        return true;
+    }
+
+    private bool CanRepairDescendantArrangeWithoutSelfArrange(LayoutRect effectiveFinalRect, bool requiresArrangeRemeasure)
+    {
+        return NeedsArrange &&
+               !HasDirectArrangeInvalidationForLayoutRepair &&
+               _isMeasureValid &&
+               AreRectsEqual(_arrangeRect, effectiveFinalRect) &&
+               AreSizesEqual(_lastArrangedDesiredSize, DesiredSize) &&
+               !requiresArrangeRemeasure;
+    }
+
+    private bool TryRepairDescendantArrangeOnlySubtree()
+    {
+        var hasRepairableDescendant = false;
+        foreach (var child in GetVisualChildren())
+        {
+            if (child is not FrameworkElement frameworkChild)
+            {
+                continue;
+            }
+
+            if (ContainsMeasureInvalidation(frameworkChild))
+            {
+                return false;
+            }
+
+            if (RequiresArrangeRepairTraversal(frameworkChild))
+            {
+                hasRepairableDescendant = true;
+            }
+        }
+
+        if (!hasRepairableDescendant)
+        {
+            return false;
+        }
+
+        foreach (var child in GetVisualChildren())
+        {
+            if (child is FrameworkElement frameworkChild &&
+                RequiresArrangeRepairTraversal(frameworkChild))
+            {
+                frameworkChild.Arrange(frameworkChild._arrangeRect);
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ContainsMeasureInvalidation(FrameworkElement element)
+    {
+        if (element.NeedsMeasure || !element._isMeasureValid)
+        {
+            return true;
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            if (child is FrameworkElement frameworkChild && ContainsMeasureInvalidation(frameworkChild))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsPendingLayoutInvalidation(FrameworkElement element)
+    {
+        if (element.NeedsMeasure ||
+            element.NeedsArrange ||
+            !element._isMeasureValid ||
+            !element._isArrangeValid)
+        {
+            return true;
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            if (child is FrameworkElement frameworkChild && ContainsPendingLayoutInvalidation(frameworkChild))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void TranslateArrangedSubtree(FrameworkElement element, Vector2 delta)
+    {
+        element._arrangeRect = OffsetLayoutRect(element._arrangeRect, delta);
+        element.SetLayoutSlot(OffsetLayoutRect(element.LayoutSlot, delta));
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            if (child is FrameworkElement frameworkChild)
+            {
+                TranslateArrangedSubtree(frameworkChild, delta);
+            }
+        }
+    }
+
+    private static bool RequiresArrangeRepairTraversal(FrameworkElement element)
+    {
+        if (element.NeedsArrange || !element._isArrangeValid)
+        {
+            return true;
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            if (child is FrameworkElement frameworkChild && RequiresArrangeRepairTraversal(frameworkChild))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void FinalizeSuccessfulArrangePass(long arrangeStart)
+    {
+        _isArrangeValid = true;
+        ClearArrangeInvalidation();
+        IncrementDiagnostic(ref _runtimeLayoutUpdatedRaiseCount, ref _diagLayoutUpdatedRaiseCount);
+        LayoutUpdated?.Invoke(this, EventArgs.Empty);
+
         var arrangeTicks = Stopwatch.GetTimestamp() - arrangeStart;
         _arrangeElapsedTicks += arrangeTicks;
         AddAggregate(ref _diagArrangeElapsedTicks, arrangeTicks);
@@ -1674,6 +1851,18 @@ public class FrameworkElement : UIElement
         };
     }
 
+    protected internal virtual bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        _ = descendant;
+        return false;
+    }
+
+    protected void MarkMeasureValidAfterLocalReconciliation()
+    {
+        _isMeasureValid = true;
+        ClearMeasureInvalidation();
+    }
+
     private Vector2 ApplyExplicitConstraints(Vector2 measured)
     {
         var width = float.IsNaN(Width) ? measured.X : Width;
@@ -1738,6 +1927,17 @@ public class FrameworkElement : UIElement
         const float epsilon = 0.0001f;
         return MathF.Abs(left.X - right.X) <= epsilon &&
                MathF.Abs(left.Y - right.Y) <= epsilon;
+    }
+
+    private static bool AreScalarValuesEqual(float left, float right)
+    {
+        const float epsilon = 0.0001f;
+        return MathF.Abs(left - right) <= epsilon;
+    }
+
+    private static LayoutRect OffsetLayoutRect(LayoutRect rect, Vector2 delta)
+    {
+        return new LayoutRect(rect.X + delta.X, rect.Y + delta.Y, rect.Width, rect.Height);
     }
 
     private static bool ShouldReMeasureForArrange(Vector2 measuredAvailableSize, Vector2 arrangedAvailableSize)

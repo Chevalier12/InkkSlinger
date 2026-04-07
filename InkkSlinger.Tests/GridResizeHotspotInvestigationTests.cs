@@ -154,10 +154,162 @@ public sealed class GridResizeHotspotInvestigationTests
         Assert.True(textTelemetry.IntrinsicMeasurePathCallCount > 0, "Expected no-wrap text to stay on the intrinsic measure path.");
     }
 
+    [Fact]
+    public void WrappedTextBlock_ReusesResolvedLayoutAcrossDistinctWidthsInsideReusableRange()
+    {
+        var text = new TextBlock
+        {
+            Text = "The framework should not rebuild wrapped line layout for every nearby drag width when the previous line breaks remain valid across the same reusable width interval.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 16f
+        };
+
+        var widths = FindReusableWidths(text, 220f);
+
+        TextLayout.ResetMetricsForTests();
+        _ = TextBlock.GetTelemetryAndReset();
+
+        foreach (var width in widths)
+        {
+            text.InvalidateMeasure();
+            text.Measure(new Vector2(width, 200f));
+        }
+
+        var telemetry = TextBlock.GetTelemetryAndReset();
+        var metrics = TextLayout.GetMetricsSnapshot();
+
+        Assert.Equal(widths.Length, telemetry.ResolveLayoutCallCount);
+        Assert.Equal(1, telemetry.ResolveLayoutCacheMissCount);
+        Assert.True(telemetry.ResolveLayoutCacheHitCount >= widths.Length - 1, $"Expected interval-based wrapped layout reuse for nearby widths. hits={telemetry.ResolveLayoutCacheHitCount}, widths={widths.Length}");
+        Assert.Equal(1, metrics.WrappedBuildCount);
+    }
+
+    [Fact]
+    public void WrappedTextBlock_RebuildsWhenWidthLeavesReusableRange()
+    {
+        var text = new TextBlock
+        {
+            Text = "Leaving the reusable width interval should still trigger a fresh wrapped layout build so the framework does not reuse stale line breaks.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 16f
+        };
+
+        var widths = FindReusableWidths(text, 220f);
+        var typography = UiTextRenderer.ResolveTypography(text, text.FontSize);
+        var layout = TextLayout.Layout(text.Text, typography, text.FontSize, widths[0], TextWrapping.Wrap);
+        var outsideWidth = ResolveOutsideReusableWidth(layout, widths[0]);
+
+        TextLayout.ResetMetricsForTests();
+        _ = TextBlock.GetTelemetryAndReset();
+
+        text.InvalidateMeasure();
+        text.Measure(new Vector2(widths[0], 200f));
+        text.InvalidateMeasure();
+        text.Measure(new Vector2(outsideWidth, 200f));
+
+        var telemetry = TextBlock.GetTelemetryAndReset();
+        var metrics = TextLayout.GetMetricsSnapshot();
+
+        Assert.Equal(2, telemetry.ResolveLayoutCallCount);
+        Assert.Equal(2, telemetry.ResolveLayoutCacheMissCount);
+        Assert.Equal(2, metrics.WrappedBuildCount);
+    }
+
     private static void MeasureArrangeAndUpdate(FrameworkElement element, float width, float height)
     {
         element.Measure(new Vector2(width, height));
         element.Arrange(new LayoutRect(0f, 0f, width, height));
         element.UpdateLayout();
+    }
+
+    private static float[] FindReusableWidths(TextBlock textBlock, float seedWidth)
+    {
+        var typography = UiTextRenderer.ResolveTypography(textBlock, textBlock.FontSize);
+        foreach (var candidateWidth in EnumerateCandidateWidths(seedWidth))
+        {
+            var layout = TextLayout.Layout(textBlock.Text, typography, textBlock.FontSize, candidateWidth, TextWrapping.Wrap);
+            var minimum = MathF.Max(1f, layout.ReusableMinimumWidth + 0.75f);
+            var maximum = float.IsFinite(layout.ReusableMaximumWidth)
+                ? layout.ReusableMaximumWidth - 0.75f
+                : minimum + 0.4f;
+            if (maximum - minimum >= 0.2f)
+            {
+                var widths = new[]
+                {
+                    minimum,
+                    minimum + 0.1f,
+                    minimum + 0.2f
+                };
+
+                if (widths[2] <= maximum &&
+                    HaveMatchingWrappedLines(textBlock.Text, typography, textBlock.FontSize, widths))
+                {
+                    return widths;
+                }
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException("Could not find a reusable wrapped width interval wide enough for the regression test.");
+    }
+
+    private static float ResolveOutsideReusableWidth(TextLayout.TextLayoutResult layout, float insideWidth)
+    {
+        var belowMinimum = MathF.Floor(layout.ReusableMinimumWidth - 2f);
+        if (belowMinimum > 0.01f && !ApproximatelyEqual(belowMinimum, insideWidth))
+        {
+            return belowMinimum;
+        }
+
+        if (float.IsFinite(layout.ReusableMaximumWidth))
+        {
+            var aboveMaximum = MathF.Ceiling(layout.ReusableMaximumWidth + 2f);
+            if (!ApproximatelyEqual(aboveMaximum, insideWidth))
+            {
+                return aboveMaximum;
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException("Could not resolve a width outside the reusable wrapped layout interval.");
+    }
+
+    private static bool ApproximatelyEqual(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.01f;
+    }
+
+    private static bool HaveMatchingWrappedLines(string text, UiTypography typography, float fontSize, float[] widths)
+    {
+        var baseline = TextLayout.Layout(text, typography, fontSize, widths[0], TextWrapping.Wrap);
+        for (var i = 1; i < widths.Length; i++)
+        {
+            var candidate = TextLayout.Layout(text, typography, fontSize, widths[i], TextWrapping.Wrap);
+            if (candidate.Lines.Count != baseline.Lines.Count)
+            {
+                return false;
+            }
+
+            for (var lineIndex = 0; lineIndex < baseline.Lines.Count; lineIndex++)
+            {
+                if (!string.Equals(candidate.Lines[lineIndex], baseline.Lines[lineIndex], StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static IEnumerable<float> EnumerateCandidateWidths(float seedWidth)
+    {
+        yield return seedWidth;
+
+        for (var width = 120f; width <= 320f; width += 5f)
+        {
+            if (!ApproximatelyEqual(width, seedWidth))
+            {
+                yield return width;
+            }
+        }
     }
 }
