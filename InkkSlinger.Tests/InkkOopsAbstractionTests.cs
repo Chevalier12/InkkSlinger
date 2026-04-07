@@ -296,6 +296,11 @@ public sealed class InkkOopsAbstractionTests
         var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
 
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsButtonDiagnosticsContributor);
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsControlDiagnosticsContributor);
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsContentControlDiagnosticsContributor);
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsContentPresenterDiagnosticsContributor);
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsScrollBarDiagnosticsContributor);
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsTrackDiagnosticsContributor);
     }
 
     [Fact]

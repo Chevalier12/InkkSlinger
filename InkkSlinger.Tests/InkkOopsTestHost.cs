@@ -39,6 +39,11 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         [
             new InkkOopsGenericElementDiagnosticsContributor(),
             new InkkOopsFrameworkElementDiagnosticsContributor(),
+            new InkkOopsControlDiagnosticsContributor(),
+            new InkkOopsContentControlDiagnosticsContributor(),
+            new InkkOopsContentPresenterDiagnosticsContributor(),
+            new InkkOopsScrollBarDiagnosticsContributor(),
+            new InkkOopsTrackDiagnosticsContributor(),
             new InkkOopsTextBlockDiagnosticsContributor(),
             new InkkOopsButtonDiagnosticsContributor(),
             new InkkOopsExpanderDiagnosticsContributor(),

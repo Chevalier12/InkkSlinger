@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Xunit;
 
@@ -110,6 +111,63 @@ public sealed class ContentControlTelemetryTests
         Assert.True(aggregate.UpdateContentElementLabelBypassCount >= 1);
         Assert.True(aggregate.UpdateContentElementImplicitCreationSuppressedCount >= 1);
         Assert.True(aggregate.UpdateContentElementCallCount >= 2);
+    }
+
+    [Fact]
+    public async Task DiagnosticsPipeline_Emits_ContentControlContributorFacts()
+    {
+        _ = ContentControl.GetTelemetryAndReset();
+
+        var root = new Canvas { Name = "Root", Width = 400f, Height = 240f };
+        var host = new ProbeContentControl
+        {
+            Name = "Probe",
+            Width = 180f,
+            Height = 64f,
+            ContentTemplate = new DataTemplate(static item => new TextBlock
+            {
+                Text = $"tpl:{item}"
+            })
+        };
+        host.Content = "Alpha";
+        root.AddChild(host);
+
+        using var inkkOopsHost = new InkkOopsTestHost(root);
+        await inkkOopsHost.AdvanceFrameAsync(1);
+
+        _ = host.GetVisualChildren().ToList();
+        _ = host.GetLogicalChildren().ToList();
+        _ = host.GetVisualChildCountForTraversal();
+        _ = host.GetVisualChildAtForTraversal(0);
+
+        var diagnostics = new InkkOopsVisualTreeDiagnostics([
+            new InkkOopsGenericElementDiagnosticsContributor(),
+            new InkkOopsFrameworkElementDiagnosticsContributor(),
+            new InkkOopsContentControlDiagnosticsContributor()
+        ]);
+
+        var snapshot = diagnostics.Capture(
+            root,
+            new InkkOopsDiagnosticsContext
+            {
+                UiRoot = inkkOopsHost.UiRoot,
+                Viewport = inkkOopsHost.GetViewportBounds(),
+                HoveredElement = host,
+                FocusedElement = null,
+                ArtifactName = "contentcontrol"
+            });
+        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
+
+        Assert.Contains("ProbeContentControl#Probe", text);
+        Assert.Contains("contentControlHasContentElement=True", text);
+        Assert.Contains("contentControlContentElementType=TextBlock", text);
+        Assert.Contains("contentControlHasContent=True", text);
+        Assert.Contains("contentControlHasContentTemplate=True", text);
+        Assert.Contains("contentControlRuntimeMeasureOverrideCalls=", text);
+        Assert.Contains("contentControlRuntimeUpdateContentElementTemplateSelected=", text);
+        Assert.Contains("contentControlVisualChildrenCalls=", text);
+        Assert.Contains("contentControlMeasureOverrideCalls=", text);
+        Assert.Contains("contentControlUpdateContentElementTemplateSelected=", text);
     }
 
     private sealed class ProbeContentControl : ContentControl
@@ -292,6 +350,74 @@ public sealed class ControlTelemetryTests
         Assert.Equal(0, cleared.RefreshCommandSubscriptionsCallCount);
         Assert.Equal(0, cleared.UpdateCommandEnabledStateCallCount);
         Assert.Equal(0, cleared.DependencyPropertyChangedCallCount);
+    }
+
+    [Fact]
+    public async Task DiagnosticsPipeline_Emits_ControlContributorFacts()
+    {
+        _ = Control.GetTelemetryAndReset();
+
+        var root = new Canvas { Name = "Root", Width = 400f, Height = 240f };
+        var control = new ProbeControl
+        {
+            Name = "Probe",
+            Width = 180f,
+            Height = 64f,
+            Template = new ControlTemplate(_ => new Border
+            {
+                Name = "TemplateRoot",
+                Width = 44f,
+                Height = 18f
+            })
+            {
+                TargetType = typeof(ProbeControl)
+            }
+        };
+        root.AddChild(control);
+
+        using var host = new InkkOopsTestHost(root);
+        await host.AdvanceFrameAsync(1);
+
+        _ = control.GetVisualChildren().ToList();
+        _ = control.GetVisualChildCountForTraversal();
+        _ = control.GetVisualChildAtForTraversal(0);
+
+        var canExecute = false;
+        var command = new CallbackCommand(_ => { }, _ => canExecute);
+        control.Command = command;
+        control.CommandParameter = "payload";
+        control.CommandTarget = new Border();
+        canExecute = true;
+        command.RaiseCanExecuteChanged();
+
+        var diagnostics = new InkkOopsVisualTreeDiagnostics([
+            new InkkOopsGenericElementDiagnosticsContributor(),
+            new InkkOopsFrameworkElementDiagnosticsContributor(),
+            new InkkOopsControlDiagnosticsContributor()
+        ]);
+
+        var snapshot = diagnostics.Capture(
+            root,
+            new InkkOopsDiagnosticsContext
+            {
+                UiRoot = host.UiRoot,
+                Viewport = host.GetViewportBounds(),
+                HoveredElement = control,
+                FocusedElement = null,
+                ArtifactName = "control"
+            });
+        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
+
+        Assert.Contains("ProbeControl#Probe", text);
+        Assert.Contains("controlHasTemplateAssigned=True", text);
+        Assert.Contains("controlHasTemplateRoot=True", text);
+        Assert.Contains("controlTemplateRootType=Border", text);
+        Assert.Contains("controlRuntimeApplyTemplateCalls=", text);
+        Assert.Contains("controlRuntimeMeasureOverrideCalls=", text);
+        Assert.Contains("controlRuntimeRefreshCommandSubscriptionsCalls=", text);
+        Assert.Contains("controlApplyTemplateCalls=", text);
+        Assert.Contains("controlMeasureOverrideCalls=", text);
+        Assert.Contains("controlRefreshCommandSubscriptionsCalls=", text);
     }
 
     private sealed class ProbeControl : Control

@@ -16,10 +16,75 @@ public class ScrollBar : RangeBase
     private static int _diagOnThumbDragDeltaCallCount;
     private static long _diagOnThumbDragDeltaElapsedTicks;
     private static long _diagOnThumbDragDeltaValueSetElapsedTicks;
+    private static int _diagOnApplyTemplateCallCount;
+    private static int _diagOnApplyTemplateMissingPartCount;
+    private static int _diagOnApplyTemplateEnsureTrackDescendantCount;
+    private static int _diagOnApplyTemplateHandlerAttachCount;
+    private static int _diagOnMinimumChangedCallCount;
+    private static int _diagOnMaximumChangedCallCount;
+    private static int _diagOnValueChangedCallCount;
     private static long _diagOnValueChangedBaseElapsedTicks;
     private static long _diagOnValueChangedSyncTrackStateElapsedTicks;
+    private static int _diagOnTrackMouseDownCallCount;
+    private static int _diagOnTrackMouseDownIgnoredDisabledOrNoTrackCount;
+    private static int _diagOnTrackMouseDownIgnoredPartTargetCount;
+    private static int _diagOnTrackMouseDownDecreaseHitCount;
+    private static int _diagOnTrackMouseDownIncreaseHitCount;
+    private static int _diagOnTrackMouseDownMissCount;
+    private static int _diagOnLineUpButtonClickCallCount;
+    private static int _diagOnLineDownButtonClickCallCount;
+    private static int _diagOnThumbDragStartedCallCount;
+    private static int _diagOnThumbDragStartedNoTrackCount;
+    private static int _diagOnThumbDragDeltaNoTrackCount;
+    private static int _diagOnThumbDragDeltaVerticalPathCount;
+    private static int _diagOnThumbDragDeltaHorizontalPathCount;
+    private static int _diagOnThumbDragCompletedCallCount;
+    private static int _diagSyncTrackStateCallCount;
+    private static int _diagSyncTrackStateNoTrackCount;
+    private static int _diagSyncTrackStateCoercedValueChangeCount;
     private static long _diagSyncTrackStateElapsedTicks;
+    private static int _diagRefreshTrackLayoutCallCount;
+    private static int _diagRefreshTrackLayoutNoTrackCount;
+    private static int _diagRefreshTrackLayoutZeroSlotCount;
+    private static int _diagRefreshTrackLayoutNoLayoutNeededCount;
+    private static int _diagRefreshTrackLayoutArrangedCount;
     private static long _diagRefreshTrackLayoutElapsedTicks;
+    private int _runtimeOnApplyTemplateCallCount;
+    private int _runtimeOnApplyTemplateMissingPartCount;
+    private int _runtimeOnApplyTemplateEnsureTrackDescendantCount;
+    private int _runtimeOnApplyTemplateHandlerAttachCount;
+    private int _runtimeOnMinimumChangedCallCount;
+    private int _runtimeOnMaximumChangedCallCount;
+    private int _runtimeOnValueChangedCallCount;
+    private long _runtimeOnValueChangedBaseElapsedTicks;
+    private long _runtimeOnValueChangedSyncTrackStateElapsedTicks;
+    private int _runtimeOnTrackMouseDownCallCount;
+    private int _runtimeOnTrackMouseDownIgnoredDisabledOrNoTrackCount;
+    private int _runtimeOnTrackMouseDownIgnoredPartTargetCount;
+    private int _runtimeOnTrackMouseDownDecreaseHitCount;
+    private int _runtimeOnTrackMouseDownIncreaseHitCount;
+    private int _runtimeOnTrackMouseDownMissCount;
+    private int _runtimeOnLineUpButtonClickCallCount;
+    private int _runtimeOnLineDownButtonClickCallCount;
+    private int _runtimeOnThumbDragStartedCallCount;
+    private int _runtimeOnThumbDragStartedNoTrackCount;
+    private int _runtimeOnThumbDragDeltaCallCount;
+    private long _runtimeOnThumbDragDeltaElapsedTicks;
+    private long _runtimeOnThumbDragDeltaValueSetElapsedTicks;
+    private int _runtimeOnThumbDragDeltaNoTrackCount;
+    private int _runtimeOnThumbDragDeltaVerticalPathCount;
+    private int _runtimeOnThumbDragDeltaHorizontalPathCount;
+    private int _runtimeOnThumbDragCompletedCallCount;
+    private int _runtimeSyncTrackStateCallCount;
+    private long _runtimeSyncTrackStateElapsedTicks;
+    private int _runtimeSyncTrackStateNoTrackCount;
+    private int _runtimeSyncTrackStateCoercedValueChangeCount;
+    private int _runtimeRefreshTrackLayoutCallCount;
+    private long _runtimeRefreshTrackLayoutElapsedTicks;
+    private int _runtimeRefreshTrackLayoutNoTrackCount;
+    private int _runtimeRefreshTrackLayoutZeroSlotCount;
+    private int _runtimeRefreshTrackLayoutNoLayoutNeededCount;
+    private int _runtimeRefreshTrackLayoutArrangedCount;
     private Track? _track;
     private Thumb? _thumb;
     private RepeatButton? _lineUpButton;
@@ -164,6 +229,8 @@ public class ScrollBar : RangeBase
 
     public override void OnApplyTemplate()
     {
+        _runtimeOnApplyTemplateCallCount++;
+        _diagOnApplyTemplateCallCount++;
         DetachTemplatePartHandlers();
         base.OnApplyTemplate();
 
@@ -174,6 +241,8 @@ public class ScrollBar : RangeBase
 
         if (_track == null || _thumb == null || _lineUpButton == null || _lineDownButton == null)
         {
+            _runtimeOnApplyTemplateMissingPartCount++;
+            _diagOnApplyTemplateMissingPartCount++;
             return;
         }
 
@@ -192,6 +261,8 @@ public class ScrollBar : RangeBase
         _thumb.DragCompleted += OnThumbDragCompleted;
         _lineUpButton.Click += OnLineUpButtonClick;
         _lineDownButton.Click += OnLineDownButtonClick;
+        _runtimeOnApplyTemplateHandlerAttachCount += 5;
+        _diagOnApplyTemplateHandlerAttachCount += 5;
 
         UpdateDefaultLineButtonText();
         SyncTrackState();
@@ -209,25 +280,35 @@ public class ScrollBar : RangeBase
 
     protected override void OnMinimumChanged(float oldMinimum, float newMinimum)
     {
+        _runtimeOnMinimumChangedCallCount++;
+        _diagOnMinimumChangedCallCount++;
         base.OnMinimumChanged(oldMinimum, newMinimum);
         SyncTrackState();
     }
 
     protected override void OnMaximumChanged(float oldMaximum, float newMaximum)
     {
+        _runtimeOnMaximumChangedCallCount++;
+        _diagOnMaximumChangedCallCount++;
         base.OnMaximumChanged(oldMaximum, newMaximum);
         SyncTrackState();
     }
 
     protected override void OnValueChanged(float oldValue, float newValue)
     {
+        _runtimeOnValueChangedCallCount++;
+        _diagOnValueChangedCallCount++;
         var baseStartTicks = Stopwatch.GetTimestamp();
         base.OnValueChanged(oldValue, newValue);
-        _diagOnValueChangedBaseElapsedTicks += Stopwatch.GetTimestamp() - baseStartTicks;
+        var baseElapsedTicks = Stopwatch.GetTimestamp() - baseStartTicks;
+        _runtimeOnValueChangedBaseElapsedTicks += baseElapsedTicks;
+        _diagOnValueChangedBaseElapsedTicks += baseElapsedTicks;
 
         var syncStartTicks = Stopwatch.GetTimestamp();
         SyncTrackState();
-        _diagOnValueChangedSyncTrackStateElapsedTicks += Stopwatch.GetTimestamp() - syncStartTicks;
+        var syncElapsedTicks = Stopwatch.GetTimestamp() - syncStartTicks;
+        _runtimeOnValueChangedSyncTrackStateElapsedTicks += syncElapsedTicks;
+        _diagOnValueChangedSyncTrackStateElapsedTicks += syncElapsedTicks;
     }
 
     protected override float CoerceValueCore(float value)
@@ -244,6 +325,8 @@ public class ScrollBar : RangeBase
     private void OnLineUpButtonClick(object? sender, RoutedSimpleEventArgs args)
     {
         _ = sender;
+        _runtimeOnLineUpButtonClickCallCount++;
+        _diagOnLineUpButtonClickCallCount++;
         Value -= ResolveSmallChange();
         args.Handled = true;
     }
@@ -251,6 +334,8 @@ public class ScrollBar : RangeBase
     private void OnLineDownButtonClick(object? sender, RoutedSimpleEventArgs args)
     {
         _ = sender;
+        _runtimeOnLineDownButtonClickCallCount++;
+        _diagOnLineDownButtonClickCallCount++;
         Value += ResolveSmallChange();
         args.Handled = true;
     }
@@ -258,8 +343,12 @@ public class ScrollBar : RangeBase
     private void OnTrackMouseDown(object? sender, MouseRoutedEventArgs args)
     {
         _ = sender;
+        _runtimeOnTrackMouseDownCallCount++;
+        _diagOnTrackMouseDownCallCount++;
         if (!IsEnabled || args.Button != MouseButton.Left || _track == null)
         {
+            _runtimeOnTrackMouseDownIgnoredDisabledOrNoTrackCount++;
+            _diagOnTrackMouseDownIgnoredDisabledOrNoTrackCount++;
             return;
         }
 
@@ -267,24 +356,43 @@ public class ScrollBar : RangeBase
             IsSameOrDescendantOf(args.OriginalSource, _lineUpButton) ||
             IsSameOrDescendantOf(args.OriginalSource, _lineDownButton))
         {
+            _runtimeOnTrackMouseDownIgnoredPartTargetCount++;
+            _diagOnTrackMouseDownIgnoredPartTargetCount++;
             return;
         }
 
         if (_track.HitTestDecreaseRegion(args.Position))
         {
+            _runtimeOnTrackMouseDownDecreaseHitCount++;
+            _diagOnTrackMouseDownDecreaseHitCount++;
             Value -= ResolveLargeChange();
             args.Handled = true;
         }
         else if (_track.HitTestIncreaseRegion(args.Position))
         {
+            _runtimeOnTrackMouseDownIncreaseHitCount++;
+            _diagOnTrackMouseDownIncreaseHitCount++;
             Value += ResolveLargeChange();
             args.Handled = true;
+        }
+        else
+        {
+            _runtimeOnTrackMouseDownMissCount++;
+            _diagOnTrackMouseDownMissCount++;
         }
     }
 
     private void OnThumbDragStarted(object? sender, DragStartedEventArgs args)
     {
         _ = sender;
+        _runtimeOnThumbDragStartedCallCount++;
+        _diagOnThumbDragStartedCallCount++;
+        if (_track == null)
+        {
+            _runtimeOnThumbDragStartedNoTrackCount++;
+            _diagOnThumbDragStartedNoTrackCount++;
+        }
+
         _thumbDragOriginTravel = _track?.GetThumbTravel() ?? 0f;
         _thumbDragAccumulatedDelta = 0f;
         args.Handled = true;
@@ -295,25 +403,44 @@ public class ScrollBar : RangeBase
         _ = sender;
         if (_track == null)
         {
+            _runtimeOnThumbDragDeltaNoTrackCount++;
+            _diagOnThumbDragDeltaNoTrackCount++;
             return;
         }
 
         var startTicks = Stopwatch.GetTimestamp();
+        _runtimeOnThumbDragDeltaCallCount++;
         _thumbDragAccumulatedDelta += Orientation == Orientation.Vertical
             ? args.VerticalChange
             : args.HorizontalChange;
+        if (Orientation == Orientation.Vertical)
+        {
+            _runtimeOnThumbDragDeltaVerticalPathCount++;
+            _diagOnThumbDragDeltaVerticalPathCount++;
+        }
+        else
+        {
+            _runtimeOnThumbDragDeltaHorizontalPathCount++;
+            _diagOnThumbDragDeltaHorizontalPathCount++;
+        }
 
         var valueSetStartTicks = Stopwatch.GetTimestamp();
         Value = _track.GetValueFromThumbTravel(_thumbDragOriginTravel + _thumbDragAccumulatedDelta);
-        _diagOnThumbDragDeltaValueSetElapsedTicks += Stopwatch.GetTimestamp() - valueSetStartTicks;
+        var valueSetElapsedTicks = Stopwatch.GetTimestamp() - valueSetStartTicks;
+        _runtimeOnThumbDragDeltaValueSetElapsedTicks += valueSetElapsedTicks;
+        _diagOnThumbDragDeltaValueSetElapsedTicks += valueSetElapsedTicks;
         _diagOnThumbDragDeltaCallCount++;
-        _diagOnThumbDragDeltaElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _runtimeOnThumbDragDeltaElapsedTicks += elapsedTicks;
+        _diagOnThumbDragDeltaElapsedTicks += elapsedTicks;
         args.Handled = true;
     }
 
     private void OnThumbDragCompleted(object? sender, DragCompletedEventArgs args)
     {
         _ = sender;
+        _runtimeOnThumbDragCompletedCallCount++;
+        _diagOnThumbDragCompletedCallCount++;
         _thumbDragOriginTravel = 0f;
         _thumbDragAccumulatedDelta = 0f;
         args.Handled = true;
@@ -322,15 +449,23 @@ public class ScrollBar : RangeBase
     private void SyncTrackState()
     {
         var startTicks = Stopwatch.GetTimestamp();
+        _runtimeSyncTrackStateCallCount++;
+        _diagSyncTrackStateCallCount++;
         if (_track == null)
         {
-            _diagSyncTrackStateElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeSyncTrackStateNoTrackCount++;
+            _diagSyncTrackStateNoTrackCount++;
+            var noTrackElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _runtimeSyncTrackStateElapsedTicks += noTrackElapsedTicks;
+            _diagSyncTrackStateElapsedTicks += noTrackElapsedTicks;
             return;
         }
 
         var coercedValue = CoerceValueCore(Value);
         if (!AreClose(Value, coercedValue))
         {
+            _runtimeSyncTrackStateCoercedValueChangeCount++;
+            _diagSyncTrackStateCoercedValueChangeCount++;
             SetValue(ValueProperty, coercedValue);
         }
 
@@ -340,7 +475,9 @@ public class ScrollBar : RangeBase
         SetIfChanged(Track.ValueProperty, _track, coercedValue);
         SetIfChanged(Track.ViewportSizeProperty, _track, ViewportSize);
         RefreshTrackLayoutIfPossible();
-        _diagSyncTrackStateElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _runtimeSyncTrackStateElapsedTicks += elapsedTicks;
+        _diagSyncTrackStateElapsedTicks += elapsedTicks;
     }
 
     private void UpdateDefaultLineButtonText()
@@ -415,6 +552,8 @@ public class ScrollBar : RangeBase
 
     private void EnsureTrackDescendant(UIElement element, string partName)
     {
+        _runtimeOnApplyTemplateEnsureTrackDescendantCount++;
+        _diagOnApplyTemplateEnsureTrackDescendantCount++;
         if (IsSameOrDescendantOf(element, _track))
         {
             return;
@@ -455,53 +594,194 @@ public class ScrollBar : RangeBase
     private void RefreshTrackLayoutIfPossible()
     {
         var startTicks = Stopwatch.GetTimestamp();
+        _runtimeRefreshTrackLayoutCallCount++;
+        _diagRefreshTrackLayoutCallCount++;
         if (_track is not FrameworkElement track)
         {
-            _diagRefreshTrackLayoutElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeRefreshTrackLayoutNoTrackCount++;
+            _diagRefreshTrackLayoutNoTrackCount++;
+            var noTrackElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _runtimeRefreshTrackLayoutElapsedTicks += noTrackElapsedTicks;
+            _diagRefreshTrackLayoutElapsedTicks += noTrackElapsedTicks;
             return;
         }
 
         var slot = track.LayoutSlot;
         if (slot.Width <= 0f || slot.Height <= 0f)
         {
-            _diagRefreshTrackLayoutElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeRefreshTrackLayoutZeroSlotCount++;
+            _diagRefreshTrackLayoutZeroSlotCount++;
+            var zeroSlotElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _runtimeRefreshTrackLayoutElapsedTicks += zeroSlotElapsedTicks;
+            _diagRefreshTrackLayoutElapsedTicks += zeroSlotElapsedTicks;
             return;
         }
 
         if (!track.NeedsMeasure && !track.NeedsArrange)
         {
-            _diagRefreshTrackLayoutElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeRefreshTrackLayoutNoLayoutNeededCount++;
+            _diagRefreshTrackLayoutNoLayoutNeededCount++;
+            var noLayoutElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _runtimeRefreshTrackLayoutElapsedTicks += noLayoutElapsedTicks;
+            _diagRefreshTrackLayoutElapsedTicks += noLayoutElapsedTicks;
             return;
         }
 
+        _runtimeRefreshTrackLayoutArrangedCount++;
+        _diagRefreshTrackLayoutArrangedCount++;
         track.Arrange(slot);
         UiRoot.Current?.NotifyDirectRenderInvalidation(track, requireDeepSync: true);
-        _diagRefreshTrackLayoutElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _runtimeRefreshTrackLayoutElapsedTicks += elapsedTicks;
+        _diagRefreshTrackLayoutElapsedTicks += elapsedTicks;
+    }
+
+    internal ScrollBarRuntimeDiagnosticsSnapshot GetScrollBarSnapshotForDiagnostics()
+    {
+        return new ScrollBarRuntimeDiagnosticsSnapshot(
+            _track is not null,
+            _track?.GetType().Name ?? string.Empty,
+            _thumb is not null,
+            _thumb?.GetType().Name ?? string.Empty,
+            _lineUpButton is not null,
+            _lineUpButton?.GetType().Name ?? string.Empty,
+            _lineDownButton is not null,
+            _lineDownButton?.GetType().Name ?? string.Empty,
+            Orientation.ToString(),
+            Minimum,
+            Maximum,
+            Value,
+            ViewportSize,
+            SmallChange,
+            LargeChange,
+            LayoutSlot.Width,
+            LayoutSlot.Height,
+            _thumbDragOriginTravel,
+            _thumbDragAccumulatedDelta,
+            _runtimeOnApplyTemplateCallCount,
+            _runtimeOnApplyTemplateMissingPartCount,
+            _runtimeOnApplyTemplateEnsureTrackDescendantCount,
+            _runtimeOnApplyTemplateHandlerAttachCount,
+            _runtimeOnMinimumChangedCallCount,
+            _runtimeOnMaximumChangedCallCount,
+            _runtimeOnValueChangedCallCount,
+            TicksToMilliseconds(_runtimeOnValueChangedBaseElapsedTicks),
+            TicksToMilliseconds(_runtimeOnValueChangedSyncTrackStateElapsedTicks),
+            _runtimeOnTrackMouseDownCallCount,
+            _runtimeOnTrackMouseDownIgnoredDisabledOrNoTrackCount,
+            _runtimeOnTrackMouseDownIgnoredPartTargetCount,
+            _runtimeOnTrackMouseDownDecreaseHitCount,
+            _runtimeOnTrackMouseDownIncreaseHitCount,
+            _runtimeOnTrackMouseDownMissCount,
+            _runtimeOnLineUpButtonClickCallCount,
+            _runtimeOnLineDownButtonClickCallCount,
+            _runtimeOnThumbDragStartedCallCount,
+            _runtimeOnThumbDragStartedNoTrackCount,
+            _runtimeOnThumbDragDeltaCallCount,
+            TicksToMilliseconds(_runtimeOnThumbDragDeltaElapsedTicks),
+            TicksToMilliseconds(_runtimeOnThumbDragDeltaValueSetElapsedTicks),
+            _runtimeOnThumbDragDeltaNoTrackCount,
+            _runtimeOnThumbDragDeltaVerticalPathCount,
+            _runtimeOnThumbDragDeltaHorizontalPathCount,
+            _runtimeOnThumbDragCompletedCallCount,
+            _runtimeSyncTrackStateCallCount,
+            TicksToMilliseconds(_runtimeSyncTrackStateElapsedTicks),
+            _runtimeSyncTrackStateNoTrackCount,
+            _runtimeSyncTrackStateCoercedValueChangeCount,
+            _runtimeRefreshTrackLayoutCallCount,
+            TicksToMilliseconds(_runtimeRefreshTrackLayoutElapsedTicks),
+            _runtimeRefreshTrackLayoutNoTrackCount,
+            _runtimeRefreshTrackLayoutZeroSlotCount,
+            _runtimeRefreshTrackLayoutNoLayoutNeededCount,
+            _runtimeRefreshTrackLayoutArrangedCount);
+    }
+
+    internal new static ScrollBarThumbDragTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateTelemetrySnapshot(reset: false);
+    }
+
+    internal new static ScrollBarThumbDragTelemetrySnapshot GetTelemetrySnapshotForDiagnostics()
+    {
+        return GetAggregateTelemetrySnapshotForDiagnostics();
+    }
+
+    internal new static ScrollBarThumbDragTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateTelemetrySnapshot(reset: true);
     }
 
     internal static ScrollBarThumbDragTelemetrySnapshot GetThumbDragTelemetryAndReset()
     {
-        var snapshot = new ScrollBarThumbDragTelemetrySnapshot(
-            _diagOnThumbDragDeltaCallCount,
-            TicksToMilliseconds(_diagOnThumbDragDeltaElapsedTicks),
-            TicksToMilliseconds(_diagOnThumbDragDeltaValueSetElapsedTicks),
-            TicksToMilliseconds(_diagOnValueChangedBaseElapsedTicks),
-            TicksToMilliseconds(_diagOnValueChangedSyncTrackStateElapsedTicks),
-            TicksToMilliseconds(_diagSyncTrackStateElapsedTicks),
-            TicksToMilliseconds(_diagRefreshTrackLayoutElapsedTicks));
-        _diagOnThumbDragDeltaCallCount = 0;
-        _diagOnThumbDragDeltaElapsedTicks = 0L;
-        _diagOnThumbDragDeltaValueSetElapsedTicks = 0L;
-        _diagOnValueChangedBaseElapsedTicks = 0L;
-        _diagOnValueChangedSyncTrackStateElapsedTicks = 0L;
-        _diagSyncTrackStateElapsedTicks = 0L;
-        _diagRefreshTrackLayoutElapsedTicks = 0L;
-        return snapshot;
+        return GetTelemetryAndReset();
     }
 
     private static double TicksToMilliseconds(long ticks)
     {
         return (double)ticks * 1000d / Stopwatch.Frequency;
+    }
+
+    private static ScrollBarThumbDragTelemetrySnapshot CreateTelemetrySnapshot(bool reset)
+    {
+        return new ScrollBarThumbDragTelemetrySnapshot(
+            ReadOrReset(ref _diagOnThumbDragDeltaCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagOnThumbDragDeltaElapsedTicks, reset)),
+            TicksToMilliseconds(ReadOrReset(ref _diagOnThumbDragDeltaValueSetElapsedTicks, reset)),
+            TicksToMilliseconds(ReadOrReset(ref _diagOnValueChangedBaseElapsedTicks, reset)),
+            TicksToMilliseconds(ReadOrReset(ref _diagOnValueChangedSyncTrackStateElapsedTicks, reset)),
+            TicksToMilliseconds(ReadOrReset(ref _diagSyncTrackStateElapsedTicks, reset)),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshTrackLayoutElapsedTicks, reset)),
+            ReadOrReset(ref _diagOnApplyTemplateCallCount, reset),
+            ReadOrReset(ref _diagOnApplyTemplateMissingPartCount, reset),
+            ReadOrReset(ref _diagOnApplyTemplateEnsureTrackDescendantCount, reset),
+            ReadOrReset(ref _diagOnApplyTemplateHandlerAttachCount, reset),
+            ReadOrReset(ref _diagOnMinimumChangedCallCount, reset),
+            ReadOrReset(ref _diagOnMaximumChangedCallCount, reset),
+            ReadOrReset(ref _diagOnValueChangedCallCount, reset),
+            ReadOrReset(ref _diagOnTrackMouseDownCallCount, reset),
+            ReadOrReset(ref _diagOnTrackMouseDownIgnoredDisabledOrNoTrackCount, reset),
+            ReadOrReset(ref _diagOnTrackMouseDownIgnoredPartTargetCount, reset),
+            ReadOrReset(ref _diagOnTrackMouseDownDecreaseHitCount, reset),
+            ReadOrReset(ref _diagOnTrackMouseDownIncreaseHitCount, reset),
+            ReadOrReset(ref _diagOnTrackMouseDownMissCount, reset),
+            ReadOrReset(ref _diagOnLineUpButtonClickCallCount, reset),
+            ReadOrReset(ref _diagOnLineDownButtonClickCallCount, reset),
+            ReadOrReset(ref _diagOnThumbDragStartedCallCount, reset),
+            ReadOrReset(ref _diagOnThumbDragStartedNoTrackCount, reset),
+            ReadOrReset(ref _diagOnThumbDragDeltaNoTrackCount, reset),
+            ReadOrReset(ref _diagOnThumbDragDeltaVerticalPathCount, reset),
+            ReadOrReset(ref _diagOnThumbDragDeltaHorizontalPathCount, reset),
+            ReadOrReset(ref _diagOnThumbDragCompletedCallCount, reset),
+            ReadOrReset(ref _diagSyncTrackStateCallCount, reset),
+            ReadOrReset(ref _diagSyncTrackStateNoTrackCount, reset),
+            ReadOrReset(ref _diagSyncTrackStateCoercedValueChangeCount, reset),
+            ReadOrReset(ref _diagRefreshTrackLayoutCallCount, reset),
+            ReadOrReset(ref _diagRefreshTrackLayoutNoTrackCount, reset),
+            ReadOrReset(ref _diagRefreshTrackLayoutZeroSlotCount, reset),
+            ReadOrReset(ref _diagRefreshTrackLayoutNoLayoutNeededCount, reset),
+            ReadOrReset(ref _diagRefreshTrackLayoutArrangedCount, reset));
+    }
+
+    private static int ReadOrReset(ref int value, bool reset)
+    {
+        var result = value;
+        if (reset)
+        {
+            value = 0;
+        }
+
+        return result;
+    }
+
+    private static long ReadOrReset(ref long value, bool reset)
+    {
+        var result = value;
+        if (reset)
+        {
+            value = 0;
+        }
+
+        return result;
     }
 
     private static Style BuildDefaultScrollBarStyle()

@@ -1,4 +1,6 @@
+using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Xunit;
 
@@ -88,6 +90,59 @@ public sealed class ContentPresenterTelemetryTests
         Assert.True(aggregate.BuildContentElementUiElementPathCount >= 1);
         Assert.True(aggregate.BuildContentElementCycleGuardCount >= 1);
         Assert.True(aggregate.WouldCreatePresentationCycleSelfCount >= 1);
+    }
+
+    [Fact]
+    public async Task DiagnosticsPipeline_Emits_ContentPresenterContributorFacts()
+    {
+        _ = ContentPresenter.GetTelemetryAndReset();
+
+        var root = new Canvas { Name = "Root", Width = 400f, Height = 240f };
+        var presenter = new ContentPresenter
+        {
+            Name = "Probe",
+            Width = 180f,
+            Height = 64f,
+            Content = "Alpha"
+        };
+        root.AddChild(presenter);
+
+        using var host = new InkkOopsTestHost(root);
+        await host.AdvanceFrameAsync(1);
+
+        _ = presenter.GetVisualChildren().ToList();
+        _ = presenter.GetLogicalChildren().ToList();
+        _ = presenter.GetVisualChildCountForTraversal();
+        _ = presenter.GetVisualChildAtForTraversal(0);
+
+        var diagnostics = new InkkOopsVisualTreeDiagnostics([
+            new InkkOopsGenericElementDiagnosticsContributor(),
+            new InkkOopsFrameworkElementDiagnosticsContributor(),
+            new InkkOopsContentPresenterDiagnosticsContributor()
+        ]);
+
+        var snapshot = diagnostics.Capture(
+            root,
+            new InkkOopsDiagnosticsContext
+            {
+                UiRoot = host.UiRoot,
+                Viewport = host.GetViewportBounds(),
+                HoveredElement = presenter,
+                FocusedElement = null,
+                ArtifactName = "contentpresenter"
+            });
+        var text = new DefaultInkkOopsDiagnosticsSerializer().SerializeVisualTree(snapshot);
+
+        Assert.Contains("ContentPresenter#Probe", text);
+        Assert.Contains("contentPresenterHasPresentedElement=True", text);
+        Assert.Contains("contentPresenterPresentedElementType=Label", text);
+        Assert.Contains("contentPresenterHasLocalContent=True", text);
+        Assert.Contains("contentPresenterRuntimeMeasureOverrideCalls=", text);
+        Assert.Contains("contentPresenterRuntimeBuildContentElementLabelPath=", text);
+        Assert.Contains("contentPresenterVisualChildrenCalls=", text);
+        Assert.Contains("contentPresenterMeasureOverrideCalls=", text);
+        Assert.Contains("contentPresenterBuildContentElementLabelPath=", text);
+        Assert.Contains("contentPresenterFindReadablePropertyCalls=", text);
     }
 
     private static void AttachParent(UIElement child, UIElement parent)
