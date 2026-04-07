@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
+using System.Threading;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -9,6 +11,76 @@ namespace InkkSlinger;
 public class Control : FrameworkElement, ICommandSource
 {
     private static int _measureTemplateApplyAttemptCount;
+    private static long _diagGetVisualChildrenCallCount;
+    private static long _diagGetVisualChildrenYieldedTemplateRootCount;
+    private static long _diagGetVisualChildrenWithoutTemplateRootCount;
+    private static long _diagGetVisualChildCountForTraversalCallCount;
+    private static long _diagGetVisualChildCountForTraversalWithTemplateRootCount;
+    private static long _diagGetVisualChildCountForTraversalWithoutTemplateRootCount;
+    private static long _diagGetVisualChildAtForTraversalCallCount;
+    private static long _diagGetVisualChildAtForTraversalTemplateRootPathCount;
+    private static long _diagGetVisualChildAtForTraversalOutOfRangeCount;
+    private static long _diagApplyTemplateCallCount;
+    private static long _diagApplyTemplateElapsedTicks;
+    private static long _diagApplyTemplateTemplateNullCount;
+    private static long _diagApplyTemplateTargetTypeMismatchCount;
+    private static long _diagApplyTemplateBuildReturnedNullCount;
+    private static long _diagApplyTemplateSetTemplateTreeCount;
+    private static long _diagApplyTemplateBindingsAppliedCount;
+    private static long _diagApplyTemplateTriggersAppliedCount;
+    private static long _diagApplyTemplateValidationCount;
+    private static long _diagApplyTemplateOnApplyTemplateCount;
+    private static long _diagApplyTemplateReturnedTrueCount;
+    private static long _diagApplyTemplateReturnedFalseCount;
+    private static long _diagMeasureOverrideCallCount;
+    private static long _diagMeasureOverrideElapsedTicks;
+    private static long _diagMeasureOverrideImplicitStyleUpdateCount;
+    private static long _diagMeasureOverrideTemplateApplyAttemptCount;
+    private static long _diagMeasureOverrideTemplateRootMeasureCount;
+    private static long _diagMeasureOverrideReturnedZeroCount;
+    private static long _diagCanReuseMeasureCallCount;
+    private static long _diagCanReuseMeasureTemplateRootDelegatedCount;
+    private static long _diagCanReuseMeasureNoTemplateRootRejectedCount;
+    private static long _diagArrangeOverrideCallCount;
+    private static long _diagArrangeOverrideElapsedTicks;
+    private static long _diagArrangeOverrideTemplateRootArrangeCount;
+    private static long _diagArrangeOverrideNoTemplateRootCount;
+    private static long _diagDependencyPropertyChangedCallCount;
+    private static long _diagDependencyPropertyChangedElapsedTicks;
+    private static long _diagDependencyPropertyChangedStylePropertyCount;
+    private static long _diagDependencyPropertyChangedTemplatePropertyCount;
+    private static long _diagDependencyPropertyChangedCommandPropertyCount;
+    private static long _diagDependencyPropertyChangedCommandStatePropertyCount;
+    private static long _diagDependencyPropertyChangedIsEnabledPropertyCount;
+    private static long _diagDependencyPropertyChangedOtherPropertyCount;
+    private static long _diagVisualParentChangedCallCount;
+    private static long _diagVisualParentChangedElapsedTicks;
+    private static long _diagVisualParentChangedTrackedImplicitStyleScopesCount;
+    private static long _diagVisualParentChangedClearedImplicitStyleScopesCount;
+    private static long _diagLogicalParentChangedCallCount;
+    private static long _diagLogicalParentChangedElapsedTicks;
+    private static long _diagLogicalParentChangedSkippedForVisualParentCount;
+    private static long _diagLogicalParentChangedTrackedImplicitStyleScopesCount;
+    private static long _diagLogicalParentChangedClearedImplicitStyleScopesCount;
+    private static long _diagResourceScopeChangedCallCount;
+    private static long _diagResourceScopeChangedApplicationSkipCount;
+    private static long _diagUpdateImplicitStyleCallCount;
+    private static long _diagUpdateImplicitStyleAppliedCount;
+    private static long _diagUpdateImplicitStyleClearedCount;
+    private static long _diagUpdateImplicitStyleNoChangeCount;
+    private static long _diagUpdateImplicitStyleSkippedCount;
+    private static long _diagRefreshCommandSubscriptionsCallCount;
+    private static long _diagRefreshCommandSubscriptionsDetachedOldCommandCount;
+    private static long _diagRefreshCommandSubscriptionsAttachedNewCommandCount;
+    private static long _diagUpdateCommandEnabledStateCallCount;
+    private static long _diagUpdateCommandEnabledStateNoCommandRestoreCount;
+    private static long _diagUpdateCommandEnabledStateCanExecuteRestoreCount;
+    private static long _diagUpdateCommandEnabledStateDisableCommandCount;
+    private static long _diagUpdateCommandEnabledStateForceLocalDisableCount;
+    private static long _diagRestoreIsEnabledIfCommandDisabledItCallCount;
+    private static long _diagRestoreIsEnabledIfCommandDisabledItNoOpCount;
+    private static long _diagRestoreIsEnabledIfCommandDisabledItClearValueCount;
+    private static long _diagRestoreIsEnabledIfCommandDisabledItRestoreStoredValueCount;
     public static readonly DependencyProperty DefaultStyleKeyProperty =
         DependencyProperty.Register(nameof(DefaultStyleKey), typeof(System.Type), typeof(Control), new FrameworkPropertyMetadata(null));
 
@@ -128,6 +200,76 @@ public class Control : FrameworkElement, ICommandSource
     private Style? _composedImplicitStyle;
     private Style? _composedImplicitResourceStyle;
     private Style? _composedImplicitFallbackStyle;
+    private long _runtimeGetVisualChildrenCallCount;
+    private long _runtimeGetVisualChildrenYieldedTemplateRootCount;
+    private long _runtimeGetVisualChildrenWithoutTemplateRootCount;
+    private long _runtimeGetVisualChildCountForTraversalCallCount;
+    private long _runtimeGetVisualChildCountForTraversalWithTemplateRootCount;
+    private long _runtimeGetVisualChildCountForTraversalWithoutTemplateRootCount;
+    private long _runtimeGetVisualChildAtForTraversalCallCount;
+    private long _runtimeGetVisualChildAtForTraversalTemplateRootPathCount;
+    private long _runtimeGetVisualChildAtForTraversalOutOfRangeCount;
+    private long _runtimeApplyTemplateCallCount;
+    private long _runtimeApplyTemplateElapsedTicks;
+    private long _runtimeApplyTemplateTemplateNullCount;
+    private long _runtimeApplyTemplateTargetTypeMismatchCount;
+    private long _runtimeApplyTemplateBuildReturnedNullCount;
+    private long _runtimeApplyTemplateSetTemplateTreeCount;
+    private long _runtimeApplyTemplateBindingsAppliedCount;
+    private long _runtimeApplyTemplateTriggersAppliedCount;
+    private long _runtimeApplyTemplateValidationCount;
+    private long _runtimeApplyTemplateOnApplyTemplateCount;
+    private long _runtimeApplyTemplateReturnedTrueCount;
+    private long _runtimeApplyTemplateReturnedFalseCount;
+    private long _runtimeMeasureOverrideCallCount;
+    private long _runtimeMeasureOverrideElapsedTicks;
+    private long _runtimeMeasureOverrideImplicitStyleUpdateCount;
+    private long _runtimeMeasureOverrideTemplateApplyAttemptCount;
+    private long _runtimeMeasureOverrideTemplateRootMeasureCount;
+    private long _runtimeMeasureOverrideReturnedZeroCount;
+    private long _runtimeCanReuseMeasureCallCount;
+    private long _runtimeCanReuseMeasureTemplateRootDelegatedCount;
+    private long _runtimeCanReuseMeasureNoTemplateRootRejectedCount;
+    private long _runtimeArrangeOverrideCallCount;
+    private long _runtimeArrangeOverrideElapsedTicks;
+    private long _runtimeArrangeOverrideTemplateRootArrangeCount;
+    private long _runtimeArrangeOverrideNoTemplateRootCount;
+    private long _runtimeDependencyPropertyChangedCallCount;
+    private long _runtimeDependencyPropertyChangedElapsedTicks;
+    private long _runtimeDependencyPropertyChangedStylePropertyCount;
+    private long _runtimeDependencyPropertyChangedTemplatePropertyCount;
+    private long _runtimeDependencyPropertyChangedCommandPropertyCount;
+    private long _runtimeDependencyPropertyChangedCommandStatePropertyCount;
+    private long _runtimeDependencyPropertyChangedIsEnabledPropertyCount;
+    private long _runtimeDependencyPropertyChangedOtherPropertyCount;
+    private long _runtimeVisualParentChangedCallCount;
+    private long _runtimeVisualParentChangedElapsedTicks;
+    private long _runtimeVisualParentChangedTrackedImplicitStyleScopesCount;
+    private long _runtimeVisualParentChangedClearedImplicitStyleScopesCount;
+    private long _runtimeLogicalParentChangedCallCount;
+    private long _runtimeLogicalParentChangedElapsedTicks;
+    private long _runtimeLogicalParentChangedSkippedForVisualParentCount;
+    private long _runtimeLogicalParentChangedTrackedImplicitStyleScopesCount;
+    private long _runtimeLogicalParentChangedClearedImplicitStyleScopesCount;
+    private long _runtimeResourceScopeChangedCallCount;
+    private long _runtimeResourceScopeChangedApplicationSkipCount;
+    private long _runtimeUpdateImplicitStyleCallCount;
+    private long _runtimeUpdateImplicitStyleAppliedCount;
+    private long _runtimeUpdateImplicitStyleClearedCount;
+    private long _runtimeUpdateImplicitStyleNoChangeCount;
+    private long _runtimeUpdateImplicitStyleSkippedCount;
+    private long _runtimeRefreshCommandSubscriptionsCallCount;
+    private long _runtimeRefreshCommandSubscriptionsDetachedOldCommandCount;
+    private long _runtimeRefreshCommandSubscriptionsAttachedNewCommandCount;
+    private long _runtimeUpdateCommandEnabledStateCallCount;
+    private long _runtimeUpdateCommandEnabledStateNoCommandRestoreCount;
+    private long _runtimeUpdateCommandEnabledStateCanExecuteRestoreCount;
+    private long _runtimeUpdateCommandEnabledStateDisableCommandCount;
+    private long _runtimeUpdateCommandEnabledStateForceLocalDisableCount;
+    private long _runtimeRestoreIsEnabledIfCommandDisabledItCallCount;
+    private long _runtimeRestoreIsEnabledIfCommandDisabledItNoOpCount;
+    private long _runtimeRestoreIsEnabledIfCommandDisabledItClearValueCount;
+    private long _runtimeRestoreIsEnabledIfCommandDisabledItRestoreStoredValueCount;
 
     public Control()
     {
@@ -243,22 +385,53 @@ public class Control : FrameworkElement, ICommandSource
     {
         if (_templateRoot != null)
         {
+            _runtimeGetVisualChildrenCallCount++;
+            _runtimeGetVisualChildrenYieldedTemplateRootCount++;
+            IncrementAggregate(ref _diagGetVisualChildrenCallCount);
+            IncrementAggregate(ref _diagGetVisualChildrenYieldedTemplateRootCount);
             yield return _templateRoot;
+            yield break;
         }
+
+        _runtimeGetVisualChildrenCallCount++;
+        _runtimeGetVisualChildrenWithoutTemplateRootCount++;
+        IncrementAggregate(ref _diagGetVisualChildrenCallCount);
+        IncrementAggregate(ref _diagGetVisualChildrenWithoutTemplateRootCount);
     }
 
     internal override int GetVisualChildCountForTraversal()
     {
+        _runtimeGetVisualChildCountForTraversalCallCount++;
+        IncrementAggregate(ref _diagGetVisualChildCountForTraversalCallCount);
+
+        if (_templateRoot != null)
+        {
+            _runtimeGetVisualChildCountForTraversalWithTemplateRootCount++;
+            IncrementAggregate(ref _diagGetVisualChildCountForTraversalWithTemplateRootCount);
+        }
+        else
+        {
+            _runtimeGetVisualChildCountForTraversalWithoutTemplateRootCount++;
+            IncrementAggregate(ref _diagGetVisualChildCountForTraversalWithoutTemplateRootCount);
+        }
+
         return _templateRoot != null ? 1 : 0;
     }
 
     internal override UIElement GetVisualChildAtForTraversal(int index)
     {
+        _runtimeGetVisualChildAtForTraversalCallCount++;
+        IncrementAggregate(ref _diagGetVisualChildAtForTraversalCallCount);
+
         if (index == 0 && _templateRoot != null)
         {
+            _runtimeGetVisualChildAtForTraversalTemplateRootPathCount++;
+            IncrementAggregate(ref _diagGetVisualChildAtForTraversalTemplateRootPathCount);
             return _templateRoot;
         }
 
+        _runtimeGetVisualChildAtForTraversalOutOfRangeCount++;
+        IncrementAggregate(ref _diagGetVisualChildAtForTraversalOutOfRangeCount);
         throw new ArgumentOutOfRangeException(nameof(index));
     }
 
@@ -275,155 +448,283 @@ public class Control : FrameworkElement, ICommandSource
 
     public bool ApplyTemplate()
     {
-        ClearTemplateBindings();
-        _templateTriggerEngine.Clear();
+        var start = Stopwatch.GetTimestamp();
+        _runtimeApplyTemplateCallCount++;
 
-        if (Template == null)
+        try
         {
-            ClearTemplateTree();
-            return false;
-        }
+            ClearTemplateBindings();
+            _templateTriggerEngine.Clear();
 
-        if (Template.TargetType != null && !Template.TargetType.IsInstanceOfType(this))
+            if (Template == null)
+            {
+                _runtimeApplyTemplateTemplateNullCount++;
+                _runtimeApplyTemplateReturnedFalseCount++;
+                IncrementAggregate(ref _diagApplyTemplateTemplateNullCount);
+                IncrementAggregate(ref _diagApplyTemplateReturnedFalseCount);
+                ClearTemplateTree();
+                return false;
+            }
+
+            if (Template.TargetType != null && !Template.TargetType.IsInstanceOfType(this))
+            {
+                _runtimeApplyTemplateTargetTypeMismatchCount++;
+                IncrementAggregate(ref _diagApplyTemplateTargetTypeMismatchCount);
+                throw new InvalidOperationException(
+                    $"ControlTemplate target type '{Template.TargetType.Name}' is not compatible with '{GetType().Name}'.");
+            }
+
+            var built = Template.Build(this);
+            if (built == null)
+            {
+                _runtimeApplyTemplateBuildReturnedNullCount++;
+                _runtimeApplyTemplateReturnedFalseCount++;
+                IncrementAggregate(ref _diagApplyTemplateBuildReturnedNullCount);
+                IncrementAggregate(ref _diagApplyTemplateReturnedFalseCount);
+                ClearTemplateTree();
+                return false;
+            }
+
+            SetTemplateTree(built);
+            _runtimeApplyTemplateSetTemplateTreeCount++;
+            IncrementAggregate(ref _diagApplyTemplateSetTemplateTreeCount);
+
+            ApplyTemplateBindings();
+            _runtimeApplyTemplateBindingsAppliedCount++;
+            IncrementAggregate(ref _diagApplyTemplateBindingsAppliedCount);
+
+            ApplyTemplateTriggers();
+            _runtimeApplyTemplateTriggersAppliedCount++;
+            IncrementAggregate(ref _diagApplyTemplateTriggersAppliedCount);
+
+            ValidateTemplateParts();
+            _runtimeApplyTemplateValidationCount++;
+            IncrementAggregate(ref _diagApplyTemplateValidationCount);
+
+            OnApplyTemplate();
+            _runtimeApplyTemplateOnApplyTemplateCount++;
+            _runtimeApplyTemplateReturnedTrueCount++;
+            IncrementAggregate(ref _diagApplyTemplateOnApplyTemplateCount);
+            IncrementAggregate(ref _diagApplyTemplateReturnedTrueCount);
+            return true;
+        }
+        finally
         {
-            throw new InvalidOperationException(
-                $"ControlTemplate target type '{Template.TargetType.Name}' is not compatible with '{GetType().Name}'.");
+            _runtimeApplyTemplateElapsedTicks += Stopwatch.GetTimestamp() - start;
+            RecordAggregateElapsed(ref _diagApplyTemplateCallCount, ref _diagApplyTemplateElapsedTicks, start);
         }
-
-        var built = Template.Build(this);
-        if (built == null)
-        {
-            ClearTemplateTree();
-            return false;
-        }
-
-        SetTemplateTree(built);
-        ApplyTemplateBindings();
-        ApplyTemplateTriggers();
-        ValidateTemplateParts();
-
-        OnApplyTemplate();
-        return true;
     }
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        if (_templateRoot == null)
+        var start = Stopwatch.GetTimestamp();
+        _runtimeMeasureOverrideCallCount++;
+
+        try
         {
-            if (Template == null)
+            if (_templateRoot == null)
             {
-                UpdateImplicitStyle();
                 if (Template == null)
                 {
-                    return Vector2.Zero;
+                    _runtimeMeasureOverrideImplicitStyleUpdateCount++;
+                    IncrementAggregate(ref _diagMeasureOverrideImplicitStyleUpdateCount);
+                    UpdateImplicitStyle();
+                    if (Template == null)
+                    {
+                        _runtimeMeasureOverrideReturnedZeroCount++;
+                        IncrementAggregate(ref _diagMeasureOverrideReturnedZeroCount);
+                        return Vector2.Zero;
+                    }
                 }
+
+                _measureTemplateApplyAttemptCount++;
+                _runtimeMeasureOverrideTemplateApplyAttemptCount++;
+                IncrementAggregate(ref _diagMeasureOverrideTemplateApplyAttemptCount);
+                ApplyTemplate();
             }
 
-            _measureTemplateApplyAttemptCount++;
-            ApplyTemplate();
-        }
+            if (_templateRoot is FrameworkElement element)
+            {
+                _runtimeMeasureOverrideTemplateRootMeasureCount++;
+                IncrementAggregate(ref _diagMeasureOverrideTemplateRootMeasureCount);
+                element.Measure(availableSize);
+                return element.DesiredSize;
+            }
 
-        if (_templateRoot is FrameworkElement element)
+            _runtimeMeasureOverrideReturnedZeroCount++;
+            IncrementAggregate(ref _diagMeasureOverrideReturnedZeroCount);
+            return Vector2.Zero;
+        }
+        finally
         {
-            element.Measure(availableSize);
-            return element.DesiredSize;
+            _runtimeMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
+            RecordAggregateElapsed(ref _diagMeasureOverrideCallCount, ref _diagMeasureOverrideElapsedTicks, start);
         }
-
-        return Vector2.Zero;
     }
 
     protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
+        _runtimeCanReuseMeasureCallCount++;
+        IncrementAggregate(ref _diagCanReuseMeasureCallCount);
+
         if (_templateRoot is not FrameworkElement element)
         {
+            _runtimeCanReuseMeasureNoTemplateRootRejectedCount++;
+            IncrementAggregate(ref _diagCanReuseMeasureNoTemplateRootRejectedCount);
             return false;
         }
 
+        _runtimeCanReuseMeasureTemplateRootDelegatedCount++;
+        IncrementAggregate(ref _diagCanReuseMeasureTemplateRootDelegatedCount);
         return element.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize);
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
-        if (_templateRoot is FrameworkElement element)
-        {
-            element.Arrange(new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
-        }
+        var start = Stopwatch.GetTimestamp();
+        _runtimeArrangeOverrideCallCount++;
 
-        return finalSize;
+        try
+        {
+            if (_templateRoot is FrameworkElement element)
+            {
+                _runtimeArrangeOverrideTemplateRootArrangeCount++;
+                IncrementAggregate(ref _diagArrangeOverrideTemplateRootArrangeCount);
+                element.Arrange(new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
+            }
+            else
+            {
+                _runtimeArrangeOverrideNoTemplateRootCount++;
+                IncrementAggregate(ref _diagArrangeOverrideNoTemplateRootCount);
+            }
+
+            return finalSize;
+        }
+        finally
+        {
+            _runtimeArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
+            RecordAggregateElapsed(ref _diagArrangeOverrideCallCount, ref _diagArrangeOverrideElapsedTicks, start);
+        }
     }
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
+        var start = Stopwatch.GetTimestamp();
+        _runtimeDependencyPropertyChangedCallCount++;
         base.OnDependencyPropertyChanged(args);
 
-        if (args.Property == StyleProperty && !_isApplyingImplicitStyle)
+        try
         {
-            _activeImplicitStyle = null;
-        }
-
-        if (args.Property == TemplateProperty)
-        {
-            ApplyTemplate();
-        }
-
-        if (args.Property == CommandProperty)
-        {
-            RefreshCommandSubscriptions(args.OldValue as System.Windows.Input.ICommand, args.NewValue as System.Windows.Input.ICommand);
-            UpdateCommandEnabledState();
-        }
-        else if (args.Property == CommandParameterProperty || args.Property == CommandTargetProperty)
-        {
-            UpdateCommandEnabledState();
-        }
-        else if (args.Property == IsEnabledProperty)
-        {
-            // If user toggles IsEnabled while command-gated, remember intent but keep disabled.
-            if (_isCommandDisablingIsEnabled && !_isUpdatingIsEnabled)
+            if (args.Property == StyleProperty)
             {
-                _storedIsEnabledLocalValue = ReadLocalValue(IsEnabledProperty);
+                _runtimeDependencyPropertyChangedStylePropertyCount++;
+                IncrementAggregate(ref _diagDependencyPropertyChangedStylePropertyCount);
+
+                if (!_isApplyingImplicitStyle)
+                {
+                    _activeImplicitStyle = null;
+                }
+            }
+            else if (args.Property == TemplateProperty)
+            {
+                _runtimeDependencyPropertyChangedTemplatePropertyCount++;
+                IncrementAggregate(ref _diagDependencyPropertyChangedTemplatePropertyCount);
+                ApplyTemplate();
+            }
+            else if (args.Property == CommandProperty)
+            {
+                _runtimeDependencyPropertyChangedCommandPropertyCount++;
+                IncrementAggregate(ref _diagDependencyPropertyChangedCommandPropertyCount);
+                RefreshCommandSubscriptions(args.OldValue as System.Windows.Input.ICommand, args.NewValue as System.Windows.Input.ICommand);
                 UpdateCommandEnabledState();
             }
+            else if (args.Property == CommandParameterProperty || args.Property == CommandTargetProperty)
+            {
+                _runtimeDependencyPropertyChangedCommandStatePropertyCount++;
+                IncrementAggregate(ref _diagDependencyPropertyChangedCommandStatePropertyCount);
+                UpdateCommandEnabledState();
+            }
+            else if (args.Property == IsEnabledProperty)
+            {
+                _runtimeDependencyPropertyChangedIsEnabledPropertyCount++;
+                IncrementAggregate(ref _diagDependencyPropertyChangedIsEnabledPropertyCount);
+
+                // If user toggles IsEnabled while command-gated, remember intent but keep disabled.
+                if (_isCommandDisablingIsEnabled && !_isUpdatingIsEnabled)
+                {
+                    _storedIsEnabledLocalValue = ReadLocalValue(IsEnabledProperty);
+                    UpdateCommandEnabledState();
+                }
+            }
+            else
+            {
+                _runtimeDependencyPropertyChangedOtherPropertyCount++;
+                IncrementAggregate(ref _diagDependencyPropertyChangedOtherPropertyCount);
+            }
+        }
+        finally
+        {
+            _runtimeDependencyPropertyChangedElapsedTicks += Stopwatch.GetTimestamp() - start;
+            RecordAggregateElapsed(ref _diagDependencyPropertyChangedCallCount, ref _diagDependencyPropertyChangedElapsedTicks, start);
         }
     }
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
         var start = Stopwatch.GetTimestamp();
+        _runtimeVisualParentChangedCallCount++;
         base.OnVisualParentChanged(oldParent, newParent);
 
         if (ShouldTrackImplicitStyleScopes())
         {
+            _runtimeVisualParentChangedTrackedImplicitStyleScopesCount++;
+            IncrementAggregate(ref _diagVisualParentChangedTrackedImplicitStyleScopesCount);
             RefreshResourceScopeSubscriptions();
             UpdateImplicitStyle();
         }
         else
         {
+            _runtimeVisualParentChangedClearedImplicitStyleScopesCount++;
+            IncrementAggregate(ref _diagVisualParentChangedClearedImplicitStyleScopesCount);
             ClearResourceScopeSubscriptions();
         }
 
         UpdateCommandEnabledState();
+        _runtimeVisualParentChangedElapsedTicks += Stopwatch.GetTimestamp() - start;
+        RecordAggregateElapsed(ref _diagVisualParentChangedCallCount, ref _diagVisualParentChangedElapsedTicks, start);
     }
 
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
     {
         var start = Stopwatch.GetTimestamp();
+        _runtimeLogicalParentChangedCallCount++;
         base.OnLogicalParentChanged(oldParent, newParent);
         if (VisualParent != null)
         {
+            _runtimeLogicalParentChangedSkippedForVisualParentCount++;
+            IncrementAggregate(ref _diagLogicalParentChangedSkippedForVisualParentCount);
+            _runtimeLogicalParentChangedElapsedTicks += Stopwatch.GetTimestamp() - start;
+            RecordAggregateElapsed(ref _diagLogicalParentChangedCallCount, ref _diagLogicalParentChangedElapsedTicks, start);
             return;
         }
 
         if (ShouldTrackImplicitStyleScopes())
         {
+            _runtimeLogicalParentChangedTrackedImplicitStyleScopesCount++;
+            IncrementAggregate(ref _diagLogicalParentChangedTrackedImplicitStyleScopesCount);
             RefreshResourceScopeSubscriptions();
             UpdateImplicitStyle();
         }
         else
         {
+            _runtimeLogicalParentChangedClearedImplicitStyleScopesCount++;
+            IncrementAggregate(ref _diagLogicalParentChangedClearedImplicitStyleScopesCount);
             ClearResourceScopeSubscriptions();
         }
 
         UpdateCommandEnabledState();
+        _runtimeLogicalParentChangedElapsedTicks += Stopwatch.GetTimestamp() - start;
+        RecordAggregateElapsed(ref _diagLogicalParentChangedCallCount, ref _diagLogicalParentChangedElapsedTicks, start);
     }
 
     protected virtual Style? GetFallbackStyle()
@@ -438,10 +739,15 @@ public class Control : FrameworkElement, ICommandSource
 
     private void RefreshCommandSubscriptions(System.Windows.Input.ICommand? oldCommand, System.Windows.Input.ICommand? newCommand)
     {
+        _runtimeRefreshCommandSubscriptionsCallCount++;
+        IncrementAggregate(ref _diagRefreshCommandSubscriptionsCallCount);
+
         if (ReferenceEquals(_subscribedCommand, oldCommand) && oldCommand != null)
         {
             oldCommand.CanExecuteChanged -= OnCommandCanExecuteChanged;
             _subscribedCommand = null;
+            _runtimeRefreshCommandSubscriptionsDetachedOldCommandCount++;
+            IncrementAggregate(ref _diagRefreshCommandSubscriptionsDetachedOldCommandCount);
         }
 
         if (newCommand == null)
@@ -451,6 +757,8 @@ public class Control : FrameworkElement, ICommandSource
 
         newCommand.CanExecuteChanged += OnCommandCanExecuteChanged;
         _subscribedCommand = newCommand;
+        _runtimeRefreshCommandSubscriptionsAttachedNewCommandCount++;
+        IncrementAggregate(ref _diagRefreshCommandSubscriptionsAttachedNewCommandCount);
     }
 
     private void OnCommandCanExecuteChanged(object? sender, EventArgs e)
@@ -460,17 +768,27 @@ public class Control : FrameworkElement, ICommandSource
 
     private void UpdateCommandEnabledState()
     {
+        _runtimeUpdateCommandEnabledStateCallCount++;
+        IncrementAggregate(ref _diagUpdateCommandEnabledStateCallCount);
+
         if (Command == null)
         {
+            _runtimeUpdateCommandEnabledStateNoCommandRestoreCount++;
+            IncrementAggregate(ref _diagUpdateCommandEnabledStateNoCommandRestoreCount);
             RestoreIsEnabledIfCommandDisabledIt();
             return;
         }
 
         if (CommandSourceExecution.CanExecute(this, this))
         {
+            _runtimeUpdateCommandEnabledStateCanExecuteRestoreCount++;
+            IncrementAggregate(ref _diagUpdateCommandEnabledStateCanExecuteRestoreCount);
             RestoreIsEnabledIfCommandDisabledIt();
             return;
         }
+
+        _runtimeUpdateCommandEnabledStateDisableCommandCount++;
+        IncrementAggregate(ref _diagUpdateCommandEnabledStateDisableCommandCount);
 
         if (!_isCommandDisablingIsEnabled)
         {
@@ -495,6 +813,8 @@ public class Control : FrameworkElement, ICommandSource
             // Still force a local disable so user enabling is remembered but overridden while CanExecute is false.
             if (!HasLocalValue(IsEnabledProperty))
             {
+                _runtimeUpdateCommandEnabledStateForceLocalDisableCount++;
+                IncrementAggregate(ref _diagUpdateCommandEnabledStateForceLocalDisableCount);
                 _isUpdatingIsEnabled = true;
                 try
                 {
@@ -510,8 +830,13 @@ public class Control : FrameworkElement, ICommandSource
 
     private void RestoreIsEnabledIfCommandDisabledIt()
     {
+        _runtimeRestoreIsEnabledIfCommandDisabledItCallCount++;
+        IncrementAggregate(ref _diagRestoreIsEnabledIfCommandDisabledItCallCount);
+
         if (!_isCommandDisablingIsEnabled)
         {
+            _runtimeRestoreIsEnabledIfCommandDisabledItNoOpCount++;
+            IncrementAggregate(ref _diagRestoreIsEnabledIfCommandDisabledItNoOpCount);
             return;
         }
 
@@ -520,10 +845,14 @@ public class Control : FrameworkElement, ICommandSource
         {
             if (ReferenceEquals(_storedIsEnabledLocalValue, DependencyObject.UnsetValue))
             {
+                _runtimeRestoreIsEnabledIfCommandDisabledItClearValueCount++;
+                IncrementAggregate(ref _diagRestoreIsEnabledIfCommandDisabledItClearValueCount);
                 ClearValue(IsEnabledProperty);
             }
             else
             {
+                _runtimeRestoreIsEnabledIfCommandDisabledItRestoreStoredValueCount++;
+                IncrementAggregate(ref _diagRestoreIsEnabledIfCommandDisabledItRestoreStoredValueCount);
                 SetValue(IsEnabledProperty, _storedIsEnabledLocalValue);
             }
         }
@@ -787,8 +1116,13 @@ public class Control : FrameworkElement, ICommandSource
 
     protected virtual void OnResourceScopeChanged(object? sender, ResourceDictionaryChangedEventArgs e)
     {
+        _runtimeResourceScopeChangedCallCount++;
+        IncrementAggregate(ref _diagResourceScopeChangedCallCount);
+
         if (ReferenceEquals(sender, UiApplication.Current.Resources) && !ShouldProcessApplicationResourceChange())
         {
+            _runtimeResourceScopeChangedApplicationSkipCount++;
+            IncrementAggregate(ref _diagResourceScopeChangedApplicationSkipCount);
             return;
         }
 
@@ -797,8 +1131,13 @@ public class Control : FrameworkElement, ICommandSource
 
     private void UpdateImplicitStyle()
     {
+        _runtimeUpdateImplicitStyleCallCount++;
+        IncrementAggregate(ref _diagUpdateImplicitStyleCallCount);
+
         if (!ShouldApplyImplicitStyle())
         {
+            _runtimeUpdateImplicitStyleSkippedCount++;
+            IncrementAggregate(ref _diagUpdateImplicitStyleSkippedCount);
             return;
         }
 
@@ -806,6 +1145,8 @@ public class Control : FrameworkElement, ICommandSource
         if (ReferenceEquals(targetStyle, _activeImplicitStyle) &&
             ReferenceEquals(Style, targetStyle))
         {
+            _runtimeUpdateImplicitStyleNoChangeCount++;
+            IncrementAggregate(ref _diagUpdateImplicitStyleNoChangeCount);
             return;
         }
 
@@ -822,6 +1163,14 @@ public class Control : FrameworkElement, ICommandSource
                 {
                     _isApplyingImplicitStyle = false;
                 }
+
+                _runtimeUpdateImplicitStyleClearedCount++;
+                IncrementAggregate(ref _diagUpdateImplicitStyleClearedCount);
+            }
+            else
+            {
+                _runtimeUpdateImplicitStyleNoChangeCount++;
+                IncrementAggregate(ref _diagUpdateImplicitStyleNoChangeCount);
             }
 
             _activeImplicitStyle = null;
@@ -839,6 +1188,14 @@ public class Control : FrameworkElement, ICommandSource
             {
                 _isApplyingImplicitStyle = false;
             }
+
+            _runtimeUpdateImplicitStyleAppliedCount++;
+            IncrementAggregate(ref _diagUpdateImplicitStyleAppliedCount);
+        }
+        else
+        {
+            _runtimeUpdateImplicitStyleNoChangeCount++;
+            IncrementAggregate(ref _diagUpdateImplicitStyleNoChangeCount);
         }
 
         _activeImplicitStyle = targetStyle;
@@ -1018,8 +1375,213 @@ public class Control : FrameworkElement, ICommandSource
         return _measureTemplateApplyAttemptCount;
     }
 
+    internal ControlRuntimeDiagnosticsSnapshot GetControlSnapshotForDiagnostics()
+    {
+        return new ControlRuntimeDiagnosticsSnapshot(
+            Template != null,
+            _templateRoot != null,
+            _templateRoot?.GetType().Name ?? string.Empty,
+            _subscribedCommand != null,
+            _isCommandDisablingIsEnabled,
+            !ReferenceEquals(_storedIsEnabledLocalValue, DependencyObject.UnsetValue),
+            _styleResourceAncestors.Count,
+            LayoutSlot.Width,
+            LayoutSlot.Height,
+            _runtimeGetVisualChildrenCallCount,
+            _runtimeGetVisualChildrenYieldedTemplateRootCount,
+            _runtimeGetVisualChildrenWithoutTemplateRootCount,
+            _runtimeGetVisualChildCountForTraversalCallCount,
+            _runtimeGetVisualChildCountForTraversalWithTemplateRootCount,
+            _runtimeGetVisualChildCountForTraversalWithoutTemplateRootCount,
+            _runtimeGetVisualChildAtForTraversalCallCount,
+            _runtimeGetVisualChildAtForTraversalTemplateRootPathCount,
+            _runtimeGetVisualChildAtForTraversalOutOfRangeCount,
+            _runtimeApplyTemplateCallCount,
+            TicksToMilliseconds(_runtimeApplyTemplateElapsedTicks),
+            _runtimeApplyTemplateTemplateNullCount,
+            _runtimeApplyTemplateTargetTypeMismatchCount,
+            _runtimeApplyTemplateBuildReturnedNullCount,
+            _runtimeApplyTemplateSetTemplateTreeCount,
+            _runtimeApplyTemplateBindingsAppliedCount,
+            _runtimeApplyTemplateTriggersAppliedCount,
+            _runtimeApplyTemplateValidationCount,
+            _runtimeApplyTemplateOnApplyTemplateCount,
+            _runtimeApplyTemplateReturnedTrueCount,
+            _runtimeApplyTemplateReturnedFalseCount,
+            _runtimeMeasureOverrideCallCount,
+            TicksToMilliseconds(_runtimeMeasureOverrideElapsedTicks),
+            _runtimeMeasureOverrideImplicitStyleUpdateCount,
+            _runtimeMeasureOverrideTemplateApplyAttemptCount,
+            _runtimeMeasureOverrideTemplateRootMeasureCount,
+            _runtimeMeasureOverrideReturnedZeroCount,
+            _runtimeCanReuseMeasureCallCount,
+            _runtimeCanReuseMeasureTemplateRootDelegatedCount,
+            _runtimeCanReuseMeasureNoTemplateRootRejectedCount,
+            _runtimeArrangeOverrideCallCount,
+            TicksToMilliseconds(_runtimeArrangeOverrideElapsedTicks),
+            _runtimeArrangeOverrideTemplateRootArrangeCount,
+            _runtimeArrangeOverrideNoTemplateRootCount,
+            _runtimeDependencyPropertyChangedCallCount,
+            TicksToMilliseconds(_runtimeDependencyPropertyChangedElapsedTicks),
+            _runtimeDependencyPropertyChangedStylePropertyCount,
+            _runtimeDependencyPropertyChangedTemplatePropertyCount,
+            _runtimeDependencyPropertyChangedCommandPropertyCount,
+            _runtimeDependencyPropertyChangedCommandStatePropertyCount,
+            _runtimeDependencyPropertyChangedIsEnabledPropertyCount,
+            _runtimeDependencyPropertyChangedOtherPropertyCount,
+            _runtimeVisualParentChangedCallCount,
+            TicksToMilliseconds(_runtimeVisualParentChangedElapsedTicks),
+            _runtimeVisualParentChangedTrackedImplicitStyleScopesCount,
+            _runtimeVisualParentChangedClearedImplicitStyleScopesCount,
+            _runtimeLogicalParentChangedCallCount,
+            TicksToMilliseconds(_runtimeLogicalParentChangedElapsedTicks),
+            _runtimeLogicalParentChangedSkippedForVisualParentCount,
+            _runtimeLogicalParentChangedTrackedImplicitStyleScopesCount,
+            _runtimeLogicalParentChangedClearedImplicitStyleScopesCount,
+            _runtimeResourceScopeChangedCallCount,
+            _runtimeResourceScopeChangedApplicationSkipCount,
+            _runtimeUpdateImplicitStyleCallCount,
+            _runtimeUpdateImplicitStyleAppliedCount,
+            _runtimeUpdateImplicitStyleClearedCount,
+            _runtimeUpdateImplicitStyleNoChangeCount,
+            _runtimeUpdateImplicitStyleSkippedCount,
+            _runtimeRefreshCommandSubscriptionsCallCount,
+            _runtimeRefreshCommandSubscriptionsDetachedOldCommandCount,
+            _runtimeRefreshCommandSubscriptionsAttachedNewCommandCount,
+            _runtimeUpdateCommandEnabledStateCallCount,
+            _runtimeUpdateCommandEnabledStateNoCommandRestoreCount,
+            _runtimeUpdateCommandEnabledStateCanExecuteRestoreCount,
+            _runtimeUpdateCommandEnabledStateDisableCommandCount,
+            _runtimeUpdateCommandEnabledStateForceLocalDisableCount,
+            _runtimeRestoreIsEnabledIfCommandDisabledItCallCount,
+            _runtimeRestoreIsEnabledIfCommandDisabledItNoOpCount,
+            _runtimeRestoreIsEnabledIfCommandDisabledItClearValueCount,
+            _runtimeRestoreIsEnabledIfCommandDisabledItRestoreStoredValueCount);
+    }
+
+    internal new static ControlTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateAggregateTelemetrySnapshot(reset: true);
+    }
+
+    internal new static ControlTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateAggregateTelemetrySnapshot(reset: false);
+    }
+
+    internal static ControlTelemetrySnapshot GetTelemetrySnapshotForDiagnostics()
+    {
+        return GetAggregateTelemetrySnapshotForDiagnostics();
+    }
+
     internal static void ResetMeasureTemplateApplyAttemptCountForTests()
     {
         _measureTemplateApplyAttemptCount = 0;
+    }
+
+    private static ControlTelemetrySnapshot CreateAggregateTelemetrySnapshot(bool reset)
+    {
+        return new ControlTelemetrySnapshot(
+            ReadOrReset(ref _diagGetVisualChildrenCallCount, reset),
+            ReadOrReset(ref _diagGetVisualChildrenYieldedTemplateRootCount, reset),
+            ReadOrReset(ref _diagGetVisualChildrenWithoutTemplateRootCount, reset),
+            ReadOrReset(ref _diagGetVisualChildCountForTraversalCallCount, reset),
+            ReadOrReset(ref _diagGetVisualChildCountForTraversalWithTemplateRootCount, reset),
+            ReadOrReset(ref _diagGetVisualChildCountForTraversalWithoutTemplateRootCount, reset),
+            ReadOrReset(ref _diagGetVisualChildAtForTraversalCallCount, reset),
+            ReadOrReset(ref _diagGetVisualChildAtForTraversalTemplateRootPathCount, reset),
+            ReadOrReset(ref _diagGetVisualChildAtForTraversalOutOfRangeCount, reset),
+            ReadOrReset(ref _diagApplyTemplateCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagApplyTemplateElapsedTicks, reset)),
+            ReadOrReset(ref _diagApplyTemplateTemplateNullCount, reset),
+            ReadOrReset(ref _diagApplyTemplateTargetTypeMismatchCount, reset),
+            ReadOrReset(ref _diagApplyTemplateBuildReturnedNullCount, reset),
+            ReadOrReset(ref _diagApplyTemplateSetTemplateTreeCount, reset),
+            ReadOrReset(ref _diagApplyTemplateBindingsAppliedCount, reset),
+            ReadOrReset(ref _diagApplyTemplateTriggersAppliedCount, reset),
+            ReadOrReset(ref _diagApplyTemplateValidationCount, reset),
+            ReadOrReset(ref _diagApplyTemplateOnApplyTemplateCount, reset),
+            ReadOrReset(ref _diagApplyTemplateReturnedTrueCount, reset),
+            ReadOrReset(ref _diagApplyTemplateReturnedFalseCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagMeasureOverrideElapsedTicks, reset)),
+            ReadOrReset(ref _diagMeasureOverrideImplicitStyleUpdateCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideTemplateApplyAttemptCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideTemplateRootMeasureCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideReturnedZeroCount, reset),
+            ReadOrReset(ref _diagCanReuseMeasureCallCount, reset),
+            ReadOrReset(ref _diagCanReuseMeasureTemplateRootDelegatedCount, reset),
+            ReadOrReset(ref _diagCanReuseMeasureNoTemplateRootRejectedCount, reset),
+            ReadOrReset(ref _diagArrangeOverrideCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagArrangeOverrideElapsedTicks, reset)),
+            ReadOrReset(ref _diagArrangeOverrideTemplateRootArrangeCount, reset),
+            ReadOrReset(ref _diagArrangeOverrideNoTemplateRootCount, reset),
+            ReadOrReset(ref _diagDependencyPropertyChangedCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagDependencyPropertyChangedElapsedTicks, reset)),
+            ReadOrReset(ref _diagDependencyPropertyChangedStylePropertyCount, reset),
+            ReadOrReset(ref _diagDependencyPropertyChangedTemplatePropertyCount, reset),
+            ReadOrReset(ref _diagDependencyPropertyChangedCommandPropertyCount, reset),
+            ReadOrReset(ref _diagDependencyPropertyChangedCommandStatePropertyCount, reset),
+            ReadOrReset(ref _diagDependencyPropertyChangedIsEnabledPropertyCount, reset),
+            ReadOrReset(ref _diagDependencyPropertyChangedOtherPropertyCount, reset),
+            ReadOrReset(ref _diagVisualParentChangedCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagVisualParentChangedElapsedTicks, reset)),
+            ReadOrReset(ref _diagVisualParentChangedTrackedImplicitStyleScopesCount, reset),
+            ReadOrReset(ref _diagVisualParentChangedClearedImplicitStyleScopesCount, reset),
+            ReadOrReset(ref _diagLogicalParentChangedCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagLogicalParentChangedElapsedTicks, reset)),
+            ReadOrReset(ref _diagLogicalParentChangedSkippedForVisualParentCount, reset),
+            ReadOrReset(ref _diagLogicalParentChangedTrackedImplicitStyleScopesCount, reset),
+            ReadOrReset(ref _diagLogicalParentChangedClearedImplicitStyleScopesCount, reset),
+            ReadOrReset(ref _diagResourceScopeChangedCallCount, reset),
+            ReadOrReset(ref _diagResourceScopeChangedApplicationSkipCount, reset),
+            ReadOrReset(ref _diagUpdateImplicitStyleCallCount, reset),
+            ReadOrReset(ref _diagUpdateImplicitStyleAppliedCount, reset),
+            ReadOrReset(ref _diagUpdateImplicitStyleClearedCount, reset),
+            ReadOrReset(ref _diagUpdateImplicitStyleNoChangeCount, reset),
+            ReadOrReset(ref _diagUpdateImplicitStyleSkippedCount, reset),
+            ReadOrReset(ref _diagRefreshCommandSubscriptionsCallCount, reset),
+            ReadOrReset(ref _diagRefreshCommandSubscriptionsDetachedOldCommandCount, reset),
+            ReadOrReset(ref _diagRefreshCommandSubscriptionsAttachedNewCommandCount, reset),
+            ReadOrReset(ref _diagUpdateCommandEnabledStateCallCount, reset),
+            ReadOrReset(ref _diagUpdateCommandEnabledStateNoCommandRestoreCount, reset),
+            ReadOrReset(ref _diagUpdateCommandEnabledStateCanExecuteRestoreCount, reset),
+            ReadOrReset(ref _diagUpdateCommandEnabledStateDisableCommandCount, reset),
+            ReadOrReset(ref _diagUpdateCommandEnabledStateForceLocalDisableCount, reset),
+            ReadOrReset(ref _diagRestoreIsEnabledIfCommandDisabledItCallCount, reset),
+            ReadOrReset(ref _diagRestoreIsEnabledIfCommandDisabledItNoOpCount, reset),
+            ReadOrReset(ref _diagRestoreIsEnabledIfCommandDisabledItClearValueCount, reset),
+            ReadOrReset(ref _diagRestoreIsEnabledIfCommandDisabledItRestoreStoredValueCount, reset));
+    }
+
+    private static void IncrementAggregate(ref long counter)
+    {
+        Interlocked.Increment(ref counter);
+    }
+
+    private static long ReadAggregate(ref long counter)
+    {
+        return Interlocked.Read(ref counter);
+    }
+
+    private static long ResetAggregate(ref long counter)
+    {
+        return Interlocked.Exchange(ref counter, 0);
+    }
+
+    private static long ReadOrReset(ref long counter, bool reset)
+    {
+        return reset ? ResetAggregate(ref counter) : ReadAggregate(ref counter);
+    }
+
+    private static void RecordAggregateElapsed(ref long callCount, ref long elapsedTicks, long start)
+    {
+        IncrementAggregate(ref callCount);
+        Interlocked.Add(ref elapsedTicks, Stopwatch.GetTimestamp() - start);
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 }

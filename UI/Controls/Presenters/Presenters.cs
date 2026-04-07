@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Diagnostics;
+using System.Reflection;
+using System.Threading;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -53,12 +55,181 @@ public class ContentPresenter : FrameworkElement
             typeof(ContentPresenter),
             new FrameworkPropertyMetadata(VerticalAlignment.Top, FrameworkPropertyMetadataOptions.AffectsArrange));
 
+    private static long _diagConstructorCallCount;
+    private static long _diagGetVisualChildrenCallCount;
+    private static long _diagGetVisualChildrenYieldedChildCount;
+    private static long _diagGetVisualChildCountForTraversalCallCount;
+    private static long _diagGetVisualChildAtForTraversalCallCount;
+    private static long _diagGetVisualChildAtForTraversalOutOfRangeCount;
+    private static long _diagGetLogicalChildrenCallCount;
+    private static long _diagGetLogicalChildrenYieldedChildCount;
+    private static long _diagNotifyOwnerContentChangedCallCount;
+    private static long _diagNotifyOwnerContentChangedInvalidatedMeasureCount;
+    private static long _diagDependencyPropertyChangedCallCount;
+    private static long _diagDependencyPropertyChangedRelevantPropertyCount;
+    private static long _diagVisualParentChangedCallCount;
+    private static long _diagLogicalParentChangedCallCount;
+    private static long _diagMeasureOverrideCallCount;
+    private static long _diagMeasureOverrideElapsedTicks;
+    private static long _diagMeasureOverridePresentedElementPathCount;
+    private static long _diagMeasureOverrideNoPresentedElementCount;
+    private static long _diagCanReuseMeasureCallCount;
+    private static long _diagCanReuseMeasureNoPresentedElementCount;
+    private static long _diagCanReuseMeasureDelegatedCount;
+    private static long _diagArrangeOverrideCallCount;
+    private static long _diagArrangeOverrideElapsedTicks;
+    private static long _diagArrangeOverridePresentedElementPathCount;
+    private static long _diagArrangeOverrideNoPresentedElementCount;
+    private static long _diagRefreshSourceBindingCallCount;
+    private static long _diagEnsureSourceBindingCallCount;
+    private static long _diagEnsureSourceBindingElapsedTicks;
+    private static long _diagEnsureSourceBindingOwnerUnchangedCount;
+    private static long _diagEnsureSourceBindingDetachedOwnerCount;
+    private static long _diagEnsureSourceBindingAttachedOwnerCount;
+    private static long _diagEnsureSourceBindingAttachedContentControlCount;
+    private static long _diagOnSourceOwnerPropertyChangedCallCount;
+    private static long _diagOnSourceOwnerPropertyChangedElapsedTicks;
+    private static long _diagOnSourceOwnerPropertyChangedIrrelevantPropertyCount;
+    private static long _diagOnSourceOwnerPropertyChangedRebuiltPresentedElementCount;
+    private static long _diagOnSourceOwnerPropertyChangedRefreshedFallbackTextCount;
+    private static long _diagOnSourceOwnerPropertyChangedInvalidatedArrangeCount;
+    private static long _diagRefreshPresentedElementCallCount;
+    private static long _diagRefreshPresentedElementElapsedTicks;
+    private static long _diagRefreshPresentedElementStateCacheHitCount;
+    private static long _diagRefreshPresentedElementSelectedTemplateCount;
+    private static long _diagRefreshPresentedElementBuiltSameInstanceCount;
+    private static long _diagRefreshPresentedElementDetachedOldElementCount;
+    private static long _diagRefreshPresentedElementAttachedNewElementCount;
+    private static long _diagRefreshPresentedElementChangedCount;
+    private static long _diagIsSourceOwnerPropertyRelevantCallCount;
+    private static long _diagIsSourceOwnerPropertyRelevantContentMatchCount;
+    private static long _diagIsSourceOwnerPropertyRelevantTemplateMatchCount;
+    private static long _diagIsSourceOwnerPropertyRelevantTemplateSelectorMatchCount;
+    private static long _diagIsSourceOwnerPropertyRelevantStyleMatchCount;
+    private static long _diagIsSourceOwnerPropertyRelevantFalseCount;
+    private static long _diagBuildContentElementCallCount;
+    private static long _diagBuildContentElementElapsedTicks;
+    private static long _diagBuildContentElementUiElementPathCount;
+    private static long _diagBuildContentElementTemplatePathCount;
+    private static long _diagBuildContentElementAccessTextPathCount;
+    private static long _diagBuildContentElementLabelPathCount;
+    private static long _diagBuildContentElementNullPathCount;
+    private static long _diagBuildContentElementCycleGuardCount;
+    private static long _diagResolveAccessKeyTargetCallCount;
+    private static long _diagResolveAccessKeyTargetLabelPathCount;
+    private static long _diagResolveAccessKeyTargetRecognizesAccessKeyPathCount;
+    private static long _diagResolveAccessKeyTargetNoTargetCount;
+    private static long _diagTryRefreshFallbackTextStylingCallCount;
+    private static long _diagTryRefreshFallbackTextStylingNoContentCount;
+    private static long _diagTryRefreshFallbackTextStylingUiElementPathCount;
+    private static long _diagTryRefreshFallbackTextStylingTemplatePathCount;
+    private static long _diagTryRefreshFallbackTextStylingLabelPathCount;
+    private static long _diagTryRefreshFallbackTextStylingTextBlockPathCount;
+    private static long _diagTryRefreshFallbackTextStylingNoMatchCount;
+    private static long _diagWouldCreatePresentationCycleCallCount;
+    private static long _diagWouldCreatePresentationCycleCurrentPresentedReuseCount;
+    private static long _diagWouldCreatePresentationCycleSelfCount;
+    private static long _diagWouldCreatePresentationCycleAncestorMatchCount;
+    private static long _diagWouldCreatePresentationCycleDescendantMatchCount;
+    private static long _diagWouldCreatePresentationCycleFalseCount;
+    private static long _diagFindSourceOwnerCallCount;
+    private static long _diagFindSourceOwnerElapsedTicks;
+    private static long _diagFindSourceOwnerAncestorProbeCount;
+    private static long _diagFindSourceOwnerPropertyMatchCount;
+    private static long _diagFindSourceOwnerSelfOwnerSkipCount;
+    private static long _diagFindSourceOwnerGetterFailureCount;
+    private static long _diagFindSourceOwnerFoundCount;
+    private static long _diagFindSourceOwnerNotFoundCount;
+    private static long _diagFindReadablePropertyCallCount;
+    private static long _diagFindReadablePropertyElapsedTicks;
+    private static long _diagFindReadablePropertyMatchedCount;
+    private static long _diagFindReadablePropertyNotFoundCount;
+
     private UIElement? _presentedElement;
     private DependencyObject? _sourceOwner;
     private object? _lastEffectiveContent;
     private DataTemplate? _lastEffectiveTemplate;
     private DataTemplateSelector? _lastEffectiveTemplateSelector;
     private bool _hasEffectivePresentationState;
+    private long _runtimeGetVisualChildrenCallCount;
+    private long _runtimeGetVisualChildrenYieldedChildCount;
+    private long _runtimeGetVisualChildCountForTraversalCallCount;
+    private long _runtimeGetVisualChildAtForTraversalCallCount;
+    private long _runtimeGetVisualChildAtForTraversalOutOfRangeCount;
+    private long _runtimeGetLogicalChildrenCallCount;
+    private long _runtimeGetLogicalChildrenYieldedChildCount;
+    private long _runtimeNotifyOwnerContentChangedCallCount;
+    private long _runtimeNotifyOwnerContentChangedInvalidatedMeasureCount;
+    private long _runtimeDependencyPropertyChangedCallCount;
+    private long _runtimeDependencyPropertyChangedRelevantPropertyCount;
+    private long _runtimeVisualParentChangedCallCount;
+    private long _runtimeLogicalParentChangedCallCount;
+    private long _runtimeMeasureOverrideCallCount;
+    private long _runtimeMeasureOverrideElapsedTicks;
+    private long _runtimeMeasureOverridePresentedElementPathCount;
+    private long _runtimeMeasureOverrideNoPresentedElementCount;
+    private long _runtimeCanReuseMeasureCallCount;
+    private long _runtimeCanReuseMeasureNoPresentedElementCount;
+    private long _runtimeCanReuseMeasureDelegatedCount;
+    private long _runtimeArrangeOverrideCallCount;
+    private long _runtimeArrangeOverrideElapsedTicks;
+    private long _runtimeArrangeOverridePresentedElementPathCount;
+    private long _runtimeArrangeOverrideNoPresentedElementCount;
+    private long _runtimeRefreshSourceBindingCallCount;
+    private long _runtimeEnsureSourceBindingCallCount;
+    private long _runtimeEnsureSourceBindingElapsedTicks;
+    private long _runtimeEnsureSourceBindingOwnerUnchangedCount;
+    private long _runtimeEnsureSourceBindingDetachedOwnerCount;
+    private long _runtimeEnsureSourceBindingAttachedOwnerCount;
+    private long _runtimeEnsureSourceBindingAttachedContentControlCount;
+    private long _runtimeOnSourceOwnerPropertyChangedCallCount;
+    private long _runtimeOnSourceOwnerPropertyChangedElapsedTicks;
+    private long _runtimeOnSourceOwnerPropertyChangedIrrelevantPropertyCount;
+    private long _runtimeOnSourceOwnerPropertyChangedRebuiltPresentedElementCount;
+    private long _runtimeOnSourceOwnerPropertyChangedRefreshedFallbackTextCount;
+    private long _runtimeOnSourceOwnerPropertyChangedInvalidatedArrangeCount;
+    private long _runtimeRefreshPresentedElementCallCount;
+    private long _runtimeRefreshPresentedElementElapsedTicks;
+    private long _runtimeRefreshPresentedElementStateCacheHitCount;
+    private long _runtimeRefreshPresentedElementSelectedTemplateCount;
+    private long _runtimeRefreshPresentedElementBuiltSameInstanceCount;
+    private long _runtimeRefreshPresentedElementDetachedOldElementCount;
+    private long _runtimeRefreshPresentedElementAttachedNewElementCount;
+    private long _runtimeRefreshPresentedElementChangedCount;
+    private long _runtimeBuildContentElementCallCount;
+    private long _runtimeBuildContentElementElapsedTicks;
+    private long _runtimeBuildContentElementUiElementPathCount;
+    private long _runtimeBuildContentElementTemplatePathCount;
+    private long _runtimeBuildContentElementAccessTextPathCount;
+    private long _runtimeBuildContentElementLabelPathCount;
+    private long _runtimeBuildContentElementNullPathCount;
+    private long _runtimeBuildContentElementCycleGuardCount;
+    private long _runtimeTryRefreshFallbackTextStylingCallCount;
+    private long _runtimeTryRefreshFallbackTextStylingNoContentCount;
+    private long _runtimeTryRefreshFallbackTextStylingUiElementPathCount;
+    private long _runtimeTryRefreshFallbackTextStylingTemplatePathCount;
+    private long _runtimeTryRefreshFallbackTextStylingLabelPathCount;
+    private long _runtimeTryRefreshFallbackTextStylingTextBlockPathCount;
+    private long _runtimeTryRefreshFallbackTextStylingNoMatchCount;
+    private long _runtimeWouldCreatePresentationCycleCallCount;
+    private long _runtimeWouldCreatePresentationCycleCurrentPresentedReuseCount;
+    private long _runtimeWouldCreatePresentationCycleSelfCount;
+    private long _runtimeWouldCreatePresentationCycleAncestorMatchCount;
+    private long _runtimeWouldCreatePresentationCycleDescendantMatchCount;
+    private long _runtimeWouldCreatePresentationCycleFalseCount;
+    private long _runtimeFindSourceOwnerCallCount;
+    private long _runtimeFindSourceOwnerElapsedTicks;
+    private long _runtimeFindSourceOwnerAncestorProbeCount;
+    private long _runtimeFindSourceOwnerPropertyMatchCount;
+    private long _runtimeFindSourceOwnerSelfOwnerSkipCount;
+    private long _runtimeFindSourceOwnerGetterFailureCount;
+    private long _runtimeFindSourceOwnerFoundCount;
+    private long _runtimeFindSourceOwnerNotFoundCount;
+
+    public ContentPresenter()
+    {
+        IncrementAggregate(ref _diagConstructorCallCount);
+    }
 
     public object? Content
     {
@@ -98,51 +269,63 @@ public class ContentPresenter : FrameworkElement
 
     public override IEnumerable<UIElement> GetVisualChildren()
     {
+        IncrementMetric(ref _runtimeGetVisualChildrenCallCount, ref _diagGetVisualChildrenCallCount);
         if (_presentedElement != null)
         {
+            IncrementMetric(ref _runtimeGetVisualChildrenYieldedChildCount, ref _diagGetVisualChildrenYieldedChildCount);
             yield return _presentedElement;
         }
     }
 
     internal override int GetVisualChildCountForTraversal()
     {
+        IncrementMetric(ref _runtimeGetVisualChildCountForTraversalCallCount, ref _diagGetVisualChildCountForTraversalCallCount);
         return _presentedElement != null ? 1 : 0;
     }
 
     internal override UIElement GetVisualChildAtForTraversal(int index)
     {
+        IncrementMetric(ref _runtimeGetVisualChildAtForTraversalCallCount, ref _diagGetVisualChildAtForTraversalCallCount);
         if (index == 0 && _presentedElement != null)
         {
             return _presentedElement;
         }
+
+        IncrementMetric(ref _runtimeGetVisualChildAtForTraversalOutOfRangeCount, ref _diagGetVisualChildAtForTraversalOutOfRangeCount);
 
         throw new ArgumentOutOfRangeException(nameof(index));
     }
 
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
+        IncrementMetric(ref _runtimeGetLogicalChildrenCallCount, ref _diagGetLogicalChildrenCallCount);
         if (_presentedElement != null)
         {
+            IncrementMetric(ref _runtimeGetLogicalChildrenYieldedChildCount, ref _diagGetLogicalChildrenYieldedChildCount);
             yield return _presentedElement;
         }
     }
 
     internal void NotifyOwnerContentChanged()
     {
+        IncrementMetric(ref _runtimeNotifyOwnerContentChangedCallCount, ref _diagNotifyOwnerContentChangedCallCount);
         if (RefreshPresentedElement())
         {
+            IncrementMetric(ref _runtimeNotifyOwnerContentChangedInvalidatedMeasureCount, ref _diagNotifyOwnerContentChangedInvalidatedMeasureCount);
             InvalidateMeasure();
         }
     }
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
     {
+        IncrementMetric(ref _runtimeDependencyPropertyChangedCallCount, ref _diagDependencyPropertyChangedCallCount);
         base.OnDependencyPropertyChanged(args);
         if (args.Property == ContentProperty ||
             args.Property == ContentTemplateProperty ||
             args.Property == ContentTemplateSelectorProperty ||
             args.Property == ContentSourceProperty)
         {
+            IncrementMetric(ref _runtimeDependencyPropertyChangedRelevantPropertyCount, ref _diagDependencyPropertyChangedRelevantPropertyCount);
             RefreshSourceBinding();
             if (RefreshPresentedElement())
             {
@@ -153,6 +336,7 @@ public class ContentPresenter : FrameworkElement
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
+        IncrementMetric(ref _runtimeVisualParentChangedCallCount, ref _diagVisualParentChangedCallCount);
         base.OnVisualParentChanged(oldParent, newParent);
         RefreshSourceBinding();
         if (RefreshPresentedElement())
@@ -163,6 +347,7 @@ public class ContentPresenter : FrameworkElement
 
     protected override void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
     {
+        IncrementMetric(ref _runtimeLogicalParentChangedCallCount, ref _diagLogicalParentChangedCallCount);
         base.OnLogicalParentChanged(oldParent, newParent);
         RefreshSourceBinding();
         if (RefreshPresentedElement())
@@ -173,152 +358,226 @@ public class ContentPresenter : FrameworkElement
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var start = Stopwatch.GetTimestamp();
+        IncrementMetric(ref _runtimeMeasureOverrideCallCount, ref _diagMeasureOverrideCallCount);
         EnsureSourceBinding();
-        if (_presentedElement is FrameworkElement element)
+        try
         {
-            element.Measure(availableSize);
-            return element.DesiredSize;
-        }
+            if (_presentedElement is FrameworkElement element)
+            {
+                IncrementMetric(ref _runtimeMeasureOverridePresentedElementPathCount, ref _diagMeasureOverridePresentedElementPathCount);
+                element.Measure(availableSize);
+                return element.DesiredSize;
+            }
 
-        return Vector2.Zero;
+            IncrementMetric(ref _runtimeMeasureOverrideNoPresentedElementCount, ref _diagMeasureOverrideNoPresentedElementCount);
+            return Vector2.Zero;
+        }
+        finally
+        {
+            AddMetric(ref _runtimeMeasureOverrideElapsedTicks, ref _diagMeasureOverrideElapsedTicks, Stopwatch.GetTimestamp() - start);
+        }
     }
 
     protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
+        IncrementMetric(ref _runtimeCanReuseMeasureCallCount, ref _diagCanReuseMeasureCallCount);
         EnsureSourceBinding();
         if (_presentedElement is not FrameworkElement element)
         {
+            IncrementMetric(ref _runtimeCanReuseMeasureNoPresentedElementCount, ref _diagCanReuseMeasureNoPresentedElementCount);
             return true;
         }
 
+        IncrementMetric(ref _runtimeCanReuseMeasureDelegatedCount, ref _diagCanReuseMeasureDelegatedCount);
         return element.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize);
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
+        var start = Stopwatch.GetTimestamp();
+        IncrementMetric(ref _runtimeArrangeOverrideCallCount, ref _diagArrangeOverrideCallCount);
         EnsureSourceBinding();
-        if (_presentedElement is FrameworkElement element)
+        try
         {
-            var horizontalAlignment = ResolveEffectiveHorizontalContentAlignment();
-            var verticalAlignment = ResolveEffectiveVerticalContentAlignment();
-            var childWidth = ResolveAlignedSize(finalSize.X, element.DesiredSize.X, horizontalAlignment);
-            var childHeight = ResolveAlignedSize(finalSize.Y, element.DesiredSize.Y, verticalAlignment);
-            var childX = ResolveAlignedPosition(LayoutSlot.X, finalSize.X, childWidth, horizontalAlignment);
-            var childY = ResolveAlignedPosition(LayoutSlot.Y, finalSize.Y, childHeight, verticalAlignment);
-            element.Arrange(new LayoutRect(childX, childY, childWidth, childHeight));
-        }
+            if (_presentedElement is FrameworkElement element)
+            {
+                IncrementMetric(ref _runtimeArrangeOverridePresentedElementPathCount, ref _diagArrangeOverridePresentedElementPathCount);
+                var horizontalAlignment = ResolveEffectiveHorizontalContentAlignment();
+                var verticalAlignment = ResolveEffectiveVerticalContentAlignment();
+                var childWidth = ResolveAlignedSize(finalSize.X, element.DesiredSize.X, horizontalAlignment);
+                var childHeight = ResolveAlignedSize(finalSize.Y, element.DesiredSize.Y, verticalAlignment);
+                var childX = ResolveAlignedPosition(LayoutSlot.X, finalSize.X, childWidth, horizontalAlignment);
+                var childY = ResolveAlignedPosition(LayoutSlot.Y, finalSize.Y, childHeight, verticalAlignment);
+                element.Arrange(new LayoutRect(childX, childY, childWidth, childHeight));
+            }
+            else
+            {
+                IncrementMetric(ref _runtimeArrangeOverrideNoPresentedElementCount, ref _diagArrangeOverrideNoPresentedElementCount);
+            }
 
-        return finalSize;
+            return finalSize;
+        }
+        finally
+        {
+            AddMetric(ref _runtimeArrangeOverrideElapsedTicks, ref _diagArrangeOverrideElapsedTicks, Stopwatch.GetTimestamp() - start);
+        }
     }
 
     private void RefreshSourceBinding()
     {
+        IncrementMetric(ref _runtimeRefreshSourceBindingCallCount, ref _diagRefreshSourceBindingCallCount);
         EnsureSourceBinding();
     }
 
     private void EnsureSourceBinding()
     {
+        var start = Stopwatch.GetTimestamp();
+        IncrementMetric(ref _runtimeEnsureSourceBindingCallCount, ref _diagEnsureSourceBindingCallCount);
         var foundOwner = FindSourceOwner();
-        if (ReferenceEquals(foundOwner, _sourceOwner))
+        try
         {
-            return;
-        }
-
-        if (_sourceOwner != null)
-        {
-            _sourceOwner.DependencyPropertyChanged -= OnSourceOwnerPropertyChanged;
-            if (_sourceOwner is ContentControl oldContentControl)
+            if (ReferenceEquals(foundOwner, _sourceOwner))
             {
-                oldContentControl.DetachContentPresenter(this);
+                IncrementMetric(ref _runtimeEnsureSourceBindingOwnerUnchangedCount, ref _diagEnsureSourceBindingOwnerUnchangedCount);
+                return;
             }
-        }
 
-        _sourceOwner = foundOwner;
-        if (_sourceOwner != null)
-        {
-            _sourceOwner.DependencyPropertyChanged += OnSourceOwnerPropertyChanged;
-            if (_sourceOwner is ContentControl contentControl && string.Equals(ContentSource, "Content", StringComparison.Ordinal))
+            if (_sourceOwner != null)
             {
-                contentControl.AttachContentPresenter(this);
+                IncrementMetric(ref _runtimeEnsureSourceBindingDetachedOwnerCount, ref _diagEnsureSourceBindingDetachedOwnerCount);
+                _sourceOwner.DependencyPropertyChanged -= OnSourceOwnerPropertyChanged;
+                if (_sourceOwner is ContentControl oldContentControl)
+                {
+                    oldContentControl.DetachContentPresenter(this);
+                }
             }
-        }
 
-        RefreshPresentedElement();
+            _sourceOwner = foundOwner;
+            if (_sourceOwner != null)
+            {
+                IncrementMetric(ref _runtimeEnsureSourceBindingAttachedOwnerCount, ref _diagEnsureSourceBindingAttachedOwnerCount);
+                _sourceOwner.DependencyPropertyChanged += OnSourceOwnerPropertyChanged;
+                if (_sourceOwner is ContentControl contentControl && string.Equals(ContentSource, "Content", StringComparison.Ordinal))
+                {
+                    IncrementMetric(ref _runtimeEnsureSourceBindingAttachedContentControlCount, ref _diagEnsureSourceBindingAttachedContentControlCount);
+                    contentControl.AttachContentPresenter(this);
+                }
+            }
+
+            RefreshPresentedElement();
+        }
+        finally
+        {
+            AddMetric(ref _runtimeEnsureSourceBindingElapsedTicks, ref _diagEnsureSourceBindingElapsedTicks, Stopwatch.GetTimestamp() - start);
+        }
     }
 
     private void OnSourceOwnerPropertyChanged(object? sender, DependencyPropertyChangedEventArgs args)
     {
-        if (!IsSourceOwnerPropertyRelevant(args.Property))
+        var start = Stopwatch.GetTimestamp();
+        IncrementMetric(ref _runtimeOnSourceOwnerPropertyChangedCallCount, ref _diagOnSourceOwnerPropertyChangedCallCount);
+        try
         {
-            return;
-        }
-
-        var rebuiltPresentedElement = RefreshPresentedElement();
-        if (rebuiltPresentedElement)
-        {
-            InvalidateMeasure();
-            return;
-        }
-
-        var refreshedFallbackText = TryRefreshFallbackTextStyling(args.Property);
-        if (refreshedFallbackText)
-        {
-            if (!IsForegroundProperty(args.Property))
+            if (!IsSourceOwnerPropertyRelevant(args.Property))
             {
-                InvalidateMeasure();
-                InvalidateVisual();
+                IncrementMetric(ref _runtimeOnSourceOwnerPropertyChangedIrrelevantPropertyCount, ref _diagOnSourceOwnerPropertyChangedIrrelevantPropertyCount);
+                return;
             }
 
-            return;
-        }
+            var rebuiltPresentedElement = RefreshPresentedElement();
+            if (rebuiltPresentedElement)
+            {
+                IncrementMetric(ref _runtimeOnSourceOwnerPropertyChangedRebuiltPresentedElementCount, ref _diagOnSourceOwnerPropertyChangedRebuiltPresentedElementCount);
+                InvalidateMeasure();
+                return;
+            }
 
-        if (IsContentAlignmentProperty(args.Property))
+            var refreshedFallbackText = TryRefreshFallbackTextStyling(args.Property);
+            if (refreshedFallbackText)
+            {
+                IncrementMetric(ref _runtimeOnSourceOwnerPropertyChangedRefreshedFallbackTextCount, ref _diagOnSourceOwnerPropertyChangedRefreshedFallbackTextCount);
+                if (!IsForegroundProperty(args.Property))
+                {
+                    InvalidateMeasure();
+                    InvalidateVisual();
+                }
+
+                return;
+            }
+
+            if (IsContentAlignmentProperty(args.Property))
+            {
+                IncrementMetric(ref _runtimeOnSourceOwnerPropertyChangedInvalidatedArrangeCount, ref _diagOnSourceOwnerPropertyChangedInvalidatedArrangeCount);
+                InvalidateArrange();
+            }
+        }
+        finally
         {
-            InvalidateArrange();
+            AddMetric(ref _runtimeOnSourceOwnerPropertyChangedElapsedTicks, ref _diagOnSourceOwnerPropertyChangedElapsedTicks, Stopwatch.GetTimestamp() - start);
         }
     }
 
     private bool RefreshPresentedElement()
     {
+        var start = Stopwatch.GetTimestamp();
+        IncrementMetric(ref _runtimeRefreshPresentedElementCallCount, ref _diagRefreshPresentedElementCallCount);
         var content = ResolveEffectiveContent();
         var template = ResolveEffectiveTemplate();
         var selector = ResolveEffectiveTemplateSelector();
-        if (_hasEffectivePresentationState &&
-            Equals(_lastEffectiveContent, content) &&
-            ReferenceEquals(_lastEffectiveTemplate, template) &&
-            ReferenceEquals(_lastEffectiveTemplateSelector, selector))
+        try
         {
-            return false;
-        }
+            if (_hasEffectivePresentationState &&
+                Equals(_lastEffectiveContent, content) &&
+                ReferenceEquals(_lastEffectiveTemplate, template) &&
+                ReferenceEquals(_lastEffectiveTemplateSelector, selector))
+            {
+                IncrementMetric(ref _runtimeRefreshPresentedElementStateCacheHitCount, ref _diagRefreshPresentedElementStateCacheHitCount);
+                return false;
+            }
 
-        var selectedTemplate = DataTemplateResolver.ResolveTemplateForContent(
-            this,
-            content,
-            template,
-            selector,
-            this);
-        var built = BuildContentElement(content, selectedTemplate);
-        if (ReferenceEquals(_presentedElement, built))
-        {
+            var selectedTemplate = DataTemplateResolver.ResolveTemplateForContent(
+                this,
+                content,
+                template,
+                selector,
+                this);
+            if (selectedTemplate != null)
+            {
+                IncrementMetric(ref _runtimeRefreshPresentedElementSelectedTemplateCount, ref _diagRefreshPresentedElementSelectedTemplateCount);
+            }
+
+            var built = BuildContentElement(content, selectedTemplate);
+            if (ReferenceEquals(_presentedElement, built))
+            {
+                IncrementMetric(ref _runtimeRefreshPresentedElementBuiltSameInstanceCount, ref _diagRefreshPresentedElementBuiltSameInstanceCount);
+                CacheEffectivePresentationState(content, template, selector);
+                return false;
+            }
+
+            if (_presentedElement != null)
+            {
+                IncrementMetric(ref _runtimeRefreshPresentedElementDetachedOldElementCount, ref _diagRefreshPresentedElementDetachedOldElementCount);
+                _presentedElement.SetVisualParent(null);
+                _presentedElement.SetLogicalParent(null);
+            }
+
+            _presentedElement = built;
+            if (_presentedElement != null)
+            {
+                IncrementMetric(ref _runtimeRefreshPresentedElementAttachedNewElementCount, ref _diagRefreshPresentedElementAttachedNewElementCount);
+                _presentedElement.SetVisualParent(this);
+                _presentedElement.SetLogicalParent(this);
+            }
+
             CacheEffectivePresentationState(content, template, selector);
-            return false;
+            IncrementMetric(ref _runtimeRefreshPresentedElementChangedCount, ref _diagRefreshPresentedElementChangedCount);
+            return true;
         }
-
-        if (_presentedElement != null)
+        finally
         {
-            _presentedElement.SetVisualParent(null);
-            _presentedElement.SetLogicalParent(null);
+            AddMetric(ref _runtimeRefreshPresentedElementElapsedTicks, ref _diagRefreshPresentedElementElapsedTicks, Stopwatch.GetTimestamp() - start);
         }
-
-        _presentedElement = built;
-        if (_presentedElement != null)
-        {
-            _presentedElement.SetVisualParent(this);
-            _presentedElement.SetLogicalParent(this);
-        }
-
-        CacheEffectivePresentationState(content, template, selector);
-        return true;
     }
 
     private void CacheEffectivePresentationState(object? content, DataTemplate? template, DataTemplateSelector? selector)
@@ -331,6 +590,7 @@ public class ContentPresenter : FrameworkElement
 
     private bool IsSourceOwnerPropertyRelevant(DependencyProperty property)
     {
+        IncrementAggregate(ref _diagIsSourceOwnerPropertyRelevantCallCount);
         var contentSource = ContentSource;
         if (string.IsNullOrEmpty(contentSource))
         {
@@ -340,18 +600,21 @@ public class ContentPresenter : FrameworkElement
         if (!HasLocalValue(ContentProperty) &&
             string.Equals(property.Name, contentSource, StringComparison.Ordinal))
         {
+            IncrementAggregate(ref _diagIsSourceOwnerPropertyRelevantContentMatchCount);
             return true;
         }
 
         if (!HasLocalValue(ContentTemplateProperty) &&
             string.Equals(property.Name, contentSource + "Template", StringComparison.Ordinal))
         {
+            IncrementAggregate(ref _diagIsSourceOwnerPropertyRelevantTemplateMatchCount);
             return true;
         }
 
         if (!HasLocalValue(ContentTemplateSelectorProperty) &&
             string.Equals(property.Name, contentSource + "TemplateSelector", StringComparison.Ordinal))
         {
+            IncrementAggregate(ref _diagIsSourceOwnerPropertyRelevantTemplateSelectorMatchCount);
             return true;
         }
 
@@ -363,9 +626,11 @@ public class ContentPresenter : FrameworkElement
             string.Equals(property.Name, nameof(Control.HorizontalContentAlignment), StringComparison.Ordinal) ||
             string.Equals(property.Name, nameof(Control.VerticalContentAlignment), StringComparison.Ordinal))
         {
+            IncrementAggregate(ref _diagIsSourceOwnerPropertyRelevantStyleMatchCount);
             return true;
         }
 
+        IncrementAggregate(ref _diagIsSourceOwnerPropertyRelevantFalseCount);
         return false;
     }
 
@@ -431,92 +696,139 @@ public class ContentPresenter : FrameworkElement
 
     private UIElement? BuildContentElement(object? content, DataTemplate? template)
     {
+        var start = Stopwatch.GetTimestamp();
+        IncrementMetric(ref _runtimeBuildContentElementCallCount, ref _diagBuildContentElementCallCount);
         if (content is UIElement uiElement)
         {
-            if (WouldCreatePresentationCycle(uiElement))
+            try
             {
-                return BuildCycleGuardLabel(content);
-            }
+                IncrementMetric(ref _runtimeBuildContentElementUiElementPathCount, ref _diagBuildContentElementUiElementPathCount);
+                if (WouldCreatePresentationCycle(uiElement))
+                {
+                    IncrementMetric(ref _runtimeBuildContentElementCycleGuardCount, ref _diagBuildContentElementCycleGuardCount);
+                    return BuildCycleGuardLabel(content);
+                }
 
-            return uiElement;
+                return uiElement;
+            }
+            finally
+            {
+                AddMetric(ref _runtimeBuildContentElementElapsedTicks, ref _diagBuildContentElementElapsedTicks, Stopwatch.GetTimestamp() - start);
+            }
         }
 
         if (template != null)
         {
-            var built = template.Build(content, this);
-            if (built != null && WouldCreatePresentationCycle(built))
+            try
             {
-                return BuildCycleGuardLabel(content);
-            }
+                IncrementMetric(ref _runtimeBuildContentElementTemplatePathCount, ref _diagBuildContentElementTemplatePathCount);
+                var built = template.Build(content, this);
+                if (built != null && WouldCreatePresentationCycle(built))
+                {
+                    IncrementMetric(ref _runtimeBuildContentElementCycleGuardCount, ref _diagBuildContentElementCycleGuardCount);
+                    return BuildCycleGuardLabel(content);
+                }
 
-            return built;
+                return built;
+            }
+            finally
+            {
+                AddMetric(ref _runtimeBuildContentElementElapsedTicks, ref _diagBuildContentElementElapsedTicks, Stopwatch.GetTimestamp() - start);
+            }
         }
 
         if (content != null)
         {
-            if (RecognizesAccessKey)
+            try
             {
-                var accessText = new AccessText
+                if (RecognizesAccessKey)
                 {
-                    Text = content.ToString() ?? string.Empty
+                    IncrementMetric(ref _runtimeBuildContentElementAccessTextPathCount, ref _diagBuildContentElementAccessTextPathCount);
+                    var accessText = new AccessText
+                    {
+                        Text = content.ToString() ?? string.Empty
+                    };
+
+                    ApplyFallbackTextBlockStyling(accessText, changedProperty: null);
+                    return accessText;
+                }
+
+                IncrementMetric(ref _runtimeBuildContentElementLabelPathCount, ref _diagBuildContentElementLabelPathCount);
+                var label = new Label
+                {
+                    Content = content.ToString() ?? string.Empty
                 };
-
-                ApplyFallbackTextBlockStyling(accessText, changedProperty: null);
-                return accessText;
+                ApplyFallbackLabelStyling(label, changedProperty: null);
+                return label;
             }
-
-            var label = new Label
+            finally
             {
-                Content = content.ToString() ?? string.Empty
-            };
-            ApplyFallbackLabelStyling(label, changedProperty: null);
-            return label;
+                AddMetric(ref _runtimeBuildContentElementElapsedTicks, ref _diagBuildContentElementElapsedTicks, Stopwatch.GetTimestamp() - start);
+            }
         }
 
+        IncrementMetric(ref _runtimeBuildContentElementNullPathCount, ref _diagBuildContentElementNullPathCount);
+        AddMetric(ref _runtimeBuildContentElementElapsedTicks, ref _diagBuildContentElementElapsedTicks, Stopwatch.GetTimestamp() - start);
         return null;
     }
 
     internal UIElement? ResolveAccessKeyTarget()
     {
+        IncrementAggregate(ref _diagResolveAccessKeyTargetCallCount);
         if (_sourceOwner is Label label)
         {
+            IncrementAggregate(ref _diagResolveAccessKeyTargetLabelPathCount);
             return label.ResolveAccessKeyTarget();
         }
 
         if (_sourceOwner is FrameworkElement frameworkElement &&
             frameworkElement.RecognizesAccessKey)
         {
+            IncrementAggregate(ref _diagResolveAccessKeyTargetRecognizesAccessKeyPathCount);
             return frameworkElement;
         }
 
+        IncrementAggregate(ref _diagResolveAccessKeyTargetNoTargetCount);
         return null;
     }
 
     private bool TryRefreshFallbackTextStyling(DependencyProperty? changedProperty = null)
     {
+        IncrementMetric(ref _runtimeTryRefreshFallbackTextStylingCallCount, ref _diagTryRefreshFallbackTextStylingCallCount);
         var content = ResolveEffectiveContent();
-        if (content == null || content is UIElement)
+        if (content == null)
         {
+            IncrementMetric(ref _runtimeTryRefreshFallbackTextStylingNoContentCount, ref _diagTryRefreshFallbackTextStylingNoContentCount);
+            return false;
+        }
+
+        if (content is UIElement)
+        {
+            IncrementMetric(ref _runtimeTryRefreshFallbackTextStylingUiElementPathCount, ref _diagTryRefreshFallbackTextStylingUiElementPathCount);
             return false;
         }
 
         if (ResolveEffectiveTemplate() != null)
         {
+            IncrementMetric(ref _runtimeTryRefreshFallbackTextStylingTemplatePathCount, ref _diagTryRefreshFallbackTextStylingTemplatePathCount);
             return false;
         }
 
         if (_presentedElement is Label label && !RecognizesAccessKey)
         {
+            IncrementMetric(ref _runtimeTryRefreshFallbackTextStylingLabelPathCount, ref _diagTryRefreshFallbackTextStylingLabelPathCount);
             ApplyFallbackLabelStyling(label, changedProperty);
             return true;
         }
 
         if (_presentedElement is TextBlock textBlock && RecognizesAccessKey)
         {
+            IncrementMetric(ref _runtimeTryRefreshFallbackTextStylingTextBlockPathCount, ref _diagTryRefreshFallbackTextStylingTextBlockPathCount);
             ApplyFallbackTextBlockStyling(textBlock, changedProperty);
             return true;
         }
 
+        IncrementMetric(ref _runtimeTryRefreshFallbackTextStylingNoMatchCount, ref _diagTryRefreshFallbackTextStylingNoMatchCount);
         return false;
     }
 
@@ -670,15 +982,18 @@ public class ContentPresenter : FrameworkElement
 
     private bool WouldCreatePresentationCycle(UIElement candidate)
     {
+        IncrementMetric(ref _runtimeWouldCreatePresentationCycleCallCount, ref _diagWouldCreatePresentationCycleCallCount);
         // Reusing the currently presented element is valid; this happens during
         // refresh passes where content did not materially change.
         if (ReferenceEquals(candidate, _presentedElement))
         {
+            IncrementMetric(ref _runtimeWouldCreatePresentationCycleCurrentPresentedReuseCount, ref _diagWouldCreatePresentationCycleCurrentPresentedReuseCount);
             return false;
         }
 
         if (ReferenceEquals(candidate, this))
         {
+            IncrementMetric(ref _runtimeWouldCreatePresentationCycleSelfCount, ref _diagWouldCreatePresentationCycleSelfCount);
             return true;
         }
 
@@ -686,6 +1001,7 @@ public class ContentPresenter : FrameworkElement
         {
             if (ReferenceEquals(current, candidate))
             {
+                IncrementMetric(ref _runtimeWouldCreatePresentationCycleAncestorMatchCount, ref _diagWouldCreatePresentationCycleAncestorMatchCount);
                 return true;
             }
         }
@@ -694,10 +1010,12 @@ public class ContentPresenter : FrameworkElement
         {
             if (ReferenceEquals(current, this))
             {
+                IncrementMetric(ref _runtimeWouldCreatePresentationCycleDescendantMatchCount, ref _diagWouldCreatePresentationCycleDescendantMatchCount);
                 return true;
             }
         }
 
+        IncrementMetric(ref _runtimeWouldCreatePresentationCycleFalseCount, ref _diagWouldCreatePresentationCycleFalseCount);
         return false;
     }
 
@@ -709,65 +1027,323 @@ public class ContentPresenter : FrameworkElement
 
     private DependencyObject? FindSourceOwner()
     {
-        for (var current = LogicalParent ?? VisualParent; current != null; current = current.LogicalParent ?? current.VisualParent)
+        var start = Stopwatch.GetTimestamp();
+        IncrementMetric(ref _runtimeFindSourceOwnerCallCount, ref _diagFindSourceOwnerCallCount);
+        try
         {
-            if (current is not DependencyObject dependencyObject)
+            for (var current = LogicalParent ?? VisualParent; current != null; current = current.LogicalParent ?? current.VisualParent)
             {
-                continue;
-            }
-
-            var property = FindReadableProperty(current.GetType(), ContentSource);
-            if (property != null)
-            {
-                try
+                if (current is not DependencyObject dependencyObject)
                 {
-                    var value = property.GetValue(current);
-                    if (ReferenceEquals(value, this))
+                    continue;
+                }
+
+                IncrementMetric(ref _runtimeFindSourceOwnerAncestorProbeCount, ref _diagFindSourceOwnerAncestorProbeCount);
+
+                var property = FindReadableProperty(current.GetType(), ContentSource);
+                if (property != null)
+                {
+                    IncrementMetric(ref _runtimeFindSourceOwnerPropertyMatchCount, ref _diagFindSourceOwnerPropertyMatchCount);
+                    try
                     {
-                        // Avoid self-owner cycles (for example host.Content == this presenter).
-                        continue;
+                        var value = property.GetValue(current);
+                        if (ReferenceEquals(value, this))
+                        {
+                            IncrementMetric(ref _runtimeFindSourceOwnerSelfOwnerSkipCount, ref _diagFindSourceOwnerSelfOwnerSkipCount);
+                            // Avoid self-owner cycles (for example host.Content == this presenter).
+                            continue;
+                        }
                     }
-                }
-                catch
-                {
-                    // Ignore reflective getter failures and continue owner probing.
-                }
+                    catch
+                    {
+                        IncrementMetric(ref _runtimeFindSourceOwnerGetterFailureCount, ref _diagFindSourceOwnerGetterFailureCount);
+                        // Ignore reflective getter failures and continue owner probing.
+                    }
 
-                return dependencyObject;
+                    IncrementMetric(ref _runtimeFindSourceOwnerFoundCount, ref _diagFindSourceOwnerFoundCount);
+                    return dependencyObject;
+                }
             }
-        }
 
-        return null;
+            IncrementMetric(ref _runtimeFindSourceOwnerNotFoundCount, ref _diagFindSourceOwnerNotFoundCount);
+            return null;
+        }
+        finally
+        {
+            AddMetric(ref _runtimeFindSourceOwnerElapsedTicks, ref _diagFindSourceOwnerElapsedTicks, Stopwatch.GetTimestamp() - start);
+        }
     }
 
     private static PropertyInfo? FindReadableProperty(Type type, string propertyName)
     {
-        for (var current = type; current != null; current = current.BaseType)
+        var start = Stopwatch.GetTimestamp();
+        IncrementAggregate(ref _diagFindReadablePropertyCallCount);
+        try
         {
-            var direct = current.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
-            for (var i = 0; i < direct.Length; i++)
+            for (var current = type; current != null; current = current.BaseType)
             {
-                var property = direct[i];
-                if (!string.Equals(property.Name, propertyName, StringComparison.Ordinal))
+                var direct = current.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
+                for (var i = 0; i < direct.Length; i++)
                 {
-                    continue;
-                }
+                    var property = direct[i];
+                    if (!string.Equals(property.Name, propertyName, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
 
-                if (property.GetIndexParameters().Length != 0)
-                {
-                    continue;
-                }
+                    if (property.GetIndexParameters().Length != 0)
+                    {
+                        continue;
+                    }
 
-                if (property.GetMethod == null)
-                {
-                    continue;
-                }
+                    if (property.GetMethod == null)
+                    {
+                        continue;
+                    }
 
-                return property;
+                    IncrementAggregate(ref _diagFindReadablePropertyMatchedCount);
+                    return property;
+                }
             }
-        }
 
-        return null;
+            IncrementAggregate(ref _diagFindReadablePropertyNotFoundCount);
+            return null;
+        }
+        finally
+        {
+            AddAggregate(ref _diagFindReadablePropertyElapsedTicks, Stopwatch.GetTimestamp() - start);
+        }
+    }
+
+    internal ContentPresenterRuntimeDiagnosticsSnapshot GetContentPresenterSnapshotForDiagnostics()
+    {
+        return new ContentPresenterRuntimeDiagnosticsSnapshot(
+            _presentedElement is not null,
+            _presentedElement?.GetType().Name ?? string.Empty,
+            _sourceOwner is not null,
+            _sourceOwner?.GetType().Name ?? string.Empty,
+            ContentSource,
+            _hasEffectivePresentationState,
+            HasLocalValue(ContentProperty),
+            HasLocalValue(ContentTemplateProperty),
+            HasLocalValue(ContentTemplateSelectorProperty),
+            LayoutSlot.Width,
+            LayoutSlot.Height,
+            _runtimeRefreshSourceBindingCallCount,
+            _runtimeEnsureSourceBindingCallCount,
+            TicksToMilliseconds(_runtimeEnsureSourceBindingElapsedTicks),
+            _runtimeEnsureSourceBindingOwnerUnchangedCount,
+            _runtimeEnsureSourceBindingDetachedOwnerCount,
+            _runtimeEnsureSourceBindingAttachedOwnerCount,
+            _runtimeEnsureSourceBindingAttachedContentControlCount,
+            _runtimeOnSourceOwnerPropertyChangedCallCount,
+            TicksToMilliseconds(_runtimeOnSourceOwnerPropertyChangedElapsedTicks),
+            _runtimeOnSourceOwnerPropertyChangedIrrelevantPropertyCount,
+            _runtimeOnSourceOwnerPropertyChangedRebuiltPresentedElementCount,
+            _runtimeOnSourceOwnerPropertyChangedRefreshedFallbackTextCount,
+            _runtimeOnSourceOwnerPropertyChangedInvalidatedArrangeCount,
+            _runtimeRefreshPresentedElementCallCount,
+            TicksToMilliseconds(_runtimeRefreshPresentedElementElapsedTicks),
+            _runtimeRefreshPresentedElementStateCacheHitCount,
+            _runtimeRefreshPresentedElementSelectedTemplateCount,
+            _runtimeRefreshPresentedElementBuiltSameInstanceCount,
+            _runtimeRefreshPresentedElementDetachedOldElementCount,
+            _runtimeRefreshPresentedElementAttachedNewElementCount,
+            _runtimeRefreshPresentedElementChangedCount,
+            _runtimeBuildContentElementCallCount,
+            TicksToMilliseconds(_runtimeBuildContentElementElapsedTicks),
+            _runtimeBuildContentElementUiElementPathCount,
+            _runtimeBuildContentElementTemplatePathCount,
+            _runtimeBuildContentElementAccessTextPathCount,
+            _runtimeBuildContentElementLabelPathCount,
+            _runtimeBuildContentElementNullPathCount,
+            _runtimeBuildContentElementCycleGuardCount,
+            _runtimeTryRefreshFallbackTextStylingCallCount,
+            _runtimeTryRefreshFallbackTextStylingNoContentCount,
+            _runtimeTryRefreshFallbackTextStylingUiElementPathCount,
+            _runtimeTryRefreshFallbackTextStylingTemplatePathCount,
+            _runtimeTryRefreshFallbackTextStylingLabelPathCount,
+            _runtimeTryRefreshFallbackTextStylingTextBlockPathCount,
+            _runtimeTryRefreshFallbackTextStylingNoMatchCount,
+            _runtimeWouldCreatePresentationCycleCallCount,
+            _runtimeWouldCreatePresentationCycleCurrentPresentedReuseCount,
+            _runtimeWouldCreatePresentationCycleSelfCount,
+            _runtimeWouldCreatePresentationCycleAncestorMatchCount,
+            _runtimeWouldCreatePresentationCycleDescendantMatchCount,
+            _runtimeWouldCreatePresentationCycleFalseCount,
+            _runtimeFindSourceOwnerCallCount,
+            TicksToMilliseconds(_runtimeFindSourceOwnerElapsedTicks),
+            _runtimeFindSourceOwnerAncestorProbeCount,
+            _runtimeFindSourceOwnerPropertyMatchCount,
+            _runtimeFindSourceOwnerSelfOwnerSkipCount,
+            _runtimeFindSourceOwnerGetterFailureCount,
+            _runtimeFindSourceOwnerFoundCount,
+            _runtimeFindSourceOwnerNotFoundCount,
+            _runtimeMeasureOverrideCallCount,
+            TicksToMilliseconds(_runtimeMeasureOverrideElapsedTicks),
+            _runtimeMeasureOverridePresentedElementPathCount,
+            _runtimeMeasureOverrideNoPresentedElementCount,
+            _runtimeArrangeOverrideCallCount,
+            TicksToMilliseconds(_runtimeArrangeOverrideElapsedTicks),
+            _runtimeArrangeOverridePresentedElementPathCount,
+            _runtimeArrangeOverrideNoPresentedElementCount);
+    }
+
+    internal new static ContentPresenterTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateAggregateTelemetrySnapshot(reset: false);
+    }
+
+    internal static ContentPresenterTelemetrySnapshot GetTelemetrySnapshotForDiagnostics()
+    {
+        return GetAggregateTelemetrySnapshotForDiagnostics();
+    }
+
+    internal new static ContentPresenterTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateAggregateTelemetrySnapshot(reset: true);
+    }
+
+    private static ContentPresenterTelemetrySnapshot CreateAggregateTelemetrySnapshot(bool reset)
+    {
+        return new ContentPresenterTelemetrySnapshot(
+            ReadOrReset(ref _diagConstructorCallCount, reset),
+            ReadOrReset(ref _diagGetVisualChildrenCallCount, reset),
+            ReadOrReset(ref _diagGetVisualChildrenYieldedChildCount, reset),
+            ReadOrReset(ref _diagGetVisualChildCountForTraversalCallCount, reset),
+            ReadOrReset(ref _diagGetVisualChildAtForTraversalCallCount, reset),
+            ReadOrReset(ref _diagGetVisualChildAtForTraversalOutOfRangeCount, reset),
+            ReadOrReset(ref _diagGetLogicalChildrenCallCount, reset),
+            ReadOrReset(ref _diagGetLogicalChildrenYieldedChildCount, reset),
+            ReadOrReset(ref _diagNotifyOwnerContentChangedCallCount, reset),
+            ReadOrReset(ref _diagNotifyOwnerContentChangedInvalidatedMeasureCount, reset),
+            ReadOrReset(ref _diagDependencyPropertyChangedCallCount, reset),
+            ReadOrReset(ref _diagDependencyPropertyChangedRelevantPropertyCount, reset),
+            ReadOrReset(ref _diagVisualParentChangedCallCount, reset),
+            ReadOrReset(ref _diagLogicalParentChangedCallCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagMeasureOverrideElapsedTicks, reset)),
+            ReadOrReset(ref _diagMeasureOverridePresentedElementPathCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideNoPresentedElementCount, reset),
+            ReadOrReset(ref _diagCanReuseMeasureCallCount, reset),
+            ReadOrReset(ref _diagCanReuseMeasureNoPresentedElementCount, reset),
+            ReadOrReset(ref _diagCanReuseMeasureDelegatedCount, reset),
+            ReadOrReset(ref _diagArrangeOverrideCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagArrangeOverrideElapsedTicks, reset)),
+            ReadOrReset(ref _diagArrangeOverridePresentedElementPathCount, reset),
+            ReadOrReset(ref _diagArrangeOverrideNoPresentedElementCount, reset),
+            ReadOrReset(ref _diagRefreshSourceBindingCallCount, reset),
+            ReadOrReset(ref _diagEnsureSourceBindingCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagEnsureSourceBindingElapsedTicks, reset)),
+            ReadOrReset(ref _diagEnsureSourceBindingOwnerUnchangedCount, reset),
+            ReadOrReset(ref _diagEnsureSourceBindingDetachedOwnerCount, reset),
+            ReadOrReset(ref _diagEnsureSourceBindingAttachedOwnerCount, reset),
+            ReadOrReset(ref _diagEnsureSourceBindingAttachedContentControlCount, reset),
+            ReadOrReset(ref _diagOnSourceOwnerPropertyChangedCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagOnSourceOwnerPropertyChangedElapsedTicks, reset)),
+            ReadOrReset(ref _diagOnSourceOwnerPropertyChangedIrrelevantPropertyCount, reset),
+            ReadOrReset(ref _diagOnSourceOwnerPropertyChangedRebuiltPresentedElementCount, reset),
+            ReadOrReset(ref _diagOnSourceOwnerPropertyChangedRefreshedFallbackTextCount, reset),
+            ReadOrReset(ref _diagOnSourceOwnerPropertyChangedInvalidatedArrangeCount, reset),
+            ReadOrReset(ref _diagRefreshPresentedElementCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshPresentedElementElapsedTicks, reset)),
+            ReadOrReset(ref _diagRefreshPresentedElementStateCacheHitCount, reset),
+            ReadOrReset(ref _diagRefreshPresentedElementSelectedTemplateCount, reset),
+            ReadOrReset(ref _diagRefreshPresentedElementBuiltSameInstanceCount, reset),
+            ReadOrReset(ref _diagRefreshPresentedElementDetachedOldElementCount, reset),
+            ReadOrReset(ref _diagRefreshPresentedElementAttachedNewElementCount, reset),
+            ReadOrReset(ref _diagRefreshPresentedElementChangedCount, reset),
+            ReadOrReset(ref _diagIsSourceOwnerPropertyRelevantCallCount, reset),
+            ReadOrReset(ref _diagIsSourceOwnerPropertyRelevantContentMatchCount, reset),
+            ReadOrReset(ref _diagIsSourceOwnerPropertyRelevantTemplateMatchCount, reset),
+            ReadOrReset(ref _diagIsSourceOwnerPropertyRelevantTemplateSelectorMatchCount, reset),
+            ReadOrReset(ref _diagIsSourceOwnerPropertyRelevantStyleMatchCount, reset),
+            ReadOrReset(ref _diagIsSourceOwnerPropertyRelevantFalseCount, reset),
+            ReadOrReset(ref _diagBuildContentElementCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagBuildContentElementElapsedTicks, reset)),
+            ReadOrReset(ref _diagBuildContentElementUiElementPathCount, reset),
+            ReadOrReset(ref _diagBuildContentElementTemplatePathCount, reset),
+            ReadOrReset(ref _diagBuildContentElementAccessTextPathCount, reset),
+            ReadOrReset(ref _diagBuildContentElementLabelPathCount, reset),
+            ReadOrReset(ref _diagBuildContentElementNullPathCount, reset),
+            ReadOrReset(ref _diagBuildContentElementCycleGuardCount, reset),
+            ReadOrReset(ref _diagResolveAccessKeyTargetCallCount, reset),
+            ReadOrReset(ref _diagResolveAccessKeyTargetLabelPathCount, reset),
+            ReadOrReset(ref _diagResolveAccessKeyTargetRecognizesAccessKeyPathCount, reset),
+            ReadOrReset(ref _diagResolveAccessKeyTargetNoTargetCount, reset),
+            ReadOrReset(ref _diagTryRefreshFallbackTextStylingCallCount, reset),
+            ReadOrReset(ref _diagTryRefreshFallbackTextStylingNoContentCount, reset),
+            ReadOrReset(ref _diagTryRefreshFallbackTextStylingUiElementPathCount, reset),
+            ReadOrReset(ref _diagTryRefreshFallbackTextStylingTemplatePathCount, reset),
+            ReadOrReset(ref _diagTryRefreshFallbackTextStylingLabelPathCount, reset),
+            ReadOrReset(ref _diagTryRefreshFallbackTextStylingTextBlockPathCount, reset),
+            ReadOrReset(ref _diagTryRefreshFallbackTextStylingNoMatchCount, reset),
+            ReadOrReset(ref _diagWouldCreatePresentationCycleCallCount, reset),
+            ReadOrReset(ref _diagWouldCreatePresentationCycleCurrentPresentedReuseCount, reset),
+            ReadOrReset(ref _diagWouldCreatePresentationCycleSelfCount, reset),
+            ReadOrReset(ref _diagWouldCreatePresentationCycleAncestorMatchCount, reset),
+            ReadOrReset(ref _diagWouldCreatePresentationCycleDescendantMatchCount, reset),
+            ReadOrReset(ref _diagWouldCreatePresentationCycleFalseCount, reset),
+            ReadOrReset(ref _diagFindSourceOwnerCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagFindSourceOwnerElapsedTicks, reset)),
+            ReadOrReset(ref _diagFindSourceOwnerAncestorProbeCount, reset),
+            ReadOrReset(ref _diagFindSourceOwnerPropertyMatchCount, reset),
+            ReadOrReset(ref _diagFindSourceOwnerSelfOwnerSkipCount, reset),
+            ReadOrReset(ref _diagFindSourceOwnerGetterFailureCount, reset),
+            ReadOrReset(ref _diagFindSourceOwnerFoundCount, reset),
+            ReadOrReset(ref _diagFindSourceOwnerNotFoundCount, reset),
+            ReadOrReset(ref _diagFindReadablePropertyCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagFindReadablePropertyElapsedTicks, reset)),
+            ReadOrReset(ref _diagFindReadablePropertyMatchedCount, reset),
+            ReadOrReset(ref _diagFindReadablePropertyNotFoundCount, reset));
+    }
+
+    private static void IncrementMetric(ref long runtimeCounter, ref long aggregateCounter)
+    {
+        runtimeCounter++;
+        Interlocked.Increment(ref aggregateCounter);
+    }
+
+    private static void AddMetric(ref long runtimeCounter, ref long aggregateCounter, long value)
+    {
+        runtimeCounter += value;
+        if (value != 0)
+        {
+            Interlocked.Add(ref aggregateCounter, value);
+        }
+    }
+
+    private static void IncrementAggregate(ref long counter)
+    {
+        Interlocked.Increment(ref counter);
+    }
+
+    private static void AddAggregate(ref long counter, long value)
+    {
+        if (value != 0)
+        {
+            Interlocked.Add(ref counter, value);
+        }
+    }
+
+    private static long ReadAggregate(ref long counter)
+    {
+        return Interlocked.Read(ref counter);
+    }
+
+    private static long ResetAggregate(ref long counter)
+    {
+        return Interlocked.Exchange(ref counter, 0);
+    }
+
+    private static long ReadOrReset(ref long counter, bool reset)
+    {
+        return reset ? ResetAggregate(ref counter) : ReadAggregate(ref counter);
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return ticks * 1000d / Stopwatch.Frequency;
     }
 
     private HorizontalAlignment ResolveEffectiveHorizontalContentAlignment()

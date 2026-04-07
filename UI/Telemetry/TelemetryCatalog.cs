@@ -96,6 +96,15 @@ public static class TelemetryCatalog
     // - GridSplitter (UI/Telemetry/GridSplitterSnapshots.cs)
     // - GridSplitterTelemetrySnapshot
     // - GridSplitterRuntimeDiagnosticsSnapshot
+    // - ContentPresenter (UI/Telemetry/ContentPresenterSnapshots.cs)
+    // - ContentPresenterTelemetrySnapshot
+    // - ContentPresenterRuntimeDiagnosticsSnapshot
+    // - Control (UI/Telemetry/ControlSnapshots.cs)
+    // - ControlTelemetrySnapshot
+    // - ControlRuntimeDiagnosticsSnapshot
+    // - ContentControl (UI/Telemetry/ContentControlSnapshots.cs)
+    // - ContentControlTelemetrySnapshot
+    // - ContentControlRuntimeDiagnosticsSnapshot
     // 
     // Panel
     // - PanelTelemetrySnapshot (UI/Telemetry/PanelTelemetrySnapshot.cs)

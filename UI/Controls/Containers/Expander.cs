@@ -843,7 +843,7 @@ public class Expander : ContentControl
             _runtimeHeaderUpdateTextHeaderCount);
     }
 
-    internal static ExpanderTimingSnapshot GetTelemetryAndReset()
+    internal new static ExpanderTimingSnapshot GetTelemetryAndReset()
     {
         var snapshot = CreateAggregateTelemetrySnapshot();
         _diagMeasureOverrideCallCount = 0;
@@ -885,7 +885,7 @@ public class Expander : ContentControl
         return snapshot;
     }
 
-    internal static ExpanderTimingSnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    internal new static ExpanderTimingSnapshot GetAggregateTelemetrySnapshotForDiagnostics()
     {
         return CreateAggregateTelemetrySnapshot();
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Threading;
 using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -197,29 +198,180 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
     private bool _hasPendingRenderDirtyBoundsHint;
     private bool _preserveRenderDirtyBoundsHint;
     private LayoutRect _pendingRenderDirtyBoundsHint;
-    private static int _diagGetValueFromThumbTravelCallCount;
+    private long _runtimeGetThumbRectCallCount;
+    private long _runtimeGetTrackRectCallCount;
+    private long _runtimeGetThumbTravelCallCount;
+    private long _runtimeGetValueFromThumbTravelCallCount;
+    private long _runtimeGetValueFromThumbTravelElapsedTicks;
+    private long _runtimeGetValueFromThumbTravelScrollableRangeZeroCount;
+    private long _runtimeGetValueFromThumbTravelMaxTravelZeroCount;
+    private long _runtimeGetValueFromThumbTravelDirectionReversedCount;
+    private long _runtimeGetValueFromThumbTravelClampedCount;
+    private long _runtimeGetValueFromPointCallCount;
+    private long _runtimeGetValueFromPointElapsedTicks;
+    private long _runtimeGetValuePositionCallCount;
+    private long _runtimeGetValuePositionElapsedTicks;
+    private long _runtimeHitTestDecreaseRegionCallCount;
+    private long _runtimeHitTestDecreaseRegionHitCount;
+    private long _runtimeHitTestIncreaseRegionCallCount;
+    private long _runtimeHitTestIncreaseRegionHitCount;
+    private long _runtimeInvalidateVisualCallCount;
+    private long _runtimeInvalidateVisualClearedPendingHintCount;
+    private long _runtimeTryConsumeRenderDirtyBoundsHintCallCount;
+    private long _runtimeTryConsumeRenderDirtyBoundsHintHitCount;
+    private long _runtimeMeasureOverrideCallCount;
+    private long _runtimeMeasureOverrideElapsedTicks;
+    private long _runtimeArrangeOverrideCallCount;
+    private long _runtimeArrangeOverrideElapsedTicks;
+    private long _runtimeArrangeVerticalCallCount;
+    private long _runtimeArrangeVerticalElapsedTicks;
+    private long _runtimeArrangeHorizontalCallCount;
+    private long _runtimeArrangeHorizontalElapsedTicks;
+    private long _runtimeRenderCallCount;
+    private long _runtimeRenderElapsedTicks;
+    private long _runtimeDrawBorderCallCount;
+    private long _runtimeDrawBorderElapsedTicks;
+    private long _runtimeResolvePartsCallCount;
+    private long _runtimeResolvePartsElapsedTicks;
+    private long _runtimeResolvePartsDuplicateRoleCount;
+    private long _runtimeComputeThumbRectCallCount;
+    private long _runtimeComputeThumbRectElapsedTicks;
+    private long _runtimeComputeSliderThumbRectCallCount;
+    private long _runtimeComputeSliderThumbRectElapsedTicks;
+    private long _runtimeResolveThumbAxisLengthCallCount;
+    private long _runtimeResolveThumbAxisLengthElapsedTicks;
+    private long _runtimeGetScrollableRangeCallCount;
+    private long _runtimeClampValueCallCount;
+    private long _runtimeOnStateMutationChangedCallCount;
+    private long _runtimeRefreshLayoutForStateMutationCallCount;
+    private long _runtimeRefreshLayoutForStateMutationElapsedTicks;
+    private long _runtimeRefreshLayoutNeedsMeasureFallbackCount;
+    private long _runtimeRefreshLayoutDirtyBoundsHintCount;
+    private long _runtimeRefreshLayoutVisualFallbackCount;
+    private long _runtimeInvalidateVisualWithDirtyBoundsHintCallCount;
+    private long _runtimeInvalidateVisualWithDirtyBoundsHintElapsedTicks;
+    private long _runtimeCaptureRenderMutationSnapshotCallCount;
+    private long _runtimeCaptureRenderMutationSnapshotElapsedTicks;
+    private long _runtimeTryBuildRenderMutationDirtyBoundsCallCount;
+    private long _runtimeTryBuildRenderMutationDirtyBoundsBuiltCount;
+    private long _runtimeTryBuildRenderMutationDirtyBoundsTrackChangedCount;
+    private long _runtimeTryBuildRenderMutationDirtyBoundsPartChangedCount;
+    private static long _diagGetThumbRectCallCount;
+    private static long _diagGetTrackRectCallCount;
+    private static long _diagGetThumbTravelCallCount;
+    private static long _diagGetValueFromThumbTravelCallCount;
     private static long _diagGetValueFromThumbTravelElapsedTicks;
-    private static int _diagRefreshLayoutForStateMutationCallCount;
+    private static long _diagGetValueFromThumbTravelScrollableRangeZeroCount;
+    private static long _diagGetValueFromThumbTravelMaxTravelZeroCount;
+    private static long _diagGetValueFromThumbTravelDirectionReversedCount;
+    private static long _diagGetValueFromThumbTravelClampedCount;
+    private static long _diagGetValueFromPointCallCount;
+    private static long _diagGetValueFromPointElapsedTicks;
+    private static long _diagGetValueFromPointThumbCenterOffsetCount;
+    private static long _diagGetValueFromPointScrollableRangeZeroCount;
+    private static long _diagGetValueFromPointMaxTravelZeroCount;
+    private static long _diagGetValuePositionCallCount;
+    private static long _diagGetValuePositionElapsedTicks;
+    private static long _diagGetValuePositionZeroRangeFallbackCount;
+    private static long _diagGetValuePositionDirectionReversedCount;
+    private static long _diagHitTestDecreaseRegionCallCount;
+    private static long _diagHitTestDecreaseRegionHitCount;
+    private static long _diagHitTestIncreaseRegionCallCount;
+    private static long _diagHitTestIncreaseRegionHitCount;
+    private static long _diagInvalidateVisualCallCount;
+    private static long _diagInvalidateVisualClearedPendingHintCount;
+    private static long _diagTryConsumeRenderDirtyBoundsHintCallCount;
+    private static long _diagTryConsumeRenderDirtyBoundsHintHitCount;
+    private static long _diagMeasureOverrideCallCount;
+    private static long _diagMeasureOverrideElapsedTicks;
+    private static long _diagMeasureOverrideVerticalCount;
+    private static long _diagMeasureOverrideHorizontalCount;
+    private static long _diagMeasureOverrideViewportSizedThumbCount;
+    private static long _diagMeasureOverrideSliderThumbCount;
+    private static long _diagMeasureOverrideResolvedDecreasePartCount;
+    private static long _diagMeasureOverrideResolvedThumbPartCount;
+    private static long _diagMeasureOverrideResolvedIncreasePartCount;
+    private static long _diagArrangeOverrideCallCount;
+    private static long _diagArrangeOverrideElapsedTicks;
+    private static long _diagArrangeOverrideVerticalCount;
+    private static long _diagArrangeOverrideHorizontalCount;
+    private static long _diagArrangeOverrideExtraChildArrangeCount;
+    private static long _diagArrangeOverrideSkippedNonFrameworkChildCount;
+    private static long _diagArrangeVerticalCallCount;
+    private static long _diagArrangeVerticalElapsedTicks;
+    private static long _diagArrangeVerticalViewportSizedThumbCount;
+    private static long _diagArrangeVerticalSliderThumbCount;
+    private static long _diagArrangeHorizontalCallCount;
+    private static long _diagArrangeHorizontalElapsedTicks;
+    private static long _diagArrangeHorizontalViewportSizedThumbCount;
+    private static long _diagArrangeHorizontalSliderThumbCount;
+    private static long _diagRenderCallCount;
+    private static long _diagRenderElapsedTicks;
+    private static long _diagRenderSkippedEmptyTrackCount;
+    private static long _diagDrawBorderCallCount;
+    private static long _diagDrawBorderElapsedTicks;
+    private static long _diagDrawBorderLeftSegmentCount;
+    private static long _diagDrawBorderRightSegmentCount;
+    private static long _diagDrawBorderTopSegmentCount;
+    private static long _diagDrawBorderBottomSegmentCount;
+    private static long _diagResolvePartsCallCount;
+    private static long _diagResolvePartsElapsedTicks;
+    private static long _diagResolvePartsScannedChildCount;
+    private static long _diagResolvePartsNonFrameworkChildCount;
+    private static long _diagResolvePartsDuplicateRoleCount;
+    private static long _diagResolvePartsDecreaseFoundCount;
+    private static long _diagResolvePartsThumbFoundCount;
+    private static long _diagResolvePartsIncreaseFoundCount;
+    private static long _diagComputeThumbRectCallCount;
+    private static long _diagComputeThumbRectElapsedTicks;
+    private static long _diagComputeThumbRectZeroTrackRectCount;
+    private static long _diagComputeThumbRectDirectionReversedCount;
+    private static long _diagComputeSliderThumbRectCallCount;
+    private static long _diagComputeSliderThumbRectElapsedTicks;
+    private static long _diagComputeSliderThumbRectZeroTrackRectCount;
+    private static long _diagComputeSliderThumbRectDirectionReversedCount;
+    private static long _diagResolveThumbAxisLengthCallCount;
+    private static long _diagResolveThumbAxisLengthElapsedTicks;
+    private static long _diagResolveThumbAxisLengthViewportSizedCount;
+    private static long _diagResolveThumbAxisLengthExplicitCount;
+    private static long _diagResolveThumbAxisLengthExtentZeroCount;
+    private static long _diagResolveThumbAxisLengthFallbackViewportRatioCount;
+    private static long _diagResolveThumbAxisLengthViewportRatioCount;
+    private static long _diagGetScrollableRangeCallCount;
+    private static long _diagGetScrollableRangeViewportSizedCount;
+    private static long _diagClampValueCallCount;
+    private static long _diagClampValueClampedLowCount;
+    private static long _diagClampValueClampedHighCount;
+    private static long _diagOnStateMutationChangedCallCount;
+    private static long _diagRefreshLayoutForStateMutationCallCount;
     private static long _diagRefreshLayoutForStateMutationElapsedTicks;
-    private static int _diagRefreshLayoutValueMutationCallCount;
+    private static long _diagRefreshLayoutValueMutationCallCount;
     private static long _diagRefreshLayoutValueMutationElapsedTicks;
-    private static int _diagRefreshLayoutViewportMutationCallCount;
+    private static long _diagRefreshLayoutViewportMutationCallCount;
     private static long _diagRefreshLayoutViewportMutationElapsedTicks;
-    private static int _diagRefreshLayoutMinimumMutationCallCount;
+    private static long _diagRefreshLayoutMinimumMutationCallCount;
     private static long _diagRefreshLayoutMinimumMutationElapsedTicks;
-    private static int _diagRefreshLayoutMaximumMutationCallCount;
+    private static long _diagRefreshLayoutMaximumMutationCallCount;
     private static long _diagRefreshLayoutMaximumMutationElapsedTicks;
-    private static int _diagRefreshLayoutDirectionMutationCallCount;
+    private static long _diagRefreshLayoutDirectionMutationCallCount;
     private static long _diagRefreshLayoutDirectionMutationElapsedTicks;
-    private static int _diagRefreshLayoutNeedsMeasureFallbackCount;
+    private static long _diagRefreshLayoutNeedsMeasureFallbackCount;
     private static long _diagRefreshLayoutNeedsMeasureFallbackElapsedTicks;
     private static long _diagRefreshLayoutCaptureSnapshotElapsedTicks;
     private static long _diagRefreshLayoutInvalidateArrangeElapsedTicks;
     private static long _diagRefreshLayoutArrangeElapsedTicks;
     private static long _diagRefreshLayoutDirtyBoundsElapsedTicks;
-    private static int _diagRefreshLayoutDirtyBoundsHintCount;
-    private static int _diagRefreshLayoutVisualFallbackCount;
+    private static long _diagRefreshLayoutDirtyBoundsHintCount;
+    private static long _diagRefreshLayoutVisualFallbackCount;
     private static long _diagRefreshLayoutVisualInvalidationElapsedTicks;
+    private static long _diagInvalidateVisualWithDirtyBoundsHintCallCount;
+    private static long _diagInvalidateVisualWithDirtyBoundsHintElapsedTicks;
+    private static long _diagCaptureRenderMutationSnapshotCallCount;
+    private static long _diagCaptureRenderMutationSnapshotElapsedTicks;
+    private static long _diagTryBuildRenderMutationDirtyBoundsCallCount;
+    private static long _diagTryBuildRenderMutationDirtyBoundsBuiltCount;
+    private static long _diagTryBuildRenderMutationDirtyBoundsTrackChangedCount;
+    private static long _diagTryBuildRenderMutationDirtyBoundsPartChangedCount;
 
     private enum TrackStateMutationSource
     {
@@ -314,16 +466,22 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
     internal LayoutRect GetThumbRect()
     {
+        _runtimeGetThumbRectCallCount++;
+        IncrementAggregate(ref _diagGetThumbRectCallCount);
         return _thumbRect;
     }
 
     internal LayoutRect GetTrackRect()
     {
+        _runtimeGetTrackRectCallCount++;
+        IncrementAggregate(ref _diagGetTrackRectCallCount);
         return _trackRect;
     }
 
     internal float GetThumbTravel()
     {
+        _runtimeGetThumbTravelCallCount++;
+        IncrementAggregate(ref _diagGetThumbTravelCallCount);
         return Orientation == Orientation.Vertical
             ? _thumbRect.Y - _trackRect.Y
             : _thumbRect.X - _trackRect.X;
@@ -332,11 +490,14 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
     internal float GetValueFromThumbTravel(float thumbTravel)
     {
         var startTicks = Stopwatch.GetTimestamp();
+        _runtimeGetValueFromThumbTravelCallCount++;
         var scrollableRange = GetScrollableRange();
         if (scrollableRange <= ValueEpsilon)
         {
-            _diagGetValueFromThumbTravelCallCount++;
-            _diagGetValueFromThumbTravelElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeGetValueFromThumbTravelScrollableRangeZeroCount++;
+            IncrementAggregate(ref _diagGetValueFromThumbTravelScrollableRangeZeroCount);
+            _runtimeGetValueFromThumbTravelElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            RecordAggregateElapsed(ref _diagGetValueFromThumbTravelCallCount, ref _diagGetValueFromThumbTravelElapsedTicks, startTicks);
             return Minimum;
         }
 
@@ -345,21 +506,31 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         var maxTravel = MathF.Max(0f, trackLength - thumbLength);
         if (maxTravel <= ValueEpsilon)
         {
-            _diagGetValueFromThumbTravelCallCount++;
-            _diagGetValueFromThumbTravelElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeGetValueFromThumbTravelMaxTravelZeroCount++;
+            IncrementAggregate(ref _diagGetValueFromThumbTravelMaxTravelZeroCount);
+            _runtimeGetValueFromThumbTravelElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            RecordAggregateElapsed(ref _diagGetValueFromThumbTravelCallCount, ref _diagGetValueFromThumbTravelElapsedTicks, startTicks);
             return Minimum;
         }
 
         var clampedTravel = MathF.Max(0f, MathF.Min(maxTravel, thumbTravel));
+        if (MathF.Abs(clampedTravel - thumbTravel) > ValueEpsilon)
+        {
+            _runtimeGetValueFromThumbTravelClampedCount++;
+            IncrementAggregate(ref _diagGetValueFromThumbTravelClampedCount);
+        }
+
         var normalized = clampedTravel / maxTravel;
         if (IsDirectionReversed)
         {
+            _runtimeGetValueFromThumbTravelDirectionReversedCount++;
+            IncrementAggregate(ref _diagGetValueFromThumbTravelDirectionReversedCount);
             normalized = 1f - normalized;
         }
 
         var value = ClampValue(Minimum + (normalized * scrollableRange));
-        _diagGetValueFromThumbTravelCallCount++;
-        _diagGetValueFromThumbTravelElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        _runtimeGetValueFromThumbTravelElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        RecordAggregateElapsed(ref _diagGetValueFromThumbTravelCallCount, ref _diagGetValueFromThumbTravelElapsedTicks, startTicks);
         return value;
     }
 
@@ -415,11 +586,252 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         return snapshot;
     }
 
+    internal TrackRuntimeDiagnosticsSnapshot GetTrackSnapshotForDiagnostics()
+    {
+        return new TrackRuntimeDiagnosticsSnapshot(
+            Orientation,
+            IsViewportSizedThumb,
+            IsDirectionReversed,
+            Minimum,
+            Maximum,
+            Value,
+            ViewportSize,
+            ThumbLength,
+            ThumbMinLength,
+            TrackThickness,
+            Children.Count,
+            _hasPendingRenderDirtyBoundsHint,
+            _preserveRenderDirtyBoundsHint,
+            _trackRect.X,
+            _trackRect.Y,
+            _trackRect.Width,
+            _trackRect.Height,
+            _thumbRect.X,
+            _thumbRect.Y,
+            _thumbRect.Width,
+            _thumbRect.Height,
+            _decreaseRegionRect.X,
+            _decreaseRegionRect.Y,
+            _decreaseRegionRect.Width,
+            _decreaseRegionRect.Height,
+            _increaseRegionRect.X,
+            _increaseRegionRect.Y,
+            _increaseRegionRect.Width,
+            _increaseRegionRect.Height,
+            _runtimeGetThumbRectCallCount,
+            _runtimeGetTrackRectCallCount,
+            _runtimeGetThumbTravelCallCount,
+            _runtimeGetValueFromThumbTravelCallCount,
+            TicksToMilliseconds(_runtimeGetValueFromThumbTravelElapsedTicks),
+            _runtimeGetValueFromThumbTravelScrollableRangeZeroCount,
+            _runtimeGetValueFromThumbTravelMaxTravelZeroCount,
+            _runtimeGetValueFromThumbTravelDirectionReversedCount,
+            _runtimeGetValueFromThumbTravelClampedCount,
+            _runtimeGetValueFromPointCallCount,
+            TicksToMilliseconds(_runtimeGetValueFromPointElapsedTicks),
+            _runtimeGetValuePositionCallCount,
+            TicksToMilliseconds(_runtimeGetValuePositionElapsedTicks),
+            _runtimeHitTestDecreaseRegionCallCount,
+            _runtimeHitTestDecreaseRegionHitCount,
+            _runtimeHitTestIncreaseRegionCallCount,
+            _runtimeHitTestIncreaseRegionHitCount,
+            _runtimeInvalidateVisualCallCount,
+            _runtimeInvalidateVisualClearedPendingHintCount,
+            _runtimeTryConsumeRenderDirtyBoundsHintCallCount,
+            _runtimeTryConsumeRenderDirtyBoundsHintHitCount,
+            _runtimeMeasureOverrideCallCount,
+            TicksToMilliseconds(_runtimeMeasureOverrideElapsedTicks),
+            _runtimeArrangeOverrideCallCount,
+            TicksToMilliseconds(_runtimeArrangeOverrideElapsedTicks),
+            _runtimeArrangeVerticalCallCount,
+            TicksToMilliseconds(_runtimeArrangeVerticalElapsedTicks),
+            _runtimeArrangeHorizontalCallCount,
+            TicksToMilliseconds(_runtimeArrangeHorizontalElapsedTicks),
+            _runtimeRenderCallCount,
+            TicksToMilliseconds(_runtimeRenderElapsedTicks),
+            _runtimeDrawBorderCallCount,
+            TicksToMilliseconds(_runtimeDrawBorderElapsedTicks),
+            _runtimeResolvePartsCallCount,
+            TicksToMilliseconds(_runtimeResolvePartsElapsedTicks),
+            _runtimeResolvePartsDuplicateRoleCount,
+            _runtimeComputeThumbRectCallCount,
+            TicksToMilliseconds(_runtimeComputeThumbRectElapsedTicks),
+            _runtimeComputeSliderThumbRectCallCount,
+            TicksToMilliseconds(_runtimeComputeSliderThumbRectElapsedTicks),
+            _runtimeResolveThumbAxisLengthCallCount,
+            TicksToMilliseconds(_runtimeResolveThumbAxisLengthElapsedTicks),
+            _runtimeGetScrollableRangeCallCount,
+            _runtimeClampValueCallCount,
+            _runtimeOnStateMutationChangedCallCount,
+            _runtimeRefreshLayoutForStateMutationCallCount,
+            TicksToMilliseconds(_runtimeRefreshLayoutForStateMutationElapsedTicks),
+            _runtimeRefreshLayoutNeedsMeasureFallbackCount,
+            _runtimeRefreshLayoutDirtyBoundsHintCount,
+            _runtimeRefreshLayoutVisualFallbackCount,
+            _runtimeInvalidateVisualWithDirtyBoundsHintCallCount,
+            TicksToMilliseconds(_runtimeInvalidateVisualWithDirtyBoundsHintElapsedTicks),
+            _runtimeCaptureRenderMutationSnapshotCallCount,
+            TicksToMilliseconds(_runtimeCaptureRenderMutationSnapshotElapsedTicks),
+            _runtimeTryBuildRenderMutationDirtyBoundsCallCount,
+            _runtimeTryBuildRenderMutationDirtyBoundsBuiltCount,
+            _runtimeTryBuildRenderMutationDirtyBoundsTrackChangedCount,
+            _runtimeTryBuildRenderMutationDirtyBoundsPartChangedCount);
+    }
+
+    internal new static TrackTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateTelemetrySnapshot(reset: true);
+    }
+
+    internal new static TrackTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateTelemetrySnapshot(reset: false);
+    }
+
+    internal static TrackTelemetrySnapshot GetTelemetrySnapshotForDiagnostics()
+    {
+        return GetAggregateTelemetrySnapshotForDiagnostics();
+    }
+
+    private static TrackTelemetrySnapshot CreateTelemetrySnapshot(bool reset)
+    {
+        return new TrackTelemetrySnapshot(
+            ReadOrReset(ref _diagGetThumbRectCallCount, reset),
+            ReadOrReset(ref _diagGetTrackRectCallCount, reset),
+            ReadOrReset(ref _diagGetThumbTravelCallCount, reset),
+            ReadOrReset(ref _diagGetValueFromThumbTravelCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagGetValueFromThumbTravelElapsedTicks, reset)),
+            ReadOrReset(ref _diagGetValueFromThumbTravelScrollableRangeZeroCount, reset),
+            ReadOrReset(ref _diagGetValueFromThumbTravelMaxTravelZeroCount, reset),
+            ReadOrReset(ref _diagGetValueFromThumbTravelDirectionReversedCount, reset),
+            ReadOrReset(ref _diagGetValueFromThumbTravelClampedCount, reset),
+            ReadOrReset(ref _diagGetValueFromPointCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagGetValueFromPointElapsedTicks, reset)),
+            ReadOrReset(ref _diagGetValueFromPointThumbCenterOffsetCount, reset),
+            ReadOrReset(ref _diagGetValueFromPointScrollableRangeZeroCount, reset),
+            ReadOrReset(ref _diagGetValueFromPointMaxTravelZeroCount, reset),
+            ReadOrReset(ref _diagGetValuePositionCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagGetValuePositionElapsedTicks, reset)),
+            ReadOrReset(ref _diagGetValuePositionZeroRangeFallbackCount, reset),
+            ReadOrReset(ref _diagGetValuePositionDirectionReversedCount, reset),
+            ReadOrReset(ref _diagHitTestDecreaseRegionCallCount, reset),
+            ReadOrReset(ref _diagHitTestDecreaseRegionHitCount, reset),
+            ReadOrReset(ref _diagHitTestIncreaseRegionCallCount, reset),
+            ReadOrReset(ref _diagHitTestIncreaseRegionHitCount, reset),
+            ReadOrReset(ref _diagInvalidateVisualCallCount, reset),
+            ReadOrReset(ref _diagInvalidateVisualClearedPendingHintCount, reset),
+            ReadOrReset(ref _diagTryConsumeRenderDirtyBoundsHintCallCount, reset),
+            ReadOrReset(ref _diagTryConsumeRenderDirtyBoundsHintHitCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagMeasureOverrideElapsedTicks, reset)),
+            ReadOrReset(ref _diagMeasureOverrideVerticalCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideHorizontalCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideViewportSizedThumbCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideSliderThumbCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideResolvedDecreasePartCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideResolvedThumbPartCount, reset),
+            ReadOrReset(ref _diagMeasureOverrideResolvedIncreasePartCount, reset),
+            ReadOrReset(ref _diagArrangeOverrideCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagArrangeOverrideElapsedTicks, reset)),
+            ReadOrReset(ref _diagArrangeOverrideVerticalCount, reset),
+            ReadOrReset(ref _diagArrangeOverrideHorizontalCount, reset),
+            ReadOrReset(ref _diagArrangeOverrideExtraChildArrangeCount, reset),
+            ReadOrReset(ref _diagArrangeOverrideSkippedNonFrameworkChildCount, reset),
+            ReadOrReset(ref _diagArrangeVerticalCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagArrangeVerticalElapsedTicks, reset)),
+            ReadOrReset(ref _diagArrangeVerticalViewportSizedThumbCount, reset),
+            ReadOrReset(ref _diagArrangeVerticalSliderThumbCount, reset),
+            ReadOrReset(ref _diagArrangeHorizontalCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagArrangeHorizontalElapsedTicks, reset)),
+            ReadOrReset(ref _diagArrangeHorizontalViewportSizedThumbCount, reset),
+            ReadOrReset(ref _diagArrangeHorizontalSliderThumbCount, reset),
+            ReadOrReset(ref _diagRenderCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagRenderElapsedTicks, reset)),
+            ReadOrReset(ref _diagRenderSkippedEmptyTrackCount, reset),
+            ReadOrReset(ref _diagDrawBorderCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagDrawBorderElapsedTicks, reset)),
+            ReadOrReset(ref _diagDrawBorderLeftSegmentCount, reset),
+            ReadOrReset(ref _diagDrawBorderRightSegmentCount, reset),
+            ReadOrReset(ref _diagDrawBorderTopSegmentCount, reset),
+            ReadOrReset(ref _diagDrawBorderBottomSegmentCount, reset),
+            ReadOrReset(ref _diagResolvePartsCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagResolvePartsElapsedTicks, reset)),
+            ReadOrReset(ref _diagResolvePartsScannedChildCount, reset),
+            ReadOrReset(ref _diagResolvePartsNonFrameworkChildCount, reset),
+            ReadOrReset(ref _diagResolvePartsDuplicateRoleCount, reset),
+            ReadOrReset(ref _diagResolvePartsDecreaseFoundCount, reset),
+            ReadOrReset(ref _diagResolvePartsThumbFoundCount, reset),
+            ReadOrReset(ref _diagResolvePartsIncreaseFoundCount, reset),
+            ReadOrReset(ref _diagComputeThumbRectCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagComputeThumbRectElapsedTicks, reset)),
+            ReadOrReset(ref _diagComputeThumbRectZeroTrackRectCount, reset),
+            ReadOrReset(ref _diagComputeThumbRectDirectionReversedCount, reset),
+            ReadOrReset(ref _diagComputeSliderThumbRectCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagComputeSliderThumbRectElapsedTicks, reset)),
+            ReadOrReset(ref _diagComputeSliderThumbRectZeroTrackRectCount, reset),
+            ReadOrReset(ref _diagComputeSliderThumbRectDirectionReversedCount, reset),
+            ReadOrReset(ref _diagResolveThumbAxisLengthCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagResolveThumbAxisLengthElapsedTicks, reset)),
+            ReadOrReset(ref _diagResolveThumbAxisLengthViewportSizedCount, reset),
+            ReadOrReset(ref _diagResolveThumbAxisLengthExplicitCount, reset),
+            ReadOrReset(ref _diagResolveThumbAxisLengthExtentZeroCount, reset),
+            ReadOrReset(ref _diagResolveThumbAxisLengthFallbackViewportRatioCount, reset),
+            ReadOrReset(ref _diagResolveThumbAxisLengthViewportRatioCount, reset),
+            ReadOrReset(ref _diagGetScrollableRangeCallCount, reset),
+            ReadOrReset(ref _diagGetScrollableRangeViewportSizedCount, reset),
+            ReadOrReset(ref _diagClampValueCallCount, reset),
+            ReadOrReset(ref _diagClampValueClampedLowCount, reset),
+            ReadOrReset(ref _diagClampValueClampedHighCount, reset),
+            ReadOrReset(ref _diagOnStateMutationChangedCallCount, reset),
+            ReadOrReset(ref _diagRefreshLayoutForStateMutationCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutForStateMutationElapsedTicks, reset)),
+            ReadOrReset(ref _diagRefreshLayoutValueMutationCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutValueMutationElapsedTicks, reset)),
+            ReadOrReset(ref _diagRefreshLayoutViewportMutationCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutViewportMutationElapsedTicks, reset)),
+            ReadOrReset(ref _diagRefreshLayoutMinimumMutationCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutMinimumMutationElapsedTicks, reset)),
+            ReadOrReset(ref _diagRefreshLayoutMaximumMutationCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutMaximumMutationElapsedTicks, reset)),
+            ReadOrReset(ref _diagRefreshLayoutDirectionMutationCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutDirectionMutationElapsedTicks, reset)),
+            ReadOrReset(ref _diagRefreshLayoutNeedsMeasureFallbackCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutNeedsMeasureFallbackElapsedTicks, reset)),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutCaptureSnapshotElapsedTicks, reset)),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutInvalidateArrangeElapsedTicks, reset)),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutArrangeElapsedTicks, reset)),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutDirtyBoundsElapsedTicks, reset)),
+            ReadOrReset(ref _diagRefreshLayoutDirtyBoundsHintCount, reset),
+            ReadOrReset(ref _diagRefreshLayoutVisualFallbackCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagRefreshLayoutVisualInvalidationElapsedTicks, reset)),
+            ReadOrReset(ref _diagInvalidateVisualWithDirtyBoundsHintCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagInvalidateVisualWithDirtyBoundsHintElapsedTicks, reset)),
+            ReadOrReset(ref _diagCaptureRenderMutationSnapshotCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagCaptureRenderMutationSnapshotElapsedTicks, reset)),
+            ReadOrReset(ref _diagTryBuildRenderMutationDirtyBoundsCallCount, reset),
+            ReadOrReset(ref _diagTryBuildRenderMutationDirtyBoundsBuiltCount, reset),
+            ReadOrReset(ref _diagTryBuildRenderMutationDirtyBoundsTrackChangedCount, reset),
+            ReadOrReset(ref _diagTryBuildRenderMutationDirtyBoundsPartChangedCount, reset));
+    }
+
     internal float GetValueFromPoint(Vector2 point, bool useThumbCenterOffset)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeGetValueFromPointCallCount++;
+        IncrementAggregate(ref _diagGetValueFromPointCallCount);
+        var elapsedTicks = 0L;
+        if (useThumbCenterOffset)
+        {
+            IncrementAggregate(ref _diagGetValueFromPointThumbCenterOffsetCount);
+        }
+
         var scrollableRange = GetScrollableRange();
         if (scrollableRange <= ValueEpsilon)
         {
+            IncrementAggregate(ref _diagGetValueFromPointScrollableRangeZeroCount);
+            elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _runtimeGetValueFromPointElapsedTicks += elapsedTicks;
+            AddAggregate(ref _diagGetValueFromPointElapsedTicks, elapsedTicks);
             return Minimum;
         }
 
@@ -428,6 +840,10 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         var maxTravel = MathF.Max(0f, trackLength - thumbLength);
         if (maxTravel <= ValueEpsilon)
         {
+            IncrementAggregate(ref _diagGetValueFromPointMaxTravelZeroCount);
+            elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _runtimeGetValueFromPointElapsedTicks += elapsedTicks;
+            AddAggregate(ref _diagGetValueFromPointElapsedTicks, elapsedTicks);
             return Minimum;
         }
 
@@ -439,44 +855,92 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
             adjustedPoint -= thumbLength / 2f;
         }
 
-        return GetValueFromThumbTravel(adjustedPoint);
+        var result = GetValueFromThumbTravel(adjustedPoint);
+        elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _runtimeGetValueFromPointElapsedTicks += elapsedTicks;
+        AddAggregate(ref _diagGetValueFromPointElapsedTicks, elapsedTicks);
+        return result;
     }
 
     internal float GetValuePosition(float value)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeGetValuePositionCallCount++;
+        IncrementAggregate(ref _diagGetValuePositionCallCount);
+        var elapsedTicks = 0L;
         var scrollableRange = GetScrollableRange();
         var trackLength = GetAxisLength(_trackRect);
         var thumbLength = GetAxisLength(_thumbRect);
         var maxTravel = MathF.Max(0f, trackLength - thumbLength);
         if (maxTravel <= ValueEpsilon || scrollableRange <= ValueEpsilon)
         {
-            return Orientation == Orientation.Vertical
+            IncrementAggregate(ref _diagGetValuePositionZeroRangeFallbackCount);
+            var fallback = Orientation == Orientation.Vertical
                 ? _trackRect.Y + (trackLength / 2f)
                 : _trackRect.X + (trackLength / 2f);
+            elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _runtimeGetValuePositionElapsedTicks += elapsedTicks;
+            AddAggregate(ref _diagGetValuePositionElapsedTicks, elapsedTicks);
+            return fallback;
         }
 
         var normalized = (ClampValue(value) - Minimum) / scrollableRange;
+        if (IsDirectionReversed)
+        {
+            IncrementAggregate(ref _diagGetValuePositionDirectionReversedCount);
+        }
+
         var positionFraction = IsDirectionReversed ? 1f - normalized : normalized;
         var travel = maxTravel * MathF.Max(0f, MathF.Min(1f, positionFraction));
-        return Orientation == Orientation.Vertical
+        var position = Orientation == Orientation.Vertical
             ? _trackRect.Y + travel + (thumbLength / 2f)
             : _trackRect.X + travel + (thumbLength / 2f);
+        elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _runtimeGetValuePositionElapsedTicks += elapsedTicks;
+        AddAggregate(ref _diagGetValuePositionElapsedTicks, elapsedTicks);
+        return position;
     }
 
     internal bool HitTestDecreaseRegion(Vector2 point)
     {
-        return ContainsPoint(_decreaseRegionRect, point);
+        _runtimeHitTestDecreaseRegionCallCount++;
+        IncrementAggregate(ref _diagHitTestDecreaseRegionCallCount);
+        var hit = ContainsPoint(_decreaseRegionRect, point);
+        if (hit)
+        {
+            _runtimeHitTestDecreaseRegionHitCount++;
+            IncrementAggregate(ref _diagHitTestDecreaseRegionHitCount);
+        }
+
+        return hit;
     }
 
     internal bool HitTestIncreaseRegion(Vector2 point)
     {
-        return ContainsPoint(_increaseRegionRect, point);
+        _runtimeHitTestIncreaseRegionCallCount++;
+        IncrementAggregate(ref _diagHitTestIncreaseRegionCallCount);
+        var hit = ContainsPoint(_increaseRegionRect, point);
+        if (hit)
+        {
+            _runtimeHitTestIncreaseRegionHitCount++;
+            IncrementAggregate(ref _diagHitTestIncreaseRegionHitCount);
+        }
+
+        return hit;
     }
 
     public override void InvalidateVisual()
     {
+        _runtimeInvalidateVisualCallCount++;
+        IncrementAggregate(ref _diagInvalidateVisualCallCount);
         if (!_preserveRenderDirtyBoundsHint)
         {
+            if (_hasPendingRenderDirtyBoundsHint)
+            {
+                _runtimeInvalidateVisualClearedPendingHintCount++;
+                IncrementAggregate(ref _diagInvalidateVisualClearedPendingHintCount);
+            }
+
             _hasPendingRenderDirtyBoundsHint = false;
         }
 
@@ -485,76 +949,132 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
-        ResolveParts(out var decreaseButton, out var thumb, out var increaseButton);
-
-        MeasurePart(decreaseButton, availableSize);
-        MeasurePart(thumb, availableSize);
-        MeasurePart(increaseButton, availableSize);
-
-        var baseDesired = base.MeasureOverride(availableSize);
-        var thumbLength = ResolveThumbAxisLength();
-        if (Orientation == Orientation.Vertical)
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeMeasureOverrideCallCount++;
+        try
         {
-            var cross = MathF.Max(
-                MathF.Max(GetCrossDesiredSize(decreaseButton, isVertical: true), GetCrossDesiredSize(increaseButton, isVertical: true)),
-                MathF.Max(GetCrossDesiredSize(thumb, isVertical: true), MathF.Max(ResolveTrackCrossLength(MathF.Max(GetCrossDesiredSize(thumb, isVertical: true), 12f)), 12f)));
-            var desiredHeight =
-                ResolveDesiredButtonLength(decreaseButton, cross, isVertical: true) +
-                MathF.Max(thumbLength, ThumbMinLength) +
-                ResolveDesiredButtonLength(increaseButton, cross, isVertical: true);
-            return new Vector2(MathF.Max(baseDesired.X, cross), MathF.Max(baseDesired.Y, desiredHeight));
-        }
+            ResolveParts(out var decreaseButton, out var thumb, out var increaseButton);
+            if (decreaseButton != null)
+            {
+                IncrementAggregate(ref _diagMeasureOverrideResolvedDecreasePartCount);
+            }
 
-        var horizontalCross = MathF.Max(
-            MathF.Max(GetCrossDesiredSize(decreaseButton, isVertical: false), GetCrossDesiredSize(increaseButton, isVertical: false)),
-            MathF.Max(GetCrossDesiredSize(thumb, isVertical: false), MathF.Max(ResolveTrackCrossLength(MathF.Max(GetCrossDesiredSize(thumb, isVertical: false), 12f)), 12f)));
-        var desiredWidth =
-            ResolveDesiredButtonLength(decreaseButton, horizontalCross, isVertical: false) +
-            MathF.Max(thumbLength, ThumbMinLength) +
-            ResolveDesiredButtonLength(increaseButton, horizontalCross, isVertical: false);
-        return new Vector2(MathF.Max(baseDesired.X, desiredWidth), MathF.Max(baseDesired.Y, horizontalCross));
+            if (thumb != null)
+            {
+                IncrementAggregate(ref _diagMeasureOverrideResolvedThumbPartCount);
+            }
+
+            if (increaseButton != null)
+            {
+                IncrementAggregate(ref _diagMeasureOverrideResolvedIncreasePartCount);
+            }
+
+            MeasurePart(decreaseButton, availableSize);
+            MeasurePart(thumb, availableSize);
+            MeasurePart(increaseButton, availableSize);
+
+            var baseDesired = base.MeasureOverride(availableSize);
+            var thumbLength = ResolveThumbAxisLength();
+            if (IsViewportSizedThumb)
+            {
+                IncrementAggregate(ref _diagMeasureOverrideViewportSizedThumbCount);
+            }
+            else
+            {
+                IncrementAggregate(ref _diagMeasureOverrideSliderThumbCount);
+            }
+
+            if (Orientation == Orientation.Vertical)
+            {
+                IncrementAggregate(ref _diagMeasureOverrideVerticalCount);
+                var cross = MathF.Max(
+                    MathF.Max(GetCrossDesiredSize(decreaseButton, isVertical: true), GetCrossDesiredSize(increaseButton, isVertical: true)),
+                    MathF.Max(GetCrossDesiredSize(thumb, isVertical: true), MathF.Max(ResolveTrackCrossLength(MathF.Max(GetCrossDesiredSize(thumb, isVertical: true), 12f)), 12f)));
+                var desiredHeight =
+                    ResolveDesiredButtonLength(decreaseButton, cross, isVertical: true) +
+                    MathF.Max(thumbLength, ThumbMinLength) +
+                    ResolveDesiredButtonLength(increaseButton, cross, isVertical: true);
+                return new Vector2(MathF.Max(baseDesired.X, cross), MathF.Max(baseDesired.Y, desiredHeight));
+            }
+
+            IncrementAggregate(ref _diagMeasureOverrideHorizontalCount);
+            var horizontalCross = MathF.Max(
+                MathF.Max(GetCrossDesiredSize(decreaseButton, isVertical: false), GetCrossDesiredSize(increaseButton, isVertical: false)),
+                MathF.Max(GetCrossDesiredSize(thumb, isVertical: false), MathF.Max(ResolveTrackCrossLength(MathF.Max(GetCrossDesiredSize(thumb, isVertical: false), 12f)), 12f)));
+            var desiredWidth =
+                ResolveDesiredButtonLength(decreaseButton, horizontalCross, isVertical: false) +
+                MathF.Max(thumbLength, ThumbMinLength) +
+                ResolveDesiredButtonLength(increaseButton, horizontalCross, isVertical: false);
+            return new Vector2(MathF.Max(baseDesired.X, desiredWidth), MathF.Max(baseDesired.Y, horizontalCross));
+        }
+        finally
+        {
+            _runtimeMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            RecordAggregateElapsed(ref _diagMeasureOverrideCallCount, ref _diagMeasureOverrideElapsedTicks, startTicks);
+        }
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
-        ResolveParts(out var decreaseButton, out var thumb, out var increaseButton);
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeArrangeOverrideCallCount++;
+        try
+        {
+            ResolveParts(out var decreaseButton, out var thumb, out var increaseButton);
 
-        if (Orientation == Orientation.Vertical)
-        {
-            ArrangeVertical(finalSize, decreaseButton, thumb, increaseButton);
-        }
-        else
-        {
-            ArrangeHorizontal(finalSize, decreaseButton, thumb, increaseButton);
-        }
-
-        for (var i = 0; i < Children.Count; i++)
-        {
-            if (Children[i] is not FrameworkElement child)
+            if (Orientation == Orientation.Vertical)
             {
-                continue;
+                IncrementAggregate(ref _diagArrangeOverrideVerticalCount);
+                ArrangeVertical(finalSize, decreaseButton, thumb, increaseButton);
+            }
+            else
+            {
+                IncrementAggregate(ref _diagArrangeOverrideHorizontalCount);
+                ArrangeHorizontal(finalSize, decreaseButton, thumb, increaseButton);
             }
 
-            if (GetPartRole(child) != TrackPartRole.None)
+            for (var i = 0; i < Children.Count; i++)
             {
-                continue;
+                if (Children[i] is not FrameworkElement child)
+                {
+                    IncrementAggregate(ref _diagArrangeOverrideSkippedNonFrameworkChildCount);
+                    continue;
+                }
+
+                if (GetPartRole(child) != TrackPartRole.None)
+                {
+                    continue;
+                }
+
+                IncrementAggregate(ref _diagArrangeOverrideExtraChildArrangeCount);
+                ArrangePartIfNeeded(child, new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
             }
 
-            ArrangePartIfNeeded(child, new LayoutRect(LayoutSlot.X, LayoutSlot.Y, finalSize.X, finalSize.Y));
+            return finalSize;
         }
-
-        return finalSize;
+        finally
+        {
+            _runtimeArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            RecordAggregateElapsed(ref _diagArrangeOverrideCallCount, ref _diagArrangeOverrideElapsedTicks, startTicks);
+        }
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeRenderCallCount++;
         if (_trackRect.Width <= 0f || _trackRect.Height <= 0f)
         {
+            IncrementAggregate(ref _diagRenderSkippedEmptyTrackCount);
+            _runtimeRenderElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            RecordAggregateElapsed(ref _diagRenderCallCount, ref _diagRenderElapsedTicks, startTicks);
             return;
         }
 
         UiDrawing.DrawFilledRect(spriteBatch, _trackRect, Background, Opacity);
         DrawBorder(spriteBatch, _trackRect);
+        _runtimeRenderElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        RecordAggregateElapsed(ref _diagRenderCallCount, ref _diagRenderElapsedTicks, startTicks);
     }
 
     private void ArrangeVertical(
@@ -563,12 +1083,16 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         FrameworkElement? thumb,
         FrameworkElement? increaseButton)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeArrangeVerticalCallCount++;
+        IncrementAggregate(ref _diagArrangeVerticalCallCount);
         var slot = LayoutSlot;
         var slotWidth = MathF.Max(0f, finalSize.X);
         var slotHeight = MathF.Max(0f, finalSize.Y);
 
         if (IsViewportSizedThumb)
         {
+            IncrementAggregate(ref _diagArrangeVerticalViewportSizedThumbCount);
             var decreaseLength = MathF.Min(slotHeight, ResolveArrangedButtonLength(decreaseButton, slotWidth, isVertical: true));
             var increaseLength = MathF.Min(MathF.Max(0f, slotHeight - decreaseLength), ResolveArrangedButtonLength(increaseButton, slotWidth, isVertical: true));
 
@@ -591,9 +1115,12 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
             _decreaseRegionRect = IsDirectionReversed ? trackEndRegionRect : trackStartRegionRect;
             _increaseRegionRect = IsDirectionReversed ? trackStartRegionRect : trackEndRegionRect;
             ArrangePartIfNeeded(thumb, _thumbRect);
+            _runtimeArrangeVerticalElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            AddAggregate(ref _diagArrangeVerticalElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
             return;
         }
 
+        IncrementAggregate(ref _diagArrangeVerticalSliderThumbCount);
         _trackRect = CreateCenteredTrackRect(slot, slotWidth, slotHeight, isVertical: true);
         _thumbRect = ComputeSliderThumbRect(_trackRect, slotWidth, slotHeight);
         var startRegionRect = new LayoutRect(_trackRect.X, _trackRect.Y, _trackRect.Width, MathF.Max(0f, _thumbRect.Y - _trackRect.Y));
@@ -611,6 +1138,8 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         ArrangePartIfNeeded(decreaseButton, _decreaseRegionRect);
         ArrangePartIfNeeded(increaseButton, _increaseRegionRect);
         ArrangePartIfNeeded(thumb, _thumbRect);
+        _runtimeArrangeVerticalElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        AddAggregate(ref _diagArrangeVerticalElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
     }
 
     private void ArrangeHorizontal(
@@ -619,12 +1148,16 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         FrameworkElement? thumb,
         FrameworkElement? increaseButton)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeArrangeHorizontalCallCount++;
+        IncrementAggregate(ref _diagArrangeHorizontalCallCount);
         var slot = LayoutSlot;
         var slotWidth = MathF.Max(0f, finalSize.X);
         var slotHeight = MathF.Max(0f, finalSize.Y);
 
         if (IsViewportSizedThumb)
         {
+            IncrementAggregate(ref _diagArrangeHorizontalViewportSizedThumbCount);
             var decreaseLength = MathF.Min(slotWidth, ResolveArrangedButtonLength(decreaseButton, slotHeight, isVertical: false));
             var increaseLength = MathF.Min(MathF.Max(0f, slotWidth - decreaseLength), ResolveArrangedButtonLength(increaseButton, slotHeight, isVertical: false));
 
@@ -647,9 +1180,12 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
             _decreaseRegionRect = IsDirectionReversed ? trackEndRegionRect : trackStartRegionRect;
             _increaseRegionRect = IsDirectionReversed ? trackStartRegionRect : trackEndRegionRect;
             ArrangePartIfNeeded(thumb, _thumbRect);
+            _runtimeArrangeHorizontalElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            AddAggregate(ref _diagArrangeHorizontalElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
             return;
         }
 
+        IncrementAggregate(ref _diagArrangeHorizontalSliderThumbCount);
         _trackRect = CreateCenteredTrackRect(slot, slotWidth, slotHeight, isVertical: false);
         _thumbRect = ComputeSliderThumbRect(_trackRect, slotWidth, slotHeight);
         var startRegionRect = new LayoutRect(_trackRect.X, _trackRect.Y, MathF.Max(0f, _thumbRect.X - _trackRect.X), _trackRect.Height);
@@ -667,6 +1203,8 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         ArrangePartIfNeeded(decreaseButton, _decreaseRegionRect);
         ArrangePartIfNeeded(increaseButton, _increaseRegionRect);
         ArrangePartIfNeeded(thumb, _thumbRect);
+        _runtimeArrangeHorizontalElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        AddAggregate(ref _diagArrangeHorizontalElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
     }
 
     private LayoutRect CreateCenteredTrackRect(LayoutRect slot, float slotWidth, float slotHeight, bool isVertical)
@@ -693,14 +1231,19 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
     private void ResolveParts(out FrameworkElement? decreaseButton, out FrameworkElement? thumb, out FrameworkElement? increaseButton)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeResolvePartsCallCount++;
+        IncrementAggregate(ref _diagResolvePartsCallCount);
         decreaseButton = null;
         thumb = null;
         increaseButton = null;
 
         for (var i = 0; i < Children.Count; i++)
         {
+            IncrementAggregate(ref _diagResolvePartsScannedChildCount);
             if (Children[i] is not FrameworkElement child)
             {
+                IncrementAggregate(ref _diagResolvePartsNonFrameworkChildCount);
                 continue;
             }
 
@@ -708,15 +1251,33 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
             {
                 case TrackPartRole.DecreaseButton when decreaseButton == null:
                     decreaseButton = child;
+                    IncrementAggregate(ref _diagResolvePartsDecreaseFoundCount);
+                    break;
+                case TrackPartRole.DecreaseButton:
+                    _runtimeResolvePartsDuplicateRoleCount++;
+                    IncrementAggregate(ref _diagResolvePartsDuplicateRoleCount);
                     break;
                 case TrackPartRole.Thumb when thumb == null:
                     thumb = child;
+                    IncrementAggregate(ref _diagResolvePartsThumbFoundCount);
+                    break;
+                case TrackPartRole.Thumb:
+                    _runtimeResolvePartsDuplicateRoleCount++;
+                    IncrementAggregate(ref _diagResolvePartsDuplicateRoleCount);
                     break;
                 case TrackPartRole.IncreaseButton when increaseButton == null:
                     increaseButton = child;
+                    IncrementAggregate(ref _diagResolvePartsIncreaseFoundCount);
+                    break;
+                case TrackPartRole.IncreaseButton:
+                    _runtimeResolvePartsDuplicateRoleCount++;
+                    IncrementAggregate(ref _diagResolvePartsDuplicateRoleCount);
                     break;
             }
         }
+
+        _runtimeResolvePartsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        AddAggregate(ref _diagResolvePartsElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
     }
 
     private static void MeasurePart(FrameworkElement? element, Vector2 availableSize)
@@ -774,6 +1335,9 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
     private float ResolveThumbAxisLength()
     {
+        _runtimeResolveThumbAxisLengthCallCount++;
+        IncrementAggregate(ref _diagResolveThumbAxisLengthCallCount);
+        IncrementAggregate(ref _diagResolveThumbAxisLengthExplicitCount);
         return IsViewportSizedThumb
             ? ThumbMinLength
             : MathF.Max(ThumbMinLength, ThumbLength > 0f ? ThumbLength : ThumbMinLength);
@@ -781,8 +1345,14 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
     private LayoutRect ComputeThumbRect(LayoutRect trackRect)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeComputeThumbRectCallCount++;
+        IncrementAggregate(ref _diagComputeThumbRectCallCount);
         if (trackRect.Width <= 0f || trackRect.Height <= 0f)
         {
+            IncrementAggregate(ref _diagComputeThumbRectZeroTrackRectCount);
+            _runtimeComputeThumbRectElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            AddAggregate(ref _diagComputeThumbRectElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
             return new LayoutRect(trackRect.X, trackRect.Y, 0f, 0f);
         }
 
@@ -792,27 +1362,42 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         var scrollableRange = GetScrollableRange();
         var normalized = scrollableRange <= ValueEpsilon ? 0f : (ClampValue(Value) - Minimum) / scrollableRange;
         var travelFraction = IsDirectionReversed ? 1f - normalized : normalized;
-        var thumbTravel = maxTravel * MathF.Max(0f, MathF.Min(1f, travelFraction));
-
-        if (Orientation == Orientation.Vertical)
+        if (IsDirectionReversed)
         {
-            return new LayoutRect(trackRect.X, trackRect.Y + thumbTravel, trackRect.Width, thumbAxisLength);
+            IncrementAggregate(ref _diagComputeThumbRectDirectionReversedCount);
         }
 
-        return new LayoutRect(trackRect.X + thumbTravel, trackRect.Y, thumbAxisLength, trackRect.Height);
+        var thumbTravel = maxTravel * MathF.Max(0f, MathF.Min(1f, travelFraction));
+
+        var rect = Orientation == Orientation.Vertical
+            ? new LayoutRect(trackRect.X, trackRect.Y + thumbTravel, trackRect.Width, thumbAxisLength)
+            : new LayoutRect(trackRect.X + thumbTravel, trackRect.Y, thumbAxisLength, trackRect.Height);
+        _runtimeComputeThumbRectElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        AddAggregate(ref _diagComputeThumbRectElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+        return rect;
     }
 
     private float ResolveThumbAxisLength(float trackLength)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeResolveThumbAxisLengthCallCount++;
+        IncrementAggregate(ref _diagResolveThumbAxisLengthCallCount);
         if (!IsViewportSizedThumb)
         {
+            IncrementAggregate(ref _diagResolveThumbAxisLengthExplicitCount);
+            _runtimeResolveThumbAxisLengthElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            AddAggregate(ref _diagResolveThumbAxisLengthElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
             var explicitLength = ThumbLength > 0f ? ThumbLength : ThumbMinLength;
             return MathF.Min(trackLength, MathF.Max(ThumbMinLength, explicitLength));
         }
 
+        IncrementAggregate(ref _diagResolveThumbAxisLengthViewportSizedCount);
         var extent = MathF.Max(0f, Maximum - Minimum);
         if (extent <= ValueEpsilon)
         {
+            IncrementAggregate(ref _diagResolveThumbAxisLengthExtentZeroCount);
+            _runtimeResolveThumbAxisLengthElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            AddAggregate(ref _diagResolveThumbAxisLengthElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
             return trackLength;
         }
 
@@ -820,13 +1405,30 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         var ratio = viewport > 0f
             ? MathF.Max(MinimumThumbRatio, MathF.Min(1f, viewport / MathF.Max(viewport, extent)))
             : FallbackThumbRatio;
+        if (viewport > 0f)
+        {
+            IncrementAggregate(ref _diagResolveThumbAxisLengthViewportRatioCount);
+        }
+        else
+        {
+            IncrementAggregate(ref _diagResolveThumbAxisLengthFallbackViewportRatioCount);
+        }
+
+        _runtimeResolveThumbAxisLengthElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        AddAggregate(ref _diagResolveThumbAxisLengthElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
         return MathF.Min(trackLength, MathF.Max(ThumbMinLength, trackLength * ratio));
     }
 
     private LayoutRect ComputeSliderThumbRect(LayoutRect trackRect, float slotWidth, float slotHeight)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeComputeSliderThumbRectCallCount++;
+        IncrementAggregate(ref _diagComputeSliderThumbRectCallCount);
         if (trackRect.Width <= 0f || trackRect.Height <= 0f)
         {
+            IncrementAggregate(ref _diagComputeSliderThumbRectZeroTrackRectCount);
+            _runtimeComputeSliderThumbRectElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            AddAggregate(ref _diagComputeSliderThumbRectElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
             return new LayoutRect(trackRect.X, trackRect.Y, 0f, 0f);
         }
 
@@ -837,22 +1439,27 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         var scrollableRange = GetScrollableRange();
         var normalized = scrollableRange <= ValueEpsilon ? 0f : (ClampValue(Value) - Minimum) / scrollableRange;
         var travelFraction = IsDirectionReversed ? 1f - normalized : normalized;
+        if (IsDirectionReversed)
+        {
+            IncrementAggregate(ref _diagComputeSliderThumbRectDirectionReversedCount);
+        }
+
         var thumbTravel = maxTravel * MathF.Max(0f, MathF.Min(1f, travelFraction));
 
-        if (Orientation == Orientation.Vertical)
-        {
-            return new LayoutRect(
+        var rect = Orientation == Orientation.Vertical
+            ? new LayoutRect(
                 trackRect.X + ((trackRect.Width - thumbCrossLength) / 2f),
                 trackRect.Y + thumbTravel,
                 thumbCrossLength,
-                thumbAxisLength);
-        }
-
-        return new LayoutRect(
-            trackRect.X + thumbTravel,
-            trackRect.Y + ((trackRect.Height - thumbCrossLength) / 2f),
-            thumbAxisLength,
-            thumbCrossLength);
+                thumbAxisLength)
+            : new LayoutRect(
+                trackRect.X + thumbTravel,
+                trackRect.Y + ((trackRect.Height - thumbCrossLength) / 2f),
+                thumbAxisLength,
+                thumbCrossLength);
+        _runtimeComputeSliderThumbRectElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        AddAggregate(ref _diagComputeSliderThumbRectElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+        return rect;
     }
 
     private float ResolveSliderThumbCrossLength(float availableCrossLength)
@@ -869,7 +1476,14 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
     private float GetScrollableRange()
     {
+        _runtimeGetScrollableRangeCallCount++;
+        IncrementAggregate(ref _diagGetScrollableRangeCallCount);
         var extent = MathF.Max(0f, Maximum - Minimum);
+        if (IsViewportSizedThumb)
+        {
+            IncrementAggregate(ref _diagGetScrollableRangeViewportSizedCount);
+        }
+
         return IsViewportSizedThumb
             ? MathF.Max(0f, extent - MathF.Max(0f, ViewportSize))
             : extent;
@@ -877,10 +1491,21 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
     private float ClampValue(float value)
     {
+        _runtimeClampValueCallCount++;
+        IncrementAggregate(ref _diagClampValueCallCount);
         var maxValue = Minimum + GetScrollableRange();
         if (maxValue < Minimum)
         {
             maxValue = Minimum;
+        }
+
+        if (value < Minimum)
+        {
+            IncrementAggregate(ref _diagClampValueClampedLowCount);
+        }
+        else if (value > maxValue)
+        {
+            IncrementAggregate(ref _diagClampValueClampedHighCount);
         }
 
         return MathF.Max(Minimum, MathF.Min(maxValue, value));
@@ -893,26 +1518,37 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
     private void DrawBorder(SpriteBatch spriteBatch, LayoutRect rect)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeDrawBorderCallCount++;
+        IncrementAggregate(ref _diagDrawBorderCallCount);
         var border = BorderThickness;
         if (border.Left > 0f)
         {
+            IncrementAggregate(ref _diagDrawBorderLeftSegmentCount);
             UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(rect.X, rect.Y, border.Left, rect.Height), BorderBrush, Opacity);
         }
 
         if (border.Right > 0f)
         {
+            IncrementAggregate(ref _diagDrawBorderRightSegmentCount);
             UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(rect.X + rect.Width - border.Right, rect.Y, border.Right, rect.Height), BorderBrush, Opacity);
         }
 
         if (border.Top > 0f)
         {
+            IncrementAggregate(ref _diagDrawBorderTopSegmentCount);
             UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(rect.X, rect.Y, rect.Width, border.Top), BorderBrush, Opacity);
         }
 
         if (border.Bottom > 0f)
         {
+            IncrementAggregate(ref _diagDrawBorderBottomSegmentCount);
             UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(rect.X, rect.Y + rect.Height - border.Bottom, rect.Width, border.Bottom), BorderBrush, Opacity);
         }
+
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _runtimeDrawBorderElapsedTicks += elapsedTicks;
+        AddAggregate(ref _diagDrawBorderElapsedTicks, elapsedTicks);
     }
 
     private static bool ContainsPoint(LayoutRect rect, Vector2 point)
@@ -943,6 +1579,8 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
     bool IRenderDirtyBoundsHintProvider.TryConsumeRenderDirtyBoundsHint(out LayoutRect bounds)
     {
+        _runtimeTryConsumeRenderDirtyBoundsHintCallCount++;
+        IncrementAggregate(ref _diagTryConsumeRenderDirtyBoundsHintCallCount);
         if (!_hasPendingRenderDirtyBoundsHint)
         {
             bounds = default;
@@ -951,6 +1589,8 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
 
         bounds = _pendingRenderDirtyBoundsHint;
         _hasPendingRenderDirtyBoundsHint = false;
+        _runtimeTryConsumeRenderDirtyBoundsHintHitCount++;
+        IncrementAggregate(ref _diagTryConsumeRenderDirtyBoundsHintHitCount);
         return true;
     }
 
@@ -962,30 +1602,32 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
     private void OnStateMutationChanged(TrackStateMutationSource source)
     {
         var startTicks = Stopwatch.GetTimestamp();
+        _runtimeOnStateMutationChangedCallCount++;
+        IncrementAggregate(ref _diagOnStateMutationChangedCallCount);
         RefreshLayoutForStateMutation();
         var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
 
         switch (source)
         {
             case TrackStateMutationSource.Minimum:
-                _diagRefreshLayoutMinimumMutationCallCount++;
-                _diagRefreshLayoutMinimumMutationElapsedTicks += elapsedTicks;
+                IncrementAggregate(ref _diagRefreshLayoutMinimumMutationCallCount);
+                AddAggregate(ref _diagRefreshLayoutMinimumMutationElapsedTicks, elapsedTicks);
                 break;
             case TrackStateMutationSource.Maximum:
-                _diagRefreshLayoutMaximumMutationCallCount++;
-                _diagRefreshLayoutMaximumMutationElapsedTicks += elapsedTicks;
+                IncrementAggregate(ref _diagRefreshLayoutMaximumMutationCallCount);
+                AddAggregate(ref _diagRefreshLayoutMaximumMutationElapsedTicks, elapsedTicks);
                 break;
             case TrackStateMutationSource.Value:
-                _diagRefreshLayoutValueMutationCallCount++;
-                _diagRefreshLayoutValueMutationElapsedTicks += elapsedTicks;
+                IncrementAggregate(ref _diagRefreshLayoutValueMutationCallCount);
+                AddAggregate(ref _diagRefreshLayoutValueMutationElapsedTicks, elapsedTicks);
                 break;
             case TrackStateMutationSource.ViewportSize:
-                _diagRefreshLayoutViewportMutationCallCount++;
-                _diagRefreshLayoutViewportMutationElapsedTicks += elapsedTicks;
+                IncrementAggregate(ref _diagRefreshLayoutViewportMutationCallCount);
+                AddAggregate(ref _diagRefreshLayoutViewportMutationElapsedTicks, elapsedTicks);
                 break;
             case TrackStateMutationSource.IsDirectionReversed:
-                _diagRefreshLayoutDirectionMutationCallCount++;
-                _diagRefreshLayoutDirectionMutationElapsedTicks += elapsedTicks;
+                IncrementAggregate(ref _diagRefreshLayoutDirectionMutationCallCount);
+                AddAggregate(ref _diagRefreshLayoutDirectionMutationElapsedTicks, elapsedTicks);
                 break;
         }
     }
@@ -993,57 +1635,67 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
     private void RefreshLayoutForStateMutation()
     {
         var startTicks = Stopwatch.GetTimestamp();
-        _diagRefreshLayoutForStateMutationCallCount++;
+        _runtimeRefreshLayoutForStateMutationCallCount++;
+        IncrementAggregate(ref _diagRefreshLayoutForStateMutationCallCount);
 
         if (NeedsMeasure)
         {
             var invalidateVisualStartTicks = Stopwatch.GetTimestamp();
             InvalidateVisual();
-            _diagRefreshLayoutVisualInvalidationElapsedTicks += Stopwatch.GetTimestamp() - invalidateVisualStartTicks;
-            _diagRefreshLayoutNeedsMeasureFallbackCount++;
-            _diagRefreshLayoutNeedsMeasureFallbackElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
-            _diagRefreshLayoutForStateMutationElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            AddAggregate(ref _diagRefreshLayoutVisualInvalidationElapsedTicks, Stopwatch.GetTimestamp() - invalidateVisualStartTicks);
+            _runtimeRefreshLayoutNeedsMeasureFallbackCount++;
+            IncrementAggregate(ref _diagRefreshLayoutNeedsMeasureFallbackCount);
+            AddAggregate(ref _diagRefreshLayoutNeedsMeasureFallbackElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+            _runtimeRefreshLayoutForStateMutationElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            AddAggregate(ref _diagRefreshLayoutForStateMutationElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
             return;
         }
 
         var captureStartTicks = Stopwatch.GetTimestamp();
         var before = CaptureRenderMutationSnapshot();
-        _diagRefreshLayoutCaptureSnapshotElapsedTicks += Stopwatch.GetTimestamp() - captureStartTicks;
+        AddAggregate(ref _diagRefreshLayoutCaptureSnapshotElapsedTicks, Stopwatch.GetTimestamp() - captureStartTicks);
 
         var invalidateArrangeStartTicks = Stopwatch.GetTimestamp();
         InvalidateArrangeForDirectLayoutOnly(invalidateRender: false);
-        _diagRefreshLayoutInvalidateArrangeElapsedTicks += Stopwatch.GetTimestamp() - invalidateArrangeStartTicks;
+        AddAggregate(ref _diagRefreshLayoutInvalidateArrangeElapsedTicks, Stopwatch.GetTimestamp() - invalidateArrangeStartTicks);
 
         var arrangeStartTicks = Stopwatch.GetTimestamp();
         Arrange(LayoutSlot);
-        _diagRefreshLayoutArrangeElapsedTicks += Stopwatch.GetTimestamp() - arrangeStartTicks;
+        AddAggregate(ref _diagRefreshLayoutArrangeElapsedTicks, Stopwatch.GetTimestamp() - arrangeStartTicks);
 
         captureStartTicks = Stopwatch.GetTimestamp();
         var after = CaptureRenderMutationSnapshot();
-        _diagRefreshLayoutCaptureSnapshotElapsedTicks += Stopwatch.GetTimestamp() - captureStartTicks;
+        AddAggregate(ref _diagRefreshLayoutCaptureSnapshotElapsedTicks, Stopwatch.GetTimestamp() - captureStartTicks);
 
         var dirtyBoundsStartTicks = Stopwatch.GetTimestamp();
         if (TryBuildRenderMutationDirtyBounds(before, after, out var dirtyBounds))
         {
-            _diagRefreshLayoutDirtyBoundsElapsedTicks += Stopwatch.GetTimestamp() - dirtyBoundsStartTicks;
+            AddAggregate(ref _diagRefreshLayoutDirtyBoundsElapsedTicks, Stopwatch.GetTimestamp() - dirtyBoundsStartTicks);
             var invalidateVisualStartTicks = Stopwatch.GetTimestamp();
             InvalidateVisualWithDirtyBoundsHint(dirtyBounds);
-            _diagRefreshLayoutVisualInvalidationElapsedTicks += Stopwatch.GetTimestamp() - invalidateVisualStartTicks;
-            _diagRefreshLayoutDirtyBoundsHintCount++;
-            _diagRefreshLayoutForStateMutationElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            AddAggregate(ref _diagRefreshLayoutVisualInvalidationElapsedTicks, Stopwatch.GetTimestamp() - invalidateVisualStartTicks);
+            _runtimeRefreshLayoutDirtyBoundsHintCount++;
+            IncrementAggregate(ref _diagRefreshLayoutDirtyBoundsHintCount);
+            _runtimeRefreshLayoutForStateMutationElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            AddAggregate(ref _diagRefreshLayoutForStateMutationElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
             return;
         }
 
-        _diagRefreshLayoutDirtyBoundsElapsedTicks += Stopwatch.GetTimestamp() - dirtyBoundsStartTicks;
+        AddAggregate(ref _diagRefreshLayoutDirtyBoundsElapsedTicks, Stopwatch.GetTimestamp() - dirtyBoundsStartTicks);
         var fallbackInvalidateVisualStartTicks = Stopwatch.GetTimestamp();
         InvalidateVisual();
-        _diagRefreshLayoutVisualInvalidationElapsedTicks += Stopwatch.GetTimestamp() - fallbackInvalidateVisualStartTicks;
-        _diagRefreshLayoutVisualFallbackCount++;
-        _diagRefreshLayoutForStateMutationElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        AddAggregate(ref _diagRefreshLayoutVisualInvalidationElapsedTicks, Stopwatch.GetTimestamp() - fallbackInvalidateVisualStartTicks);
+        _runtimeRefreshLayoutVisualFallbackCount++;
+        IncrementAggregate(ref _diagRefreshLayoutVisualFallbackCount);
+        _runtimeRefreshLayoutForStateMutationElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        AddAggregate(ref _diagRefreshLayoutForStateMutationElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
     }
 
     private void InvalidateVisualWithDirtyBoundsHint(LayoutRect dirtyBounds)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeInvalidateVisualWithDirtyBoundsHintCallCount++;
+        IncrementAggregate(ref _diagInvalidateVisualWithDirtyBoundsHintCallCount);
         _pendingRenderDirtyBoundsHint = NormalizeRect(dirtyBounds);
         _hasPendingRenderDirtyBoundsHint = true;
         _preserveRenderDirtyBoundsHint = true;
@@ -1055,12 +1707,18 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         {
             _preserveRenderDirtyBoundsHint = false;
         }
+
+        _runtimeInvalidateVisualWithDirtyBoundsHintElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        AddAggregate(ref _diagInvalidateVisualWithDirtyBoundsHintElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
     }
 
     private TrackRenderMutationSnapshot CaptureRenderMutationSnapshot()
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeCaptureRenderMutationSnapshotCallCount++;
+        IncrementAggregate(ref _diagCaptureRenderMutationSnapshotCallCount);
         ResolveParts(out var decreaseButton, out var thumb, out var increaseButton);
-        return new TrackRenderMutationSnapshot(
+        var snapshot = new TrackRenderMutationSnapshot(
             _trackRect,
             decreaseButton?.LayoutSlot ?? default,
             decreaseButton != null,
@@ -1068,29 +1726,48 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
             thumb != null,
             increaseButton?.LayoutSlot ?? default,
             increaseButton != null);
+        _runtimeCaptureRenderMutationSnapshotElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+        AddAggregate(ref _diagCaptureRenderMutationSnapshotElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+        return snapshot;
     }
 
-    private static bool TryBuildRenderMutationDirtyBounds(
+    private bool TryBuildRenderMutationDirtyBounds(
         TrackRenderMutationSnapshot before,
         TrackRenderMutationSnapshot after,
         out LayoutRect dirtyBounds)
     {
+        _runtimeTryBuildRenderMutationDirtyBoundsCallCount++;
+        IncrementAggregate(ref _diagTryBuildRenderMutationDirtyBoundsCallCount);
         var hasDirtyBounds = false;
         dirtyBounds = default;
 
         if (!AreRectsClose(before.TrackRect, after.TrackRect))
         {
+            _runtimeTryBuildRenderMutationDirtyBoundsTrackChangedCount++;
+            IncrementAggregate(ref _diagTryBuildRenderMutationDirtyBoundsTrackChangedCount);
             AddRectToUnion(before.TrackRect, ref hasDirtyBounds, ref dirtyBounds);
             AddRectToUnion(after.TrackRect, ref hasDirtyBounds, ref dirtyBounds);
         }
 
+        var hadDirtyBoundsBeforeParts = hasDirtyBounds;
         AddPartBoundsIfChanged(before.HasDecreasePart, before.DecreasePartRect, after.HasDecreasePart, after.DecreasePartRect, ref hasDirtyBounds, ref dirtyBounds);
         AddPartBoundsIfChanged(before.HasThumbPart, before.ThumbPartRect, after.HasThumbPart, after.ThumbPartRect, ref hasDirtyBounds, ref dirtyBounds);
         AddPartBoundsIfChanged(before.HasIncreasePart, before.IncreasePartRect, after.HasIncreasePart, after.IncreasePartRect, ref hasDirtyBounds, ref dirtyBounds);
+        if (!hadDirtyBoundsBeforeParts && hasDirtyBounds)
+        {
+            _runtimeTryBuildRenderMutationDirtyBoundsPartChangedCount++;
+            IncrementAggregate(ref _diagTryBuildRenderMutationDirtyBoundsPartChangedCount);
+        }
 
         if (!hasDirtyBounds)
         {
             AddRectToUnion(after.TrackRect, ref hasDirtyBounds, ref dirtyBounds);
+        }
+
+        if (hasDirtyBounds)
+        {
+            _runtimeTryBuildRenderMutationDirtyBoundsBuiltCount++;
+            IncrementAggregate(ref _diagTryBuildRenderMutationDirtyBoundsBuiltCount);
         }
 
         return hasDirtyBounds;
@@ -1185,6 +1862,45 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
                MathF.Abs(left.Y - right.Y) <= epsilon &&
                MathF.Abs(left.Width - right.Width) <= epsilon &&
                MathF.Abs(left.Height - right.Height) <= epsilon;
+    }
+
+    private static void IncrementAggregate(ref long counter)
+    {
+        Interlocked.Increment(ref counter);
+    }
+
+    private static void AddAggregate(ref long counter, long value)
+    {
+        if (value != 0)
+        {
+            Interlocked.Add(ref counter, value);
+        }
+    }
+
+    private static long ReadAggregate(ref long counter)
+    {
+        return Interlocked.Read(ref counter);
+    }
+
+    private static long ResetAggregate(ref long counter)
+    {
+        return Interlocked.Exchange(ref counter, 0L);
+    }
+
+    private static long ReadOrReset(ref long counter, bool reset)
+    {
+        return reset ? ResetAggregate(ref counter) : ReadAggregate(ref counter);
+    }
+
+    private static void RecordAggregateElapsed(ref long callCount, ref long elapsedTicks, long startTicks)
+    {
+        IncrementAggregate(ref callCount);
+        AddAggregate(ref elapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 
     private readonly record struct TrackRenderMutationSnapshot(

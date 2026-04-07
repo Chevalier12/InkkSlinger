@@ -1054,7 +1054,7 @@ public class Button : ContentControl
             _runtimeHasAvailableIndependentDesiredSizeForUniformGridFalseCount);
     }
 
-    internal static ButtonTelemetrySnapshot GetTelemetryAndReset()
+    internal new static ButtonTelemetrySnapshot GetTelemetryAndReset()
     {
         var snapshot = CreateAggregateTelemetrySnapshot();
         ResetAggregate(ref _diagConstructorCallCount);
@@ -1158,7 +1158,7 @@ public class Button : ContentControl
         return snapshot;
     }
 
-    internal static ButtonTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    internal new static ButtonTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
     {
         return CreateAggregateTelemetrySnapshot();
     }

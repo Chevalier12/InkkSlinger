@@ -296,7 +296,7 @@ public sealed class Label : ContentControl
             _runtimeOnTargetChangedNoNewTargetCount);
     }
 
-    internal static LabelTelemetrySnapshot GetTelemetryAndReset()
+    internal new static LabelTelemetrySnapshot GetTelemetryAndReset()
     {
         return new LabelTelemetrySnapshot(
             ResetAggregate(ref _diagConstructorCallCount),
@@ -332,7 +332,7 @@ public sealed class Label : ContentControl
             ResetAggregate(ref _diagExtractAutomationTextFallbackPathCount));
     }
 
-    internal static LabelTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    internal new static LabelTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
     {
         return CreateAggregateTelemetrySnapshot();
     }

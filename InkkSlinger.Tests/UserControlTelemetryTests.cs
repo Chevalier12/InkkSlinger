@@ -240,12 +240,26 @@ public sealed class UserControlTelemetryTests
         Assert.Contains("userControlHasTemplateAssigned=True", text);
         Assert.Contains("userControlHasCachedTemplateRoot=True", text);
         Assert.Contains("userControlCachedTemplateRootType=Border", text);
+        Assert.Contains("userControlRuntimeOtherPropertyChanges=", text);
+        Assert.Contains("userControlRuntimeVisualChildrenYielded=", text);
+        Assert.Contains("userControlRuntimeTraversalCountTemplatePath=", text);
+        Assert.Contains("userControlRuntimeTraversalIndexTemplatePath=", text);
         Assert.Contains("userControlRuntimeMeasureOverrideCalls=", text);
+        Assert.Contains("userControlRuntimeMeasureTemplateReturnedZero=", text);
         Assert.Contains("userControlRuntimeEnsureTemplateCalls=", text);
+        Assert.Contains("userControlRuntimeRefreshCachedRootEnumerated=", text);
         Assert.Contains("userControlRuntimeDetachPresenterCalls=", text);
         Assert.Contains("userControlMeasureOverrideCalls=", text);
+        Assert.Contains("userControlOtherPropertyChanges=", text);
+        Assert.Contains("userControlVisualChildrenYielded=", text);
+        Assert.Contains("userControlTraversalCountTemplatePath=", text);
+        Assert.Contains("userControlTraversalIndexTemplatePath=", text);
+        Assert.Contains("userControlMeasureTemplateReturnedZero=", text);
         Assert.Contains("userControlEnsureTemplateCalls=", text);
+        Assert.Contains("userControlRefreshCachedRootEnumerated=", text);
         Assert.Contains("userControlDetachPresenterCalls=", text);
+        Assert.Contains("userControlDetachPresenterFallbackSearch=", text);
+        Assert.Contains("userControlDetachPresenterRootNotFound=", text);
         Assert.Contains("userControlBorderThickness=2,3,4,5", text);
         Assert.Contains("userControlPadding=6,7,8,9", text);
     }

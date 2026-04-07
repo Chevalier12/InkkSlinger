@@ -671,7 +671,7 @@ public class UserControl : ContentControl
         return CreateAggregateTelemetrySnapshot(reset: false);
     }
 
-    internal static UserControlTelemetrySnapshot GetTelemetrySnapshotForDiagnostics()
+    internal new static UserControlTelemetrySnapshot GetTelemetrySnapshotForDiagnostics()
     {
         return GetAggregateTelemetrySnapshotForDiagnostics();
     }
