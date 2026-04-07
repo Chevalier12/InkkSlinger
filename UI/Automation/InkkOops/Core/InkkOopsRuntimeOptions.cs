@@ -4,6 +4,8 @@ public sealed class InkkOopsRuntimeOptions
 {
     public string StartupScriptName { get; init; } = string.Empty;
 
+    public string[] AdditionalScriptAssemblyPaths { get; init; } = [];
+
     public int[] ActionDiagnosticsIndexes { get; init; } = [];
 
     public string NamedPipeName { get; init; } = string.Empty;

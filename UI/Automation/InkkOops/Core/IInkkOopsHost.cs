@@ -30,9 +30,11 @@ public interface IInkkOopsHost
 
     Task MovePointerAsync(Vector2 position, CancellationToken cancellationToken = default);
 
-    Task PressPointerAsync(Vector2 position, CancellationToken cancellationToken = default);
+    Task MovePointerAsync(Vector2 position, InkkOopsPointerMotion motion, CancellationToken cancellationToken = default);
 
-    Task ReleasePointerAsync(Vector2 position, CancellationToken cancellationToken = default);
+    Task PressPointerAsync(Vector2 position, MouseButton button = MouseButton.Left, CancellationToken cancellationToken = default);
+
+    Task ReleasePointerAsync(Vector2 position, MouseButton button = MouseButton.Left, CancellationToken cancellationToken = default);
 
     Task WheelAsync(int delta, CancellationToken cancellationToken = default);
 

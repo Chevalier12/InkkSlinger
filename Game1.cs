@@ -46,7 +46,7 @@ public class Game1 : Game
     public Game1(InkkOopsRuntimeOptions inkkOopsOptions)
     {
         _inkkOopsOptions = inkkOopsOptions ?? throw new ArgumentNullException(nameof(inkkOopsOptions));
-        _inkkOopsHostConfiguration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
+        _inkkOopsHostConfiguration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly, _inkkOopsOptions.AdditionalScriptAssemblyPaths);
         _graphics = new GraphicsDeviceManager(this);
         _window = new InkkSlinger.Window(this, _graphics);
         Content.RootDirectory = "Content";

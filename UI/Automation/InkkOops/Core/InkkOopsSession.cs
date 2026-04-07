@@ -108,17 +108,22 @@ public sealed class InkkOopsSession
 
     public Task MovePointerAsync(Vector2 position, CancellationToken cancellationToken = default)
     {
-        return TrackPointerMoveAsync(position, cancellationToken);
+        return TrackPointerMoveAsync(position, InkkOopsPointerMotion.Default, cancellationToken);
     }
 
-    public Task PressPointerAsync(Vector2 position, CancellationToken cancellationToken = default)
+    public Task MovePointerAsync(Vector2 position, InkkOopsPointerMotion motion, CancellationToken cancellationToken = default)
     {
-        return TrackPointerDownAsync(position, cancellationToken);
+        return TrackPointerMoveAsync(position, motion, cancellationToken);
     }
 
-    public Task ReleasePointerAsync(Vector2 position, CancellationToken cancellationToken = default)
+    public Task PressPointerAsync(Vector2 position, MouseButton button = MouseButton.Left, CancellationToken cancellationToken = default)
     {
-        return TrackPointerUpAsync(position, cancellationToken);
+        return TrackPointerDownAsync(position, button, cancellationToken);
+    }
+
+    public Task ReleasePointerAsync(Vector2 position, MouseButton button = MouseButton.Left, CancellationToken cancellationToken = default)
+    {
+        return TrackPointerUpAsync(position, button, cancellationToken);
     }
 
     public Task WheelAsync(int delta, CancellationToken cancellationToken = default)
@@ -214,7 +219,7 @@ public sealed class InkkOopsSession
             var viewport = Host.GetViewportBounds();
             var hasBounds = element.TryGetRenderBoundsInRootSpace(out var bounds) && bounds.Width > 0f && bounds.Height > 0f;
             var chosenAnchor = anchor ?? InkkOopsPointerAnchor.Center;
-            var actionPoint = hasBounds ? InkkOopsCommandUtilities.GetAnchorPoint(bounds, chosenAnchor) : Vector2.Zero;
+            var actionPoint = hasBounds ? InkkOopsCommandUtilities.GetPreferredActionPoint(element, bounds, viewport, chosenAnchor) : Vector2.Zero;
             var hasActionPoint = hasBounds;
             var isVisible = element.IsVisible && element.Visibility == Visibility.Visible && element.Opacity > 0f;
             var isEnabled = element.IsEnabled && element.IsHitTestVisible;
@@ -307,11 +312,11 @@ public sealed class InkkOopsSession
         _lastActionPoint = position;
     }
 
-    private async Task TrackPointerMoveAsync(Vector2 position, CancellationToken cancellationToken)
+    private async Task TrackPointerMoveAsync(Vector2 position, InkkOopsPointerMotion motion, CancellationToken cancellationToken)
     {
         RecordActionPoint(position);
         var before = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
-        await Host.MovePointerAsync(position, cancellationToken).ConfigureAwait(false);
+        await Host.MovePointerAsync(position, motion, cancellationToken).ConfigureAwait(false);
         var after = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
         var displayedFps = await CaptureDisplayedFpsAsync(cancellationToken).ConfigureAwait(false);
 
@@ -321,11 +326,11 @@ public sealed class InkkOopsSession
         }
     }
 
-    private async Task TrackPointerDownAsync(Vector2 position, CancellationToken cancellationToken)
+    private async Task TrackPointerDownAsync(Vector2 position, MouseButton button, CancellationToken cancellationToken)
     {
         RecordActionPoint(position);
         var before = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
-        await Host.PressPointerAsync(position, cancellationToken).ConfigureAwait(false);
+        await Host.PressPointerAsync(position, button, cancellationToken).ConfigureAwait(false);
         var after = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
         var displayedFps = await CaptureDisplayedFpsAsync(cancellationToken).ConfigureAwait(false);
 
@@ -333,11 +338,11 @@ public sealed class InkkOopsSession
         Artifacts.LogActionEntry(entry.Subject, entry.Details);
     }
 
-    private async Task TrackPointerUpAsync(Vector2 position, CancellationToken cancellationToken)
+    private async Task TrackPointerUpAsync(Vector2 position, MouseButton button, CancellationToken cancellationToken)
     {
         RecordActionPoint(position);
         var before = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
-        await Host.ReleasePointerAsync(position, cancellationToken).ConfigureAwait(false);
+        await Host.ReleasePointerAsync(position, button, cancellationToken).ConfigureAwait(false);
         var after = await CaptureActionSnapshotAsync(cancellationToken).ConfigureAwait(false);
         var displayedFps = await CaptureDisplayedFpsAsync(cancellationToken).ConfigureAwait(false);
 

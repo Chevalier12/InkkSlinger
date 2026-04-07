@@ -22,6 +22,16 @@ static int[] ParseActionDiagnosticsIndexes(string? text)
     return [.. values];
 }
 
+static string[] AppendScriptAssemblyPath(string[] existing, string assemblyPath)
+{
+    if (string.IsNullOrWhiteSpace(assemblyPath))
+    {
+        return existing;
+    }
+
+    return [.. existing, assemblyPath];
+}
+
 static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
 {
     var options = new InkkOopsRuntimeOptions();
@@ -33,6 +43,22 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = args[++i],
+                    AdditionalScriptAssemblyPaths = options.AdditionalScriptAssemblyPaths,
+                    ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
+                    NamedPipeName = options.NamedPipeName,
+                    ArtifactRoot = options.ArtifactRoot,
+                    RecordUserSession = options.RecordUserSession,
+                    RecordingRoot = options.RecordingRoot,
+                    StartupRecordingPath = options.StartupRecordingPath,
+                    DisableRetainedRenderList = options.DisableRetainedRenderList,
+                    DisableDirtyRegionRendering = options.DisableDirtyRegionRendering
+                };
+                break;
+            case "--inkkoops-script-assembly" when i + 1 < args.Length:
+                options = new InkkOopsRuntimeOptions
+                {
+                    StartupScriptName = options.StartupScriptName,
+                    AdditionalScriptAssemblyPaths = AppendScriptAssemblyPath(options.AdditionalScriptAssemblyPaths, args[++i]),
                     ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
@@ -47,6 +73,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    AdditionalScriptAssemblyPaths = options.AdditionalScriptAssemblyPaths,
                     ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = args[++i],
                     ArtifactRoot = options.ArtifactRoot,
@@ -61,6 +88,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    AdditionalScriptAssemblyPaths = options.AdditionalScriptAssemblyPaths,
                     ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = args[++i],
@@ -75,6 +103,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    AdditionalScriptAssemblyPaths = options.AdditionalScriptAssemblyPaths,
                     ActionDiagnosticsIndexes = ParseActionDiagnosticsIndexes(args[++i]),
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
@@ -89,6 +118,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    AdditionalScriptAssemblyPaths = options.AdditionalScriptAssemblyPaths,
                     ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
@@ -103,6 +133,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    AdditionalScriptAssemblyPaths = options.AdditionalScriptAssemblyPaths,
                     ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
@@ -117,6 +148,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    AdditionalScriptAssemblyPaths = options.AdditionalScriptAssemblyPaths,
                     ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
@@ -131,6 +163,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    AdditionalScriptAssemblyPaths = options.AdditionalScriptAssemblyPaths,
                     ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,
@@ -145,6 +178,7 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
                 options = new InkkOopsRuntimeOptions
                 {
                     StartupScriptName = options.StartupScriptName,
+                    AdditionalScriptAssemblyPaths = options.AdditionalScriptAssemblyPaths,
                     ActionDiagnosticsIndexes = options.ActionDiagnosticsIndexes,
                     NamedPipeName = options.NamedPipeName,
                     ArtifactRoot = options.ArtifactRoot,

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace InkkSlinger;
@@ -7,9 +8,9 @@ public sealed class InkkOopsScriptBuilder
 {
     private readonly InkkOopsScript _script;
 
-    public InkkOopsScriptBuilder(string name)
+    public InkkOopsScriptBuilder(string name, IEnumerable<int>? actionDiagnosticsIndexes = null)
     {
-        _script = new InkkOopsScript(name);
+        _script = new InkkOopsScript(name, actionDiagnosticsIndexes);
     }
 
     public InkkOopsScriptBuilder Add(IInkkOopsCommand command)
@@ -98,14 +99,29 @@ public sealed class InkkOopsScriptBuilder
         return Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference(targetName)));
     }
 
+    public InkkOopsScriptBuilder Hover(string targetName, int dwellFrames, InkkOopsPointerMotion? motion = null)
+    {
+        return Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference(targetName), null, dwellFrames, motion));
+    }
+
     public InkkOopsScriptBuilder Hover(string targetName, InkkOopsPointerAnchor anchor)
     {
         return Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference(targetName), anchor));
     }
 
+    public InkkOopsScriptBuilder Hover(string targetName, InkkOopsPointerAnchor anchor, int dwellFrames, InkkOopsPointerMotion? motion = null)
+    {
+        return Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference(targetName), anchor, dwellFrames, motion));
+    }
+
     public InkkOopsScriptBuilder Hover(InkkOopsTargetSelector selector, InkkOopsPointerAnchor? anchor = null)
     {
         return Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference(selector), anchor));
+    }
+
+    public InkkOopsScriptBuilder Hover(InkkOopsTargetSelector selector, int dwellFrames, InkkOopsPointerAnchor? anchor = null, InkkOopsPointerMotion? motion = null)
+    {
+        return Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference(selector), anchor, dwellFrames, motion));
     }
 
     public InkkOopsScriptBuilder Click(string targetName)
@@ -123,19 +139,119 @@ public sealed class InkkOopsScriptBuilder
         return Add(new InkkOopsClickTargetCommand(new InkkOopsTargetReference(selector), anchor));
     }
 
+    public InkkOopsScriptBuilder Click(string targetName, InkkOopsPointerAnchor? anchor, InkkOopsPointerMotion motion)
+    {
+        return Add(new InkkOopsClickTargetCommand(new InkkOopsTargetReference(targetName), anchor, MouseButton.Left, motion));
+    }
+
+    public InkkOopsScriptBuilder Click(InkkOopsTargetSelector selector, InkkOopsPointerAnchor? anchor, InkkOopsPointerMotion motion)
+    {
+        return Add(new InkkOopsClickTargetCommand(new InkkOopsTargetReference(selector), anchor, MouseButton.Left, motion));
+    }
+
+    public InkkOopsScriptBuilder DoubleClick(string targetName, InkkOopsPointerAnchor? anchor = null)
+    {
+        return Add(new InkkOopsDoubleClickTargetCommand(new InkkOopsTargetReference(targetName), anchor));
+    }
+
+    public InkkOopsScriptBuilder DoubleClick(string targetName, InkkOopsPointerAnchor? anchor, int interClickWaitFrames, InkkOopsPointerMotion motion)
+    {
+        return Add(new InkkOopsDoubleClickTargetCommand(new InkkOopsTargetReference(targetName), anchor, interClickWaitFrames, motion));
+    }
+
+    public InkkOopsScriptBuilder DoubleClick(InkkOopsTargetSelector selector, InkkOopsPointerAnchor? anchor = null)
+    {
+        return Add(new InkkOopsDoubleClickTargetCommand(new InkkOopsTargetReference(selector), anchor));
+    }
+
+    public InkkOopsScriptBuilder RightClick(string targetName, InkkOopsPointerAnchor? anchor = null)
+    {
+        return Add(new InkkOopsRightClickTargetCommand(new InkkOopsTargetReference(targetName), anchor));
+    }
+
+    public InkkOopsScriptBuilder RightClick(string targetName, InkkOopsPointerAnchor? anchor, InkkOopsPointerMotion motion)
+    {
+        return Add(new InkkOopsRightClickTargetCommand(new InkkOopsTargetReference(targetName), anchor, motion));
+    }
+
+    public InkkOopsScriptBuilder RightClick(InkkOopsTargetSelector selector, InkkOopsPointerAnchor? anchor = null)
+    {
+        return Add(new InkkOopsRightClickTargetCommand(new InkkOopsTargetReference(selector), anchor));
+    }
+
+    public InkkOopsScriptBuilder MovePointerTo(string targetName, InkkOopsPointerAnchor? anchor = null)
+    {
+        return Add(new InkkOopsMovePointerTargetCommand(new InkkOopsTargetReference(targetName), anchor));
+    }
+
+    public InkkOopsScriptBuilder MovePointerTo(string targetName, InkkOopsPointerAnchor? anchor, InkkOopsPointerMotion motion)
+    {
+        return Add(new InkkOopsMovePointerTargetCommand(new InkkOopsTargetReference(targetName), anchor, motion));
+    }
+
+    public InkkOopsScriptBuilder MovePointerTo(InkkOopsTargetSelector selector, InkkOopsPointerAnchor? anchor = null)
+    {
+        return Add(new InkkOopsMovePointerTargetCommand(new InkkOopsTargetReference(selector), anchor));
+    }
+
+    public InkkOopsScriptBuilder MovePointerPath(params Vector2[] waypoints)
+    {
+        return Add(new InkkOopsMovePointerPathCommand(waypoints));
+    }
+
+    public InkkOopsScriptBuilder MovePointerPath(InkkOopsPointerMotion motion, params Vector2[] waypoints)
+    {
+        return Add(new InkkOopsMovePointerPathCommand(waypoints, motion));
+    }
+
     public InkkOopsScriptBuilder MovePointer(Vector2 position)
     {
         return Add(new InkkOopsMovePointerCommand(position));
     }
 
-    public InkkOopsScriptBuilder PointerDown(Vector2 position)
+    public InkkOopsScriptBuilder MovePointer(Vector2 position, InkkOopsPointerMotion motion)
     {
-        return Add(new InkkOopsPointerDownCommand(position));
+        return Add(new InkkOopsMovePointerCommand(position, motion));
     }
 
-    public InkkOopsScriptBuilder PointerUp(Vector2 position)
+    public InkkOopsScriptBuilder PointerDown(Vector2 position, MouseButton button = MouseButton.Left)
     {
-        return Add(new InkkOopsPointerUpCommand(position));
+        return Add(new InkkOopsPointerDownCommand(position, button));
+    }
+
+    public InkkOopsScriptBuilder PointerDown(string targetName, InkkOopsPointerAnchor? anchor = null, MouseButton button = MouseButton.Left)
+    {
+        return Add(new InkkOopsPointerDownTargetCommand(new InkkOopsTargetReference(targetName), anchor, button));
+    }
+
+    public InkkOopsScriptBuilder PointerDown(string targetName, InkkOopsPointerAnchor? anchor, MouseButton button, InkkOopsPointerMotion motion)
+    {
+        return Add(new InkkOopsPointerDownTargetCommand(new InkkOopsTargetReference(targetName), anchor, button, motion));
+    }
+
+    public InkkOopsScriptBuilder PointerDown(InkkOopsTargetSelector selector, InkkOopsPointerAnchor? anchor = null, MouseButton button = MouseButton.Left)
+    {
+        return Add(new InkkOopsPointerDownTargetCommand(new InkkOopsTargetReference(selector), anchor, button));
+    }
+
+    public InkkOopsScriptBuilder PointerUp(Vector2 position, MouseButton button = MouseButton.Left)
+    {
+        return Add(new InkkOopsPointerUpCommand(position, button));
+    }
+
+    public InkkOopsScriptBuilder PointerUp(string targetName, InkkOopsPointerAnchor? anchor = null, MouseButton button = MouseButton.Left)
+    {
+        return Add(new InkkOopsPointerUpTargetCommand(new InkkOopsTargetReference(targetName), anchor, button));
+    }
+
+    public InkkOopsScriptBuilder PointerUp(string targetName, InkkOopsPointerAnchor? anchor, MouseButton button, InkkOopsPointerMotion motion)
+    {
+        return Add(new InkkOopsPointerUpTargetCommand(new InkkOopsTargetReference(targetName), anchor, button, motion));
+    }
+
+    public InkkOopsScriptBuilder PointerUp(InkkOopsTargetSelector selector, InkkOopsPointerAnchor? anchor = null, MouseButton button = MouseButton.Left)
+    {
+        return Add(new InkkOopsPointerUpTargetCommand(new InkkOopsTargetReference(selector), anchor, button));
     }
 
     public InkkOopsScriptBuilder Drag(string targetName, float deltaX, float deltaY)
@@ -148,9 +264,54 @@ public sealed class InkkOopsScriptBuilder
         return Add(new InkkOopsDragTargetCommand(new InkkOopsTargetReference(targetName), deltaX, deltaY, anchor));
     }
 
+    public InkkOopsScriptBuilder Drag(string targetName, float deltaX, float deltaY, InkkOopsPointerAnchor anchor, MouseButton button, InkkOopsPointerMotion motion)
+    {
+        return Add(new InkkOopsDragTargetCommand(new InkkOopsTargetReference(targetName), deltaX, deltaY, anchor, button, motion));
+    }
+
+    public InkkOopsScriptBuilder DragPath(string targetName, InkkOopsPointerAnchor? anchor = null, params Vector2[] waypoints)
+    {
+        return Add(new InkkOopsDragPathTargetCommand(new InkkOopsTargetReference(targetName), waypoints, anchor));
+    }
+
+    public InkkOopsScriptBuilder DragPath(string targetName, InkkOopsPointerAnchor? anchor, InkkOopsPointerMotion motion, params Vector2[] waypoints)
+    {
+        return Add(new InkkOopsDragPathTargetCommand(new InkkOopsTargetReference(targetName), waypoints, anchor, MouseButton.Left, motion));
+    }
+
     public InkkOopsScriptBuilder Wheel(int delta)
     {
         return Add(new InkkOopsWheelCommand(delta));
+    }
+
+    public InkkOopsScriptBuilder Wheel(string targetName, int delta, InkkOopsPointerAnchor? anchor = null)
+    {
+        return Add(new InkkOopsWheelTargetCommand(new InkkOopsTargetReference(targetName), delta, anchor));
+    }
+
+    public InkkOopsScriptBuilder Wheel(string targetName, int delta, InkkOopsPointerAnchor? anchor, InkkOopsPointerMotion motion)
+    {
+        return Add(new InkkOopsWheelTargetCommand(new InkkOopsTargetReference(targetName), delta, anchor, motion));
+    }
+
+    public InkkOopsScriptBuilder Wheel(InkkOopsTargetSelector selector, int delta, InkkOopsPointerAnchor? anchor = null)
+    {
+        return Add(new InkkOopsWheelTargetCommand(new InkkOopsTargetReference(selector), delta, anchor));
+    }
+
+    public InkkOopsScriptBuilder LeaveTarget(string targetName, float padding = 16f)
+    {
+        return Add(new InkkOopsLeaveTargetCommand(new InkkOopsTargetReference(targetName), padding));
+    }
+
+    public InkkOopsScriptBuilder LeaveTarget(string targetName, float padding, InkkOopsPointerMotion motion)
+    {
+        return Add(new InkkOopsLeaveTargetCommand(new InkkOopsTargetReference(targetName), padding, motion));
+    }
+
+    public InkkOopsScriptBuilder LeaveTarget(InkkOopsTargetSelector selector, float padding = 16f)
+    {
+        return Add(new InkkOopsLeaveTargetCommand(new InkkOopsTargetReference(selector), padding));
     }
 
     public InkkOopsScriptBuilder Invoke(string targetName)

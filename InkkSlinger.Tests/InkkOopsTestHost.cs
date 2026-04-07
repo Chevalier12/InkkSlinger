@@ -12,12 +12,15 @@ namespace InkkSlinger.Tests;
 
 internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
 {
+    private const float PointerMoveStepDistance = 24f;
+
     private readonly UIElement _visualRoot;
     private readonly List<AutomationEventRecord> _automationEvents = new();
     private readonly InkkOopsVisualTreeDiagnostics _visualTreeDiagnostics;
     private readonly IInkkOopsDiagnosticsSerializer _diagnosticsSerializer;
     private readonly IInkkOopsDiagnosticsFilterPolicy _diagnosticsFilterPolicy;
     private readonly string _displayedFps;
+    private readonly List<Vector2> _pointerTrace = new();
     private Vector2 _pointerPosition;
     private bool _hasPointer;
     private int _width;
@@ -66,6 +69,8 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
     public string ArtifactRoot { get; private set; }
 
     public int AdvancedFrameCount { get; private set; }
+
+    public IReadOnlyList<Vector2> PointerTrace => _pointerTrace;
 
     public void SetArtifactRoot(string artifactRoot)
     {
@@ -132,28 +137,23 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
 
     public Task MovePointerAsync(Vector2 position, CancellationToken cancellationToken = default)
     {
-        var previous = _hasPointer ? _pointerPosition : position;
-        _pointerPosition = position;
-        _hasPointer = true;
-        UiRoot.RunInputDeltaForTests(CreateDelta(previous, position, pointerMoved: true));
+        return MovePointerAsync(position, InkkOopsPointerMotion.Default, cancellationToken);
+    }
+
+    public Task MovePointerAsync(Vector2 position, InkkOopsPointerMotion motion, CancellationToken cancellationToken = default)
+    {
+        return MovePointerSmoothAsync(position, motion, cancellationToken);
+    }
+
+    public Task PressPointerAsync(Vector2 position, MouseButton button = MouseButton.Left, CancellationToken cancellationToken = default)
+    {
+        ApplyPointerPress(position, button);
         return Task.CompletedTask;
     }
 
-    public Task PressPointerAsync(Vector2 position, CancellationToken cancellationToken = default)
+    public Task ReleasePointerAsync(Vector2 position, MouseButton button = MouseButton.Left, CancellationToken cancellationToken = default)
     {
-        var previous = _hasPointer ? _pointerPosition : position;
-        _pointerPosition = position;
-        _hasPointer = true;
-        UiRoot.RunInputDeltaForTests(CreateDelta(previous, position, pointerMoved: true, leftPressed: true));
-        return Task.CompletedTask;
-    }
-
-    public Task ReleasePointerAsync(Vector2 position, CancellationToken cancellationToken = default)
-    {
-        var previous = _hasPointer ? _pointerPosition : position;
-        _pointerPosition = position;
-        _hasPointer = true;
-        UiRoot.RunInputDeltaForTests(CreateDelta(previous, position, pointerMoved: true, leftReleased: true));
+        ApplyPointerRelease(position, button);
         return Task.CompletedTask;
     }
 
@@ -259,14 +259,90 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
             args.NewPeer?.RuntimeId));
     }
 
+    private async Task MovePointerSmoothAsync(Vector2 position, InkkOopsPointerMotion motion, CancellationToken cancellationToken)
+    {
+        var start = GetCurrentPointerPositionForMotion();
+        var steps = CalculatePointerMoveStepCount(start, position, motion);
+        for (var i = 1; i <= steps; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var t = ApplyPointerEasing(i / (float)steps, motion.Easing);
+            var sample = Vector2.Lerp(start, position, t);
+            ApplyPointerMove(sample);
+            if (i < steps)
+            {
+                await AdvanceFrameAsync(1, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private Vector2 GetCurrentPointerPositionForMotion()
+    {
+        return _hasPointer
+            ? _pointerPosition
+            : new Vector2(_width / 2f, _height / 2f);
+    }
+
+    private void ApplyPointerMove(Vector2 position)
+    {
+        var previous = _hasPointer ? _pointerPosition : GetCurrentPointerPositionForMotion();
+        _pointerPosition = position;
+        _hasPointer = true;
+        _pointerTrace.Add(position);
+        UiRoot.RunInputDeltaForTests(CreateDelta(previous, position, pointerMoved: true));
+    }
+
+    private void ApplyPointerPress(Vector2 position, MouseButton button)
+    {
+        var previous = _hasPointer ? _pointerPosition : GetCurrentPointerPositionForMotion();
+        _pointerPosition = position;
+        _hasPointer = true;
+        UiRoot.RunInputDeltaForTests(CreateDelta(previous, position, pointerMoved: true, buttonPressed: button));
+    }
+
+    private void ApplyPointerRelease(Vector2 position, MouseButton button)
+    {
+        var previous = _hasPointer ? _pointerPosition : GetCurrentPointerPositionForMotion();
+        _pointerPosition = position;
+        _hasPointer = true;
+        UiRoot.RunInputDeltaForTests(CreateDelta(previous, position, pointerMoved: true, buttonReleased: button));
+    }
+
+    private static int CalculatePointerMoveStepCount(Vector2 start, Vector2 end, InkkOopsPointerMotion motion)
+    {
+        if (motion.TravelFrames > 0)
+        {
+            return motion.TravelFrames + 1;
+        }
+
+        var distance = Vector2.Distance(start, end);
+        var stepDistance = motion.StepDistance > 0f ? motion.StepDistance : PointerMoveStepDistance;
+        return Math.Max(1, (int)MathF.Ceiling(distance / stepDistance));
+    }
+
+    private static float ApplyPointerEasing(float t, InkkOopsPointerEasing easing)
+    {
+        return easing switch
+        {
+            InkkOopsPointerEasing.EaseInOut => t * t * (3f - (2f * t)),
+            _ => t
+        };
+    }
+
     private static InputDelta CreateDelta(
         Vector2 previous,
         Vector2 current,
         bool pointerMoved = false,
-        bool leftPressed = false,
-        bool leftReleased = false,
+        MouseButton? buttonPressed = null,
+        MouseButton? buttonReleased = null,
         int wheelDelta = 0)
     {
+        var leftPressed = buttonPressed == MouseButton.Left;
+        var leftReleased = buttonReleased == MouseButton.Left;
+        var rightPressed = buttonPressed == MouseButton.Right;
+        var rightReleased = buttonReleased == MouseButton.Right;
+        var middlePressed = buttonPressed == MouseButton.Middle;
+        var middleReleased = buttonReleased == MouseButton.Middle;
         return new InputDelta
         {
             Previous = new InputSnapshot(default, default, previous),
@@ -274,14 +350,14 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
             PressedKeys = Array.Empty<Keys>(),
             ReleasedKeys = Array.Empty<Keys>(),
             TextInput = Array.Empty<char>(),
-            PointerMoved = pointerMoved || leftPressed || leftReleased,
+            PointerMoved = pointerMoved || buttonPressed != null || buttonReleased != null,
             WheelDelta = wheelDelta,
             LeftPressed = leftPressed,
             LeftReleased = leftReleased,
-            RightPressed = false,
-            RightReleased = false,
-            MiddlePressed = false,
-            MiddleReleased = false
+            RightPressed = rightPressed,
+            RightReleased = rightReleased,
+            MiddlePressed = middlePressed,
+            MiddleReleased = middleReleased
         };
     }
 

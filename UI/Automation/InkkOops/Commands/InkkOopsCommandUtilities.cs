@@ -29,6 +29,39 @@ internal static class InkkOopsCommandUtilities
         };
     }
 
+    public static Vector2 GetPreferredActionPoint(UIElement element, LayoutRect bounds, LayoutRect viewport, InkkOopsPointerAnchor anchor)
+    {
+        if (anchor.Kind != InkkOopsPointerAnchorKind.Offset &&
+            TryGetVisibleBoundsForInput(element, viewport, out var visibleBounds))
+        {
+            return GetAnchorPoint(visibleBounds, anchor);
+        }
+
+        return GetAnchorPoint(bounds, anchor);
+    }
+
+    public static bool TryGetVisibleBoundsForInput(UIElement element, LayoutRect viewport, out LayoutRect visibleBounds)
+    {
+        if (!element.TryGetRenderBoundsInRootSpace(out var bounds) || bounds.Width <= 0f || bounds.Height <= 0f)
+        {
+            visibleBounds = default;
+            return false;
+        }
+
+        visibleBounds = GetRenderedLayoutRectForInput(element);
+        for (var current = element.VisualParent; current != null; current = current.VisualParent)
+        {
+            visibleBounds = IntersectRects(visibleBounds, GetRenderedLayoutRectForInput(current));
+            if (visibleBounds.Width <= 0f || visibleBounds.Height <= 0f)
+            {
+                return false;
+            }
+        }
+
+        visibleBounds = IntersectRects(visibleBounds, viewport);
+        return visibleBounds.Width > 0f && visibleBounds.Height > 0f;
+    }
+
     public static bool Contains(LayoutRect rect, Vector2 point)
     {
         return point.X >= rect.X &&
@@ -52,5 +85,36 @@ internal static class InkkOopsCommandUtilities
             double doubleValue => doubleValue.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
             _ => Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty
         };
+    }
+
+    private static LayoutRect GetRenderedLayoutRectForInput(UIElement element)
+    {
+        var slot = element.LayoutSlot;
+        var x = slot.X;
+        var y = slot.Y;
+        for (var current = element.VisualParent; current != null; current = current.VisualParent)
+        {
+            if (current is ScrollViewer viewer)
+            {
+                x -= viewer.HorizontalOffset;
+                y -= viewer.VerticalOffset;
+            }
+        }
+
+        return new LayoutRect(x, y, slot.Width, slot.Height);
+    }
+
+    private static LayoutRect IntersectRects(LayoutRect first, LayoutRect second)
+    {
+        var left = MathF.Max(first.X, second.X);
+        var top = MathF.Max(first.Y, second.Y);
+        var right = MathF.Min(first.X + first.Width, second.X + second.Width);
+        var bottom = MathF.Min(first.Y + first.Height, second.Y + second.Height);
+        if (right <= left || bottom <= top)
+        {
+            return new LayoutRect(left, top, 0f, 0f);
+        }
+
+        return new LayoutRect(left, top, right - left, bottom - top);
     }
 }

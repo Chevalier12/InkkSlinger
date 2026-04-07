@@ -210,8 +210,8 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 using var artifacts = new InkkOopsArtifacts(root, Path.GetFileNameWithoutExtension(request.RecordingPath), _hostConfiguration.ArtifactNamingPolicy);
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
-                var session = new InkkOopsSession(_host, artifacts, request.ActionDiagnosticsIndexes);
                 var script = InkkOopsRecordedSessionLoader.LoadFromJson(request.RecordingPath);
+                var session = new InkkOopsSession(_host, artifacts, GetEffectiveActionDiagnosticsIndexes(request.ActionDiagnosticsIndexes, script));
                 result = await _runner.RunAsync(script, session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
             }
@@ -230,8 +230,9 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 using var artifacts = new InkkOopsArtifacts(root, request.ScriptName, _hostConfiguration.ArtifactNamingPolicy);
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
-                var session = new InkkOopsSession(_host, artifacts, request.ActionDiagnosticsIndexes);
-                result = await _runner.RunAsync(scriptDefinition.CreateScript(), session, _shutdown.Token).ConfigureAwait(false);
+                var script = scriptDefinition.CreateScript();
+                var session = new InkkOopsSession(_host, artifacts, GetEffectiveActionDiagnosticsIndexes(request.ActionDiagnosticsIndexes, script));
+                result = await _runner.RunAsync(script, session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
             }
         }
@@ -303,6 +304,13 @@ public sealed class InkkOopsRuntimeService : IDisposable
         return string.IsNullOrWhiteSpace(_options.ArtifactRoot)
             ? _hostConfiguration.DefaultArtifactRoot
             : _options.ArtifactRoot;
+    }
+
+    private static IReadOnlyList<int> GetEffectiveActionDiagnosticsIndexes(int[] requestIndexes, InkkOopsScript script)
+    {
+        return requestIndexes.Length > 0
+            ? requestIndexes
+            : script.ActionDiagnosticsIndexes;
     }
 
     private string ResolveNamedPipeName()

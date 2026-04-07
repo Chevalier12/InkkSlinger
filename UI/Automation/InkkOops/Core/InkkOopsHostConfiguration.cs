@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace InkkSlinger;
 
@@ -21,14 +22,16 @@ public sealed class InkkOopsHostConfiguration
 
     public string DefaultRecordingRoot { get; init; } = string.Empty;
 
-    public static InkkOopsHostConfiguration CreateDefault(System.Reflection.Assembly scriptAssembly)
+    public static InkkOopsHostConfiguration CreateDefault(Assembly scriptAssembly, IEnumerable<string>? additionalScriptAssemblyPaths = null)
     {
         ArgumentNullException.ThrowIfNull(scriptAssembly);
 
         var namingPolicy = new DefaultInkkOopsArtifactNamingPolicy();
+        var assemblies = new List<Assembly> { scriptAssembly };
+        assemblies.AddRange(InkkOopsScriptAssemblyLoader.LoadAssemblies(additionalScriptAssemblyPaths));
         return new InkkOopsHostConfiguration
         {
-            ScriptCatalog = new ReflectionInkkOopsScriptCatalog(scriptAssembly),
+            ScriptCatalog = new ReflectionInkkOopsScriptCatalog(assemblies),
             ArtifactNamingPolicy = namingPolicy,
             DiagnosticsSerializer = new DefaultInkkOopsDiagnosticsSerializer(),
             DiagnosticsFilterPolicy = new DefaultInkkOopsDiagnosticsFilterPolicy(),

@@ -10,32 +10,42 @@ public sealed class ReflectionInkkOopsScriptCatalog : IInkkOopsScriptCatalog
     private readonly Dictionary<string, Type> _scriptTypes;
 
     public ReflectionInkkOopsScriptCatalog()
-        : this(Assembly.GetExecutingAssembly())
+        : this([Assembly.GetExecutingAssembly()])
     {
     }
 
     public ReflectionInkkOopsScriptCatalog(Assembly assembly)
+        : this([assembly])
     {
-        ArgumentNullException.ThrowIfNull(assembly);
+    }
+
+    public ReflectionInkkOopsScriptCatalog(IEnumerable<Assembly> assemblies)
+    {
+        ArgumentNullException.ThrowIfNull(assemblies);
 
         _scriptTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
-        foreach (var type in assembly.GetTypes())
+        foreach (var assembly in assemblies)
         {
-            if (type.IsAbstract ||
-                !typeof(IInkkOopsBuiltinScript).IsAssignableFrom(type) ||
-                type.GetConstructor(Type.EmptyTypes) == null)
-            {
-                continue;
-            }
+            ArgumentNullException.ThrowIfNull(assembly);
 
-            var instance = (IInkkOopsBuiltinScript)Activator.CreateInstance(type)!;
-            if (_scriptTypes.TryGetValue(instance.Name, out var existing))
+            foreach (var type in assembly.GetTypes())
             {
-                throw new InvalidOperationException(
-                    $"Duplicate InkkOops script name '{instance.Name}' found on '{existing.FullName}' and '{type.FullName}'.");
-            }
+                if (type.IsAbstract ||
+                    !typeof(IInkkOopsScriptDefinition).IsAssignableFrom(type) ||
+                    type.GetConstructor(Type.EmptyTypes) == null)
+                {
+                    continue;
+                }
 
-            _scriptTypes.Add(instance.Name, type);
+                var instance = (IInkkOopsScriptDefinition)Activator.CreateInstance(type)!;
+                if (_scriptTypes.TryGetValue(instance.Name, out var existing))
+                {
+                    throw new InvalidOperationException(
+                        $"Duplicate InkkOops script name '{instance.Name}' found on '{existing.FullName}' and '{type.FullName}'.");
+                }
+
+                _scriptTypes.Add(instance.Name, type);
+            }
         }
     }
 

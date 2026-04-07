@@ -23,7 +23,7 @@ public static class InkkOopsRecordedSessionLoader
         var json = System.IO.File.ReadAllText(fullPath);
         var session = JsonSerializer.Deserialize<RecordedSessionDocument>(json, JsonOptions)
                       ?? throw new InvalidOperationException($"Could not deserialize recording '{fullPath}'.");
-        var builder = new InkkOopsScriptBuilder("recording-playback");
+        var builder = new InkkOopsScriptBuilder("recording-playback", session.ActionDiagnosticsIndexes);
 
         foreach (var action in session.Actions)
         {
@@ -57,6 +57,8 @@ public static class InkkOopsRecordedSessionLoader
 
     private sealed class RecordedSessionDocument
     {
+        public int[] ActionDiagnosticsIndexes { get; set; } = [];
+
         public List<InkkOopsInteractionRecorder.RecordedAction> Actions { get; set; } = new();
     }
 }

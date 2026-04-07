@@ -11,12 +11,16 @@ public sealed class InkkOopsDragTargetCommand : IInkkOopsCommand
         InkkOopsTargetReference target,
         float deltaX,
         float deltaY,
-        InkkOopsPointerAnchor? anchor = null)
+        InkkOopsPointerAnchor? anchor = null,
+        MouseButton button = MouseButton.Left,
+        InkkOopsPointerMotion? motion = null)
     {
         Target = target ?? throw new ArgumentNullException(nameof(target));
         DeltaX = deltaX;
         DeltaY = deltaY;
         Anchor = anchor ?? InkkOopsPointerAnchor.Center;
+        Button = button;
+        Motion = motion ?? InkkOopsPointerMotion.Default;
     }
 
     public InkkOopsTargetReference Target { get; }
@@ -27,31 +31,25 @@ public sealed class InkkOopsDragTargetCommand : IInkkOopsCommand
 
     public InkkOopsPointerAnchor Anchor { get; }
 
+    public MouseButton Button { get; }
+
+    public InkkOopsPointerMotion Motion { get; }
+
     public InkkOopsExecutionMode ExecutionMode => InkkOopsExecutionMode.Pointer;
 
     public string Describe()
     {
-        return $"Drag({Target}, dx: {DeltaX:0.###}, dy: {DeltaY:0.###}, anchor: {Anchor})";
+        return $"Drag({Target}, dx: {DeltaX:0.###}, dy: {DeltaY:0.###}, anchor: {Anchor}, button: {Button}, travelFrames: {Motion.TravelFrames}, easing: {Motion.Easing})";
     }
 
     public async Task ExecuteAsync(InkkOopsSession session, CancellationToken cancellationToken = default)
     {
         var start = session.ResolveRequiredActionPoint(Target, Anchor);
         var end = start + new Vector2(DeltaX, DeltaY);
-        var distance = Vector2.Distance(start, end);
-        var steps = Math.Max(2, (int)MathF.Ceiling(distance / 24f));
 
-        await session.MovePointerAsync(start, cancellationToken).ConfigureAwait(false);
-        await session.PressPointerAsync(start, cancellationToken).ConfigureAwait(false);
-
-        for (var i = 1; i <= steps; i++)
-        {
-            var t = i / (float)steps;
-            var point = Vector2.Lerp(start, end, t);
-            await session.MovePointerAsync(point, cancellationToken).ConfigureAwait(false);
-            await session.WaitFramesAsync(1, cancellationToken).ConfigureAwait(false);
-        }
-
-        await session.ReleasePointerAsync(end, cancellationToken).ConfigureAwait(false);
+        await session.MovePointerAsync(start, Motion, cancellationToken).ConfigureAwait(false);
+        await session.PressPointerAsync(start, Button, cancellationToken).ConfigureAwait(false);
+        await session.MovePointerAsync(end, Motion, cancellationToken).ConfigureAwait(false);
+        await session.ReleasePointerAsync(end, Button, cancellationToken).ConfigureAwait(false);
     }
 }

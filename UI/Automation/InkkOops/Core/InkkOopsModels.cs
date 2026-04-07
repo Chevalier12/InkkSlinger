@@ -75,6 +75,12 @@ public enum InkkOopsPointerAnchorKind
     Offset
 }
 
+public enum InkkOopsPointerEasing
+{
+    Linear,
+    EaseInOut
+}
+
 public sealed class InkkOopsTargetSelector
 {
     private InkkOopsTargetSelector(
@@ -174,6 +180,31 @@ public readonly record struct InkkOopsPointerAnchor(InkkOopsPointerAnchorKind Ki
         return Kind == InkkOopsPointerAnchorKind.Offset
             ? $"Offset({Offset.X:0.###}, {Offset.Y:0.###})"
             : Kind.ToString();
+    }
+}
+
+public readonly record struct InkkOopsPointerMotion(int TravelFrames, float StepDistance, InkkOopsPointerEasing Easing)
+{
+    public static InkkOopsPointerMotion Default => new(0, 24f, InkkOopsPointerEasing.Linear);
+
+    public static InkkOopsPointerMotion WithTravelFrames(int travelFrames, InkkOopsPointerEasing easing = InkkOopsPointerEasing.Linear, float stepDistance = 24f)
+    {
+        if (travelFrames < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(travelFrames));
+        }
+
+        return new InkkOopsPointerMotion(travelFrames, stepDistance, easing);
+    }
+
+    public static InkkOopsPointerMotion WithStepDistance(float stepDistance, InkkOopsPointerEasing easing = InkkOopsPointerEasing.Linear)
+    {
+        if (stepDistance <= 0f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(stepDistance));
+        }
+
+        return new InkkOopsPointerMotion(0, stepDistance, easing);
     }
 }
 
