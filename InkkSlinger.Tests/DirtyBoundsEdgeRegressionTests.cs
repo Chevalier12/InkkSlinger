@@ -98,6 +98,154 @@ public sealed class DirtyBoundsEdgeRegressionTests
     }
 
     [Fact]
+    public void ArrangeInvalidation_FromChild_DoesNotEscalateDirtyBoundsToRoot()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 200f, 200f));
+
+        var child = new Border();
+        child.SetLayoutSlot(new LayoutRect(40f, 50f, 30f, 20f));
+        root.AddChild(child);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 200f, 200f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+
+        child.InvalidateArrange();
+
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+
+        Assert.NotEmpty(dirtyRegions);
+        Assert.All(dirtyRegions, region =>
+        {
+            Assert.True(region.Width < root.LayoutSlot.Width, $"Expected localized dirty width, got {region.Width:0.##}.");
+            Assert.True(region.Height < root.LayoutSlot.Height, $"Expected localized dirty height, got {region.Height:0.##}.");
+        });
+        Assert.True(uiRoot.GetDirtyCoverageForTests() < 1d, $"Expected localized coverage, got {uiRoot.GetDirtyCoverageForTests():0.###}.");
+    }
+
+    [Fact]
+    public void MeasureInvalidation_FromGridChild_DoesNotPromoteDirtyBoundsToAncestorGrid()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 240f));
+
+        var host = new Grid
+        {
+            Width = 280f,
+            Height = 180f
+        };
+        host.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        host.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var child = new Border
+        {
+            Width = 96f,
+            Height = 48f,
+            Margin = new Thickness(12f)
+        };
+        host.AddChild(child);
+        root.AddChild(host);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 320, 240));
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 320f, 240f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+
+        child.InvalidateMeasure();
+
+        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
+
+        Assert.True(invalidation.HasDirtyBounds);
+        Assert.NotEmpty(dirtyRegions);
+        Assert.DoesNotContain(
+            dirtyTrace,
+            entry => entry.StartsWith("Grid#:bounds:", StringComparison.Ordinal) ||
+                     entry.StartsWith("Grid#:begin", StringComparison.Ordinal) ||
+                     entry.Contains("dirty-add:unchanged:0,0,280,180", StringComparison.Ordinal));
+        Assert.All(dirtyRegions, region =>
+        {
+            Assert.True(region.Width < host.ActualWidth, $"Expected localized dirty width, got {region.Width:0.##} for host width {host.ActualWidth:0.##}.");
+            Assert.True(region.Height < host.ActualHeight, $"Expected localized dirty height, got {region.Height:0.##} for host height {host.ActualHeight:0.##}.");
+        });
+    }
+
+    [Fact]
+    public void RenderInvalidation_OnGridWithoutGridLines_DoesNotAddUnchangedDirtyRegion()
+    {
+        var root = new Panel();
+        var grid = new Grid
+        {
+            Width = 220f,
+            Height = 140f
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.AddChild(new Border { Width = 80f, Height = 32f });
+        root.AddChild(grid);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 320, 240));
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 320f, 240f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+
+        grid.InvalidateVisual();
+
+        Assert.Empty(uiRoot.GetDirtyRegionsSnapshotForTests());
+        Assert.Contains(
+            uiRoot.GetDirtyBoundsEventTraceForTests(),
+            entry => entry.StartsWith("dirty-skip:unchanged:Grid", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RenderInvalidation_OnGridWithGridLines_PreservesUnchangedDirtyRegion()
+    {
+        var root = new Panel();
+        var grid = new Grid
+        {
+            Width = 220f,
+            Height = 140f,
+            ShowGridLines = true
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.AddChild(new Border { Width = 80f, Height = 32f });
+        root.AddChild(grid);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 320, 240));
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 320f, 240f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+
+        grid.InvalidateVisual();
+
+        Assert.NotEmpty(uiRoot.GetDirtyRegionsSnapshotForTests());
+        Assert.DoesNotContain(
+            uiRoot.GetDirtyBoundsEventTraceForTests(),
+            entry => entry.StartsWith("dirty-skip:unchanged:Grid", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void TransformMovement_WithDisjointBounds_TracksOldAndNewRegionsSeparately()
     {
         var root = new Panel();
@@ -173,6 +321,112 @@ public sealed class DirtyBoundsEdgeRegressionTests
             Assert.True(region.Width < root.Width, $"Expected localized dirty width, got {region.Width:0.##} for root width {root.Width:0.##}.");
             Assert.True(region.Height < root.Height, $"Expected localized dirty height, got {region.Height:0.##} for root height {root.Height:0.##}.");
         });
+    }
+
+    [Fact]
+    public void GridSplitterHoverRenderInvalidation_UsesLocalizedDirtyBoundsHint_InsideScrollViewer()
+    {
+        var root = new Border
+        {
+            Width = 420f,
+            Height = 260f,
+            Padding = new Thickness(12f)
+        };
+
+        var viewer = new ScrollViewer
+        {
+            Width = 396f,
+            Height = 236f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        var content = new StackPanel();
+        for (var i = 0; i < 6; i++)
+        {
+            content.AddChild(new Border
+            {
+                Height = 44f,
+                Margin = new Thickness(0f, 0f, 0f, 8f)
+            });
+        }
+
+        var grid = new Grid
+        {
+            Height = 80f
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120f) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8f) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180f) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.AddChild(new Border { Height = 48f });
+
+        var splitter = new GridSplitter
+        {
+            Width = 8f,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            ResizeDirection = GridResizeDirection.Columns,
+            ResizeBehavior = GridResizeBehavior.PreviousAndNext
+        };
+        Grid.SetColumn(splitter, 1);
+        grid.AddChild(splitter);
+
+        var right = new Border { Height = 48f };
+        Grid.SetColumn(right, 2);
+        grid.AddChild(right);
+        content.AddChild(grid);
+
+        for (var i = 0; i < 8; i++)
+        {
+            content.AddChild(new Border
+            {
+                Height = 44f,
+                Margin = new Thickness(0f, 0f, 0f, 8f)
+            });
+        }
+
+        viewer.Content = content;
+        root.Child = viewer;
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 420, 260));
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 420f, 260f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+
+        Assert.True(splitter.TryGetRenderBoundsInRootSpace(out var splitterBounds));
+
+        splitter.SetMouseOverFromInput(true);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
+
+        Assert.False(uiRoot.IsFullDirtyForTests());
+        if (invalidation.HasDirtyBounds)
+        {
+            if (invalidation.DirtyBoundsUsedHint)
+            {
+                Assert.Contains(dirtyTrace, entry => entry.Contains("dirty-add:hint:", StringComparison.Ordinal) || entry.Contains("dirty-add:scroll-clip-hint", StringComparison.Ordinal));
+            }
+
+            Assert.True(invalidation.DirtyBounds.Width <= splitterBounds.Width + 1f, $"Expected localized splitter dirty hint width, got {invalidation.DirtyBounds.Width:0.##} for splitter width {splitterBounds.Width:0.##}.");
+            Assert.True(invalidation.DirtyBounds.Height <= splitterBounds.Height + 1f, $"Expected localized splitter dirty hint height, got {invalidation.DirtyBounds.Height:0.##} for splitter height {splitterBounds.Height:0.##}.");
+            if (dirtyRegions.Count > 0)
+            {
+                Assert.Contains(dirtyRegions, region =>
+                    region.X <= splitterBounds.X + 0.5f &&
+                    region.Y <= splitterBounds.Y + 0.5f &&
+                    region.X + region.Width >= splitterBounds.X + splitterBounds.Width - 0.5f &&
+                    region.Y + region.Height >= splitterBounds.Y + splitterBounds.Height - 0.5f);
+            }
+        }
     }
 
     [Fact]

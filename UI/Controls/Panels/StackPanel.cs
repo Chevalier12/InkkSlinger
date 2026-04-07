@@ -121,6 +121,31 @@ public class StackPanel : Panel
         }
     }
 
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (GetType() != typeof(StackPanel))
+        {
+            return false;
+        }
+
+        var previousChildAvailable = ResolveChildAvailableSize(previousAvailableSize);
+        var nextChildAvailable = ResolveChildAvailableSize(nextAvailableSize);
+        foreach (var child in Children)
+        {
+            if (child is not FrameworkElement frameworkChild)
+            {
+                continue;
+            }
+
+            if (!frameworkChild.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousChildAvailable, nextChildAvailable))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var startTicks = Stopwatch.GetTimestamp();
@@ -201,6 +226,13 @@ public class StackPanel : Panel
             AddAggregate(ref _diagArrangePrimarySpanTotal, arrangedPrimarySpan);
             AddAggregate(ref _diagArrangeCrossSpanTotal, arrangedCrossSpan);
         }
+    }
+
+    private Vector2 ResolveChildAvailableSize(Vector2 availableSize)
+    {
+        return Orientation == Orientation.Vertical
+            ? new Vector2(availableSize.X, float.PositiveInfinity)
+            : new Vector2(float.PositiveInfinity, availableSize.Y);
     }
 
     internal StackPanelRuntimeDiagnosticsSnapshot GetStackPanelSnapshotForDiagnostics()

@@ -1,10 +1,16 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
 
 public partial class GridSplitterView : UserControl
 {
+    private static bool EnableLiveGridSplitterHitchDiagnostics => Debugger.IsAttached;
+    private static readonly string LiveGridSplitterHitchDiagnosticsArtifactPath = Path.Combine(AppContext.BaseDirectory, "artifacts", "diagnostics", "gridsplitter-live-hitch-latest.txt");
     private const float StackedLayoutBreakpoint = 880f;
     private const float InfoRailWidth = 340f;
     private const float StackedInfoRailHeight = 280f;
@@ -18,6 +24,7 @@ public partial class GridSplitterView : UserControl
 
     private Grid? _contentGrid;
     private Border? _bodyBorder;
+    private Grid? _rootGrid;
     private ScrollViewer? _infoScrollViewer;
     private ScrollViewer? _workbenchScrollViewer;
     private Grid? _primaryEditorGrid;
@@ -56,6 +63,29 @@ public partial class GridSplitterView : UserControl
     private TextBlock? _secondaryMetricsText;
     private TextBlock? _behaviorMetricsText;
     private TextBlock? _autoDirectionMetricsText;
+    private Grid? _primaryCanvasRootGrid;
+    private Grid? _primaryCanvasHeaderGrid;
+    private Border? _primaryCanvasHintBorder;
+    private Grid? _primaryCanvasHintGrid;
+    private TextBlock? _primaryCanvasHintText;
+    private Border? _primaryCanvasHintHotkeyBorder;
+    private TextBlock? _primaryCanvasHintHotkeyText;
+    private Border? _primaryCanvasHintMinWidthBorder;
+    private TextBlock? _primaryCanvasHintMinWidthText;
+    private Grid? _primaryCanvasLowerGrid;
+    private Border? _primaryCanvasLowerLeftPanel;
+    private Border? _primaryCanvasLowerRightPanel;
+    private bool _telemetryUpdateQueued;
+    private long _liveDiagSequence;
+    private bool _dragDiagActive;
+    private float _dragDiagLastCenterWidth = float.NaN;
+    private double _dragDiagPeakLayoutMs;
+    private double _dragDiagPeakMeasureWorkMs;
+    private double _dragDiagPeakArrangeWorkMs;
+    private double _dragDiagPeakDrawTreeMs;
+    private long _dragDiagPeakFrameworkMeasureWork;
+    private long _dragDiagPeakFrameworkArrangeWork;
+    private readonly Dictionary<FrameworkElement, DragLayoutElementState> _dragDiagPreviousElementStates = new();
 
     public GridSplitterView()
     {
@@ -76,7 +106,7 @@ public partial class GridSplitterView : UserControl
     {
         UpdateResponsiveLayout(finalSize.X);
         var arranged = base.ArrangeOverride(finalSize);
-        UpdateTelemetry();
+        EmitLiveGridSplitterDiagnostics();
         return arranged;
     }
 
@@ -129,6 +159,7 @@ public partial class GridSplitterView : UserControl
     {
         _contentGrid ??= this.FindName("GridSplitterViewContentGrid") as Grid;
         _bodyBorder ??= this.FindName("GridSplitterViewBodyBorder") as Border;
+        _rootGrid ??= this.FindName("GridSplitterViewRootGrid") as Grid;
         _infoScrollViewer ??= this.FindName("GridSplitterViewInfoScrollViewer") as ScrollViewer;
         _workbenchScrollViewer ??= this.FindName("GridSplitterWorkbenchScrollViewer") as ScrollViewer;
         _primaryEditorGrid ??= this.FindName("PrimaryEditorGrid") as Grid;
@@ -147,6 +178,18 @@ public partial class GridSplitterView : UserControl
         _navigationSplitter ??= this.FindName("NavigationSplitter") as GridSplitter;
         _inspectorSplitter ??= this.FindName("InspectorSplitter") as GridSplitter;
         _timelineSplitter ??= this.FindName("TimelineSplitter") as GridSplitter;
+        _primaryCanvasRootGrid ??= this.FindName("PrimaryCanvasRootGrid") as Grid;
+        _primaryCanvasHeaderGrid ??= this.FindName("PrimaryCanvasHeaderGrid") as Grid;
+        _primaryCanvasHintBorder ??= this.FindName("PrimaryCanvasHintBorder") as Border;
+        _primaryCanvasHintGrid ??= this.FindName("PrimaryCanvasHintGrid") as Grid;
+        _primaryCanvasHintText ??= this.FindName("PrimaryCanvasHintText") as TextBlock;
+        _primaryCanvasHintHotkeyBorder ??= this.FindName("PrimaryCanvasHintHotkeyBorder") as Border;
+        _primaryCanvasHintHotkeyText ??= this.FindName("PrimaryCanvasHintHotkeyText") as TextBlock;
+        _primaryCanvasHintMinWidthBorder ??= this.FindName("PrimaryCanvasHintMinWidthBorder") as Border;
+        _primaryCanvasHintMinWidthText ??= this.FindName("PrimaryCanvasHintMinWidthText") as TextBlock;
+        _primaryCanvasLowerGrid ??= this.FindName("PrimaryCanvasLowerGrid") as Grid;
+        _primaryCanvasLowerLeftPanel ??= this.FindName("PrimaryCanvasLowerLeftPanel") as Border;
+        _primaryCanvasLowerRightPanel ??= this.FindName("PrimaryCanvasLowerRightPanel") as Border;
         _alignmentLeftSplitter ??= this.FindName("AlignmentLeftSplitter") as GridSplitter;
         _alignmentCenterSplitter ??= this.FindName("AlignmentCenterSplitter") as GridSplitter;
         _alignmentRightSplitter ??= this.FindName("AlignmentRightSplitter") as GridSplitter;
@@ -310,6 +353,7 @@ public partial class GridSplitterView : UserControl
         _contentGrid.InvalidateArrange();
         _bodyBorder.InvalidateMeasure();
         _infoScrollViewer.InvalidateMeasure();
+        QueueTelemetryUpdate();
     }
 
     private void UpdateTelemetry()
@@ -335,6 +379,33 @@ public partial class GridSplitterView : UserControl
         SetText(
             _autoDirectionMetricsText,
             $"Auto direction: tall sample -> {ResolveExpectedDirection(_autoColumnSplitter)}, wide sample -> {ResolveExpectedDirection(_autoRowSplitter)}. Tall sample columns: {FormatColumnMetrics(_autoColumnGrid)}. Wide sample rows: {FormatRowMetrics(_autoRowGrid)}.");
+    }
+
+    private void QueueTelemetryUpdate()
+    {
+        if (_telemetryUpdateQueued)
+        {
+            return;
+        }
+
+        _telemetryUpdateQueued = true;
+        Dispatcher.EnqueueDeferred(FlushQueuedTelemetryUpdate);
+    }
+
+    private void FlushQueuedTelemetryUpdate()
+    {
+        _telemetryUpdateQueued = false;
+        if (!IsAnyPrimaryWorkbenchSplitterDragging())
+        {
+            UpdateTelemetry();
+        }
+    }
+
+    private bool IsAnyPrimaryWorkbenchSplitterDragging()
+    {
+        return _navigationSplitter?.IsDragging == true ||
+               _inspectorSplitter?.IsDragging == true ||
+               _timelineSplitter?.IsDragging == true;
     }
 
     private string BuildInteractionSummary()
@@ -618,6 +689,657 @@ public partial class GridSplitterView : UserControl
         }
 
         target.Text = value;
+    }
+
+    private void EmitLiveGridSplitterDiagnostics()
+    {
+        if (!EnableLiveGridSplitterHitchDiagnostics)
+        {
+            return;
+        }
+
+        EnsureReferences();
+        var nav = _navigationSplitter;
+        var uiRoot = UiRoot.Current;
+        if (nav == null || uiRoot == null)
+        {
+            return;
+        }
+
+        if (!nav.IsDragging)
+        {
+            if (_dragDiagActive)
+            {
+                var dragEndLine = $"[GridSplitterHitchDiag] phase=drag-end peakLayoutMs={_dragDiagPeakLayoutMs:0.###} peakMeasureMs={_dragDiagPeakMeasureWorkMs:0.###} peakArrangeMs={_dragDiagPeakArrangeWorkMs:0.###} peakDrawTreeMs={_dragDiagPeakDrawTreeMs:0.###} peakFrameworkMeasureWork={_dragDiagPeakFrameworkMeasureWork} peakFrameworkArrangeWork={_dragDiagPeakFrameworkArrangeWork}";
+                Debug.WriteLine(dragEndLine);
+                AppendLiveGridSplitterDiagnosticArtifactLine(dragEndLine);
+                _dragDiagActive = false;
+            }
+
+            return;
+        }
+
+        var perf = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        var render = uiRoot.GetRenderTelemetrySnapshotForTests();
+        var tree = uiRoot.GetVisualTreeWorkMetricsSnapshotForTests();
+        var pointer = uiRoot.GetPointerMoveTelemetrySnapshotForTests();
+        var renderInvalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var textTiming = UiTextRenderer.GetTimingSnapshotForTests();
+        var borderTelemetry = Border.GetAggregateTelemetrySnapshotForDiagnostics();
+        var frameTiming = FrameworkElement.GetFrameTimingSnapshotForTests();
+        var panelTelemetry = Panel.GetTelemetryAndReset();
+        var gridTelemetry = Grid.GetAggregateTelemetrySnapshotForDiagnostics();
+        var stackPanelTelemetry = StackPanel.GetAggregateTelemetrySnapshotForDiagnostics();
+        var scrollViewerTelemetry = ScrollViewer.GetAggregateTelemetrySnapshotForDiagnostics();
+        var textBlockTelemetry = TextBlock.GetAggregateTelemetrySnapshotForDiagnostics();
+        var centerWidth = GetCenterWidth();
+        var widthDelta = float.IsNaN(_dragDiagLastCenterWidth) ? 0f : centerWidth - _dragDiagLastCenterWidth;
+
+        if (!_dragDiagActive)
+        {
+            _dragDiagActive = true;
+            _dragDiagPeakLayoutMs = 0d;
+            _dragDiagPeakMeasureWorkMs = 0d;
+            _dragDiagPeakArrangeWorkMs = 0d;
+            _dragDiagPeakDrawTreeMs = 0d;
+            _dragDiagPeakFrameworkMeasureWork = 0;
+            _dragDiagPeakFrameworkArrangeWork = 0;
+            uiRoot.ClearDirtyBoundsEventTraceForTests();
+            FrameworkElement.ResetFrameTimingForTests();
+            UiTextRenderer.ResetTimingForTests();
+            _ = Grid.GetTelemetryAndReset();
+            _ = StackPanel.GetTelemetryAndReset();
+            _ = ScrollViewer.GetTelemetryAndReset();
+            _ = TextBlock.GetTelemetryAndReset();
+            _ = Border.GetTelemetryAndReset();
+            _ = Panel.GetTelemetryAndReset();
+            _dragDiagPreviousElementStates.Clear();
+            ResetLiveGridSplitterDiagnosticArtifact();
+            var dragBeginLine = $"[GridSplitterHitchDiag] phase=drag-begin artifact={LiveGridSplitterHitchDiagnosticsArtifactPath}";
+            Debug.WriteLine(dragBeginLine);
+            AppendLiveGridSplitterDiagnosticArtifactLine(dragBeginLine);
+        }
+
+        _dragDiagLastCenterWidth = centerWidth;
+        _dragDiagPeakLayoutMs = Math.Max(_dragDiagPeakLayoutMs, perf.LayoutPhaseMilliseconds);
+        _dragDiagPeakMeasureWorkMs = Math.Max(_dragDiagPeakMeasureWorkMs, perf.LayoutMeasureWorkMilliseconds);
+        _dragDiagPeakArrangeWorkMs = Math.Max(_dragDiagPeakArrangeWorkMs, perf.LayoutArrangeWorkMilliseconds);
+        _dragDiagPeakDrawTreeMs = Math.Max(_dragDiagPeakDrawTreeMs, render.DrawVisualTreeMilliseconds);
+        _dragDiagPeakFrameworkMeasureWork = Math.Max(_dragDiagPeakFrameworkMeasureWork, tree.MeasureWorkCount);
+        _dragDiagPeakFrameworkArrangeWork = Math.Max(_dragDiagPeakFrameworkArrangeWork, tree.ArrangeWorkCount);
+
+        var branchSummary = $"nav={FormatElementWork(_primaryEditorGrid, this.FindName("PrimaryNavigationPane") as FrameworkElement)} canvas={FormatElementWork(_primaryEditorGrid, this.FindName("PrimaryCanvasPane") as FrameworkElement)} insp={FormatElementWork(_primaryEditorGrid, this.FindName("PrimaryInspectorPane") as FrameworkElement)}";
+        var canvasSummary = $"header={FormatElementWork(_primaryCanvasRootGrid, _primaryCanvasHeaderGrid)} hint={FormatElementWork(_primaryCanvasRootGrid, _primaryCanvasHintBorder)} lower={FormatElementWork(_primaryCanvasRootGrid, _primaryCanvasLowerGrid)} left={FormatElementWork(_primaryCanvasLowerGrid, _primaryCanvasLowerLeftPanel)} right={FormatElementWork(_primaryCanvasLowerGrid, _primaryCanvasLowerRightPanel)}";
+        var canvasRootSummary = FormatGridState(_primaryCanvasRootGrid);
+        var hintGridSummary = FormatGridState(_primaryCanvasHintGrid);
+        var hintChildrenSummary = $"lead={FormatTextLayoutState(_primaryCanvasHintText)} hotkeyChip={FormatElementState(_primaryCanvasHintHotkeyBorder)} hotkeyText={FormatTextLayoutState(_primaryCanvasHintHotkeyText)} minChip={FormatElementState(_primaryCanvasHintMinWidthBorder)} minText={FormatTextLayoutState(_primaryCanvasHintMinWidthText)}";
+        var rawDirtyCoverage = uiRoot.GetDirtyCoverageForTests();
+        var settleFramesRemaining = uiRoot.GetFullRedrawSettleFramesRemainingForTests();
+        var wouldUsePartial = uiRoot.WouldUsePartialDirtyRedrawForTests();
+        var dirtyRegionSummary = uiRoot.GetDirtyRegionSummaryForTests();
+        var dirtyQueueSummary = uiRoot.GetDirtyRenderQueueSummaryForTests();
+        var syncedDirtyRootSummary = uiRoot.GetLastSynchronizedDirtyRootSummaryForTests();
+        var dirtyBoundsTrace = SummarizeDirtyBoundsTrace(uiRoot.GetDirtyBoundsEventTraceForTests(), maxEntries: 24);
+        var compactDirtyBoundsTrace = SummarizeDirtyBoundsTrace(uiRoot.GetDirtyBoundsEventTraceForTests(), maxEntries: 8);
+        var drawnVisualSummary = SummarizeLargestDrawnVisuals(uiRoot, renderInvalidation.DirtyBounds, maxEntries: 8);
+        var invalidationPathSummary = SummarizeInvalidationPath(renderInvalidation);
+        var suspectChainSummary = SummarizeInvalidationSuspectChain(
+            _primaryEditorGrid,
+            _workbenchScrollViewer,
+            _bodyBorder,
+            _contentGrid,
+            _rootGrid,
+            this);
+        var layoutDeltaSummary = SummarizeLayoutDeltaDiagnostics(this, maxEntries: 5);
+        var summaryLine =
+            $"[GridSplitterHitchDiag] seq={++_liveDiagSequence} centerWidth={centerWidth:0.##} widthDelta={widthDelta:0.##} prevDrawMs={uiRoot.LastDrawMs:0.###} prevDrawTreeMs={render.DrawVisualTreeMilliseconds:0.###} updateMs={uiRoot.LastUpdateMs:0.###} measureMs={perf.LayoutMeasureWorkMilliseconds:0.###} prevPartial={FormatBool(uiRoot.LastDrawUsedPartialRedraw)} currRawDirtyPct={rawDirtyCoverage:0.###} currWouldPartial={FormatBool(wouldUsePartial)} fullDirty={FormatBool(uiRoot.IsFullDirtyForTests())} settle={settleFramesRemaining} dirtyRects={uiRoot.GetDirtyRegionsSnapshotForTests().Count} dirtySrc={renderInvalidation.EffectiveSourceType}#{renderInvalidation.EffectiveSourceName}|via={renderInvalidation.EffectiveSourceResolution} retained={renderInvalidation.RetainedSyncSourceType}#{renderInvalidation.RetainedSyncSourceName}|via={renderInvalidation.RetainedSyncSourceResolution} dirtyVisual={renderInvalidation.DirtyBoundsVisualType}#{renderInvalidation.DirtyBoundsVisualName}|via={renderInvalidation.DirtyBoundsSourceResolution}|hint={FormatBool(renderInvalidation.DirtyBoundsUsedHint)} dirtyBounds={FormatRect(renderInvalidation.DirtyBounds)} workbenchViewer={FormatScrollViewerState(_workbenchScrollViewer)} dirtyTrace={compactDirtyBoundsTrace}";
+        var detailedLine =
+            $"[GridSplitterHitchDiag] seq={_liveDiagSequence} drag=True centerWidth={centerWidth:0.##} widthDelta={widthDelta:0.##} requestedDelta={nav.GetGridSplitterSnapshotForDiagnostics().LastRequestedDelta:0.##} snappedDelta={nav.GetGridSplitterSnapshotForDiagnostics().LastSnappedDelta:0.##} appliedDelta={nav.GetGridSplitterSnapshotForDiagnostics().LastAppliedDelta:0.##} " +
+            $"layoutMs={perf.LayoutPhaseMilliseconds:0.###} measureMs={perf.LayoutMeasureWorkMilliseconds:0.###} arrangeMs={perf.LayoutArrangeWorkMilliseconds:0.###} updateMs={uiRoot.LastUpdateMs:0.###} updateFps={FormatFramesPerSecond(uiRoot.LastUpdateMs)} drawMs={uiRoot.LastDrawMs:0.###} drawFps={FormatFramesPerSecond(uiRoot.LastDrawMs)} drawTreeMs={render.DrawVisualTreeMilliseconds:0.###} retainedTrav={perf.RetainedTraversalCount} dirtyRoots={perf.DirtyRootCount} dirtyRects={uiRoot.GetDirtyRegionsSnapshotForTests().Count} fullDirty={uiRoot.IsFullDirtyForTests()} dirtySrc={renderInvalidation.EffectiveSourceType}#{renderInvalidation.EffectiveSourceName} shouldDraw={uiRoot.LastShouldDrawReasons} drawReasons={uiRoot.LastDrawReasons} " +
+            $"retained[nodes={render.RetainedNodesVisited}/{render.RetainedNodesDrawn},clips={render.ClipPushCount},restarts={render.SpriteBatchRestartCount},partial={FormatBool(uiRoot.LastDrawUsedPartialRedraw)},dirtyPct={uiRoot.LastDirtyAreaPercentage:0.###},rawDirtyPct={rawDirtyCoverage:0.###},wouldPartial={FormatBool(wouldUsePartial)},settle={settleFramesRemaining}] " +
+            $"drawPhases[clear={render.DrawClearMilliseconds:0.###},begin={render.DrawInitialBatchBeginMilliseconds:0.###},tree={render.DrawVisualTreeMilliseconds:0.###},cursor={render.DrawCursorMilliseconds:0.###},end={render.DrawFinalBatchEndMilliseconds:0.###},cleanup={render.DrawCleanupMilliseconds:0.###}] " +
+            $"textDraw[calls={textTiming.DrawStringCallCount},hottestMs={textTiming.HottestDrawStringMilliseconds:0.###},hottestText={SanitizeDiagnosticText(textTiming.HottestDrawStringText)},hottestTypo={SanitizeDiagnosticText(textTiming.HottestDrawStringTypography)}] " +
+            $"measureHotspots[{SummarizeMeasureHotspots(frameTiming, gridTelemetry, stackPanelTelemetry, scrollViewerTelemetry, textBlockTelemetry, borderTelemetry, panelTelemetry, textTiming)}] " +
+            $"borderDraw[renders={borderTelemetry.RenderCallCount},rounded={borderTelemetry.RenderRoundedPathCount},rect={borderTelemetry.RenderRectangularPathCount},cacheHit={borderTelemetry.RenderTextureCacheHitCount},cacheMiss={borderTelemetry.RenderTextureCacheMissCount},cacheReject={borderTelemetry.RenderTextureCacheRejectedAreaCount},texBuilds={borderTelemetry.TextureBuildCount},texBuildMs={borderTelemetry.TextureBuildMilliseconds:0.###},texPixels={borderTelemetry.TextureBuildPixelCount},geomHits={borderTelemetry.RoundedGeometryCacheHitCount},geomMiss={borderTelemetry.RoundedGeometryCacheMissCount},geomPts={borderTelemetry.RoundedGeometryBuildPointCount}] " +
+            $"invalidationPath[{invalidationPathSummary}] " +
+            $"suspectChain[{suspectChainSummary}] " +
+            $"dirtyBounds={renderInvalidation.DirtyBoundsVisualType}#{renderInvalidation.DirtyBoundsVisualName}|hint={FormatBool(renderInvalidation.DirtyBoundsUsedHint)}|rect={FormatRect(renderInvalidation.DirtyBounds)} " +
+            $"dirtyRegions={dirtyRegionSummary} dirtyQueue={dirtyQueueSummary} syncedDirtyRoots={syncedDirtyRootSummary} dirtyTrace={dirtyBoundsTrace} " +
+            $"drawnVisuals={drawnVisualSummary} " +
+            $"pointerPath={pointer.PointerResolvePath} hitTests={pointer.HitTestCount} routeMs={pointer.PointerRouteMilliseconds:0.###} moveHandlerMs={pointer.PointerMoveHandlerMilliseconds:0.###} " +
+            $"hottestMeasure={perf.HottestLayoutMeasureElementType}#{perf.HottestLayoutMeasureElementName}:{perf.HottestLayoutMeasureElementMilliseconds:0.###} hottestArrange={perf.HottestLayoutArrangeElementType}#{perf.HottestLayoutArrangeElementName}:{perf.HottestLayoutArrangeElementMilliseconds:0.###} " +
+            $"frameworkWork[m={tree.MeasureWorkCount},a={tree.ArrangeWorkCount}] grid={FormatGridState(_primaryEditorGrid)} workbenchViewer={FormatScrollViewerState(_workbenchScrollViewer)} canvasRoot={canvasRootSummary} canvasHint={FormatTextLayoutState(_primaryCanvasHintText)} hintGrid={hintGridSummary} hintChildren[{hintChildrenSummary}] branches[{branchSummary}] canvasSections[{canvasSummary}] layoutDelta[{layoutDeltaSummary}]";
+
+        Debug.WriteLine(summaryLine);
+        AppendLiveGridSplitterDiagnosticArtifactLine(detailedLine);
+        uiRoot.ClearDirtyBoundsEventTraceForTests();
+        FrameworkElement.ResetFrameTimingForTests();
+        UiTextRenderer.ResetTimingForTests();
+        _ = Grid.GetTelemetryAndReset();
+        _ = StackPanel.GetTelemetryAndReset();
+        _ = ScrollViewer.GetTelemetryAndReset();
+        _ = TextBlock.GetTelemetryAndReset();
+        _ = Border.GetTelemetryAndReset();
+        _ = Panel.GetTelemetryAndReset();
+    }
+
+    private static string SanitizeDiagnosticText(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return "none";
+        }
+
+        return value
+            .Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Replace("|", "/", StringComparison.Ordinal);
+    }
+
+    private static string SummarizeMeasureHotspots(
+        FrameworkLayoutTimingSnapshot frameTiming,
+        GridTelemetrySnapshot gridTelemetry,
+        StackPanelTelemetrySnapshot stackPanelTelemetry,
+        ScrollViewerTelemetrySnapshot scrollViewerTelemetry,
+        TextBlockTelemetrySnapshot textBlockTelemetry,
+        BorderTelemetrySnapshot borderTelemetry,
+        PanelTelemetrySnapshot panelTelemetry,
+        UiTextRendererTimingSnapshot textTiming)
+    {
+         return $"frame={SanitizeDiagnosticText(frameTiming.HottestMeasureElementPath)}:{TicksToMilliseconds(frameTiming.HottestMeasureElapsedTicks):0.###}," +
+             $"grid={gridTelemetry.MeasureMilliseconds:0.###}/child={gridTelemetry.MeasureChildMilliseconds:0.###}/hit={gridTelemetry.MeasureChildCacheHitCount}/miss={gridTelemetry.MeasureChildCacheMissCount}/need={gridTelemetry.MeasureChildMissNeedsMeasureCount}/needHot={SanitizeDiagnosticText(gridTelemetry.MeasureChildNeedHottestPath)}:{gridTelemetry.MeasureChildNeedHottestMilliseconds:0.###}/cold={gridTelemetry.MeasureChildMissInvalidCacheCount}/reject={gridTelemetry.MeasureChildMissReuseRejectedCount}/rejectHot={SanitizeDiagnosticText(gridTelemetry.MeasureChildRejectHottestPath)}:{gridTelemetry.MeasureChildRejectHottestMilliseconds:0.###}/defs={gridTelemetry.ResolveDefinitionSizesMilliseconds:0.###}/apply={gridTelemetry.ApplyChildRequirementMilliseconds:0.###}/meta={gridTelemetry.PrepareChildLayoutMetadataMilliseconds:0.###}/remeasure={gridTelemetry.MeasureRemeasureCount}," +
+               $"stack={stackPanelTelemetry.MeasureMilliseconds:0.###}," +
+               $"scroll={scrollViewerTelemetry.MeasureOverrideMilliseconds:0.###}/bars={scrollViewerTelemetry.ResolveBarsAndMeasureContentMilliseconds:0.###}/content={scrollViewerTelemetry.MeasureContentMilliseconds:0.###}/remeasure={scrollViewerTelemetry.ResolveBarsAndMeasureContentRemeasurePathCount}," +
+               $"text={textBlockTelemetry.MeasureOverrideMilliseconds:0.###}/layout={textBlockTelemetry.ResolveLayoutMilliseconds:0.###}/intrinsic={textBlockTelemetry.ResolveIntrinsicNoWrapTextSizeMilliseconds:0.###}/widthHot={textTiming.HottestMeasureWidthMilliseconds:0.###}," +
+               $"border={borderTelemetry.MeasureOverrideMilliseconds:0.###}," +
+               $"panel={panelTelemetry.MeasureMilliseconds:0.###}";
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return ticks <= 0L
+            ? 0d
+            : ticks * 1000d / Stopwatch.Frequency;
+    }
+
+    private static string SummarizeLargestDrawnVisuals(UiRoot uiRoot, LayoutRect clipRect, int maxEntries)
+    {
+        var drawnVisuals = uiRoot.GetRetainedDrawOrderForClipForTests(clipRect);
+        if (drawnVisuals.Count == 0)
+        {
+            return "none";
+        }
+
+        var ranked = new List<(float Area, UIElement Visual, LayoutRect Bounds)>(drawnVisuals.Count);
+        foreach (var visual in drawnVisuals)
+        {
+            var bounds = uiRoot.GetRetainedNodeBoundsForTests(visual);
+            ranked.Add((bounds.Width * bounds.Height, visual, bounds));
+        }
+
+        ranked.Sort(static (left, right) => right.Area.CompareTo(left.Area));
+        var count = Math.Min(maxEntries, ranked.Count);
+        var parts = new List<string>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var item = ranked[i];
+            var name = item.Visual is FrameworkElement frameworkElement ? frameworkElement.Name : string.Empty;
+            parts.Add($"{item.Visual.GetType().Name}#{name}:{FormatRect(item.Bounds)}");
+        }
+
+        return string.Join(" || ", parts);
+    }
+
+    private static void ResetLiveGridSplitterDiagnosticArtifact()
+    {
+        try
+        {
+            var artifactDirectory = Path.GetDirectoryName(LiveGridSplitterHitchDiagnosticsArtifactPath);
+            if (!string.IsNullOrWhiteSpace(artifactDirectory))
+            {
+                Directory.CreateDirectory(artifactDirectory);
+            }
+
+            File.WriteAllText(
+                LiveGridSplitterHitchDiagnosticsArtifactPath,
+                $"# GridSplitter live hitch diagnostics{Environment.NewLine}");
+        }
+        catch
+        {
+        }
+    }
+
+    private static void AppendLiveGridSplitterDiagnosticArtifactLine(string line)
+    {
+        try
+        {
+            var artifactDirectory = Path.GetDirectoryName(LiveGridSplitterHitchDiagnosticsArtifactPath);
+            if (!string.IsNullOrWhiteSpace(artifactDirectory))
+            {
+                Directory.CreateDirectory(artifactDirectory);
+            }
+
+            File.AppendAllText(
+                LiveGridSplitterHitchDiagnosticsArtifactPath,
+                line + Environment.NewLine);
+        }
+        catch
+        {
+        }
+    }
+
+    private static string SummarizeDirtyBoundsTrace(IReadOnlyList<string> entries, int maxEntries)
+    {
+        if (entries.Count == 0)
+        {
+            return "none";
+        }
+
+        var summaries = new List<string>(Math.Min(entries.Count, maxEntries));
+        string? previous = null;
+        var repeatCount = 0;
+
+        void FlushPrevious()
+        {
+            if (previous == null)
+            {
+                return;
+            }
+
+            summaries.Add(repeatCount > 1
+                ? $"{previous} x{repeatCount}"
+                : previous);
+        }
+
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var current = entries[i];
+            if (string.Equals(current, previous, StringComparison.Ordinal))
+            {
+                repeatCount++;
+                continue;
+            }
+
+            FlushPrevious();
+            if (summaries.Count >= maxEntries)
+            {
+                break;
+            }
+
+            previous = current;
+            repeatCount = 1;
+        }
+
+        if (summaries.Count < maxEntries)
+        {
+            FlushPrevious();
+        }
+
+        if (entries.Count > maxEntries)
+        {
+            summaries.Add($"... ({entries.Count - maxEntries} more)");
+        }
+
+        return string.Join(" || ", summaries);
+    }
+
+    private float GetCenterWidth()
+    {
+        return _primaryEditorGrid != null && _primaryEditorGrid.ColumnDefinitions.Count > 2
+            ? _primaryEditorGrid.ColumnDefinitions[2].ActualWidth
+            : 0f;
+    }
+
+    private static string FormatGridState(Grid? grid)
+    {
+        if (grid == null)
+        {
+            return "none";
+        }
+
+        var runtime = grid.GetGridSnapshotForDiagnostics();
+        return $"{grid.Name}|cols={FormatColumns(grid)} rows={FormatRows(grid)} mw={runtime.MeasureWorkCount} aw={runtime.ArrangeWorkCount} mi={runtime.MeasureInvalidationCount} ai={runtime.ArrangeInvalidationCount}";
+    }
+
+    private static string FormatScrollViewerState(ScrollViewer? viewer)
+    {
+        if (viewer == null)
+        {
+            return "none";
+        }
+
+        var runtime = viewer.GetScrollViewerSnapshotForDiagnostics();
+        return $"{viewer.Name}|vp={viewer.ViewportWidth:0.##}x{viewer.ViewportHeight:0.##} ext={viewer.ExtentWidth:0.##}x{viewer.ExtentHeight:0.##} off={viewer.HorizontalOffset:0.##},{viewer.VerticalOffset:0.##} barsM={runtime.ResolveBarsAndMeasureContentCallCount} contentM={runtime.MeasureContentCallCount} setOffsets={runtime.SetOffsetsCallCount}/{runtime.SetOffsetsNoOpCount}";
+    }
+
+    private static string FormatFramesPerSecond(double milliseconds)
+    {
+        if (milliseconds <= 0d)
+        {
+            return "inf";
+        }
+
+        return (1000d / milliseconds).ToString("0.#");
+    }
+
+    private static string FormatTextState(TextBlock? text)
+    {
+        if (text == null)
+        {
+            return "none";
+        }
+
+        var runtime = text.GetTextBlockSnapshotForDiagnostics();
+        return $"{text.Name}|slotW={text.LayoutSlot.Width:0.##} desired={text.DesiredSize.X:0.##}x{text.DesiredSize.Y:0.##} actual={text.ActualWidth:0.##}x{text.ActualHeight:0.##} layoutCalls={runtime.ResolveLayoutCallCount} hits={runtime.ResolveLayoutCacheHitCount} misses={runtime.ResolveLayoutCacheMissCount}";
+    }
+
+    private static string FormatTextLayoutState(TextBlock? text)
+    {
+        if (text == null)
+        {
+            return "none";
+        }
+
+        var availableWidth = text.TextWrapping == TextWrapping.Wrap
+            ? Math.Max(0f, text.LayoutSlot.Width)
+            : float.PositiveInfinity;
+        var layout = TextLayout.LayoutForElement(
+            text.Text,
+            text,
+            text.FontSize,
+            availableWidth,
+            text.TextWrapping);
+
+        return $"{FormatTextState(text)} lines={layout.Lines.Count} layout={layout.Size.X:0.##}x{layout.Size.Y:0.##}";
+    }
+
+    private static string FormatElementState(FrameworkElement? element)
+    {
+        if (element == null)
+        {
+            return "none";
+        }
+
+        var snap = element.GetFrameworkElementSnapshotForDiagnostics();
+        return $"{element.Name}|slot={element.LayoutSlot.Width:0.##}x{element.LayoutSlot.Height:0.##} desired={snap.DesiredSize.X:0.##}x{snap.DesiredSize.Y:0.##} actual={element.ActualWidth:0.##}x{element.ActualHeight:0.##}";
+    }
+
+    private static string FormatElementWork(FrameworkElement? root, FrameworkElement? element)
+    {
+        if (root == null || element == null)
+        {
+            return "none";
+        }
+
+        var rootSnap = root.GetFrameworkElementSnapshotForDiagnostics();
+        var snap = element.GetFrameworkElementSnapshotForDiagnostics();
+        return $"{element.Name}|mw={snap.MeasureWorkCount - rootSnap.MeasureWorkCount} aw={snap.ArrangeWorkCount - rootSnap.ArrangeWorkCount} mi={snap.InvalidateMeasureCallCount} ai={snap.InvalidateArrangeCallCount} slot={element.LayoutSlot.Width:0.##}x{element.LayoutSlot.Height:0.##}";
+    }
+
+    private string SummarizeInvalidationPath(UiRenderInvalidationDebugSnapshot snapshot)
+    {
+        return $"requested={FormatVisualIdentity(snapshot.RequestedSourceType, snapshot.RequestedSourceName)}|last={SanitizeDiagnosticText(snapshot.RequestedSourceSummary)} effective={FormatVisualIdentity(snapshot.EffectiveSourceType, snapshot.EffectiveSourceName)}|via={snapshot.EffectiveSourceResolution}|last={SanitizeDiagnosticText(snapshot.EffectiveSourceSummary)} clip={FormatVisualIdentity(snapshot.ClipPromotionAncestorType, snapshot.ClipPromotionAncestorName)} retained={FormatVisualIdentity(snapshot.RetainedSyncSourceType, snapshot.RetainedSyncSourceName)}|via={snapshot.RetainedSyncSourceResolution}|last={SanitizeDiagnosticText(snapshot.RetainedSyncSourceSummary)} dirty={FormatVisualIdentity(snapshot.DirtyBoundsVisualType, snapshot.DirtyBoundsVisualName)}|via={snapshot.DirtyBoundsSourceResolution}|last={SanitizeDiagnosticText(snapshot.DirtyBoundsVisualSummary)}";
+    }
+
+    private static string SummarizeInvalidationSuspectChain(params FrameworkElement?[] elements)
+    {
+        var parts = new List<string>(elements.Length);
+        foreach (var element in elements)
+        {
+            if (element == null)
+            {
+                continue;
+            }
+
+            var snapshot = element.GetFrameworkElementSnapshotForDiagnostics();
+            var invalidation = snapshot.Invalidation;
+            parts.Add(
+                $"{DescribeDiagnosticElement(element)}|mi={snapshot.InvalidateMeasureCallCount}/ai={snapshot.InvalidateArrangeCallCount}/ri={snapshot.InvalidateVisualCallCount}" +
+                $"|m={invalidation.DirectMeasureInvalidationCount}+{invalidation.PropagatedMeasureInvalidationCount}:{SanitizeDiagnosticText(invalidation.LastMeasureInvalidationSummary)}" +
+                $"|a={invalidation.DirectArrangeInvalidationCount}+{invalidation.PropagatedArrangeInvalidationCount}:{SanitizeDiagnosticText(invalidation.LastArrangeInvalidationSummary)}" +
+                $"|r={invalidation.DirectRenderInvalidationCount}+{invalidation.PropagatedRenderInvalidationCount}:{SanitizeDiagnosticText(invalidation.LastRenderInvalidationSummary)}");
+        }
+
+        return parts.Count == 0
+            ? "none"
+            : string.Join(" || ", parts);
+    }
+
+    private string SummarizeLayoutDeltaDiagnostics(FrameworkElement root, int maxEntries)
+    {
+        var currentStates = new Dictionary<FrameworkElement, DragLayoutElementState>(ReferenceEqualityComparer<FrameworkElement>.Instance);
+        var desiredDeltas = new List<DragLayoutDelta>();
+        var slotDeltas = new List<DragLayoutDelta>();
+        var invalidationDeltas = new List<DragLayoutDelta>();
+        var workDeltas = new List<DragLayoutDelta>();
+
+        CollectDragLayoutStates(root, DescribeDiagnosticElement(root), currentStates, desiredDeltas, slotDeltas, invalidationDeltas, workDeltas);
+
+        _dragDiagPreviousElementStates.Clear();
+        foreach (var pair in currentStates)
+        {
+            _dragDiagPreviousElementStates[pair.Key] = pair.Value;
+        }
+
+        var workbenchViewerState = _workbenchScrollViewer?.GetFrameworkElementSnapshotForDiagnostics();
+        var workbenchContentState = _workbenchScrollViewer?.Content as FrameworkElement;
+        var workbenchContentSnapshot = workbenchContentState?.GetFrameworkElementSnapshotForDiagnostics();
+        var rootState = root.GetFrameworkElementSnapshotForDiagnostics();
+        var extentSummary = $"viewerExt={FormatOptionalTransition(_workbenchScrollViewer, currentStates, state => new Vector2(_workbenchScrollViewer?.ViewportWidth ?? 0f, _workbenchScrollViewer?.ExtentHeight ?? 0f), state => state.ViewerExtent)} viewerDesired={FormatOptionalTransition(_workbenchScrollViewer, currentStates, state => workbenchViewerState?.DesiredSize ?? Vector2.Zero, state => state.DesiredSize)} contentDesired={FormatOptionalTransition(workbenchContentState, currentStates, state => workbenchContentSnapshot?.DesiredSize ?? Vector2.Zero, state => state.DesiredSize)} rootDesired={FormatOptionalTransition(root, currentStates, _ => rootState.DesiredSize, state => state.DesiredSize)}";
+
+        return $"extent={extentSummary}; desired={FormatTopLayoutDeltas(desiredDeltas, maxEntries)}; slot={FormatTopLayoutDeltas(slotDeltas, maxEntries)}; invalid={FormatTopLayoutDeltas(invalidationDeltas, maxEntries)}; work={FormatTopLayoutDeltas(workDeltas, maxEntries)}";
+    }
+
+    private void CollectDragLayoutStates(
+        FrameworkElement element,
+        string path,
+        Dictionary<FrameworkElement, DragLayoutElementState> currentStates,
+        List<DragLayoutDelta> desiredDeltas,
+        List<DragLayoutDelta> slotDeltas,
+        List<DragLayoutDelta> invalidationDeltas,
+        List<DragLayoutDelta> workDeltas)
+    {
+        var snapshot = element.GetFrameworkElementSnapshotForDiagnostics();
+        var currentState = new DragLayoutElementState(
+            path,
+            snapshot.DesiredSize,
+            snapshot.Slot,
+            snapshot.RenderSize,
+            snapshot.MeasureWorkCount,
+            snapshot.ArrangeWorkCount,
+            snapshot.InvalidateMeasureCallCount,
+            snapshot.InvalidateArrangeCallCount,
+            snapshot.Invalidation,
+            element == _workbenchScrollViewer
+                ? new Vector2(_workbenchScrollViewer?.ViewportWidth ?? 0f, _workbenchScrollViewer?.ExtentHeight ?? 0f)
+                : new Vector2(float.NaN, float.NaN));
+        currentStates[element] = currentState;
+
+        if (_dragDiagPreviousElementStates.TryGetValue(element, out var previousState))
+        {
+            var desiredMagnitude = MathF.Abs(currentState.DesiredSize.Y - previousState.DesiredSize.Y) + MathF.Abs(currentState.DesiredSize.X - previousState.DesiredSize.X);
+            if (desiredMagnitude > 0.01f)
+            {
+                desiredDeltas.Add(CreateDragLayoutDelta(currentState, previousState, desiredMagnitude));
+            }
+
+            var slotMagnitude = MathF.Abs(currentState.Slot.Height - previousState.Slot.Height) + MathF.Abs(currentState.Slot.Width - previousState.Slot.Width);
+            if (slotMagnitude > 0.01f)
+            {
+                slotDeltas.Add(CreateDragLayoutDelta(currentState, previousState, slotMagnitude));
+            }
+
+            var invalidationMagnitude = (currentState.InvalidateMeasureCalls - previousState.InvalidateMeasureCalls) +
+                                        (currentState.InvalidateArrangeCalls - previousState.InvalidateArrangeCalls);
+            if (invalidationMagnitude > 0)
+            {
+                invalidationDeltas.Add(CreateDragLayoutDelta(currentState, previousState, invalidationMagnitude));
+            }
+
+            var workMagnitude = (currentState.MeasureWorkCount - previousState.MeasureWorkCount) +
+                                (currentState.ArrangeWorkCount - previousState.ArrangeWorkCount);
+            if (workMagnitude > 0)
+            {
+                workDeltas.Add(CreateDragLayoutDelta(currentState, previousState, workMagnitude));
+            }
+        }
+
+        var childIndex = 0;
+        foreach (var child in element.GetVisualChildren())
+        {
+            if (child is not FrameworkElement frameworkChild)
+            {
+                childIndex++;
+                continue;
+            }
+
+            CollectDragLayoutStates(
+                frameworkChild,
+                $"{path} > {DescribeDiagnosticElement(frameworkChild, childIndex)}",
+                currentStates,
+                desiredDeltas,
+                slotDeltas,
+                invalidationDeltas,
+                workDeltas);
+            childIndex++;
+        }
+    }
+
+    private static DragLayoutDelta CreateDragLayoutDelta(DragLayoutElementState currentState, DragLayoutElementState previousState, float magnitude)
+    {
+        return new DragLayoutDelta(previousState, currentState, magnitude);
+    }
+
+    private static string FormatTopLayoutDeltas(List<DragLayoutDelta> deltas, int maxEntries)
+    {
+        if (deltas.Count == 0)
+        {
+            return "none";
+        }
+
+        deltas.Sort(static (left, right) => right.Magnitude.CompareTo(left.Magnitude));
+        var count = Math.Min(maxEntries, deltas.Count);
+        var parts = new string[count];
+        for (var i = 0; i < count; i++)
+        {
+            var delta = deltas[i];
+            parts[i] = $"{delta.Current.Path}|desired={FormatSize(delta.Previous.DesiredSize)}->{FormatSize(delta.Current.DesiredSize)}|slot={FormatRect(delta.Previous.Slot)}->{FormatRect(delta.Current.Slot)}|mw=+{delta.Current.MeasureWorkCount - delta.Previous.MeasureWorkCount}|aw=+{delta.Current.ArrangeWorkCount - delta.Previous.ArrangeWorkCount}|mi=+{delta.Current.InvalidateMeasureCalls - delta.Previous.InvalidateMeasureCalls}|ai=+{delta.Current.InvalidateArrangeCalls - delta.Previous.InvalidateArrangeCalls}|mlast={SanitizeDiagnosticText(delta.Current.Invalidation.LastMeasureInvalidationSummary)}|alast={SanitizeDiagnosticText(delta.Current.Invalidation.LastArrangeInvalidationSummary)}";
+        }
+
+        return string.Join(" || ", parts);
+    }
+
+    private static string DescribeDiagnosticElement(FrameworkElement element, int? childIndex = null)
+    {
+        var typeName = element.GetType().Name;
+        if (!string.IsNullOrEmpty(element.Name))
+        {
+            return $"{typeName}#{element.Name}";
+        }
+
+        return childIndex.HasValue
+            ? $"{typeName}@{childIndex.Value}"
+            : typeName;
+    }
+
+    private static string FormatVisualIdentity(string type, string name)
+    {
+        if (string.Equals(type, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return "none";
+        }
+
+        return string.IsNullOrEmpty(name)
+            ? type
+            : $"{type}#{name}";
+    }
+
+    private string FormatOptionalTransition<TElement>(TElement? element, Dictionary<FrameworkElement, DragLayoutElementState> currentStates, Func<DragLayoutElementState, Vector2> currentSelector, Func<DragLayoutElementState, Vector2> previousSelector)
+        where TElement : FrameworkElement
+    {
+        if (element == null)
+        {
+            return "none";
+        }
+
+        if (!currentStates.TryGetValue(element, out var currentState))
+        {
+            return "none";
+        }
+
+        if (_dragDiagPreviousElementStates.TryGetValue(element, out var previousState))
+        {
+            return $"{FormatSize(previousSelector(previousState))}->{FormatSize(currentSelector(currentState))}";
+        }
+
+        return $"baseline->{FormatSize(currentSelector(currentState))}";
+    }
+
+    private static string FormatSize(Vector2 size)
+    {
+        return float.IsNaN(size.X) || float.IsNaN(size.Y)
+            ? "none"
+            : $"{size.X:0.##}x{size.Y:0.##}";
+    }
+
+    private static string FormatColumns(Grid grid)
+    {
+        var parts = new string[grid.ColumnDefinitions.Count];
+        for (var i = 0; i < grid.ColumnDefinitions.Count; i++)
+        {
+            parts[i] = grid.ColumnDefinitions[i].ActualWidth.ToString("0.#");
+        }
+
+        return string.Join(",", parts);
+    }
+
+    private static string FormatRows(Grid grid)
+    {
+        var parts = new string[grid.RowDefinitions.Count];
+        for (var i = 0; i < grid.RowDefinitions.Count; i++)
+        {
+            parts[i] = grid.RowDefinitions[i].ActualHeight.ToString("0.#");
+        }
+
+        return string.Join(",", parts);
+    }
+
+    private static string FormatRect(LayoutRect rect)
+    {
+        return $"{rect.X:0.##},{rect.Y:0.##},{rect.Width:0.##},{rect.Height:0.##}";
+    }
+
+    private readonly record struct DragLayoutElementState(
+        string Path,
+        Vector2 DesiredSize,
+        LayoutRect Slot,
+        Vector2 RenderSize,
+        long MeasureWorkCount,
+        long ArrangeWorkCount,
+        long InvalidateMeasureCalls,
+        long InvalidateArrangeCalls,
+        UIElementInvalidationDiagnosticsSnapshot Invalidation,
+        Vector2 ViewerExtent);
+
+    private readonly record struct DragLayoutDelta(
+        DragLayoutElementState Previous,
+        DragLayoutElementState Current,
+        float Magnitude);
+
+    private sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>
+        where T : class
+    {
+        public static ReferenceEqualityComparer<T> Instance { get; } = new();
+
+        public bool Equals(T? x, T? y)
+        {
+            return ReferenceEquals(x, y);
+        }
+
+        public int GetHashCode(T obj)
+        {
+            return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
+        }
     }
 
     private enum GridSplitterPreset

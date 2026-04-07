@@ -144,6 +144,21 @@ public class ContentControl : Control
         return templateSize;
     }
 
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (!base.CanReuseMeasureForAvailableSizeChange(previousAvailableSize, nextAvailableSize))
+        {
+            return false;
+        }
+
+        if (_activeContentPresenter == null && _contentElement is FrameworkElement content)
+        {
+            return content.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize);
+        }
+
+        return true;
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         base.ArrangeOverride(finalSize);

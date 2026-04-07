@@ -265,9 +265,11 @@ public class FrameworkElement : UIElement
     private static long _frameArrangeElapsedTicks;
     private static string _frameHottestMeasureElementType = "none";
     private static string _frameHottestMeasureElementName = string.Empty;
+    private static string _frameHottestMeasureElementPath = "none";
     private static long _frameHottestMeasureElapsedTicks;
     private static string _frameHottestArrangeElementType = "none";
     private static string _frameHottestArrangeElementName = string.Empty;
+    private static string _frameHottestArrangeElementPath = "none";
     private static long _frameHottestArrangeElapsedTicks;
     private static long _diagMeasureCallCount;
     private static long _diagMeasureWorkCount;
@@ -531,9 +533,11 @@ public class FrameworkElement : UIElement
             _frameArrangeElapsedTicks,
             _frameHottestMeasureElementType,
             _frameHottestMeasureElementName,
+            _frameHottestMeasureElementPath,
             _frameHottestMeasureElapsedTicks,
             _frameHottestArrangeElementType,
             _frameHottestArrangeElementName,
+            _frameHottestArrangeElementPath,
             _frameHottestArrangeElapsedTicks);
     }
 
@@ -713,10 +717,34 @@ public class FrameworkElement : UIElement
         _frameArrangeElapsedTicks = 0L;
         _frameHottestMeasureElementType = "none";
         _frameHottestMeasureElementName = string.Empty;
+        _frameHottestMeasureElementPath = "none";
         _frameHottestMeasureElapsedTicks = 0L;
         _frameHottestArrangeElementType = "none";
         _frameHottestArrangeElementName = string.Empty;
+        _frameHottestArrangeElementPath = "none";
         _frameHottestArrangeElapsedTicks = 0L;
+    }
+
+    private static string BuildDiagnosticElementPath(FrameworkElement element)
+    {
+        const int maxSegments = 6;
+        var segments = new List<string>(maxSegments);
+        FrameworkElement? current = element;
+        while (current != null && segments.Count < maxSegments)
+        {
+            segments.Add(DescribeElementForTiming(current));
+            current = current.VisualParent as FrameworkElement;
+        }
+
+        segments.Reverse();
+        return string.Join(" > ", segments);
+    }
+
+    private static string DescribeElementForTiming(FrameworkElement element)
+    {
+        return string.IsNullOrEmpty(element.Name)
+            ? $"{element.GetType().Name}#"
+            : $"{element.GetType().Name}#{element.Name}";
     }
 
     private static void IncrementAggregate(ref long counter)
@@ -906,6 +934,7 @@ public class FrameworkElement : UIElement
                 _frameHottestMeasureElapsedTicks = totalMeasureTicks;
                 _frameHottestMeasureElementType = GetType().Name;
                 _frameHottestMeasureElementName = Name;
+                _frameHottestMeasureElementPath = BuildDiagnosticElementPath(this);
             }
 
             if (measureChildTickStack.Count > 0)
@@ -961,6 +990,7 @@ public class FrameworkElement : UIElement
                 _frameHottestArrangeElapsedTicks = invisibleArrangeTicks;
                 _frameHottestArrangeElementType = GetType().Name;
                 _frameHottestArrangeElementName = Name;
+                _frameHottestArrangeElementPath = BuildDiagnosticElementPath(this);
             }
             return;
         }
@@ -1053,6 +1083,7 @@ public class FrameworkElement : UIElement
             _frameHottestArrangeElapsedTicks = arrangeTicks;
             _frameHottestArrangeElementType = GetType().Name;
             _frameHottestArrangeElementName = Name;
+            _frameHottestArrangeElementPath = BuildDiagnosticElementPath(this);
         }
     }
 
@@ -1128,6 +1159,11 @@ public class FrameworkElement : UIElement
             {
                 if (child is FrameworkElement frameworkChild)
                 {
+                    if (!RequiresUpdateLayoutTraversal(frameworkChild))
+                    {
+                        continue;
+                    }
+
                     IncrementDiagnostic(ref _runtimeUpdateLayoutRecursiveChildCount, ref _diagUpdateLayoutRecursiveChildCount);
                     frameworkChild.UpdateLayout();
                 }
@@ -1141,6 +1177,27 @@ public class FrameworkElement : UIElement
         }
 
         IncrementDiagnostic(ref _runtimeUpdateLayoutMaxPassExitCount, ref _diagUpdateLayoutMaxPassExitCount);
+    }
+
+    private static bool RequiresUpdateLayoutTraversal(FrameworkElement element)
+    {
+        if (element.NeedsMeasure ||
+            element.NeedsArrange ||
+            !element._isMeasureValid ||
+            !element._isArrangeValid)
+        {
+            return true;
+        }
+
+        foreach (var child in element.GetVisualChildren())
+        {
+            if (child is FrameworkElement frameworkChild && RequiresUpdateLayoutTraversal(frameworkChild))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void RaiseInitialized()
@@ -1210,6 +1267,18 @@ public class FrameworkElement : UIElement
     {
         IncrementDiagnostic(ref _runtimeDependencyPropertyChangedCallCount, ref _diagDependencyPropertyChangedCallCount);
         base.OnDependencyPropertyChanged(args);
+
+        var metadata = args.Property.GetMetadata(this);
+        var options = metadata.Options;
+        if ((options & FrameworkPropertyMetadataOptions.AffectsMeasure) != 0 && NeedsMeasure)
+        {
+            _isMeasureValid = false;
+        }
+
+        if ((options & FrameworkPropertyMetadataOptions.AffectsArrange) != 0 && NeedsArrange)
+        {
+            _isArrangeValid = false;
+        }
 
         if (ReferenceEquals(args.Property, IsVisibleProperty))
         {

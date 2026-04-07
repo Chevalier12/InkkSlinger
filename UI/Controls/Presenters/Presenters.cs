@@ -183,6 +183,17 @@ public class ContentPresenter : FrameworkElement
         return Vector2.Zero;
     }
 
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        EnsureSourceBinding();
+        if (_presentedElement is not FrameworkElement element)
+        {
+            return true;
+        }
+
+        return element.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize);
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         EnsureSourceBinding();

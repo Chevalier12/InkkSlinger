@@ -38,6 +38,7 @@ public sealed class InkkOopsHostConfiguration
                 new InkkOopsFrameworkElementDiagnosticsContributor(),
                 new InkkOopsTextBlockDiagnosticsContributor(),
                 new InkkOopsButtonDiagnosticsContributor(),
+                new InkkOopsGridSplitterDiagnosticsContributor(),
                 new InkkOopsExpanderDiagnosticsContributor(),
                 new InkkOopsScrollViewerDiagnosticsContributor(),
             ],

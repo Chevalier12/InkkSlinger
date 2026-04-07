@@ -874,7 +874,18 @@ public sealed class AnimationManager
         }
 
         var setStartTicks = Stopwatch.GetTimestamp();
-        target.ApplyAnimatedValues(hasScaleX, scaleX, hasScaleY, scaleY, hasCenterX, centerX, hasCenterY, centerY);
+        try
+        {
+            target.ApplyAnimatedValues(hasScaleX, scaleX, hasScaleY, scaleY, hasCenterX, centerX, hasCenterY, centerY);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw CreateOptimizedAnimatedWriteException(
+                target,
+                matchedIndices.Select(index => ((ClrPropertyAnimationSink)pendingWrites[index].Sink).Property.Name),
+                ex);
+        }
+
         var setElapsedTicks = Stopwatch.GetTimestamp() - setStartTicks;
         RecordOptimizedPendingWriteSet(pendingWrites, handledWrites, matchedIndices, setElapsedTicks);
         return true;
@@ -955,20 +966,51 @@ public sealed class AnimationManager
         }
 
         var setStartTicks = Stopwatch.GetTimestamp();
-        target.ApplyAnimatedValues(
-            hasColor,
-            color,
-            hasShadowDepth,
-            shadowDepth,
-            hasBlurRadius,
-            blurRadius,
-            hasOpacity,
-            opacity,
-            hasDirection,
-            direction);
+        try
+        {
+            target.ApplyAnimatedValues(
+                hasColor,
+                color,
+                hasShadowDepth,
+                shadowDepth,
+                hasBlurRadius,
+                blurRadius,
+                hasOpacity,
+                opacity,
+                hasDirection,
+                direction);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw CreateOptimizedAnimatedWriteException(
+                target,
+                matchedIndices.Select(index => ((ClrPropertyAnimationSink)pendingWrites[index].Sink).Property.Name),
+                ex);
+        }
+
         var setElapsedTicks = Stopwatch.GetTimestamp() - setStartTicks;
         RecordOptimizedPendingWriteSet(pendingWrites, handledWrites, matchedIndices, setElapsedTicks);
         return true;
+    }
+
+    private static InvalidOperationException CreateOptimizedAnimatedWriteException(
+        object target,
+        IEnumerable<string> propertyNames,
+        InvalidOperationException inner)
+    {
+        var properties = propertyNames
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var propertySummary = properties.Length switch
+        {
+            0 => target.GetType().Name,
+            1 => $"{target.GetType().Name}.{properties[0]}",
+            _ => $"{target.GetType().Name}.[{string.Join(", ", properties)}]"
+        };
+
+        return new InvalidOperationException(
+            $"Failed to set animated property '{propertySummary}'. The target object rejected mutation.",
+            inner);
     }
 
     private void RecordOptimizedPendingWriteSet(

@@ -154,12 +154,23 @@ public sealed partial class UiRoot
     private int _lastMenuScopeBuildCount;
     private int _lastOverlayRegistryScanCount;
     private int _lastOverlayRegistryHitCount;
+    private UIElement? _lastRenderInvalidationRequestedSourceElement;
     private string _lastRenderInvalidationRequestedSourceType = "none";
     private string _lastRenderInvalidationRequestedSourceName = string.Empty;
+    private UIElement? _lastRenderInvalidationEffectiveSourceElement;
     private string _lastRenderInvalidationEffectiveSourceType = "none";
     private string _lastRenderInvalidationEffectiveSourceName = string.Empty;
+    private string _lastRenderInvalidationEffectiveSourceResolution = "none";
+    private string _lastRenderInvalidationClipPromotionAncestorType = "none";
+    private string _lastRenderInvalidationClipPromotionAncestorName = string.Empty;
+    private UIElement? _lastRenderInvalidationRetainedSyncSourceElement;
+    private string _lastRenderInvalidationRetainedSyncSourceType = "none";
+    private string _lastRenderInvalidationRetainedSyncSourceName = string.Empty;
+    private string _lastRenderInvalidationRetainedSyncSourceResolution = "none";
+    private UIElement? _lastDirtyBoundsVisualElement;
     private string _lastDirtyBoundsVisualType = "none";
     private string _lastDirtyBoundsVisualName = string.Empty;
+    private string _lastDirtyBoundsSourceResolution = "none";
     private bool _lastDirtyBoundsUsedHint;
     private LayoutRect _lastDirtyBounds;
     private bool _hasLastDirtyBounds;
@@ -381,13 +392,37 @@ public sealed partial class UiRoot
         return new UiRenderInvalidationDebugSnapshot(
             _lastRenderInvalidationRequestedSourceType,
             _lastRenderInvalidationRequestedSourceName,
+            GetLastRenderInvalidationSummary(_lastRenderInvalidationRequestedSourceElement),
             _lastRenderInvalidationEffectiveSourceType,
             _lastRenderInvalidationEffectiveSourceName,
+            GetLastRenderInvalidationSummary(_lastRenderInvalidationEffectiveSourceElement),
+            _lastRenderInvalidationEffectiveSourceResolution,
+            _lastRenderInvalidationClipPromotionAncestorType,
+            _lastRenderInvalidationClipPromotionAncestorName,
+            _lastRenderInvalidationRetainedSyncSourceType,
+            _lastRenderInvalidationRetainedSyncSourceName,
+            GetLastRenderInvalidationSummary(_lastRenderInvalidationRetainedSyncSourceElement),
+            _lastRenderInvalidationRetainedSyncSourceResolution,
             _lastDirtyBoundsVisualType,
             _lastDirtyBoundsVisualName,
+            GetLastRenderInvalidationSummary(_lastDirtyBoundsVisualElement),
+            _lastDirtyBoundsSourceResolution,
             _lastDirtyBoundsUsedHint,
             _lastDirtyBounds,
             _hasLastDirtyBounds);
+    }
+
+    private static string GetLastRenderInvalidationSummary(UIElement? element)
+    {
+        if (element == null)
+        {
+            return "none";
+        }
+
+        var summary = element.InvalidationDiagnosticsForTests.LastRenderInvalidationSummary;
+        return string.IsNullOrWhiteSpace(summary)
+            ? "none"
+            : summary;
     }
 
     internal IReadOnlyList<string> GetDirtyBoundsEventTraceForTests()

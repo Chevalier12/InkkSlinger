@@ -1696,9 +1696,12 @@ public class UIElement : DependencyObject
     private void InvalidateVisualCore(UIElement origin, UIElement? source, string reason)
     {
         Dispatcher.VerifyAccess();
+        var renderInvalidationSource = ReferenceEquals(origin, this)
+            ? this
+            : origin;
         if (NeedsRender)
         {
-            UiRoot.Current?.EnsureRenderInvalidationTracked(this);
+            UiRoot.Current?.EnsureRenderInvalidationTracked(renderInvalidationSource);
             return;
         }
 
@@ -1707,7 +1710,7 @@ public class UIElement : DependencyObject
         _renderVersionStamp++;
         RecordInvalidationDiagnostics(UiInvalidationType.Render, origin, source, reason);
         MarkSubtreeDirty();
-        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, this);
+        UiRoot.Current?.NotifyInvalidation(UiInvalidationType.Render, renderInvalidationSource);
     }
 
     private void RecordInvalidationDiagnostics(UiInvalidationType type, UIElement origin, UIElement? source, string reason)

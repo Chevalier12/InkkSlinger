@@ -9,7 +9,9 @@ internal readonly record struct FrameworkLayoutTimingSnapshot(
     long ArrangeElapsedTicks,
     string HottestMeasureElementType,
     string HottestMeasureElementName,
+    string HottestMeasureElementPath,
     long HottestMeasureElapsedTicks,
     string HottestArrangeElementType,
     string HottestArrangeElementName,
+    string HottestArrangeElementPath,
     long HottestArrangeElapsedTicks);

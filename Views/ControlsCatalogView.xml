@@ -9,7 +9,7 @@
              VerticalAlignment="Stretch"
              Background="#1E1E1E"
              Padding="8">
-  <Grid>
+  <Grid x:Name="ControlsCatalogRootGrid">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="280" />
       <ColumnDefinition Width="*" />
@@ -23,7 +23,7 @@
             CornerRadius="8"
             Padding="10"
             Margin="0,0,8,0">
-      <Grid>
+      <Grid x:Name="ControlsCatalogSidebarGrid">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
@@ -55,7 +55,8 @@
     </Border>
 
     <!-- Main Content -->
-    <Grid Grid.Column="1">
+        <Grid x:Name="ControlsCatalogMainContentGrid"
+          Grid.Column="1">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />

@@ -74,6 +74,15 @@ public sealed class BorderRenderCacheTests
     }
 
     [Fact]
+    public void RoundedTextureCache_RejectsVeryTallSurface()
+    {
+        Assert.False(Border.ShouldUseRoundedTextureCacheForTests(551, 1482));
+        Assert.False(Border.ShouldUseRoundedTextureCacheForTests(551, 512));
+        Assert.False(Border.ShouldUseRoundedTextureCacheForTests(226, 388));
+        Assert.True(Border.ShouldUseRoundedTextureCacheForTests(120, 48));
+    }
+
+    [Fact]
     public void TelemetrySnapshots_ReportLayoutCacheAndBrushActivity()
     {
         _ = Border.GetTelemetryAndReset();

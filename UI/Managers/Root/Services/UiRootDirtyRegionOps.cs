@@ -179,6 +179,7 @@ public sealed partial class UiRoot
 
     private void TrackDirtyBoundsForVisual(UIElement? visual)
     {
+        _lastDirtyBoundsVisualElement = visual;
         _lastDirtyBoundsVisualType = visual?.GetType().Name ?? "none";
         _lastDirtyBoundsVisualName = visual is FrameworkElement frameworkElement
             ? frameworkElement.Name
@@ -195,22 +196,32 @@ public sealed partial class UiRoot
 
         if (TryGetTransformScrollDirtyBoundsHint(visual, out var transformScrollBounds))
         {
+            if (!TryClipDirtyBoundsToVisualChain(visual, ref transformScrollBounds))
+            {
+                return;
+            }
+
             _lastDirtyBoundsUsedHint = true;
             _lastDirtyBounds = transformScrollBounds;
             _hasLastDirtyBounds = true;
             _dirtyBoundsEventTrace.Add($"{_lastDirtyBoundsVisualType}#{_lastDirtyBoundsVisualName}:scroll-clip-hint:{transformScrollBounds.X:0.##},{transformScrollBounds.Y:0.##},{transformScrollBounds.Width:0.##},{transformScrollBounds.Height:0.##}");
-            _dirtyRegions.AddDirtyRegion(transformScrollBounds);
+            AddDirtyRegionForDiagnostics(transformScrollBounds, "scroll-clip-hint");
             return;
         }
 
         if (visual is IRenderDirtyBoundsHintProvider dirtyHintProvider &&
             dirtyHintProvider.TryConsumeRenderDirtyBoundsHint(out var hintedBounds))
         {
+            if (!TryClipDirtyBoundsToVisualChain(visual, ref hintedBounds))
+            {
+                return;
+            }
+
             _lastDirtyBoundsUsedHint = true;
             _lastDirtyBounds = hintedBounds;
             _hasLastDirtyBounds = true;
             _dirtyBoundsEventTrace.Add($"{_lastDirtyBoundsVisualType}#{_lastDirtyBoundsVisualName}:hint:{hintedBounds.X:0.##},{hintedBounds.Y:0.##},{hintedBounds.Width:0.##},{hintedBounds.Height:0.##}");
-            _dirtyRegions.AddDirtyRegion(hintedBounds);
+            AddDirtyRegionForDiagnostics(hintedBounds, "hint");
             return;
         }
 
@@ -239,7 +250,7 @@ public sealed partial class UiRoot
             $"{(hasOldBounds ? $"{oldBounds.X:0.##},{oldBounds.Y:0.##},{oldBounds.Width:0.##},{oldBounds.Height:0.##}" : "none")}" +
             "->" +
             $"{(hasNewBounds ? $"{newBounds.X:0.##},{newBounds.Y:0.##},{newBounds.Width:0.##},{newBounds.Height:0.##}" : "none")}");
-        AddDirtyBounds(hasOldBounds, oldBounds, hasNewBounds, newBounds);
+        AddDirtyBounds(visual, hasOldBounds, oldBounds, hasNewBounds, newBounds);
     }
 
     private void RecordBoundsDelta(RenderNode previous, RenderNode updated)
@@ -251,46 +262,138 @@ public sealed partial class UiRoot
             return;
         }
 
+        if (TryGetTransformScrollDirtyBoundsHint(updated.Visual, out var transformScrollBounds) ||
+            TryGetTransformScrollDirtyBoundsHint(previous.Visual, out transformScrollBounds))
+        {
+            var clipVisual = TryGetTransformScrollDirtyBoundsHint(updated.Visual, out _)
+                ? updated.Visual
+                : previous.Visual;
+            if (!TryClipDirtyBoundsToVisualChain(clipVisual, ref transformScrollBounds))
+            {
+                return;
+            }
+
+            _lastDirtyBoundsVisualType = updated.Visual.GetType().Name;
+            _lastDirtyBoundsVisualName = updated.Visual is FrameworkElement updatedFrameworkElement
+                ? updatedFrameworkElement.Name
+                : string.Empty;
+            _lastDirtyBoundsVisualElement = updated.Visual;
+            _lastDirtyBoundsUsedHint = true;
+            _lastDirtyBounds = transformScrollBounds;
+            _hasLastDirtyBounds = true;
+            _dirtyBoundsEventTrace.Add($"{_lastDirtyBoundsVisualType}#{_lastDirtyBoundsVisualName}:scroll-clip-hint:{transformScrollBounds.X:0.##},{transformScrollBounds.Y:0.##},{transformScrollBounds.Width:0.##},{transformScrollBounds.Height:0.##}");
+            AddDirtyRegionForDiagnostics(transformScrollBounds, "scroll-clip-hint-delta");
+            return;
+        }
+
         AddDirtyBounds(
+            updated.Visual,
             previous.HasBoundsSnapshot,
             previous.BoundsSnapshot,
             updated.HasBoundsSnapshot,
             updated.BoundsSnapshot);
     }
 
-    private void AddDirtyBounds(bool hasOldBounds, LayoutRect oldBounds, bool hasNewBounds, LayoutRect newBounds)
+    private void AddDirtyBounds(UIElement? visual, bool hasOldBounds, LayoutRect oldBounds, bool hasNewBounds, LayoutRect newBounds)
     {
         if (hasOldBounds && hasNewBounds)
         {
             if (AreRectsEqual(oldBounds, newBounds))
             {
-                _dirtyRegions.AddDirtyRegion(oldBounds);
+                if (ShouldSkipUnchangedDirtyBoundsForVisual(visual))
+                {
+                    _dirtyBoundsEventTrace.Add($"dirty-skip:unchanged:{DescribeDirtyBoundsVisual(visual)}:{oldBounds.X:0.##},{oldBounds.Y:0.##},{oldBounds.Width:0.##},{oldBounds.Height:0.##}");
+                    return;
+                }
+
+                AddDirtyRegionForDiagnostics(oldBounds, "unchanged");
                 return;
             }
 
             if (IntersectsOrTouches(oldBounds, newBounds))
             {
-                _dirtyRegions.AddDirtyRegion(Union(oldBounds, newBounds));
+                AddDirtyRegionForDiagnostics(Union(oldBounds, newBounds), "union");
                 return;
             }
 
-            _dirtyRegions.AddDirtyRegion(oldBounds);
-            _dirtyRegions.AddDirtyRegion(newBounds);
+            AddDirtyRegionForDiagnostics(oldBounds, "old");
+            AddDirtyRegionForDiagnostics(newBounds, "new");
             return;
         }
 
         if (hasOldBounds)
         {
-            _dirtyRegions.AddDirtyRegion(oldBounds);
+            AddDirtyRegionForDiagnostics(oldBounds, "old-only");
             return;
         }
 
         if (hasNewBounds)
         {
-            _dirtyRegions.AddDirtyRegion(newBounds);
+            AddDirtyRegionForDiagnostics(newBounds, "new-only");
             return;
         }
 
+    }
+
+    private static bool ShouldSkipUnchangedDirtyBoundsForVisual(UIElement? visual)
+    {
+        return visual switch
+        {
+            Grid grid => !grid.ShowGridLines,
+            Canvas => true,
+            StackPanel => true,
+            WrapPanel => true,
+            VirtualizingStackPanel => true,
+            _ => false
+        };
+    }
+
+    private static string DescribeDirtyBoundsVisual(UIElement? visual)
+    {
+        return visual switch
+        {
+            FrameworkElement { Name.Length: > 0 } frameworkElement => $"{frameworkElement.GetType().Name}#{frameworkElement.Name}",
+            null => "none",
+            _ => visual.GetType().Name
+        };
+    }
+
+    private void AddDirtyRegionForDiagnostics(LayoutRect bounds, string reason)
+    {
+        _dirtyBoundsEventTrace.Add($"dirty-add:{reason}:{bounds.X:0.##},{bounds.Y:0.##},{bounds.Width:0.##},{bounds.Height:0.##}");
+        _dirtyRegions.AddDirtyRegion(bounds);
+    }
+
+    private bool TryClipDirtyBoundsToVisualChain(UIElement? visual, ref LayoutRect bounds)
+    {
+        if (visual == null)
+        {
+            return bounds.Width > 0f && bounds.Height > 0f;
+        }
+
+        var clipped = bounds;
+        var intersectedAnyClip = false;
+        for (var current = visual; current != null; current = current.GetInvalidationParent())
+        {
+            if (!current.TryGetLocalClipSnapshot(out var clipRect) || clipRect.Width <= 0f || clipRect.Height <= 0f)
+            {
+                continue;
+            }
+
+            clipped = IntersectRect(clipped, clipRect);
+            intersectedAnyClip = true;
+            if (clipped.Width <= 0f || clipped.Height <= 0f)
+            {
+                return false;
+            }
+        }
+
+        if (intersectedAnyClip)
+        {
+            bounds = clipped;
+        }
+
+        return bounds.Width > 0f && bounds.Height > 0f;
     }
 
     private static bool TryGetTransformScrollDirtyBoundsHint(UIElement visual, out LayoutRect bounds)
@@ -301,28 +404,57 @@ public sealed partial class UiRoot
             return false;
         }
 
-        if (visual is not IScrollTransformContent &&
-            (visual is not Panel || !ScrollViewer.GetUseTransformContentScrolling(visual)))
+        if (visual is ScrollViewer viewer &&
+            viewer.Content is UIElement viewerContent)
         {
-            return false;
-        }
-
-        var owner = visual.VisualParent as ScrollViewer;
-        if (owner == null || !ReferenceEquals(owner.Content, visual))
-        {
-            owner = visual.LogicalParent as ScrollViewer;
-            if (owner == null || !ReferenceEquals(owner.Content, visual))
+            if (viewer.NeedsRender &&
+                !viewer.NeedsMeasure &&
+                !viewer.NeedsArrange &&
+                viewer.TryGetContentViewportClipRect(out bounds))
             {
-                return false;
+                return bounds.Width > 0f && bounds.Height > 0f;
             }
+
+            visual = viewerContent;
         }
 
-        if (!owner.TryGetContentViewportClipRect(out bounds))
+        if (visual is IScrollTransformContent &&
+            TryGetDirectTransformScrollOwner(visual, out var transformOwner) &&
+            transformOwner.TryGetContentViewportClipRect(out bounds))
         {
-            return false;
+            return bounds.Width > 0f && bounds.Height > 0f;
         }
 
-        return bounds.Width > 0f && bounds.Height > 0f;
+        if (visual is Panel panel &&
+            ScrollViewer.GetUseTransformContentScrolling(panel) &&
+            TryGetDirectTransformScrollOwner(panel, out transformOwner) &&
+            transformOwner.TryGetContentViewportClipRect(out bounds))
+        {
+            return bounds.Width > 0f && bounds.Height > 0f;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetDirectTransformScrollOwner(UIElement element, out ScrollViewer owner)
+    {
+        owner = null!;
+
+        var visualOwner = element.VisualParent as ScrollViewer;
+        if (visualOwner != null && ReferenceEquals(visualOwner.Content, element))
+        {
+            owner = visualOwner;
+            return true;
+        }
+
+        var logicalOwner = element.LogicalParent as ScrollViewer;
+        if (logicalOwner != null && ReferenceEquals(logicalOwner.Content, element))
+        {
+            owner = logicalOwner;
+            return true;
+        }
+
+        return false;
     }
 
 
@@ -348,6 +480,15 @@ public sealed partial class UiRoot
         var y = MathF.Min(left.Y, right.Y);
         var rightEdge = MathF.Max(left.X + left.Width, right.X + right.Width);
         var bottomEdge = MathF.Max(left.Y + left.Height, right.Y + right.Height);
+        return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
+    }
+
+    private static LayoutRect IntersectRect(LayoutRect left, LayoutRect right)
+    {
+        var x = MathF.Max(left.X, right.X);
+        var y = MathF.Max(left.Y, right.Y);
+        var rightEdge = MathF.Min(left.X + left.Width, right.X + right.Width);
+        var bottomEdge = MathF.Min(left.Y + left.Height, right.Y + right.Height);
         return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
     }
 

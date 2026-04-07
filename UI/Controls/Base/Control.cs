@@ -332,6 +332,16 @@ public class Control : FrameworkElement, ICommandSource
         return Vector2.Zero;
     }
 
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (_templateRoot is not FrameworkElement element)
+        {
+            return false;
+        }
+
+        return element.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize);
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         if (_templateRoot is FrameworkElement element)

@@ -204,6 +204,51 @@ public class WrapPanel : Panel
         }
     }
 
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (GetType() != typeof(WrapPanel))
+        {
+            return false;
+        }
+
+        var horizontal = Orientation == Orientation.Horizontal;
+        var previousLineLimit = NormalizeLineLimit(horizontal ? previousAvailableSize.X : previousAvailableSize.Y);
+        var nextLineLimit = NormalizeLineLimit(horizontal ? nextAvailableSize.X : nextAvailableSize.Y);
+        var previousChildAvailable = ResolveChildAvailableSize(previousAvailableSize);
+        var nextChildAvailable = ResolveChildAvailableSize(nextAvailableSize);
+        var totalMain = 0f;
+        var childCount = 0;
+
+        foreach (var child in Children)
+        {
+            if (child is not FrameworkElement frameworkChild)
+            {
+                continue;
+            }
+
+            childCount++;
+            if (!frameworkChild.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousChildAvailable, nextChildAvailable))
+            {
+                return false;
+            }
+
+            var childSize = GetChildSize(frameworkChild, ItemWidth, ItemHeight, fromMeasure: false);
+            totalMain += horizontal ? childSize.X : childSize.Y;
+        }
+
+        if (childCount <= 1)
+        {
+            return true;
+        }
+
+        if (AreFloatsClose(previousLineLimit, nextLineLimit))
+        {
+            return true;
+        }
+
+        return totalMain <= previousLineLimit && totalMain <= nextLineLimit;
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var startTicks = Stopwatch.GetTimestamp();
@@ -297,6 +342,28 @@ public class WrapPanel : Panel
             AddAggregate(ref _diagArrangeWrapCount, wrapCount);
             AddAggregate(ref _diagArrangeCommittedLineCount, committedLineCount);
         }
+    }
+
+    private Vector2 ResolveChildAvailableSize(Vector2 availableSize)
+    {
+        return new Vector2(
+            float.IsNaN(ItemWidth) ? availableSize.X : ItemWidth,
+            float.IsNaN(ItemHeight) ? availableSize.Y : ItemHeight);
+    }
+
+    private static float NormalizeLineLimit(float lineLimit)
+    {
+        if (float.IsInfinity(lineLimit) || float.IsNaN(lineLimit) || lineLimit <= 0f)
+        {
+            return float.PositiveInfinity;
+        }
+
+        return lineLimit;
+    }
+
+    private static bool AreFloatsClose(float first, float second)
+    {
+        return MathF.Abs(first - second) <= 0.5f;
     }
 
     internal static WrapPanelTelemetrySnapshot GetTelemetrySnapshotForDiagnostics()

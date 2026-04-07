@@ -156,6 +156,9 @@ public class TextBlock : FrameworkElement
     private float _secondaryLayoutCacheFontSize = float.NaN;
     private float _secondaryLayoutCacheLineHeight = float.NaN;
     private float _intrinsicNoWrapMeasureLineHeight = float.NaN;
+    private bool _hasLastMeasuredWrappedLayout;
+    private float _lastMeasuredWrappedLayoutWidth = float.NaN;
+    private TextLayout.TextLayoutResult _lastMeasuredWrappedLayout = TextLayout.TextLayoutResult.Empty;
     private int _runtimeMeasureOverrideCallCount;
     private long _runtimeMeasureOverrideElapsedTicks;
     private int _runtimeEmptyMeasureCallCount;
@@ -431,6 +434,11 @@ public class TextBlock : FrameworkElement
             }
 
             var effectiveAvailableWidth = ResolveMeasureTextLayoutWidth(availableSize.X);
+            if (ShouldCollapseWrappedMeasure(effectiveAvailableWidth))
+            {
+                return Vector2.Zero;
+            }
+
             var sameTextSameWidth = _runtimeLastMeasureTextVersion == _textVersion &&
                                     FloatMatches(_runtimeLastMeasureWidth, effectiveAvailableWidth) &&
                                     _runtimeLastMeasureWrapping == TextWrapping &&
@@ -450,6 +458,7 @@ public class TextBlock : FrameworkElement
 
             if (CanUseIntrinsicMeasure(layoutText, effectiveAvailableWidth))
             {
+                _hasLastMeasuredWrappedLayout = false;
                 _runtimeIntrinsicMeasurePathCallCount++;
                 IncrementAggregate(ref _diagIntrinsicMeasurePathCallCount);
                 return ResolveIntrinsicNoWrapTextSize(layoutText);
@@ -460,7 +469,15 @@ public class TextBlock : FrameworkElement
             var availableWidth = TextWrapping == TextWrapping.NoWrap
                 ? float.PositiveInfinity
                 : effectiveAvailableWidth;
-            return ResolveLayout(availableWidth).Size;
+            var layout = ResolveLayout(availableWidth);
+            if (TextWrapping != TextWrapping.NoWrap)
+            {
+                _hasLastMeasuredWrappedLayout = true;
+                _lastMeasuredWrappedLayoutWidth = effectiveAvailableWidth;
+                _lastMeasuredWrappedLayout = layout;
+            }
+
+            return layout.Size;
         }
         finally
         {
@@ -500,9 +517,20 @@ public class TextBlock : FrameworkElement
             return false;
         }
 
+        var previousWidth = ResolveMeasureTextLayoutWidth(previousAvailableSize.X);
+        var nextWidth = ResolveMeasureTextLayoutWidth(nextAvailableSize.X);
+        if (CanReuseWrappedLayoutForNarrowerWidth(previousWidth, nextWidth))
+        {
+            _runtimeCanReuseMeasureTrueCount++;
+            _runtimeCanReuseMeasureIntrinsicFitCount++;
+            IncrementAggregate(ref _diagCanReuseMeasureTrueCount);
+            IncrementAggregate(ref _diagCanReuseMeasureIntrinsicFitCount);
+            return true;
+        }
+
         var intrinsicSize = ResolveIntrinsicNoWrapTextSize(layoutText);
-        if (previousAvailableSize.X >= intrinsicSize.X &&
-            nextAvailableSize.X >= intrinsicSize.X)
+        if (previousWidth >= intrinsicSize.X &&
+            nextWidth >= intrinsicSize.X)
         {
             _runtimeCanReuseMeasureTrueCount++;
             _runtimeCanReuseMeasureIntrinsicFitCount++;
@@ -528,6 +556,13 @@ public class TextBlock : FrameworkElement
         {
             var layoutText = GetLayoutText();
             if (string.IsNullOrEmpty(layoutText))
+            {
+                _runtimeRenderEmptyTextSkipCount++;
+                IncrementAggregate(ref _diagRenderEmptyTextSkipCount);
+                return;
+            }
+
+            if (ShouldCollapseWrappedMeasure(RenderSize.X) || RenderSize.Y <= 0.01f)
             {
                 _runtimeRenderEmptyTextSkipCount++;
                 IncrementAggregate(ref _diagRenderEmptyTextSkipCount);
@@ -815,7 +850,11 @@ public class TextBlock : FrameworkElement
         else
         {
             var effectiveAvailableWidth = ResolveMeasureTextLayoutWidth(availableWidth);
-            if (CanUseIntrinsicMeasure(layoutText, effectiveAvailableWidth))
+            if (ShouldCollapseWrappedMeasure(effectiveAvailableWidth))
+            {
+                measured = Vector2.Zero;
+            }
+            else if (CanUseIntrinsicMeasure(layoutText, effectiveAvailableWidth))
             {
                 _runtimeTryMeasureDesiredSizeForTextChangeIntrinsicPathCount++;
                 IncrementAggregate(ref _diagTryMeasureDesiredSizeForTextChangeIntrinsicPathCount);
@@ -967,6 +1006,99 @@ public class TextBlock : FrameworkElement
         return resolvedWidth;
     }
 
+    private bool ShouldCollapseWrappedMeasure(float availableWidth)
+    {
+        return TextWrapping != TextWrapping.NoWrap && availableWidth <= 0.01f;
+    }
+
+    private bool CanReuseWrappedLayoutForNarrowerWidth(float previousWidth, float nextWidth)
+    {
+        if (TextWrapping == TextWrapping.NoWrap ||
+            !float.IsFinite(previousWidth) ||
+            !float.IsFinite(nextWidth) ||
+            nextWidth > previousWidth ||
+            ShouldCollapseWrappedMeasure(previousWidth) ||
+            ShouldCollapseWrappedMeasure(nextWidth))
+        {
+            return false;
+        }
+
+        if (_hasLastMeasuredWrappedLayout &&
+            FloatMatches(_lastMeasuredWrappedLayoutWidth, previousWidth) &&
+            _runtimeLastMeasureTextVersion == _textVersion &&
+            _runtimeLastMeasureWrapping == TextWrapping &&
+            FloatMatches(_runtimeLastMeasureFontSize, FontSize) &&
+            FloatMatches(_runtimeLastMeasureLineHeight, LineHeight))
+        {
+            return nextWidth + 0.5f >= GetReusableWrappedLayoutWidth(_lastMeasuredWrappedLayout);
+        }
+
+        if (!TryGetCachedWrappedLayoutForWidth(previousWidth, out var cachedLayout))
+        {
+            return false;
+        }
+
+        return nextWidth + 0.5f >= GetReusableWrappedLayoutWidth(cachedLayout);
+    }
+
+    private float GetReusableWrappedLayoutWidth(TextLayout.TextLayoutResult layout)
+    {
+        if (layout.Lines.Count == 0)
+        {
+            return 0f;
+        }
+
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
+        var maxWidth = 0f;
+        for (var i = 0; i < layout.Lines.Count; i++)
+        {
+            var line = layout.Lines[i].TrimEnd();
+            var lineWidth = string.IsNullOrEmpty(line)
+                ? 0f
+                : UiTextRenderer.MeasureWidth(typography, line);
+            maxWidth = MathF.Max(maxWidth, lineWidth);
+        }
+
+        return maxWidth;
+    }
+
+    private bool TryGetCachedWrappedLayoutForWidth(float width, out TextLayout.TextLayoutResult layout)
+    {
+        layout = TextLayout.TextLayoutResult.Empty;
+        if (TextWrapping == TextWrapping.NoWrap)
+        {
+            return false;
+        }
+
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
+        var lineHeight = LineHeight;
+        if (_hasLayoutCache &&
+            _layoutCacheTextVersion == _textVersion &&
+            Nullable.Equals(_layoutCacheTypography, typography) &&
+            FloatMatches(_layoutCacheFontSize, FontSize) &&
+            _layoutCacheWrapping == TextWrapping &&
+            FloatMatches(_layoutCacheLineHeight, lineHeight) &&
+            FloatMatches(_layoutCacheWidth, width))
+        {
+            layout = _layoutCacheResult;
+            return true;
+        }
+
+        if (_hasSecondaryLayoutCache &&
+            _secondaryLayoutCacheTextVersion == _textVersion &&
+            Nullable.Equals(_secondaryLayoutCacheTypography, typography) &&
+            FloatMatches(_secondaryLayoutCacheFontSize, FontSize) &&
+            _secondaryLayoutCacheWrapping == TextWrapping &&
+            FloatMatches(_secondaryLayoutCacheLineHeight, lineHeight) &&
+            FloatMatches(_secondaryLayoutCacheWidth, width))
+        {
+            layout = _secondaryLayoutCacheResult;
+            return true;
+        }
+
+        return false;
+    }
+
     private TextLayout.TextLayoutResult ResolveLayout(float width)
     {
         var startTicks = Stopwatch.GetTimestamp();
@@ -1081,6 +1213,9 @@ public class TextBlock : FrameworkElement
         }
         _hasLayoutCache = false;
         _hasSecondaryLayoutCache = false;
+        _hasLastMeasuredWrappedLayout = false;
+        _lastMeasuredWrappedLayoutWidth = float.NaN;
+        _lastMeasuredWrappedLayout = TextLayout.TextLayoutResult.Empty;
         _layoutCacheTextVersion = -1;
         _layoutCacheWidth = float.NaN;
         _layoutCacheTypography = null;

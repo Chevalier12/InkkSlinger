@@ -503,6 +503,214 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
+    public void TransformDefault_DirtyBoundsStayClippedToViewportDuringDescendantLayoutChange()
+    {
+        var root = new Panel();
+        var content = CreateTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
+
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        var mutatedChild = Assert.IsType<Border>(content.Children[20]);
+        mutatedChild.Height = 44f;
+        RunLayout(uiRoot, 320, 200, 32);
+
+        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
+
+        Assert.True(invalidation.HasDirtyBounds);
+        Assert.False(uiRoot.IsFullDirtyForTests());
+        Assert.True(
+            !invalidation.DirtyBoundsUsedHint ||
+            dirtyTrace.Any(entry => entry.Contains(":scroll-clip-hint:", System.StringComparison.Ordinal)),
+            "Expected viewport-local dirty bounds to leave a scroll-clip hint trace when a hint is consumed.");
+        Assert.Contains(dirtyRegions, region =>
+            region.X <= viewportClip.X + 0.01f &&
+            region.Y <= viewportClip.Y + 0.01f &&
+            region.X + region.Width >= viewportClip.X + viewportClip.Width - 0.01f &&
+            region.Y + region.Height >= viewportClip.Y + viewportClip.Height - 0.01f);
+    }
+
+    [Fact]
+    public void TransformDefault_ContentHostLayoutChange_UsesViewportDirtyHint()
+    {
+        var root = new Panel();
+        var content = CreateTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
+
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        content.AddChild(new Border { Height = 24f, Margin = new Thickness(0f, 0f, 0f, 2f) });
+        RunLayout(uiRoot, 320, 200, 32);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
+
+        Assert.Equal(nameof(StackPanel), invalidation.EffectiveSourceType);
+        Assert.Equal(nameof(StackPanel), invalidation.RetainedSyncSourceType);
+        Assert.Equal("transform-scroll-anchor", invalidation.RetainedSyncSourceResolution);
+        Assert.Equal(nameof(StackPanel), invalidation.DirtyBoundsVisualType);
+        Assert.Equal("transform-scroll-anchor", invalidation.DirtyBoundsSourceResolution);
+        Assert.True(invalidation.DirtyBoundsUsedHint);
+        Assert.Contains(dirtyTrace, entry =>
+            entry.StartsWith(nameof(StackPanel), System.StringComparison.Ordinal) &&
+            entry.Contains(":scroll-clip-hint:", System.StringComparison.Ordinal));
+        if (!uiRoot.IsFullDirtyForTests())
+        {
+            Assert.Contains(dirtyRegions, region =>
+                region.X <= viewportClip.X + 0.01f &&
+                region.Y <= viewportClip.Y + 0.01f &&
+                region.X + region.Width >= viewportClip.X + viewportClip.Width - 0.01f &&
+                region.Y + region.Height >= viewportClip.Y + viewportClip.Height - 0.01f);
+        }
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
+    public void TransformDefault_NestedDescendantLayoutChange_StaysClippedToViewport()
+    {
+        var root = new Panel();
+        var outer = new StackPanel();
+        var inner = new StackPanel();
+        for (var i = 0; i < 120; i++)
+        {
+            inner.AddChild(new Border { Height = 20f, Margin = new Thickness(0f, 0f, 0f, 2f) });
+        }
+
+        outer.AddChild(new Border { Height = 24f, Margin = new Thickness(0f, 0f, 0f, 8f) });
+        outer.AddChild(inner);
+
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = outer
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
+
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        var mutatedChild = Assert.IsType<Border>(inner.Children[20]);
+        mutatedChild.Height = 44f;
+        RunLayout(uiRoot, 320, 200, 32);
+
+        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
+
+        Assert.False(uiRoot.IsFullDirtyForTests());
+        Assert.True(
+            !invalidation.DirtyBoundsUsedHint ||
+            dirtyTrace.Any(entry => entry.Contains(":scroll-clip-hint:", System.StringComparison.Ordinal)),
+            "Expected viewport-local dirty bounds to leave a scroll-clip hint trace when a hint is consumed.");
+        Assert.Contains(dirtyRegions, region =>
+            region.X <= viewportClip.X + 0.01f &&
+            region.Y <= viewportClip.Y + 0.01f &&
+            region.X + region.Width >= viewportClip.X + viewportClip.Width - 0.01f &&
+            region.Y + region.Height >= viewportClip.Y + viewportClip.Height - 0.01f);
+    }
+
+    [Fact]
+    public void TransformDefault_DirtyBoundsStayClippedToViewportWhenViewerInvalidatesRender()
+    {
+        var root = new Panel();
+        var content = CreateTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
+
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        viewer.InvalidateVisual();
+
+        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
+
+        Assert.Equal(nameof(ScrollViewer), invalidation.EffectiveSourceType);
+        Assert.True(invalidation.HasDirtyBounds);
+        Assert.False(uiRoot.IsFullDirtyForTests());
+        Assert.Contains(dirtyTrace, entry =>
+            entry.StartsWith(nameof(ScrollViewer), System.StringComparison.Ordinal) &&
+            entry.Contains(":scroll-clip-hint:", System.StringComparison.Ordinal));
+        Assert.Contains(dirtyRegions, region =>
+            region.X <= viewportClip.X + 0.01f &&
+            region.Y <= viewportClip.Y + 0.01f &&
+            region.X + region.Width >= viewportClip.X + viewportClip.Width - 0.01f &&
+            region.Y + region.Height >= viewportClip.Y + viewportClip.Height - 0.01f);
+    }
+
+    [Fact]
+    public void TransformDefault_ViewerInvalidation_KeepsRetainedTreeConsistent()
+    {
+        var root = new Panel();
+        var content = CreateTallStackPanel(120);
+        var viewer = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+        root.AddChild(viewer);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        viewer.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
     public void TransformDefault_ClampsOffsetsToExtent()
     {
         var root = new Panel();

@@ -253,23 +253,42 @@ public sealed partial class UiRoot
 
     private void RecordRenderInvalidationSources(UIElement? requestedSource, UIElement? effectiveSource)
     {
+        _lastRenderInvalidationRequestedSourceElement = requestedSource;
         _lastRenderInvalidationRequestedSourceType = requestedSource?.GetType().Name ?? "none";
         _lastRenderInvalidationRequestedSourceName = requestedSource is FrameworkElement requestedFrameworkElement
             ? requestedFrameworkElement.Name
             : string.Empty;
+        _lastRenderInvalidationEffectiveSourceElement = effectiveSource;
         _lastRenderInvalidationEffectiveSourceType = effectiveSource?.GetType().Name ?? "none";
         _lastRenderInvalidationEffectiveSourceName = effectiveSource is FrameworkElement effectiveFrameworkElement
             ? effectiveFrameworkElement.Name
             : string.Empty;
     }
 
+    private void ResetRenderInvalidationResolutionDebugState()
+    {
+        _lastRenderInvalidationEffectiveSourceResolution = "none";
+        _lastRenderInvalidationClipPromotionAncestorType = "none";
+        _lastRenderInvalidationClipPromotionAncestorName = string.Empty;
+        _lastRenderInvalidationRetainedSyncSourceElement = null;
+        _lastRenderInvalidationRetainedSyncSourceType = "none";
+        _lastRenderInvalidationRetainedSyncSourceName = string.Empty;
+        _lastRenderInvalidationRetainedSyncSourceResolution = "none";
+        _lastDirtyBoundsSourceResolution = "none";
+    }
+
     private bool TryResolveInvalidationSource(UIElement source, bool allowRetainedAncestorFallback, out UIElement? effectiveSource)
     {
         effectiveSource = null;
         UIElement? connectedFallback = null;
+        ResetRenderInvalidationResolutionDebugState();
         var clipPromotionAncestor = allowRetainedAncestorFallback
             ? FindEscapingRenderClipAncestor(source)
             : null;
+        _lastRenderInvalidationClipPromotionAncestorType = clipPromotionAncestor?.GetType().Name ?? "none";
+        _lastRenderInvalidationClipPromotionAncestorName = clipPromotionAncestor is FrameworkElement clipPromotionFrameworkElement
+            ? clipPromotionFrameworkElement.Name
+            : string.Empty;
         for (var current = source; current != null; current = current.GetInvalidationParent())
         {
             if (allowRetainedAncestorFallback)
@@ -287,6 +306,11 @@ public sealed partial class UiRoot
                     }
 
                     effectiveSource = current;
+                    _lastRenderInvalidationEffectiveSourceResolution = ReferenceEquals(current, source)
+                        ? "requested-indexed"
+                        : clipPromotionAncestor != null && ReferenceEquals(current, clipPromotionAncestor)
+                            ? "clip-promotion-ancestor"
+                            : "ancestor-indexed";
                     return true;
                 }
 
@@ -309,14 +333,22 @@ public sealed partial class UiRoot
             }
 
             effectiveSource = current;
+            _lastRenderInvalidationEffectiveSourceResolution = ReferenceEquals(current, source)
+                ? "requested-indexed"
+                : "ancestor-indexed";
             return true;
         }
 
         if (allowRetainedAncestorFallback && connectedFallback != null)
         {
             effectiveSource = connectedFallback;
+            _lastRenderInvalidationEffectiveSourceResolution = "connected-fallback";
             return true;
         }
+
+        _lastRenderInvalidationEffectiveSourceResolution = allowRetainedAncestorFallback
+            ? "unresolved-no-connected-source"
+            : "unresolved-no-indexed-source";
 
         return false;
     }
@@ -324,36 +356,110 @@ public sealed partial class UiRoot
     private UIElement? ResolveRetainedSyncSource(UIElement? requestedSource, UIElement? effectiveSource, bool requireDeepSync)
     {
         _ = requireDeepSync;
-        if (requestedSource != null &&
-            TryGetIndexedVisualNodeCore(requestedSource, out _) &&
-            IsTransformScrollRetainedSyncCandidate(requestedSource))
+        if (TryFindTransformScrollDirtyBoundsAnchor(requestedSource, out var transformScrollAnchor))
         {
-            return requestedSource;
+            _lastRenderInvalidationRetainedSyncSourceElement = transformScrollAnchor;
+            _lastRenderInvalidationRetainedSyncSourceType = transformScrollAnchor?.GetType().Name ?? "none";
+            _lastRenderInvalidationRetainedSyncSourceName = transformScrollAnchor is FrameworkElement transformFrameworkElement
+                ? transformFrameworkElement.Name
+                : string.Empty;
+            _lastRenderInvalidationRetainedSyncSourceResolution = "transform-scroll-anchor";
+            return transformScrollAnchor;
         }
 
         if (ShouldAnchorEscapingRenderInvalidationToRequestedSource(requestedSource, effectiveSource))
         {
+            _lastRenderInvalidationRetainedSyncSourceElement = requestedSource;
+            _lastRenderInvalidationRetainedSyncSourceType = requestedSource?.GetType().Name ?? "none";
+            _lastRenderInvalidationRetainedSyncSourceName = requestedSource is FrameworkElement requestedFrameworkElement
+                ? requestedFrameworkElement.Name
+                : string.Empty;
+            _lastRenderInvalidationRetainedSyncSourceResolution = "clip-promotion-requested";
             return requestedSource;
         }
 
+        _lastRenderInvalidationRetainedSyncSourceElement = effectiveSource;
+        _lastRenderInvalidationRetainedSyncSourceType = effectiveSource?.GetType().Name ?? "none";
+        _lastRenderInvalidationRetainedSyncSourceName = effectiveSource is FrameworkElement effectiveFrameworkElement
+            ? effectiveFrameworkElement.Name
+            : string.Empty;
+        _lastRenderInvalidationRetainedSyncSourceResolution = effectiveSource == null
+            ? "none"
+            : "effective-source";
         return effectiveSource;
     }
 
     private UIElement? ResolveDirtyBoundsSource(UIElement? requestedSource, UIElement? effectiveSource)
     {
-        if (requestedSource != null &&
-            TryGetIndexedVisualNodeCore(requestedSource, out _) &&
-            IsTransformScrollRetainedSyncCandidate(requestedSource))
+        if (TryFindTransformScrollDirtyBoundsAnchor(requestedSource, out var transformScrollAnchor))
         {
-            return requestedSource;
+            _lastDirtyBoundsSourceResolution = "transform-scroll-anchor";
+            return transformScrollAnchor;
         }
 
         if (ShouldAnchorEscapingRenderInvalidationToRequestedSource(requestedSource, effectiveSource))
         {
+            _lastDirtyBoundsSourceResolution = "clip-promotion-requested";
             return requestedSource;
         }
 
+        _lastDirtyBoundsSourceResolution = effectiveSource == null
+            ? "none"
+            : "effective-source";
         return effectiveSource;
+    }
+
+    private bool TryFindTransformScrollDirtyBoundsAnchor(UIElement? source, out UIElement? anchor)
+    {
+        anchor = null;
+        if (source == null)
+        {
+            return false;
+        }
+
+        if (source is ScrollViewer viewer &&
+            viewer.TryGetContentViewportClipRect(out _) &&
+            TryGetIndexedVisualNodeCore(viewer, out _))
+        {
+            anchor = viewer;
+            return true;
+        }
+
+        if (!TryGetIndexedVisualNodeCore(source, out _))
+        {
+            return false;
+        }
+
+        if (!IsTransformScrollRetainedSyncCandidate(source) ||
+            !TryGetTransformScrollOwner(source, out var transformOwner) ||
+            !transformOwner.TryGetContentViewportClipRect(out _))
+        {
+            return false;
+        }
+
+        anchor = source;
+        return true;
+    }
+
+    private static bool TryGetTransformScrollOwner(UIElement element, out ScrollViewer owner)
+    {
+        owner = null!;
+
+        var visualOwner = element.VisualParent as ScrollViewer;
+        if (visualOwner != null && ReferenceEquals(visualOwner.Content, element))
+        {
+            owner = visualOwner;
+            return true;
+        }
+
+        var logicalOwner = element.LogicalParent as ScrollViewer;
+        if (logicalOwner != null && ReferenceEquals(logicalOwner.Content, element))
+        {
+            owner = logicalOwner;
+            return true;
+        }
+
+        return false;
     }
 
     private bool ShouldAnchorEscapingRenderInvalidationToRequestedSource(UIElement? requestedSource, UIElement? effectiveSource)

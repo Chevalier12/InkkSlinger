@@ -10,6 +10,8 @@ namespace InkkSlinger;
 
 public class Border : Decorator
 {
+    private const int MaxRoundedTextureCacheDimension = 256;
+    private const long MaxRoundedTextureCacheArea = 65_536L;
     private static readonly Dictionary<GraphicsDevice, Dictionary<RoundedTextureCacheKey, Texture2D>> RoundedTextureCaches = new();
     private static long _diagMeasureOverrideCallCount;
     private static long _diagMeasureOverrideElapsedTicks;
@@ -249,6 +251,11 @@ public class Border : Decorator
         _ = ResolveRenderState();
     }
 
+    internal static bool ShouldUseRoundedTextureCacheForTests(int pixelWidth, int pixelHeight)
+    {
+        return ShouldUseRoundedTextureCache(pixelWidth, pixelHeight);
+    }
+
     internal BorderRuntimeDiagnosticsSnapshot GetBorderSnapshotForDiagnostics()
     {
         var backgroundColor = _hasRenderStateCache
@@ -416,6 +423,23 @@ public class Border : Decorator
         }
     }
 
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (GetType() != typeof(Border))
+        {
+            return false;
+        }
+
+        if (Child is not FrameworkElement childElement)
+        {
+            return true;
+        }
+
+        return childElement.CanReuseMeasureForAvailableSizeChangeForParentLayout(
+            GetInnerAvailableSizeForMeasureReuse(previousAvailableSize),
+            GetInnerAvailableSizeForMeasureReuse(nextAvailableSize));
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var start = Stopwatch.GetTimestamp();
@@ -452,6 +476,14 @@ public class Border : Decorator
             _runtimeArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
             RecordAggregateElapsed(ref _diagArrangeOverrideCallCount, ref _diagArrangeOverrideElapsedTicks, start);
         }
+    }
+
+    private Vector2 GetInnerAvailableSizeForMeasureReuse(Vector2 availableSize)
+    {
+        var chrome = GetChromeThickness();
+        return new Vector2(
+            MathF.Max(0f, availableSize.X - chrome.Horizontal),
+            MathF.Max(0f, availableSize.Y - chrome.Vertical));
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -944,7 +976,7 @@ public class Border : Decorator
             return false;
         }
 
-        if ((long)pixelWidth * pixelHeight > 1_048_576L)
+        if (!ShouldUseRoundedTextureCache(pixelWidth, pixelHeight))
         {
             _runtimeRenderTextureCacheRejectedAreaCount++;
             IncrementAggregate(ref _diagRenderTextureCacheRejectedAreaCount);
@@ -993,6 +1025,21 @@ public class Border : Decorator
 
         UiDrawing.DrawTexture(spriteBatch, texture, slot, color: Color.White, opacity: Opacity);
         return true;
+    }
+
+    private static bool ShouldUseRoundedTextureCache(int pixelWidth, int pixelHeight)
+    {
+        if (pixelWidth <= 0 || pixelHeight <= 0)
+        {
+            return false;
+        }
+
+        if (pixelWidth > MaxRoundedTextureCacheDimension || pixelHeight > MaxRoundedTextureCacheDimension)
+        {
+            return false;
+        }
+
+        return (long)pixelWidth * pixelHeight <= MaxRoundedTextureCacheArea;
     }
 
     private static Texture2D BuildBorderTexture(

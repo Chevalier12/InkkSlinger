@@ -8,6 +8,48 @@ namespace InkkSlinger.Tests;
 public sealed class ScrollViewerAutoBarHotspotRegressionTests
 {
     [Fact]
+    public void VerticalAutoBar_ReusesMeasure_WhenWidthChangesButBarStaysVisible()
+    {
+        var viewer = new TestScrollViewer
+        {
+            Width = 320f,
+            Height = 180f,
+            BorderThickness = 1f,
+            ScrollBarThickness = 12f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = new ReusableFixedMeasureElement(new Vector2(300f, 700f))
+        };
+
+        viewer.Measure(new Vector2(320f, 180f));
+
+        Assert.True(viewer.ExtentHeight > viewer.ViewportHeight + 0.01f,
+            $"Expected the initial layout to require a vertical bar. extent={viewer.ExtentHeight}, viewport={viewer.ViewportHeight}");
+        Assert.True(viewer.CanReuseMeasureForTests(new Vector2(320f, 180f), new Vector2(280f, 180f)));
+    }
+
+    [Fact]
+    public void VerticalAutoBar_ReusesMeasure_WhenVisibleStateBecomesHiddenForReusableContent()
+    {
+        var viewer = new TestScrollViewer
+        {
+            Width = 320f,
+            Height = 605f,
+            BorderThickness = 1f,
+            ScrollBarThickness = 12f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = new ReusableFixedMeasureElement(new Vector2(300f, 700f))
+        };
+
+        viewer.Measure(new Vector2(320f, 605f));
+
+        Assert.True(viewer.ExtentHeight > viewer.ViewportHeight + 0.01f,
+            $"Expected the initial layout to require a vertical bar. extent={viewer.ExtentHeight}, viewport={viewer.ViewportHeight}");
+        Assert.True(viewer.CanReuseMeasureForTests(new Vector2(320f, 605f), new Vector2(320f, 760f)));
+    }
+
+    [Fact]
     public void VerticalAutoBar_DoesNotRemeasureWhenPreviousVisibleStateBecomesHidden()
     {
         var (uiRoot, viewer) = CreateAutoVerticalViewerFixture();
@@ -103,7 +145,7 @@ public sealed class ScrollViewerAutoBarHotspotRegressionTests
             new Viewport(0, 0, width, height));
     }
 
-    private sealed class FixedMeasureElement(Vector2 desiredSize) : FrameworkElement
+    private class FixedMeasureElement(Vector2 desiredSize) : FrameworkElement
     {
         protected override Vector2 MeasureOverride(Vector2 availableSize)
         {
@@ -114,6 +156,24 @@ public sealed class ScrollViewerAutoBarHotspotRegressionTests
         protected override Vector2 ArrangeOverride(Vector2 finalSize)
         {
             return finalSize;
+        }
+    }
+
+    private sealed class ReusableFixedMeasureElement(Vector2 desiredSize) : FixedMeasureElement(desiredSize)
+    {
+        protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+        {
+            _ = previousAvailableSize;
+            _ = nextAvailableSize;
+            return true;
+        }
+    }
+
+    private sealed class TestScrollViewer : ScrollViewer
+    {
+        public bool CanReuseMeasureForTests(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+        {
+            return CanReuseMeasureForAvailableSizeChange(previousAvailableSize, nextAvailableSize);
         }
     }
 }

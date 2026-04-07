@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Xunit;
 
@@ -95,6 +96,65 @@ public sealed class TextBlockPerformanceRegressionTests
 
         Assert.Equal(2, textBlock.MeasureCallCount);
         Assert.Equal(2, textBlock.MeasureWorkCount);
+    }
+
+    [Fact]
+    public void Measure_WrappedText_WhenNarrowingButCurrentWrappedLinesStillFit_ReusesMeasure()
+    {
+        var textBlock = new TextBlock
+        {
+            Text = "Wednesday Thursday",
+            TextWrapping = TextWrapping.Wrap
+        };
+
+        var widestWrappedLine = MathF.Max(
+            UiTextRenderer.MeasureWidth(textBlock, "Wednesday", textBlock.FontSize),
+            UiTextRenderer.MeasureWidth(textBlock, "Thursday", textBlock.FontSize));
+        var initialWidth = widestWrappedLine + 24f;
+        var narrowerWidth = widestWrappedLine + 2f;
+
+        textBlock.Measure(new Vector2(initialWidth, 80f));
+        var wrappedDesired = textBlock.DesiredSize;
+
+        var initialLayout = TextLayout.LayoutForElement(
+            textBlock.Text,
+            textBlock,
+            textBlock.FontSize,
+            initialWidth,
+            TextWrapping.Wrap);
+        var narrowerLayout = TextLayout.LayoutForElement(
+            textBlock.Text,
+            textBlock,
+            textBlock.FontSize,
+            narrowerWidth,
+            TextWrapping.Wrap);
+
+        Assert.Equal(
+            initialLayout.Lines.Select(static line => line.TrimEnd()).ToArray(),
+            narrowerLayout.Lines.Select(static line => line.TrimEnd()).ToArray());
+
+        textBlock.Measure(new Vector2(narrowerWidth, 80f));
+
+        Assert.Equal(2, textBlock.MeasureCallCount);
+        Assert.Equal(1, textBlock.MeasureWorkCount);
+        Assert.Equal(wrappedDesired, textBlock.DesiredSize);
+    }
+
+    [Fact]
+    public void Measure_WrappedText_WithZeroAvailableWidth_CollapsesWithoutBuildingLayout()
+    {
+        TextLayout.ResetMetricsForTests();
+
+        var textBlock = new TextBlock
+        {
+            Text = "Exact wrapped copy stays expensive when width drops to zero.",
+            TextWrapping = TextWrapping.Wrap
+        };
+
+        textBlock.Measure(new Vector2(0f, 200f));
+
+        Assert.Equal(Vector2.Zero, textBlock.DesiredSize);
+        Assert.Equal(0, TextLayout.GetMetricsSnapshot().BuildCount);
     }
 
     [Fact]

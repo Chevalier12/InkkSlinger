@@ -203,6 +203,25 @@ public class Panel : FrameworkElement
         return desired;
     }
 
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (GetType() != typeof(Panel))
+        {
+            return false;
+        }
+
+        foreach (var child in _children)
+        {
+            if (child is FrameworkElement frameworkChild &&
+                !frameworkChild.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var startTicks = Stopwatch.GetTimestamp();

@@ -207,6 +207,97 @@ public sealed class GridLayoutTests
     }
 
     [Fact]
+    public void Measure_StarAutoAutoPressure_MeasuresWrappedStarColumnAtCollapsedWidthWithoutWideFirstPass()
+    {
+        var grid = new Grid
+        {
+            Height = 120f
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var wrappedText = new MeasureTraceTextBlock
+        {
+            Text = "This wrapped content should expose exactly what width Grid passes into the star column under pressure.",
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        grid.AddChild(wrappedText);
+
+        var badge = new Border
+        {
+            Width = 140f,
+            Height = 24f
+        };
+        Grid.SetColumn(badge, 1);
+        grid.AddChild(badge);
+
+        var tail = new Border
+        {
+            Width = 120f,
+            Height = 24f
+        };
+        Grid.SetColumn(tail, 2);
+        grid.AddChild(tail);
+
+        MeasureArrangeAndUpdate(grid, 180f, 120f);
+
+        Assert.Single(wrappedText.RecordedAvailableSizes);
+        Assert.True(wrappedText.RecordedAvailableSizes[0].X <= 0.01f);
+        Assert.Equal(Vector2.Zero, wrappedText.DesiredSize);
+        Assert.Equal(0f, grid.ColumnDefinitions[0].ActualWidth, 0.01f);
+        Assert.True(grid.ColumnDefinitions[1].ActualWidth > 0f);
+        Assert.True(grid.ColumnDefinitions[2].ActualWidth > 0f);
+    }
+
+    [Fact]
+    public void Measure_StarAutoAutoPressure_MeasuresNoWrapStarColumnOnceAtCollapsedWidth()
+    {
+        var grid = new Grid
+        {
+            Height = 120f
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var text = new MeasureTraceTextBlock
+        {
+            Text = "This single-line content should expose exactly what width Grid passes into the star column under pressure.",
+            TextWrapping = TextWrapping.NoWrap,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        grid.AddChild(text);
+
+        var badge = new Border
+        {
+            Width = 140f,
+            Height = 24f
+        };
+        Grid.SetColumn(badge, 1);
+        grid.AddChild(badge);
+
+        var tail = new Border
+        {
+            Width = 120f,
+            Height = 24f
+        };
+        Grid.SetColumn(tail, 2);
+        grid.AddChild(tail);
+
+        MeasureArrangeAndUpdate(grid, 180f, 120f);
+
+        Assert.Single(text.RecordedAvailableSizes);
+        Assert.True(text.RecordedAvailableSizes[0].X <= 0.01f);
+        Assert.Equal(0f, grid.ColumnDefinitions[0].ActualWidth, 0.01f);
+        Assert.True(grid.ColumnDefinitions[1].ActualWidth > 0f);
+        Assert.True(grid.ColumnDefinitions[2].ActualWidth > 0f);
+    }
+
+    [Fact]
     public void Arrange_ShrinkingSharedSizeGridWidths_RemeasuresWrappedStarColumnContent()
     {
         var scopeHost = new StackPanel();
@@ -657,6 +748,62 @@ public sealed class GridLayoutTests
     }
 
     [Fact]
+    public void Arrange_StarColumns_RespectMaximumWidths_AndRedistributeRemainingSpace()
+    {
+        var grid = new Grid();
+        var first = new ColumnDefinition
+        {
+            Width = GridLength.Star,
+            MaxWidth = 50f
+        };
+        var second = new ColumnDefinition { Width = GridLength.Star };
+        grid.ColumnDefinitions.Add(first);
+        grid.ColumnDefinitions.Add(second);
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        MeasureArrangeAndUpdate(grid, 300f, 60f);
+
+        Assert.Equal(50f, first.ActualWidth, 0.01f);
+        Assert.Equal(250f, second.ActualWidth, 0.01f);
+    }
+
+    [Fact]
+    public void Arrange_StarRows_RespectMaximumHeights_AndRedistributeRemainingSpace()
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80f) });
+        var first = new RowDefinition
+        {
+            Height = GridLength.Star,
+            MaxHeight = 50f
+        };
+        var second = new RowDefinition { Height = GridLength.Star };
+        grid.RowDefinitions.Add(first);
+        grid.RowDefinitions.Add(second);
+
+        MeasureArrangeAndUpdate(grid, 120f, 300f);
+
+        Assert.Equal(50f, first.ActualHeight, 0.01f);
+        Assert.Equal(250f, second.ActualHeight, 0.01f);
+    }
+
+    [Fact]
+    public void Arrange_ZeroStarColumn_DoesNotReceiveProportionalShare()
+    {
+        var grid = new Grid();
+        var zeroStar = new ColumnDefinition { Width = new GridLength(0f, GridUnitType.Star) };
+        var regularStar = new ColumnDefinition { Width = GridLength.Star };
+        grid.ColumnDefinitions.Add(zeroStar);
+        grid.ColumnDefinitions.Add(regularStar);
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        MeasureArrangeAndUpdate(grid, 300f, 40f);
+
+        Assert.Equal(0f, zeroStar.ActualWidth, 0.01f);
+        Assert.Equal(300f, regularStar.ActualWidth, 0.01f);
+    }
+
+    [Fact]
     public void Arrange_StarColumns_RespectMinimumWidths()
     {
         var grid = new Grid();
@@ -986,6 +1133,29 @@ public sealed class GridLayoutTests
     }
 
     [Fact]
+    public void Arrange_StableSharedSizeRepublish_DoesNotInvalidateSiblingGrid()
+    {
+        var root = new StackPanel();
+        Grid.SetIsSharedSizeScope(root, true);
+
+        var firstGrid = CreateSharedWidthGrid(112f);
+        var secondGrid = CreateSharedWidthGrid(64f);
+        root.AddChild(firstGrid.Grid);
+        root.AddChild(secondGrid.Grid);
+
+        MeasureArrangeAndUpdate(root, 320f, 240f);
+
+        var siblingMeasureInvalidations = secondGrid.Grid.MeasureInvalidationCount;
+        var siblingArrangeInvalidations = secondGrid.Grid.ArrangeInvalidationCount;
+
+        firstGrid.Grid.InvalidateMeasure();
+        MeasureArrangeAndUpdate(root, 320f, 240f);
+
+        Assert.Equal(siblingMeasureInvalidations, secondGrid.Grid.MeasureInvalidationCount);
+        Assert.Equal(siblingArrangeInvalidations, secondGrid.Grid.ArrangeInvalidationCount);
+    }
+
+    [Fact]
     public void SharedSizeGroup_WhitespaceIsTrimmed_AndWhitespaceOnlyBecomesNull()
     {
         var column = new ColumnDefinition();
@@ -1279,6 +1449,17 @@ public sealed class GridLayoutTests
             return new Vector2(
                 MathF.Min(_desiredSize.X, availableSize.X),
                 MathF.Min(_desiredSize.Y, availableSize.Y));
+        }
+    }
+
+    private sealed class MeasureTraceTextBlock : TextBlock
+    {
+        public List<Vector2> RecordedAvailableSizes { get; } = [];
+
+        protected override Vector2 MeasureOverride(Vector2 availableSize)
+        {
+            RecordedAvailableSizes.Add(availableSize);
+            return base.MeasureOverride(availableSize);
         }
     }
 

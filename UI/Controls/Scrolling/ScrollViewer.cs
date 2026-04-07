@@ -223,6 +223,7 @@ public class ScrollViewer : ContentControl
     private int _runtimeVerticalValueChangedCallCount;
     private long _runtimeVerticalValueChangedElapsedTicks;
     private long _runtimeVerticalValueChangedSetOffsetsElapsedTicks;
+    private int _lastTransformScrollDirtyHintDrawCount = -1;
     private int _runtimeVerticalValueChangedSuppressedCount;
     private static int _diagWheelEvents;
     private static int _diagWheelHandled;
@@ -502,6 +503,17 @@ public class ScrollViewer : ContentControl
     {
         clipRect = _contentViewportRect;
         return clipRect.Width > 0f && clipRect.Height > 0f;
+    }
+
+    internal bool ShouldUseTransformScrollViewportDirtyHint()
+    {
+        var uiRoot = UiRoot.Current;
+        if (uiRoot == null)
+        {
+            return false;
+        }
+
+        return _lastTransformScrollDirtyHintDrawCount >= uiRoot.DrawExecutedFrameCount;
     }
 
     internal new static ScrollViewerTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
@@ -861,6 +873,92 @@ public class ScrollViewer : ContentControl
         _runtimeArrangeOverrideCallCount++;
         _runtimeArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         return finalSize;
+    }
+
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (!CanResolveAutoBarsWithoutRemeasure())
+        {
+            if (TryCanReuseSingleAutoAxisMeasure(previousAvailableSize, nextAvailableSize, out var canReuse))
+            {
+                return canReuse;
+            }
+
+            return false;
+        }
+
+        var widthChanged = !AreFloatsClose(previousAvailableSize.X, nextAvailableSize.X);
+        var heightChanged = !AreFloatsClose(previousAvailableSize.Y, nextAvailableSize.Y);
+        if (!widthChanged && !heightChanged)
+        {
+            return true;
+        }
+
+        if (ContentElement is not FrameworkElement content)
+        {
+            return true;
+        }
+
+        return content.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousAvailableSize, nextAvailableSize);
+    }
+
+    private bool TryCanReuseSingleAutoAxisMeasure(Vector2 previousAvailableSize, Vector2 nextAvailableSize, out bool canReuse)
+    {
+        canReuse = false;
+
+        var verticalAutoWithHorizontalDisabled =
+            VerticalScrollBarVisibility == ScrollBarVisibility.Auto &&
+            HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled;
+        var horizontalAutoWithVerticalDisabled =
+            HorizontalScrollBarVisibility == ScrollBarVisibility.Auto &&
+            VerticalScrollBarVisibility == ScrollBarVisibility.Disabled;
+
+        if (!verticalAutoWithHorizontalDisabled && !horizontalAutoWithVerticalDisabled)
+        {
+            return false;
+        }
+
+        if (!_hasPreviousScrollBarResolution)
+        {
+            return true;
+        }
+
+        if (ContentElement is not FrameworkElement content)
+        {
+            canReuse = true;
+            return true;
+        }
+
+        var border = MathF.Max(0f, BorderThickness);
+        var previousContentWidth = MathF.Max(0f, previousAvailableSize.X - (border * 2f));
+        var previousContentHeight = MathF.Max(0f, previousAvailableSize.Y - (border * 2f));
+        var nextContentWidth = MathF.Max(0f, nextAvailableSize.X - (border * 2f));
+        var nextContentHeight = MathF.Max(0f, nextAvailableSize.Y - (border * 2f));
+
+        if (verticalAutoWithHorizontalDisabled)
+        {
+            var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
+            var previousChildAvailable = new Vector2(
+                MathF.Max(0f, previousContentWidth - GetVerticalBarReservation(_previousShowVerticalScrollBar, verticalBarThickness)),
+                float.PositiveInfinity);
+            var nextShowVertical = ExtentHeight > nextContentHeight + 0.01f;
+            var nextChildAvailable = new Vector2(
+                MathF.Max(0f, nextContentWidth - GetVerticalBarReservation(nextShowVertical, verticalBarThickness)),
+                float.PositiveInfinity);
+            canReuse = content.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousChildAvailable, nextChildAvailable);
+            return true;
+        }
+
+        var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
+        var previousHorizontalChildAvailable = new Vector2(
+            float.PositiveInfinity,
+            MathF.Max(0f, previousContentHeight - GetHorizontalBarReservation(_previousShowHorizontalScrollBar, horizontalBarThickness)));
+        var nextShowHorizontal = ExtentWidth > nextContentWidth + 0.01f;
+        var nextHorizontalChildAvailable = new Vector2(
+            float.PositiveInfinity,
+            MathF.Max(0f, nextContentHeight - GetHorizontalBarReservation(nextShowHorizontal, horizontalBarThickness)));
+        canReuse = content.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousHorizontalChildAvailable, nextHorizontalChildAvailable);
+        return true;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -1226,6 +1324,22 @@ public class ScrollViewer : ContentControl
         return horizontalCanUseSingleMeasure && verticalCanUseSingleMeasure;
     }
 
+    private static bool AreFloatsClose(float first, float second)
+    {
+        if (float.IsNaN(first) || float.IsNaN(second))
+        {
+            return false;
+        }
+
+        if (float.IsInfinity(first) || float.IsInfinity(second))
+        {
+            return float.IsPositiveInfinity(first) == float.IsPositiveInfinity(second) &&
+                   float.IsNegativeInfinity(first) == float.IsNegativeInfinity(second);
+        }
+
+        return MathF.Abs(first - second) < 0.01f;
+    }
+
     private bool ResolveHorizontalAutoBarVisibility(bool currentShowHorizontal, float extentWidth, float viewportWidth)
     {
         if (HorizontalScrollBarVisibility != ScrollBarVisibility.Auto)
@@ -1473,6 +1587,7 @@ public class ScrollViewer : ContentControl
             {
                 _diagSetOffsetsTransformInvalidationPathCount++;
                 _runtimeSetOffsetsTransformInvalidationPathCount++;
+                RecordTransformScrollDirtyHintFrame();
                 if (ContentElement is UIElement contentElement)
                 {
                     UiRoot.Current?.NotifyDirectRenderInvalidation(contentElement);
@@ -1496,6 +1611,7 @@ public class ScrollViewer : ContentControl
             UsesTransformBasedContentScrolling() &&
             ContentElement is not VirtualizingStackPanel)
         {
+            RecordTransformScrollDirtyHintFrame();
             UiRoot.Current?.NotifyDirectRenderInvalidation(transformScrollContent);
         }
 
@@ -1527,6 +1643,17 @@ public class ScrollViewer : ContentControl
     private void EndInputScrollMutation()
     {
         _inputScrollMutationDepth--;
+    }
+
+    private void RecordTransformScrollDirtyHintFrame()
+    {
+        var uiRoot = UiRoot.Current;
+        if (uiRoot == null)
+        {
+            return;
+        }
+
+        _lastTransformScrollDirtyHintDrawCount = uiRoot.DrawExecutedFrameCount;
     }
 
     private void ArrangeContentForCurrentOffsets()

@@ -299,14 +299,15 @@
                               BorderThickness="1"
                               CornerRadius="6"
                               Padding="14">
-                        <Grid>
+                        <Grid x:Name="PrimaryCanvasRootGrid">
                           <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                           </Grid.RowDefinitions>
 
-                          <Grid Grid.Row="0">
+                          <Grid x:Name="PrimaryCanvasHeaderGrid"
+                                Grid.Row="0">
                             <Grid.ColumnDefinitions>
                               <ColumnDefinition Width="*" />
                               <ColumnDefinition Width="Auto" />
@@ -333,31 +334,34 @@
                                     VerticalAlignment="Center">
                               <TextBlock Text="Dedicated splitter lane"
                                          Foreground="#DBF4F7"
-                                         TextWrapping="Wrap" />
+                                     TextWrapping="NoWrap" />
                             </Border>
                           </Grid>
 
-                          <Border Grid.Row="1"
+                          <Border x:Name="PrimaryCanvasHintBorder"
+                                  Grid.Row="1"
                                   Background="#10191B"
                                   BorderBrush="#33484D"
                                   BorderThickness="1"
                                   CornerRadius="6"
                                   Padding="12"
                                   Margin="0,12,0,12">
-                            <Grid>
+                            <Grid x:Name="PrimaryCanvasHintGrid">
                               <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                               </Grid.ColumnDefinitions>
 
-                              <TextBlock Grid.Column="0"
+                              <TextBlock x:Name="PrimaryCanvasHintText"
+                                         Grid.Column="0"
                                          Text="Try dragging either rail, then click it and use arrow keys. Pane minimums prevent the shell from collapsing through the splitter."
                                          Foreground="#BDD6DA"
                                          TextWrapping="Wrap"
                                          Margin="0,0,12,0" />
 
-                              <Border Grid.Column="1"
+                              <Border x:Name="PrimaryCanvasHintHotkeyBorder"
+                                  Grid.Column="1"
                                       Background="#19393D"
                                       BorderBrush="#4E7A7F"
                                       BorderThickness="1"
@@ -365,32 +369,37 @@
                                       Padding="10,4"
                                       Margin="0,0,8,0"
                                       VerticalAlignment="Center">
-                                <TextBlock Text="Arrow keys nudge focused splitter"
+                                <TextBlock x:Name="PrimaryCanvasHintHotkeyText"
+                                   Text="Arrow keys nudge focused splitter"
                                            Foreground="#D6F4F7"
-                                           TextWrapping="Wrap" />
+                                     TextWrapping="NoWrap" />
                               </Border>
 
-                              <Border Grid.Column="2"
+                              <Border x:Name="PrimaryCanvasHintMinWidthBorder"
+                                  Grid.Column="2"
                                       Background="#3A2818"
                                       BorderBrush="#8B6641"
                                       BorderThickness="1"
                                       CornerRadius="10"
                                       Padding="10,4"
                                       VerticalAlignment="Center">
-                                <TextBlock Text="Min widths enforced"
+                                <TextBlock x:Name="PrimaryCanvasHintMinWidthText"
+                                   Text="Min widths enforced"
                                            Foreground="#FFEBD0"
-                                           TextWrapping="Wrap" />
+                                     TextWrapping="NoWrap" />
                               </Border>
                             </Grid>
                           </Border>
 
-                          <Grid Grid.Row="2">
+                          <Grid x:Name="PrimaryCanvasLowerGrid"
+                                Grid.Row="2">
                             <Grid.ColumnDefinitions>
                               <ColumnDefinition Width="*" />
                               <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <Border Grid.Column="0"
+                            <Border x:Name="PrimaryCanvasLowerLeftPanel"
+                                    Grid.Column="0"
                                     Background="#183033"
                                     BorderBrush="#45686C"
                                     BorderThickness="1"
@@ -412,7 +421,8 @@
                               </StackPanel>
                             </Border>
 
-                            <Border Grid.Column="1"
+                            <Border x:Name="PrimaryCanvasLowerRightPanel"
+                                    Grid.Column="1"
                                     Background="#1C2627"
                                     BorderBrush="#4A6164"
                                     BorderThickness="1"
