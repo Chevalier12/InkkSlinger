@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using InkkSlinger.XamlNameGenerator;
 using Microsoft.CodeAnalysis;
+using System.IO;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using Xunit;
@@ -72,7 +73,8 @@ public class UserControl
         var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
         var generated = result.Results.Single().GeneratedSources.Select(static s => s.SourceText.ToString()).ToArray();
         var initSource = generated.Single(static text => text.Contains("private void InitializeComponent()", StringComparison.Ordinal));
-        Assert.Contains("Path.Combine(global::System.AppContext.BaseDirectory, \"Views\", \"SampleView.xml\")", initSource);
+        Assert.Contains("global::InkkSlinger.XamlLoader.LoadIntoCompiledFromString", initSource);
+        Assert.Contains("x:Class=\"\"InkkSlinger.SampleView\"\"", initSource);
     }
 
     [Fact]
@@ -349,13 +351,23 @@ public class Grid : UIElement
     [Fact]
     public void MainMenuView_GeneratedMember_IsAssignedByLoader()
     {
-        var view = new MainMenuView();
-        var property = typeof(MainMenuView).GetProperty("DemoTextBox", BindingFlags.Instance | BindingFlags.NonPublic);
+        var snapshot = CaptureApplicationResources();
+        try
+        {
+            LoadAppResources();
 
-        Assert.NotNull(property);
-        var value = property!.GetValue(view);
-        Assert.NotNull(value);
-        Assert.IsType<TextBox>(value);
+            var view = new MainMenuView();
+            var property = typeof(MainMenuView).GetProperty("DemoTextBox", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(property);
+            var value = property!.GetValue(view);
+            Assert.NotNull(value);
+            Assert.IsType<TextBox>(value);
+        }
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
     }
 
     private static GeneratorDriverRunResult RunGenerator(string source, params AdditionalText[] additionalTexts)
@@ -401,4 +413,35 @@ public class Grid : UIElement
             return _sourceText;
         }
     }
+
+    private static ResourceSnapshot CaptureApplicationResources()
+    {
+        var resources = UiApplication.Current.Resources;
+        return new ResourceSnapshot(
+            resources.ToList(),
+            resources.MergedDictionaries.ToList());
+    }
+
+    private static void RestoreApplicationResources(ResourceSnapshot snapshot)
+    {
+        TestApplicationResources.Restore(snapshot.Entries, snapshot.MergedDictionaries);
+    }
+
+    private static void LoadAppResources()
+    {
+        var appPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "InkkSlinger.App",
+            "App.xml"));
+        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
+        XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+    }
+
+    private sealed record ResourceSnapshot(
+        System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<object, object>> Entries,
+        System.Collections.Generic.List<ResourceDictionary> MergedDictionaries);
 }

@@ -55,6 +55,20 @@ public static partial class XamlLoader
         }
     }
 
+    public static void LoadIntoCompiledFromString(UserControl target, string xaml, object? codeBehind = null, string? ownerTypeName = null)
+    {
+        try
+        {
+            LoadIntoFromString(target, xaml, codeBehind);
+        }
+        catch (InvalidOperationException ex) when (!string.IsNullOrWhiteSpace(ownerTypeName))
+        {
+            throw new InvalidOperationException(
+                $"Failed to initialize compiled view '{ownerTypeName}' from generated XAML markup. {ex.Message}",
+                ex);
+        }
+    }
+
     public static void LoadApplicationResourcesFromFile(string path, bool clearExisting = false)
     {
         var fullPath = Path.GetFullPath(path);

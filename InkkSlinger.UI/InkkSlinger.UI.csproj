@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Schemas\**\*.xsd" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Schemas\**\*.xsd" />
   </ItemGroup>
 
   <ItemGroup>

@@ -16,22 +16,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="ControlsCatalogAppStartup.cs" />
-    <Compile Include="Program.cs" />
-    <Compile Include="Views\**\*.cs" />
-    <Compile Include="Automation\InkkOops\Diagnostics\InkkOopsCanvasViewDiagnosticsContributor.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="Views\**\*.xml.cs">
+    <XmlCodeBehind Include="**\*.xml.cs" Exclude="bin\**;obj\**" />
+    <Compile Update="**\*.xml.cs">
       <DependentUpon>%(Filename)</DependentUpon>
     </Compile>
   </ItemGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="Views\**\*.xml" InkkSlingerXamlCompileOptOut="false" />
-    <None Include="Views\**\*.xml" CopyToOutputDirectory="PreserveNewest" />
+    <AdditionalFiles Include="**\*.xml" Exclude="App.xml;bin\**;obj\**" InkkSlingerXamlCompileOptOut="false" />
+    <None Include="**\*.xml" Exclude="App.xml;bin\**;obj\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="@(XmlCodeBehind->'%(RelativeDir)%(Filename)')" />
     <None Include="App.xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
