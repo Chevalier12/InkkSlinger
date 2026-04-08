@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.RichTextBoxView"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="{StaticResource DarkBgBrush}"
+             BorderBrush="{StaticResource DarkBorderBrush}"
+             BorderThickness="1"
+             Padding="12">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Background="{StaticResource DarkElevatedBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14"
+            Margin="0,0,0,10">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+          <Label Content="Control Demo: RichTextBox Studio"
+                 Foreground="{StaticResource TextPrimaryBrush}"
+                 FontSize="18"
+                 FontWeight="SemiBold" />
+             <TextBlock x:Name="HeroSummaryLabel"
+              Text="Formatting commands, document presets, embedded UI, and serialization live in one workspace."
+              Foreground="{StaticResource TextSecondaryBrush}"
+              TextWrapping="Wrap"
+              Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Column="1"
+                Background="{StaticResource DarkBgBrush}"
+                BorderBrush="{StaticResource OrangePrimaryBrush}"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="12,6"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center">
+          <Label Content="Interactive Editor"
+                 Foreground="{StaticResource OrangePrimaryBrush}"
+                 FontWeight="SemiBold" />
+        </Border>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="1"
+            Background="{StaticResource DarkSurfaceBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="10"
+            Margin="0,0,0,10">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Label Grid.Row="0"
+               Content="Command deck"
+               Foreground="{StaticResource TextPrimaryBrush}"
+               FontWeight="SemiBold" />
+
+        <Grid Grid.Row="1" Margin="0,8,0,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <WrapPanel x:Name="HistoryToolbarPanel" Grid.Row="0" />
+          <WrapPanel x:Name="FormatToolbarPanel" Grid.Row="1" Margin="0,8,0,0" />
+        </Grid>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="360" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0"
+              Background="{StaticResource DarkSurfaceBrush}"
+              BorderBrush="{StaticResource DarkBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="12"
+              Margin="0,0,10,0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <Grid Grid.Row="0">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Label Grid.Row="0"
+                   Content="Editor canvas"
+                   Foreground="{StaticResource TextPrimaryBrush}"
+                   FontSize="15"
+                   FontWeight="SemiBold" />
+
+            <TextBlock Grid.Row="1"
+                       Text="Use the toolbar, presets, or payload lab to drive the control through rich text, structure, and clipboard flows."
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,3,0,0" />
+
+            <Border Grid.Row="2"
+                    Background="{StaticResource DarkBgBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="10,6"
+                    Margin="0,10,0,0"
+                    HorizontalAlignment="Right">
+              <Label x:Name="ToolbarHintLabel"
+                     Content="Ctrl+B / Ctrl+I / Ctrl+U / PageUp / Ctrl+Backspace"
+                     Foreground="{StaticResource TextSecondaryBrush}" />
+            </Border>
+          </Grid>
+
+          <RichTextBox x:Name="Editor"
+                       Grid.Row="1"
+                       Margin="0,12,0,12"
+                       AcceptsReturn="True"
+                       AcceptsTab="True"
+                       VerticalScrollBarVisibility="Auto"
+                       HorizontalScrollBarVisibility="Auto" />
+
+          <Border Grid.Row="2"
+                  Background="{StaticResource DarkBgBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Padding="10">
+                 <TextBlock x:Name="CanvasFooterLabel"
+                  Text="Try selection exports, ordered and bulleted lists, table commands, embedded buttons, and hyperlink navigation on the same page."
+                  Foreground="{StaticResource TextSecondaryBrush}"
+                  TextWrapping="Wrap" />
+          </Border>
+        </Grid>
+      </Border>
+
+      <Grid Grid.Column="1">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+          <StackPanel>
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <Label Content="Document presets"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontWeight="SemiBold" />
+              <TextBlock Text="Swap between realistic samples that stress formatting, lists, tables, scrolling, hosted UI, and hyperlink behavior."
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                         MaxWidth="300"
+                    TextWrapping="Wrap"
+                    Margin="0,4,0,8" />
+              <WrapPanel x:Name="PresetPanel" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <Label Content="Payload lab"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontWeight="SemiBold" />
+              <TextBlock Text="Round-trip full documents or the active selection through Flow XML, XAML, XamlPackage, RTF, or plain text."
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                         MaxWidth="300"
+                    TextWrapping="Wrap"
+                    Margin="0,4,0,8" />
+              <ComboBox x:Name="FormatComboBox" Margin="0,0,0,8" />
+              <WrapPanel x:Name="PayloadActionPanel" Margin="0,0,0,8" />
+              <TextBox x:Name="PayloadPreviewTextBox"
+                       Height="220"
+                       VerticalScrollBarVisibility="Auto"
+                       HorizontalScrollBarVisibility="Auto" />
+              <TextBlock x:Name="PayloadMetaLabel"
+                    Text="Format metadata appears here."
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                         MaxWidth="300"
+                    TextWrapping="Wrap"
+                    Margin="0,8,0,0" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <Label Content="Behavior toggles"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontWeight="SemiBold" />
+              <TextBlock Text="Flip the control between editing, reading, undo, spell-check-facing, and selection-visibility modes without leaving the page."
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                         MaxWidth="300"
+                    TextWrapping="Wrap"
+                    Margin="0,4,0,8" />
+              <CheckBox x:Name="ReadOnlyCheckBox" Content="Read-only mode" Margin="0,0,0,6" />
+              <CheckBox x:Name="AcceptsReturnCheckBox" Content="Accepts Return" Margin="0,0,0,6" />
+              <CheckBox x:Name="AcceptsTabCheckBox" Content="Accepts Tab" Margin="0,0,0,6" />
+              <CheckBox x:Name="UndoEnabledCheckBox" Content="Undo enabled" Margin="0,0,0,6" />
+              <CheckBox x:Name="SpellCheckCheckBox" Content="SpellCheck API enabled" Margin="0,0,0,6" />
+              <CheckBox x:Name="InactiveSelectionCheckBox" Content="Highlight inactive selection" Margin="0,0,0,6" />
+              <CheckBox x:Name="ReadOnlyCaretCheckBox" Content="Show caret when read-only" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="12"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <Label Content="Selection and viewport chrome"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontWeight="SemiBold" />
+              <Label x:Name="SelectionOpacityLabel"
+                     Content="Selection opacity: 1.00"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Margin="0,4,0,6" />
+              <Slider x:Name="SelectionOpacitySlider" Margin="0,0,0,10" />
+              <Label Content="Horizontal scroll bar"
+                     Foreground="{StaticResource TextSecondaryBrush}" />
+              <ComboBox x:Name="HorizontalScrollComboBox" Margin="0,4,0,8" />
+              <Label Content="Vertical scroll bar"
+                     Foreground="{StaticResource TextSecondaryBrush}" />
+              <ComboBox x:Name="VerticalScrollComboBox" Margin="0,4,0,0" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="1"
+                Background="{StaticResource DarkSurfaceBrush}"
+                BorderBrush="{StaticResource DarkBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12"
+                Margin="0,10,0,0">
+          <StackPanel>
+            <Label Content="Live status"
+                   Foreground="{StaticResource TextPrimaryBrush}"
+                   FontWeight="SemiBold" />
+            <TextBox x:Name="DocumentStatusLabel"
+                     Text="Document metrics appear here."
+                     IsReadOnly="True"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Background="{StaticResource DarkSurfaceBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxWidth="300"
+                     TextWrapping="Wrap"
+                     Margin="0,4,0,4" />
+            <TextBox x:Name="SelectionStatusLabel"
+                     Text="Selection metrics appear here."
+                     IsReadOnly="True"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Background="{StaticResource DarkSurfaceBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxWidth="300"
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,4" />
+            <TextBox x:Name="ViewportStatusLabel"
+                     Text="Viewport metrics appear here."
+                     IsReadOnly="True"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Background="{StaticResource DarkSurfaceBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxWidth="300"
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,4" />
+            <TextBox x:Name="ActivityStatusLabel"
+                     Text="Last activity appears here."
+                     IsReadOnly="True"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Background="{StaticResource DarkSurfaceBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxWidth="300"
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,4" />
+            <TextBox x:Name="SpellCheckStatusLabel"
+                     Text="SpellCheck surface is available; no spelling engine is attached in this parity slice."
+                     IsReadOnly="True"
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     Background="{StaticResource DarkSurfaceBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxWidth="300"
+                     TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="3"
+            Background="{StaticResource DarkElevatedBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="10"
+            Margin="0,10,0,0">
+      <TextBlock Text="Coverage guide: formatting commands, list depth, table operations, payload round-trips, hosted document children, spell-check-facing API, and page navigation are all demoed here."
+             Foreground="{StaticResource TextSecondaryBrush}"
+             TextWrapping="Wrap" />
+    </Border>
+  </Grid>
+</UserControl>
+
+
+
+
+
+

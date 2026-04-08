@@ -14,7 +14,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\InkkSlinger.csproj" />
+    <ProjectReference Include="..\InkkSlinger.UI\InkkSlinger.UI.csproj" />
+    <ProjectReference Include="..\InkkSlinger.App\InkkSlinger.App.csproj" />
     <ProjectReference Include="..\InkkSlinger.XamlNameGenerator\InkkSlinger.XamlNameGenerator.csproj" />
     <ProjectReference Include="..\InkkOops.Cli\InkkOops.Cli.csproj" />
   </ItemGroup>

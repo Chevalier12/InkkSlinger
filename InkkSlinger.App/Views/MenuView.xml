@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.MenuView"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="{StaticResource DarkBgBrush}"
+             BorderBrush="{StaticResource DarkBorderBrush}"
+             BorderThickness="1"
+             Padding="12">
+  <Grid x:Name="RootHost">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0" Background="{StaticResource DarkElevatedBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
+      <Label Content="Control Demo: Menu" Foreground="{StaticResource TextPrimaryBrush}" />
+    </Border>
+
+    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="12">
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Text="Menu is the persistent application strip counterpart to ContextMenu. This catalog page demonstrates top-level routes, nested submenus, access-key style headers, explicit input gesture text, palette customization, programmatic submenu opening, and live telemetry for real submenu state transitions." />
+
+          <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="16" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Workspace shell" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="This primary menu bar uses classic File, Edit, View, and Help routes over a faux app workspace. Open submenus by clicking the strip directly or use the launch buttons to jump to specific paths and inspect submenu state." />
+
+                  <Border Background="#121922"
+                          BorderBrush="#2C394B"
+                          BorderThickness="1"
+                          CornerRadius="4"
+                          Padding="0"
+                          Margin="0,0,0,10">
+                    <StackPanel>
+                      <Border Background="#0C121A"
+                              BorderBrush="#223247"
+                              BorderThickness="0,0,0,1"
+                              Padding="8">
+                        <ContentControl x:Name="WorkspaceMenuHost" />
+                      </Border>
+
+                      <Grid Margin="12,12,12,10">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="178" />
+                          <ColumnDefinition Width="12" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Background="#16202C"
+                                BorderBrush="#35506D"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="12"
+                                Margin="0,0,0,8">
+                          <StackPanel>
+                            <Label Content="Navigator" Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6" Text="storyboard-shell.inkk" TextWrapping="Wrap" />
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6" Text="marketing-home.xml" TextWrapping="Wrap" />
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6" Text="automation-capture.log" TextWrapping="Wrap" />
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="menu-regression-notes.md" TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="2"
+                                Background="#181E28"
+                                BorderBrush="#34445A"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="16"
+                                Margin="0,0,0,8">
+                          <StackPanel>
+                            <TextBlock x:Name="WorkspaceTitleLabel"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       FontSize="20"
+                                       Text="Workspace ready" />
+                            <TextBlock x:Name="WorkspaceSummaryLabel"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,10"
+                                       Text="Use the menu strip to open routes like File &gt; Export or View &gt; Panels. The content area updates after leaf commands so the demo doubles as a quick behavior probe." />
+                            <Border Background="#0F141C"
+                                    BorderBrush="#2E3A4B"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="10">
+                              <TextBlock x:Name="WorkspaceHintLabel"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         TextWrapping="Wrap"
+                                         Text="Suggested path: open File, then expand Recent Sessions or Export to inspect nested submenu rendering." />
+                            </Border>
+                          </StackPanel>
+                        </Border>
+                      </Grid>
+
+                      <Border Background="#101722"
+                              BorderBrush="#223247"
+                              BorderThickness="1,1,0,0"
+                              Padding="12,10,12,12">
+                        <StackPanel>
+                          <WrapPanel Margin="0,0,0,6">
+                            <Button x:Name="OpenFileMenuButton" Content="Open File" Margin="0,0,8,8" />
+                            <Button x:Name="OpenEditMenuButton" Content="Open Edit" Margin="0,0,8,8" />
+                            <Button x:Name="OpenViewMenuButton" Content="Open View" Margin="0,0,8,8" />
+                            <Button x:Name="OpenExportTrailButton" Content="Open File &gt; Export" Margin="0,0,8,8" />
+                            <Button x:Name="CollapseMenusButton" Content="Collapse menus" Margin="0,0,0,8" />
+                          </WrapPanel>
+
+                          <TextBlock x:Name="WorkspaceMenuStateLabel"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     TextWrapping="Wrap"
+                                     Text="Workspace menu path: closed" />
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                  </Border>
+
+                  <Border Background="#171E29"
+                          BorderBrush="#324155"
+                          BorderThickness="1"
+                          CornerRadius="4"
+                          Padding="12">
+                    <StackPanel>
+                      <Label Content="What to try" Foreground="{StaticResource TextPrimaryBrush}" />
+                      <TextBlock Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,4" Text="1. Open File and expand Recent Sessions to verify multi-level submenu layout." />
+                      <TextBlock Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,4" Text="2. Use the helper buttons to jump directly to File &gt; Export and inspect the live open-path telemetry." />
+                      <TextBlock Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Text="3. Invoke a leaf like Export telemetry bundle or View &gt; Panels &gt; Automation Console and watch the workspace surface update." />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2">
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Inspector strip" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="A second menu instance shows that Menu can be palette-customized for tool-heavy surfaces. This strip focuses on diagnostics, automation, and sharing actions with deeper submenu trails." />
+
+                  <Border Background="#1A1524"
+                          BorderBrush="#4A3A6E"
+                          BorderThickness="1"
+                          CornerRadius="4"
+                          Padding="10"
+                          Margin="0,0,0,10">
+                    <StackPanel>
+                      <ContentControl x:Name="InspectorMenuHost" Margin="0,0,0,10" />
+                      <WrapPanel Margin="0,0,0,8">
+                        <Button x:Name="OpenDiagnosticsMenuButton" Content="Open Diagnostics" Margin="0,0,8,8" />
+                        <Button x:Name="OpenAutomationTrailButton" Content="Open Diagnostics &gt; Automation" Margin="0,0,8,8" />
+                      </WrapPanel>
+                      <TextBlock x:Name="InspectorMenuStateLabel"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Margin="0,0,0,6"
+                                 Text="Inspector menu path: closed" />
+                      <TextBlock x:Name="InspectorActionLabel"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Text="Inspector status: waiting for a diagnostics or share command." />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <StackPanel>
+                  <Label Content="Live telemetry" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="Submenu open and close transitions are tracked from the actual MenuItem.IsSubmenuOpen state, so the labels below respond to direct menu interaction as well as the helper buttons." />
+
+                  <TextBlock x:Name="OpenTransitionsLabel" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="Opens: 0" />
+                  <TextBlock x:Name="CloseTransitionsLabel" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="Closes: 0" />
+                  <TextBlock x:Name="InvocationCountLabel" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="Invocations: 0" />
+                  <TextBlock x:Name="LastOpenPathLabel" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="Last open path: none" />
+                  <TextBlock x:Name="LastActionLabel" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="Last action: none" />
+                  <TextBlock x:Name="LastTargetLabel" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" Text="Last target: none" />
+                  <TextBlock x:Name="RecentActivityLabel" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" Text="Recent activity: idle" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="14">
+                <StackPanel>
+                  <Label Content="Demo coverage" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Text="This page covers multiple Menu instances, top-level submenu routing, deep nested trails, access-key style headers, InputGestureText labels, palette customization, direct leaf invocation, programmatic open and collapse helpers, and live submenu-state telemetry in one control catalog surface." />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</UserControl>
+
+
+
+
+
+

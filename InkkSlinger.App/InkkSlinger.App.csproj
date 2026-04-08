@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>InkkSlinger</RootNamespace>
+    <Nullable>enable</Nullable>
+    <RollForward>Major</RollForward>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <TieredCompilation>false</TieredCompilation>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Icon.ico</ApplicationIcon>
+    <InkkSlingerXamlCompileEnabled>true</InkkSlingerXamlCompileEnabled>
+    <InkkSlingerXamlStrictMode>true</InkkSlingerXamlStrictMode>
+    <InkkSlingerXamlMigrationMode>Phased</InkkSlingerXamlMigrationMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Game1.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Views\**\*.cs" />
+    <Compile Include="Automation\InkkOops\Diagnostics\InkkOopsCanvasViewDiagnosticsContributor.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="Views\**\*.xml" InkkSlingerXamlCompileOptOut="false" />
+    <None Include="Views\**\*.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="App.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="InkkSlingerXamlCompileEnabled" />
+    <CompilerVisibleProperty Include="InkkSlingerXamlStrictMode" />
+    <CompilerVisibleProperty Include="InkkSlingerXamlMigrationMode" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Icon.ico">
+      <LogicalName>Icon.ico</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Icon.bmp">
+      <LogicalName>Icon.bmp</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\InkkSlinger.UI\InkkSlinger.UI.csproj" />
+    <ProjectReference Include="..\InkkSlinger.XamlNameGenerator\InkkSlinger.XamlNameGenerator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

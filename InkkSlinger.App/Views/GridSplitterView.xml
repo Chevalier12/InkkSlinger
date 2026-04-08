@@ -1,0 +1,1192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.GridSplitterView"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="{StaticResource DarkBgBrush}"
+             BorderBrush="{StaticResource DarkBorderBrush}"
+             BorderThickness="1"
+             Padding="12">
+  <Grid x:Name="GridSplitterViewRootGrid">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Background="{StaticResource DarkElevatedBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14"
+            Margin="0,0,0,10">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+          <TextBlock Text="Control Demo: GridSplitter Workbench"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="A WPF-style splitter lab for column and row resizing, overlay splitter placement, alignment-driven target resolution, explicit resize behaviors, auto direction, keyboard nudging, and bounded pane sizing."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Column="1"
+                Background="{StaticResource DarkBgBrush}"
+                BorderBrush="#8DD7F7"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="12,6"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center">
+          <TextBlock Text="Columns • Rows • Behaviors"
+                     Foreground="#8DD7F7"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+        </Border>
+      </Grid>
+    </Border>
+
+    <Grid x:Name="GridSplitterViewContentGrid"
+          Grid.Row="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" />
+        <RowDefinition Height="0" />
+      </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="340" />
+      </Grid.ColumnDefinitions>
+
+      <Border x:Name="GridSplitterViewBodyBorder"
+              Grid.Row="0"
+              Grid.Column="0"
+              Background="{StaticResource DarkSurfaceBrush}"
+              BorderBrush="{StaticResource DarkBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              Padding="12"
+              Margin="0,0,10,0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="Live resize studio"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         FontSize="15"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="The main stage uses real GridSplitter instances instead of a generic sample host, so drag and keyboard resizing, alignment rules, and pane limits stay visible in one surface."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,3,0,0" />
+            </StackPanel>
+
+            <Border Grid.Column="1"
+                    Background="{StaticResource DarkBgBrush}"
+                    BorderBrush="{StaticResource DarkBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="10,6"
+                    Margin="12,0,0,0"
+                    VerticalAlignment="Center">
+              <TextBlock Text="Overlay and dedicated-lane examples"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap" />
+            </Border>
+          </Grid>
+
+          <Border Grid.Row="1"
+                  Background="{StaticResource DarkBgBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Padding="12"
+                  Margin="0,12,0,12">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+
+              <TextBlock Grid.Column="0"
+                         Text="Switch presets, turn on grid lines, widen the editor canvas, or lower the increments for precise keyboard and pointer nudging without changing the splitter tree."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,0,12,8" />
+
+              <CheckBox x:Name="ShowGridLinesCheckBox"
+                        Grid.Column="1"
+                        Content="Grid lines"
+                        IsChecked="False"
+                        Margin="0,0,12,0"
+                        VerticalAlignment="Center" />
+
+              <CheckBox x:Name="WideCenterCheckBox"
+                        Grid.Column="2"
+                        Content="Wider center pane"
+                        IsChecked="False"
+                        Margin="0,0,12,0"
+                        VerticalAlignment="Center" />
+
+              <CheckBox x:Name="PrecisionIncrementsCheckBox"
+                        Grid.Column="3"
+                        Content="Precision increments"
+                        IsChecked="False"
+                        VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+
+          <ScrollViewer x:Name="GridSplitterWorkbenchScrollViewer"
+                        Grid.Row="2"
+                        Margin="0,0,0,12"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+              <Border Background="{StaticResource DarkBgBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="8"
+                      Padding="14"
+                      Margin="0,0,0,10">
+                <Grid>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+
+                  <StackPanel Grid.Row="0">
+                    <TextBlock Text="Primary editor shell"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <TextBlock x:Name="PresetNarrativeText"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0" />
+                  </StackPanel>
+
+                  <WrapPanel Grid.Row="1"
+                             Margin="0,14,0,12">
+                    <Button x:Name="BalancedPresetButton"
+                            Content="Balanced"
+                            Margin="0,0,8,8"
+                            Padding="12,6" />
+                    <Button x:Name="CanvasPresetButton"
+                            Content="Canvas Focus"
+                            Margin="0,0,8,8"
+                            Padding="12,6" />
+                    <Button x:Name="InspectorPresetButton"
+                            Content="Inspector Focus"
+                            Margin="0,0,8,8"
+                            Padding="12,6" />
+                    <Button x:Name="KeyboardPresetButton"
+                            Content="Keyboard Lab"
+                            Margin="0,0,16,8"
+                            Padding="12,6" />
+                    <Button x:Name="ResetPrimaryLayoutButton"
+                            Content="Reset pane sizes"
+                            Margin="0,0,8,8"
+                            Padding="12,6" />
+                  </WrapPanel>
+
+                  <Border Grid.Row="2"
+                          Background="#111821"
+                          BorderBrush="#2E465E"
+                          BorderThickness="1"
+                          CornerRadius="8"
+                          Padding="12"
+                          Margin="0,0,0,12">
+                    <Grid x:Name="PrimaryEditorGrid"
+                          MinHeight="320">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180" MinWidth="120" />
+                        <ColumnDefinition Width="8" MinWidth="8" MaxWidth="8" />
+                        <ColumnDefinition Width="380" MinWidth="180" />
+                        <ColumnDefinition Width="8" MinWidth="8" MaxWidth="8" />
+                        <ColumnDefinition Width="220" MinWidth="140" />
+                      </Grid.ColumnDefinitions>
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                      </Grid.RowDefinitions>
+
+                      <Border x:Name="PrimaryNavigationPane"
+                              Grid.Column="0"
+                              Background="#1D2840"
+                              BorderBrush="#4A678B"
+                              BorderThickness="1"
+                              CornerRadius="6"
+                              Padding="12"
+                              Margin="0,0,8,0">
+                        <StackPanel>
+                          <TextBlock Text="Navigation rail"
+                                     Foreground="#E5F0FF"
+                                     FontWeight="SemiBold"
+                                     TextWrapping="Wrap" />
+                          <TextBlock Text="Left pane keeps a readable minimum while the dedicated splitter lane resizes against the center workspace."
+                                     Foreground="#B9CCE6"
+                                     TextWrapping="Wrap"
+                                     Margin="0,4,0,10" />
+                          <Border Background="#22314E"
+                                  BorderBrush="#56749B"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10"
+                                  Margin="0,0,0,8">
+                            <TextBlock Text="Explorer" Foreground="#E5F0FF" TextWrapping="Wrap" />
+                          </Border>
+                          <Border Background="#22314E"
+                                  BorderBrush="#56749B"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10"
+                                  Margin="0,0,0,8">
+                            <TextBlock Text="Search" Foreground="#E5F0FF" TextWrapping="Wrap" />
+                          </Border>
+                          <Border Background="#22314E"
+                                  BorderBrush="#56749B"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10">
+                            <TextBlock Text="Branches" Foreground="#E5F0FF" TextWrapping="Wrap" />
+                          </Border>
+                        </StackPanel>
+                      </Border>
+
+                      <GridSplitter x:Name="NavigationSplitter"
+                                    Grid.Column="1"
+                                    Width="8"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    ResizeDirection="Columns"
+                                    ResizeBehavior="PreviousAndNext"
+                                    DragIncrement="4"
+                                    KeyboardIncrement="24"
+                                    Background="#2D6B99"
+                                    BorderBrush="#96D5FF" />
+
+                      <Border x:Name="PrimaryCanvasPane"
+                              Grid.Column="2"
+                              Background="#162022"
+                              BorderBrush="#3E5B61"
+                              BorderThickness="1"
+                              CornerRadius="6"
+                              Padding="14">
+                        <Grid x:Name="PrimaryCanvasRootGrid">
+                          <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                          </Grid.RowDefinitions>
+
+                          <Grid x:Name="PrimaryCanvasHeaderGrid"
+                                Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*" />
+                              <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                              <TextBlock Text="Canvas workspace"
+                                         Foreground="#F1FBFC"
+                                         FontWeight="SemiBold"
+                                         TextWrapping="Wrap" />
+                              <TextBlock Text="This center lane behaves like a WPF editor canvas: it absorbs most width, but still yields to splitter drags and keyboard nudges."
+                                         Foreground="#BDD6DA"
+                                         TextWrapping="Wrap"
+                                         Margin="0,4,0,0" />
+                            </StackPanel>
+
+                            <Border Grid.Column="1"
+                                    Background="#1D3033"
+                                    BorderBrush="#4E6F74"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="10,4"
+                                    Margin="12,0,0,0"
+                                    VerticalAlignment="Center">
+                              <TextBlock Text="Dedicated splitter lane"
+                                         Foreground="#DBF4F7"
+                                     TextWrapping="NoWrap" />
+                            </Border>
+                          </Grid>
+
+                          <Border x:Name="PrimaryCanvasHintBorder"
+                                  Grid.Row="1"
+                                  Background="#10191B"
+                                  BorderBrush="#33484D"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="12"
+                                  Margin="0,12,0,12">
+                            <Grid x:Name="PrimaryCanvasHintGrid">
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                              </Grid.ColumnDefinitions>
+
+                              <TextBlock x:Name="PrimaryCanvasHintText"
+                                         Grid.Column="0"
+                                         Text="Try dragging either rail, then click it and use arrow keys. Pane minimums prevent the shell from collapsing through the splitter."
+                                         Foreground="#BDD6DA"
+                                         TextWrapping="Wrap"
+                                         Margin="0,0,12,0" />
+
+                              <Border x:Name="PrimaryCanvasHintHotkeyBorder"
+                                  Grid.Column="1"
+                                      Background="#19393D"
+                                      BorderBrush="#4E7A7F"
+                                      BorderThickness="1"
+                                      CornerRadius="10"
+                                      Padding="10,4"
+                                      Margin="0,0,8,0"
+                                      VerticalAlignment="Center">
+                                <TextBlock x:Name="PrimaryCanvasHintHotkeyText"
+                                   Text="Arrow keys nudge focused splitter"
+                                           Foreground="#D6F4F7"
+                                     TextWrapping="NoWrap" />
+                              </Border>
+
+                              <Border x:Name="PrimaryCanvasHintMinWidthBorder"
+                                  Grid.Column="2"
+                                      Background="#3A2818"
+                                      BorderBrush="#8B6641"
+                                      BorderThickness="1"
+                                      CornerRadius="10"
+                                      Padding="10,4"
+                                      VerticalAlignment="Center">
+                                <TextBlock x:Name="PrimaryCanvasHintMinWidthText"
+                                   Text="Min widths enforced"
+                                           Foreground="#FFEBD0"
+                                     TextWrapping="NoWrap" />
+                              </Border>
+                            </Grid>
+                          </Border>
+
+                          <Grid x:Name="PrimaryCanvasLowerGrid"
+                                Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*" />
+                              <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border x:Name="PrimaryCanvasLowerLeftPanel"
+                                    Grid.Column="0"
+                                    Background="#183033"
+                                    BorderBrush="#45686C"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="12"
+                                    Margin="0,0,8,0">
+                              <StackPanel>
+                                <TextBlock Text="Document tab strip"
+                                           Foreground="#EAF8FA"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="Toolbar, tabs, or canvases usually live in the expandable center track."
+                                           Foreground="#BDD6DA"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,8" />
+                                <TextBlock Text="• retained layout preview" Foreground="#D7ECEF" TextWrapping="Wrap" Margin="0,0,0,4" />
+                                <TextBlock Text="• inspector-bound selection" Foreground="#D7ECEF" TextWrapping="Wrap" Margin="0,0,0,4" />
+                                <TextBlock Text="• command surface" Foreground="#D7ECEF" TextWrapping="Wrap" />
+                              </StackPanel>
+                            </Border>
+
+                            <Border x:Name="PrimaryCanvasLowerRightPanel"
+                                    Grid.Column="1"
+                                    Background="#1C2627"
+                                    BorderBrush="#4A6164"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="12">
+                              <StackPanel>
+                                <TextBlock Text="Viewport guide"
+                                           Foreground="#EAF8FA"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="Actual column widths stay visible in the side rail so this pane can act as a quick reference while the shell shifts."
+                                           Foreground="#BDD6DA"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,8" />
+                                <TextBlock Text="• left, center, right widths" Foreground="#D7ECEF" TextWrapping="Wrap" Margin="0,0,0,4" />
+                                <TextBlock Text="• drag and key increments" Foreground="#D7ECEF" TextWrapping="Wrap" Margin="0,0,0,4" />
+                                <TextBlock Text="• min widths and lane balance" Foreground="#D7ECEF" TextWrapping="Wrap" />
+                              </StackPanel>
+                            </Border>
+                          </Grid>
+                        </Grid>
+                      </Border>
+
+                      <GridSplitter x:Name="InspectorSplitter"
+                                    Grid.Column="3"
+                                    Width="8"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    ResizeDirection="Columns"
+                                    ResizeBehavior="PreviousAndNext"
+                                    DragIncrement="4"
+                                    KeyboardIncrement="24"
+                                    Background="#915D2E"
+                                    BorderBrush="#FFD3A7" />
+
+                      <Border x:Name="PrimaryInspectorPane"
+                              Grid.Column="4"
+                              Background="#2A2018"
+                              BorderBrush="#7B5A38"
+                              BorderThickness="1"
+                              CornerRadius="6"
+                              Padding="12"
+                              Margin="8,0,0,0">
+                        <StackPanel>
+                          <TextBlock Text="Inspector rail"
+                                     Foreground="#FFF2E2"
+                                     FontWeight="SemiBold"
+                                     TextWrapping="Wrap" />
+                          <TextBlock Text="Right pane mirrors a property inspector or supporting rail that should stay narrow enough to read but never disappear."
+                                     Foreground="#E7CCAE"
+                                     TextWrapping="Wrap"
+                                     Margin="0,4,0,10" />
+                          <Border Background="#382A1D"
+                                  BorderBrush="#8C6840"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10"
+                                  Margin="0,0,0,8">
+                            <TextBlock Text="Selection details" Foreground="#FFF2E2" TextWrapping="Wrap" />
+                          </Border>
+                          <Border Background="#382A1D"
+                                  BorderBrush="#8C6840"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10"
+                                  Margin="0,0,0,8">
+                            <TextBlock Text="Binding traces" Foreground="#FFF2E2" TextWrapping="Wrap" />
+                          </Border>
+                          <Border Background="#382A1D"
+                                  BorderBrush="#8C6840"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10">
+                            <TextBlock Text="Automation notes" Foreground="#FFF2E2" TextWrapping="Wrap" />
+                          </Border>
+                        </StackPanel>
+                      </Border>
+                    </Grid>
+                  </Border>
+
+                  <Grid Grid.Row="3">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Background="{StaticResource DarkBgBrush}"
+                            BorderBrush="{StaticResource DarkBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="10"
+                            Margin="0,0,8,0">
+                      <StackPanel>
+                        <TextBlock Text="Column splitter pair"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="PrimaryPairSummaryText"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0" />
+                      </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            Background="{StaticResource DarkBgBrush}"
+                            BorderBrush="{StaticResource DarkBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                          Padding="10">
+                      <StackPanel>
+                        <TextBlock Text="Increment model"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="IncrementSummaryText"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0" />
+                      </StackPanel>
+                    </Border>
+                  </Grid>
+                </Grid>
+              </Border>
+
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Background="{StaticResource DarkBgBrush}"
+                        BorderBrush="{StaticResource DarkBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14"
+                        Margin="0,0,8,0">
+                  <Grid>
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0">
+                      <TextBlock Text="Row resizing stage"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 FontSize="16"
+                                 FontWeight="SemiBold"
+                                 TextWrapping="Wrap" />
+                      <TextBlock x:Name="HorizontalSummaryText"
+                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 TextWrapping="Wrap"
+                                 Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            Background="#12191E"
+                            BorderBrush="#31424D"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12"
+                            Margin="0,14,0,12">
+                      <Grid x:Name="HorizontalWorkbenchGrid"
+                            MinHeight="264">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                          <RowDefinition Height="150" MinHeight="96" />
+                          <RowDefinition Height="8" MinHeight="8" MaxHeight="8" />
+                          <RowDefinition Height="166" MinHeight="96" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0"
+                                Background="#1B2E43"
+                                BorderBrush="#46698D"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12"
+                                Margin="0,0,0,8">
+                          <StackPanel>
+                            <TextBlock Text="Top canvas"
+                                       Foreground="#E7F1FF"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="A horizontal splitter is usually easier to read as a timeline or detail separator. The top row keeps its own minimum height."
+                                       Foreground="#BED0E7"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,10" />
+                            <Border Background="#22344B"
+                                    BorderBrush="#527499"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10">
+                              <TextBlock Text="Keyframes, layers, or preview output" Foreground="#E7F1FF" TextWrapping="Wrap" />
+                            </Border>
+                          </StackPanel>
+                        </Border>
+
+                        <GridSplitter x:Name="TimelineSplitter"
+                                      Grid.Row="1"
+                                      Height="8"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
+                                      ResizeDirection="Rows"
+                                      ResizeBehavior="PreviousAndNext"
+                                      DragIncrement="6"
+                                      KeyboardIncrement="18"
+                                      Background="#4B6F88"
+                                      BorderBrush="#B0D9F7" />
+
+                        <Border Grid.Row="2"
+                                Background="#222015"
+                                BorderBrush="#716845"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12"
+                                Margin="0,8,0,0">
+                          <StackPanel>
+                            <TextBlock Text="Bottom workspace"
+                                       Foreground="#FFF6DE"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="Arrow Up and Down resize this splitter after focus, which makes it useful for log panes, properties, or stacked design surfaces."
+                                       Foreground="#E6D8AF"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,10" />
+                            <Border Background="#37311D"
+                                    BorderBrush="#8F7E4A"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10"
+                                    Margin="0,0,0,8">
+                              <TextBlock Text="Layout trace" Foreground="#FFF6DE" TextWrapping="Wrap" />
+                            </Border>
+                            <Border Background="#37311D"
+                                    BorderBrush="#8F7E4A"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10">
+                              <TextBlock Text="Automation and binding output" Foreground="#FFF6DE" TextWrapping="Wrap" />
+                            </Border>
+                          </StackPanel>
+                        </Border>
+                      </Grid>
+                    </Border>
+
+                    <TextBlock Grid.Row="2"
+                               Text="This row splitter uses explicit Rows mode so the preview behaves like a classic WPF horizontal chrome handoff."
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap" />
+                  </Grid>
+                </Border>
+
+                <Border Grid.Column="1"
+                        Background="{StaticResource DarkBgBrush}"
+                        BorderBrush="{StaticResource DarkBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14"
+                        Margin="8,0,0,0">
+                  <StackPanel>
+                    <TextBlock Text="Alignment and behavior lab"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <TextBlock x:Name="BehaviorSummaryText"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,14" />
+
+                    <Border Background="#12191E"
+                            BorderBrush="#31424D"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="0,0,0,10">
+                      <StackPanel>
+                        <TextBlock Text="BasedOnAlignment overlay splitters"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="These examples behave like WPF overlay splitters placed inside a content column. Alignment selects which adjacent definitions move."
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,10" />
+
+                        <Grid Margin="0,0,0,8">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock Grid.Column="0"
+                                     Text="Left"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Width="42"
+                                     VerticalAlignment="Center" />
+                          <Border Grid.Column="1"
+                                  Background="#10161C"
+                                  BorderBrush="#31424D"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10">
+                            <Grid x:Name="AlignmentLeftGrid"
+                                  Height="82">
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                              </Grid.ColumnDefinitions>
+                              <Border Grid.Column="0" Background="#23344A" BorderBrush="#54769B" BorderThickness="1" CornerRadius="6" Margin="0,0,8,0" />
+                              <Border Grid.Column="1" Background="#1E403B" BorderBrush="#4F857B" BorderThickness="1" CornerRadius="6" Margin="4,0" />
+                              <Border Grid.Column="2" Background="#42261A" BorderBrush="#8D6545" BorderThickness="1" CornerRadius="6" Margin="8,0,0,0" />
+                              <GridSplitter x:Name="AlignmentLeftSplitter"
+                                            Grid.Column="1"
+                                            Width="8"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Stretch"
+                                            ResizeDirection="Columns"
+                                            ResizeBehavior="BasedOnAlignment"
+                                            Background="#89C7F3"
+                                            BorderBrush="#D5F0FF" />
+                            </Grid>
+                          </Border>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,8">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock Grid.Column="0"
+                                     Text="Center"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Width="42"
+                                     VerticalAlignment="Center" />
+                          <Border Grid.Column="1"
+                                  Background="#10161C"
+                                  BorderBrush="#31424D"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10">
+                            <Grid x:Name="AlignmentCenterGrid"
+                                  Height="82">
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                              </Grid.ColumnDefinitions>
+                              <Border Grid.Column="0" Background="#23344A" BorderBrush="#54769B" BorderThickness="1" CornerRadius="6" Margin="0,0,8,0" />
+                              <Border Grid.Column="1" Background="#1E403B" BorderBrush="#4F857B" BorderThickness="1" CornerRadius="6" Margin="4,0" />
+                              <Border Grid.Column="2" Background="#42261A" BorderBrush="#8D6545" BorderThickness="1" CornerRadius="6" Margin="8,0,0,0" />
+                              <GridSplitter x:Name="AlignmentCenterSplitter"
+                                            Grid.Column="1"
+                                            Width="8"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Stretch"
+                                            ResizeDirection="Columns"
+                                            ResizeBehavior="BasedOnAlignment"
+                                            Background="#89C7F3"
+                                            BorderBrush="#D5F0FF" />
+                            </Grid>
+                          </Border>
+                        </Grid>
+
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock Grid.Column="0"
+                                     Text="Right"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Width="42"
+                                     VerticalAlignment="Center" />
+                          <Border Grid.Column="1"
+                                  Background="#10161C"
+                                  BorderBrush="#31424D"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10">
+                            <Grid x:Name="AlignmentRightGrid"
+                                  Height="82">
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                              </Grid.ColumnDefinitions>
+                              <Border Grid.Column="0" Background="#23344A" BorderBrush="#54769B" BorderThickness="1" CornerRadius="6" Margin="0,0,8,0" />
+                              <Border Grid.Column="1" Background="#1E403B" BorderBrush="#4F857B" BorderThickness="1" CornerRadius="6" Margin="4,0" />
+                              <Border Grid.Column="2" Background="#42261A" BorderBrush="#8D6545" BorderThickness="1" CornerRadius="6" Margin="8,0,0,0" />
+                              <GridSplitter x:Name="AlignmentRightSplitter"
+                                            Grid.Column="1"
+                                            Width="8"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Stretch"
+                                            ResizeDirection="Columns"
+                                            ResizeBehavior="BasedOnAlignment"
+                                            Background="#89C7F3"
+                                            BorderBrush="#D5F0FF" />
+                            </Grid>
+                          </Border>
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+
+                    <Border Background="#12191E"
+                            BorderBrush="#31424D"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12">
+                      <StackPanel>
+                        <TextBlock Text="Explicit resize behaviors"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="The same overlay pattern can force a specific pair even if alignment would suggest something else."
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,10" />
+
+                        <Grid Margin="0,0,0,8">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock Grid.Column="0"
+                                     Text="Prev+Cur"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Width="66"
+                                     VerticalAlignment="Center" />
+                          <Border Grid.Column="1"
+                                  Background="#10161C"
+                                  BorderBrush="#31424D"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10">
+                            <Grid x:Name="ExplicitPreviousCurrentGrid"
+                                  Height="82">
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                              </Grid.ColumnDefinitions>
+                              <Border Grid.Column="0" Background="#24374A" BorderBrush="#54769B" BorderThickness="1" CornerRadius="6" Margin="0,0,8,0" />
+                              <Border Grid.Column="1" Background="#264437" BorderBrush="#58876C" BorderThickness="1" CornerRadius="6" Margin="4,0" />
+                              <Border Grid.Column="2" Background="#472B1B" BorderBrush="#936A48" BorderThickness="1" CornerRadius="6" Margin="8,0,0,0" />
+                              <GridSplitter x:Name="ExplicitPreviousCurrentSplitter"
+                                            Grid.Column="1"
+                                            Width="8"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Stretch"
+                                            ResizeDirection="Columns"
+                                            ResizeBehavior="PreviousAndCurrent"
+                                            Background="#6AD3A4"
+                                            BorderBrush="#DDFCEF" />
+                            </Grid>
+                          </Border>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,8">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock Grid.Column="0"
+                                     Text="Prev+Next"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Width="66"
+                                     VerticalAlignment="Center" />
+                          <Border Grid.Column="1"
+                                  Background="#10161C"
+                                  BorderBrush="#31424D"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10">
+                            <Grid x:Name="ExplicitPreviousNextGrid"
+                                  Height="82">
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                              </Grid.ColumnDefinitions>
+                              <Border Grid.Column="0" Background="#24374A" BorderBrush="#54769B" BorderThickness="1" CornerRadius="6" Margin="0,0,8,0" />
+                              <Border Grid.Column="1" Background="#264437" BorderBrush="#58876C" BorderThickness="1" CornerRadius="6" Margin="4,0" />
+                              <Border Grid.Column="2" Background="#472B1B" BorderBrush="#936A48" BorderThickness="1" CornerRadius="6" Margin="8,0,0,0" />
+                              <GridSplitter x:Name="ExplicitPreviousNextSplitter"
+                                            Grid.Column="1"
+                                            Width="8"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Stretch"
+                                            ResizeDirection="Columns"
+                                            ResizeBehavior="PreviousAndNext"
+                                            Background="#6AD3A4"
+                                            BorderBrush="#DDFCEF" />
+                            </Grid>
+                          </Border>
+                        </Grid>
+
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock Grid.Column="0"
+                                     Text="Cur+Next"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Width="66"
+                                     VerticalAlignment="Center" />
+                          <Border Grid.Column="1"
+                                  Background="#10161C"
+                                  BorderBrush="#31424D"
+                                  BorderThickness="1"
+                                  CornerRadius="6"
+                                  Padding="10">
+                            <Grid x:Name="ExplicitCurrentNextGrid"
+                                  Height="82">
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                                <ColumnDefinition Width="110" MinWidth="64" />
+                              </Grid.ColumnDefinitions>
+                              <Border Grid.Column="0" Background="#24374A" BorderBrush="#54769B" BorderThickness="1" CornerRadius="6" Margin="0,0,8,0" />
+                              <Border Grid.Column="1" Background="#264437" BorderBrush="#58876C" BorderThickness="1" CornerRadius="6" Margin="4,0" />
+                              <Border Grid.Column="2" Background="#472B1B" BorderBrush="#936A48" BorderThickness="1" CornerRadius="6" Margin="8,0,0,0" />
+                              <GridSplitter x:Name="ExplicitCurrentNextSplitter"
+                                            Grid.Column="1"
+                                            Width="8"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Stretch"
+                                            ResizeDirection="Columns"
+                                            ResizeBehavior="CurrentAndNext"
+                                            Background="#6AD3A4"
+                                            BorderBrush="#DDFCEF" />
+                            </Grid>
+                          </Border>
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <Border Background="{StaticResource DarkBgBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="8"
+                      Padding="14">
+                <Grid>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+
+                  <StackPanel Grid.Row="0">
+                    <TextBlock Text="Auto direction gallery"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <TextBlock x:Name="AutoDirectionSummaryText"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0" />
+                  </StackPanel>
+
+                  <Grid Grid.Row="1"
+                        Margin="0,14,0,12">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Background="#12191E"
+                            BorderBrush="#31424D"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="0,0,8,0">
+                      <StackPanel>
+                        <TextBlock Text="Tall splitter resolves to Columns"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="Width is much smaller than height, so Auto behaves like a vertical column splitter."
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,10" />
+                        <Grid x:Name="AutoColumnGrid"
+                              Height="128">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="135" MinWidth="90" />
+                            <ColumnDefinition Width="8" MinWidth="8" MaxWidth="8" />
+                            <ColumnDefinition Width="135" MinWidth="90" />
+                          </Grid.ColumnDefinitions>
+                          <Border Grid.Column="0" Background="#23344A" BorderBrush="#54769B" BorderThickness="1" CornerRadius="6" Margin="0,0,8,0" />
+                          <GridSplitter x:Name="AutoColumnSplitter"
+                                        Grid.Column="1"
+                                        Width="8"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        ResizeDirection="Auto"
+                                        ResizeBehavior="PreviousAndNext"
+                                        Background="#7CBCE5"
+                                        BorderBrush="#D5F0FF" />
+                          <Border Grid.Column="2" Background="#1F403B" BorderBrush="#4E847A" BorderThickness="1" CornerRadius="6" Margin="8,0,0,0" />
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            Background="#12191E"
+                            BorderBrush="#31424D"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="8,0,0,0">
+                      <StackPanel>
+                        <TextBlock Text="Wide splitter resolves to Rows"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="Width is greater than height, so Auto behaves like a horizontal row splitter."
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,10" />
+                        <Grid x:Name="AutoRowGrid"
+                              Height="128">
+                          <Grid.RowDefinitions>
+                            <RowDefinition Height="58" MinHeight="44" />
+                            <RowDefinition Height="8" MinHeight="8" MaxHeight="8" />
+                            <RowDefinition Height="58" MinHeight="44" />
+                          </Grid.RowDefinitions>
+                          <Border Grid.Row="0" Background="#2F223E" BorderBrush="#6C5390" BorderThickness="1" CornerRadius="6" Margin="0,0,0,8" />
+                          <GridSplitter x:Name="AutoRowSplitter"
+                                        Grid.Row="1"
+                                        Height="8"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        ResizeDirection="Auto"
+                                        ResizeBehavior="PreviousAndNext"
+                                        Background="#D18D4A"
+                                        BorderBrush="#FFE1C0" />
+                          <Border Grid.Row="2" Background="#3A2A19" BorderBrush="#936A45" BorderThickness="1" CornerRadius="6" Margin="0,8,0,0" />
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+                  </Grid>
+
+                  <TextBlock Grid.Row="2"
+                             Text="Auto keeps the view declarative: geometry decides whether the splitter behaves like a column or row splitter without changing the control tree."
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap" />
+                </Grid>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
+
+          <TextBlock Grid.Row="3"
+                     Text="This workbench intentionally mixes dedicated splitter lanes with overlay placement because both patterns are common in WPF Grid layouts."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap" />
+        </Grid>
+      </Border>
+
+      <ScrollViewer x:Name="GridSplitterViewInfoScrollViewer"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="14"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <TextBlock Text="Capabilities surfaced"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         FontSize="15"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="• Dedicated-lane column splitters for classic three-pane shells"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,8,0,0" />
+              <TextBlock Text="• Dedicated-lane row splitter for timeline, console, or utility layouts"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock Text="• Overlay splitters that rely on HorizontalAlignment plus BasedOnAlignment"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock Text="• Explicit PreviousAndCurrent, PreviousAndNext, and CurrentAndNext behavior samples"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock Text="• Auto direction samples that switch between Columns and Rows from geometry alone"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="14"
+                  Margin="0,0,0,10">
+            <StackPanel>
+              <TextBlock Text="Input model"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         FontSize="15"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="Drag uses the configured DragIncrement, so the stage can feel coarse for shell resizing or precise for design tools."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,8,0,0" />
+              <TextBlock Text="Keyboard arrows respect KeyboardIncrement after the splitter has focus. Click a rail first, then use Left and Right for columns or Up and Down for rows."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+              <TextBlock Text="Hover and drag state are rendered directly by the control, so the rails expose their own interaction state without an external template."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,6,0,0" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="{StaticResource DarkSurfaceBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="14">
+            <StackPanel>
+              <TextBlock Text="WPF-style notes"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         FontSize="15"
+                         FontWeight="SemiBold"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="This view is intentionally authored like a WPF control gallery: overlay splitters sit inside content columns, dedicated splitter lanes get their own narrow definitions, and the side rail reports actual layout output rather than static documentation."
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Margin="0,8,0,0" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+</UserControl>
+
+
+
+
+
+

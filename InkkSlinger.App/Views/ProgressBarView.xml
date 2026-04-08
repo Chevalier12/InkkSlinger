@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.ProgressBarView"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="{StaticResource DarkBgBrush}"
+             BorderBrush="{StaticResource DarkBorderBrush}"
+             BorderThickness="1"
+             Padding="12">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0" Background="{StaticResource DarkElevatedBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
+      <Label Content="Control Demo: ProgressBar" Foreground="{StaticResource TextPrimaryBrush}" />
+    </Border>
+
+    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="12">
+      <StackPanel>
+        <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                   TextWrapping="Wrap"
+                   Text="ProgressBar now uses named template parts and template-root visual states when they are available, while preserving the direct-render fallback for incomplete custom templates." />
+
+        <Grid Margin="0,14,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+
+          <Border Grid.Column="0"
+                  Background="{StaticResource DarkElevatedBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Padding="14">
+            <StackPanel>
+              <Label Content="Determinate fills" Foreground="{StaticResource TextPrimaryBrush}" />
+              <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                         Margin="0,0,0,12"
+                         TextWrapping="Wrap"
+                         Text="The default template sizes PART_Indicator from the normalized range value. Horizontal bars grow left-to-right and honor custom foreground, background, and border styling." />
+
+              <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Text="Asset streaming" Margin="0,0,0,4" />
+              <ProgressBar Width="360"
+                           Height="10"
+                           Minimum="0"
+                           Maximum="100"
+                           Value="72"
+                           Margin="0,0,0,12" />
+
+              <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Text="CPU bake" Margin="0,0,0,4" />
+              <ProgressBar Width="360"
+                           Height="14"
+                           Minimum="0"
+                           Maximum="1"
+                           Value="0.38"
+                           Foreground="{StaticResource OrangePrimaryBrush}"
+                           Background="{StaticResource DarkBgBrush}"
+                           BorderBrush="{StaticResource OrangeSubtleBrush}"
+                           BorderThickness="1"
+                           Margin="0,0,0,12" />
+
+              <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Text="Final packaging" Margin="0,0,0,4" />
+              <ProgressBar Width="360"
+                           Height="8"
+                           Minimum="0"
+                           Maximum="100"
+                           Value="94"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+            </StackPanel>
+          </Border>
+
+          <Border Grid.Column="2"
+                  Background="{StaticResource DarkElevatedBrush}"
+                  BorderBrush="{StaticResource DarkBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Padding="14">
+            <StackPanel>
+              <Label Content="Vertical and indeterminate" Foreground="{StaticResource TextPrimaryBrush}" />
+              <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                         Margin="0,0,0,12"
+                         TextWrapping="Wrap"
+                         Text="Vertical bars fill from the bottom. Indeterminate bars keep the indicator and glow moving across the track through the shared visual-state-aware runtime." />
+
+              <Border Background="{StaticResource DarkBgBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="4"
+                      Padding="12"
+                      Margin="0,0,0,12">
+                <StackPanel>
+                  <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                             Text="Determinate vertical samples"
+                             Margin="0,0,0,8" />
+                  <StackPanel Orientation="Horizontal">
+                    <StackPanel Margin="0,0,18,0">
+                      <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                 Text="25%"
+                                 HorizontalAlignment="Center"
+                                 Margin="0,0,0,6" />
+                      <ProgressBar Width="12"
+                                   Height="150"
+                                   Orientation="Vertical"
+                                   Minimum="0"
+                                   Maximum="100"
+                                   Value="25" />
+                    </StackPanel>
+                    <StackPanel>
+                      <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                 Text="80%"
+                                 HorizontalAlignment="Center"
+                                 Margin="0,0,0,6" />
+                      <ProgressBar Width="12"
+                                   Height="150"
+                                   Orientation="Vertical"
+                                   Minimum="0"
+                                   Maximum="100"
+                                   Value="80"
+                                   Foreground="{StaticResource OrangePrimaryBrush}" />
+                    </StackPanel>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                         Text="Polling remote workers"
+                         Margin="0,0,0,4" />
+              <ProgressBar HorizontalAlignment="Stretch"
+                           Height="12"
+                           IsIndeterminate="True"
+                           Margin="0,0,0,6" />
+              <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Text="Only the indeterminate sample animates. The vertical bars stay fixed to show determinate fill direction."
+                         Margin="0,0,0,12" />
+
+              <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                         TextWrapping="Wrap"
+                         Text="Validation chrome comes from the template's ValidationStates group."
+                         Margin="0,0,0,4" />
+              <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                         TextWrapping="Wrap"
+                         Text="When Validation.HasError changes, the control switches between Valid, InvalidFocused, and InvalidUnfocused without giving up the fallback renderer for malformed templates." />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>
+
+
+
+
+
+

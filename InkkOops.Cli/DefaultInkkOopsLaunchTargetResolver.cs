@@ -17,8 +17,9 @@ internal sealed class DefaultInkkOopsLaunchTargetResolver : IInkkOopsLaunchTarge
         }
 
         var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var defaultProjectPath = Path.Combine(repoRoot, "InkkSlinger.App", "InkkSlinger.App.csproj");
         return new InkkOopsLaunchTarget(
-            Path.Combine(repoRoot, "InkkSlinger.csproj"),
-            repoRoot);
+            defaultProjectPath,
+            Path.GetDirectoryName(defaultProjectPath) ?? repoRoot);
     }
 }
