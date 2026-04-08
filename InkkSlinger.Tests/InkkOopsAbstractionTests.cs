@@ -446,7 +446,7 @@ public sealed class InkkOopsAbstractionTests
         var resolver = new DefaultInkkOopsLaunchTargetResolver();
         var target = resolver.Resolve(new Dictionary<string, string>());
 
-        Assert.EndsWith(Path.Combine("InkkSlinger.App", "InkkSlinger.App.csproj"), target.ProjectPath, StringComparison.Ordinal);
+        Assert.EndsWith(Path.Combine("InkkSlinger.DemoApp", "InkkSlinger.DemoApp.csproj"), target.ProjectPath, StringComparison.Ordinal);
         Assert.True(Path.IsPathFullyQualified(target.ProjectPath));
         Assert.True(Path.IsPathFullyQualified(target.WorkingDirectory));
     }

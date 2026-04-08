@@ -435,7 +435,7 @@ public class Grid : UIElement
             "..",
             "..",
             "..",
-            "InkkSlinger.App",
+            "InkkSlinger.DemoApp",
             "App.xml"));
         Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
         XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);

@@ -134,7 +134,7 @@ public sealed class InkkOopsTestScriptUsageTests
     private static async Task<string> RunRuntimeScenarioFromTestAssemblyAsync(string scriptName, string artifactsRoot)
     {
         var repositoryRoot = FindRepositoryRoot();
-        var projectPath = Path.Combine(repositoryRoot, "InkkSlinger.App", "InkkSlinger.App.csproj");
+        var projectPath = Path.Combine(repositoryRoot, "InkkSlinger.DemoApp", "InkkSlinger.DemoApp.csproj");
         var testAssemblyPath = typeof(InkkOopsTestScriptUsageTests).Assembly.Location;
         await RunDotNetProcessAsync(
             repositoryRoot,
@@ -147,7 +147,7 @@ public sealed class InkkOopsTestScriptUsageTests
     private static async Task<string> RunRuntimeRecordingAsync(string recordingPath, string artifactsRoot)
     {
         var repositoryRoot = FindRepositoryRoot();
-        var projectPath = Path.Combine(repositoryRoot, "InkkSlinger.App", "InkkSlinger.App.csproj");
+        var projectPath = Path.Combine(repositoryRoot, "InkkSlinger.DemoApp", "InkkSlinger.DemoApp.csproj");
 
         await RunDotNetProcessAsync(
             repositoryRoot,

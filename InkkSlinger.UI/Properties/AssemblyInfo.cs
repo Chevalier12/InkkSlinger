@@ -1,4 +1,4 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("InkkSlinger.App")]
+[assembly: InternalsVisibleTo("InkkSlinger.DemoApp")]
 [assembly: InternalsVisibleTo("InkkSlinger.Tests")]

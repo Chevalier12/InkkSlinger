@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace InkkSlinger;
 
-internal static class ControlsCatalogAppStartup
+internal static class App
 {
     public static InkkSlingerOptions CreateOptions(string[] args)
     {

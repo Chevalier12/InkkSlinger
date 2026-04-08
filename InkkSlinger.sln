@@ -13,7 +13,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InkkOops.Cli", "InkkOops.Cl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InkkSlinger.WpfLab", "InkkSlinger.WpfLab\InkkSlinger.WpfLab.csproj", "{A2E76795-8E18-4BB4-95A8-4A819E6A70A5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InkkSlinger.App", "InkkSlinger.App\InkkSlinger.App.csproj", "{088DBF76-AD40-492E-97BF-A95004678805}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InkkSlinger.DemoApp", "InkkSlinger.DemoApp\InkkSlinger.DemoApp.csproj", "{088DBF76-AD40-492E-97BF-A95004678805}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

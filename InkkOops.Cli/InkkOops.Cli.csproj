@@ -7,6 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\InkkSlinger.App\InkkSlinger.App.csproj" />
+    <ProjectReference Include="..\InkkSlinger.DemoApp\InkkSlinger.DemoApp.csproj" />
   </ItemGroup>
 </Project>
