@@ -158,7 +158,7 @@ static int RunRecordLaunch(Dictionary<string, string> options, IInkkOopsLaunchTa
     return process?.ExitCode ?? 1;
 }
 
-var hostConfiguration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
+var hostConfiguration = InkkOopsHostConfiguration.CreateDefault(typeof(ControlsCatalogView).Assembly);
 var launchTargetResolver = new DefaultInkkOopsLaunchTargetResolver();
 if (args.Length == 0)
 {

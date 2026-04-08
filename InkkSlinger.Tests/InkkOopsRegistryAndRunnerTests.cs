@@ -16,7 +16,7 @@ public sealed class InkkOopsRegistryAndRunnerTests
     [Fact]
     public void Registry_Discovers_BuiltInScript()
     {
-        var registry = new InkkOopsScriptRegistry(typeof(Game1).Assembly);
+        var registry = new InkkOopsScriptRegistry(typeof(ControlsCatalogView).Assembly);
 
         Assert.Contains("buttons-resize-hover-repro", registry.ListScripts());
         Assert.True(registry.TryResolve("buttons-resize-hover-repro", out var script));

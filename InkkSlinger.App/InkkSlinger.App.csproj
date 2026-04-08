@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Game1.cs" />
+    <Compile Include="ControlsCatalogAppStartup.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Views\**\*.cs" />
     <Compile Include="Automation\InkkOops\Diagnostics\InkkOopsCanvasViewDiagnosticsContributor.cs" />

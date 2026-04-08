@@ -13,7 +13,7 @@ public sealed class InkkOopsAbstractionTests
     [Fact]
     public void DefaultHostConfiguration_UsesReflectionCatalog_ForCurrentHostScripts()
     {
-        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
+        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(ControlsCatalogView).Assembly);
 
         Assert.Contains("controls-catalog-menu-capture", configuration.ScriptCatalog.ListScripts());
         Assert.True(configuration.ScriptCatalog.TryResolve("controls-catalog-sidebar-hover-fps-drop", out var script));
@@ -293,7 +293,7 @@ public sealed class InkkOopsAbstractionTests
     [Fact]
     public void DefaultHostConfiguration_Registers_ButtonContributor()
     {
-        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(Game1).Assembly);
+        var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(ControlsCatalogView).Assembly);
 
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsButtonDiagnosticsContributor);
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsControlDiagnosticsContributor);
