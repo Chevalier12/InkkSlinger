@@ -142,6 +142,69 @@ public sealed class GridSplitterResizeInvalidationTests
     }
 
     [Fact]
+    public void SplitterDragSequence_KeepsWorkbenchOnCheapLayoutPath()
+    {
+        var shellGrid = new Grid();
+        shellGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(196f, GridUnitType.Pixel), MinWidth = 96f });
+        shellGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(404f, GridUnitType.Pixel), MinWidth = 220f });
+        shellGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var navigationPane = new Border
+        {
+            Width = 180f,
+            Height = 360f
+        };
+        shellGrid.AddChild(navigationPane);
+
+        var workbenchViewer = new CountingScrollViewer
+        {
+            Width = 404f,
+            Height = 260f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = CreateWorkbenchContent(out var headerBadge, out var wrappedSummary, out var wrappedHint, out var wrappedLeft, out var wrappedRight)
+        };
+        Grid.SetColumn(workbenchViewer, 1);
+        shellGrid.AddChild(workbenchViewer);
+
+        var uiRoot = new UiRoot(shellGrid);
+        RunLayout(uiRoot, 720, 420, 16);
+
+        var badgeArrangeBefore = headerBadge.ArrangeOverrideCount;
+        var summaryMeasureWorkBefore = wrappedSummary.MeasureWorkCount;
+        var hintMeasureWorkBefore = wrappedHint.MeasureWorkCount;
+        var leftMeasureWorkBefore = wrappedLeft.MeasureWorkCount;
+        var rightMeasureWorkBefore = wrappedRight.MeasureWorkCount;
+
+        var resizeSequence = new (float Navigation, float Workbench)[]
+        {
+            (236f, 364f),
+            (128f, 472f),
+            (220f, 380f),
+            (144f, 456f),
+            (208f, 392f)
+        };
+
+        foreach (var step in resizeSequence)
+        {
+            var changed = shellGrid.ApplySplitterColumnResize(0, 1, step.Navigation, step.Workbench);
+            Assert.True(changed);
+            RunLayout(uiRoot, 720, 420, 32);
+        }
+
+        var summaryMeasureWork = wrappedSummary.MeasureWorkCount - summaryMeasureWorkBefore;
+        var hintMeasureWork = wrappedHint.MeasureWorkCount - hintMeasureWorkBefore;
+        var leftMeasureWork = wrappedLeft.MeasureWorkCount - leftMeasureWorkBefore;
+        var rightMeasureWork = wrappedRight.MeasureWorkCount - rightMeasureWorkBefore;
+
+        Assert.Equal(badgeArrangeBefore, headerBadge.ArrangeOverrideCount);
+        Assert.InRange(summaryMeasureWork, 0, resizeSequence.Length - 1);
+        Assert.InRange(hintMeasureWork, 0, resizeSequence.Length - 1);
+        Assert.InRange(leftMeasureWork, 0, resizeSequence.Length - 1);
+        Assert.InRange(rightMeasureWork, 0, resizeSequence.Length - 1);
+    }
+
+    [Fact]
     public void DescendantMeasureChange_ThatKeepsGridDesiredSizeStable_DoesNotRebubbleParentMeasure()
     {
         var dynamicChild = new DynamicDesiredSizeElement(80f, 32f);
@@ -260,6 +323,91 @@ public sealed class GridSplitterResizeInvalidationTests
         return grid;
     }
 
+    private static FrameworkElement CreateWorkbenchContent(
+        out CountingBorder headerBadge,
+        out TextBlock wrappedSummary,
+        out TextBlock wrappedHint,
+        out TextBlock wrappedLeft,
+        out TextBlock wrappedRight)
+    {
+        var stack = new StackPanel();
+
+        var headerGrid = new CountingGrid();
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var headerTextHost = new StackPanel();
+        var title = new TextBlock
+        {
+            Text = "Canvas workspace",
+            TextWrapping = TextWrapping.Wrap
+        };
+        wrappedSummary = new TextBlock
+        {
+            Text = "This center lane behaves like a WPF editor canvas: it absorbs most width, but still yields to splitter drags and keyboard nudges.",
+            TextWrapping = TextWrapping.Wrap
+        };
+        headerTextHost.AddChild(title);
+        headerTextHost.AddChild(wrappedSummary);
+        headerGrid.AddChild(headerTextHost);
+
+        headerBadge = new CountingBorder
+        {
+            Width = 132f,
+            Height = 28f
+        };
+        Grid.SetColumn(headerBadge, 1);
+        headerGrid.AddChild(headerBadge);
+        stack.AddChild(headerGrid);
+
+        wrappedHint = new TextBlock
+        {
+            Text = "Try dragging either rail, then click it and use arrow keys. Pane minimums prevent the shell from collapsing through the splitter.",
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0f, 12f, 0f, 12f)
+        };
+        stack.AddChild(wrappedHint);
+
+        var lowerGrid = new CountingGrid();
+        lowerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        lowerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        lowerGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var leftPanel = new StackPanel();
+        leftPanel.AddChild(new TextBlock
+        {
+            Text = "Document tab strip",
+            TextWrapping = TextWrapping.Wrap
+        });
+        wrappedLeft = new TextBlock
+        {
+            Text = "Toolbar, tabs, or canvases usually live in the expandable center track.",
+            TextWrapping = TextWrapping.Wrap
+        };
+        leftPanel.AddChild(wrappedLeft);
+
+        var rightPanel = new StackPanel();
+        rightPanel.AddChild(new TextBlock
+        {
+            Text = "Viewport guide",
+            TextWrapping = TextWrapping.Wrap
+        });
+        wrappedRight = new TextBlock
+        {
+            Text = "Actual column widths stay visible in the side rail so this pane can act as a quick reference while the shell shifts.",
+            TextWrapping = TextWrapping.Wrap
+        };
+        rightPanel.AddChild(wrappedRight);
+
+        lowerGrid.AddChild(leftPanel);
+        Grid.SetColumn(rightPanel, 1);
+        lowerGrid.AddChild(rightPanel);
+        stack.AddChild(lowerGrid);
+
+        return stack;
+    }
+
     private static (UiRoot UiRoot, ScrollViewer Viewer, Grid Grid) CreateViewerFixture(Grid grid)
     {
         var root = new Panel();
@@ -302,7 +450,14 @@ public sealed class GridSplitterResizeInvalidationTests
 
     private sealed class CountingScrollViewer : ScrollViewer
     {
+        public int MeasureOverrideCount { get; private set; }
         public int ArrangeOverrideCount { get; private set; }
+
+        protected override Vector2 MeasureOverride(Vector2 availableSize)
+        {
+            MeasureOverrideCount++;
+            return base.MeasureOverride(availableSize);
+        }
 
         protected override Vector2 ArrangeOverride(Vector2 finalSize)
         {
@@ -313,7 +468,7 @@ public sealed class GridSplitterResizeInvalidationTests
 
     private sealed class CountingGrid : Grid
     {
-        public int ArrangeCallCount { get; private set; }
+        public new int ArrangeCallCount { get; private set; }
 
         protected override Vector2 ArrangeOverride(Vector2 finalSize)
         {

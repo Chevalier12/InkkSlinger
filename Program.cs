@@ -195,5 +195,14 @@ static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
     return options;
 }
 
-using var game = new Game1(ParseInkkOopsOptions(args));
-game.Run();
+static InkkSlingerOptions CreateOptions(string[] args)
+{
+    return new InkkSlingerOptions
+    {
+        WindowTitle = "InkkSlinger Controls Catalog",
+        FpsEnabled = true,
+        InkkOopsRuntimeOptions = ParseInkkOopsOptions(args)
+    };
+}
+
+InkkSlingerUI.Initialize(static () => new ControlsCatalogView(), CreateOptions(args));

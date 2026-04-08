@@ -20,6 +20,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
     private readonly Window _window;
     private readonly Func<Viewport> _viewportAccessor;
     private readonly Func<RenderTarget2D?> _renderTargetAccessor;
+    private readonly Func<string> _displayedFpsAccessor;
     private readonly object _sync = new();
     private readonly List<PendingFrameGate> _frameGates = new();
     private readonly List<PendingResize> _pendingResizes = new();
@@ -36,6 +37,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         Window window,
         Func<Viewport> viewportAccessor,
         Func<RenderTarget2D?> renderTargetAccessor,
+        Func<string> displayedFpsAccessor,
         string artifactRoot,
         InkkOopsHostConfiguration hostConfiguration)
     {
@@ -43,6 +45,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         _window = window ?? throw new ArgumentNullException(nameof(window));
         _viewportAccessor = viewportAccessor ?? throw new ArgumentNullException(nameof(viewportAccessor));
         _renderTargetAccessor = renderTargetAccessor ?? throw new ArgumentNullException(nameof(renderTargetAccessor));
+        _displayedFpsAccessor = displayedFpsAccessor ?? throw new ArgumentNullException(nameof(displayedFpsAccessor));
         _hostConfiguration = hostConfiguration ?? throw new ArgumentNullException(nameof(hostConfiguration));
         _artifactNamingPolicy = _hostConfiguration.ArtifactNamingPolicy;
         _visualTreeDiagnostics = new InkkOopsVisualTreeDiagnostics(_hostConfiguration.DiagnosticsContributors);
@@ -67,7 +70,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
 
     public string GetDisplayedFps()
     {
-        return Game1.ExtractDisplayedFpsFromWindowTitle(_window.Title);
+        return _displayedFpsAccessor();
     }
 
     public void SetArtifactRoot(string artifactRoot)
