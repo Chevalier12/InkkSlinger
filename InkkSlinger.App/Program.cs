@@ -1,3 +1,11 @@
 using InkkSlinger;
 
-InkkSlingerUI.Initialize(static () => new ControlsCatalogView(), ControlsCatalogAppStartup.CreateOptions(args));
+namespace InkkSlinger;
+
+internal static class Program
+{
+	private static void Main(string[] args)
+	{
+		InkkSlingerUI.Initialize(static () => new ControlsCatalogView(), ControlsCatalogAppStartup.CreateOptions(args));
+	}
+}

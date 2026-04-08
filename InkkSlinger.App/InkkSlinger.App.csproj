@@ -24,6 +24,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Update="Views\**\*.xml.cs">
+      <DependentUpon>%(Filename)</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
     <AdditionalFiles Include="Views\**\*.xml" InkkSlingerXamlCompileOptOut="false" />
     <None Include="Views\**\*.xml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="App.xml" CopyToOutputDirectory="PreserveNewest" />
