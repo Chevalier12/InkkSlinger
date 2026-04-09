@@ -83,6 +83,10 @@ public sealed class CalendarDayButton : Button
         base.OnApplyTemplate();
         _dayTextPresenter = GetTemplateChild("PART_DayText") as CalendarDayTextPresenter;
         UpdateTemplateDayText();
+        if (_dayTextPresenter == null)
+        {
+            SyncContentFromDayText(DayText);
+        }
     }
 
     private bool _isSynchronizingDayTextToContent;
@@ -99,7 +103,7 @@ public sealed class CalendarDayButton : Button
 
     private bool UsesDedicatedDayTextPresenter()
     {
-        return _dayTextPresenter != null || Template != null;
+        return _dayTextPresenter != null;
     }
 
     private void UpdateTemplateDayText()

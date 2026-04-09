@@ -205,8 +205,8 @@ public sealed class CalendarTests
             Assert.True(dayButton.ApplyTemplate());
             Assert.NotEmpty(dayButton.GetVisualChildren());
             Assert.NotEmpty(dayButton.DayText);
-            var dayTextPresenter = Assert.IsType<CalendarDayTextPresenter>(FindFirstVisualChild<CalendarDayTextPresenter>(dayButton));
-            Assert.Equal(dayButton.DayText, dayTextPresenter.Text);
+            Assert.Equal(dayButton.DayText, Assert.IsType<string>(dayButton.Content));
+            Assert.Null(FindFirstVisualChild<CalendarDayTextPresenter>(dayButton));
         }
         finally
         {
@@ -417,13 +417,20 @@ public sealed class CalendarTests
 
     private static void LoadRootAppResources()
     {
-        var appPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "App.xml"));
+        var currentDirectory = new DirectoryInfo(AppContext.BaseDirectory);
+        string? appPath = null;
+        while (currentDirectory != null)
+        {
+            var candidate = Path.Combine(currentDirectory.FullName, "App.xml");
+            if (File.Exists(candidate))
+            {
+                appPath = candidate;
+                break;
+            }
+
+            currentDirectory = currentDirectory.Parent;
+        }
+
         Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
         XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
     }
