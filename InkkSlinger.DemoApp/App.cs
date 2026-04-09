@@ -5,17 +5,7 @@ namespace InkkSlinger;
 
 internal static class App
 {
-    public static InkkSlingerOptions CreateOptions(string[] args)
-    {
-        return new InkkSlingerOptions
-        {
-            WindowTitle = "InkkSlinger Controls Catalog",
-            FpsEnabled = true,
-            InkkOopsRuntimeOptions = ParseInkkOopsOptions(args)
-        };
-    }
-
-    private static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
+    internal static InkkOopsRuntimeOptions ParseInkkOopsOptions(string[] args)
     {
         var options = new InkkOopsRuntimeOptions();
         for (var i = 0; i < args.Length; i++)

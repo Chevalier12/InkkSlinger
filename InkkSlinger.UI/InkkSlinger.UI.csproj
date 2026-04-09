@@ -8,6 +8,15 @@
     <TieredCompilation>false</TieredCompilation>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>true</IsPackable>
+    <PackageId>InkkSlinger.UI</PackageId>
+    <Version>1.0.0</Version>
+    <Title>InkkSlinger.UI</Title>
+    <Description>InkkSlinger runtime UI framework with the bundled XAML name generator.</Description>
+    <Authors>Chevalier12</Authors>
+    <PackageOutputPath>..\artifacts\packages</PackageOutputPath>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddBundledGeneratorToPackage</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,4 +34,19 @@
     <PackageReference Include="FreeTypeSharp" Version="3.1.0" />
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
   </ItemGroup>
+
+  <Target Name="BuildBundledGenerator">
+    <MSBuild Projects="..\InkkSlinger.XamlNameGenerator\InkkSlinger.XamlNameGenerator.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0"
+             RemoveProperties="TargetFramework;TargetFrameworks" />
+  </Target>
+
+  <Target Name="AddBundledGeneratorToPackage" DependsOnTargets="BuildBundledGenerator">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="..\InkkSlinger.XamlNameGenerator\bin\$(Configuration)\netstandard2.0\InkkSlinger.XamlNameGenerator.dll">
+        <PackagePath>analyzers/dotnet/cs</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
 </Project>

@@ -46,6 +46,7 @@ public class InkkSlingerGameHost : Game
         _window.AllowUserResizing = _options.AllowUserResizing;
         _window.SetClientSize(_options.InitialWindowWidth, _options.InitialWindowHeight);
         _window.Title = _options.WindowTitle;
+        UiApplication.Current.AttachMainWindow(_window, _options);
     }
 
     protected internal string DisplayedFps => _displayedAppFps;
@@ -104,10 +105,18 @@ public class InkkSlingerGameHost : Game
             }
         }
 
-        if (_options.FpsEnabled)
+        if (UiApplication.Current.FpsEnabled)
         {
             UpdateDisplayedFpsFromAppCadence();
             UpdateWindowTitleWithDiagnostics();
+        }
+        else
+        {
+            var baseTitle = ExtractBaseWindowTitle(_window.Title);
+            if (!string.Equals(baseTitle, _window.Title, StringComparison.Ordinal))
+            {
+                _window.Title = baseTitle;
+            }
         }
 
         base.Update(gameTime);
@@ -190,6 +199,26 @@ public class InkkSlingerGameHost : Game
         return $"{baseTitle} | App FPS: {displayedFps} | Hovered: {hoveredElement}";
     }
 
+    internal static string ExtractBaseWindowTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return string.Empty;
+        }
+
+        const string appFpsMarker = " | App FPS: ";
+        const string legacyFpsMarker = " | FPS: ";
+        var markerIndex = title.IndexOf(appFpsMarker, StringComparison.Ordinal);
+        if (markerIndex < 0)
+        {
+            markerIndex = title.IndexOf(legacyFpsMarker, StringComparison.Ordinal);
+        }
+
+        return markerIndex < 0
+            ? title
+            : title[..markerIndex];
+    }
+
     internal static string ExtractDisplayedFpsFromWindowTitle(string title)
     {
         if (string.IsNullOrWhiteSpace(title))
@@ -250,6 +279,7 @@ public class InkkSlingerGameHost : Game
         _uiCompositeTarget = null;
         UiDrawing.ReleaseDeviceResources(GraphicsDevice);
         _uiRoot.Shutdown();
+        UiApplication.Current.DetachMainWindow(_window);
         _window.Dispose();
         base.OnExiting(sender, args);
     }
@@ -405,7 +435,7 @@ public class InkkSlingerGameHost : Game
     private void UpdateWindowTitleWithDiagnostics()
     {
         var hoveredElement = DescribeElementForWindowTitle(_uiRoot.GetHoveredElementForDiagnostics());
-        _window.Title = BuildWindowTitle(_options.WindowTitle, _displayedAppFps, hoveredElement);
+        _window.Title = BuildWindowTitle(ExtractBaseWindowTitle(_window.Title), _displayedAppFps, hoveredElement);
     }
 
     private void UpdateDisplayedFpsFromAppCadence()

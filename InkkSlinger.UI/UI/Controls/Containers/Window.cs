@@ -265,7 +265,23 @@ public sealed class Window : DependencyObject, IDisposable
 
     public Point BackBufferSize => new(_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
 
-    public bool IsFullScreen => _graphics.IsFullScreen;
+    public int Width
+    {
+        get => BackBufferSize.X;
+        set => SetClientSize(value, Height);
+    }
+
+    public int Height
+    {
+        get => BackBufferSize.Y;
+        set => SetClientSize(Width, value);
+    }
+
+    public bool IsFullScreen
+    {
+        get => _graphics.IsFullScreen;
+        set => SetFullScreen(value);
+    }
 
     public bool IsMouseVisible
     {

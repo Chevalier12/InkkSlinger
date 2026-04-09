@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger;
@@ -13,6 +14,7 @@ public partial class ControlsCatalogView : UserControl
 
     public ControlsCatalogView()
     {
+        ApplyRuntimeTestWindowOverrides();
         InitializeComponent();
 
         _controlButtonsHost = this.FindName("ControlButtonsHost") as StackPanel;
@@ -23,6 +25,18 @@ public partial class ControlsCatalogView : UserControl
         if (ControlViews.All.Length > 0)
         {
             ShowControl(ControlViews.All[0]);
+        }
+    }
+
+    private static void ApplyRuntimeTestWindowOverrides()
+    {
+        var configuredWidth = Environment.GetEnvironmentVariable("INKKSLINGER_TEST_MAINWINDOW_WIDTH");
+        if (!string.IsNullOrWhiteSpace(configuredWidth) &&
+            int.TryParse(configuredWidth, NumberStyles.Integer, CultureInfo.InvariantCulture, out var width) &&
+            width > 0 &&
+            UiApplication.Current.HasMainWindow)
+        {
+            Application.Current.MainWindow.Width = width;
         }
     }
 

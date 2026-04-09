@@ -50,3 +50,7 @@ CLAUDE.md
 # Local diagnostics notes
 diagnostics-instrumentation-guide.md
 
+# Local template projects
+InkkSlinger.Template/
+InkkSlinger.TemplatePack/
+

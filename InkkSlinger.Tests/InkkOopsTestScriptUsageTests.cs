@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -131,7 +132,52 @@ public sealed class InkkOopsTestScriptUsageTests
         Assert.Contains("NavigationSplitter", actionLog);
     }
 
+    [Fact]
+    public async Task RuntimeScenario_ApplicationMainWindowWidth_Changes_Live_App_WindowSize()
+    {
+        var runtimeRoot = Path.Combine(Path.GetTempPath(), $"inkkoops-runtime-mainwindow-width-{Guid.NewGuid():N}");
+        var artifactsRoot = Path.Combine(runtimeRoot, "artifacts");
+        Directory.CreateDirectory(runtimeRoot);
+        Directory.CreateDirectory(artifactsRoot);
+
+        try
+        {
+            var runDirectory = await RunRuntimeScenarioFromTestAssemblyAsync(
+                "runtime-test-mainwindow-width-scenario",
+                artifactsRoot,
+                new Dictionary<string, string>
+                {
+                    ["INKKSLINGER_TEST_MAINWINDOW_WIDTH"] = "1377"
+                });
+
+            var resultJson = File.ReadAllText(Path.Combine(runDirectory, "result.json"));
+            var telemetryPath = Path.Combine(runDirectory, "mainwindow-width.txt");
+            var telemetry = File.ReadAllText(telemetryPath);
+
+            Assert.Contains("\"status\": \"Completed\"", resultJson);
+            Assert.True(File.Exists(telemetryPath));
+            Assert.Contains("window_client=1377x", telemetry);
+            Assert.Contains("window_backbuffer=1377x", telemetry);
+            Assert.Contains("viewport=1377x", telemetry);
+        }
+        finally
+        {
+            if (Directory.Exists(runtimeRoot))
+            {
+                Directory.Delete(runtimeRoot, recursive: true);
+            }
+        }
+    }
+
     private static async Task<string> RunRuntimeScenarioFromTestAssemblyAsync(string scriptName, string artifactsRoot)
+    {
+        return await RunRuntimeScenarioFromTestAssemblyAsync(scriptName, artifactsRoot, environmentVariables: null);
+    }
+
+    private static async Task<string> RunRuntimeScenarioFromTestAssemblyAsync(
+        string scriptName,
+        string artifactsRoot,
+        IReadOnlyDictionary<string, string>? environmentVariables)
     {
         var repositoryRoot = FindRepositoryRoot();
         var projectPath = Path.Combine(repositoryRoot, "InkkSlinger.DemoApp", "InkkSlinger.DemoApp.csproj");
@@ -139,7 +185,8 @@ public sealed class InkkOopsTestScriptUsageTests
         await RunDotNetProcessAsync(
             repositoryRoot,
             $"run --project \"{projectPath}\" --no-restore -- --inkkoops-script-assembly \"{testAssemblyPath}\" --inkkoops-script \"{scriptName}\" --inkkoops-artifacts \"{artifactsRoot}\"",
-            "Runtime scenario launch failed.");
+            "Runtime scenario launch failed.",
+            environmentVariables);
 
         return Assert.Single(Directory.GetDirectories(artifactsRoot));
     }
@@ -159,7 +206,16 @@ public sealed class InkkOopsTestScriptUsageTests
 
     private static async Task RunDotNetProcessAsync(string workingDirectory, string arguments, string failurePrefix)
     {
-        using var process = Process.Start(new ProcessStartInfo
+        await RunDotNetProcessAsync(workingDirectory, arguments, failurePrefix, environmentVariables: null);
+    }
+
+    private static async Task RunDotNetProcessAsync(
+        string workingDirectory,
+        string arguments,
+        string failurePrefix,
+        IReadOnlyDictionary<string, string>? environmentVariables)
+    {
+        var startInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
             Arguments = arguments,
@@ -167,7 +223,17 @@ public sealed class InkkOopsTestScriptUsageTests
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true
-        });
+        };
+
+        if (environmentVariables != null)
+        {
+            foreach (var pair in environmentVariables)
+            {
+                startInfo.Environment[pair.Key] = pair.Value;
+            }
+        }
+
+        using var process = Process.Start(startInfo);
 
         Assert.NotNull(process);
 
@@ -287,6 +353,18 @@ public sealed class InkkOopsTestScriptUsageTests
                 .Drag(NavigationSplitterName, -200f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
                 .Drag(NavigationSplitterName, 160f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
                 .WaitFrames(12);
+        }
+    }
+
+    public sealed class RuntimeMainWindowWidthScenario : InkkOopsRuntimeScenario
+    {
+        public override string Name => "runtime-test-mainwindow-width-scenario";
+
+        protected override void Build(InkkOopsScriptBuilder builder)
+        {
+            builder
+                .WaitFrames(8)
+                .DumpTelemetry("mainwindow-width");
         }
     }
 }
