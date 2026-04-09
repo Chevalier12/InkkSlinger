@@ -13,6 +13,8 @@ public sealed class InkkOopsTestScriptUsageTests
 {
     private const string SidebarScrollViewerName = "CatalogSidebarScrollViewer";
     private const string ButtonHostName = "ControlButtonsHost";
+    private const string CalendarPreviousMonthButtonName = "CalendarPreviousMonthButton";
+    private const string CalendarNextMonthButtonName = "CalendarNextMonthButton";
     private const string GridSplitterViewRootName = "GridSplitterViewRootGrid";
     private const string GridSplitterWorkbenchScrollViewerName = "GridSplitterWorkbenchScrollViewer";
     private const string NavigationSplitterName = "NavigationSplitter";
@@ -130,6 +132,25 @@ public sealed class InkkOopsTestScriptUsageTests
         Assert.Contains("\"scriptName\": \"runtime-grid-splitter-sidebar-drag-fps-drop-scenario\"", resultJson);
         Assert.True(File.Exists(actionLogPath));
         Assert.Contains("NavigationSplitter", actionLog);
+    }
+
+    [Fact]
+    public async Task RuntimeRun_Calendar_Month_Navigation_Path_Passes_And_Preserves_Artifacts()
+    {
+        var artifactsRoot = CreatePreservedArtifactsRoot("runtime-calendar-month-navigation-fps-drop");
+        var runDirectory = await RunRuntimeScenarioFromTestAssemblyAsync(
+            "runtime-calendar-month-navigation-fps-drop-scenario",
+            artifactsRoot);
+
+        var resultJson = File.ReadAllText(Path.Combine(runDirectory, "result.json"));
+        var actionLogPath = Path.Combine(runDirectory, "action.log");
+        var actionLog = File.ReadAllText(actionLogPath);
+
+        Assert.Contains("\"status\": \"Completed\"", resultJson);
+        Assert.Contains("\"scriptName\": \"runtime-calendar-month-navigation-fps-drop-scenario\"", resultJson);
+        Assert.True(File.Exists(actionLogPath));
+        Assert.Contains(CalendarNextMonthButtonName, actionLog);
+        Assert.Contains(CalendarPreviousMonthButtonName, actionLog);
     }
 
     [Fact]
@@ -352,6 +373,36 @@ public sealed class InkkOopsTestScriptUsageTests
                 .Drag(NavigationSplitterName, 220f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
                 .Drag(NavigationSplitterName, -200f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
                 .Drag(NavigationSplitterName, 160f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12);
+        }
+    }
+
+    public sealed class RuntimeCalendarMonthNavigationFpsDropScenario : InkkOopsRuntimeScenario
+    {
+        public override string Name => "runtime-calendar-month-navigation-fps-drop-scenario";
+
+        protected override IEnumerable<int>? ActionDiagnosticsIndexes => [7, 8, 9, 10, 11];
+
+        protected override void Build(InkkOopsScriptBuilder builder)
+        {
+            var calendarButton = InkkOopsTargetSelector.Within(
+                InkkOopsTargetSelector.Name(ButtonHostName),
+                InkkOopsTargetSelector.AutomationName("Calendar").WithIndex(0));
+            var clickMotion = InkkOopsPointerMotion.WithTravelFrames(8, stepDistance: 5f);
+
+            builder
+                .ResizeWindow(1600, 960)
+                .WaitFrames(6)
+                .WaitForElement(SidebarScrollViewerName)
+                .ScrollIntoView(InkkOopsTargetSelector.Name(SidebarScrollViewerName), calendarButton, padding: 12f)
+                .WaitForInteractive(calendarButton)
+                .Click(calendarButton)
+                .WaitForInteractive(CalendarNextMonthButtonName)
+                .Click(CalendarNextMonthButtonName, InkkOopsPointerAnchor.Center, clickMotion)
+                .WaitFrames(6)
+                .Click(CalendarNextMonthButtonName, InkkOopsPointerAnchor.Center, clickMotion)
+                .WaitFrames(6)
+                .Click(CalendarPreviousMonthButtonName, InkkOopsPointerAnchor.Center, clickMotion)
                 .WaitFrames(12);
         }
     }

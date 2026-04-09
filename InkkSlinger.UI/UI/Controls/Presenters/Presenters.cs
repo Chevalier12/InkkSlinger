@@ -485,6 +485,12 @@ public class ContentPresenter : FrameworkElement
                 return;
             }
 
+            if (TryRefreshCalendarDayButtonTextPresentation(args.Property))
+            {
+                IncrementMetric(ref _runtimeOnSourceOwnerPropertyChangedRefreshedFallbackTextCount, ref _diagOnSourceOwnerPropertyChangedRefreshedFallbackTextCount);
+                return;
+            }
+
             var rebuiltPresentedElement = RefreshPresentedElement();
             if (rebuiltPresentedElement)
             {
@@ -591,11 +597,7 @@ public class ContentPresenter : FrameworkElement
     private bool IsSourceOwnerPropertyRelevant(DependencyProperty property)
     {
         IncrementAggregate(ref _diagIsSourceOwnerPropertyRelevantCallCount);
-        var contentSource = ContentSource;
-        if (string.IsNullOrEmpty(contentSource))
-        {
-            contentSource = "Content";
-        }
+        var contentSource = GetEffectiveContentSourcePropertyName();
 
         if (!HasLocalValue(ContentProperty) &&
             string.Equals(property.Name, contentSource, StringComparison.Ordinal))
@@ -646,8 +648,31 @@ public class ContentPresenter : FrameworkElement
             return Content;
         }
 
-        var property = FindReadableProperty(_sourceOwner.GetType(), ContentSource);
+            if (TryGetCalendarDayButtonContentOwner(out var dayButton))
+            {
+                return dayButton.DayText;
+            }
+
+        var property = FindReadableProperty(_sourceOwner.GetType(), GetEffectiveContentSourcePropertyName());
         return property?.GetValue(_sourceOwner);
+    }
+
+    private string GetEffectiveContentSourcePropertyName()
+    {
+        var contentSource = ContentSource;
+        if (string.IsNullOrEmpty(contentSource))
+        {
+            contentSource = "Content";
+        }
+
+        if (!HasLocalValue(ContentSourceProperty) &&
+            string.Equals(contentSource, "Content", StringComparison.Ordinal) &&
+            _sourceOwner is CalendarDayButton)
+        {
+            return nameof(CalendarDayButton.DayText);
+        }
+
+        return contentSource;
     }
 
     private DataTemplate? ResolveEffectiveTemplate()
@@ -730,6 +755,18 @@ public class ContentPresenter : FrameworkElement
                 }
 
                 return built;
+            }
+            finally
+            {
+                AddMetric(ref _runtimeBuildContentElementElapsedTicks, ref _diagBuildContentElementElapsedTicks, Stopwatch.GetTimestamp() - start);
+            }
+        }
+
+        if (ShouldUseCalendarDayButtonTextPresentation(template))
+        {
+            try
+            {
+                return BuildCalendarDayButtonTextElement(content);
             }
             finally
             {
@@ -830,6 +867,90 @@ public class ContentPresenter : FrameworkElement
 
         IncrementMetric(ref _runtimeTryRefreshFallbackTextStylingNoMatchCount, ref _diagTryRefreshFallbackTextStylingNoMatchCount);
         return false;
+    }
+
+    private bool TryRefreshCalendarDayButtonTextPresentation(DependencyProperty? changedProperty)
+    {
+        if (!ShouldUseCalendarDayButtonTextPresentation(ResolveEffectiveTemplate()) ||
+            _presentedElement is not CalendarDayTextPresenter dayTextPresenter ||
+            changedProperty == null)
+        {
+            return false;
+        }
+
+        if (IsCalendarDayButtonTextProperty(changedProperty))
+        {
+                var nextText = ResolveCalendarDayButtonDayText();
+            if (!string.Equals(dayTextPresenter.Text, nextText, StringComparison.Ordinal))
+            {
+                dayTextPresenter.Text = nextText;
+            }
+
+            return true;
+        }
+
+        if (IsForegroundProperty(changedProperty))
+        {
+            ApplyCalendarDayTextPresenterStyling(dayTextPresenter, changedProperty);
+            return true;
+        }
+
+        if (IsCalendarDayTextPresentationVisualProperty(changedProperty))
+        {
+            dayTextPresenter.InvalidateVisual();
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool ShouldUseCalendarDayButtonTextPresentation(DataTemplate? template)
+    {
+        return template == null &&
+               _sourceOwner is CalendarDayButton &&
+               !HasLocalValue(ContentProperty) &&
+               !HasLocalValue(ContentTemplateProperty) &&
+               !HasLocalValue(ContentTemplateSelectorProperty) &&
+               string.Equals(GetEffectiveContentSourcePropertyName(), nameof(CalendarDayButton.DayText), StringComparison.Ordinal);
+    }
+
+    private UIElement BuildCalendarDayButtonTextElement(object? content)
+    {
+        var dayTextPresenter = _presentedElement as CalendarDayTextPresenter ?? new CalendarDayTextPresenter();
+        var nextText = content?.ToString() ?? string.Empty;
+        if (!string.Equals(dayTextPresenter.Text, nextText, StringComparison.Ordinal))
+        {
+            dayTextPresenter.Text = nextText;
+        }
+
+        ApplyCalendarDayTextPresenterStyling(dayTextPresenter, changedProperty: null);
+        return dayTextPresenter;
+    }
+
+    private void ApplyCalendarDayTextPresenterStyling(CalendarDayTextPresenter dayTextPresenter, DependencyProperty? changedProperty)
+    {
+        if (IsForegroundProperty(changedProperty))
+        {
+            if (TryGetOwnerForeground(out var foregroundOnly))
+            {
+                TryAssignIfChanged(
+                    dayTextPresenter,
+                    static currentPresenter => currentPresenter.Foreground,
+                    static (currentPresenter, value) => currentPresenter.Foreground = value,
+                    foregroundOnly);
+            }
+
+            return;
+        }
+
+        if (TryGetOwnerForeground(out var foreground))
+        {
+            TryAssignIfChanged(
+                dayTextPresenter,
+                static currentPresenter => currentPresenter.Foreground,
+                static (currentPresenter, value) => currentPresenter.Foreground = value,
+                foreground);
+        }
     }
 
     private void ApplyFallbackLabelStyling(Label label, DependencyProperty? changedProperty)
@@ -944,6 +1065,19 @@ public class ContentPresenter : FrameworkElement
                string.Equals(property.Name, nameof(Control.Foreground), StringComparison.Ordinal);
     }
 
+    private static bool IsCalendarDayButtonTextProperty(DependencyProperty property)
+    {
+        return string.Equals(property.Name, nameof(CalendarDayButton.DayText), StringComparison.Ordinal);
+    }
+
+    private static bool IsCalendarDayTextPresentationVisualProperty(DependencyProperty property)
+    {
+        return string.Equals(property.Name, nameof(FrameworkElement.FontFamily), StringComparison.Ordinal) ||
+               string.Equals(property.Name, nameof(FrameworkElement.FontSize), StringComparison.Ordinal) ||
+               string.Equals(property.Name, nameof(FrameworkElement.FontWeight), StringComparison.Ordinal) ||
+               string.Equals(property.Name, nameof(FrameworkElement.FontStyle), StringComparison.Ordinal);
+    }
+
     private void ApplyFallbackLabelAssignment<TValue>(
         Label label,
         string propertyName,
@@ -951,7 +1085,8 @@ public class ContentPresenter : FrameworkElement
         Action<Label, TValue> setter,
         TValue value)
     {
-        setter(label, value);
+            _ = propertyName;
+            TryAssignIfChanged(label, getter, setter, value);
     }
 
     private void ApplyFallbackTextBlockAssignment<TValue>(
@@ -960,7 +1095,59 @@ public class ContentPresenter : FrameworkElement
         Action<TextBlock, TValue> setter,
         TValue value)
     {
-        setter(textBlock, value);
+            TryAssignIfChanged(textBlock, getter, setter, value);
+        }
+
+        private string ResolveCalendarDayButtonDayText()
+        {
+            return TryGetCalendarDayButtonContentOwner(out var dayButton)
+                ? dayButton.DayText
+                : ResolveEffectiveContent()?.ToString() ?? string.Empty;
+        }
+
+        private bool TryGetOwnerForeground(out Color foreground)
+        {
+            if (_sourceOwner is Control control)
+            {
+                foreground = control.Foreground;
+                return true;
+            }
+
+            if (_sourceOwner != null && TryGetOwnerPropertyValue<Color>(_sourceOwner, nameof(Control.Foreground), out foreground))
+            {
+                return true;
+            }
+
+            foreground = default;
+            return false;
+        }
+
+        private bool TryGetCalendarDayButtonContentOwner(out CalendarDayButton dayButton)
+        {
+            if (_sourceOwner is CalendarDayButton candidate &&
+                !HasLocalValue(ContentProperty) &&
+                string.Equals(GetEffectiveContentSourcePropertyName(), nameof(CalendarDayButton.DayText), StringComparison.Ordinal))
+            {
+                dayButton = candidate;
+                return true;
+            }
+
+            dayButton = null!;
+            return false;
+        }
+
+        private static void TryAssignIfChanged<TElement, TValue>(
+            TElement element,
+            Func<TElement, TValue> getter,
+            Action<TElement, TValue> setter,
+            TValue value)
+        {
+            if (EqualityComparer<TValue>.Default.Equals(getter(element), value))
+            {
+                return;
+            }
+
+            setter(element, value);
     }
 
     private static bool TryGetOwnerPropertyValue<TValue>(DependencyObject owner, string propertyName, out TValue value)
@@ -1040,7 +1227,22 @@ public class ContentPresenter : FrameworkElement
 
                 IncrementMetric(ref _runtimeFindSourceOwnerAncestorProbeCount, ref _diagFindSourceOwnerAncestorProbeCount);
 
-                var property = FindReadableProperty(current.GetType(), ContentSource);
+                var contentSource = ContentSource;
+                if (string.IsNullOrEmpty(contentSource))
+                {
+                    contentSource = "Content";
+                }
+
+                if (!HasLocalValue(ContentSourceProperty) &&
+                    string.Equals(contentSource, "Content", StringComparison.Ordinal) &&
+                    current is CalendarDayButton)
+                {
+                    IncrementMetric(ref _runtimeFindSourceOwnerPropertyMatchCount, ref _diagFindSourceOwnerPropertyMatchCount);
+                    IncrementMetric(ref _runtimeFindSourceOwnerFoundCount, ref _diagFindSourceOwnerFoundCount);
+                    return dependencyObject;
+                }
+
+                var property = FindReadableProperty(current.GetType(), contentSource);
                 if (property != null)
                 {
                     IncrementMetric(ref _runtimeFindSourceOwnerPropertyMatchCount, ref _diagFindSourceOwnerPropertyMatchCount);

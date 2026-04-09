@@ -43,26 +43,29 @@ public sealed class InkkOopsHostConfiguration
 
     private static IReadOnlyList<IInkkOopsDiagnosticsContributor> CreateDefaultDiagnosticsContributors(IReadOnlyList<Assembly> assemblies)
     {
-        var contributors = new List<IInkkOopsDiagnosticsContributor>();
-        var seenTypes = new HashSet<Type>();
+        _ = assemblies;
 
-        foreach (var assembly in assemblies)
+        var contributors = new List<IInkkOopsDiagnosticsContributor>
         {
-            foreach (var type in GetLoadableTypes(assembly))
-            {
-                if (type.IsAbstract ||
-                    !typeof(IInkkOopsDiagnosticsContributor).IsAssignableFrom(type) ||
-                    type.GetConstructor(Type.EmptyTypes) == null ||
-                    !seenTypes.Add(type))
-                {
-                    continue;
-                }
+            new InkkOopsGenericElementDiagnosticsContributor(),
+            new InkkOopsFrameworkElementDiagnosticsContributor(),
+            new InkkOopsControlDiagnosticsContributor(),
+            new InkkOopsTextBlockDiagnosticsContributor(),
+            new InkkOopsButtonDiagnosticsContributor(),
+            new InkkOopsCalendarDayButtonDiagnosticsContributor(),
+            new InkkOopsCalendarDiagnosticsContributor(),
+            new InkkOopsContentPresenterDiagnosticsContributor(),
+            new InkkOopsUserControlDiagnosticsContributor(),
+            new InkkOopsGridDiagnosticsContributor()
+        };
 
-                contributors.Add((IInkkOopsDiagnosticsContributor)Activator.CreateInstance(type)!);
-            }
-        }
-
-        contributors.Sort(static (left, right) => StringComparer.Ordinal.Compare(left.GetType().FullName, right.GetType().FullName));
+        contributors.Sort(static (left, right) =>
+        {
+            var orderComparison = left.Order.CompareTo(right.Order);
+            return orderComparison != 0
+                ? orderComparison
+                : StringComparer.Ordinal.Compare(left.GetType().FullName, right.GetType().FullName);
+        });
         return contributors;
     }
 
@@ -91,24 +94,4 @@ public sealed class InkkOopsHostConfiguration
         }
     }
 
-    private static IReadOnlyList<Type> GetLoadableTypes(Assembly assembly)
-    {
-        try
-        {
-            return assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException exception)
-        {
-            var loadableTypes = new List<Type>();
-            foreach (var type in exception.Types)
-            {
-                if (type is not null)
-                {
-                    loadableTypes.Add(type);
-                }
-            }
-
-            return loadableTypes;
-        }
-    }
 }

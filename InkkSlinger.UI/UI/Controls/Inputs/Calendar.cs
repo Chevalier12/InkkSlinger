@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Threading;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -12,6 +13,7 @@ namespace InkkSlinger;
 
 public class Calendar : UserControl
 {
+
     public static readonly RoutedEvent SelectedDateChangedEvent =
         new(nameof(SelectedDateChanged), RoutingStrategy.Bubble);
 
@@ -184,10 +186,75 @@ public class Calendar : UserControl
     private bool _pendingManualRenderDiagnostics;
     private bool _manualRenderDiagnosticsLogged;
     private int _calendarViewRefreshCount;
+    private int _runtimeRequestCalendarRefreshCallCount;
+    private int _runtimeRequestCalendarRefreshImmediateUpdateCount;
+    private int _runtimeRequestCalendarRefreshDeferredQueuePathCount;
+    private int _runtimeEnsureCalendarViewCurrentCallCount;
+    private int _runtimeEnsureCalendarViewCurrentForcedUpdateCount;
+    private int _runtimeQueueInitialCalendarRefreshIfNeededCallCount;
+    private int _runtimeQueueInitialCalendarRefreshIfNeededEnqueuedCount;
+    private int _runtimeQueueInitialCalendarRefreshIfNeededSkippedCount;
+    private int _runtimeNavigateMonthCallCount;
+    private int _runtimeNavigateMonthBlockedCount;
+    private int _runtimeUpdateCalendarViewCallCount;
+    private long _runtimeUpdateCalendarViewElapsedTicks;
+    private int _runtimeSetLabelTextCallCount;
+    private int _runtimeSetLabelTextChangedCount;
+    private int _runtimeSetLabelTextNoOpCount;
+    private int _runtimeSetButtonTextCallCount;
+    private int _runtimeSetButtonTextChangedCount;
+    private int _runtimeSetButtonTextNoOpCount;
+    private int _runtimeSetButtonEnabledCallCount;
+    private int _runtimeSetButtonEnabledChangedCount;
+    private int _runtimeSetButtonEnabledNoOpCount;
+    private int _runtimeSetButtonBackgroundCallCount;
+    private int _runtimeSetButtonBackgroundChangedCount;
+    private int _runtimeSetButtonBackgroundNoOpCount;
+    private int _runtimeSetButtonForegroundCallCount;
+    private int _runtimeSetButtonForegroundChangedCount;
+    private int _runtimeSetButtonForegroundNoOpCount;
+    private int _runtimeSetButtonBorderBrushCallCount;
+    private int _runtimeSetButtonBorderBrushChangedCount;
+    private int _runtimeSetButtonBorderBrushNoOpCount;
     private CalendarRefreshDiagnostics _lastRefreshDiagnostics;
     private CalendarRefreshDiagnostics _totalRefreshDiagnostics;
     private CalendarRefreshTimingDiagnostics _lastRefreshTimingDiagnostics;
     private CalendarRefreshTimingDiagnostics _totalRefreshTimingDiagnostics;
+    private static int _diagRequestCalendarRefreshCallCount;
+    private static int _diagRequestCalendarRefreshImmediateUpdateCount;
+    private static int _diagRequestCalendarRefreshDeferredQueuePathCount;
+    private static int _diagEnsureCalendarViewCurrentCallCount;
+    private static int _diagEnsureCalendarViewCurrentForcedUpdateCount;
+    private static int _diagQueueInitialCalendarRefreshIfNeededCallCount;
+    private static int _diagQueueInitialCalendarRefreshIfNeededEnqueuedCount;
+    private static int _diagQueueInitialCalendarRefreshIfNeededSkippedCount;
+    private static int _diagNavigateMonthCallCount;
+    private static int _diagNavigateMonthBlockedCount;
+    private static int _diagUpdateCalendarViewCallCount;
+    private static long _diagUpdateCalendarViewElapsedTicks;
+    private static int _diagSetLabelTextCallCount;
+    private static int _diagSetLabelTextChangedCount;
+    private static int _diagSetLabelTextNoOpCount;
+    private static int _diagSetButtonTextCallCount;
+    private static int _diagSetButtonTextChangedCount;
+    private static int _diagSetButtonTextNoOpCount;
+    private static int _diagSetButtonEnabledCallCount;
+    private static int _diagSetButtonEnabledChangedCount;
+    private static int _diagSetButtonEnabledNoOpCount;
+    private static int _diagSetButtonBackgroundCallCount;
+    private static int _diagSetButtonBackgroundChangedCount;
+    private static int _diagSetButtonBackgroundNoOpCount;
+    private static int _diagSetButtonForegroundCallCount;
+    private static int _diagSetButtonForegroundChangedCount;
+    private static int _diagSetButtonForegroundNoOpCount;
+    private static int _diagSetButtonBorderBrushCallCount;
+    private static int _diagSetButtonBorderBrushChangedCount;
+    private static int _diagSetButtonBorderBrushNoOpCount;
+    private static int _diagRefreshCount;
+    private static CalendarRefreshDiagnostics _diagLastRefreshDiagnostics;
+    private static CalendarRefreshDiagnostics _diagTotalRefreshDiagnostics;
+    private static CalendarRefreshTimingDiagnostics _diagLastRefreshTimingDiagnostics;
+    private static CalendarRefreshTimingDiagnostics _diagTotalRefreshTimingDiagnostics;
 
     public Calendar()
     {
@@ -211,11 +278,14 @@ public class Calendar : UserControl
 
         _previousMonthButton = new Button
         {
+            Name = "CalendarPreviousMonthButton",
             Content = "<",
             Width = 28f,
             Margin = new Thickness(0f, 0f, 6f, 4f),
             Padding = new Thickness(0f)
         };
+        AutomationProperties.SetName(_previousMonthButton, "Calendar Previous Month");
+        AutomationProperties.SetAutomationId(_previousMonthButton, "CalendarPreviousMonthButton");
         _previousMonthButton.Click += (_, _) => NavigateMonth(-1);
         headerGrid.AddChild(_previousMonthButton);
         Grid.SetColumn(_previousMonthButton, 0);
@@ -231,11 +301,14 @@ public class Calendar : UserControl
 
         _nextMonthButton = new Button
         {
+            Name = "CalendarNextMonthButton",
             Content = ">",
             Width = 28f,
             Margin = new Thickness(6f, 0f, 0f, 4f),
             Padding = new Thickness(0f)
         };
+        AutomationProperties.SetName(_nextMonthButton, "Calendar Next Month");
+        AutomationProperties.SetAutomationId(_nextMonthButton, "CalendarNextMonthButton");
         _nextMonthButton.Click += (_, _) => NavigateMonth(1);
         headerGrid.AddChild(_nextMonthButton);
         Grid.SetColumn(_nextMonthButton, 2);
@@ -566,9 +639,13 @@ public class Calendar : UserControl
 
     private void NavigateMonth(int monthDelta)
     {
+        _runtimeNavigateMonthCallCount++;
+        IncrementAggregate(ref _diagNavigateMonthCallCount);
         var targetMonth = NormalizeToMonthStart(DisplayDate).AddMonths(monthDelta);
         if (!CanDisplayMonth(targetMonth))
         {
+            _runtimeNavigateMonthBlockedCount++;
+            IncrementAggregate(ref _diagNavigateMonthBlockedCount);
             return;
         }
 
@@ -870,20 +947,30 @@ public class Calendar : UserControl
 
     private void RequestCalendarRefresh()
     {
+        _runtimeRequestCalendarRefreshCallCount++;
+        IncrementAggregate(ref _diagRequestCalendarRefreshCallCount);
         _hasPendingCalendarRefresh = true;
         if (_hasCompletedInitialCalendarRefresh)
         {
+            _runtimeRequestCalendarRefreshImmediateUpdateCount++;
+            IncrementAggregate(ref _diagRequestCalendarRefreshImmediateUpdateCount);
             UpdateCalendarView();
             return;
         }
 
+        _runtimeRequestCalendarRefreshDeferredQueuePathCount++;
+        IncrementAggregate(ref _diagRequestCalendarRefreshDeferredQueuePathCount);
         QueueInitialCalendarRefreshIfNeeded();
     }
 
     private void EnsureCalendarViewCurrent()
     {
+        _runtimeEnsureCalendarViewCurrentCallCount++;
+        IncrementAggregate(ref _diagEnsureCalendarViewCurrentCallCount);
         if (_hasPendingCalendarRefresh)
         {
+            _runtimeEnsureCalendarViewCurrentForcedUpdateCount++;
+            IncrementAggregate(ref _diagEnsureCalendarViewCurrentForcedUpdateCount);
             UpdateCalendarView();
         }
     }
@@ -891,9 +978,12 @@ public class Calendar : UserControl
     private void UpdateCalendarView()
     {
         var refreshStart = Stopwatch.GetTimestamp();
+        _runtimeUpdateCalendarViewCallCount++;
+        IncrementAggregate(ref _diagUpdateCalendarViewCallCount);
         _hasPendingCalendarRefresh = false;
         _hasCompletedInitialCalendarRefresh = true;
         _calendarViewRefreshCount++;
+        IncrementAggregate(ref _diagRefreshCount);
         if (!_manualRenderDiagnosticsLogged && _calendarViewRefreshCount == 1)
         {
             _pendingManualRenderDiagnostics = true;
@@ -951,48 +1041,63 @@ public class Calendar : UserControl
             dayButtonDateSetupElapsedTicks += Stopwatch.GetTimestamp() - dateSetupStart;
 
             var button = _dayButtons[i];
-            var dayTextStart = Stopwatch.GetTimestamp();
-            if (SetButtonTextIfChanged(button, date.Day.ToString(CultureInfo.InvariantCulture)))
+            var deferredInvalidation = button is CalendarDayButton calendarDayButton
+                ? calendarDayButton.DeferInvalidation()
+                : null;
+            try
             {
-                dayButtonTextChangeCount++;
+                var dayTextStart = Stopwatch.GetTimestamp();
+                if (SetButtonTextIfChanged(button, date.Day.ToString(CultureInfo.InvariantCulture)))
+                {
+                    dayButtonTextChangeCount++;
+                }
+
+                dayButtonTextElapsedTicks += Stopwatch.GetTimestamp() - dayTextStart;
+
+                var dayStateStart = Stopwatch.GetTimestamp();
+                var inDisplayMonth = date.Month == displayMonth.Month && date.Year == displayMonth.Year;
+                var isPrimarySelected = _lastActiveDate.HasValue && _lastActiveDate.Value.Date == date;
+                var isSelectedInRange = _selectedDateLookup.Contains(date);
+                var isToday = date == today;
+                var isEnabled = IsDateSelectable(date);
+                dayButtonDateSetupElapsedTicks += Stopwatch.GetTimestamp() - dayStateStart;
+
+                var dayEnabledStart = Stopwatch.GetTimestamp();
+                if (SetButtonEnabledIfChanged(button, isEnabled))
+                {
+                    dayButtonEnabledChangeCount++;
+                }
+
+                dayButtonEnabledElapsedTicks += Stopwatch.GetTimestamp() - dayEnabledStart;
+
+                var dayBackgroundStart = Stopwatch.GetTimestamp();
+                if (SetButtonBackgroundIfChanged(button, ResolveDayButtonBackground(inDisplayMonth, isSelectedInRange, isPrimarySelected, isToday)))
+                {
+                    dayButtonBackgroundChangeCount++;
+                }
+
+                dayButtonBackgroundElapsedTicks += Stopwatch.GetTimestamp() - dayBackgroundStart;
+
+                var dayForegroundStart = Stopwatch.GetTimestamp();
+                if (SetButtonForegroundIfChanged(button, ResolveDayButtonForeground(inDisplayMonth, isEnabled, isSelectedInRange, isPrimarySelected)))
+                {
+                    dayButtonForegroundChangeCount++;
+                }
+
+                dayButtonForegroundElapsedTicks += Stopwatch.GetTimestamp() - dayForegroundStart;
+
+                var dayBorderBrushStart = Stopwatch.GetTimestamp();
+                if (SetButtonBorderBrushIfChanged(button, ResolveDayButtonBorderBrush(isSelectedInRange, isPrimarySelected, isToday)))
+                {
+                    dayButtonBorderBrushChangeCount++;
+                }
+
+                dayButtonBorderBrushElapsedTicks += Stopwatch.GetTimestamp() - dayBorderBrushStart;
             }
-            dayButtonTextElapsedTicks += Stopwatch.GetTimestamp() - dayTextStart;
-
-            var dayStateStart = Stopwatch.GetTimestamp();
-            var inDisplayMonth = date.Month == displayMonth.Month && date.Year == displayMonth.Year;
-            var isPrimarySelected = _lastActiveDate.HasValue && _lastActiveDate.Value.Date == date;
-            var isSelectedInRange = _selectedDateLookup.Contains(date);
-            var isToday = date == today;
-            var isEnabled = IsDateSelectable(date);
-            dayButtonDateSetupElapsedTicks += Stopwatch.GetTimestamp() - dayStateStart;
-
-            var dayEnabledStart = Stopwatch.GetTimestamp();
-            if (SetButtonEnabledIfChanged(button, isEnabled))
+            finally
             {
-                dayButtonEnabledChangeCount++;
+                deferredInvalidation?.Dispose();
             }
-            dayButtonEnabledElapsedTicks += Stopwatch.GetTimestamp() - dayEnabledStart;
-
-            var dayBackgroundStart = Stopwatch.GetTimestamp();
-            if (SetButtonBackgroundIfChanged(button, ResolveDayButtonBackground(inDisplayMonth, isSelectedInRange, isPrimarySelected, isToday)))
-            {
-                dayButtonBackgroundChangeCount++;
-            }
-            dayButtonBackgroundElapsedTicks += Stopwatch.GetTimestamp() - dayBackgroundStart;
-
-            var dayForegroundStart = Stopwatch.GetTimestamp();
-            if (SetButtonForegroundIfChanged(button, ResolveDayButtonForeground(inDisplayMonth, isEnabled, isSelectedInRange, isPrimarySelected)))
-            {
-                dayButtonForegroundChangeCount++;
-            }
-            dayButtonForegroundElapsedTicks += Stopwatch.GetTimestamp() - dayForegroundStart;
-
-            var dayBorderBrushStart = Stopwatch.GetTimestamp();
-            if (SetButtonBorderBrushIfChanged(button, ResolveDayButtonBorderBrush(isSelectedInRange, isPrimarySelected, isToday)))
-            {
-                dayButtonBorderBrushChangeCount++;
-            }
-            dayButtonBorderBrushElapsedTicks += Stopwatch.GetTimestamp() - dayBorderBrushStart;
         }
         dayLoopElapsedTicks = Stopwatch.GetTimestamp() - dayLoopStart;
 
@@ -1031,6 +1136,13 @@ public class Calendar : UserControl
             dayButtonBorderBrushElapsedTicks,
             navigationButtonsElapsedTicks);
         _totalRefreshTimingDiagnostics = _totalRefreshTimingDiagnostics.Add(_lastRefreshTimingDiagnostics);
+        _diagLastRefreshDiagnostics = _lastRefreshDiagnostics;
+        _diagTotalRefreshDiagnostics = _diagTotalRefreshDiagnostics.Add(_lastRefreshDiagnostics);
+        _diagLastRefreshTimingDiagnostics = _lastRefreshTimingDiagnostics;
+        _diagTotalRefreshTimingDiagnostics = _diagTotalRefreshTimingDiagnostics.Add(_lastRefreshTimingDiagnostics);
+        var updateElapsedTicks = Stopwatch.GetTimestamp() - refreshStart;
+        AddAggregate(ref _diagUpdateCalendarViewElapsedTicks, updateElapsedTicks);
+        _runtimeUpdateCalendarViewElapsedTicks += updateElapsedTicks;
     }
 
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
@@ -1055,14 +1167,20 @@ public class Calendar : UserControl
 
     private void QueueInitialCalendarRefreshIfNeeded()
     {
+        _runtimeQueueInitialCalendarRefreshIfNeededCallCount++;
+        IncrementAggregate(ref _diagQueueInitialCalendarRefreshIfNeededCallCount);
         if (_hasCompletedInitialCalendarRefresh ||
             !_hasPendingCalendarRefresh ||
             _hasDeferredInitialCalendarRefreshQueued)
         {
+            _runtimeQueueInitialCalendarRefreshIfNeededSkippedCount++;
+            IncrementAggregate(ref _diagQueueInitialCalendarRefreshIfNeededSkippedCount);
             return;
         }
 
         _hasDeferredInitialCalendarRefreshQueued = true;
+        _runtimeQueueInitialCalendarRefreshIfNeededEnqueuedCount++;
+        IncrementAggregate(ref _diagQueueInitialCalendarRefreshIfNeededEnqueuedCount);
         Dispatcher.EnqueueDeferred(() =>
         {
             _hasDeferredInitialCalendarRefreshQueued = false;
@@ -1073,47 +1191,129 @@ public class Calendar : UserControl
         });
     }
 
-    private static bool SetLabelTextIfChanged(TextBlock label, string text)
+    internal CalendarRuntimeDiagnosticsSnapshot GetCalendarSnapshotForDiagnostics()
     {
+        return new CalendarRuntimeDiagnosticsSnapshot(
+            _hasPendingCalendarRefresh,
+            _hasCompletedInitialCalendarRefresh,
+            _hasDeferredInitialCalendarRefreshQueued,
+            _pendingManualRenderDiagnostics,
+            _manualRenderDiagnosticsLogged,
+            _runtimeRequestCalendarRefreshCallCount,
+            _runtimeRequestCalendarRefreshImmediateUpdateCount,
+            _runtimeRequestCalendarRefreshDeferredQueuePathCount,
+            _runtimeEnsureCalendarViewCurrentCallCount,
+            _runtimeEnsureCalendarViewCurrentForcedUpdateCount,
+            _runtimeQueueInitialCalendarRefreshIfNeededCallCount,
+            _runtimeQueueInitialCalendarRefreshIfNeededEnqueuedCount,
+            _runtimeQueueInitialCalendarRefreshIfNeededSkippedCount,
+            _runtimeNavigateMonthCallCount,
+            _runtimeNavigateMonthBlockedCount,
+            _runtimeUpdateCalendarViewCallCount,
+            TicksToMilliseconds(_runtimeUpdateCalendarViewElapsedTicks),
+            _runtimeSetLabelTextCallCount,
+            _runtimeSetLabelTextChangedCount,
+            _runtimeSetLabelTextNoOpCount,
+            _runtimeSetButtonTextCallCount,
+            _runtimeSetButtonTextChangedCount,
+            _runtimeSetButtonTextNoOpCount,
+            _runtimeSetButtonEnabledCallCount,
+            _runtimeSetButtonEnabledChangedCount,
+            _runtimeSetButtonEnabledNoOpCount,
+            _runtimeSetButtonBackgroundCallCount,
+            _runtimeSetButtonBackgroundChangedCount,
+            _runtimeSetButtonBackgroundNoOpCount,
+            _runtimeSetButtonForegroundCallCount,
+            _runtimeSetButtonForegroundChangedCount,
+            _runtimeSetButtonForegroundNoOpCount,
+            _runtimeSetButtonBorderBrushCallCount,
+            _runtimeSetButtonBorderBrushChangedCount,
+            _runtimeSetButtonBorderBrushNoOpCount,
+            _calendarViewRefreshCount,
+            _lastRefreshDiagnostics,
+            _totalRefreshDiagnostics,
+            _lastRefreshTimingDiagnostics,
+            _totalRefreshTimingDiagnostics);
+    }
+
+    internal new static CalendarTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateTelemetrySnapshot(reset: true);
+    }
+
+    internal new static CalendarTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateTelemetrySnapshot(reset: false);
+    }
+
+    internal new static CalendarTelemetrySnapshot GetTelemetrySnapshotForDiagnostics()
+    {
+        return GetAggregateTelemetrySnapshotForDiagnostics();
+    }
+
+    private bool SetLabelTextIfChanged(TextBlock label, string text)
+    {
+        _runtimeSetLabelTextCallCount++;
+        IncrementAggregate(ref _diagSetLabelTextCallCount);
         if (string.Equals(label.Text, text, StringComparison.Ordinal))
         {
+            _runtimeSetLabelTextNoOpCount++;
+            IncrementAggregate(ref _diagSetLabelTextNoOpCount);
             return false;
         }
 
         label.Text = text;
+        _runtimeSetLabelTextChangedCount++;
+        IncrementAggregate(ref _diagSetLabelTextChangedCount);
         return true;
     }
 
-    private static bool SetButtonTextIfChanged(Button button, string text)
+    private bool SetButtonTextIfChanged(Button button, string text)
     {
+        _runtimeSetButtonTextCallCount++;
+        IncrementAggregate(ref _diagSetButtonTextCallCount);
         if (button is CalendarDayButton calendarDayButton)
         {
             if (string.Equals(calendarDayButton.DayText, text, StringComparison.Ordinal))
             {
+                _runtimeSetButtonTextNoOpCount++;
+                IncrementAggregate(ref _diagSetButtonTextNoOpCount);
                 return false;
             }
 
             calendarDayButton.DayText = text;
+            _runtimeSetButtonTextChangedCount++;
+            IncrementAggregate(ref _diagSetButtonTextChangedCount);
             return true;
         }
 
         if (string.Equals(Label.ExtractAutomationText(button.Content), text, StringComparison.Ordinal))
         {
+            _runtimeSetButtonTextNoOpCount++;
+            IncrementAggregate(ref _diagSetButtonTextNoOpCount);
             return false;
         }
 
         button.Content = text;
+        _runtimeSetButtonTextChangedCount++;
+        IncrementAggregate(ref _diagSetButtonTextChangedCount);
         return true;
     }
 
-    private static bool SetButtonEnabledIfChanged(Button button, bool isEnabled)
+    private bool SetButtonEnabledIfChanged(Button button, bool isEnabled)
     {
+        _runtimeSetButtonEnabledCallCount++;
+        IncrementAggregate(ref _diagSetButtonEnabledCallCount);
         if (button.IsEnabled == isEnabled)
         {
+            _runtimeSetButtonEnabledNoOpCount++;
+            IncrementAggregate(ref _diagSetButtonEnabledNoOpCount);
             return false;
         }
 
         button.IsEnabled = isEnabled;
+        _runtimeSetButtonEnabledChangedCount++;
+        IncrementAggregate(ref _diagSetButtonEnabledChangedCount);
         return true;
     }
 
@@ -1217,36 +1417,54 @@ public class Calendar : UserControl
         return total;
     }
 
-    private static bool SetButtonBackgroundIfChanged(Button button, Color background)
+    private bool SetButtonBackgroundIfChanged(Button button, Color background)
     {
+        _runtimeSetButtonBackgroundCallCount++;
+        IncrementAggregate(ref _diagSetButtonBackgroundCallCount);
         if (button.Background == background)
         {
+            _runtimeSetButtonBackgroundNoOpCount++;
+            IncrementAggregate(ref _diagSetButtonBackgroundNoOpCount);
             return false;
         }
 
         button.Background = background;
+        _runtimeSetButtonBackgroundChangedCount++;
+        IncrementAggregate(ref _diagSetButtonBackgroundChangedCount);
         return true;
     }
 
-    private static bool SetButtonForegroundIfChanged(Button button, Color foreground)
+    private bool SetButtonForegroundIfChanged(Button button, Color foreground)
     {
+        _runtimeSetButtonForegroundCallCount++;
+        IncrementAggregate(ref _diagSetButtonForegroundCallCount);
         if (button.Foreground == foreground)
         {
+            _runtimeSetButtonForegroundNoOpCount++;
+            IncrementAggregate(ref _diagSetButtonForegroundNoOpCount);
             return false;
         }
 
         button.Foreground = foreground;
+        _runtimeSetButtonForegroundChangedCount++;
+        IncrementAggregate(ref _diagSetButtonForegroundChangedCount);
         return true;
     }
 
-    private static bool SetButtonBorderBrushIfChanged(Button button, Color borderBrush)
+    private bool SetButtonBorderBrushIfChanged(Button button, Color borderBrush)
     {
+        _runtimeSetButtonBorderBrushCallCount++;
+        IncrementAggregate(ref _diagSetButtonBorderBrushCallCount);
         if (button.BorderBrush == borderBrush)
         {
+            _runtimeSetButtonBorderBrushNoOpCount++;
+            IncrementAggregate(ref _diagSetButtonBorderBrushNoOpCount);
             return false;
         }
 
         button.BorderBrush = borderBrush;
+        _runtimeSetButtonBorderBrushChangedCount++;
+        IncrementAggregate(ref _diagSetButtonBorderBrushChangedCount);
         return true;
     }
 
@@ -1266,6 +1484,85 @@ public class Calendar : UserControl
         _totalRefreshDiagnostics = default;
         _lastRefreshTimingDiagnostics = default;
         _totalRefreshTimingDiagnostics = default;
+    }
+
+    private static CalendarTelemetrySnapshot CreateTelemetrySnapshot(bool reset)
+    {
+        var snapshot = new CalendarTelemetrySnapshot(
+            ReadOrReset(ref _diagRequestCalendarRefreshCallCount, reset),
+            ReadOrReset(ref _diagRequestCalendarRefreshImmediateUpdateCount, reset),
+            ReadOrReset(ref _diagRequestCalendarRefreshDeferredQueuePathCount, reset),
+            ReadOrReset(ref _diagEnsureCalendarViewCurrentCallCount, reset),
+            ReadOrReset(ref _diagEnsureCalendarViewCurrentForcedUpdateCount, reset),
+            ReadOrReset(ref _diagQueueInitialCalendarRefreshIfNeededCallCount, reset),
+            ReadOrReset(ref _diagQueueInitialCalendarRefreshIfNeededEnqueuedCount, reset),
+            ReadOrReset(ref _diagQueueInitialCalendarRefreshIfNeededSkippedCount, reset),
+            ReadOrReset(ref _diagNavigateMonthCallCount, reset),
+            ReadOrReset(ref _diagNavigateMonthBlockedCount, reset),
+            ReadOrReset(ref _diagUpdateCalendarViewCallCount, reset),
+            TicksToMilliseconds(ReadOrReset(ref _diagUpdateCalendarViewElapsedTicks, reset)),
+            ReadOrReset(ref _diagSetLabelTextCallCount, reset),
+            ReadOrReset(ref _diagSetLabelTextChangedCount, reset),
+            ReadOrReset(ref _diagSetLabelTextNoOpCount, reset),
+            ReadOrReset(ref _diagSetButtonTextCallCount, reset),
+            ReadOrReset(ref _diagSetButtonTextChangedCount, reset),
+            ReadOrReset(ref _diagSetButtonTextNoOpCount, reset),
+            ReadOrReset(ref _diagSetButtonEnabledCallCount, reset),
+            ReadOrReset(ref _diagSetButtonEnabledChangedCount, reset),
+            ReadOrReset(ref _diagSetButtonEnabledNoOpCount, reset),
+            ReadOrReset(ref _diagSetButtonBackgroundCallCount, reset),
+            ReadOrReset(ref _diagSetButtonBackgroundChangedCount, reset),
+            ReadOrReset(ref _diagSetButtonBackgroundNoOpCount, reset),
+            ReadOrReset(ref _diagSetButtonForegroundCallCount, reset),
+            ReadOrReset(ref _diagSetButtonForegroundChangedCount, reset),
+            ReadOrReset(ref _diagSetButtonForegroundNoOpCount, reset),
+            ReadOrReset(ref _diagSetButtonBorderBrushCallCount, reset),
+            ReadOrReset(ref _diagSetButtonBorderBrushChangedCount, reset),
+            ReadOrReset(ref _diagSetButtonBorderBrushNoOpCount, reset),
+            ReadOrReset(ref _diagRefreshCount, reset),
+            _diagLastRefreshDiagnostics,
+            _diagTotalRefreshDiagnostics,
+            _diagLastRefreshTimingDiagnostics,
+            _diagTotalRefreshTimingDiagnostics);
+
+        if (reset)
+        {
+            _diagLastRefreshDiagnostics = default;
+            _diagTotalRefreshDiagnostics = default;
+            _diagLastRefreshTimingDiagnostics = default;
+            _diagTotalRefreshTimingDiagnostics = default;
+        }
+
+        return snapshot;
+    }
+
+    private static void IncrementAggregate(ref int field)
+    {
+        Interlocked.Increment(ref field);
+    }
+
+    private static void AddAggregate(ref long field, long delta)
+    {
+        Interlocked.Add(ref field, delta);
+    }
+
+    private static int ReadOrReset(ref int field, bool reset)
+    {
+        return reset
+            ? Interlocked.Exchange(ref field, 0)
+            : Volatile.Read(ref field);
+    }
+
+    private static long ReadOrReset(ref long field, bool reset)
+    {
+        return reset
+            ? Interlocked.Exchange(ref field, 0L)
+            : Interlocked.Read(ref field);
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return ticks * 1000d / Stopwatch.Frequency;
     }
 
     private static Color ResolveDayButtonBackground(bool inDisplayMonth, bool isSelectedInRange, bool isPrimarySelected, bool isToday)
@@ -1668,4 +1965,5 @@ public class Calendar : UserControl
         var normalized = date.Date;
         return new DateTime(normalized.Year, normalized.Month, 1);
     }
+
 }

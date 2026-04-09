@@ -205,8 +205,79 @@ public sealed class CalendarTests
             Assert.True(dayButton.ApplyTemplate());
             Assert.NotEmpty(dayButton.GetVisualChildren());
             Assert.NotEmpty(dayButton.DayText);
-            Assert.Equal(dayButton.DayText, Assert.IsType<string>(dayButton.Content));
-            Assert.Null(FindFirstVisualChild<CalendarDayTextPresenter>(dayButton));
+            var contentPresenter = Assert.IsType<ContentPresenter>(FindFirstVisualChild<ContentPresenter>(dayButton));
+            var contentPresenterSnapshot = contentPresenter.GetContentPresenterSnapshotForDiagnostics();
+            var presented = Assert.Single(contentPresenter.GetVisualChildren());
+            Assert.True(contentPresenterSnapshot.HasPresentedElement);
+            Assert.NotEmpty(contentPresenterSnapshot.PresentedElementType);
+            Assert.Equal(dayButton.DayText, GetPresentedText(presented));
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
+    [Fact]
+    public void CalendarDayButtons_WithAppButtonStyle_DayTextSyncDoesNotReMeasure()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var (uiRoot, calendar) = CreateFixture();
+            calendar.DisplayDate = new DateTime(2026, 3, 1);
+            RunLayout(uiRoot);
+
+            var dayButton = Assert.IsType<CalendarDayButton>(calendar.DayButtonsForTesting[0]);
+            Assert.True(dayButton.ApplyTemplate());
+            var contentPresenter = Assert.IsType<ContentPresenter>(FindFirstVisualChild<ContentPresenter>(dayButton));
+            var presented = Assert.Single(contentPresenter.GetVisualChildren());
+
+            var beforeContentChanges = dayButton.GetCalendarDayButtonSnapshotForDiagnostics().ContentPropertyChangedCount;
+            var beforePresenter = contentPresenter.GetContentPresenterSnapshotForDiagnostics();
+
+            dayButton.DayText = "27";
+            RunLayout(uiRoot);
+
+            var afterDayButton = dayButton.GetCalendarDayButtonSnapshotForDiagnostics();
+            var afterPresenter = contentPresenter.GetContentPresenterSnapshotForDiagnostics();
+            var updatedPresented = Assert.Single(contentPresenter.GetVisualChildren());
+
+            Assert.Equal("27", dayButton.DayText);
+            Assert.Equal("27", GetPresentedText(updatedPresented));
+            Assert.Same(presented, updatedPresented);
+            Assert.Equal(beforeContentChanges, afterDayButton.ContentPropertyChangedCount);
+            Assert.Equal(beforePresenter.RefreshPresentedElementChangedCount, afterPresenter.RefreshPresentedElementChangedCount);
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
+    [Fact]
+    public void CalendarNavigationButtons_WithAppButtonStyle_UseTemplatedPath()
+    {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
+
+            var (uiRoot, calendar) = CreateFixture();
+            calendar.DisplayDate = new DateTime(2026, 3, 1);
+            RunLayout(uiRoot);
+
+            var previousButton = calendar.PreviousMonthButtonForTesting;
+            var nextButton = calendar.NextMonthButtonForTesting;
+
+            Assert.True(previousButton.ApplyTemplate());
+            Assert.True(nextButton.ApplyTemplate());
+            Assert.NotEmpty(previousButton.GetVisualChildren());
+            Assert.NotEmpty(nextButton.GetVisualChildren());
+            Assert.NotNull(FindFirstVisualChild<ContentPresenter>(previousButton));
+            Assert.NotNull(FindFirstVisualChild<ContentPresenter>(nextButton));
         }
         finally
         {
@@ -401,6 +472,17 @@ public sealed class CalendarTests
     {
         var chrome = Assert.IsType<Border>(Assert.Single(button.GetVisualChildren()));
         return Assert.IsType<DropShadowEffect>(chrome.Effect);
+    }
+
+    private static string GetPresentedText(UIElement element)
+    {
+        return element switch
+        {
+            CalendarDayTextPresenter dayTextPresenter => dayTextPresenter.Text,
+            Label label => Label.ExtractAutomationText(label.Content),
+            TextBlock textBlock => textBlock.Text,
+            _ => throw new Xunit.Sdk.XunitException($"Unsupported presented element type: {element.GetType().Name}")
+        };
     }
 
     private static void RunLayout(UiRoot uiRoot)

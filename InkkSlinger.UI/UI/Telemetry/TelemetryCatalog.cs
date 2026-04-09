@@ -72,10 +72,14 @@ public static class TelemetryCatalog
     // - ExpanderTimingSnapshot
     // - ExpanderRuntimeDiagnosticsSnapshot
     // - Calendar (UI/Telemetry/CalendarSnapshots.cs)
+    // - CalendarTelemetrySnapshot
+    // - CalendarRuntimeDiagnosticsSnapshot
     // - CalendarDiagnosticsSnapshot
     // - CalendarRefreshDiagnostics
     // - CalendarRefreshTimingDiagnostics
     // - CalendarDayButton (UI/Telemetry/CalendarDayButtonSnapshots.cs)
+    // - CalendarDayButtonTelemetrySnapshot
+    // - CalendarDayButtonRuntimeDiagnosticsSnapshot
     // - CalendarDayButtonTimingSnapshot
     // - Border (UI/Telemetry/BorderSnapshots.cs)
     // - BorderTelemetrySnapshot
