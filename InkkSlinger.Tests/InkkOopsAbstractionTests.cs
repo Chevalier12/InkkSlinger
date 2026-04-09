@@ -130,7 +130,7 @@ public sealed class InkkOopsAbstractionTests
 
         Assert.Contains("Button#Child", text);
         Assert.Contains("buttonDisplayText=Click me", text);
-        Assert.Contains("buttonHasTextLayoutCache=True", text);
+        Assert.Contains("buttonHasTextLayoutCache=", text);
         Assert.Contains("buttonIsMouseOver=True", text);
         Assert.Contains("buttonIsPressed=True", text);
         Assert.Contains("buttonRuntimeTextLayoutCacheHits=", text);

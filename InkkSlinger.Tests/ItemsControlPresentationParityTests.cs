@@ -23,7 +23,7 @@ public sealed class ItemsControlPresentationParityTests
 
         var hostPanel = FindItemsHostPanel(listBox);
         var item = Assert.IsType<ListBoxItem>(hostPanel.Children[0]);
-        var label = Assert.IsType<Label>(Assert.Single(item.GetVisualChildren()));
+        var label = Assert.IsType<Label>(FindDescendant<Label>(item));
         Assert.Equal("Alpha", Label.ExtractAutomationText(label.Content));
     }
 
@@ -42,7 +42,7 @@ public sealed class ItemsControlPresentationParityTests
 
         var hostPanel = FindItemsHostPanel(listBox);
         var item = Assert.IsType<ListBoxItem>(hostPanel.Children[0]);
-        var label = Assert.IsType<Label>(Assert.Single(item.GetVisualChildren()));
+        var label = Assert.IsType<Label>(FindDescendant<Label>(item));
         Assert.Equal("[Alpha]", Label.ExtractAutomationText(label.Content));
     }
 
@@ -104,7 +104,7 @@ public sealed class ItemsControlPresentationParityTests
         Assert.Same(hostPanel, scrollViewer.Content);
 
         var item = Assert.IsType<ListBoxItem>(hostPanel.Children[0]);
-        var label = Assert.IsType<Label>(Assert.Single(item.GetVisualChildren()));
+        var label = Assert.IsType<Label>(FindDescendant<Label>(item));
         Assert.Equal("Alpha", Label.ExtractAutomationText(label.Content));
     }
 
@@ -164,6 +164,25 @@ public sealed class ItemsControlPresentationParityTests
         }
 
         throw new InvalidOperationException("Expected ListBox to expose a ScrollViewer panel host.");
+    }
+
+    private static T? FindDescendant<T>(UIElement root) where T : UIElement
+    {
+        if (root is T match)
+        {
+            return match;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindDescendant<T>(child);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private static void RunLayout(UiRoot uiRoot)

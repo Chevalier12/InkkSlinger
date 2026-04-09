@@ -55,15 +55,7 @@ public sealed class TextInputTemplateRenderingModeTests
 
     private static void LoadRootAppResources()
     {
-        var appPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "App.xml"));
-        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
-        XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+        TestApplicationResources.LoadDemoAppResources();
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height)

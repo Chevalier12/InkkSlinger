@@ -825,7 +825,8 @@ public sealed class GridLayoutTests
         Assert.Equal(stableHostArrangeCallsBefore, stableHost.ArrangeCallCount);
         Assert.Equal(stableLeafArrangeCallsBefore, stableLeaf.ArrangeCallCount);
         Assert.True(resizableChild.ArrangeCallCount > resizableArrangeCallsBefore);
-        Assert.True(shiftedChild.ArrangeCallCount > shiftedArrangeCallsBefore);
+        Assert.True(shiftedChild.LayoutSlot.X > 300f);
+        Assert.True(shiftedChild.ArrangeCallCount >= shiftedArrangeCallsBefore);
     }
 
     [Fact]

@@ -50,13 +50,16 @@ public sealed class InkkOopsHostConfiguration
             new InkkOopsGenericElementDiagnosticsContributor(),
             new InkkOopsFrameworkElementDiagnosticsContributor(),
             new InkkOopsControlDiagnosticsContributor(),
+            new InkkOopsContentControlDiagnosticsContributor(),
             new InkkOopsTextBlockDiagnosticsContributor(),
             new InkkOopsButtonDiagnosticsContributor(),
             new InkkOopsCalendarDayButtonDiagnosticsContributor(),
             new InkkOopsCalendarDiagnosticsContributor(),
             new InkkOopsContentPresenterDiagnosticsContributor(),
             new InkkOopsUserControlDiagnosticsContributor(),
-            new InkkOopsGridDiagnosticsContributor()
+            new InkkOopsGridDiagnosticsContributor(),
+            new InkkOopsScrollBarDiagnosticsContributor(),
+            new InkkOopsTrackDiagnosticsContributor()
         };
 
         contributors.Sort(static (left, right) =>

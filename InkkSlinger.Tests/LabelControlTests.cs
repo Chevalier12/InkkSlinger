@@ -259,6 +259,10 @@ public sealed class LabelControlTests
     [Fact]
     public void ControlsCatalog_Labels_BuildPresentedTextChildren()
     {
+        var backup = SnapshotApplicationResources();
+        try
+        {
+            TestApplicationResources.LoadDemoAppResources();
         var catalog = new ControlsCatalogView();
 
         var uiRoot = RunLayout(catalog);
@@ -287,6 +291,11 @@ public sealed class LabelControlTests
         var nestedText = Assert.IsType<AccessText>(Assert.Single(nestedPresenter.GetVisualChildren()));
         Assert.True(nestedText.DesiredSize.X > 0f);
         Assert.Contains(nestedText, uiRoot.GetRetainedVisualOrderForTests());
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
     }
 
     [Fact]
@@ -295,7 +304,7 @@ public sealed class LabelControlTests
         var snapshot = SnapshotApplicationResources();
         try
         {
-            var appPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "App.xml"));
+            var appPath = TestApplicationResources.GetDemoAppAppXmlPath();
             XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
 
             var catalog = new ControlsCatalogView();

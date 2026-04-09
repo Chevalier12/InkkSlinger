@@ -111,10 +111,12 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
     {
         var button = new Button
         {
+            Name = "SaveDraftButton",
             Content = "Save Draft",
             Width = 120f,
             Height = 32f
         };
+        AutomationProperties.SetName(button, "Save Draft");
         var root = new Canvas();
         root.AddChild(button);
 
@@ -125,7 +127,7 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
         {
             var session = new InkkOopsSession(host, artifacts);
             var script = new InkkOopsScript("runner-action-log-unnamed-subject")
-                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference(InkkOopsTargetSelector.AutomationName("Save Draft"))));
+                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference(InkkOopsTargetSelector.Name("SaveDraftButton"))));
 
             var runner = new InkkOopsScriptRunner();
             var result = await runner.RunAsync(script, session, CancellationToken.None);
@@ -136,7 +138,9 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
 
         var actionLogLines = File.ReadAllLines(actionLogPath);
 
-        Assert.Contains("Button[Save Draft]", actionLogLines);
+        Assert.True(
+            actionLogLines.Contains("Button[Save Draft]") ||
+            actionLogLines.Contains("Button#SaveDraftButton"));
         Assert.DoesNotContain("Button", actionLogLines, StringComparer.Ordinal);
     }
 

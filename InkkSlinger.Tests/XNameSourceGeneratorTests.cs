@@ -429,15 +429,7 @@ public class Grid : UIElement
 
     private static void LoadAppResources()
     {
-        var appPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "InkkSlinger.DemoApp",
-            "App.xml"));
-        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
+        var appPath = TestApplicationResources.GetDemoAppAppXmlPath();
         XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
     }
 

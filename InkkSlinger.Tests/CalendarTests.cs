@@ -161,6 +161,10 @@ public sealed class CalendarTests
     [Fact]
     public void CalendarView_XamlInitialization_CoalescesInitialCalendarRefresh()
     {
+        var backup = CaptureApplicationResources();
+        try
+        {
+            LoadRootAppResources();
         var view = new CalendarView
         {
             Width = 600f,
@@ -187,6 +191,11 @@ public sealed class CalendarTests
 
         var shortestDayNames = CultureInfo.CurrentCulture.DateTimeFormat.ShortestDayNames;
         Assert.Equal(shortestDayNames[(int)DayOfWeek.Monday], calendar.WeekDayLabelsForTesting[0].Text);
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
     }
 
     [Fact]
@@ -499,22 +508,7 @@ public sealed class CalendarTests
 
     private static void LoadRootAppResources()
     {
-        var currentDirectory = new DirectoryInfo(AppContext.BaseDirectory);
-        string? appPath = null;
-        while (currentDirectory != null)
-        {
-            var candidate = Path.Combine(currentDirectory.FullName, "App.xml");
-            if (File.Exists(candidate))
-            {
-                appPath = candidate;
-                break;
-            }
-
-            currentDirectory = currentDirectory.Parent;
-        }
-
-        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
-        XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+        TestApplicationResources.LoadDemoAppResources();
     }
 
     private static ResourceSnapshot CaptureApplicationResources()

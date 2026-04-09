@@ -390,7 +390,8 @@ public sealed class ComboBoxPopupEdgeParityTests
         RunLayout(uiRoot);
         Assert.False(comboBox.IsDropDownOpen);
         Assert.Equal(0, comboBox.SelectedIndex);
-        Assert.IsType<Button>(VisualTreeHelper.HitTest(host, firstItemPoint));
+        var hit = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.HitTest(host, firstItemPoint));
+        Assert.True(IsDescendantOrSelf(underneathButton, hit));
 
         // Clicking the same coordinates again should now hit the underlying button.
         Click(uiRoot, firstItemPoint);
@@ -472,6 +473,19 @@ public sealed class ComboBoxPopupEdgeParityTests
         var uiRoot = new UiRoot(rootView);
         RunLayout(uiRoot, 1200, 900);
         return (uiRoot, scrollViewer, comboBox);
+    }
+
+    private static bool IsDescendantOrSelf(UIElement ancestor, UIElement candidate)
+    {
+        for (UIElement? current = candidate; current != null; current = current.VisualParent)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static Panel FindItemsHostPanel(ListBox listBox)

@@ -72,15 +72,7 @@ public sealed class RadioButtonViewRegressionTests
 
     private static void LoadRootAppResources()
     {
-        var appPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "App.xml"));
-        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
-        XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+        TestApplicationResources.LoadDemoAppResources();
     }
 
     private static Dictionary<object, object> CaptureApplicationResources()

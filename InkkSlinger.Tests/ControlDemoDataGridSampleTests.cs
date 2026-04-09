@@ -147,6 +147,7 @@ public sealed class ControlDemoDataGridSampleTests
     [Fact]
     public void DataGridView_FirstHeaderSort_KeepsDemoGridViewportWidthStable()
     {
+        TestApplicationResources.LoadDemoAppResources();
         var view = new DataGridView();
         view.Width = 1200f;
         view.Height = 520f;
@@ -182,6 +183,7 @@ public sealed class ControlDemoDataGridSampleTests
     [Fact]
     public void DataGridView_FirstHeaderSort_KeepsCellHeightAlignedWithRowHeight()
     {
+        TestApplicationResources.LoadDemoAppResources();
         var view = new DataGridView();
         view.Width = 1200f;
         view.Height = 520f;
@@ -215,6 +217,7 @@ public sealed class ControlDemoDataGridSampleTests
     [Fact]
     public void DataGridView_UsesRicherInteractiveConfigurationThanRawSample()
     {
+        TestApplicationResources.LoadDemoAppResources();
         var view = new DataGridView
         {
             Width = 1200f,
@@ -288,6 +291,7 @@ public sealed class ControlDemoDataGridSampleTests
     [Fact]
     public void DataGridView_ScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastRow()
     {
+        TestApplicationResources.LoadDemoAppResources();
         var view = new DataGridView
         {
             Width = 1200f,
@@ -327,6 +331,7 @@ public sealed class ControlDemoDataGridSampleTests
     [Fact]
     public void DataGridView_WheelScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastRow()
     {
+        TestApplicationResources.LoadDemoAppResources();
         var view = new DataGridView
         {
             Width = 1200f,
@@ -373,6 +378,7 @@ public sealed class ControlDemoDataGridSampleTests
     [Fact]
     public void DataGridView_DraggingVerticalScrollBarToBottom_ShouldNotLeaveBlankSpaceAfterLastRow()
     {
+        TestApplicationResources.LoadDemoAppResources();
         var view = new DataGridView
         {
             Width = 1200f,
@@ -423,6 +429,7 @@ public sealed class ControlDemoDataGridSampleTests
     [Fact]
     public void DataGridView_DraggingHorizontalScrollBar_KeepsFrozenLanesAligned()
     {
+        TestApplicationResources.LoadDemoAppResources();
         var view = new DataGridView
         {
             Width = 780f,

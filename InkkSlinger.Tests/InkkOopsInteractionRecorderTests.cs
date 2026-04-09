@@ -86,7 +86,7 @@ public sealed class InkkOopsInteractionRecorderTests
             Assert.Equal(3, commandDescriptions.Length);
             Assert.Equal("ResizeWindow(1280, 820)", commandDescriptions[0]);
             Assert.Equal("WaitFrames(51)", commandDescriptions[1]);
-            Assert.Equal("MovePointer(685, 631)", commandDescriptions[2]);
+            Assert.Equal("MovePointer(685, 631, travelFrames: 0, easing: Linear)", commandDescriptions[2]);
         }
         finally
         {

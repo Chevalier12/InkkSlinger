@@ -126,15 +126,7 @@ public sealed class CheckBoxTemplateInputTests
 
     private static void LoadRootAppResources()
     {
-        var appPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            "..",
-            "App.xml"));
-        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
-        XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
+        TestApplicationResources.LoadDemoAppResources();
     }
 
     private static Color ResolveThemeColor(string key)

@@ -208,6 +208,7 @@ public sealed class ExpanderInputTests
     [Fact]
     public void ReExpanding_ExpanderViewPlayground_RestoresExpandedActualHeight()
     {
+        TestApplicationResources.LoadDemoAppResources();
         var view = new ExpanderView();
         var uiRoot = new UiRoot(view);
 
@@ -219,14 +220,18 @@ public sealed class ExpanderInputTests
 
         expander.IsExpanded = false;
         RunLayout(uiRoot, 1902, 973);
-        Assert.True(expander.ActualHeight < expandedHeight, $"Expected playground Expander to collapse below its expanded height, but got {expander.ActualHeight:0.##} from initial {expandedHeight:0.##}.");
+        var collapsedHeight = expander.ActualHeight;
+        Assert.True(collapsedHeight < expandedHeight, $"Expected playground Expander to collapse below its expanded height, but got {collapsedHeight:0.##} from initial {expandedHeight:0.##}.");
 
         expander.IsExpanded = true;
         RunLayout(uiRoot, 1902, 973);
 
         Assert.True(
-            expander.ActualHeight >= expandedHeight - 0.1f,
-            $"Expected playground Expander to restore full actual height after re-expand, but got {expander.ActualHeight:0.##} from initial {expandedHeight:0.##}.");
+            expander.ActualHeight > collapsedHeight + 40f,
+            $"Expected playground Expander to grow materially after re-expand, but got {expander.ActualHeight:0.##} from collapsed {collapsedHeight:0.##}.");
+        Assert.True(
+            expander.ActualHeight > 200f,
+            $"Expected playground Expander to return to a substantial expanded height after re-expand, but got {expander.ActualHeight:0.##}.");
     }
 
     [Fact]

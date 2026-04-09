@@ -423,14 +423,7 @@ public sealed class AppXmlPhase1CompatibilityTests
         var backup = CaptureApplicationResources();
         try
         {
-            var appPath = Path.GetFullPath(Path.Combine(
-                AppContext.BaseDirectory,
-                "..",
-                "..",
-                "..",
-                "..",
-                "App.xml"));
-            Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
+            var appPath = TestApplicationResources.GetDemoAppAppXmlPath();
 
             XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
 

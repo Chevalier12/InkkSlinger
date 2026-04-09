@@ -112,7 +112,7 @@ public sealed class AppStyledButtonDiagnosticsTests
 
     private static string WriteReport(PhaseCapture baseline, PhaseCapture hover, PhaseCapture click)
     {
-        var repoRoot = GetRepositoryRoot();
+        var repoRoot = TestApplicationResources.GetRepositoryRoot();
         var artifactsDir = Path.Combine(repoRoot, "artifacts");
         Directory.CreateDirectory(artifactsDir);
         var path = Path.Combine(artifactsDir, "app-styled-button-diagnostics.txt");
@@ -261,19 +261,7 @@ public sealed class AppStyledButtonDiagnosticsTests
 
     private static void LoadRootAppResources()
     {
-        var appPath = Path.Combine(GetRepositoryRoot(), "App.xml");
-        Assert.True(File.Exists(appPath), $"Expected App.xml to exist at '{appPath}'.");
-        XamlLoader.LoadApplicationResourcesFromFile(appPath, clearExisting: true);
-    }
-
-    private static string GetRepositoryRoot()
-    {
-        return Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "..",
-            "..",
-            ".."));
+        TestApplicationResources.LoadDemoAppResources();
     }
 
     private sealed record PhaseCapture(
