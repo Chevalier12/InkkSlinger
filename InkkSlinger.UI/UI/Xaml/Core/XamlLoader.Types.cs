@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Xml.Linq;
 using Microsoft.Xna.Framework;
 
@@ -111,7 +112,7 @@ public static partial class XamlLoader
 
     private static Type ResolveElementType(string elementName)
     {
-        if (TypeByName.TryGetValue(elementName, out var type))
+        if (TryResolveElementType(elementName, out var type))
         {
             return type;
         }
@@ -124,29 +125,117 @@ public static partial class XamlLoader
     }
 
 
-    private static Dictionary<string, Type> BuildTypeMap()
+    private static bool TryResolveElementType(string elementName, out Type type)
+    {
+        if (TypeByName.TryGetValue(elementName, out type!))
+        {
+            return true;
+        }
+
+        foreach (var assembly in EnumerateSupplementalResolutionAssemblies())
+        {
+            var typeMap = GetSupplementalTypeMap(assembly);
+            if (typeMap.TryGetValue(elementName, out type!))
+            {
+                return true;
+            }
+        }
+
+        type = null!;
+        return false;
+    }
+
+
+    internal static IEnumerable<Type> EnumerateKnownTypes()
+    {
+        var seen = new HashSet<Type>();
+        foreach (var type in TypeByName.Values)
+        {
+            if (seen.Add(type))
+            {
+                yield return type;
+            }
+        }
+
+        foreach (var assembly in EnumerateSupplementalResolutionAssemblies())
+        {
+            foreach (var type in GetSupplementalTypeMap(assembly).Values)
+            {
+                if (seen.Add(type))
+                {
+                    yield return type;
+                }
+            }
+        }
+    }
+
+
+    private static IEnumerable<Assembly> EnumerateSupplementalResolutionAssemblies()
+    {
+        var seen = new HashSet<Assembly>();
+
+        if (CurrentLoadRootScope?.GetType().Assembly is Assembly loadRootAssembly &&
+            !ReferenceEquals(loadRootAssembly, UiAssembly) &&
+            seen.Add(loadRootAssembly))
+        {
+            yield return loadRootAssembly;
+        }
+
+        if (CurrentConstructionRootScope?.GetType().Assembly is Assembly constructionRootAssembly &&
+            !ReferenceEquals(constructionRootAssembly, UiAssembly) &&
+            seen.Add(constructionRootAssembly))
+        {
+            yield return constructionRootAssembly;
+        }
+
+        if (CurrentLoadCodeBehind?.GetType().Assembly is Assembly codeBehindAssembly &&
+            !ReferenceEquals(codeBehindAssembly, UiAssembly) &&
+            seen.Add(codeBehindAssembly))
+        {
+            yield return codeBehindAssembly;
+        }
+
+        if (Assembly.GetEntryAssembly() is Assembly entryAssembly &&
+            !ReferenceEquals(entryAssembly, UiAssembly) &&
+            seen.Add(entryAssembly))
+        {
+            yield return entryAssembly;
+        }
+    }
+
+
+    private static IReadOnlyDictionary<string, Type> GetSupplementalTypeMap(Assembly assembly)
+    {
+        return SupplementalTypeMaps.GetOrAdd(assembly, static candidateAssembly => BuildTypeMap(candidateAssembly, includeAliases: false));
+    }
+
+
+    private static Dictionary<string, Type> BuildTypeMap(Assembly assembly, bool includeAliases)
     {
         var map = new Dictionary<string, Type>(StringComparer.Ordinal);
-        foreach (var type in UiAssembly.GetTypes())
+        foreach (var type in assembly.GetTypes())
         {
             if (!type.IsPublic)
             {
                 continue;
             }
 
-            map[type.Name] = type;
+            map.TryAdd(type.Name, type);
         }
 
-        map["Rectangle"] = typeof(RectangleShape);
-        map["Ellipse"] = typeof(EllipseShape);
-        map["Line"] = typeof(LineShape);
-        map["Polygon"] = typeof(PolygonShape);
-        map["Polyline"] = typeof(PolylineShape);
-        map["Path"] = typeof(PathShape);
-        map["Geometry"] = typeof(Geometry);
-        map["Color"] = typeof(Color);
-        map[nameof(SolidColorBrush)] = typeof(SolidColorBrush);
-        map[nameof(GridViewRowPresenter)] = typeof(GridViewRowPresenter);
+        if (includeAliases)
+        {
+            map["Rectangle"] = typeof(RectangleShape);
+            map["Ellipse"] = typeof(EllipseShape);
+            map["Line"] = typeof(LineShape);
+            map["Polygon"] = typeof(PolygonShape);
+            map["Polyline"] = typeof(PolylineShape);
+            map["Path"] = typeof(PathShape);
+            map["Geometry"] = typeof(Geometry);
+            map["Color"] = typeof(Color);
+            map[nameof(SolidColorBrush)] = typeof(SolidColorBrush);
+            map[nameof(GridViewRowPresenter)] = typeof(GridViewRowPresenter);
+        }
 
         return map;
     }

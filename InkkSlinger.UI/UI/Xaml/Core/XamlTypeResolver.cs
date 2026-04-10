@@ -13,7 +13,6 @@ internal static class XamlTypeResolver
     private static readonly ConcurrentDictionary<(Type OwnerType, Type TargetType, string PropertyName), MethodInfo?> AttachedSettersByTarget = new();
     private static readonly ConcurrentDictionary<(Type OwnerType, Type TargetType, string PropertyName, Type ValueType), MethodInfo?> AttachedSetters = new();
     private static readonly ConcurrentDictionary<Type, IReadOnlyDictionary<string, MethodInfo[]>> StaticMethodsByName = new();
-    private static readonly ConcurrentDictionary<string, MethodInfo[]> GlobalAttachedSetterCandidates = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<(Type Type, string EventName), EventInfo?> Events = new();
     private static readonly ConcurrentDictionary<(Type Type, string MethodName), MethodInfo?> Methods = new();
     private static readonly ConcurrentDictionary<(Type Type, string MemberName), MemberInfo?> StaticMembers = new();
@@ -277,27 +276,24 @@ internal static class XamlTypeResolver
 
     private static MethodInfo[] GetGlobalAttachedSetterCandidates(string setterName)
     {
-        return GlobalAttachedSetterCandidates.GetOrAdd(setterName, static name =>
+        var methods = new List<MethodInfo>();
+        var seenTypes = new HashSet<Type>();
+        foreach (var candidateType in XamlLoader.EnumerateKnownTypes())
         {
-            var methods = new List<MethodInfo>();
-            var seenTypes = new HashSet<Type>();
-            foreach (var candidateType in XamlLoader.TypeByName.Values)
+            if (!seenTypes.Add(candidateType))
             {
-                if (!seenTypes.Add(candidateType))
-                {
-                    continue;
-                }
-
-                if (!GetStaticMethodsByName(candidateType).TryGetValue(name, out var candidateMethods))
-                {
-                    continue;
-                }
-
-                methods.AddRange(candidateMethods);
+                continue;
             }
 
-            return methods.ToArray();
-        });
+            if (!GetStaticMethodsByName(candidateType).TryGetValue(setterName, out var candidateMethods))
+            {
+                continue;
+            }
+
+            methods.AddRange(candidateMethods);
+        }
+
+        return methods.ToArray();
     }
 
     private static bool IsCompatibleAttachedSetterForTarget(MethodInfo method, string setterName, Type targetType)

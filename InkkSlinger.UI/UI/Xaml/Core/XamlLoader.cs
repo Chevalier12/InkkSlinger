@@ -12,9 +12,10 @@ public static partial class XamlLoader
 {
     private static readonly XNamespace XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly Assembly UiAssembly = typeof(UIElement).Assembly;
-    internal static readonly IReadOnlyDictionary<string, Type> TypeByName = BuildTypeMap();
+    internal static readonly IReadOnlyDictionary<string, Type> TypeByName = BuildTypeMap(UiAssembly, includeAliases: true);
     private static readonly object DefaultApplicationResourceCacheLock = new();
     private static readonly ConcurrentDictionary<Type, IReadOnlyDictionary<string, object>> EnumValueCache = new();
+    private static readonly ConcurrentDictionary<Assembly, IReadOnlyDictionary<string, Type>> SupplementalTypeMaps = new();
     private static readonly ConcurrentDictionary<string, CachedStringDocument> StringDocumentCache = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, CachedFileDocument> FileDocumentCache = new(StringComparer.OrdinalIgnoreCase);
     private static int StringDocumentCacheMissCount;

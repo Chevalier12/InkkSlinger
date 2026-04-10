@@ -11,6 +11,12 @@ public static partial class XamlLoader
         set => XamlLoadSession.Current.LoadRootScope = value;
     }
 
+    private static object? CurrentLoadCodeBehind
+    {
+        get => XamlLoadSession.Current.LoadCodeBehind;
+        set => XamlLoadSession.Current.LoadCodeBehind = value;
+    }
+
     private static Stack<FrameworkElement>? CurrentConstructionScopes
     {
         get => XamlLoadSession.Current.ConstructionScopes;
@@ -56,10 +62,12 @@ public static partial class XamlLoader
     private static T RunWithinIsolatedTemplateInstantiationScope<T>(Func<T> factory)
     {
         var previousLoadRootScope = CurrentLoadRootScope;
+        var previousLoadCodeBehind = CurrentLoadCodeBehind;
         var previousConstructionScopes = CurrentConstructionScopes;
         var previousConstructionRootScope = CurrentConstructionRootScope;
 
         CurrentLoadRootScope = null;
+        CurrentLoadCodeBehind = null;
         CurrentConstructionScopes = null;
         CurrentConstructionRootScope = null;
 
@@ -70,6 +78,7 @@ public static partial class XamlLoader
         finally
         {
             CurrentLoadRootScope = previousLoadRootScope;
+            CurrentLoadCodeBehind = previousLoadCodeBehind;
             CurrentConstructionScopes = previousConstructionScopes;
             CurrentConstructionRootScope = previousConstructionRootScope;
         }

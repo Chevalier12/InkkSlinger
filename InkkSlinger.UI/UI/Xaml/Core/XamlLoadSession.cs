@@ -12,6 +12,8 @@ internal sealed class XamlLoadSession
 
     public FrameworkElement? LoadRootScope { get; set; }
 
+    public object? LoadCodeBehind { get; set; }
+
     public Stack<FrameworkElement>? ConstructionScopes { get; set; }
 
     public FrameworkElement? ConstructionRootScope { get; set; }

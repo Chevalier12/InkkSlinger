@@ -100,30 +100,39 @@ public static partial class XamlLoader
         }
 
         var rootElement = document.Root;
+        var previousLoadCodeBehind = CurrentLoadCodeBehind;
+        CurrentLoadCodeBehind = codeBehind;
         var rootType = ResolveElementType(rootElement.Name.LocalName);
-        if (XamlObjectFactory.CreateInstance(rootType) is not UIElement uiRoot)
-        {
-            throw CreateXamlException($"Type '{rootType.Name}' is not a UIElement.", rootElement);
-        }
-
-        var previousRootScope = CurrentLoadRootScope;
         try
         {
-            var rootScope = uiRoot as FrameworkElement;
-            CurrentLoadRootScope = rootScope;
-            RunWithinDeferredFinalizeActions(() =>
+            if (XamlObjectFactory.CreateInstance(rootType) is not UIElement uiRoot)
             {
-                RunWithinConstructionScope(rootScope, () =>
+                throw CreateXamlException($"Type '{rootType.Name}' is not a UIElement.", rootElement);
+            }
+
+            var previousRootScope = CurrentLoadRootScope;
+            var rootScope = uiRoot as FrameworkElement;
+            try
+            {
+                CurrentLoadRootScope = rootScope;
+                RunWithinDeferredFinalizeActions(() =>
                 {
-                    ApplyAttributes(uiRoot, rootElement, codeBehind, rootScope);
-                    ApplyChildren(uiRoot, rootElement, codeBehind, rootScope);
+                    RunWithinConstructionScope(rootScope, () =>
+                    {
+                        ApplyAttributes(uiRoot, rootElement, codeBehind, rootScope);
+                        ApplyChildren(uiRoot, rootElement, codeBehind, rootScope);
+                    });
                 });
-            });
-            return uiRoot;
+                return uiRoot;
+            }
+            finally
+            {
+                CurrentLoadRootScope = previousRootScope;
+            }
         }
         finally
         {
-            CurrentLoadRootScope = previousRootScope;
+            CurrentLoadCodeBehind = previousLoadCodeBehind;
         }
     }
 
@@ -153,29 +162,38 @@ public static partial class XamlLoader
         }
 
         var root = document.Root;
+        var previousLoadCodeBehind = CurrentLoadCodeBehind;
+        CurrentLoadCodeBehind = codeBehind;
         var rootType = ResolveElementType(root.Name.LocalName);
-        if (!typeof(UserControl).IsAssignableFrom(rootType))
-        {
-            throw CreateXamlException("LoadInto expects a UserControl root element.", root);
-        }
-
-        var previousRootScope = CurrentLoadRootScope;
-        CurrentLoadRootScope = target;
         try
         {
-            RunWithinDeferredFinalizeActions(() =>
+            if (!typeof(UserControl).IsAssignableFrom(rootType))
             {
-                RunWithinConstructionScope(target, () =>
+                throw CreateXamlException("LoadInto expects a UserControl root element.", root);
+            }
+
+            var previousRootScope = CurrentLoadRootScope;
+            CurrentLoadRootScope = target;
+            try
+            {
+                RunWithinDeferredFinalizeActions(() =>
                 {
-                    ApplyAttributes(target, root, codeBehind, target);
-                    target.Content = null;
-                    ApplyChildren(target, root, codeBehind, target);
+                    RunWithinConstructionScope(target, () =>
+                    {
+                        ApplyAttributes(target, root, codeBehind, target);
+                        target.Content = null;
+                        ApplyChildren(target, root, codeBehind, target);
+                    });
                 });
-            });
+            }
+            finally
+            {
+                CurrentLoadRootScope = previousRootScope;
+            }
         }
         finally
         {
-            CurrentLoadRootScope = previousRootScope;
+            CurrentLoadCodeBehind = previousLoadCodeBehind;
         }
     }
 
