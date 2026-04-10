@@ -62,6 +62,7 @@ public static class ControlViews
         "RepeatButton",
         "RenderSurface",
         "RenderSurface (SubspaceViewport2D)",
+        "RenderSurface [GPU + SubspaceViewport2D]",
         "RenderSurface [GPU]",
         "ResizeGrip",
         "RichTextBox",
@@ -148,6 +149,7 @@ public static class ControlViews
             ["RepeatButton"] = static () => new RepeatButtonView(),
             ["RenderSurface"] = static () => new RenderSurfaceView(),
             ["RenderSurface (SubspaceViewport2D)"] = static () => new RenderSurfaceSubspaceViewport2DView(),
+            ["RenderSurface [GPU + SubspaceViewport2D]"] = static () => new RenderSurfaceGpuSubspaceViewport2DView(),
             ["RenderSurface [GPU]"] = static () => new RenderSurfaceGpuView(),
             ["ResizeGrip"] = static () => new ResizeGripView(),
             ["RichTextBox"] = static () => new RichTextBoxView(),
@@ -277,6 +279,7 @@ internal static class ControlDemoSupport
             ["RepeatButton"] = static () => new RepeatButton(),
             ["RenderSurface"] = static () => new RenderSurface(),
             ["RenderSurface (SubspaceViewport2D)"] = static () => new RenderSurface(),
+            ["RenderSurface [GPU + SubspaceViewport2D]"] = static () => new RenderSurface(),
             ["RenderSurface [GPU]"] = static () => new RenderSurface(),
             ["ResizeGrip"] = static () => new ResizeGrip(),
             ["RichTextBox"] = static () => new RichTextBox(),
@@ -570,6 +573,7 @@ internal static class ControlDemoSupport
                 };
             case "RenderSurface":
             case "RenderSurface (SubspaceViewport2D)":
+            case "RenderSurface [GPU + SubspaceViewport2D]":
             case "RenderSurface [GPU]":
                 return new RenderSurface
                 {

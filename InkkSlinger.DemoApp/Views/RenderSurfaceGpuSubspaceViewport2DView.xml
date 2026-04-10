@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.RenderSurfaceGpuSubspaceViewport2DView"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#101822"
+             Padding="12">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0" Margin="0,0,0,10">
+      <TextBlock Text="RenderSurface [GPU + SubspaceViewport2D]"
+                 Foreground="#F4FAFF"
+                 FontSize="18"
+                 FontWeight="SemiBold"
+                 TextWrapping="Wrap" />
+      <TextBlock Text="Snake is still GPU-rendered, but the score, status, and control chrome now live inside SubspaceViewport2D overlays."
+                 Foreground="#9FC0D8"
+                 Margin="0,4,0,0"
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Border Grid.Row="1"
+            Background="#081019"
+            BorderBrush="#28445F"
+            BorderThickness="1"
+            CornerRadius="14"
+            Padding="12">
+      <RenderSurface x:Name="GameSurface"
+                     Width="560"
+                     Height="392"
+                     MinWidth="320"
+                     MinHeight="224"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Stretch="Uniform"
+                     Focusable="True">
+        <RenderSurface.SubspaceViewport2Ds>
+          <SubspaceViewport2D X="16" Y="16" Width="240" Height="84">
+            <Border Background="#D0121D28"
+                    BorderBrush="#44739A"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="12">
+              <StackPanel>
+                <TextBlock Text="Snake Arena"
+                           Foreground="#F4FAFF"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{Binding HintText}"
+                           Foreground="#A8C7DE"
+                           Margin="0,6,0,0"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </SubspaceViewport2D>
+
+          <SubspaceViewport2D X="352" Y="16" Width="192" Height="92">
+            <Border Background="#D0121D28"
+                    BorderBrush="#44739A"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="12">
+              <StackPanel>
+                <TextBlock Text="{Binding ScoreText}"
+                           Foreground="#E9F4FF"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{Binding BestScoreText}"
+                           Foreground="#D2E4F4"
+                           Margin="0,6,0,0"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </SubspaceViewport2D>
+
+          <SubspaceViewport2D X="16" Y="316" Width="236" Height="60">
+            <Border Background="#DB111B26"
+                    BorderBrush="#44739A"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="10">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0"
+                        Content="Restart"
+                        Command="{Binding RestartGameCommand}"
+                        Margin="0,0,8,0" />
+                <Button Grid.Column="1"
+                        Content="{Binding PauseButtonText}"
+                        Command="{Binding TogglePauseCommand}" />
+              </Grid>
+            </Border>
+          </SubspaceViewport2D>
+
+          <SubspaceViewport2D X="268" Y="316" Width="276" Height="60">
+            <Border Background="#DB111B26"
+                    BorderBrush="#44739A"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="12">
+              <TextBlock Text="{Binding StatusText}"
+                         Foreground="#D8E9F5"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap" />
+            </Border>
+          </SubspaceViewport2D>
+        </RenderSurface.SubspaceViewport2Ds>
+      </RenderSurface>
+    </Border>
+
+    <TextBlock Grid.Row="2"
+               Margin="0,10,0,0"
+               Foreground="#D8E9F5"
+               Text="All HUD controls in this demo are rendered as local UI islands inside the same RenderSurface that draws the snake board."
+               TextWrapping="Wrap" />
+  </Grid>
+</UserControl>
