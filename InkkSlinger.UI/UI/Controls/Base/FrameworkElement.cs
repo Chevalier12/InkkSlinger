@@ -38,6 +38,13 @@ public class FrameworkElement : UIElement
             typeof(FrameworkElement),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.Inherits));
 
+    public static readonly DependencyProperty TagProperty =
+        DependencyProperty.Register(
+            nameof(Tag),
+            typeof(object),
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(null));
+
     public static readonly DependencyProperty WidthProperty =
         DependencyProperty.Register(
             nameof(Width),
@@ -365,6 +372,12 @@ public class FrameworkElement : UIElement
     {
         get => GetValue(DataContextProperty);
         set => SetValue(DataContextProperty, value);
+    }
+
+    public object? Tag
+    {
+        get => GetValue(TagProperty);
+        set => SetValue(TagProperty, value);
     }
 
     public float Width

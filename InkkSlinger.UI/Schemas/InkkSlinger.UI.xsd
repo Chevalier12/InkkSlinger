@@ -4141,6 +4141,7 @@
         <xs:attribute name="Storyboard.TargetName" type="xs:string" />
         <xs:attribute name="Storyboard.TargetProperty" type="xs:string" />
         <xs:attribute name="Style" type="xamlValueType" />
+        <xs:attribute name="Tag" type="xamlValueType" />
         <xs:attribute name="ToolTipService.BetweenShowDelay" type="xs:int" />
         <xs:attribute name="ToolTipService.InitialShowDelay" type="xs:int" />
         <xs:attribute name="ToolTipService.IsEnabled" type="xs:boolean" />
@@ -4904,6 +4905,94 @@
     </xs:complexContent>
   </xs:complexType>
   <xs:complexType name="inkkOopsButtonDiagnosticsContributorType">
+    <xs:complexContent>
+      <xs:extension base="xamlObjectType">
+        <xs:attribute name="AutomationProperties.AutomationId" type="xs:string" />
+        <xs:attribute name="AutomationProperties.HelpText" type="xs:string" />
+        <xs:attribute name="AutomationProperties.IsRequiredForForm" type="xs:boolean" />
+        <xs:attribute name="AutomationProperties.ItemStatus" type="xs:string" />
+        <xs:attribute name="AutomationProperties.ItemType" type="xs:string" />
+        <xs:attribute name="AutomationProperties.LabeledBy" type="xamlValueType" />
+        <xs:attribute name="AutomationProperties.Name" type="xs:string" />
+        <xs:attribute name="Canvas.Bottom" type="xs:float" />
+        <xs:attribute name="Canvas.Left" type="xs:float" />
+        <xs:attribute name="Canvas.Right" type="xs:float" />
+        <xs:attribute name="Canvas.Top" type="xs:float" />
+        <xs:attribute name="ContextMenu.ContextMenu" type="xamlValueType" />
+        <xs:attribute name="DockPanel.Dock" type="dockEnumType" />
+        <xs:attribute name="Grid.Column" type="xs:int" />
+        <xs:attribute name="Grid.ColumnSpan" type="xs:int" />
+        <xs:attribute name="Grid.IsSharedSizeScope" type="xs:boolean" />
+        <xs:attribute name="Grid.Row" type="xs:int" />
+        <xs:attribute name="Grid.RowSpan" type="xs:int" />
+        <xs:attribute name="Panel.ZIndex" type="xs:int" />
+        <xs:attribute name="ScrollViewer.UseTransformContentScrolling" type="xs:boolean" />
+        <xs:attribute name="SpellCheck.CustomDictionaries" type="xamlValueType" />
+        <xs:attribute name="SpellCheck.IsEnabled" type="xs:boolean" />
+        <xs:attribute name="Storyboard.TargetName" type="xs:string" />
+        <xs:attribute name="Storyboard.TargetProperty" type="xs:string" />
+        <xs:attribute name="ToolTipService.BetweenShowDelay" type="xs:int" />
+        <xs:attribute name="ToolTipService.InitialShowDelay" type="xs:int" />
+        <xs:attribute name="ToolTipService.IsEnabled" type="xs:boolean" />
+        <xs:attribute name="ToolTipService.ShowDuration" type="xs:int" />
+        <xs:attribute name="ToolTipService.ToolTip" type="xamlValueType" />
+        <xs:attribute name="Track.PartRole" type="trackPartRoleEnumType" />
+        <xs:attribute name="Validation.Errors" type="xamlValueType" />
+        <xs:attribute name="Validation.ErrorsByOwner" type="xamlValueType" />
+        <xs:attribute name="Validation.HasError" type="xs:boolean" />
+        <xs:attribute name="VirtualizingStackPanel.CacheLength" type="xs:float" />
+        <xs:attribute name="VirtualizingStackPanel.CacheLengthUnit" type="virtualizationCacheLengthUnitEnumType" />
+        <xs:attribute name="VirtualizingStackPanel.IsVirtualizing" type="xs:boolean" />
+        <xs:attribute name="VirtualizingStackPanel.VirtualizationMode" type="virtualizationModeEnumType" />
+        <xs:attribute name="VisualStateManager.VisualStateGroups" type="xamlValueType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="inkkOopsCalendarDayButtonDiagnosticsContributorType">
+    <xs:complexContent>
+      <xs:extension base="xamlObjectType">
+        <xs:attribute name="AutomationProperties.AutomationId" type="xs:string" />
+        <xs:attribute name="AutomationProperties.HelpText" type="xs:string" />
+        <xs:attribute name="AutomationProperties.IsRequiredForForm" type="xs:boolean" />
+        <xs:attribute name="AutomationProperties.ItemStatus" type="xs:string" />
+        <xs:attribute name="AutomationProperties.ItemType" type="xs:string" />
+        <xs:attribute name="AutomationProperties.LabeledBy" type="xamlValueType" />
+        <xs:attribute name="AutomationProperties.Name" type="xs:string" />
+        <xs:attribute name="Canvas.Bottom" type="xs:float" />
+        <xs:attribute name="Canvas.Left" type="xs:float" />
+        <xs:attribute name="Canvas.Right" type="xs:float" />
+        <xs:attribute name="Canvas.Top" type="xs:float" />
+        <xs:attribute name="ContextMenu.ContextMenu" type="xamlValueType" />
+        <xs:attribute name="DockPanel.Dock" type="dockEnumType" />
+        <xs:attribute name="Grid.Column" type="xs:int" />
+        <xs:attribute name="Grid.ColumnSpan" type="xs:int" />
+        <xs:attribute name="Grid.IsSharedSizeScope" type="xs:boolean" />
+        <xs:attribute name="Grid.Row" type="xs:int" />
+        <xs:attribute name="Grid.RowSpan" type="xs:int" />
+        <xs:attribute name="Panel.ZIndex" type="xs:int" />
+        <xs:attribute name="ScrollViewer.UseTransformContentScrolling" type="xs:boolean" />
+        <xs:attribute name="SpellCheck.CustomDictionaries" type="xamlValueType" />
+        <xs:attribute name="SpellCheck.IsEnabled" type="xs:boolean" />
+        <xs:attribute name="Storyboard.TargetName" type="xs:string" />
+        <xs:attribute name="Storyboard.TargetProperty" type="xs:string" />
+        <xs:attribute name="ToolTipService.BetweenShowDelay" type="xs:int" />
+        <xs:attribute name="ToolTipService.InitialShowDelay" type="xs:int" />
+        <xs:attribute name="ToolTipService.IsEnabled" type="xs:boolean" />
+        <xs:attribute name="ToolTipService.ShowDuration" type="xs:int" />
+        <xs:attribute name="ToolTipService.ToolTip" type="xamlValueType" />
+        <xs:attribute name="Track.PartRole" type="trackPartRoleEnumType" />
+        <xs:attribute name="Validation.Errors" type="xamlValueType" />
+        <xs:attribute name="Validation.ErrorsByOwner" type="xamlValueType" />
+        <xs:attribute name="Validation.HasError" type="xs:boolean" />
+        <xs:attribute name="VirtualizingStackPanel.CacheLength" type="xs:float" />
+        <xs:attribute name="VirtualizingStackPanel.CacheLengthUnit" type="virtualizationCacheLengthUnitEnumType" />
+        <xs:attribute name="VirtualizingStackPanel.IsVirtualizing" type="xs:boolean" />
+        <xs:attribute name="VirtualizingStackPanel.VirtualizationMode" type="virtualizationModeEnumType" />
+        <xs:attribute name="VisualStateManager.VisualStateGroups" type="xamlValueType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="inkkOopsCalendarDiagnosticsContributorType">
     <xs:complexContent>
       <xs:extension base="xamlObjectType">
         <xs:attribute name="AutomationProperties.AutomationId" type="xs:string" />
@@ -7589,7 +7678,6 @@
         <xs:attribute name="Grid.RowSpan" type="xs:int" />
         <xs:attribute name="HorizontalScrollBarVisibility" type="scrollBarVisibilityEnumType" />
         <xs:attribute name="IsVirtualizing" type="xs:boolean" />
-        <xs:attribute name="LineScrollAmount" type="xs:float" />
         <xs:attribute name="Panel.ZIndex" type="xs:int" />
         <xs:attribute name="ScrollViewer.UseTransformContentScrolling" type="xs:boolean" />
         <xs:attribute name="SpellCheck.CustomDictionaries" type="xamlValueType" />
@@ -9832,7 +9920,6 @@
         <xs:attribute name="Grid.RowSpan" type="xs:int" />
         <xs:attribute name="HorizontalOffset" type="xs:float" />
         <xs:attribute name="HorizontalScrollBarVisibility" type="scrollBarVisibilityEnumType" />
-        <xs:attribute name="LineScrollAmount" type="xs:float" />
         <xs:attribute name="Panel.ZIndex" type="xs:int" />
         <xs:attribute name="ScrollBarThickness" type="xs:float" />
         <xs:attribute name="ScrollViewer.UseTransformContentScrolling" type="xs:boolean" />
@@ -10306,13 +10393,11 @@
         <xs:attribute name="Panel.ZIndex" type="xs:int" />
         <xs:attribute name="ScrollViewer.UseTransformContentScrolling" type="xs:boolean" />
         <xs:attribute name="SelectionEnd" type="xs:float" />
-        <xs:attribute name="SelectionRangeBrush" type="colorType" />
         <xs:attribute name="SelectionStart" type="xs:float" />
         <xs:attribute name="SpellCheck.CustomDictionaries" type="xamlValueType" />
         <xs:attribute name="SpellCheck.IsEnabled" type="xs:boolean" />
         <xs:attribute name="Storyboard.TargetName" type="xs:string" />
         <xs:attribute name="Storyboard.TargetProperty" type="xs:string" />
-        <xs:attribute name="ThumbBrush" type="colorType" />
         <xs:attribute name="ThumbSize" type="xs:float" />
         <xs:attribute name="TickFrequency" type="xs:float" />
         <xs:attribute name="TickPlacement" type="tickPlacementEnumType" />
@@ -10323,7 +10408,6 @@
         <xs:attribute name="ToolTipService.ShowDuration" type="xs:int" />
         <xs:attribute name="ToolTipService.ToolTip" type="xamlValueType" />
         <xs:attribute name="Track.PartRole" type="trackPartRoleEnumType" />
-        <xs:attribute name="TrackBrush" type="colorType" />
         <xs:attribute name="TrackThickness" type="xs:float" />
         <xs:attribute name="Validation.Errors" type="xamlValueType" />
         <xs:attribute name="Validation.ErrorsByOwner" type="xamlValueType" />
@@ -12943,6 +13027,7 @@
   <xs:element name="FrameworkElement.Resources" type="xamlPropertyElementType" />
   <xs:element name="FrameworkElement.SnapsToDevicePixels" type="xamlPropertyElementType" />
   <xs:element name="FrameworkElement.Style" type="xamlPropertyElementType" />
+  <xs:element name="FrameworkElement.Tag" type="xamlPropertyElementType" />
   <xs:element name="FrameworkElement.UseLayoutRounding" type="xamlPropertyElementType" />
   <xs:element name="FrameworkElement.VerticalAlignment" type="xamlPropertyElementType" />
   <xs:element name="FrameworkElement.Width" type="xamlPropertyElementType" />
@@ -12997,6 +13082,8 @@
   <xs:element name="Image.Source" type="xamlPropertyElementType" />
   <xs:element name="InkkOopsBorderDiagnosticsContributor.Order" type="xamlPropertyElementType" />
   <xs:element name="InkkOopsButtonDiagnosticsContributor.Order" type="xamlPropertyElementType" />
+  <xs:element name="InkkOopsCalendarDayButtonDiagnosticsContributor.Order" type="xamlPropertyElementType" />
+  <xs:element name="InkkOopsCalendarDiagnosticsContributor.Order" type="xamlPropertyElementType" />
   <xs:element name="InkkOopsCanvasDiagnosticsContributor.Order" type="xamlPropertyElementType" />
   <xs:element name="InkkOopsCheckBoxDiagnosticsContributor.Order" type="xamlPropertyElementType" />
   <xs:element name="InkkOopsComboBoxDiagnosticsContributor.Order" type="xamlPropertyElementType" />
@@ -13183,7 +13270,6 @@
   <xs:element name="ListBox.BorderThickness" type="xamlPropertyElementType" />
   <xs:element name="ListBox.HorizontalScrollBarVisibility" type="xamlPropertyElementType" />
   <xs:element name="ListBox.IsVirtualizing" type="xamlPropertyElementType" />
-  <xs:element name="ListBox.LineScrollAmount" type="xamlPropertyElementType" />
   <xs:element name="ListBox.VerticalScrollBarVisibility" type="xamlPropertyElementType" />
   <xs:element name="ListBoxItem.Background" type="xamlPropertyElementType" />
   <xs:element name="ListBoxItem.BorderBrush" type="xamlPropertyElementType" />
@@ -13385,7 +13471,6 @@
   <xs:element name="ScrollViewer.ExtentWidth" type="xamlPropertyElementType" />
   <xs:element name="ScrollViewer.HorizontalOffset" type="xamlPropertyElementType" />
   <xs:element name="ScrollViewer.HorizontalScrollBarVisibility" type="xamlPropertyElementType" />
-  <xs:element name="ScrollViewer.LineScrollAmount" type="xamlPropertyElementType" />
   <xs:element name="ScrollViewer.ScrollBarThickness" type="xamlPropertyElementType" />
   <xs:element name="ScrollViewer.UseTransformContentScrolling" type="xamlPropertyElementType" />
   <xs:element name="ScrollViewer.VerticalOffset" type="xamlPropertyElementType" />
@@ -13425,14 +13510,11 @@
   <xs:element name="Slider.IsSnapToTickEnabled" type="xamlPropertyElementType" />
   <xs:element name="Slider.Orientation" type="xamlPropertyElementType" />
   <xs:element name="Slider.SelectionEnd" type="xamlPropertyElementType" />
-  <xs:element name="Slider.SelectionRangeBrush" type="xamlPropertyElementType" />
   <xs:element name="Slider.SelectionStart" type="xamlPropertyElementType" />
-  <xs:element name="Slider.ThumbBrush" type="xamlPropertyElementType" />
   <xs:element name="Slider.ThumbSize" type="xamlPropertyElementType" />
   <xs:element name="Slider.TickFrequency" type="xamlPropertyElementType" />
   <xs:element name="Slider.TickPlacement" type="xamlPropertyElementType" />
   <xs:element name="Slider.Ticks" type="xamlPropertyElementType" />
-  <xs:element name="Slider.TrackBrush" type="xamlPropertyElementType" />
   <xs:element name="Slider.TrackThickness" type="xamlPropertyElementType" />
   <xs:element name="SolidColorBrush.Color" type="xamlPropertyElementType" />
   <xs:element name="SortDescription.Direction" type="xamlPropertyElementType" />
@@ -13734,6 +13816,8 @@
   <xs:element name="Image" type="imageType" />
   <xs:element name="InkkOopsBorderDiagnosticsContributor" type="inkkOopsBorderDiagnosticsContributorType" />
   <xs:element name="InkkOopsButtonDiagnosticsContributor" type="inkkOopsButtonDiagnosticsContributorType" />
+  <xs:element name="InkkOopsCalendarDayButtonDiagnosticsContributor" type="inkkOopsCalendarDayButtonDiagnosticsContributorType" />
+  <xs:element name="InkkOopsCalendarDiagnosticsContributor" type="inkkOopsCalendarDiagnosticsContributorType" />
   <xs:element name="InkkOopsCanvasDiagnosticsContributor" type="inkkOopsCanvasDiagnosticsContributorType" />
   <xs:element name="InkkOopsCheckBoxDiagnosticsContributor" type="inkkOopsCheckBoxDiagnosticsContributorType" />
   <xs:element name="InkkOopsComboBoxDiagnosticsContributor" type="inkkOopsComboBoxDiagnosticsContributorType" />
