@@ -108,7 +108,6 @@ public sealed class ScrollViewerWheelHoverRegressionTests
             Height = 120f,
             VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            LineScrollAmount = 64f,
             Content = host
         };
 

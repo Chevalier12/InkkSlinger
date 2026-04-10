@@ -919,7 +919,7 @@ public partial class VirtualizingStackPanelView : UserControl
 
         if (_workbenchScrollViewer != null)
         {
-            var delta = MathF.Max(1f, _workbenchScrollViewer.LineScrollAmount);
+            var delta = 24f;
             var signedDelta = forward ? delta : -delta;
             if (_workbenchPanel.Orientation == Orientation.Vertical)
             {

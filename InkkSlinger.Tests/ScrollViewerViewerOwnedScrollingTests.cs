@@ -12,7 +12,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         var root = new Panel();
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
@@ -27,7 +26,7 @@ public class ScrollViewerViewerOwnedScrollingTests
 
         var handled = viewer.HandleMouseWheelFromInput(-120);
         Assert.True(handled);
-        Assert.True(AreClose(30f, viewer.VerticalOffset));
+        Assert.True(AreClose(24f, viewer.VerticalOffset));
 
         for (var i = 0; i < 500; i++)
         {
@@ -210,7 +209,6 @@ public class ScrollViewerViewerOwnedScrollingTests
 
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = virtualizingPanel
@@ -277,7 +275,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         var content = CreateTallStackPanel(120);
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = content
@@ -304,7 +301,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         ScrollViewer.SetUseTransformContentScrolling(content, false);
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = content
@@ -393,7 +389,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         var content = CreateTallStackPanel(120);
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = content
@@ -433,7 +428,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         var content = CreateTallStackPanel(120);
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = content
@@ -452,7 +446,7 @@ public class ScrollViewerViewerOwnedScrollingTests
             Assert.True(viewer.HandleMouseWheelFromInput(-120));
         }
 
-        Assert.True(viewer.VerticalOffset > 100f);
+        Assert.True(viewer.VerticalOffset >= 96f - 0.01f);
         Assert.True(viewer.TryGetContentViewportClipRect(out var clip));
 
         uiRoot.SynchronizeRetainedRenderListForTests();
@@ -472,7 +466,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         var content = CreateTallStackPanel(120);
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = content
@@ -742,7 +735,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         var host = new Border { Child = CreateTallStackPanel(120) };
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = host
@@ -768,7 +760,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         var content = CreateTallStackPanel(120);
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = content
@@ -803,7 +794,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         outer.AddChild(inner);
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = outer
@@ -834,7 +824,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         outer.AddChild(inner);
         var viewer = new ScrollViewer
         {
-            LineScrollAmount = 30f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = outer

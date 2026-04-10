@@ -109,9 +109,9 @@
                       SelectionEnd="80"
                       TrackThickness="6"
                       ThumbSize="18"
-                      TrackBrush="#33475D"
-                      ThumbBrush="#E08C43"
-                      SelectionRangeBrush="#4FA6E8" />
+                      Background="#33475D"
+                      BorderBrush="#E08C43"
+                      Foreground="#4FA6E8" />
 
               <Grid Grid.Row="2"
                     Margin="0,0,0,12">
@@ -251,7 +251,7 @@
                           AutoToolTipPrecision="0"
                           TrackThickness="5"
                           ThumbSize="16"
-                          SelectionRangeBrush="#76B7F3" />
+                          Foreground="#76B7F3" />
                   <TextBlock x:Name="SnappedSelectionValueText"
                              Foreground="{StaticResource TextSecondaryBrush}"
                              TextWrapping="Wrap"
@@ -285,8 +285,8 @@
                           AutoToolTipPrecision="1"
                           TrackThickness="4"
                           ThumbSize="14"
-                          TrackBrush="#304957"
-                          ThumbBrush="#89D5F7" />
+                          Background="#304957"
+                          BorderBrush="#89D5F7" />
                   <TextBlock x:Name="FrequencyValueText"
                              Foreground="{StaticResource TextSecondaryBrush}"
                              TextWrapping="Wrap"
@@ -337,9 +337,9 @@
                           AutoToolTipPrecision="0"
                           TrackThickness="8"
                           ThumbSize="20"
-                          TrackBrush="#26434F"
-                          ThumbBrush="#F1C35A"
-                          SelectionRangeBrush="#5CC4A3" />
+                          Background="#26434F"
+                          BorderBrush="#F1C35A"
+                          Foreground="#5CC4A3" />
                   <TextBlock x:Name="TransportValueText"
                              Foreground="{StaticResource TextSecondaryBrush}"
                              TextWrapping="Wrap"
@@ -420,7 +420,7 @@
                           AutoToolTipPlacement="TopLeft"
                           TrackThickness="6"
                           ThumbSize="18"
-                          SelectionRangeBrush="#73B4F0" />
+                          Foreground="#73B4F0" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
@@ -442,8 +442,8 @@
                           AutoToolTipPrecision="1"
                           TrackThickness="5"
                           ThumbSize="16"
-                          TrackBrush="#334D62"
-                          ThumbBrush="#D69057" />
+                          Background="#334D62"
+                          BorderBrush="#D69057" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2"
@@ -463,9 +463,9 @@
                           AutoToolTipPrecision="0"
                           TrackThickness="10"
                           ThumbSize="22"
-                          TrackBrush="#4B325B"
-                          ThumbBrush="#F89D74"
-                          SelectionRangeBrush="#D46A6A" />
+                          Background="#4B325B"
+                          BorderBrush="#F89D74"
+                          Foreground="#D46A6A" />
                 </StackPanel>
               </Grid>
 

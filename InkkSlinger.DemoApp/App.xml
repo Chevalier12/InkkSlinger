@@ -420,8 +420,7 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
-                            VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}"
-                            LineScrollAmount="{TemplateBinding LineScrollAmount}" />
+                            VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}" />
             </ControlTemplate>
           </Setter.Value>
         </Setter>
@@ -584,11 +583,8 @@
       <!-- ═══════════════════════════════════════════════════════════ -->
       <Style TargetType="{x:Type Slider}">
         <Setter Property="Foreground" Value="{StaticResource OrangePrimaryBrush}" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="TrackBrush" Value="{StaticResource DarkElevatedBrush}" />
-        <Setter Property="ThumbBrush" Value="{StaticResource OrangePrimaryBrush}" />
-        <Setter Property="SelectionRangeBrush" Value="{StaticResource OrangeSubtleBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="Background" Value="{StaticResource DarkElevatedBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource OrangePrimaryBrush}" />
       </Style>
 
       <!-- ═══════════════════════════════════════════════════════════ -->

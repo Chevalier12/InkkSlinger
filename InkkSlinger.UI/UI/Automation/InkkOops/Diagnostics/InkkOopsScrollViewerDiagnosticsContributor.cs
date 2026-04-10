@@ -60,7 +60,6 @@ public sealed class InkkOopsScrollViewerDiagnosticsContributor : IInkkOopsDiagno
         builder.Add("horizontalBarVisible", IsHorizontalBarVisible(scrollViewer));
         builder.Add("verticalBarVisible", IsVerticalBarVisible(scrollViewer));
         builder.Add("scrollBarThickness", $"{scrollViewer.ScrollBarThickness:0.##}");
-        builder.Add("lineScrollAmount", $"{scrollViewer.LineScrollAmount:0.##}");
 
         builder.Add("runtimeMeasureOverrideCalls", runtime.MeasureOverrideCallCount);
         builder.Add("runtimeMeasureOverrideMs", $"{runtime.MeasureOverrideMilliseconds:0.###}");

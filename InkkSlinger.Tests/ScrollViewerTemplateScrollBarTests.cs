@@ -76,7 +76,7 @@ public sealed class ScrollViewerTemplateScrollBarTests
 
         Click(uiRoot, GetCenter(lineDownButton!.LayoutSlot));
 
-        Assert.True(MathF.Abs(viewer.VerticalOffset - viewer.LineScrollAmount) <= 0.01f);
+        Assert.True(MathF.Abs(viewer.VerticalOffset - 24f) <= 0.01f);
     }
 
     [Fact]
@@ -107,7 +107,6 @@ public sealed class ScrollViewerTemplateScrollBarTests
         {
             Width = 220f,
             Height = 140f,
-            LineScrollAmount = 24f,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
             Content = CreateTallStackPanel(30)

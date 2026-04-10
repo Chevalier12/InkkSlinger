@@ -194,7 +194,6 @@
                   <ScrollViewer x:Name="WorkbenchScrollViewer"
                         HorizontalScrollBarVisibility="Auto"
                         VerticalScrollBarVisibility="Auto"
-                        LineScrollAmount="28"
                         Background="#0D1318"
                         BorderBrush="#345364"
                         BorderThickness="0">

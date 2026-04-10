@@ -109,13 +109,6 @@ public class ScrollViewer : ContentControl
             typeof(ScrollViewer),
             new FrameworkPropertyMetadata(12f, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty LineScrollAmountProperty =
-        DependencyProperty.Register(
-            nameof(LineScrollAmount),
-            typeof(float),
-            typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(24f));
-
     public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
@@ -305,6 +298,7 @@ public class ScrollViewer : ContentControl
     private static long _diagMeasureContentElapsedTicks;
     private static int _diagUpdateScrollBarsCallCount;
     private static long _diagUpdateScrollBarsElapsedTicks;
+    private const float DefaultLineScrollStep = 24f;
 
     public ScrollViewer()
     {
@@ -371,12 +365,6 @@ public class ScrollViewer : ContentControl
     {
         get => GetValue<float>(ScrollBarThicknessProperty);
         set => SetValue(ScrollBarThicknessProperty, value);
-    }
-
-    public float LineScrollAmount
-    {
-        get => GetValue<float>(LineScrollAmountProperty);
-        set => SetValue(LineScrollAmountProperty, value);
     }
 
     public override void InvalidateMeasure()
@@ -1609,7 +1597,7 @@ public class ScrollViewer : ContentControl
 
         var beforeHorizontal = HorizontalOffset;
         var beforeVertical = VerticalOffset;
-        var amount = MathF.Max(1f, LineScrollAmount);
+        var amount = DefaultLineScrollStep;
         var direction = delta > 0 ? -1f : 1f;
         BeginInputScrollMutation();
         try
@@ -1971,8 +1959,8 @@ public class ScrollViewer : ContentControl
             SetIfChanged(ScrollBar.MinimumProperty, _verticalBar, 0f);
             SetIfChanged(ScrollBar.MaximumProperty, _horizontalBar, ExtentWidth);
             SetIfChanged(ScrollBar.MaximumProperty, _verticalBar, ExtentHeight);
-            SetIfChanged(ScrollBar.SmallChangeProperty, _horizontalBar, MathF.Max(1f, LineScrollAmount));
-            SetIfChanged(ScrollBar.SmallChangeProperty, _verticalBar, MathF.Max(1f, LineScrollAmount));
+            SetIfChanged(ScrollBar.SmallChangeProperty, _horizontalBar, DefaultLineScrollStep);
+            SetIfChanged(ScrollBar.SmallChangeProperty, _verticalBar, DefaultLineScrollStep);
             SetIfChanged(ScrollBar.LargeChangeProperty, _horizontalBar, MathF.Max(1f, ViewportWidth));
             SetIfChanged(ScrollBar.LargeChangeProperty, _verticalBar, MathF.Max(1f, ViewportHeight));
             SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, HorizontalOffset);

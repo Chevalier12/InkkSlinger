@@ -40,16 +40,6 @@ public class ListBox : Selector
             typeof(ListBox),
             new FrameworkPropertyMetadata(ScrollBarVisibility.Auto, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange));
 
-    public static readonly DependencyProperty LineScrollAmountProperty =
-        DependencyProperty.Register(
-            nameof(LineScrollAmount),
-            typeof(float),
-            typeof(ListBox),
-            new FrameworkPropertyMetadata(
-                24f,
-                FrameworkPropertyMetadataOptions.None,
-                coerceValueCallback: static (_, value) => value is float amount && amount > 0f ? amount : 1f));
-
     public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
@@ -87,7 +77,6 @@ public class ListBox : Selector
             Content = _itemsHost,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            LineScrollAmount = 24f,
             BorderThickness = 0f,
             Background = Color.Transparent
         };
@@ -130,12 +119,6 @@ public class ListBox : Selector
     {
         get => GetValue<ScrollBarVisibility>(VerticalScrollBarVisibilityProperty);
         set => SetValue(VerticalScrollBarVisibilityProperty, value);
-    }
-
-    public float LineScrollAmount
-    {
-        get => GetValue<float>(LineScrollAmountProperty);
-        set => SetValue(LineScrollAmountProperty, value);
     }
 
     public new Color Background
@@ -376,10 +359,6 @@ public class ListBox : Selector
         {
             ActiveScrollViewer.VerticalScrollBarVisibility = v;
         }
-        else if (args.Property == LineScrollAmountProperty && args.NewValue is float amount)
-        {
-            ActiveScrollViewer.LineScrollAmount = amount;
-        }
         else if (args.Property == ItemsPanelProperty)
         {
             UpdateItemsHost();
@@ -616,7 +595,6 @@ public class ListBox : Selector
     {
         viewer.HorizontalScrollBarVisibility = HorizontalScrollBarVisibility;
         viewer.VerticalScrollBarVisibility = VerticalScrollBarVisibility;
-        viewer.LineScrollAmount = LineScrollAmount;
     }
 
     private void AttachItemsHostToActiveScrollViewer()
@@ -742,7 +720,7 @@ public class ListBox : Selector
 
         if (sampleHeight <= 0f)
         {
-            sampleHeight = LineScrollAmount > 0f ? LineScrollAmount : 24f;
+            sampleHeight = 24f;
         }
 
         return Math.Max(1, (int)MathF.Floor(ActiveScrollViewer.ViewportHeight / sampleHeight));

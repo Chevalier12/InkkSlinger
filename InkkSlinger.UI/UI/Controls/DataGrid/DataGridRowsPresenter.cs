@@ -22,7 +22,6 @@ internal sealed class DataGridRowsPresenter
             Content = RowsHost,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            LineScrollAmount = 24f,
             BorderThickness = 0f,
             Background = Color.Transparent
         };

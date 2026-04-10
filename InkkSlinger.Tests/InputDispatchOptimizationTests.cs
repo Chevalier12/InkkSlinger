@@ -48,8 +48,7 @@ public class InputDispatchOptimizationTests
         {
             Content = CreateTallStackPanel(120),
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            LineScrollAmount = 30f
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
         Grid.SetRow(scrollViewer, 1);
         root.AddChild(scrollViewer);
@@ -90,7 +89,6 @@ public class InputDispatchOptimizationTests
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            LineScrollAmount = 24f,
             Content = virtualizingPanel
         };
         root.AddChild(viewer);
@@ -138,7 +136,6 @@ public class InputDispatchOptimizationTests
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            LineScrollAmount = 24f,
             Content = leftVirtualizingPanel
         };
         Grid.SetColumn(leftViewer, 0);
@@ -190,8 +187,7 @@ public class InputDispatchOptimizationTests
         {
             Content = content,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            LineScrollAmount = 30f
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
         Grid.SetRow(scrollViewer, 1);
         root.AddChild(scrollViewer);
@@ -253,8 +249,7 @@ public class InputDispatchOptimizationTests
         {
             Content = content,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            LineScrollAmount = 30f
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
         root.AddChild(scrollViewer);
 

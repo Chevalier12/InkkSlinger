@@ -447,9 +447,9 @@ public partial class SliderView : UserControl
         _workbenchSlider.Ticks = string.IsNullOrWhiteSpace(ticks)
             ? new DoubleCollection()
             : DoubleCollection.Parse(ticks);
-        _workbenchSlider.TrackBrush = trackBrush;
-        _workbenchSlider.ThumbBrush = thumbBrush;
-        _workbenchSlider.SelectionRangeBrush = selectionBrush;
+        _workbenchSlider.Background = trackBrush;
+        _workbenchSlider.BorderBrush = thumbBrush;
+        _workbenchSlider.Foreground = selectionBrush;
 
         _tickPlacementComboBox.SelectedItem = tickPlacement.ToString();
         _toolTipPlacementComboBox.SelectedItem = toolTipPlacement.ToString();

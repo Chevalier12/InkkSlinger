@@ -306,27 +306,6 @@ public class Slider : RangeBase
                 },
                 coerceValueCallback: static (_, value) => value is float size && size >= 6f ? size : 6f));
 
-    public static readonly DependencyProperty TrackBrushProperty =
-        DependencyProperty.Register(
-            nameof(TrackBrush),
-            typeof(Color),
-            typeof(Slider),
-            new FrameworkPropertyMetadata(new Color(62, 62, 62)));
-
-    public static readonly DependencyProperty ThumbBrushProperty =
-        DependencyProperty.Register(
-            nameof(ThumbBrush),
-            typeof(Color),
-            typeof(Slider),
-            new FrameworkPropertyMetadata(new Color(140, 140, 140)));
-
-    public static readonly DependencyProperty SelectionRangeBrushProperty =
-        DependencyProperty.Register(
-            nameof(SelectionRangeBrush),
-            typeof(Color),
-            typeof(Slider),
-            new FrameworkPropertyMetadata(new Color(66, 124, 211)));
-
     public static readonly DependencyProperty IsDraggingThumbProperty =
         DependencyProperty.Register(
             nameof(IsDraggingThumb),
@@ -343,6 +322,7 @@ public class Slider : RangeBase
         LargeChangeProperty.OverrideMetadata(typeof(Slider), CreateDerivedMetadata(LargeChangeProperty, 1f, FrameworkPropertyMetadataOptions.None));
         BackgroundProperty.OverrideMetadata(typeof(Slider), new FrameworkPropertyMetadata(new Color(20, 20, 20)));
         BorderBrushProperty.OverrideMetadata(typeof(Slider), new FrameworkPropertyMetadata(new Color(100, 100, 100)));
+        ForegroundProperty.OverrideMetadata(typeof(Slider), new FrameworkPropertyMetadata(new Color(66, 124, 211)));
     }
 
     public Slider()
@@ -457,24 +437,6 @@ public class Slider : RangeBase
     {
         get => GetValue<float>(ThumbSizeProperty);
         set => SetValue(ThumbSizeProperty, value);
-    }
-
-    public Color TrackBrush
-    {
-        get => GetValue<Color>(TrackBrushProperty);
-        set => SetValue(TrackBrushProperty, value);
-    }
-
-    public Color ThumbBrush
-    {
-        get => GetValue<Color>(ThumbBrushProperty);
-        set => SetValue(ThumbBrushProperty, value);
-    }
-
-    public Color SelectionRangeBrush
-    {
-        get => GetValue<Color>(SelectionRangeBrushProperty);
-        set => SetValue(SelectionRangeBrushProperty, value);
     }
 
     public bool IsDraggingThumb
@@ -1289,9 +1251,9 @@ public class Slider : RangeBase
         style.Setters.Add(new Setter(TemplateProperty, BuildDefaultSliderTemplate()));
 
         var disabled = new Trigger(IsEnabledProperty, false);
-        disabled.Setters.Add(new Setter(ThumbBrushProperty, new Color(96, 96, 96)));
-        disabled.Setters.Add(new Setter(TrackBrushProperty, new Color(52, 52, 52)));
-        disabled.Setters.Add(new Setter(SelectionRangeBrushProperty, new Color(68, 68, 68)));
+        disabled.Setters.Add(new Setter(BackgroundProperty, new Color(52, 52, 52)));
+        disabled.Setters.Add(new Setter(BorderBrushProperty, new Color(96, 96, 96)));
+        disabled.Setters.Add(new Setter(ForegroundProperty, new Color(68, 68, 68)));
         style.Triggers.Add(disabled);
 
         return style;
@@ -1377,13 +1339,13 @@ public class Slider : RangeBase
         };
 
         template.BindTemplate(string.Empty, Panel.BackgroundProperty, BackgroundProperty);
-        template.BindTemplate("PART_Track", Panel.BackgroundProperty, TrackBrushProperty);
+        template.BindTemplate("PART_Track", Panel.BackgroundProperty, BackgroundProperty);
         template.BindTemplate("PART_Track", Track.BorderBrushProperty, BorderBrushProperty);
         template.BindTemplate("PART_Track", Track.ThumbLengthProperty, ThumbSizeProperty);
         template.BindTemplate("PART_Track", Track.ThumbMinLengthProperty, ThumbSizeProperty);
         template.BindTemplate("PART_Track", Track.TrackThicknessProperty, TrackThicknessProperty);
-        template.BindTemplate("PART_SelectionRange", Border.BackgroundProperty, SelectionRangeBrushProperty);
-        template.BindTemplate("PART_Thumb", Thumb.BackgroundProperty, ThumbBrushProperty);
+        template.BindTemplate("PART_SelectionRange", Border.BackgroundProperty, ForegroundProperty);
+        template.BindTemplate("PART_Thumb", Thumb.BackgroundProperty, BorderBrushProperty);
         template.BindTemplate("PART_Thumb", Thumb.BorderBrushProperty, BorderBrushProperty);
         template.BindTemplate("PART_TopTickBar", TickBar.FillProperty, ForegroundProperty);
         template.BindTemplate("PART_BottomTickBar", TickBar.FillProperty, ForegroundProperty);
