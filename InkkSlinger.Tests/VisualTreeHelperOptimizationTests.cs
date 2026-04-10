@@ -85,38 +85,48 @@ public sealed class VisualTreeHelperOptimizationTests
     [Fact]
     public void HitTest_BuiltInCompositeTraversal_UsesIndexedChildrenWithoutEnumerableFallback()
     {
-        var toolBar = new ToolBar
+        var snapshot = SnapshotApplicationResources();
+        try
         {
-            Width = 320f,
-            Height = 240f
-        };
+            ClearApplicationResources();
 
-        for (var i = 0; i < 6; i++)
-        {
-            toolBar.Items.Add(new Button
+            var toolBar = new ToolBar
             {
-                Width = 90f,
-                Content = new Label
+                Width = 320f,
+                Height = 240f
+            };
+
+            for (var i = 0; i < 6; i++)
+            {
+                toolBar.Items.Add(new Button
                 {
-                    Content = $"Item {i}"
-                }
-            });
+                    Width = 90f,
+                    Content = new Label
+                    {
+                        Content = $"Item {i}"
+                    }
+                });
+            }
+
+            var uiRoot = new UiRoot(toolBar);
+            RunLayout(uiRoot, 320, 240, 16);
+
+            Assert.True(toolBar.OverflowItemCountForTesting > 0);
+            var overflowButton = toolBar.OverflowButtonForTesting;
+            Panel.SetZIndex(overflowButton, 10);
+            var probe = GetCenter(overflowButton.LayoutSlot);
+
+            VisualTreeHelper.ResetInstrumentationForTests();
+            var hit = VisualTreeHelper.HitTest(toolBar, probe);
+            var instrumentation = VisualTreeHelper.GetInstrumentationSnapshotForTests();
+
+            Assert.Same(overflowButton, FindAncestor<Button>(hit));
+            Assert.Equal(0, instrumentation.LegacyEnumerableFallbacks);
         }
-
-        var uiRoot = new UiRoot(toolBar);
-        RunLayout(uiRoot, 320, 240, 16);
-
-        Assert.True(toolBar.OverflowItemCountForTesting > 0);
-        var overflowButton = toolBar.OverflowButtonForTesting;
-        Panel.SetZIndex(overflowButton, 10);
-        var probe = GetCenter(overflowButton.LayoutSlot);
-
-        VisualTreeHelper.ResetInstrumentationForTests();
-        var hit = VisualTreeHelper.HitTest(toolBar, probe);
-        var snapshot = VisualTreeHelper.GetInstrumentationSnapshotForTests();
-
-        Assert.Same(overflowButton, FindAncestor<Button>(hit));
-        Assert.Equal(0, snapshot.LegacyEnumerableFallbacks);
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
     }
 
     [Fact]
@@ -241,6 +251,21 @@ public sealed class VisualTreeHelperOptimizationTests
             clipRect = LayoutSlot;
             return clipRect.Width > 0f && clipRect.Height > 0f;
         }
+    }
+
+    private static Dictionary<object, object> SnapshotApplicationResources()
+    {
+        return new Dictionary<object, object>(UiApplication.Current.Resources);
+    }
+
+    private static void ClearApplicationResources()
+    {
+        UiApplication.Current.Resources.ReplaceContents(Array.Empty<KeyValuePair<object, object>>(), notifyChanged: false);
+    }
+
+    private static void RestoreApplicationResources(Dictionary<object, object> snapshot)
+    {
+        TestApplicationResources.Restore(snapshot);
     }
 
 }

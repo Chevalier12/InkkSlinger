@@ -1127,12 +1127,9 @@ public class FrameworkElement : UIElement
 
     private bool CanRepairDescendantArrangeWithoutSelfArrange(LayoutRect effectiveFinalRect, bool requiresArrangeRemeasure)
     {
-        return NeedsArrange &&
-               !HasDirectArrangeInvalidationForLayoutRepair &&
-               _isMeasureValid &&
-               AreRectsEqual(_arrangeRect, effectiveFinalRect) &&
-               AreSizesEqual(_lastArrangedDesiredSize, DesiredSize) &&
-               !requiresArrangeRemeasure;
+        // Parent ArrangeOverride can coordinate sibling positions and overlay layout even when the
+        // invalidation originated in a descendant, so skipping the parent arrange pass is unsafe.
+        return false;
     }
 
     private bool TryRepairDescendantArrangeOnlySubtree()

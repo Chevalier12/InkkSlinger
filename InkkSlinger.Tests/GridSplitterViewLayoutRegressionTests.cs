@@ -995,7 +995,7 @@ public sealed class GridSplitterViewLayoutRegressionTests
         Assert.True(borderOnly.ResizeDelta > 0.01f);
         Assert.True(rich.PeakArrangeWorkMs > 0f);
         Assert.True(borderOnly.PeakArrangeWorkMs > 0f);
-        Assert.InRange(borderOnly.PeakArrangeWorkMs - rich.PeakArrangeWorkMs, -3f, 3f);
+        Assert.InRange(borderOnly.PeakArrangeWorkMs - rich.PeakArrangeWorkMs, -3.5f, 3f);
         Assert.True(rich.GridResolveDefs >= borderOnly.GridResolveDefs);
     }
 

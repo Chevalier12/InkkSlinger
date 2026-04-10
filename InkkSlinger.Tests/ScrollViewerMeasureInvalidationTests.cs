@@ -42,7 +42,7 @@ public sealed class ScrollViewerMeasureInvalidationTests
     }
 
     [Fact]
-    public void DescendantMeasureChange_WithStableViewportAndTransformScrolling_PreservesViewerArrangeRepairPath()
+    public void DescendantMeasureChange_WithStableViewportAndTransformScrolling_RerunsViewerArrangeOverride()
     {
         var content = new DynamicDesiredSizeElement(260f, 600f);
         var viewer = new CountingScrollViewer
@@ -72,7 +72,7 @@ public sealed class ScrollViewerMeasureInvalidationTests
 
         RunLayout(uiRoot, 640, 480, 32);
 
-        Assert.Equal(viewerArrangeBefore, viewer.ArrangeOverrideCount);
+        Assert.Equal(viewerArrangeBefore + 1, viewer.ArrangeOverrideCount);
         Assert.True(content.ArrangeOverrideCount > contentArrangeBefore);
     }
 

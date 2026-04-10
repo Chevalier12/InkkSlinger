@@ -44,7 +44,7 @@ public sealed class GridSplitterResizeInvalidationTests
     }
 
     [Fact]
-    public void SplitterColumnResize_RearrangesDirtyGridWithoutRerunningStableAncestorArrangeOverrides()
+    public void SplitterColumnResize_RearrangesDirtyGridAndRerunsStableAncestorArrangeOverrides()
     {
         var root = new Panel();
         var grid = CreateStableGridContent();
@@ -79,9 +79,9 @@ public sealed class GridSplitterResizeInvalidationTests
         Assert.True(changed);
         RunLayout(uiRoot, 640, 480, 32);
 
-        Assert.Equal(viewerArrangeBefore, viewer.ArrangeOverrideCount);
-        Assert.Equal(stackArrangeBefore, contentStack.ArrangeOverrideCount);
-        Assert.Equal(borderArrangeBefore, contentBorder.ArrangeOverrideCount);
+        Assert.Equal(viewerArrangeBefore + 1, viewer.ArrangeOverrideCount);
+        Assert.Equal(stackArrangeBefore + 1, contentStack.ArrangeOverrideCount);
+        Assert.Equal(borderArrangeBefore + 1, contentBorder.ArrangeOverrideCount);
         Assert.True(grid.ArrangeCallCount > gridArrangeBefore);
     }
 

@@ -12,7 +12,7 @@ public class PasswordBoxTests
         var passwordBox = new PasswordBox();
 
         Assert.Equal(string.Empty, passwordBox.Password);
-        Assert.Equal("•", passwordBox.PasswordChar);
+        Assert.Equal("â€¢", passwordBox.PasswordChar);
         Assert.False(passwordBox.RevealPassword);
         Assert.False(passwordBox.AllowClipboardCopy);
         Assert.False(passwordBox.IsReadOnly);
@@ -127,13 +127,38 @@ public class PasswordBoxTests
     [Fact]
     public void XNameSourceGenerator_AssignsPasswordBoxNamedFields_InDemoView()
     {
-        var view = new PasswordBoxDemoView();
-        var property = typeof(PasswordBoxDemoView).GetProperty("PasswordInput", BindingFlags.Instance | BindingFlags.NonPublic);
+        var snapshot = SnapshotApplicationResources();
+        try
+        {
+            LoadRootAppResources();
 
-        Assert.NotNull(property);
-        var value = property!.GetValue(view);
-        Assert.NotNull(value);
-        Assert.IsType<PasswordBox>(value);
+            var view = new PasswordBoxDemoView();
+            var property = typeof(PasswordBoxDemoView).GetProperty("PasswordInput", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(property);
+            var value = property!.GetValue(view);
+            Assert.NotNull(value);
+            Assert.IsType<PasswordBox>(value);
+        }
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
+    }
+
+    private static Dictionary<object, object> SnapshotApplicationResources()
+    {
+        return new Dictionary<object, object>(UiApplication.Current.Resources);
+    }
+
+    private static void RestoreApplicationResources(Dictionary<object, object> snapshot)
+    {
+        TestApplicationResources.Restore(snapshot);
+    }
+
+    private static void LoadRootAppResources()
+    {
+        TestApplicationResources.LoadDemoAppResources();
     }
 }
 
