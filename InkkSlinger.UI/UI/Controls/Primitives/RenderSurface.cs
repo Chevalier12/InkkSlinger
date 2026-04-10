@@ -37,10 +37,12 @@ public class RenderSurface : SurfacePresenterBase, IUiRootUpdateParticipant
     private GraphicsDevice? _managedGraphicsDevice;
     private Point _managedPixelSize;
     private bool _managedSurfaceDirty;
+    private readonly SubspaceViewport2DCollection _subspaceViewport2Ds;
 
     public RenderSurface()
     {
         _hasDrawSurfaceOverride = DetectDrawSurfaceOverride(GetType());
+        _subspaceViewport2Ds = new SubspaceViewport2DCollection(this);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -66,6 +68,8 @@ public class RenderSurface : SurfacePresenterBase, IUiRootUpdateParticipant
             HandleDrawSurfaceSubscriptionMutation(wasManagedModeActive);
         }
     }
+
+    public IList<SubspaceViewport2D> SubspaceViewport2Ds => _subspaceViewport2Ds;
 
     protected virtual bool IsFrameUpdateActive => false;
 
@@ -147,6 +151,7 @@ public class RenderSurface : SurfacePresenterBase, IUiRootUpdateParticipant
         if (IsManagedModeActive)
         {
             UpdateManagedPixelSize(finalSize);
+            ArrangeSubspaceViewport2Ds(finalSize);
         }
 
         return base.ArrangeOverride(finalSize);
@@ -162,17 +167,23 @@ public class RenderSurface : SurfacePresenterBase, IUiRootUpdateParticipant
         base.OnRender(spriteBatch);
     }
 
-    bool IUiRootUpdateParticipant.IsFrameUpdateActive => IsManagedModeActive && IsFrameUpdateActive;
+    bool IUiRootUpdateParticipant.IsFrameUpdateActive => IsManagedModeActive && (IsFrameUpdateActive || _subspaceViewport2Ds.Count > 0);
 
     void IUiRootUpdateParticipant.UpdateFromUiRoot(GameTime gameTime)
     {
-        if (!IsManagedModeActive || !IsFrameUpdateActive)
+        if (!IsManagedModeActive || (!IsFrameUpdateActive && _subspaceViewport2Ds.Count == 0))
         {
             return;
         }
 
         RecordUpdateCallFromUiRoot();
-        OnFrameUpdate(gameTime);
+        if (IsFrameUpdateActive)
+        {
+            OnFrameUpdate(gameTime);
+        }
+
+        UpdateSubspaceViewport2Ds(gameTime);
+        RefreshManagedSurfaceWhenSubspaceViewport2DsAreDirty();
     }
 
     internal static IRenderSurfaceManagedBackend ManagedBackend
@@ -203,7 +214,278 @@ public class RenderSurface : SurfacePresenterBase, IUiRootUpdateParticipant
         return EnsureManagedSurfaceRendered(uiSpriteBatch: null, graphicsDeviceOverride: graphicsDevice);
     }
 
-    private bool IsManagedModeActive => _drawSurface != null || _hasDrawSurfaceOverride;
+    internal bool IsManagedSurfaceDirtyForTests()
+    {
+        return _managedSurfaceDirty;
+    }
+
+    internal void ClearManagedSurfaceDirtyForTests()
+    {
+        _managedSurfaceDirty = false;
+    }
+
+    internal bool TryHitTestSubspaceViewport2Ds(Vector2 rootPointerPosition, out UIElement? target)
+    {
+        target = null;
+        if (_subspaceViewport2Ds.Count == 0 || !HitTest(rootPointerPosition))
+        {
+            return false;
+        }
+
+        var localPointerPosition = new Vector2(
+            rootPointerPosition.X - LayoutSlot.X,
+            rootPointerPosition.Y - LayoutSlot.Y);
+
+        for (var index = _subspaceViewport2Ds.Count - 1; index >= 0; index--)
+        {
+            if (_subspaceViewport2Ds[index].Content is not UIElement content)
+            {
+                continue;
+            }
+
+            var hit = VisualTreeHelper.HitTest(content, localPointerPosition);
+            if (hit != null)
+            {
+                target = hit;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public override IEnumerable<UIElement> GetLogicalChildren()
+    {
+        foreach (var child in base.GetLogicalChildren())
+        {
+            yield return child;
+        }
+
+        for (var index = 0; index < _subspaceViewport2Ds.Count; index++)
+        {
+            if (_subspaceViewport2Ds[index].Content is UIElement content)
+            {
+                yield return content;
+            }
+        }
+    }
+
+    internal override int GetVisualChildCountForTraversal()
+    {
+        var count = 0;
+        for (var index = 0; index < _subspaceViewport2Ds.Count; index++)
+        {
+            if (_subspaceViewport2Ds[index].Content != null)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    internal override UIElement GetVisualChildAtForTraversal(int index)
+    {
+        if (index < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+
+        var visibleIndex = 0;
+            for (var viewportIndex = 0; viewportIndex < _subspaceViewport2Ds.Count; viewportIndex++)
+        {
+                if (_subspaceViewport2Ds[viewportIndex].Content is not UIElement content)
+            {
+                continue;
+            }
+
+            if (visibleIndex == index)
+            {
+                return content;
+            }
+
+            visibleIndex++;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
+    private bool IsManagedModeActive => _drawSurface != null || _hasDrawSurfaceOverride || _subspaceViewport2Ds.Count > 0;
+
+    internal void AttachSubspaceViewport2D(SubspaceViewport2D viewport)
+    {
+        var wasManagedModeActive = IsManagedModeActive;
+        if (viewport.Host != null && !ReferenceEquals(viewport.Host, this))
+        {
+            throw new InvalidOperationException("SubspaceViewport2D is already attached to another RenderSurface.");
+        }
+
+        viewport.Host = this;
+        AttachSubspaceViewport2DContent(viewport.Content);
+        HandleSubspaceViewport2DMutation(wasManagedModeActive);
+    }
+
+    internal void DetachSubspaceViewport2D(SubspaceViewport2D viewport)
+    {
+        var wasManagedModeActive = IsManagedModeActive;
+        DetachSubspaceViewport2DContent(viewport.Content);
+        if (ReferenceEquals(viewport.Host, this))
+        {
+            viewport.Host = null;
+        }
+
+        HandleSubspaceViewport2DMutation(wasManagedModeActive);
+    }
+
+    internal void OnSubspaceViewport2DContentChanged(SubspaceViewport2D viewport, UIElement? oldContent, UIElement? newContent)
+    {
+        if (!ReferenceEquals(viewport.Host, this))
+        {
+            return;
+        }
+
+        DetachSubspaceViewport2DContent(oldContent);
+        AttachSubspaceViewport2DContent(newContent);
+        InvalidateSubspaceViewport2DVisuals();
+    }
+
+    private void HandleSubspaceViewport2DMutation(bool wasManagedModeActive)
+    {
+        var isManagedModeActive = IsManagedModeActive;
+        if (wasManagedModeActive != isManagedModeActive)
+        {
+            if (isManagedModeActive)
+            {
+                SyncManagedSurfacePresentation();
+                _managedSurfaceDirty = true;
+            }
+            else
+            {
+                _managedSurfaceDirty = false;
+                DisposeManagedGraphicsResources(updatePresentationSurface: false);
+                if (_managedSurface != null)
+                {
+                    _managedSurface = null;
+                    InvalidateResolvedSurfaceCache();
+                }
+            }
+
+            InvalidateMeasure();
+            return;
+        }
+
+        if (isManagedModeActive)
+        {
+            _managedSurfaceDirty = true;
+            InvalidateVisual();
+        }
+    }
+
+    private void AttachSubspaceViewport2DContent(UIElement? content)
+    {
+        if (content == null)
+        {
+            return;
+        }
+
+        content.SetVisualParent(this);
+        content.SetLogicalParent(this);
+    }
+
+    private void DetachSubspaceViewport2DContent(UIElement? content)
+    {
+        if (content == null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(content.VisualParent, this))
+        {
+            content.SetVisualParent(null);
+        }
+
+        if (ReferenceEquals(content.LogicalParent, this))
+        {
+            content.SetLogicalParent(null);
+        }
+    }
+
+    private void InvalidateSubspaceViewport2DVisuals()
+    {
+        if (!IsManagedModeActive)
+        {
+            return;
+        }
+
+        _managedSurfaceDirty = true;
+        InvalidateVisual();
+    }
+
+    private void UpdateSubspaceViewport2Ds(GameTime gameTime)
+    {
+        for (var index = 0; index < _subspaceViewport2Ds.Count; index++)
+        {
+            _subspaceViewport2Ds[index].Content?.Update(gameTime);
+        }
+    }
+
+    private void RefreshManagedSurfaceWhenSubspaceViewport2DsAreDirty()
+    {
+        if (_managedSurfaceDirty)
+        {
+            return;
+        }
+
+        for (var index = 0; index < _subspaceViewport2Ds.Count; index++)
+        {
+            if (!IsSubspaceViewport2DSubtreeDirty(_subspaceViewport2Ds[index].Content))
+            {
+                continue;
+            }
+
+            _managedSurfaceDirty = true;
+            InvalidateVisual();
+            return;
+        }
+    }
+
+    private static bool IsSubspaceViewport2DSubtreeDirty(UIElement? element)
+    {
+        if (element == null)
+        {
+            return false;
+        }
+
+        if (element.NeedsMeasure || element.NeedsArrange || element.NeedsRender)
+        {
+            return true;
+        }
+
+        var childCount = element.GetVisualChildCountForTraversal();
+        for (var index = 0; index < childCount; index++)
+        {
+            if (IsSubspaceViewport2DSubtreeDirty(element.GetVisualChildAtForTraversal(index)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void ArrangeSubspaceViewport2Ds(Vector2 finalSize)
+    {
+        var bounds = new Rectangle(
+            0,
+            0,
+            Math.Max(0, (int)MathF.Round(finalSize.X)),
+            Math.Max(0, (int)MathF.Round(finalSize.Y)));
+
+        for (var index = 0; index < _subspaceViewport2Ds.Count; index++)
+        {
+            ArrangeSubspaceViewport2D(bounds, _subspaceViewport2Ds[index]);
+        }
+    }
 
     private void HandleDrawSurfaceSubscriptionMutation(bool wasManagedModeActive)
     {
@@ -320,6 +602,63 @@ public class RenderSurface : SurfacePresenterBase, IUiRootUpdateParticipant
     {
         OnDrawSurface(spriteBatch, bounds);
         _drawSurface?.Invoke(spriteBatch, bounds);
+        DrawSubspaceViewport2Ds(spriteBatch, bounds);
+    }
+
+    private void DrawSubspaceViewport2Ds(SpriteBatch spriteBatch, Rectangle bounds)
+    {
+        for (var index = 0; index < _subspaceViewport2Ds.Count; index++)
+        {
+            DrawSubspaceViewport2D(spriteBatch, bounds, _subspaceViewport2Ds[index]);
+        }
+    }
+
+    private static void DrawSubspaceViewport2D(SpriteBatch spriteBatch, Rectangle bounds, SubspaceViewport2D viewport)
+    {
+        var content = viewport.Content;
+        if (content == null)
+        {
+            return;
+        }
+
+        var clipRect = ArrangeSubspaceViewport2D(bounds, viewport);
+        UiDrawing.PushLocalState(spriteBatch, hasTransform: false, localTransform: Matrix.Identity, hasClip: true, clipRect);
+        try
+        {
+            content.Draw(spriteBatch);
+        }
+        finally
+        {
+            UiDrawing.PopLocalState(spriteBatch, hasTransform: false, hasClip: true);
+        }
+    }
+
+    private static LayoutRect ArrangeSubspaceViewport2D(Rectangle bounds, SubspaceViewport2D viewport)
+    {
+        var content = viewport.Content;
+        var availableWidth = Math.Max(0f, bounds.Width - viewport.X);
+        var availableHeight = Math.Max(0f, bounds.Height - viewport.Y);
+        var layoutWidth = float.IsNaN(viewport.Width) ? availableWidth : Math.Max(0f, viewport.Width);
+        var layoutHeight = float.IsNaN(viewport.Height) ? availableHeight : Math.Max(0f, viewport.Height);
+
+        if (content is FrameworkElement frameworkContent)
+        {
+            frameworkContent.Measure(new Vector2(layoutWidth, layoutHeight));
+
+            if (float.IsNaN(viewport.Width))
+            {
+                layoutWidth = Math.Min(availableWidth, frameworkContent.DesiredSize.X);
+            }
+
+            if (float.IsNaN(viewport.Height))
+            {
+                layoutHeight = Math.Min(availableHeight, frameworkContent.DesiredSize.Y);
+            }
+
+            frameworkContent.Arrange(new LayoutRect(viewport.X, viewport.Y, layoutWidth, layoutHeight));
+        }
+
+        return new LayoutRect(viewport.X, viewport.Y, Math.Max(0f, layoutWidth), Math.Max(0f, layoutHeight));
     }
 
     private void SyncManagedSurfacePresentation()

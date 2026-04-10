@@ -553,6 +553,41 @@ public static partial class XamlLoader
 
     private static void ApplyObjectChildren(object target, XElement element, object? codeBehind, FrameworkElement? resourceScope)
     {
+        if (target is SubspaceViewport2D subspaceViewport2D)
+        {
+            XElement? contentElement = null;
+            foreach (var child in element.Elements())
+            {
+                if (TryApplyPropertyElement(target, child, codeBehind, resourceScope))
+                {
+                    continue;
+                }
+
+                if (contentElement != null)
+                {
+                    throw CreateXamlException(
+                        $"Element '{element.Name.LocalName}' supports a single implicit content child.",
+                        child);
+                }
+
+                contentElement = child;
+            }
+
+            if (contentElement != null)
+            {
+                if (BuildObject(contentElement, codeBehind, resourceScope) is not UIElement uiElement)
+                {
+                    throw CreateXamlException(
+                        $"Element '{element.Name.LocalName}' requires a UIElement content child.",
+                        contentElement);
+                }
+
+                subspaceViewport2D.Content = uiElement;
+            }
+
+            return;
+        }
+
         if (target is Storyboard storyboard)
         {
             foreach (var child in element.Elements())

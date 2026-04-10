@@ -8,6 +8,58 @@ namespace InkkSlinger.Tests;
 
 public sealed class RenderSurfaceTests
 {
+        [Fact]
+        public void SubspaceViewport2Ds_EnableManagedMode()
+        {
+                var renderSurface = new RenderSurface();
+                renderSurface.SubspaceViewport2Ds.Add(new SubspaceViewport2D
+                {
+                        X = 12f,
+                        Y = 18f,
+                        Width = 120f,
+                        Height = 64f,
+                        Content = new Grid()
+                });
+
+                renderSurface.Arrange(new LayoutRect(0f, 0f, 240f, 160f));
+
+                Assert.True(renderSurface.IsManagedModeActiveForTests);
+                Assert.NotNull(renderSurface.GetDisplayedSurfaceForTests());
+                Assert.Equal(240, renderSurface.GetDisplayedSurfaceForTests()!.PixelWidth);
+                Assert.Equal(160, renderSurface.GetDisplayedSurfaceForTests()!.PixelHeight);
+        }
+
+        [Fact]
+        public void LoadFromXaml_CreatesRenderSurfaceSubspaceViewport2Ds()
+        {
+                const string xaml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <RenderSurface x:Name="Surface">
+        <RenderSurface.SubspaceViewport2Ds>
+            <SubspaceViewport2D X="16" Y="24" Width="140" Height="80">
+                <Grid x:Name="InnerRoot">
+                    <Button x:Name="InnerButton" Content="Inside" />
+                </Grid>
+            </SubspaceViewport2D>
+        </RenderSurface.SubspaceViewport2Ds>
+    </RenderSurface>
+</UserControl>
+""";
+
+                var root = Assert.IsType<UserControl>(XamlLoader.LoadFromString(xaml));
+                var surface = Assert.IsType<RenderSurface>(root.FindName("Surface"));
+                    var viewport = Assert.Single(surface.SubspaceViewport2Ds);
+                    var innerRoot = Assert.IsType<Grid>(viewport.Content);
+                var innerButton = Assert.IsType<Button>(innerRoot.FindName("InnerButton"));
+
+                    Assert.Equal(16f, viewport.X);
+                    Assert.Equal(24f, viewport.Y);
+                    Assert.Equal(140f, viewport.Width);
+                    Assert.Equal(80f, viewport.Height);
+                Assert.Equal("Inside", Assert.IsType<string>(innerButton.Content));
+        }
+
     [Fact]
     public void Measure_WithPixelSurface_UsesSurfaceSize()
     {
@@ -232,6 +284,82 @@ public sealed class RenderSurfaceTests
         {
             RenderSurface.ManagedBackend = previousBackend;
         }
+    }
+
+    [Fact]
+    public void SubspaceViewport2DChildRenderInvalidation_SchedulesManagedRedraw()
+    {
+        var host = new Canvas
+        {
+            Width = 800f,
+            Height = 600f
+        };
+
+        var renderSurface = new RenderSurface
+        {
+            Width = 560f,
+            Height = 392f,
+            Stretch = Stretch.Uniform
+        };
+
+        host.AddChild(renderSurface);
+        Canvas.SetLeft(renderSurface, 24f);
+        Canvas.SetTop(renderSurface, 24f);
+
+        var checkBox = new CheckBox
+        {
+            Content = "Enable locality",
+            IsChecked = true
+        };
+
+        var viewportStack = new StackPanel();
+        viewportStack.AddChild(new TextBlock { Text = "Diagnostics Pod" });
+        viewportStack.AddChild(new ProgressBar
+        {
+            Minimum = 0f,
+            Maximum = 100f,
+            Value = 68f,
+            Width = 172f,
+            Height = 16f,
+            Margin = new Thickness(0f, 10f, 0f, 0f)
+        });
+        viewportStack.AddChild(checkBox);
+        viewportStack.AddChild(new TextBlock
+        {
+            Text = "Buttons, text, panels, and other framework visuals can be composed here as part of the local world.",
+            Width = 180f,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0f, 12f, 0f, 0f)
+        });
+
+        renderSurface.SubspaceViewport2Ds.Add(new SubspaceViewport2D
+        {
+            X = 286f,
+            Y = 52f,
+            Width = 220f,
+            Height = 188f,
+            Content = new Border
+            {
+                Padding = new Thickness(12f),
+                Child = viewportStack
+            }
+        });
+
+        var uiRoot = new UiRoot(host);
+        var viewport = new Viewport(0, 0, 800, 600);
+
+        uiRoot.Update(new GameTime(TimeSpan.Zero, TimeSpan.FromMilliseconds(16)), viewport);
+        renderSurface.ClearManagedSurfaceDirtyForTests();
+        renderSurface.ClearRenderInvalidationShallow();
+
+        checkBox.IsChecked = false;
+
+        Assert.False(renderSurface.IsManagedSurfaceDirtyForTests());
+
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), viewport);
+
+        Assert.True(renderSurface.IsManagedSurfaceDirtyForTests());
+        Assert.True(renderSurface.NeedsRender);
     }
 
     [Fact]

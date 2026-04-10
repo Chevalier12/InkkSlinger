@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -61,6 +61,7 @@ public static class ControlViews
         "RadioButton",
         "RepeatButton",
         "RenderSurface",
+        "RenderSurface (SubspaceViewport2D)",
         "RenderSurface [GPU]",
         "ResizeGrip",
         "RichTextBox",
@@ -146,6 +147,7 @@ public static class ControlViews
             ["RadioButton"] = static () => new RadioButtonView(),
             ["RepeatButton"] = static () => new RepeatButtonView(),
             ["RenderSurface"] = static () => new RenderSurfaceView(),
+            ["RenderSurface (SubspaceViewport2D)"] = static () => new RenderSurfaceSubspaceViewport2DView(),
             ["RenderSurface [GPU]"] = static () => new RenderSurfaceGpuView(),
             ["ResizeGrip"] = static () => new ResizeGripView(),
             ["RichTextBox"] = static () => new RichTextBoxView(),
@@ -274,6 +276,7 @@ internal static class ControlDemoSupport
             ["RadioButton"] = static () => new RadioButton(),
             ["RepeatButton"] = static () => new RepeatButton(),
             ["RenderSurface"] = static () => new RenderSurface(),
+            ["RenderSurface (SubspaceViewport2D)"] = static () => new RenderSurface(),
             ["RenderSurface [GPU]"] = static () => new RenderSurface(),
             ["ResizeGrip"] = static () => new ResizeGrip(),
             ["RichTextBox"] = static () => new RichTextBox(),
@@ -566,6 +569,7 @@ internal static class ControlDemoSupport
                     Value = 35f
                 };
             case "RenderSurface":
+            case "RenderSurface (SubspaceViewport2D)":
             case "RenderSurface [GPU]":
                 return new RenderSurface
                 {

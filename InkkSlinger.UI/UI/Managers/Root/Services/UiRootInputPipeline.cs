@@ -131,8 +131,16 @@ public sealed partial class UiRoot
         {
             var moveHitTestsBefore = _lastInputHitTestCount;
             var previousHovered = _inputState.HoveredElement;
+            if (TryResolveSweptPointerHoverTarget(delta, pointerTarget, out var sweptHoverTarget, out var sweptHoverPointerPosition) &&
+                sweptHoverTarget != null)
+            {
+                var sweptHoverStart = Stopwatch.GetTimestamp();
+                UpdateHover(sweptHoverTarget, sweptHoverPointerPosition);
+                hoverTicks += Stopwatch.GetTimestamp() - sweptHoverStart;
+            }
+
             var hoverStart = Stopwatch.GetTimestamp();
-            UpdateHover(pointerTarget);
+            UpdateHover(pointerTarget, delta.Current.PointerPosition);
             hoverTicks += Stopwatch.GetTimestamp() - hoverStart;
             var contextMenuMoveHandled = false;
             if (_inputState.CapturedPointerElement == null &&
@@ -319,6 +327,12 @@ public sealed partial class UiRoot
             Vector2.DistanceSquared(_lastClickUpPointerPosition, pointerPosition) <= ClickPointerReuseThresholdSquared)
         {
             _clickCpuResolveCachedCount++;
+            if (TryResolveClickTargetFromCandidate(_lastClickUpTarget, pointerPosition, out var reusedClickUpTarget) &&
+                reusedClickUpTarget != null)
+            {
+                return FinalizePointerResolve("ReuseLastClickUp", reusedClickUpTarget);
+            }
+
             return FinalizePointerResolve("ReuseLastClickUp", _lastClickUpTarget);
         }
 
@@ -330,10 +344,23 @@ public sealed partial class UiRoot
             Vector2.DistanceSquared(_lastClickDownPointerPosition, pointerPosition) <= ClickPointerReuseThresholdSquared)
         {
             _clickCpuResolveCachedCount++;
+            if (TryResolveClickTargetFromCandidate(_lastClickDownTarget, pointerPosition, out var reusedClickDownTarget) &&
+                reusedClickDownTarget != null)
+            {
+                return FinalizePointerResolve("ReuseLastClickDown", reusedClickDownTarget);
+            }
+
             return FinalizePointerResolve("ReuseLastClickDown", _lastClickDownTarget);
         }
 
         var bypassClickTargetShortcuts = requiresPreciseTarget && ShouldBypassClickTargetShortcuts(pointerPosition);
+        if (requiresPreciseTarget &&
+            TryResolveSubspaceViewport2DPreciseClickTarget(pointerPosition, out var subspaceViewport2DTarget) &&
+            subspaceViewport2DTarget != null)
+        {
+            return FinalizePointerResolve("SubspaceViewport2DHitTest", subspaceViewport2DTarget);
+        }
+
         if (requiresPreciseTarget &&
             !bypassClickTargetShortcuts &&
             !delta.PointerMoved &&
@@ -341,6 +368,12 @@ public sealed partial class UiRoot
             cachedPointerTarget != null)
         {
             _clickCpuResolveCachedCount++;
+            if (TryResolveClickTargetFromCandidate(cachedPointerTarget, pointerPosition, out var resolvedCachedPointerTarget) &&
+                resolvedCachedPointerTarget != null)
+            {
+                return FinalizePointerResolve("PointerResolveCacheReuse", resolvedCachedPointerTarget);
+            }
+
             return FinalizePointerResolve("PointerResolveCacheReuse", cachedPointerTarget);
         }
 
@@ -453,6 +486,7 @@ public sealed partial class UiRoot
         var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
         _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(finalHitTestStart).TotalMilliseconds;
         _lastPointerResolveHitTestMetrics = metrics;
+        hit = ResolveSubspaceViewport2DClickCandidate(hit, pointerPosition);
 
         if (requiresPreciseTarget)
         {
@@ -556,6 +590,81 @@ public sealed partial class UiRoot
         return false;
     }
 
+    private bool TryResolveSweptPointerHoverTarget(
+        InputDelta delta,
+        UIElement? currentTarget,
+        out UIElement? target,
+        out Vector2 pointerPosition)
+    {
+        target = null;
+        pointerPosition = delta.Current.PointerPosition;
+        if (!delta.PointerMoved || _inputState.CapturedPointerElement != null)
+        {
+            return false;
+        }
+
+        var currentPointerPosition = delta.Current.PointerPosition;
+        var currentHoverTarget = ResolveHoverTargetCandidate(currentTarget, currentPointerPosition);
+        if (currentHoverTarget != null && IsHoverHostElement(currentHoverTarget))
+        {
+            return false;
+        }
+
+        var previousPointerPosition = delta.Previous.PointerPosition;
+        var deltaVector = currentPointerPosition - previousPointerPosition;
+        var maxAxisDistance = MathF.Max(MathF.Abs(deltaVector.X), MathF.Abs(deltaVector.Y));
+        var sampleCount = (int)MathF.Ceiling(maxAxisDistance / SweptPointerPressSampleSpacing);
+        if (sampleCount <= 1)
+        {
+            return false;
+        }
+
+        for (var sampleIndex = 1; sampleIndex < sampleCount; sampleIndex++)
+        {
+            var progress = sampleIndex / (float)sampleCount;
+            var samplePosition = Vector2.Lerp(previousPointerPosition, currentPointerPosition, progress);
+            if (!TryResolveSweptHoverTargetAtPoint(samplePosition, out target) || target == null)
+            {
+                continue;
+            }
+
+            pointerPosition = samplePosition;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryResolveSubspaceViewport2DPreciseClickTarget(Vector2 pointerPosition, out UIElement? target)
+    {
+        target = null;
+        EnsureVisualIndexCurrent();
+
+        var indexedVisuals = _visualIndex.Nodes;
+        for (var index = indexedVisuals.Count - 1; index >= 0; index--)
+        {
+            if (indexedVisuals[index].Visual is not RenderSurface renderSurface ||
+                !renderSurface.HitTest(pointerPosition) ||
+                !renderSurface.TryHitTestSubspaceViewport2Ds(pointerPosition, out var subspaceViewport2DHit) ||
+                subspaceViewport2DHit == null)
+            {
+                continue;
+            }
+
+            if (TryResolveClickTargetFromCandidate(subspaceViewport2DHit, pointerPosition, out var resolvedSubspaceViewport2DTarget) &&
+                resolvedSubspaceViewport2DTarget != null)
+            {
+                target = resolvedSubspaceViewport2DTarget;
+                return true;
+            }
+
+            target = subspaceViewport2DHit;
+            return true;
+        }
+
+        return false;
+    }
+
     private bool TryResolveSweptClickTargetAtPoint(Vector2 pointerPosition, out UIElement? target)
     {
         target = null;
@@ -571,6 +680,17 @@ public sealed partial class UiRoot
         }
 
         return TryResolveClickTargetFromCandidate(hit, pointerPosition, out target) && target != null;
+    }
+
+    private bool TryResolveSweptHoverTargetAtPoint(Vector2 pointerPosition, out UIElement? target)
+    {
+        target = null;
+        _lastInputHitTestCount++;
+        var hitTestStart = Stopwatch.GetTimestamp();
+        var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+        target = ResolveHoverTargetCandidate(hit, pointerPosition);
+        return target != null && IsHoverHostElement(target);
     }
 
     private void UpdateCachedPointerResolveTarget(Vector2 pointerPosition, UIElement? target)
@@ -618,8 +738,12 @@ public sealed partial class UiRoot
 
     private void UpdateHover(UIElement? hovered)
     {
-        hovered = ResolveHostedHoverTargetWithinTextInputSubtree(hovered);
-        hovered = PromoteHoverTarget(hovered);
+        UpdateHover(hovered, _inputState.LastPointerPosition);
+    }
+
+    private void UpdateHover(UIElement? hovered, Vector2 pointerPosition)
+    {
+        hovered = ResolveHoverTargetCandidate(hovered, pointerPosition);
         var previousHovered = _inputState.HoveredElement;
         if (ReferenceEquals(previousHovered, hovered))
         {
@@ -635,17 +759,16 @@ public sealed partial class UiRoot
 
         if (CanvasThumbInvestigationLog.ShouldTrace(
             _visualRoot,
-            _inputState.LastPointerPosition,
+            pointerPosition,
             previousHovered,
             hovered,
             _inputState.CapturedPointerElement))
         {
             CanvasThumbInvestigationLog.Write(
             "Hover",
-            $"pointer={CanvasThumbInvestigationLog.DescribePointer(_inputState.LastPointerPosition)} previous={CanvasThumbInvestigationLog.DescribeElement(previousHovered)} current={CanvasThumbInvestigationLog.DescribeElement(hovered)} cachedClick={CanvasThumbInvestigationLog.DescribeElement(_cachedClickTarget)} captured={CanvasThumbInvestigationLog.DescribeElement(_inputState.CapturedPointerElement)}");
+            $"pointer={CanvasThumbInvestigationLog.DescribePointer(pointerPosition)} previous={CanvasThumbInvestigationLog.DescribeElement(previousHovered)} current={CanvasThumbInvestigationLog.DescribeElement(hovered)} cachedClick={CanvasThumbInvestigationLog.DescribeElement(_cachedClickTarget)} captured={CanvasThumbInvestigationLog.DescribeElement(_inputState.CapturedPointerElement)}");
         }
 
-        var pointerPosition = _inputState.LastPointerPosition;
         if (previousHovered != null)
         {
             _lastInputRoutedEventCount++;
@@ -667,18 +790,30 @@ public sealed partial class UiRoot
 
     private UIElement? ResolveHostedHoverTargetWithinTextInputSubtree(UIElement? hovered)
     {
+        return ResolveHostedHoverTargetWithinTextInputSubtree(hovered, _inputState.LastPointerPosition);
+    }
+
+    private UIElement? ResolveHostedHoverTargetWithinTextInputSubtree(UIElement? hovered, Vector2 pointerPosition)
+    {
         if (hovered == null)
         {
             return null;
         }
 
-        if (!TryResolveHoverTargetWithinTextInputSubtree(hovered, _inputState.LastPointerPosition, out var hostedHoverTarget) ||
+        if (!TryResolveHoverTargetWithinTextInputSubtree(hovered, pointerPosition, out var hostedHoverTarget) ||
             hostedHoverTarget == null)
         {
             return hovered;
         }
 
         return hostedHoverTarget;
+    }
+
+    private UIElement? ResolveHoverTargetCandidate(UIElement? candidate, Vector2 pointerPosition)
+    {
+        candidate = ResolveSubspaceViewport2DClickCandidate(candidate, pointerPosition);
+        candidate = ResolveHostedHoverTargetWithinTextInputSubtree(candidate, pointerPosition);
+        return PromoteHoverTarget(candidate);
     }
 
     private UIElement? PromoteHoverTarget(UIElement? hovered)
@@ -1970,6 +2105,7 @@ public sealed partial class UiRoot
 
     private bool TryResolveClickTargetFromCandidate(UIElement? candidate, Vector2 pointerPosition, out UIElement? target)
     {
+        candidate = ResolveSubspaceViewport2DClickCandidate(candidate, pointerPosition);
         target = null;
         if (candidate == null ||
             !IsElementConnectedToVisualRoot(candidate) ||
@@ -2016,6 +2152,31 @@ public sealed partial class UiRoot
         }
 
         return false;
+    }
+
+    private UIElement? ResolveSubspaceViewport2DClickCandidate(UIElement? candidate, Vector2 pointerPosition)
+    {
+        if (candidate == null)
+        {
+            return null;
+        }
+
+        if (candidate is RenderSurface renderSurface &&
+            renderSurface.TryHitTestSubspaceViewport2Ds(pointerPosition, out var directSubspaceViewport2DTarget) &&
+            directSubspaceViewport2DTarget != null)
+        {
+            return directSubspaceViewport2DTarget;
+        }
+
+        if (TryFindAncestor<RenderSurface>(candidate, out var ancestorRenderSurface) &&
+            ancestorRenderSurface != null &&
+            ancestorRenderSurface.TryHitTestSubspaceViewport2Ds(pointerPosition, out var subspaceViewport2DTarget) &&
+            subspaceViewport2DTarget != null)
+        {
+            return subspaceViewport2DTarget;
+        }
+
+        return candidate;
     }
 
     private bool HasMultipleTopLevelVisualChildren()

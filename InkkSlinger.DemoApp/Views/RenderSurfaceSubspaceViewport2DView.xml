@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.RenderSurfaceSubspaceViewport2DView"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#101822"
+             Padding="12">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0" Margin="0,0,0,10">
+      <TextBlock Text="RenderSurface (SubspaceViewport2D)"
+                 Foreground="#F4FAFF"
+                 FontSize="18"
+                 FontWeight="SemiBold"
+                 TextWrapping="Wrap" />
+      <TextBlock Text="MVP: framework visuals rendered as bounded 2D subspace viewports inside a RenderSurface."
+                 Foreground="#9FC0D8"
+                 Margin="0,4,0,0"
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Border Grid.Row="1"
+            Background="#081019"
+            BorderBrush="#28445F"
+            BorderThickness="1"
+            CornerRadius="14"
+            Padding="12">
+      <RenderSurface Width="560"
+                     Height="392"
+                     MinWidth="320"
+                     MinHeight="224"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Stretch="Uniform">
+        <RenderSurface.SubspaceViewport2Ds>
+          <SubspaceViewport2D X="24" Y="24" Width="236" Height="162">
+            <Border Background="#172433"
+                    BorderBrush="#4D88B8"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="12">
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Text="Local Viewport A"
+                           Foreground="#F6FBFF"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock Grid.Row="1"
+                           Text="This subtree is rendered inside the RenderSurface and laid out in local 2D viewport coordinates."
+                           Foreground="#BCD7EA"
+                           Margin="0,8,0,0"
+                           TextWrapping="Wrap" />
+                <Button Grid.Row="2"
+                        Content="Action"
+                        Width="96"
+                        Margin="0,12,0,0" />
+              </Grid>
+            </Border>
+          </SubspaceViewport2D>
+
+          <SubspaceViewport2D X="286" Y="52" Width="220" Height="188">
+            <Border Background="#231726"
+                    BorderBrush="#A45BB5"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="12">
+              <StackPanel>
+                <TextBlock Text="Diagnostics Pod"
+                           Foreground="#FFF5FF"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <ProgressBar Minimum="0"
+                             Maximum="100"
+                             Value="68"
+                             Width="172"
+                             Height="16"
+                             Margin="0,10,0,0" />
+                <CheckBox Content="Enable locality"
+                          Margin="0,12,0,0"
+                          IsChecked="True" />
+                <TextBlock Text="Buttons, text, panels, and other framework visuals can be composed here as part of the local 2D world."
+                           Foreground="#E6D5EA"
+                           Margin="0,12,0,0"
+                           Width="180"
+                           TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </SubspaceViewport2D>
+
+          <SubspaceViewport2D X="108" Y="244" Width="338" Height="104">
+            <Border Background="#1A2B1F"
+                    BorderBrush="#5EAA72"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="12">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Text="Local World Footer"
+                             Foreground="#F1FFF5"
+                             FontWeight="SemiBold"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="Current MVP is a bounded local 2D UI island with render-surface-hosted input and redraw bridging."
+                             Foreground="#CBE9D2"
+                             Margin="0,6,0,0"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+                <Border Grid.Column="1"
+                        Background="#0E1811"
+                        BorderBrush="#5EAA72"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="10,6"
+                        VerticalAlignment="Center">
+                  <TextBlock Text="2DSV"
+                             Foreground="#EDFFF1"
+                             TextWrapping="Wrap" />
+                </Border>
+              </Grid>
+            </Border>
+          </SubspaceViewport2D>
+        </RenderSurface.SubspaceViewport2Ds>
+      </RenderSurface>
+    </Border>
+
+    <TextBlock Grid.Row="2"
+               Margin="0,10,0,0"
+               Foreground="#D8E9F5"
+               Text="The public XAML surface uses SubspaceViewport2D and RenderSurface.SubspaceViewport2Ds for bounded local 2D UI regions rendered inside a host RenderSurface."
+               TextWrapping="Wrap" />
+  </Grid>
+</UserControl>
