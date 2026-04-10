@@ -252,6 +252,55 @@ public sealed class ControlDemoDataGridSampleTests
     }
 
     [Fact]
+    public void ControlsCatalog_DataGridRowSelection_ShouldCollapsePreviousRowDetailsHeight()
+    {
+        TestApplicationResources.LoadDemoAppResources();
+
+        var catalog = new ControlsCatalogView
+        {
+            Width = 1400f,
+            Height = 900f
+        };
+
+        var host = new Canvas
+        {
+            Width = 1400f,
+            Height = 900f
+        };
+        host.AddChild(catalog);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1400, 900);
+
+        var dataGridButton = FindFirstVisualChild<Button>(catalog, static button => button.GetContentText() == "DataGrid");
+        Assert.NotNull(dataGridButton);
+
+        Click(uiRoot, GetCenter(dataGridButton!.LayoutSlot));
+        RunLayout(uiRoot, 1400, 900);
+
+        var dataGrid = FindFirstVisualChild<DataGrid>(catalog);
+        Assert.NotNull(dataGrid);
+
+        var firstRow = dataGrid!.RowsForTesting[0];
+        var secondRow = dataGrid.RowsForTesting[1];
+        var collapsedRowHeight = firstRow.LayoutSlot.Height;
+
+        Click(uiRoot, GetCenter(firstRow.Cells[0].LayoutSlot));
+        RunLayout(uiRoot, 1400, 900);
+
+        var firstRowExpandedHeight = firstRow.LayoutSlot.Height;
+        Assert.True(
+            firstRowExpandedHeight > collapsedRowHeight + 0.5f,
+            $"Expected the selected row to expand when row details become visible. Collapsed={collapsedRowHeight}, Expanded={firstRowExpandedHeight}.");
+
+        Click(uiRoot, GetCenter(secondRow.Cells[0].LayoutSlot));
+        RunLayout(uiRoot, 1400, 900);
+
+        Assert.True(secondRow.LayoutSlot.Height > collapsedRowHeight + 0.5f);
+        Assert.Equal(collapsedRowHeight, firstRow.LayoutSlot.Height, 0.5f);
+    }
+
+    [Fact]
     public void DataGridSample_ScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastRow()
     {
         var element = ControlDemoSupport.BuildSampleElement("DataGrid");

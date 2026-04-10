@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -92,34 +93,57 @@ public class AdornerClippingTests
     [Fact]
     public void PaintShell_SelectionAdorners_TrackHorizontalScrollOffset()
     {
-        var view = new PaintShellView();
-        var decorator = Assert.IsType<AdornerDecorator>(view.FindName("CanvasAdornerRoot"));
-        var viewer = Assert.IsType<ScrollViewer>(view.FindName("DrawingScrollViewer"));
-        var selected = Assert.IsType<Border>(view.FindName("SelectedShape"));
+        var backup = CaptureApplicationResources();
+        try
+        {
+            TestApplicationResources.LoadDemoAppResources();
 
-        var uiRoot = new UiRoot(view);
-        RunLayout(uiRoot, 1280, 840, 16);
+            var view = new PaintShellView();
+            var decorator = Assert.IsType<AdornerDecorator>(view.FindName("CanvasAdornerRoot"));
+            var viewer = Assert.IsType<ScrollViewer>(view.FindName("DrawingScrollViewer"));
+            var selected = Assert.IsType<Border>(view.FindName("SelectedShape"));
 
-        var adorners = decorator.AdornerLayer.GetAdorners(selected).ToArray();
-        Assert.NotEmpty(adorners);
-        Assert.True(selected.TryGetRenderBoundsInRootSpace(out var initialSelectedBounds));
+            var uiRoot = new UiRoot(view);
+            RunLayout(uiRoot, 1280, 840, 16);
 
-        var handleAdorner = adorners
-            .OrderBy(adorner => MathF.Abs(adorner.LastAdornerRectForTesting.Width - initialSelectedBounds.Width))
-            .ThenBy(adorner => MathF.Abs(adorner.LastAdornerRectForTesting.Height - initialSelectedBounds.Height))
-            .First();
-        var initialRect = handleAdorner.LastAdornerRectForTesting;
+            var adorners = decorator.AdornerLayer.GetAdorners(selected).ToArray();
+            Assert.NotEmpty(adorners);
+            Assert.True(selected.TryGetRenderBoundsInRootSpace(out var initialSelectedBounds));
 
-        viewer.ScrollToHorizontalOffset(260f);
-        Assert.False(selected.NeedsArrange);
+            var handleAdorner = adorners
+                .OrderBy(adorner => MathF.Abs(adorner.LastAdornerRectForTesting.Width - initialSelectedBounds.Width))
+                .ThenBy(adorner => MathF.Abs(adorner.LastAdornerRectForTesting.Height - initialSelectedBounds.Height))
+                .First();
+            var initialRect = handleAdorner.LastAdornerRectForTesting;
 
-        RunLayout(uiRoot, 1280, 840, 32);
+            viewer.ScrollToHorizontalOffset(260f);
+            Assert.False(selected.NeedsArrange);
 
-        Assert.True(selected.TryGetRenderBoundsInRootSpace(out var selectedBoundsAfterScroll));
-        var updatedRect = handleAdorner.LastAdornerRectForTesting;
+            RunLayout(uiRoot, 1280, 840, 32);
 
-        Assert.True(updatedRect.X < initialRect.X - 0.05f);
-        Assert.True(AreClose(selectedBoundsAfterScroll.X, updatedRect.X));
+            Assert.True(selected.TryGetRenderBoundsInRootSpace(out var selectedBoundsAfterScroll));
+            var updatedRect = handleAdorner.LastAdornerRectForTesting;
+
+            Assert.True(updatedRect.X < initialRect.X - 0.05f);
+            Assert.True(AreClose(selectedBoundsAfterScroll.X, updatedRect.X));
+        }
+        finally
+        {
+            RestoreApplicationResources(backup);
+        }
+    }
+
+    private static ResourceSnapshot CaptureApplicationResources()
+    {
+        var resources = UiApplication.Current.Resources;
+        return new ResourceSnapshot(
+            resources.ToList(),
+            resources.MergedDictionaries.ToList());
+    }
+
+    private static void RestoreApplicationResources(ResourceSnapshot snapshot)
+    {
+        TestApplicationResources.Restore(snapshot.Entries, snapshot.MergedDictionaries);
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
@@ -146,4 +170,8 @@ public class AdornerClippingTests
             return TryGetClipRect(out clipRect);
         }
     }
+
+    private sealed record ResourceSnapshot(
+        List<KeyValuePair<object, object>> Entries,
+        List<ResourceDictionary> MergedDictionaries);
 }

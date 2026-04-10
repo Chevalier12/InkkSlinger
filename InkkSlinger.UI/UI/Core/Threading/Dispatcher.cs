@@ -94,7 +94,8 @@ public static class Dispatcher
 
     public static void ResetForTests()
     {
-        _uiThreadId = null;
+        var currentThreadId = Environment.CurrentManagedThreadId;
+        _uiThreadId = _uiThreadId == currentThreadId ? currentThreadId : null;
         lock (DeferredLock)
         {
             DeferredOperations.Clear();

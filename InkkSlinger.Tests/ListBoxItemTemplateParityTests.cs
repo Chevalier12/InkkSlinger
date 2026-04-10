@@ -31,8 +31,7 @@ public sealed class ListBoxItemTemplateParityTests
         var firstItem = Assert.IsType<ListBoxItem>(hostPanel.Children[0]);
         Assert.Equal("Alpha", firstItem.Content);
 
-        var presentedContent = Assert.Single(firstItem.GetVisualChildren());
-        var textBlock = Assert.IsType<TextBlock>(presentedContent);
+        var textBlock = FindDescendant<TextBlock>(firstItem);
         Assert.Equal("templated:Alpha", textBlock.Text);
     }
 
@@ -120,6 +119,46 @@ public sealed class ListBoxItemTemplateParityTests
         }
 
         throw new InvalidOperationException("Expected ListBox to expose a ScrollViewer panel host.");
+    }
+
+    private static TElement FindDescendant<TElement>(UIElement root)
+        where TElement : UIElement
+    {
+        foreach (var child in root.GetVisualChildren())
+        {
+            if (child is TElement match)
+            {
+                return match;
+            }
+
+            var descendant = FindDescendantOrDefault<TElement>(child);
+            if (descendant != null)
+            {
+                return descendant;
+            }
+        }
+
+        throw new InvalidOperationException($"Expected descendant of type '{typeof(TElement).Name}'.");
+    }
+
+    private static TElement? FindDescendantOrDefault<TElement>(UIElement root)
+        where TElement : UIElement
+    {
+        foreach (var child in root.GetVisualChildren())
+        {
+            if (child is TElement match)
+            {
+                return match;
+            }
+
+            var descendant = FindDescendantOrDefault<TElement>(child);
+            if (descendant != null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height)

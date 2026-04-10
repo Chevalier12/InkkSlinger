@@ -192,8 +192,14 @@ public class DataGridRow : Control
         bool areDetailsVisible)
     {
         var isRowSelected = selectedRowIndices.Contains(RowIndex);
+        var previousDetailsVisible = _detailsPresenter.IsVisibleDetails;
+        var previousDetailsContent = _detailsPresenter.Content;
+        var previousDetailsTemplate = _detailsPresenter.ContentTemplate;
         IsSelected = isRowSelected;
         SyncDetailsPresenter(Owner, Item, areDetailsVisible);
+        var detailsLayoutChanged = previousDetailsVisible != _detailsPresenter.IsVisibleDetails ||
+                                   !ReferenceEquals(previousDetailsContent, _detailsPresenter.Content) ||
+                                   !ReferenceEquals(previousDetailsTemplate, _detailsPresenter.ContentTemplate);
 
         for (var i = 0; i < _cells.Count; i++)
         {
@@ -207,6 +213,11 @@ public class DataGridRow : Control
             var currentCellSelected = currentRowIndex == RowIndex && currentColumnIndex == i &&
                                       (selectionUnit == DataGridSelectionUnit.Cell || selectionUnit == DataGridSelectionUnit.CellOrRowHeader);
             _cells[i].IsSelected = selected || currentCellSelected;
+        }
+
+        if (detailsLayoutChanged)
+        {
+            InvalidateMeasure();
         }
     }
 
