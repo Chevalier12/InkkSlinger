@@ -45,7 +45,7 @@ public class Grid : UIElement
             .Single(static s => s.HintName.EndsWith("Names.g.cs", StringComparison.Ordinal))
             .SourceText.ToString();
 
-        Assert.Contains("private global::InkkSlinger.Grid? RootGrid { get; set; }", generatedSource);
+        Assert.Contains("private global::InkkSlinger.Grid RootGrid { get; set; } = default!;", generatedSource);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class Grid : UserControl
 
         var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
         var generatedSource = result.Results.Single().GeneratedSources.Single(static s => s.HintName.EndsWith("Names.g.cs", StringComparison.Ordinal)).SourceText.ToString();
-        Assert.Contains("internal global::InkkSlinger.Grid? RootGrid { get; set; }", generatedSource);
+        Assert.Contains("internal global::InkkSlinger.Grid RootGrid { get; set; } = default!;", generatedSource);
     }
 
     [Fact]

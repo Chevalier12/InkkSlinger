@@ -200,9 +200,9 @@ public sealed class XNameGenerator : IIncrementalGenerator
             builder.Append(member.Modifier);
             builder.Append(' ');
             builder.Append(member.TypeDisplayName);
-            builder.Append("? ");
+            builder.Append(' ');
             builder.Append(member.Name);
-            builder.AppendLine(" { get; set; }");
+            builder.AppendLine(" { get; set; } = default!;");
         }
 
         builder.AppendLine("}");
