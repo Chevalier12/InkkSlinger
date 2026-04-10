@@ -583,8 +583,88 @@
       <!-- ═══════════════════════════════════════════════════════════ -->
       <Style TargetType="{x:Type Slider}">
         <Setter Property="Foreground" Value="{StaticResource OrangePrimaryBrush}" />
-        <Setter Property="Background" Value="{StaticResource DarkElevatedBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource OrangePrimaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="{x:Type Slider}">
+              <Grid x:Name="PART_Root"
+                    Background="{TemplateBinding Background}">
+                <TickBar x:Name="PART_TopTickBar"
+                         Visibility="Collapsed"
+                         IsHitTestVisible="False"
+                         Fill="{TemplateBinding Foreground}"
+                         ReservedSpace="{TemplateBinding ThumbSize}" />
+                <TickBar x:Name="PART_BottomTickBar"
+                         Visibility="Collapsed"
+                         IsHitTestVisible="False"
+                         Fill="{TemplateBinding Foreground}"
+                         ReservedSpace="{TemplateBinding ThumbSize}" />
+                <TickBar x:Name="PART_LeftTickBar"
+                         Visibility="Collapsed"
+                         IsHitTestVisible="False"
+                         Fill="{TemplateBinding Foreground}"
+                         ReservedSpace="{TemplateBinding ThumbSize}" />
+                <TickBar x:Name="PART_RightTickBar"
+                         Visibility="Collapsed"
+                         IsHitTestVisible="False"
+                         Fill="{TemplateBinding Foreground}"
+                         ReservedSpace="{TemplateBinding ThumbSize}" />
+                <Track x:Name="PART_Track"
+                       Background="{StaticResource DarkElevatedBrush}"
+                       BorderBrush="{TemplateBinding BorderBrush}"
+                       BorderThickness="1"
+                       Focusable="False"
+                       IsViewportSizedThumb="False"
+                       Orientation="{TemplateBinding Orientation}"
+                       Minimum="{TemplateBinding Minimum}"
+                       Maximum="{TemplateBinding Maximum}"
+                       Value="{TemplateBinding Value}"
+                       IsDirectionReversed="{TemplateBinding IsDirectionReversed}"
+                       ThumbLength="{TemplateBinding ThumbSize}"
+                       ThumbMinLength="{TemplateBinding ThumbSize}"
+                       TrackThickness="{TemplateBinding TrackThickness}">
+                  <Border x:Name="PART_SelectionRange"
+                          Background="{StaticResource OrangeSubtleBrush}"
+                          IsHitTestVisible="False"
+                          Visibility="Collapsed" />
+                  <RepeatButton x:Name="PART_DecreaseButton"
+                                Track.PartRole="DecreaseButton"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                Foreground="Transparent"
+                                BorderThickness="0"
+                                Padding="0"
+                                Focusable="False" />
+                  <Thumb x:Name="PART_Thumb"
+                         Track.PartRole="Thumb"
+                         Background="{StaticResource OrangePrimaryBrush}"
+                         BorderBrush="{StaticResource OrangePrimaryBrush}"
+                         Width="{TemplateBinding ThumbSize}"
+                         Height="{TemplateBinding ThumbSize}" />
+                  <RepeatButton x:Name="PART_IncreaseButton"
+                                Track.PartRole="IncreaseButton"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                Foreground="Transparent"
+                                BorderThickness="0"
+                                Padding="0"
+                                Focusable="False" />
+                </Track>
+              </Grid>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                  <Setter TargetName="PART_Track" Property="Background" Value="#343434" />
+                  <Setter TargetName="PART_Track" Property="BorderBrush" Value="#606060" />
+                  <Setter TargetName="PART_SelectionRange" Property="Background" Value="#444444" />
+                  <Setter TargetName="PART_Thumb" Property="Background" Value="#444444" />
+                  <Setter TargetName="PART_Thumb" Property="BorderBrush" Value="#606060" />
+                  <Setter Property="Foreground" Value="#444444" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
       </Style>
 
       <!-- ═══════════════════════════════════════════════════════════ -->
