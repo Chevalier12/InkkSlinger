@@ -205,6 +205,69 @@ public sealed class GridSplitterResizeInvalidationTests
     }
 
     [Fact]
+    public void SplitterColumnResize_StarAndPixelPair_ReexpandsFlexibleColumnWhenAvailableWidthGrows()
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star, MinWidth = 160f });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(320f, GridUnitType.Pixel), MinWidth = 220f });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
+
+        var left = new Border();
+        var right = new Border();
+        Grid.SetColumn(right, 1);
+        grid.AddChild(left);
+        grid.AddChild(right);
+
+        var uiRoot = new UiRoot(grid);
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        Assert.True(grid.ApplySplitterColumnResize(0, 1, 900f, 380f));
+        RunLayout(uiRoot, 1280, 820, 32);
+
+        var flexibleWidthBeforeGrowth = grid.ColumnDefinitions[0].ActualWidth;
+        var pinnedRightBeforeGrowth = right.LayoutSlot.X + right.LayoutSlot.Width;
+
+        RunLayout(uiRoot, 1600, 820, 48);
+
+        Assert.True(grid.ColumnDefinitions[0].Width.IsStar);
+        Assert.True(grid.ColumnDefinitions[1].Width.IsPixel);
+        Assert.True(grid.ColumnDefinitions[0].ActualWidth > flexibleWidthBeforeGrowth + 100f);
+        Assert.Equal(1600f, right.LayoutSlot.X + right.LayoutSlot.Width, 0.01f);
+    }
+
+    [Fact]
+    public void SplitterRowResize_StarAndPixelPair_ReanchorsTrailingRowWhenAvailableHeightGrows()
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star, MinHeight = 160f });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(220f, GridUnitType.Pixel), MinHeight = 120f });
+
+        var top = new Border();
+        var bottom = new Border();
+        Grid.SetRow(bottom, 1);
+        grid.AddChild(top);
+        grid.AddChild(bottom);
+
+        var uiRoot = new UiRoot(grid);
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        Assert.True(grid.ApplySplitterRowResize(0, 1, 520f, 300f));
+        RunLayout(uiRoot, 1280, 820, 32);
+
+        var topHeightBeforeGrowth = grid.RowDefinitions[0].ActualHeight;
+        var bottomEdgeBeforeGrowth = bottom.LayoutSlot.Y + bottom.LayoutSlot.Height;
+
+        RunLayout(uiRoot, 1280, 1000, 48);
+
+        Assert.True(grid.RowDefinitions[0].Height.IsStar);
+        Assert.True(grid.RowDefinitions[1].Height.IsPixel);
+        Assert.True(grid.RowDefinitions[0].ActualHeight > topHeightBeforeGrowth + 100f);
+        Assert.Equal(1000f, bottom.LayoutSlot.Y + bottom.LayoutSlot.Height, 0.01f);
+        Assert.True(bottom.LayoutSlot.Y + bottom.LayoutSlot.Height > bottomEdgeBeforeGrowth + 100f);
+    }
+
+    [Fact]
     public void DescendantMeasureChange_ThatKeepsGridDesiredSizeStable_DoesNotRebubbleParentMeasure()
     {
         var dynamicChild = new DynamicDesiredSizeElement(80f, 32f);

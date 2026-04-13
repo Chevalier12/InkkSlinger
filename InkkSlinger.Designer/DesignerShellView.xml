@@ -13,7 +13,7 @@
       <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
-      <RowDefinition Height="8" />
+      <RowDefinition Height="20" />
       <RowDefinition Height="220" />
     </Grid.RowDefinitions>
 
@@ -167,7 +167,7 @@
           Margin="8,8,8,0">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" MinWidth="200" />
-        <ColumnDefinition Width="6" />
+        <ColumnDefinition Width="16" />
         <ColumnDefinition Width="320" MinWidth="220" />
       </Grid.ColumnDefinitions>
 
@@ -213,7 +213,10 @@
 
       <GridSplitter x:Name="PreviewDockSplitter"
                     Grid.Column="1"
-                    Background="#0D131A"
+                    Background="#0B0F14"
+                    BorderBrush="#1E3450"
+                    BorderThickness="1,0,1,0"
+                    Margin="5,0"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
                     ResizeDirection="Columns"
@@ -255,12 +258,15 @@
                            Text="Refresh to inspect." />
               </StackPanel>
             </Border>
-            <TreeView x:Name="VisualTreeView"
-                      Grid.Row="1"
-                      Background="Transparent"
-                      BorderThickness="0"
-                      Foreground="#D8E3EE"
-                      Padding="6" />
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Auto"
+                          Padding="6">
+              <TreeView x:Name="VisualTreeView"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Foreground="#D8E3EE" />
+            </ScrollViewer>
           </Grid>
         </Border>
 
@@ -340,8 +346,8 @@
                   Grid.Row="3"
                   Height="8"
                   Margin="8,0"
-                  Background="#0D131A"
-                  BorderBrush="#1A2637"
+                  Background="#0B0F14"
+                  BorderBrush="#1E3450"
                   BorderThickness="0,1"
                   HorizontalAlignment="Stretch"
                   VerticalAlignment="Center"

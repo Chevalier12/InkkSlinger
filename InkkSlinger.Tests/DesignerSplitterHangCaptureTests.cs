@@ -67,6 +67,45 @@ public sealed class DesignerSplitterHangCaptureTests
     }
 
     [Fact]
+    public void PreviewDockThenSourceSplitterDrag_ViewportGrowth_ReflowsDesignerShell()
+    {
+        var snapshot = CaptureApplicationResources();
+        try
+        {
+            LoadDesignerApplicationResources();
+
+            var shell = new DesignerShellView();
+            var uiRoot = new UiRoot(shell);
+
+            RunFrames(uiRoot, 6);
+            Assert.True(shell.RefreshPreview());
+            RunFrames(uiRoot, 10);
+
+            var previewDockSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewDockSplitter"));
+            var previewSourceSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewSourceSplitter"));
+            var sourceEditor = Assert.IsType<RichTextBox>(shell.FindName("SourceEditor"));
+
+            DragSplitter(uiRoot, previewDockSplitter, new Vector2(-650f, 0f), travelFrames: 18);
+            RunFrames(uiRoot, 12);
+
+            DragSplitter(uiRoot, previewSourceSplitter, new Vector2(96f, -560f), travelFrames: 18);
+            RunFrames(uiRoot, 18);
+
+            var dockSplitterXBeforeGrowth = previewDockSplitter.LayoutSlot.X;
+            var sourceBottomBeforeGrowth = sourceEditor.LayoutSlot.Y + sourceEditor.LayoutSlot.Height;
+
+            RunFrames(uiRoot, 18, 1600, 1000);
+
+            Assert.True(previewDockSplitter.LayoutSlot.X > dockSplitterXBeforeGrowth + 100f);
+            Assert.True(sourceEditor.LayoutSlot.Y + sourceEditor.LayoutSlot.Height > sourceBottomBeforeGrowth + 100f);
+        }
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
+    }
+
+    [Fact]
     public async Task WrappedTextReuse_WithForcedVisualCycle_WorkerProcess_CompletesWithoutHang()
     {
         await RunWorkerAsync(
@@ -244,13 +283,13 @@ public sealed class DesignerSplitterHangCaptureTests
         };
     }
 
-    private static void RunFrames(UiRoot uiRoot, int frameCount)
+    private static void RunFrames(UiRoot uiRoot, int frameCount, int viewportWidth = ViewportWidth, int viewportHeight = ViewportHeight)
     {
         for (var frame = 0; frame < frameCount; frame++)
         {
             uiRoot.Update(
                 new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
-                new Viewport(0, 0, ViewportWidth, ViewportHeight));
+                new Viewport(0, 0, viewportWidth, viewportHeight));
         }
     }
 

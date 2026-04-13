@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using InkkSlinger;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -376,6 +378,13 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         return item;
     }
 
+    private static readonly HashSet<string> _inspectorIdentityPropertyNames =
+        new(StringComparer.Ordinal)
+        {
+            "Node", "Type", "Name", "Visual Children", "Is Enabled",
+            "Actual Size", "Desired Size"
+        };
+
     private void UpdateInspectorPanel()
     {
         ClearPanel(_inspectorPanel);
@@ -387,10 +396,22 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         }
 
         _inspectorSummaryText.Text = _controller.Inspector.Header;
-        for (var i = 0; i < _controller.Inspector.Properties.Count; i++)
+
+        var identity = _controller.Inspector.Properties
+            .Where(static p => _inspectorIdentityPropertyNames.Contains(p.Name))
+            .ToList();
+        var dpProps = _controller.Inspector.Properties
+            .Where(static p => !_inspectorIdentityPropertyNames.Contains(p.Name))
+            .ToList();
+
+        if (identity.Count > 0)
         {
-            var property = _controller.Inspector.Properties[i];
-            _inspectorPanel.AddChild(CreateInspectorPropertyRow(property, i == 0 ? 0f : 8f));
+            _inspectorPanel.AddChild(CreateInspectorSection("Identity & Layout", identity, 0f));
+        }
+
+        if (dpProps.Count > 0)
+        {
+            _inspectorPanel.AddChild(CreateInspectorSection("Properties", dpProps, identity.Count > 0 ? 8f : 0f));
         }
     }
 
@@ -598,34 +619,82 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         };
     }
 
-    private static Border CreateInspectorPropertyRow(DesignerInspectorProperty property, float topMargin)
+    private static UIElement CreateInspectorSection(
+        string title,
+        IReadOnlyList<DesignerInspectorProperty> properties,
+        float topMargin)
     {
-        var panel = new StackPanel
+        var rows = new StackPanel();
+
+        // Section header
+        rows.AddChild(new Border
         {
-            Margin = new Thickness(0f, topMargin, 0f, 0f)
-        };
-        panel.AddChild(new TextBlock
-        {
-            Text = property.Name,
-            Foreground = new Color(141, 161, 181),
-            FontSize = 13f
-        });
-        panel.AddChild(new TextBlock
-        {
-            Text = property.Value,
-            Foreground = new Color(216, 227, 238),
-            Margin = new Thickness(0f, 2f, 0f, 0f),
-            TextWrapping = TextWrapping.Wrap
+            Background = new Color(9, 13, 19),
+            BorderBrush = new Color(20, 34, 50),
+            BorderThickness = new Thickness(0f, 0f, 0f, 1f),
+            Padding = new Thickness(10f, 5f, 10f, 5f),
+            Child = new TextBlock
+            {
+                Text = title.ToUpperInvariant(),
+                Foreground = new Color(74, 104, 128),
+                FontSize = 11f
+            }
         });
 
+        // One compact row per property
+        for (var i = 0; i < properties.Count; i++)
+        {
+            var prop = properties[i];
+            var isLast = i == properties.Count - 1;
+            var rowBg = (i % 2 == 0)
+                ? new Color(11, 17, 24)
+                : new Color(9, 13, 19);
+
+            var nameBlock = new TextBlock
+            {
+                Text = prop.Name,
+                Foreground = new Color(74, 104, 128),
+                FontSize = 12f,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0f, 0f, 12f, 0f)
+            };
+            var valueBlock = new TextBlock
+            {
+                Text = prop.Value,
+                Foreground = new Color(184, 216, 240),
+                FontSize = 12f,
+                VerticalAlignment = VerticalAlignment.Top,
+                TextWrapping = TextWrapping.Wrap
+            };
+
+            var rowGrid = new Grid();
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1f, GridUnitType.Star) });
+            Grid.SetColumn(nameBlock, 0);
+            Grid.SetColumn(valueBlock, 1);
+            rowGrid.AddChild(nameBlock);
+            rowGrid.AddChild(valueBlock);
+
+            rows.AddChild(new Border
+            {
+                Background = rowBg,
+                BorderBrush = new Color(15, 26, 38),
+                BorderThickness = isLast ? Thickness.Empty : new Thickness(0f, 0f, 0f, 1f),
+                Padding = new Thickness(10f, 5f, 10f, 5f),
+                Child = rowGrid
+            });
+        }
+
+        // Accent-left section card
         return new Border
         {
-            Background = new Color(16, 24, 33, 220),
-            BorderBrush = new Color(43, 57, 73),
-            BorderThickness = new Thickness(1f),
-            CornerRadius = new CornerRadius(8f),
-            Padding = new Thickness(10f),
-            Child = panel
+            Margin = new Thickness(0f, topMargin, 0f, 0f),
+            Background = new Color(11, 17, 24),
+            BorderBrush = new Color(30, 74, 120),
+            BorderThickness = new Thickness(3f, 1f, 1f, 1f),
+            CornerRadius = new CornerRadius(6f),
+            ClipToBounds = true,
+            Child = rows
         };
     }
 

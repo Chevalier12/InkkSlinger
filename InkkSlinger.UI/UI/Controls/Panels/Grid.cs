@@ -937,11 +937,13 @@ public class Grid : Panel
             return false;
         }
 
+        var firstDefinition = _columnDefinitions[indexA];
+        var secondDefinition = _columnDefinitions[indexB];
+
         BeginSuppressDefinitionInvalidation();
         try
         {
-            _columnDefinitions[indexA].Width = new GridLength(firstWidth, GridUnitType.Pixel);
-            _columnDefinitions[indexB].Width = new GridLength(secondWidth, GridUnitType.Pixel);
+            ApplyResizedColumnLengths(firstDefinition, secondDefinition, firstWidth, secondWidth);
         }
         finally
         {
@@ -964,11 +966,13 @@ public class Grid : Panel
             return false;
         }
 
+        var firstDefinition = _rowDefinitions[indexA];
+        var secondDefinition = _rowDefinitions[indexB];
+
         BeginSuppressDefinitionInvalidation();
         try
         {
-            _rowDefinitions[indexA].Height = new GridLength(firstHeight, GridUnitType.Pixel);
-            _rowDefinitions[indexB].Height = new GridLength(secondHeight, GridUnitType.Pixel);
+            ApplyResizedRowLengths(firstDefinition, secondDefinition, firstHeight, secondHeight);
         }
         finally
         {
@@ -976,6 +980,113 @@ public class Grid : Panel
         }
 
         return FinalizeSuppressedDefinitionResize(debugContext);
+    }
+
+    private static void ApplyResizedColumnLengths(
+        ColumnDefinition firstDefinition,
+        ColumnDefinition secondDefinition,
+        float firstWidth,
+        float secondWidth)
+    {
+        var firstWasStar = firstDefinition.Width.IsStar;
+        var secondWasStar = secondDefinition.Width.IsStar;
+
+        if (firstWasStar && secondWasStar)
+        {
+            ApplyResizedStarPair(
+                firstWidth,
+                secondWidth,
+                firstDefinition.Width.Value,
+                secondDefinition.Width.Value,
+                static length => new GridLength(length, GridUnitType.Star),
+                value => firstDefinition.Width = value,
+                value => secondDefinition.Width = value);
+            return;
+        }
+
+        if (firstWasStar)
+        {
+            firstDefinition.Width = GridLength.Star;
+            secondDefinition.Width = new GridLength(secondWidth, GridUnitType.Pixel);
+            return;
+        }
+
+        if (secondWasStar)
+        {
+            firstDefinition.Width = new GridLength(firstWidth, GridUnitType.Pixel);
+            secondDefinition.Width = GridLength.Star;
+            return;
+        }
+
+        firstDefinition.Width = new GridLength(firstWidth, GridUnitType.Pixel);
+        secondDefinition.Width = new GridLength(secondWidth, GridUnitType.Pixel);
+    }
+
+    private static void ApplyResizedRowLengths(
+        RowDefinition firstDefinition,
+        RowDefinition secondDefinition,
+        float firstHeight,
+        float secondHeight)
+    {
+        var firstWasStar = firstDefinition.Height.IsStar;
+        var secondWasStar = secondDefinition.Height.IsStar;
+
+        if (firstWasStar && secondWasStar)
+        {
+            ApplyResizedStarPair(
+                firstHeight,
+                secondHeight,
+                firstDefinition.Height.Value,
+                secondDefinition.Height.Value,
+                static length => new GridLength(length, GridUnitType.Star),
+                value => firstDefinition.Height = value,
+                value => secondDefinition.Height = value);
+            return;
+        }
+
+        if (firstWasStar)
+        {
+            firstDefinition.Height = GridLength.Star;
+            secondDefinition.Height = new GridLength(secondHeight, GridUnitType.Pixel);
+            return;
+        }
+
+        if (secondWasStar)
+        {
+            firstDefinition.Height = new GridLength(firstHeight, GridUnitType.Pixel);
+            secondDefinition.Height = GridLength.Star;
+            return;
+        }
+
+        firstDefinition.Height = new GridLength(firstHeight, GridUnitType.Pixel);
+        secondDefinition.Height = new GridLength(secondHeight, GridUnitType.Pixel);
+    }
+
+    private static void ApplyResizedStarPair(
+        float firstSize,
+        float secondSize,
+        float firstWeight,
+        float secondWeight,
+        Func<float, GridLength> createStarLength,
+        Action<GridLength> applyFirst,
+        Action<GridLength> applySecond)
+    {
+        var totalSize = MathF.Max(0f, firstSize) + MathF.Max(0f, secondSize);
+        if (totalSize <= 0.001f)
+        {
+            applyFirst(GridLength.Star);
+            applySecond(GridLength.Star);
+            return;
+        }
+
+        var totalWeight = MathF.Max(0.0001f, firstWeight + secondWeight);
+        var firstRatio = MathF.Max(0f, firstSize) / totalSize;
+        var secondRatio = MathF.Max(0f, secondSize) / totalSize;
+        var adjustedFirstWeight = MathF.Max(0.0001f, totalWeight * firstRatio);
+        var adjustedSecondWeight = MathF.Max(0.0001f, totalWeight * secondRatio);
+
+        applyFirst(createStarLength(adjustedFirstWeight));
+        applySecond(createStarLength(adjustedSecondWeight));
     }
 
     private void BeginSuppressDefinitionInvalidation()
