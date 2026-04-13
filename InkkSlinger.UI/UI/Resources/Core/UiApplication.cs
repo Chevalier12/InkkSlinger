@@ -6,6 +6,7 @@ public sealed class UiApplication
 {
     private static readonly UiApplication Instance = new();
     private Window? _mainWindow;
+    private Action? _shutdownRequest;
 
     private UiApplication()
     {
@@ -22,10 +23,21 @@ public sealed class UiApplication
 
     public bool FpsEnabled { get; set; } = true;
 
-    internal void AttachMainWindow(Window mainWindow, InkkSlingerOptions options)
+    public void Shutdown()
+    {
+        if (_shutdownRequest == null)
+        {
+            throw new InvalidOperationException("Shutdown is unavailable before InkkSlingerUI.Initialize runs.");
+        }
+
+        _shutdownRequest();
+    }
+
+    internal void AttachMainWindow(Window mainWindow, InkkSlingerOptions options, Action? shutdownRequest = null)
     {
         _mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
         ArgumentNullException.ThrowIfNull(options);
+        _shutdownRequest = shutdownRequest;
         FpsEnabled = options.FpsEnabled;
     }
 
@@ -34,6 +46,7 @@ public sealed class UiApplication
         if (ReferenceEquals(_mainWindow, mainWindow))
         {
             _mainWindow = null;
+            _shutdownRequest = null;
         }
     }
 }

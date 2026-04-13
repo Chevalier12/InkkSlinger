@@ -1,0 +1,13 @@
+<Application xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Application.Resources>
+    <ResourceDictionary>
+      <Style TargetType="{x:Type Window}">
+        <Setter Property="Background" Value="#0B0F14" />
+        <Setter Property="Foreground" Value="#E7EDF5" />
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="14" />
+      </Style>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

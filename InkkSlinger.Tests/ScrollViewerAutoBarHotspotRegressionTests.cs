@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Xunit;
@@ -47,6 +48,30 @@ public sealed class ScrollViewerAutoBarHotspotRegressionTests
         Assert.True(viewer.ExtentHeight > viewer.ViewportHeight + 0.01f,
             $"Expected the initial layout to require a vertical bar. extent={viewer.ExtentHeight}, viewport={viewer.ViewportHeight}");
         Assert.True(viewer.CanReuseMeasureForTests(new Vector2(320f, 605f), new Vector2(320f, 760f)));
+    }
+
+    [Fact]
+    public void VerticalAutoBar_DoesNotReuseMeasure_WhenReusableContentHasDirtyDescendant()
+    {
+        var content = new ReusablePanel();
+        var child = new ReusableFixedMeasureElement(new Vector2(300f, 700f));
+        content.AddChild(child);
+
+        var viewer = new TestScrollViewer
+        {
+            Width = 320f,
+            Height = 180f,
+            BorderThickness = 1f,
+            ScrollBarThickness = 12f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content
+        };
+
+        viewer.Measure(new Vector2(320f, 180f));
+        MarkMeasureDirty(child);
+
+        Assert.False(viewer.CanReuseMeasureForTests(new Vector2(320f, 180f), new Vector2(280f, 180f)));
     }
 
     [Fact]
@@ -169,11 +194,64 @@ public sealed class ScrollViewerAutoBarHotspotRegressionTests
         }
     }
 
+    private sealed class ReusablePanel : Panel
+    {
+        protected override Vector2 MeasureOverride(Vector2 availableSize)
+        {
+            var desired = Vector2.Zero;
+            foreach (var child in Children)
+            {
+                if (child is not FrameworkElement frameworkChild)
+                {
+                    continue;
+                }
+
+                frameworkChild.Measure(availableSize);
+                desired.X = MathF.Max(desired.X, frameworkChild.DesiredSize.X);
+                desired.Y = MathF.Max(desired.Y, frameworkChild.DesiredSize.Y);
+            }
+
+            return desired;
+        }
+
+        protected override Vector2 ArrangeOverride(Vector2 finalSize)
+        {
+            foreach (var child in Children)
+            {
+                if (child is FrameworkElement frameworkChild)
+                {
+                    frameworkChild.Arrange(new LayoutRect(0f, 0f, finalSize.X, finalSize.Y));
+                }
+            }
+
+            return finalSize;
+        }
+
+        protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+        {
+            _ = previousAvailableSize;
+            _ = nextAvailableSize;
+            return true;
+        }
+    }
+
     private sealed class TestScrollViewer : ScrollViewer
     {
         public bool CanReuseMeasureForTests(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
         {
             return CanReuseMeasureForAvailableSizeChange(previousAvailableSize, nextAvailableSize);
         }
+    }
+
+    private static void MarkMeasureDirty(FrameworkElement element)
+    {
+        var needsMeasureField = typeof(UIElement).GetField("<NeedsMeasure>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+        var isMeasureValidField = typeof(FrameworkElement).GetField("_isMeasureValid", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(needsMeasureField);
+        Assert.NotNull(isMeasureValidField);
+
+        needsMeasureField!.SetValue(element, true);
+        isMeasureValidField!.SetValue(element, false);
     }
 }

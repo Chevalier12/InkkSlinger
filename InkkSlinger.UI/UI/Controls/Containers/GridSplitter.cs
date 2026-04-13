@@ -375,13 +375,15 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
     internal bool HandlePointerDownFromInput(Vector2 pointerPosition)
     {
         IncrementMetric(ref _runtimePointerDownCallCount, ref _diagPointerDownCallCount);
+        var hitTest = HitTest(pointerPosition);
+
         if (!IsEnabled)
         {
             IncrementMetric(ref _runtimePointerDownDisabledRejectCount, ref _diagPointerDownDisabledRejectCount);
             return false;
         }
 
-        if (!HitTest(pointerPosition))
+        if (!hitTest)
         {
             IncrementMetric(ref _runtimePointerDownHitTestRejectCount, ref _diagPointerDownHitTestRejectCount);
             return false;
@@ -736,7 +738,7 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
         }
     }
 
-    private static ResizeApplicationResult ApplyResizeCore(
+    private ResizeApplicationResult ApplyResizeCore(
         Grid grid,
         GridResizeDirection direction,
         int indexA,
@@ -778,7 +780,7 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
                 newB = MathF.Max(right.MinWidth, total - newA);
             }
 
-            var producedChange = grid.ApplySplitterColumnResize(indexA, indexB, newA, newB);
+            var producedChange = grid.ApplySplitterColumnResize(indexA, indexB, newA, newB, Name);
             return new ResizeApplicationResult(
                 true,
                 bounded,
@@ -818,7 +820,7 @@ public class GridSplitter : Control, IRenderDirtyBoundsHintProvider
             newBottom = MathF.Max(bottom.MinHeight, rowTotal - newTop);
         }
 
-        var rowProducedChange = grid.ApplySplitterRowResize(indexA, indexB, newTop, newBottom);
+        var rowProducedChange = grid.ApplySplitterRowResize(indexA, indexB, newTop, newBottom, Name);
         return new ResizeApplicationResult(
             true,
             boundedRows,

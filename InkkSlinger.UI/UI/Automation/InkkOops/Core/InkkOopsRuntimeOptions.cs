@@ -14,6 +14,8 @@ public sealed class InkkOopsRuntimeOptions
 
     public bool RecordUserSession { get; init; }
 
+    public string LaunchProjectPath { get; init; } = string.Empty;
+
     public string RecordingRoot { get; init; } = string.Empty;
 
     public string StartupRecordingPath { get; init; } = string.Empty;

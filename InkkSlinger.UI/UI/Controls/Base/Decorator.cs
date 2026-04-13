@@ -86,4 +86,32 @@ public class Decorator : FrameworkElement
 
         return finalSize;
     }
+
+    protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        return (IsMeasuring || IsArrangingOverride) && IsDescendantOfChildSubtree(descendant);
+    }
+
+    private bool IsDescendantOfChildSubtree(FrameworkElement descendant)
+    {
+        if (_child == null)
+        {
+            return false;
+        }
+
+        for (UIElement? current = descendant; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, this))
+            {
+                return true;
+            }
+
+            if (ReferenceEquals(current, _child))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

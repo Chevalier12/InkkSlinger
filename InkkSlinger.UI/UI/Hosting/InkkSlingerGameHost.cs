@@ -21,6 +21,7 @@ public class InkkSlingerGameHost : Game
     private InkkOopsHostConfiguration _inkkOopsHostConfiguration = null!;
     private SpriteBatch _spriteBatch = null!;
     private RenderTarget2D? _uiCompositeTarget;
+    private UIElement? _rootContent;
     private Panel _root = null!;
     private UiRoot _uiRoot = null!;
     private WindowThemeBinding? _windowThemeBinding;
@@ -46,7 +47,19 @@ public class InkkSlingerGameHost : Game
         _window.AllowUserResizing = _options.AllowUserResizing;
         _window.SetClientSize(_options.InitialWindowWidth, _options.InitialWindowHeight);
         _window.Title = _options.WindowTitle;
-        UiApplication.Current.AttachMainWindow(_window, _options);
+        UiApplication.Current.AttachMainWindow(
+            _window,
+            _options,
+            () =>
+            {
+                if (_uiRoot != null)
+                {
+                    _uiRoot.EnqueueDeferredOperation(Exit);
+                    return;
+                }
+
+                Exit();
+            });
     }
 
     protected internal string DisplayedFps => _displayedAppFps;
@@ -56,6 +69,7 @@ public class InkkSlingerGameHost : Game
         LoadApplicationResourcesIfPresent();
 
         var rootContent = CreateRootContent();
+        _rootContent = rootContent;
         _inkkOopsHostConfiguration = CreateInkkOopsHostConfiguration(rootContent.GetType().Assembly);
 
         _root = new Panel();
@@ -267,6 +281,12 @@ public class InkkSlingerGameHost : Game
 
     protected override void OnExiting(object sender, ExitingEventArgs args)
     {
+        if (_rootContent != null && ShouldCancelExitRequest(_rootContent))
+        {
+            args.Cancel = true;
+            return;
+        }
+
         _window.ClientSizeChanged -= OnClientSizeChanged;
         _window.NativeWindow.TextInput -= OnTextInput;
         _windowThemeBinding?.Dispose();
@@ -282,6 +302,13 @@ public class InkkSlingerGameHost : Game
         UiApplication.Current.DetachMainWindow(_window);
         _window.Dispose();
         base.OnExiting(sender, args);
+    }
+
+    internal static bool ShouldCancelExitRequest(UIElement rootContent)
+    {
+        ArgumentNullException.ThrowIfNull(rootContent);
+        return rootContent is IAppExitRequestHandler exitRequestHandler &&
+               !exitRequestHandler.TryRequestAppExit();
     }
 
     private UIElement CreateRootContent()

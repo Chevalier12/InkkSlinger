@@ -324,14 +324,6 @@ public static class VisualTreeHelper
                     acceptancePredicate);
                 if (hit != null)
                 {
-                    if (EnableHitTestTrace)
-                    {
-                        var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                        Console.WriteLine(
-                            $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                            $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=candidate hit={hit.GetType().Name} ms={ms:0.###}");
-                    }
-
                     return hit;
                 }
 
@@ -368,14 +360,6 @@ public static class VisualTreeHelper
                                 acceptancePredicate);
                             if (hit != null)
                             {
-                                if (EnableHitTestTrace)
-                                {
-                                    var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                                    Console.WriteLine(
-                                        $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                                        $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
-                                }
-
                                 return hit;
                             }
 
@@ -413,14 +397,6 @@ public static class VisualTreeHelper
                                 acceptancePredicate);
                             if (hit != null)
                             {
-                                if (EnableHitTestTrace)
-                                {
-                                    var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                                    Console.WriteLine(
-                                        $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                                        $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
-                                }
-
                                 return hit;
                             }
 
@@ -457,14 +433,6 @@ public static class VisualTreeHelper
                         acceptancePredicate);
                     if (hit != null)
                     {
-                        if (EnableHitTestTrace)
-                        {
-                            var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                            Console.WriteLine(
-                                $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                                $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=full-fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
-                        }
-
                         return hit;
                     }
                 }
@@ -488,24 +456,8 @@ public static class VisualTreeHelper
                         acceptancePredicate);
                     if (hit != null)
                     {
-                        if (EnableHitTestTrace)
-                        {
-                            var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                            Console.WriteLine(
-                                $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                                $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=full-fallback scanned={scanned} hit={hit.GetType().Name} ms={ms:0.###}");
-                        }
-
                         return hit;
                     }
-                }
-
-                if (EnableHitTestTrace)
-                {
-                    var ms = Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
-                    Console.WriteLine(
-                        $"[HitTest.ItemsPresenter] t={Environment.TickCount64} root={root.GetType().Name} items={itemContainers.Count} " +
-                        $"pos=({position.X:0.#},{position.Y:0.#}) candidate={candidate} mode=fallback scanned={scanned} hit=root ms={ms:0.###}");
                 }
 
                 return AcceptHitCandidate(root, isWithinSelfBounds, acceptancePredicate);

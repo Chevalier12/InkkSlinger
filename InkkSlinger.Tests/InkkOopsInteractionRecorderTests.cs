@@ -56,6 +56,91 @@ public sealed class InkkOopsInteractionRecorderTests
     }
 
     [Fact]
+    public void Recorder_PersistsSnapshotBeforeDispose()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"inkkoops-recorder-live-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            using var recorder = new InkkOopsInteractionRecorder(root, new Point(1280, 820));
+
+            var jsonPath = Path.Combine(recorder.DirectoryPath, "recording.json");
+            Assert.True(File.Exists(jsonPath));
+
+            recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30));
+            recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160));
+
+            var json = File.ReadAllText(jsonPath);
+            Assert.Contains("\"actionCount\": 3", json);
+            Assert.Contains("\"Kind\": 2", json); // MovePointer
+            Assert.Contains("\"Kind\": 0", json); // WaitFrames snapshot between frames
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Recorder_WritesRecordedProjectPathMetadata()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"inkkoops-recorder-project-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            const string projectPath = @"C:\repo\InkkSlinger.Designer\InkkSlinger.Designer.csproj";
+            using var recorder = new InkkOopsInteractionRecorder(root, new Point(1280, 820), projectPath, new DefaultInkkOopsArtifactNamingPolicy());
+
+            var metadata = InkkOopsRecordedSessionLoader.ReadMetadata(recorder.DirectoryPath);
+
+            Assert.Equal(projectPath, metadata.RecordedProjectPath);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Recorder_DoesNotCrashWhenSnapshotOverwriteFails()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"inkkoops-recorder-lock-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            using var recorder = new InkkOopsInteractionRecorder(root, new Point(1280, 820));
+            var jsonPath = Path.Combine(recorder.DirectoryPath, "recording.json");
+            var inkkrPath = Path.Combine(recorder.DirectoryPath, "recording.inkkr");
+            using var jsonLock = new FileStream(jsonPath, FileMode.Open, FileAccess.Read, FileShare.None);
+            using var inkkrLock = new FileStream(inkkrPath, FileMode.Open, FileAccess.Read, FileShare.None);
+
+            var exception = Record.Exception(() =>
+            {
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30));
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160));
+            });
+
+            Assert.Null(exception);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void RecordedSessionLoader_DeserializesLowercaseActionsPayload()
     {
         var root = Path.Combine(Path.GetTempPath(), $"inkkoops-loader-{Guid.NewGuid():N}");
@@ -87,6 +172,73 @@ public sealed class InkkOopsInteractionRecorderTests
             Assert.Equal("ResizeWindow(1280, 820)", commandDescriptions[0]);
             Assert.Equal("WaitFrames(51)", commandDescriptions[1]);
             Assert.Equal("MovePointer(685, 631, travelFrames: 0, easing: Linear)", commandDescriptions[2]);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void RecordedSessionLoader_AcceptsRecordedSessionDirectoryPath()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"inkkoops-loader-dir-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(root, "recording.json"),
+                """
+                {
+                  "actions": [
+                    { "kind": 0, "frameCount": 2 }
+                  ]
+                }
+                """);
+
+            var script = InkkOopsRecordedSessionLoader.LoadFromJson(root);
+            var commandDescriptions = script.Commands.Select(static command => command.Describe()).ToArray();
+
+            Assert.Single(commandDescriptions);
+            Assert.Equal("WaitFrames(2)", commandDescriptions[0]);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void RecordedSessionLoader_ReadMetadata_ReturnsRecordedProjectPath()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"inkkoops-loader-metadata-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            const string projectPath = @"C:\repo\InkkSlinger.DemoApp\InkkSlinger.DemoApp.csproj";
+            File.WriteAllText(
+                Path.Combine(root, "recording.json"),
+                $$"""
+                {
+                  "recordedProjectPath": "{{projectPath.Replace("\\", "\\\\")}}",
+                  "actions": [
+                    { "kind": 0, "frameCount": 2 }
+                  ]
+                }
+                """);
+
+            var metadata = InkkOopsRecordedSessionLoader.ReadMetadata(root);
+
+            Assert.Equal(projectPath, metadata.RecordedProjectPath);
+            Assert.EndsWith("recording.json", metadata.RecordingPath, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

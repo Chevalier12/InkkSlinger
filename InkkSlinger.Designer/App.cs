@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
+using InkkSlinger;
 
-namespace InkkSlinger;
+namespace InkkSlinger.Designer;
 
 internal static class App
 {

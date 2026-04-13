@@ -7,6 +7,8 @@ public abstract class DependencyObject
 {
     public static readonly object UnsetValue = new();
 
+    [ThreadStatic]
+    private static List<ActiveValueResolution>? _activeValueResolutions;
     private readonly Dictionary<DependencyProperty, EffectiveValueEntry> _values = new();
 
     public event EventHandler<DependencyPropertyChangedEventArgs>? DependencyPropertyChanged;
@@ -147,6 +149,12 @@ public abstract class DependencyObject
         EvaluateEffectiveValue(dependencyProperty, previousEntry);
     }
 
+    internal bool HasStoredValueEntry(DependencyProperty dependencyProperty)
+    {
+        ValidatePropertyApplicability(dependencyProperty);
+        return _values.ContainsKey(dependencyProperty);
+    }
+
     private void SetValueInternal(DependencyProperty dependencyProperty, ValueLayer valueLayer, object? value)
     {
         Dispatcher.VerifyAccess();
@@ -180,7 +188,7 @@ public abstract class DependencyObject
         previousEntry.EffectiveSource = oldSource;
         SetLayerValue(ref entry, valueLayer, value);
 
-        if (!entry.HasAnyValue)
+        if (!ShouldPersistEntry(entry))
         {
             _values.Remove(dependencyProperty);
         }
@@ -207,10 +215,15 @@ public abstract class DependencyObject
 
         entry.EffectiveValue = newEffective;
         entry.EffectiveSource = newSource;
+        entry.HasCachedEffectiveValue = true;
 
-        if (entry.HasAnyValue)
+        if (ShouldPersistEntry(entry))
         {
             _values[dependencyProperty] = entry;
+        }
+        else
+        {
+            _values.Remove(dependencyProperty);
         }
 
         var args = new DependencyPropertyChangedEventArgs(dependencyProperty, oldEffective, newEffective);
@@ -223,38 +236,8 @@ public abstract class DependencyObject
         DependencyProperty dependencyProperty,
         EffectiveValueEntry entry)
     {
-        object? value;
-        DependencyPropertyValueSource source;
-
-        if (entry.HasAnimationValue)
+        if (TryComputeNonInheritedEffectiveValue(entry, out var value, out var source))
         {
-            value = entry.AnimationValue;
-            source = DependencyPropertyValueSource.Animation;
-        }
-        else if (entry.HasLocalValue)
-        {
-            value = entry.LocalValue;
-            source = DependencyPropertyValueSource.Local;
-        }
-        else if (entry.HasTemplateTriggerValue)
-        {
-            value = entry.TemplateTriggerValue;
-            source = DependencyPropertyValueSource.TemplateTrigger;
-        }
-        else if (entry.HasStyleTriggerValue)
-        {
-            value = entry.StyleTriggerValue;
-            source = DependencyPropertyValueSource.StyleTrigger;
-        }
-        else if (entry.HasTemplateValue)
-        {
-            value = entry.TemplateValue;
-            source = DependencyPropertyValueSource.Template;
-        }
-        else if (entry.HasStyleValue)
-        {
-            value = entry.StyleValue;
-            source = DependencyPropertyValueSource.Style;
         }
         else
         {
@@ -264,9 +247,15 @@ public abstract class DependencyObject
                 var foundParentValue = false;
                 value = null;
                 source = DependencyPropertyValueSource.Default;
+                var visited = new HashSet<UIElement> { element };
 
                 for (var parent = element.VisualParent; parent != null; parent = parent.VisualParent)
                 {
+                    if (!visited.Add(parent))
+                    {
+                        break;
+                    }
+
                     if (!dependencyProperty.IsApplicableTo(parent))
                     {
                         continue;
@@ -321,16 +310,129 @@ public abstract class DependencyObject
     private (object? Value, DependencyPropertyValueSource Source) GetValueWithSource(DependencyProperty dependencyProperty)
     {
         _values.TryGetValue(dependencyProperty, out var entry);
-        var (effective, source) = ComputeEffectiveValue(dependencyProperty, entry);
 
-        if (entry.HasAnyValue)
+        if (entry.HasCachedEffectiveValue)
         {
-            entry.EffectiveValue = effective;
-            entry.EffectiveSource = source;
+            return (entry.EffectiveValue, entry.EffectiveSource);
+        }
+
+        var activeValueResolutions = _activeValueResolutions ??= new List<ActiveValueResolution>();
+        if (IsValueResolutionActive(activeValueResolutions, dependencyProperty))
+        {
+            return ResolveReentrantEffectiveValue(dependencyProperty, entry);
+        }
+
+        activeValueResolutions.Add(new ActiveValueResolution(this, dependencyProperty));
+        (object? Value, DependencyPropertyValueSource Source) resolved;
+        try
+        {
+            resolved = ComputeEffectiveValue(dependencyProperty, entry);
+        }
+        finally
+        {
+            activeValueResolutions.RemoveAt(activeValueResolutions.Count - 1);
+        }
+
+        var (effective, source) = resolved;
+
+        entry.EffectiveValue = effective;
+        entry.EffectiveSource = source;
+        entry.HasCachedEffectiveValue = true;
+
+        if (ShouldPersistEntry(entry))
+        {
             _values[dependencyProperty] = entry;
+        }
+        else
+        {
+            _values.Remove(dependencyProperty);
         }
 
         return (effective, source);
+    }
+
+    private (object? Value, DependencyPropertyValueSource Source) ResolveReentrantEffectiveValue(
+        DependencyProperty dependencyProperty,
+        EffectiveValueEntry entry)
+    {
+        if (TryComputeNonInheritedEffectiveValue(entry, out var value, out var source))
+        {
+            return (value, source);
+        }
+
+        if (entry.HasCachedEffectiveValue)
+        {
+            return (entry.EffectiveValue, entry.EffectiveSource);
+        }
+
+        var metadata = dependencyProperty.GetMetadata(this);
+        return (metadata.DefaultValue, DependencyPropertyValueSource.Default);
+    }
+
+    private static bool TryComputeNonInheritedEffectiveValue(
+        EffectiveValueEntry entry,
+        out object? value,
+        out DependencyPropertyValueSource source)
+    {
+        if (entry.HasAnimationValue)
+        {
+            value = entry.AnimationValue;
+            source = DependencyPropertyValueSource.Animation;
+            return true;
+        }
+
+        if (entry.HasLocalValue)
+        {
+            value = entry.LocalValue;
+            source = DependencyPropertyValueSource.Local;
+            return true;
+        }
+
+        if (entry.HasTemplateTriggerValue)
+        {
+            value = entry.TemplateTriggerValue;
+            source = DependencyPropertyValueSource.TemplateTrigger;
+            return true;
+        }
+
+        if (entry.HasStyleTriggerValue)
+        {
+            value = entry.StyleTriggerValue;
+            source = DependencyPropertyValueSource.StyleTrigger;
+            return true;
+        }
+
+        if (entry.HasTemplateValue)
+        {
+            value = entry.TemplateValue;
+            source = DependencyPropertyValueSource.Template;
+            return true;
+        }
+
+        if (entry.HasStyleValue)
+        {
+            value = entry.StyleValue;
+            source = DependencyPropertyValueSource.Style;
+            return true;
+        }
+
+        value = null;
+        source = DependencyPropertyValueSource.Default;
+        return false;
+    }
+
+    private bool IsValueResolutionActive(List<ActiveValueResolution> activeValueResolutions, DependencyProperty dependencyProperty)
+    {
+        for (var i = 0; i < activeValueResolutions.Count; i++)
+        {
+            var active = activeValueResolutions[i];
+            if (ReferenceEquals(active.Object, this) && ReferenceEquals(active.Property, dependencyProperty))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private object? CoerceValue(DependencyProperty dependencyProperty, object? value)
@@ -426,6 +528,11 @@ public abstract class DependencyObject
         };
     }
 
+    private static bool ShouldPersistEntry(EffectiveValueEntry entry)
+    {
+        return entry.HasAnyValue || entry.HasCachedEffectiveValue;
+    }
+
     private enum ValueLayer
     {
         Local,
@@ -458,8 +565,22 @@ public abstract class DependencyObject
 
         public object? EffectiveValue;
         public DependencyPropertyValueSource EffectiveSource;
+        public bool HasCachedEffectiveValue;
 
         public bool HasAnyValue =>
             HasLocalValue || HasStyleValue || HasStyleTriggerValue || HasTemplateTriggerValue || HasAnimationValue || HasTemplateValue;
+    }
+
+    private readonly struct ActiveValueResolution
+    {
+        public ActiveValueResolution(DependencyObject obj, DependencyProperty property)
+        {
+            Object = obj;
+            Property = property;
+        }
+
+        public DependencyObject Object { get; }
+
+        public DependencyProperty Property { get; }
     }
 }

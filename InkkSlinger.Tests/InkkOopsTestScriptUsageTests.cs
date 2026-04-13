@@ -11,6 +11,7 @@ namespace InkkSlinger.Tests;
 
 public sealed class InkkOopsTestScriptUsageTests
 {
+    private static readonly TimeSpan RuntimeProcessTimeout = TimeSpan.FromSeconds(90);
     private const string SidebarScrollViewerName = "CatalogSidebarScrollViewer";
     private const string ButtonHostName = "ControlButtonsHost";
     private const string CalendarPreviousMonthButtonName = "CalendarPreviousMonthButton";
@@ -18,6 +19,8 @@ public sealed class InkkOopsTestScriptUsageTests
     private const string GridSplitterViewRootName = "GridSplitterViewRootGrid";
     private const string GridSplitterWorkbenchScrollViewerName = "GridSplitterWorkbenchScrollViewer";
     private const string NavigationSplitterName = "NavigationSplitter";
+    private const string PreviewDockSplitterName = "PreviewDockSplitter";
+    private const string PreviewSourceSplitterName = "PreviewSourceSplitter";
 
     [Fact]
     public async Task RuntimePlayback_Opens_Real_App_And_Writes_Result()
@@ -46,6 +49,90 @@ public sealed class InkkOopsTestScriptUsageTests
             Assert.True(File.Exists(resultPath));
 
             var resultJson = File.ReadAllText(resultPath);
+            Assert.Contains("\"status\": \"Completed\"", resultJson);
+            Assert.Contains("\"scriptName\": \"recording-playback\"", resultJson);
+        }
+        finally
+        {
+            if (Directory.Exists(runtimeRoot))
+            {
+                Directory.Delete(runtimeRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RuntimePlayback_Accepts_RecordedSession_Directory_Path()
+    {
+        var runtimeRoot = Path.Combine(Path.GetTempPath(), $"inkkoops-runtime-replay-dir-{Guid.NewGuid():N}");
+        var recordingDirectory = Path.Combine(runtimeRoot, "recorded-session");
+        var artifactsRoot = Path.Combine(runtimeRoot, "artifacts");
+        Directory.CreateDirectory(recordingDirectory);
+        Directory.CreateDirectory(artifactsRoot);
+
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(recordingDirectory, "recording.json"),
+                """
+                {
+                  "actions": [
+                    { "kind": 0, "frameCount": 2 }
+                  ]
+                }
+                """);
+
+            var runDirectory = await RunRuntimeRecordingAsync(recordingDirectory, artifactsRoot);
+            var resultPath = Path.Combine(runDirectory, "result.json");
+
+            Assert.True(File.Exists(resultPath));
+
+            var resultJson = File.ReadAllText(resultPath);
+            Assert.Contains("\"status\": \"Completed\"", resultJson);
+            Assert.Contains("\"scriptName\": \"recording-playback\"", resultJson);
+        }
+        finally
+        {
+            if (Directory.Exists(runtimeRoot))
+            {
+                Directory.Delete(runtimeRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CliPlayback_Uses_Recorded_Project_Path_From_Recording()
+    {
+        var runtimeRoot = Path.Combine(Path.GetTempPath(), $"inkkoops-cli-replay-{Guid.NewGuid():N}");
+        var artifactsRoot = Path.Combine(runtimeRoot, "artifacts");
+        var recordingPath = Path.Combine(runtimeRoot, "recording.inkkr");
+        Directory.CreateDirectory(runtimeRoot);
+        Directory.CreateDirectory(artifactsRoot);
+
+        try
+        {
+            var repositoryRoot = FindRepositoryRoot();
+            var demoProjectPath = Path.Combine(repositoryRoot, "InkkSlinger.DemoApp", "InkkSlinger.DemoApp.csproj");
+            File.WriteAllText(
+                recordingPath,
+                $$"""
+                {
+                  "recordedProjectPath": "{{demoProjectPath.Replace("\\", "\\\\")}}",
+                  "actions": [
+                    { "kind": 0, "frameCount": 2 }
+                  ]
+                }
+                """);
+
+            var cliProjectPath = Path.Combine(repositoryRoot, "InkkOops.Cli", "InkkOops.Cli.csproj");
+            await RunDotNetProcessAsync(
+                repositoryRoot,
+                $"run --project \"{cliProjectPath}\" --no-restore -- \"{recordingPath}\" --artifacts \"{artifactsRoot}\"",
+                "CLI playback launch failed.");
+
+            var runDirectory = Assert.Single(Directory.GetDirectories(artifactsRoot));
+            var resultJson = File.ReadAllText(Path.Combine(runDirectory, "result.json"));
+
             Assert.Contains("\"status\": \"Completed\"", resultJson);
             Assert.Contains("\"scriptName\": \"recording-playback\"", resultJson);
         }
@@ -190,9 +277,31 @@ public sealed class InkkOopsTestScriptUsageTests
         }
     }
 
+    [Fact]
+    public async Task RuntimeRun_Designer_PreviewDock_Then_Source_Splitter_Drag_Path_Completes_Without_Hanging()
+    {
+        var artifactsRoot = CreatePreservedArtifactsRoot("runtime-designer-preview-dock-then-source-splitter-drag-hang");
+        var runDirectory = await RunRuntimeScenarioFromTestAssemblyAsync(
+            "runtime-designer-preview-dock-then-source-splitter-drag-hang-scenario",
+            GetDesignerProjectPath(),
+            artifactsRoot);
+
+        var resultJson = File.ReadAllText(Path.Combine(runDirectory, "result.json"));
+        var actionLogPath = Path.Combine(runDirectory, "action.log");
+        var actionLog = File.ReadAllText(actionLogPath);
+
+        Assert.Contains("\"status\": \"Completed\"", resultJson);
+        Assert.Contains("\"scriptName\": \"runtime-designer-preview-dock-then-source-splitter-drag-hang-scenario\"", resultJson);
+        Assert.True(File.Exists(actionLogPath));
+        Assert.Contains(PreviewDockSplitterName, actionLog);
+        Assert.Contains(PreviewSourceSplitterName, actionLog);
+    }
+
     private static async Task<string> RunRuntimeScenarioFromTestAssemblyAsync(string scriptName, string artifactsRoot)
     {
-        return await RunRuntimeScenarioFromTestAssemblyAsync(scriptName, artifactsRoot, environmentVariables: null);
+        var repositoryRoot = FindRepositoryRoot();
+        var projectPath = Path.Combine(repositoryRoot, "InkkSlinger.DemoApp", "InkkSlinger.DemoApp.csproj");
+        return await RunRuntimeScenarioFromTestAssemblyAsync(scriptName, projectPath, artifactsRoot, environmentVariables: null);
     }
 
     private static async Task<string> RunRuntimeScenarioFromTestAssemblyAsync(
@@ -202,6 +311,16 @@ public sealed class InkkOopsTestScriptUsageTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var projectPath = Path.Combine(repositoryRoot, "InkkSlinger.DemoApp", "InkkSlinger.DemoApp.csproj");
+        return await RunRuntimeScenarioFromTestAssemblyAsync(scriptName, projectPath, artifactsRoot, environmentVariables);
+    }
+
+    private static async Task<string> RunRuntimeScenarioFromTestAssemblyAsync(
+        string scriptName,
+        string projectPath,
+        string artifactsRoot,
+        IReadOnlyDictionary<string, string>? environmentVariables = null)
+    {
+        var repositoryRoot = FindRepositoryRoot();
         var testAssemblyPath = typeof(InkkOopsTestScriptUsageTests).Assembly.Location;
         await RunDotNetProcessAsync(
             repositoryRoot,
@@ -258,11 +377,33 @@ public sealed class InkkOopsTestScriptUsageTests
 
         Assert.NotNull(process);
 
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-        await process.WaitForExitAsync(timeout.Token);
+        string stdout;
+        string stderr;
 
-        var stdout = await process.StandardOutput.ReadToEndAsync(timeout.Token);
-        var stderr = await process.StandardError.ReadToEndAsync(timeout.Token);
+        try
+        {
+            using var timeout = new CancellationTokenSource(RuntimeProcessTimeout);
+            await process.WaitForExitAsync(timeout.Token);
+            stdout = await process.StandardOutput.ReadToEndAsync(timeout.Token);
+            stderr = await process.StandardError.ReadToEndAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+            }
+
+            stdout = await process.StandardOutput.ReadToEndAsync();
+            stderr = await process.StandardError.ReadToEndAsync();
+
+            Assert.Fail(
+                $"{failurePrefix}{Environment.NewLine}Process timed out after {RuntimeProcessTimeout.TotalSeconds:0} seconds.{Environment.NewLine}Arguments: {arguments}{Environment.NewLine}STDOUT:{Environment.NewLine}{stdout}{Environment.NewLine}STDERR:{Environment.NewLine}{stderr}");
+            return;
+        }
 
         Assert.True(
             process.ExitCode == 0,
@@ -280,6 +421,12 @@ public sealed class InkkOopsTestScriptUsageTests
             $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(artifactsRoot);
         return artifactsRoot;
+    }
+
+    private static string GetDesignerProjectPath()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        return Path.Combine(repositoryRoot, "InkkSlinger.Designer", "InkkSlinger.Designer.csproj");
     }
 
     private static string FindRepositoryRoot()
@@ -416,6 +563,26 @@ public sealed class InkkOopsTestScriptUsageTests
             builder
                 .WaitFrames(8)
                 .DumpTelemetry("mainwindow-width");
+        }
+    }
+
+    public sealed class RuntimeDesignerPreviewDockThenSourceSplitterDragHangScenario : InkkOopsRuntimeScenario
+    {
+        public override string Name => "runtime-designer-preview-dock-then-source-splitter-drag-hang-scenario";
+
+        protected override void Build(InkkOopsScriptBuilder builder)
+        {
+            var dragMotion = InkkOopsPointerMotion.WithTravelFrames(18, stepDistance: 8f);
+
+            builder
+                .ResizeWindow(1280, 820)
+                .WaitFrames(24)
+                .WaitForInteractive(PreviewDockSplitterName)
+                .Drag(PreviewDockSplitterName, -650f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12)
+                .WaitForInteractive(PreviewSourceSplitterName)
+                .Drag(PreviewSourceSplitterName, 96f, -560f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12);
         }
     }
 }

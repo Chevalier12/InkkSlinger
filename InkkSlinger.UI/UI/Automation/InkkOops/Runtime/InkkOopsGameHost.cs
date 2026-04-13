@@ -78,7 +78,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         _artifactRoot = artifactRoot ?? string.Empty;
     }
 
-    public void StartRecording(string recordingRoot)
+    public void StartRecording(string recordingRoot, string launchProjectPath)
     {
         if (_recorder != null)
         {
@@ -88,6 +88,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         _recorder = new InkkOopsInteractionRecorder(
             recordingRoot,
             _window.ClientSize,
+            launchProjectPath,
             _artifactNamingPolicy);
     }
 

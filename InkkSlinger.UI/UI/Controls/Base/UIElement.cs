@@ -738,11 +738,16 @@ public class UIElement : DependencyObject
         {
             return;
         }
+        
+        if (parent != null)
+        {
+            ValidateAcyclicParentAssignment(parent, useVisualChain: true);
+        }
 
         var oldParent = VisualParent;
         VisualParent = parent;
-        OnVisualParentChanged(oldParent, parent);
         UiRoot.Current?.NotifyVisualStructureChanged(this, oldParent, parent);
+        OnVisualParentChanged(oldParent, parent);
         NotifyBindingTreeChanged(this);
         _suppressNextLogicalBindingTreeNotify = true;
         _suppressNextLogicalParentChanged = true;
@@ -753,6 +758,11 @@ public class UIElement : DependencyObject
         if (ReferenceEquals(LogicalParent, parent))
         {
             return;
+        }
+        
+        if (parent != null)
+        {
+            ValidateAcyclicParentAssignment(parent, useVisualChain: false);
         }
 
         var oldParent = LogicalParent;
@@ -773,6 +783,22 @@ public class UIElement : DependencyObject
 
         _suppressNextLogicalBindingTreeNotify = false;
     }
+    
+    private void ValidateAcyclicParentAssignment(UIElement parent, bool useVisualChain)
+    {
+        if (ReferenceEquals(parent, this))
+        {
+            throw new InvalidOperationException("UIElement cannot be parented to itself.");
+        }
+
+        for (var current = parent; current != null; current = useVisualChain ? current.VisualParent : current.LogicalParent)
+        {
+            if (ReferenceEquals(current, this))
+            {
+                throw new InvalidOperationException("UIElement parent assignment would create a cycle.");
+            }
+        }
+    }
 
     internal void SetLayoutSlot(LayoutRect layoutSlot)
     {
@@ -786,13 +812,21 @@ public class UIElement : DependencyObject
 
     protected virtual void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
-        var inheritableProperties = new[]
+        var inheritableProperties = new HashSet<DependencyProperty>
         {
             UIElement.IsEnabledProperty,
             FrameworkElement.DataContextProperty,
             FrameworkElement.BindingGroupProperty,
             FrameworkElement.UseLayoutRoundingProperty
         };
+
+        foreach (var property in GetInheritablePropertiesForType(GetType()))
+        {
+            if (HasStoredValueEntry(property))
+            {
+                inheritableProperties.Add(property);
+            }
+        }
 
         foreach (var property in inheritableProperties)
         {
@@ -801,26 +835,28 @@ public class UIElement : DependencyObject
                 continue;
             }
 
-            var metadata = property.GetMetadata(this);
-            object? oldInheritedValue;
-            object? newInheritedValue;
+            var compareValueSource = HasStoredValueEntry(property);
+
+            (object? Value, DependencyPropertyValueSource Source) oldInherited;
+            (object? Value, DependencyPropertyValueSource Source) newInherited;
             if (oldParent == null)
             {
-                oldInheritedValue = metadata.DefaultValue;
-                newInheritedValue = ResolveInheritedValueFromParentChain(newParent, property);
+                oldInherited = ResolveDefaultInheritedValue(property);
+                newInherited = ResolveInheritedValueFromParentChain(newParent, property);
             }
             else if (newParent == null)
             {
-                oldInheritedValue = ResolveInheritedValueFromParentChain(oldParent, property);
-                newInheritedValue = metadata.DefaultValue;
+                oldInherited = ResolveInheritedValueFromParentChain(oldParent, property);
+                newInherited = ResolveDefaultInheritedValue(property);
             }
             else
             {
-                oldInheritedValue = ResolveInheritedValueFromParentChain(oldParent, property);
-                newInheritedValue = ResolveInheritedValueFromParentChain(newParent, property);
+                oldInherited = ResolveInheritedValueFromParentChain(oldParent, property);
+                newInherited = ResolveInheritedValueFromParentChain(newParent, property);
             }
 
-            if (!Equals(oldInheritedValue, newInheritedValue))
+            if (!Equals(oldInherited.Value, newInherited.Value) ||
+                (compareValueSource && oldInherited.Source != newInherited.Source))
             {
                 NotifyInheritedPropertyChanged(property);
             }
@@ -980,20 +1016,31 @@ public class UIElement : DependencyObject
         }
     }
 
-    private object? ResolveInheritedValueFromParentChain(UIElement? parent, DependencyProperty property)
+    private (object? Value, DependencyPropertyValueSource Source) ResolveDefaultInheritedValue(DependencyProperty property)
     {
-        var metadata = property.GetMetadata(this);
+        return (property.GetMetadata(this).DefaultValue, DependencyPropertyValueSource.Default);
+    }
+
+    private (object? Value, DependencyPropertyValueSource Source) ResolveInheritedValueFromParentChain(UIElement? parent, DependencyProperty property)
+    {
+        var visited = new HashSet<UIElement>();
+
         for (var current = parent; current != null; current = current.VisualParent)
         {
+            if (!visited.Add(current))
+            {
+                break;
+            }
+
             if (!property.IsApplicableTo(current))
             {
                 continue;
             }
 
-            return current.GetValue(property);
+            return (current.GetValue(property), DependencyPropertyValueSource.Inherited);
         }
 
-        return metadata.DefaultValue;
+        return ResolveDefaultInheritedValue(property);
     }
 
     private static void NotifyBindingTreeChanged(UIElement element, HashSet<UIElement> visited)

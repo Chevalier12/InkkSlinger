@@ -62,6 +62,35 @@ public sealed class UserControlTemplateParityTests
     }
 
     [Fact]
+    public void UserControl_Template_WithPlainContentPresenter_StretchesContentByDefault()
+    {
+        var payload = new Border
+        {
+            MinWidth = 40f,
+            MinHeight = 20f
+        };
+
+        var userControl = new UserControl
+        {
+            Width = 180f,
+            Height = 90f,
+            Content = payload,
+            Template = new ControlTemplate(_ => new Border
+            {
+                Child = new ContentPresenter()
+            })
+            {
+                TargetType = typeof(UserControl)
+            }
+        };
+
+        RunLayout(userControl, 320, 200);
+
+        Assert.Equal(180f, payload.LayoutSlot.Width, 0.01f);
+        Assert.Equal(90f, payload.LayoutSlot.Height, 0.01f);
+    }
+
+    [Fact]
     public void UserControl_Template_WithoutContentPresenter_HidesContent_WpfStrict()
     {
         var payload = new Border

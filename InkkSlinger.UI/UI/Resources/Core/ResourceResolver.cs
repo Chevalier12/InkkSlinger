@@ -21,25 +21,30 @@ public static class ResourceResolver
             return true;
         }
 
-        var visited = new HashSet<FrameworkElement> { element };
+        var visited = new HashSet<UIElement> { element };
 
         for (var current = element.VisualParent; current != null; current = current.VisualParent)
         {
+            if (!visited.Add(current))
+            {
+                break;
+            }
+
             if (current is FrameworkElement framework && framework.Resources.TryGetValue(key, out var value))
             {
                 resource = value;
                 return true;
             }
-
-            if (current is FrameworkElement visitedFramework)
-            {
-                visited.Add(visitedFramework);
-            }
         }
 
         for (var current = element.LogicalParent; current != null; current = current.LogicalParent)
         {
-            if (current is not FrameworkElement framework || visited.Contains(framework))
+            if (!visited.Add(current))
+            {
+                break;
+            }
+
+            if (current is not FrameworkElement framework)
             {
                 continue;
             }
@@ -49,8 +54,6 @@ public static class ResourceResolver
                 resource = value;
                 return true;
             }
-
-            visited.Add(framework);
         }
 
         if (includeApplicationResources &&

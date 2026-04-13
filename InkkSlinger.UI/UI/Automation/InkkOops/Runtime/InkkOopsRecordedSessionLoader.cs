@@ -14,15 +14,7 @@ public static class InkkOopsRecordedSessionLoader
 
     public static InkkOopsScript LoadFromJson(string recordingPath)
     {
-        if (string.IsNullOrWhiteSpace(recordingPath))
-        {
-            throw new ArgumentException("Recording path is required.", nameof(recordingPath));
-        }
-
-        var fullPath = System.IO.Path.GetFullPath(recordingPath);
-        var json = System.IO.File.ReadAllText(fullPath);
-        var session = JsonSerializer.Deserialize<RecordedSessionDocument>(json, JsonOptions)
-                      ?? throw new InvalidOperationException($"Could not deserialize recording '{fullPath}'.");
+        var (fullPath, session) = LoadDocument(recordingPath);
         var builder = new InkkOopsScriptBuilder("recording-playback", session.ActionDiagnosticsIndexes);
 
         foreach (var action in session.Actions)
@@ -55,10 +47,59 @@ public static class InkkOopsRecordedSessionLoader
         return builder.Build();
     }
 
+    public static InkkOopsRecordedSessionMetadata ReadMetadata(string recordingPath)
+    {
+        var (fullPath, session) = LoadDocument(recordingPath);
+        return new InkkOopsRecordedSessionMetadata(fullPath, session.RecordedProjectPath ?? string.Empty);
+    }
+
+    private static (string FullPath, RecordedSessionDocument Document) LoadDocument(string recordingPath)
+    {
+        if (string.IsNullOrWhiteSpace(recordingPath))
+        {
+            throw new ArgumentException("Recording path is required.", nameof(recordingPath));
+        }
+
+        var fullPath = ResolveRecordingPath(recordingPath);
+        var json = System.IO.File.ReadAllText(fullPath);
+        var session = JsonSerializer.Deserialize<RecordedSessionDocument>(json, JsonOptions)
+                      ?? throw new InvalidOperationException($"Could not deserialize recording '{fullPath}'.");
+        return (fullPath, session);
+    }
+
+    private static string ResolveRecordingPath(string recordingPath)
+    {
+        var fullPath = System.IO.Path.GetFullPath(recordingPath);
+        if (!System.IO.Directory.Exists(fullPath))
+        {
+            return fullPath;
+        }
+
+        var jsonPath = System.IO.Path.Combine(fullPath, "recording.json");
+        if (System.IO.File.Exists(jsonPath))
+        {
+            return jsonPath;
+        }
+
+        var inkkrPath = System.IO.Path.Combine(fullPath, "recording.inkkr");
+        if (System.IO.File.Exists(inkkrPath))
+        {
+            return inkkrPath;
+        }
+
+        throw new System.IO.FileNotFoundException(
+            $"No recording file was found in '{fullPath}'. Expected 'recording.json' or 'recording.inkkr'.",
+            fullPath);
+    }
+
     private sealed class RecordedSessionDocument
     {
         public int[] ActionDiagnosticsIndexes { get; set; } = [];
 
+        public string RecordedProjectPath { get; set; } = string.Empty;
+
         public List<InkkOopsInteractionRecorder.RecordedAction> Actions { get; set; } = new();
     }
 }
+
+public sealed record InkkOopsRecordedSessionMetadata(string RecordingPath, string RecordedProjectPath);

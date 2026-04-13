@@ -154,7 +154,6 @@ public sealed partial class UiRoot
 
         return false;
     }
-
     private static void RunAnimationPhase(GameTime gameTime)
     {
         AnimationManager.Current.Update(gameTime);

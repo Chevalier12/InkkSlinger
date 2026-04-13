@@ -207,6 +207,46 @@ public sealed class GridLayoutTests
     }
 
     [Fact]
+    public void Arrange_GrowingGridWidths_ReexpandsWrappedStarColumnToCurrentAvailableWidth()
+    {
+        var grid = new Grid
+        {
+            Height = 260f
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12f) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(380f) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var badge = new FixedSizeElement(new Vector2(52f, 20f));
+        grid.AddChild(badge);
+
+        var text = new TextBlock
+        {
+            Text = "The workspace preview column should grow again after a narrower layout pass instead of remaining stuck near the old measured width.",
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        Grid.SetColumn(text, 1);
+        grid.AddChild(text);
+
+        MeasureArrangeAndUpdate(grid, 520f, 260f);
+        var narrowHeight = text.ActualHeight;
+
+        MeasureArrangeAndUpdate(grid, 980f, 260f);
+
+        var expectedTextColumnWidth = 980f - badge.DesiredSize.X - 12f - 380f;
+        var expectedLayout = TextLayout.LayoutForElement(text.Text, text, text.FontSize, expectedTextColumnWidth, TextWrapping.Wrap);
+
+        Assert.Equal(expectedTextColumnWidth, grid.ColumnDefinitions[1].ActualWidth, 0.01f);
+        Assert.Equal(expectedTextColumnWidth, text.LayoutSlot.Width, 0.01f);
+        Assert.True(text.ActualHeight < narrowHeight - 0.01f, $"Expected wrapped text height to shrink after widening, but narrow={narrowHeight:0.##}, wide={text.ActualHeight:0.##}.");
+        Assert.Equal(expectedLayout.Size.Y, text.DesiredSize.Y, 3);
+        Assert.Equal(expectedLayout.Size.Y, text.ActualHeight, 3);
+    }
+
+    [Fact]
     public void Measure_StarAutoAutoPressure_MeasuresWrappedStarColumnAtCollapsedWidthWithoutWideFirstPass()
     {
         var grid = new Grid

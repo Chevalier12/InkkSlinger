@@ -26,6 +26,8 @@ public class FrameworkElement : UIElement
     private NameScope? _nameScope;
     private Style? _activeImplicitStyle;
     private bool _isApplyingImplicitStyle;
+    private int _activeMeasureDepth;
+    private int _activeArrangeOverrideDepth;
     private Vector2 _lastArrangedDesiredSize = new(float.NaN, float.NaN);
 
     public static readonly DependencyProperty NameProperty =
@@ -879,6 +881,7 @@ public class FrameworkElement : UIElement
         var measureStart = Stopwatch.GetTimestamp();
         var measureChildTickStack = _activeMeasureChildTickStack ??= new List<long>();
         measureChildTickStack.Add(0L);
+        _activeMeasureDepth++;
 
         try
         {
@@ -931,6 +934,7 @@ public class FrameworkElement : UIElement
         }
         finally
         {
+            _activeMeasureDepth--;
             var totalMeasureTicks = Stopwatch.GetTimestamp() - measureStart;
             var lastIndex = measureChildTickStack.Count - 1;
             var childMeasureTicks = measureChildTickStack[lastIndex];
@@ -1067,7 +1071,16 @@ public class FrameworkElement : UIElement
         SetLayoutSlot(new LayoutRect(arrangedX, arrangedY, arrangedWidth, arrangedHeight));
         var measureInvalidationCountBeforeOverride = MeasureInvalidationCount;
         var arrangeInvalidationCountBeforeOverride = ArrangeInvalidationCount;
-        RenderSize = ArrangeOverride(new Vector2(arrangedWidth, arrangedHeight));
+        _activeArrangeOverrideDepth++;
+        try
+        {
+            RenderSize = ArrangeOverride(new Vector2(arrangedWidth, arrangedHeight));
+        }
+        finally
+        {
+            _activeArrangeOverrideDepth--;
+        }
+
         if (useLayoutRounding)
         {
             RenderSize = RoundLayoutSize(RenderSize);
@@ -1361,6 +1374,7 @@ public class FrameworkElement : UIElement
                 IncrementDiagnostic(ref _runtimeUpdateLayoutStableExitCount, ref _diagUpdateLayoutStableExitCount);
                 return;
             }
+
         }
 
         IncrementDiagnostic(ref _runtimeUpdateLayoutMaxPassExitCount, ref _diagUpdateLayoutMaxPassExitCount);
@@ -1442,7 +1456,34 @@ public class FrameworkElement : UIElement
 
     internal bool CanReuseMeasureForAvailableSizeChangeForParentLayout(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
+        if (NeedsMeasure ||
+            !_isMeasureValid ||
+            HasPendingMeasureInvalidationInVisualSubtreeForLayout())
+        {
+            return false;
+        }
+
         return CanReuseMeasureForAvailableSizeChange(previousAvailableSize, nextAvailableSize);
+    }
+
+    internal bool HasPendingMeasureInvalidationInVisualSubtreeForLayout()
+    {
+        foreach (var child in GetVisualChildren())
+        {
+            if (child is not FrameworkElement frameworkChild)
+            {
+                continue;
+            }
+
+            if (frameworkChild.NeedsMeasure ||
+                !frameworkChild._isMeasureValid ||
+                frameworkChild.HasPendingMeasureInvalidationInVisualSubtreeForLayout())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected virtual Vector2 ArrangeOverride(Vector2 finalSize)
@@ -1780,8 +1821,14 @@ public class FrameworkElement : UIElement
     private static List<FrameworkElement> GetEffectiveResourceAncestors(UIElement? parent)
     {
         var ancestors = new List<FrameworkElement>();
+        var visited = new HashSet<UIElement>();
         for (var current = parent; current != null; current = current.VisualParent)
         {
+            if (!visited.Add(current))
+            {
+                break;
+            }
+
             if (current is not FrameworkElement frameworkElement)
             {
                 continue;
@@ -1866,6 +1913,10 @@ public class FrameworkElement : UIElement
         _ = descendant;
         return false;
     }
+
+    protected internal bool IsMeasuring => _activeMeasureDepth > 0;
+
+    protected internal bool IsArrangingOverride => _activeArrangeOverrideDepth > 0;
 
     protected void MarkMeasureValidAfterLocalReconciliation()
     {

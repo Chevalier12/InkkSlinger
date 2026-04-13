@@ -13,6 +13,7 @@ static int PrintUsage()
     Console.Error.WriteLine("  inkkoops run --script <name> --launch [--project <path>] [--pipe <name>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops run --script <name> --attach [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops record --launch [--project <path>] [--artifacts <path>]");
+    Console.Error.WriteLine("  inkkoops <recording-path> [--project <path>] [--artifacts <path>]");
     return 1;
 }
 
@@ -142,6 +143,7 @@ static int RunRecordLaunch(Dictionary<string, string> options, IInkkOopsLaunchTa
     var launchTarget = launchTargetResolver.Resolve(options);
     var arguments = new StringBuilder();
     arguments.Append("run --project \"").Append(launchTarget.ProjectPath).Append("\" -- --inkkoops-record ");
+    arguments.Append("--inkkoops-project \"").Append(launchTarget.ProjectPath).Append("\" ");
     if (options.TryGetValue("artifacts", out var artifacts))
     {
         arguments.Append("--inkkoops-record-root \"").Append(artifacts).Append("\" ");
@@ -158,8 +160,66 @@ static int RunRecordLaunch(Dictionary<string, string> options, IInkkOopsLaunchTa
     return process?.ExitCode ?? 1;
 }
 
+static int RunRecordingAutoLaunch(string recordingPath, Dictionary<string, string> options, IInkkOopsLaunchTargetResolver launchTargetResolver)
+{
+    InkkOopsLaunchTarget launchTarget;
+    if (options.TryGetValue("project", out var projectPath) && !string.IsNullOrWhiteSpace(projectPath))
+    {
+        launchTarget = launchTargetResolver.Resolve(options);
+    }
+    else
+    {
+        var metadata = InkkOopsRecordedSessionLoader.ReadMetadata(recordingPath);
+        if (string.IsNullOrWhiteSpace(metadata.RecordedProjectPath))
+        {
+            Console.Error.WriteLine(
+                $"Recording '{metadata.RecordingPath}' does not specify a recorded project. Provide --project <path> to replay it.");
+            return 1;
+        }
+
+        var recordedProjectOptions = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["project"] = metadata.RecordedProjectPath
+        };
+        launchTarget = launchTargetResolver.Resolve(recordedProjectOptions);
+    }
+
+    if (!File.Exists(launchTarget.ProjectPath))
+    {
+        Console.Error.WriteLine($"The provided file path does not exist: {launchTarget.ProjectPath}.");
+        return 1;
+    }
+
+    var arguments = new StringBuilder();
+    arguments.Append("run --project \"").Append(launchTarget.ProjectPath).Append("\" -- ");
+    arguments.Append("--inkkoops-recording \"").Append(recordingPath).Append("\" ");
+    if (options.TryGetValue("artifacts", out var artifacts))
+    {
+        arguments.Append("--inkkoops-artifacts \"").Append(artifacts).Append("\" ");
+    }
+
+    using var process = Process.Start(new ProcessStartInfo
+    {
+        FileName = "dotnet",
+        Arguments = arguments.ToString(),
+        WorkingDirectory = launchTarget.WorkingDirectory,
+        UseShellExecute = false
+    });
+    process?.WaitForExit();
+    return process?.ExitCode ?? 1;
+}
+
 var hostConfiguration = InkkOopsHostConfiguration.CreateDefault(typeof(ControlsCatalogView).Assembly);
 var launchTargetResolver = new DefaultInkkOopsLaunchTargetResolver();
+if (args.Length >= 1 &&
+    !string.Equals(args[0], "list", StringComparison.Ordinal) &&
+    !string.Equals(args[0], "run", StringComparison.Ordinal) &&
+    !string.Equals(args[0], "record", StringComparison.Ordinal))
+{
+    var options = ParseOptions(args, 1);
+    return RunRecordingAutoLaunch(args[0], options, launchTargetResolver);
+}
+
 if (args.Length == 0)
 {
     return PrintUsage();

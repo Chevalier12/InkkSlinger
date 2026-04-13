@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>InkkSlinger.Designer</RootNamespace>
+    <AssemblyName>InkkSlinger.Designer</AssemblyName>
+    <Nullable>enable</Nullable>
+    <RollForward>Major</RollForward>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <TieredCompilation>false</TieredCompilation>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <InkkSlingerXamlCompileEnabled>true</InkkSlingerXamlCompileEnabled>
+    <InkkSlingerXamlStrictMode>true</InkkSlingerXamlStrictMode>
+    <InkkSlingerXamlMigrationMode>Phased</InkkSlingerXamlMigrationMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="**\*.cs" Exclude="bin\**;obj\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <XmlCodeBehind Include="**\*.xml.cs" Exclude="bin\**;obj\**" />
+    <Compile Update="**\*.xml.cs">
+      <DependentUpon>%(Filename)</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="**\*.xml" Exclude="App.xml;bin\**;obj\**" InkkSlingerXamlCompileOptOut="false" />
+    <None Include="**\*.xml" Exclude="App.xml;bin\**;obj\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="@(XmlCodeBehind->'%(RelativeDir)%(Filename)')" />
+    <None Include="App.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="InkkSlingerXamlCompileEnabled" />
+    <CompilerVisibleProperty Include="InkkSlingerXamlStrictMode" />
+    <CompilerVisibleProperty Include="InkkSlingerXamlMigrationMode" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\InkkSlinger.UI\InkkSlinger.UI.csproj" />
+    <ProjectReference Include="..\InkkSlinger.XamlNameGenerator\InkkSlinger.XamlNameGenerator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

@@ -1378,29 +1378,6 @@ public class Calendar : UserControl
             }
         }
 
-        Console.WriteLine("[CalendarManualDiagnostics] begin");
-        Console.WriteLine(
-            $"[CalendarManualDiagnostics] refreshCount={_calendarViewRefreshCount}, nonEmptyDayButtons={nonEmptyDayButtonCount}, " +
-            $"dayButtonDrawCalls={dayButtonDrawCalls}, weekDayLabelDrawCalls={weekDayLabelDrawCalls}, monthLabelDrawCalls={monthLabelDrawCalls}, " +
-            $"navButtonDrawCalls={previousButtonDrawCalls + nextButtonDrawCalls}");
-        Console.WriteLine(
-            $"[CalendarManualDiagnostics] button render: total={buttonTiming.RenderElapsedTicks}, chrome={buttonTiming.RenderChromeElapsedTicks}, " +
-            $"textPrep={buttonTiming.RenderTextPreparationElapsedTicks}, textPrepCalls={buttonTiming.RenderTextPreparationCallCount}, " +
-            $"textDispatch={buttonTiming.RenderTextDrawDispatchElapsedTicks}, textDispatchCalls={buttonTiming.RenderTextDrawDispatchCallCount}, " +
-            $"measure={buttonTiming.MeasureOverrideElapsedTicks}, resolveTextLayout={buttonTiming.ResolveTextLayoutElapsedTicks}");
-        Console.WriteLine(
-            $"[CalendarManualDiagnostics] font draw: drawTicks={fontTiming.DrawStringElapsedTicks}, drawCalls={fontTiming.DrawStringCallCount}, " +
-            $"measureWidth={fontTiming.MeasureWidthElapsedTicks}, measureWidthCalls={fontTiming.MeasureWidthCallCount}, " +
-            $"getLineHeight={fontTiming.GetLineHeightElapsedTicks}, getLineHeightCalls={fontTiming.GetLineHeightCallCount}");
-        Console.WriteLine(
-            $"[CalendarManualDiagnostics] font measure: measureWidth={fontTiming.MeasureWidthElapsedTicks}, measureWidthCalls={fontTiming.MeasureWidthCallCount}, " +
-            $"getLineHeight={fontTiming.GetLineHeightElapsedTicks}, getLineHeightCalls={fontTiming.GetLineHeightCallCount}");
-        Console.WriteLine(
-            $"[CalendarManualDiagnostics] text layout: layout={textLayoutMetrics.LayoutElapsedTicks}, build={textLayoutMetrics.BuildElapsedTicks}, " +
-            $"buildCount={textLayoutMetrics.BuildCount}, noWrapBuildCount={textLayoutMetrics.NoWrapBuildCount}, " +
-            $"wrappedBuildCount={textLayoutMetrics.WrappedBuildCount}, cacheMisses={textLayoutMetrics.CacheMissCount}");
-        Console.WriteLine("[CalendarManualDiagnostics] end");
-
         _pendingManualRenderDiagnostics = false;
         _manualRenderDiagnosticsLogged = true;
     }

@@ -383,11 +383,6 @@ public sealed class AutomationManager
             queued.NewPeer?.RuntimeId));
 
         AutomationEventRaised?.Invoke(this, args);
-
-        if (_enableLogs)
-        {
-            Console.WriteLine($"[Automation] Event={queued.EventType} Peer={queued.Peer.Owner.GetType().Name}#{queued.Peer.RuntimeId} Property={queued.PropertyName}");
-        }
     }
 
     private static void CollectPeerTree(AutomationPeer root, List<AutomationPeer> result)

@@ -57,6 +57,32 @@ public sealed class ApplicationRuntimeApiTests
         }
     }
 
+    [Fact]
+    public void ApplicationCurrent_Shutdown_InvokesRegisteredShutdownCallback()
+    {
+        var application = UiApplication.Current;
+        var originalFpsEnabled = application.FpsEnabled;
+        using var window = new Window(new FakeWindowNativeAdapter(), new FakeWindowGraphicsAdapter());
+        var shutdownCalls = 0;
+
+        try
+        {
+            application.AttachMainWindow(
+                window,
+                new InkkSlingerOptions { FpsEnabled = true },
+                () => shutdownCalls++);
+
+            Application.Current.Shutdown();
+
+            Assert.Equal(1, shutdownCalls);
+        }
+        finally
+        {
+            application.DetachMainWindow(window);
+            application.FpsEnabled = originalFpsEnabled;
+        }
+    }
+
     private sealed class FakeWindowNativeAdapter : IWindowNativeAdapter
     {
         public event EventHandler<EventArgs>? ClientSizeChanged

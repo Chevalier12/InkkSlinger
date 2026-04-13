@@ -523,7 +523,6 @@ public class DatePicker : UserControl
         var host = FindHostPanel();
         if (host == null)
         {
-            System.Diagnostics.Debug.WriteLine($"[DatePicker] FindHostPanel returned null for {this}. Unable to open dropdown.");
             _isSynchronizingDropDown = true;
             try
             {

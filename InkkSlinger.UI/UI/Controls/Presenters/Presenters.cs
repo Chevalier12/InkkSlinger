@@ -46,14 +46,14 @@ public class ContentPresenter : FrameworkElement
             nameof(HorizontalContentAlignment),
             typeof(HorizontalAlignment),
             typeof(ContentPresenter),
-            new FrameworkPropertyMetadata(HorizontalAlignment.Left, FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(HorizontalAlignment.Stretch, FrameworkPropertyMetadataOptions.AffectsArrange));
 
     public static readonly DependencyProperty VerticalContentAlignmentProperty =
         DependencyProperty.Register(
             nameof(VerticalContentAlignment),
             typeof(VerticalAlignment),
             typeof(ContentPresenter),
-            new FrameworkPropertyMetadata(VerticalAlignment.Top, FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(VerticalAlignment.Stretch, FrameworkPropertyMetadataOptions.AffectsArrange));
 
     private static long _diagConstructorCallCount;
     private static long _diagGetVisualChildrenCallCount;
@@ -1550,12 +1550,13 @@ public class ContentPresenter : FrameworkElement
 
     private HorizontalAlignment ResolveEffectiveHorizontalContentAlignment()
     {
-        if (HasLocalValue(HorizontalContentAlignmentProperty))
+        if (GetValueSource(HorizontalContentAlignmentProperty) != DependencyPropertyValueSource.Default)
         {
             return HorizontalContentAlignment;
         }
 
-        if (_sourceOwner is Control control)
+        if (_sourceOwner is Control control &&
+            control.GetValueSource(Control.HorizontalContentAlignmentProperty) != DependencyPropertyValueSource.Default)
         {
             return control.HorizontalContentAlignment;
         }
@@ -1565,12 +1566,13 @@ public class ContentPresenter : FrameworkElement
 
     private VerticalAlignment ResolveEffectiveVerticalContentAlignment()
     {
-        if (HasLocalValue(VerticalContentAlignmentProperty))
+        if (GetValueSource(VerticalContentAlignmentProperty) != DependencyPropertyValueSource.Default)
         {
             return VerticalContentAlignment;
         }
 
-        if (_sourceOwner is Control control)
+        if (_sourceOwner is Control control &&
+            control.GetValueSource(Control.VerticalContentAlignmentProperty) != DependencyPropertyValueSource.Default)
         {
             return control.VerticalContentAlignment;
         }
@@ -1804,12 +1806,7 @@ public class ItemsPresenter : FrameworkElement
 
     private void Trace(string message)
     {
-        if (!EnableItemsPresenterTrace)
-        {
-            return;
-        }
-
-        Console.WriteLine($"[ItemsPresenter#{GetHashCode():X8}] t={Environment.TickCount64} {message}");
+        _ = message;
     }
 }
 

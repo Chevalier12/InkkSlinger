@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.Designer.DesignerShellView"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
+             Background="#0B0F14">
+  <Grid x:Name="DesignerShellRootGrid">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="8" />
+      <RowDefinition Height="220" />
+    </Grid.RowDefinitions>
+
+    <!-- Toolbar -->
+    <Border Grid.Row="0"
+            Background="#0D131A"
+            BorderBrush="#1A2637"
+            BorderThickness="0,0,0,1"
+            Padding="8,5">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+          <Button x:Name="NewButton"
+                  Content="New"
+                  Background="Transparent"
+                  Foreground="#8DA1B5"
+                  BorderBrush="#243342"
+                  BorderThickness="1"
+                  Padding="10,4"
+                  Margin="0,0,3,0" />
+          <Button x:Name="OpenButton"
+                  Content="Open"
+                  Background="Transparent"
+                  Foreground="#8DA1B5"
+                  BorderBrush="#243342"
+                  BorderThickness="1"
+                  Padding="10,4"
+                  Margin="0,0,3,0" />
+          <Button x:Name="SaveButton"
+                  Content="Save"
+                  Background="#0D2218"
+                  Foreground="#8FD2B3"
+                  BorderBrush="#1A4030"
+                  BorderThickness="1"
+                  Padding="10,4"
+                  Margin="0,0,3,0" />
+          <Button x:Name="SaveAsButton"
+                  Content="Save As"
+                  Background="Transparent"
+                  Foreground="#8DA1B5"
+                  BorderBrush="#243342"
+                  BorderThickness="1"
+                  Padding="10,4"
+                  Margin="0,0,10,0" />
+          <Button x:Name="RefreshButton"
+                  Content="Refresh  F5"
+                  Background="#0A1E36"
+                  Foreground="#6FB7FF"
+                  BorderBrush="#163658"
+                  BorderThickness="1"
+                  Padding="10,4" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    Margin="14,0,8,0">
+          <TextBlock x:Name="DocumentStatusText"
+                     Foreground="#8FD2B3"
+                     Text="Untitled.xml • memory only" />
+          <TextBlock Text="  ·  "
+                     Foreground="#243342" />
+          <TextBlock x:Name="ToolbarStatusText"
+                     Foreground="#6FB7FF"
+                     Text="Refresh idle. Edit the source and press F5." />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Workflow prompt (collapsed by default, expands inline) -->
+    <Border x:Name="WorkflowPromptBorder"
+            Grid.Row="1"
+            Background="#0B1825"
+            BorderBrush="#1A2637"
+            BorderThickness="0,0,0,1"
+            Padding="12,8"
+            Visibility="Collapsed">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0"
+                    VerticalAlignment="Center"
+                    Margin="0,0,16,0">
+          <TextBlock x:Name="WorkflowPromptTitleText"
+                     Foreground="#E7EDF5"
+                     FontWeight="SemiBold"
+                     Text="Document Prompt" />
+          <TextBlock x:Name="WorkflowPromptMessageText"
+                     Foreground="#8DA1B5"
+                     Margin="0,2,0,0"
+                     Text="Prompt details appear here." />
+        </StackPanel>
+
+        <TextBox x:Name="DocumentPathTextBox"
+                 Grid.Column="1"
+                 Width="340"
+                 VerticalAlignment="Center"
+                 Margin="0,0,12,0"
+                 Text=""
+                 Background="#080F18"
+                 Foreground="#D8E3EE"
+                 BorderBrush="#243342"
+                 BorderThickness="1"
+                 Padding="8,5"
+                 Visibility="Collapsed" />
+
+        <StackPanel Grid.Column="3"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+          <Button x:Name="WorkflowPromptPrimaryButton"
+                  Content="Confirm"
+                  Background="#0D2218"
+                  Foreground="#8FD2B3"
+                  BorderBrush="#1A4030"
+                  BorderThickness="1"
+                  Padding="10,5"
+                  Margin="0,0,6,0" />
+          <Button x:Name="WorkflowPromptSecondaryButton"
+                  Content="Discard"
+                  Background="#201408"
+                  Foreground="#D4A87A"
+                  BorderBrush="#3D2808"
+                  BorderThickness="1"
+                  Padding="10,5"
+                  Margin="0,0,6,0"
+                  Visibility="Collapsed" />
+          <Button x:Name="WorkflowPromptCancelButton"
+                  Content="Cancel"
+                  Background="Transparent"
+                  Foreground="#8DA1B5"
+                  BorderBrush="#243342"
+                  BorderThickness="1"
+                  Padding="10,5" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Main area: preview + side panels -->
+    <Grid Grid.Row="2"
+          Margin="8,8,8,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MinWidth="200" />
+        <ColumnDefinition Width="6" />
+        <ColumnDefinition Width="320" MinWidth="220" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Preview -->
+      <Border Grid.Column="0"
+              Background="#0D131A"
+              BorderBrush="#1A2637"
+              BorderThickness="1"
+              CornerRadius="8">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+
+          <Border Grid.Row="0"
+                  BorderBrush="#1A2637"
+                  BorderThickness="0,0,0,1"
+                  Padding="10,7">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0"
+                         Text="Preview"
+                         Foreground="#C8D8E8"
+                         FontWeight="SemiBold" />
+              <TextBlock x:Name="PreviewStatusText"
+                         Grid.Column="1"
+                         Foreground="#5A7A9A"
+                         VerticalAlignment="Center"
+                         Text="Idle" />
+            </Grid>
+          </Border>
+
+          <ContentControl x:Name="PreviewHost"
+                          Grid.Row="1"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch" />
+        </Grid>
+      </Border>
+
+      <GridSplitter x:Name="PreviewDockSplitter"
+                    Grid.Column="1"
+                    Background="#0D131A"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    ResizeDirection="Columns"
+                    ResizeBehavior="PreviousAndNext" />
+
+      <!-- Side panels: Visual Tree, Inspector, Diagnostics -->
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="2*" />
+          <RowDefinition Height="6" />
+          <RowDefinition Height="2*" />
+          <RowDefinition Height="6" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Visual Tree -->
+        <Border Grid.Row="0"
+                Background="#0D131A"
+                BorderBrush="#1A2637"
+                BorderThickness="1"
+                CornerRadius="8">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0"
+                    BorderBrush="#1A2637"
+                    BorderThickness="0,0,0,1"
+                    Padding="10,7">
+              <StackPanel>
+                <TextBlock Text="Visual Tree"
+                           Foreground="#C8D8E8"
+                           FontWeight="SemiBold" />
+                <TextBlock x:Name="VisualTreeSummaryText"
+                           Foreground="#4A6880"
+                           FontSize="12"
+                           Margin="0,2,0,0"
+                           Text="Refresh to inspect." />
+              </StackPanel>
+            </Border>
+            <TreeView x:Name="VisualTreeView"
+                      Grid.Row="1"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      Foreground="#D8E3EE"
+                      Padding="6" />
+          </Grid>
+        </Border>
+
+        <!-- Inspector -->
+        <Border Grid.Row="2"
+                Background="#0D131A"
+                BorderBrush="#1A2637"
+                BorderThickness="1"
+                CornerRadius="8">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0"
+                    BorderBrush="#1A2637"
+                    BorderThickness="0,0,0,1"
+                    Padding="10,7">
+              <StackPanel>
+                <TextBlock Text="Inspector"
+                           Foreground="#C8D8E8"
+                           FontWeight="SemiBold" />
+                <TextBlock x:Name="InspectorSummaryText"
+                           Foreground="#4A6880"
+                           FontSize="12"
+                           Margin="0,2,0,0"
+                           Text="Select a node." />
+              </StackPanel>
+            </Border>
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="6">
+              <StackPanel x:Name="InspectorPanel" />
+            </ScrollViewer>
+          </Grid>
+        </Border>
+
+        <!-- Diagnostics -->
+        <Border Grid.Row="4"
+                Background="#0D131A"
+                BorderBrush="#1A2637"
+                BorderThickness="1"
+                CornerRadius="8">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0"
+                    BorderBrush="#1A2637"
+                    BorderThickness="0,0,0,1"
+                    Padding="10,7">
+              <StackPanel>
+                <TextBlock Text="Diagnostics"
+                           Foreground="#C8D8E8"
+                           FontWeight="SemiBold" />
+                <TextBlock x:Name="DiagnosticsSummaryText"
+                           Foreground="#4A6880"
+                           FontSize="12"
+                           Margin="0,2,0,0"
+                           Text="Errors and warnings appear after refresh." />
+              </StackPanel>
+            </Border>
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="6">
+              <StackPanel x:Name="DiagnosticsPanel" />
+            </ScrollViewer>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <GridSplitter x:Name="PreviewSourceSplitter"
+                  Grid.Row="3"
+                  Height="8"
+                  Margin="8,0"
+                  Background="#0D131A"
+                  BorderBrush="#1A2637"
+                  BorderThickness="0,1"
+                  HorizontalAlignment="Stretch"
+                  VerticalAlignment="Center"
+                  ResizeDirection="Rows"
+                  ResizeBehavior="PreviousAndNext" />
+
+    <!-- Source editor -->
+    <Border Grid.Row="4"
+            Margin="8,0,8,8"
+            Background="#0D131A"
+            BorderBrush="#1A2637"
+            BorderThickness="1"
+            CornerRadius="8">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                BorderBrush="#1A2637"
+                BorderThickness="0,0,0,1"
+                Padding="10,7">
+          <TextBlock Text="Source"
+                     Foreground="#C8D8E8"
+                     FontWeight="SemiBold" />
+        </Border>
+
+        <RichTextBox x:Name="SourceEditor"
+                     Grid.Row="1"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Foreground="#D8E3EE"
+                     CaretBrush="#7FD0FF"
+                     SelectionBrush="#1A4A7A"
+                     Padding="10"
+                     HorizontalScrollBarVisibility="Auto"
+                     VerticalScrollBarVisibility="Auto"
+                     AcceptsReturn="True"
+                     AcceptsTab="True"
+                     TextWrapping="NoWrap"
+                     FontFamily="Consolas" />
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

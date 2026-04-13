@@ -117,4 +117,44 @@ public sealed class InkkSlingerGameHostBehaviorTests
 
         Assert.Equal("null", description);
     }
+
+    [Fact]
+    public void ExitRequest_IsCanceledWhenRootDeclinesExit()
+    {
+        var root = new ExitAwareRoot(allowExit: false);
+
+        var shouldCancel = InkkSlingerGameHost.ShouldCancelExitRequest(root);
+
+        Assert.True(shouldCancel);
+        Assert.Equal(1, root.RequestCount);
+    }
+
+    [Fact]
+    public void ExitRequest_IsAllowedWhenRootAcceptsExit()
+    {
+        var root = new ExitAwareRoot(allowExit: true);
+
+        var shouldCancel = InkkSlingerGameHost.ShouldCancelExitRequest(root);
+
+        Assert.False(shouldCancel);
+        Assert.Equal(1, root.RequestCount);
+    }
+
+    private sealed class ExitAwareRoot : UserControl, IAppExitRequestHandler
+    {
+        private readonly bool _allowExit;
+
+        public ExitAwareRoot(bool allowExit)
+        {
+            _allowExit = allowExit;
+        }
+
+        public int RequestCount { get; private set; }
+
+        public bool TryRequestAppExit()
+        {
+            RequestCount++;
+            return _allowExit;
+        }
+    }
 }

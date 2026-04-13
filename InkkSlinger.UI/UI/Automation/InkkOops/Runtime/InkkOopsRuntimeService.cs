@@ -152,7 +152,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
             return;
         }
 
-        _host.StartRecording(ResolveRecordingRoot());
+        _host.StartRecording(ResolveRecordingRoot(), _options.LaunchProjectPath);
         _recordingStarted = true;
     }
 
