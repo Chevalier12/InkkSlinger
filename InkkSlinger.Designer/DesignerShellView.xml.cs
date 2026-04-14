@@ -10,6 +10,9 @@ namespace InkkSlinger.Designer;
 
 public partial class DesignerShellView : UserControl, IAppExitRequestHandler
 {
+    private const string DiagnosticsTabBaseHeader = "Diagnostics";
+    private const float SourceLineNumberGutterRightPadding = 6f;
+
     private const string DefaultSourceText = """
         <UserControl xmlns="urn:inkkslinger-ui"
                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -77,7 +80,11 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
     private readonly Button _workflowPromptCancelButton;
     private readonly TextBox _documentPathTextBox;
     private readonly ContentControl _previewHost;
+    private readonly TabControl _editorTabControl;
+    private readonly TabItem _diagnosticsTab;
     private readonly RichTextBox _sourceEditor;
+    private readonly Border _sourceLineNumberBorder;
+    private readonly StackPanel _sourceLineNumberPanel;
     private readonly TreeView _visualTreeView;
     private readonly StackPanel _inspectorPanel;
     private readonly StackPanel _diagnosticsPanel;
@@ -92,6 +99,11 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
     private Color? _documentStatusOverrideColor;
     private bool _suppressSourceEditorChanges;
     private bool _suppressTreeSelection;
+    private int _lastRenderedSourceLineCount = -1;
+    private int _lastRenderedSourceFirstVisibleLine = -1;
+    private int _lastRenderedSourceVisibleLineCount = -1;
+    private float _lastRenderedSourceLineOffset = float.NaN;
+    private float _lastRenderedSourceLineHeight = float.NaN;
 
     public DesignerShellView(
         DesignerDocumentController? documentController = null,
@@ -125,7 +137,11 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         _workflowPromptCancelButton = RequireElement<Button>("WorkflowPromptCancelButton");
         _documentPathTextBox = RequireElement<TextBox>("DocumentPathTextBox");
         _previewHost = RequireElement<ContentControl>("PreviewHost");
+        _editorTabControl = RequireElement<TabControl>("EditorTabControl");
+        _diagnosticsTab = RequireElement<TabItem>("DiagnosticsTab");
         _sourceEditor = RequireElement<RichTextBox>("SourceEditor");
+        _sourceLineNumberBorder = RequireElement<Border>("SourceLineNumberBorder");
+        _sourceLineNumberPanel = RequireElement<StackPanel>("SourceLineNumberPanel");
         _visualTreeView = RequireElement<TreeView>("VisualTreeView");
         _inspectorPanel = RequireElement<StackPanel>("InspectorPanel");
         _diagnosticsPanel = RequireElement<StackPanel>("DiagnosticsPanel");
@@ -153,6 +169,8 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         _workflowPromptCancelButton.Command = _promptCancelCommand;
         _workflowPromptCancelButton.CommandTarget = this;
         _sourceEditor.TextChanged += OnSourceEditorTextChanged;
+        _sourceEditor.ViewportChanged += OnSourceEditorViewportChanged;
+        _sourceEditor.LayoutUpdated += OnSourceEditorLayoutUpdated;
         _visualTreeView.SelectedItemChanged += OnVisualTreeSelectionChanged;
         InputBindings.Add(new KeyBinding
         {
@@ -166,6 +184,7 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         ApplyControllerState();
         UpdateWorkflowPromptChrome(syncTextFromWorkflow: true);
         UpdateDocumentChrome();
+        UpdateSourceLineNumberGutter(force: true);
     }
 
     public DesignerController Controller => _controller;
@@ -230,6 +249,20 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         var selectedItem = _visualTreeView.SelectedItem;
         _controller.SelectVisualNode(selectedItem?.Tag as string);
         UpdateInspectorPanel();
+    }
+
+    private void OnSourceEditorLayoutUpdated(object? sender, EventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        UpdateSourceLineNumberGutter(force: false);
+    }
+
+    private void OnSourceEditorViewportChanged(object? sender, EventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        UpdateSourceLineNumberGutter(force: false);
     }
 
     private void ApplyControllerState()
@@ -420,6 +453,7 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
         ClearPanel(_diagnosticsPanel);
         if (_controller.Diagnostics.Count == 0)
         {
+            UpdateDiagnosticsTabHeader(errorCount: 0, warningCount: 0);
             _diagnosticsSummaryText.Text = _controller.PreviewState == DesignerPreviewState.Success
                 ? "No parser diagnostics were reported during the last refresh."
                 : "Parser warnings and errors appear after refresh.";
@@ -444,17 +478,45 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
             _diagnosticsPanel.AddChild(CreateDiagnosticCard(diagnostic, i == 0 ? 0f : 10f));
         }
 
+        UpdateDiagnosticsTabHeader(errorCount, warningCount);
         _diagnosticsSummaryText.Text = string.Create(
             CultureInfo.InvariantCulture,
             $"{errorCount} error(s), {warningCount} warning(s) from the last refresh.");
+
+        if (_controller.PreviewState == DesignerPreviewState.Error && errorCount > 0)
+        {
+            _editorTabControl.SelectedItem = _diagnosticsTab;
+        }
+    }
+
+    private void UpdateDiagnosticsTabHeader(int errorCount, int warningCount)
+    {
+        _diagnosticsTab.Header = errorCount > 0
+            ? string.Create(CultureInfo.InvariantCulture, $"{DiagnosticsTabBaseHeader} (!{errorCount})")
+            : warningCount > 0
+                ? string.Create(CultureInfo.InvariantCulture, $"{DiagnosticsTabBaseHeader} ({warningCount})")
+                : DiagnosticsTabBaseHeader;
     }
 
     private void LoadDocumentIntoEditor()
     {
+        var selectionStart = _sourceEditor.SelectionStart;
+        var selectionLength = _sourceEditor.SelectionLength;
+        var horizontalOffset = _sourceEditor.HorizontalOffset;
+        var verticalOffset = _sourceEditor.VerticalOffset;
+
         _suppressSourceEditorChanges = true;
         try
         {
             DesignerXmlSyntaxHighlighter.PopulateDocument(_sourceEditor.Document, _documentController.CurrentText);
+
+            var updatedTextLength = DocumentEditing.GetText(_sourceEditor.Document).Length;
+            var clampedSelectionStart = Math.Clamp(selectionStart, 0, updatedTextLength);
+            var clampedSelectionLength = Math.Clamp(selectionLength, 0, updatedTextLength - clampedSelectionStart);
+            _sourceEditor.Select(clampedSelectionStart, clampedSelectionLength);
+            _sourceEditor.ScrollToHorizontalOffset(horizontalOffset);
+            _sourceEditor.ScrollToVerticalOffset(verticalOffset);
+            UpdateSourceLineNumberGutter(force: true);
         }
         finally
         {
@@ -465,6 +527,124 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
     private void SyncEditorTextIntoDocumentController()
     {
         _documentController.UpdateText(DocumentEditing.GetText(_sourceEditor.Document));
+    }
+
+    private void UpdateSourceLineNumberGutter(bool force)
+    {
+        var sourceText = _documentController.CurrentText;
+        var lineCount = CountSourceLines(sourceText);
+        var lineHeight = EstimateSourceEditorLineHeight(lineCount);
+        var viewportHeight = Math.Max(lineHeight, _sourceEditor.ViewportHeight);
+        var verticalOffset = Math.Max(0f, _sourceEditor.VerticalOffset);
+        var approximateVisibleLineCount = Math.Clamp((int)MathF.Ceiling(viewportHeight / lineHeight) + 1, 1, Math.Max(1, lineCount));
+        var firstVisibleLine = GetFirstVisibleSourceLine(sourceText, lineCount, approximateVisibleLineCount, lineHeight, verticalOffset);
+        var visibleLineCount = Math.Clamp(approximateVisibleLineCount, 1, Math.Max(1, lineCount - firstVisibleLine));
+        var lineOffset = verticalOffset - (firstVisibleLine * lineHeight);
+
+        if (!force &&
+            lineCount == _lastRenderedSourceLineCount &&
+            firstVisibleLine == _lastRenderedSourceFirstVisibleLine &&
+            visibleLineCount == _lastRenderedSourceVisibleLineCount &&
+            Math.Abs(lineOffset - _lastRenderedSourceLineOffset) <= 0.01f &&
+            Math.Abs(lineHeight - _lastRenderedSourceLineHeight) <= 0.01f)
+        {
+            return;
+        }
+
+        ClearPanel(_sourceLineNumberPanel);
+        _sourceLineNumberPanel.Margin = new Thickness(0f, 10f - lineOffset, SourceLineNumberGutterRightPadding, 0f);
+
+        for (var lineIndex = 0; lineIndex < visibleLineCount; lineIndex++)
+        {
+            _sourceLineNumberPanel.AddChild(CreateLineNumberEntry(firstVisibleLine + lineIndex + 1, lineHeight, _sourceEditor.FontSize));
+        }
+
+        _lastRenderedSourceLineCount = lineCount;
+        _lastRenderedSourceFirstVisibleLine = firstVisibleLine;
+        _lastRenderedSourceVisibleLineCount = visibleLineCount;
+        _lastRenderedSourceLineOffset = lineOffset;
+        _lastRenderedSourceLineHeight = lineHeight;
+    }
+
+    private static int CountSourceLines(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 1;
+        }
+
+        var lineCount = 1;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n')
+            {
+                lineCount++;
+            }
+        }
+
+        return lineCount;
+    }
+
+    private float EstimateSourceEditorLineHeight(int lineCount)
+    {
+        if (lineCount > 0 && _sourceEditor.ExtentHeight > 0.01f)
+        {
+            return Math.Max(1f, _sourceEditor.ExtentHeight / lineCount);
+        }
+
+        return Math.Max(1f, _sourceEditor.FontSize * 1.35f);
+    }
+
+    private int GetFirstVisibleSourceLine(string sourceText, int lineCount, int approximateVisibleLineCount, float lineHeight, float verticalOffset)
+    {
+        var topVisibleTextPoint = new Vector2(
+            _sourceEditor.LayoutSlot.X + _sourceEditor.BorderThickness + _sourceEditor.Padding.Left + 1f,
+            _sourceEditor.LayoutSlot.Y + _sourceEditor.BorderThickness + _sourceEditor.Padding.Top + 1f);
+        var firstVisiblePosition = _sourceEditor.GetPositionFromPoint(topVisibleTextPoint, snapToText: true);
+        var firstVisibleLineFromHitTest = 0;
+        if (firstVisiblePosition.HasValue)
+        {
+            var documentOffset = Math.Clamp(DocumentPointers.GetDocumentOffset(firstVisiblePosition.Value), 0, sourceText.Length);
+            var lineIndex = 0;
+            for (var i = 0; i < documentOffset; i++)
+            {
+                if (sourceText[i] == '\n')
+                {
+                    lineIndex++;
+                }
+            }
+
+            firstVisibleLineFromHitTest = Math.Clamp(lineIndex, 0, Math.Max(0, lineCount - 1));
+        }
+
+        var firstVisibleLineFromScroll = Math.Clamp((int)MathF.Floor(verticalOffset / lineHeight), 0, Math.Max(0, lineCount - 1));
+        var scrollableLineCount = Math.Max(0, lineCount - approximateVisibleLineCount);
+        if (scrollableLineCount > 0 && _sourceEditor.ScrollableHeight > 0.01f)
+        {
+            firstVisibleLineFromScroll = Math.Clamp(
+                (int)MathF.Round((verticalOffset / _sourceEditor.ScrollableHeight) * scrollableLineCount),
+                0,
+                Math.Max(0, lineCount - 1));
+        }
+
+        return Math.Max(firstVisibleLineFromHitTest, firstVisibleLineFromScroll);
+    }
+
+    private static Border CreateLineNumberEntry(int lineNumber, float lineHeight, float fontSize)
+    {
+        return new Border
+        {
+            Height = lineHeight,
+            Child = new TextBlock
+            {
+                Text = lineNumber.ToString(CultureInfo.InvariantCulture),
+                Foreground = new Color(78, 102, 124),
+                FontFamily = "Consolas",
+                FontSize = fontSize,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
     }
 
     private void UpdateDocumentChrome()

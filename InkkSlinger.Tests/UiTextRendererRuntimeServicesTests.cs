@@ -110,6 +110,52 @@ public sealed class UiTextRendererRuntimeServicesTests
     }
 
     [Fact]
+    public void MeasureWidth_Tab_AdvancesToNextTabStop()
+    {
+        var catalog = new FakeCatalog();
+        var rasterizer = new FakeRasterizer();
+        UiTextRenderer.ConfigureRuntimeServicesForTests(catalog, rasterizer);
+
+        try
+        {
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal", 0);
+
+            var measuredWidth = UiTextRenderer.MeasureWidth(typography, "A\tB");
+            var drawnWidth = UiTextRenderer.GetDrawWidthForTests(typography, "A\tB");
+
+            Assert.Equal(45.25f, measuredWidth, 3);
+            Assert.Equal(measuredWidth, drawnWidth, 3);
+        }
+        finally
+        {
+            UiTextRenderer.ConfigureRuntimeServicesForTests();
+        }
+    }
+
+    [Fact]
+    public void GlyphDrawPositions_Tab_SkipsGlyphAndPlacesNextGlyphAtTabStop()
+    {
+        var catalog = new FakeCatalog();
+        var rasterizer = new FakeRasterizer();
+        UiTextRenderer.ConfigureRuntimeServicesForTests(catalog, rasterizer);
+
+        try
+        {
+            var typography = new UiTypography("Injected Sans", 10f, "Normal", "Normal", 0);
+
+            var positions = UiTextRenderer.GetGlyphDrawPositionsForTests(typography, "A\tB");
+
+            Assert.Equal(2, positions.Count);
+            Assert.Equal(0f, positions[0].X, 3);
+            Assert.Equal(40f, positions[1].X, 3);
+        }
+        finally
+        {
+            UiTextRenderer.ConfigureRuntimeServicesForTests();
+        }
+    }
+
+    [Fact]
     public void GlyphDrawPositions_ReusesShapedLayoutAcrossRepeatedCalls()
     {
         var catalog = new FakeCatalog();

@@ -204,10 +204,14 @@
             </Grid>
           </Border>
 
-          <ContentControl x:Name="PreviewHost"
-                          Grid.Row="1"
-                          HorizontalAlignment="Stretch"
-                          VerticalAlignment="Stretch" />
+          <ScrollViewer x:Name="PreviewScrollViewer"
+                        Grid.Row="1"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto">
+            <ContentControl x:Name="PreviewHost"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch" />
+          </ScrollViewer>
         </Grid>
       </Border>
 
@@ -222,12 +226,10 @@
                     ResizeDirection="Columns"
                     ResizeBehavior="PreviousAndNext" />
 
-      <!-- Side panels: Visual Tree, Inspector, Diagnostics -->
+      <!-- Side panels: Visual Tree, Inspector -->
       <Grid Grid.Column="2">
         <Grid.RowDefinitions>
-          <RowDefinition Height="2*" />
-          <RowDefinition Height="6" />
-          <RowDefinition Height="2*" />
+          <RowDefinition Height="*" />
           <RowDefinition Height="6" />
           <RowDefinition Height="*" />
         </Grid.RowDefinitions>
@@ -305,40 +307,6 @@
           </Grid>
         </Border>
 
-        <!-- Diagnostics -->
-        <Border Grid.Row="4"
-                Background="#0D131A"
-                BorderBrush="#1A2637"
-                BorderThickness="1"
-                CornerRadius="8">
-          <Grid>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <Border Grid.Row="0"
-                    BorderBrush="#1A2637"
-                    BorderThickness="0,0,0,1"
-                    Padding="10,7">
-              <StackPanel>
-                <TextBlock Text="Diagnostics"
-                           Foreground="#C8D8E8"
-                           FontWeight="SemiBold" />
-                <TextBlock x:Name="DiagnosticsSummaryText"
-                           Foreground="#4A6880"
-                           FontSize="12"
-                           Margin="0,2,0,0"
-                           Text="Errors and warnings appear after refresh." />
-              </StackPanel>
-            </Border>
-            <ScrollViewer Grid.Row="1"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          Padding="6">
-              <StackPanel x:Name="DiagnosticsPanel" />
-            </ScrollViewer>
-          </Grid>
-        </Border>
       </Grid>
     </Grid>
 
@@ -354,43 +322,83 @@
                   ResizeDirection="Rows"
                   ResizeBehavior="PreviousAndNext" />
 
-    <!-- Source editor -->
+    <!-- Source editor + diagnostics -->
     <Border Grid.Row="4"
             Margin="8,0,8,8"
             Background="#0D131A"
             BorderBrush="#1A2637"
             BorderThickness="1"
             CornerRadius="8">
-      <Grid>
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+      <TabControl x:Name="EditorTabControl"
+                  Background="#0D131A"
+                  Foreground="#C8D8E8"
+                  HeaderBackground="#0B1118"
+                  SelectedHeaderBackground="#102236"
+                  BorderBrush="#1A2637"
+                  BorderThickness="0"
+                  HeaderPadding="14,8">
+        <TabItem x:Name="SourceTab"
+                 Header="Source">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="56" />
+              <ColumnDefinition Width="1" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-        <Border Grid.Row="0"
-                BorderBrush="#1A2637"
-                BorderThickness="0,0,0,1"
-                Padding="10,7">
-          <TextBlock Text="Source"
-                     Foreground="#C8D8E8"
-                     FontWeight="SemiBold" />
-        </Border>
+            <Border x:Name="SourceLineNumberBorder"
+                    Grid.Column="0"
+                    Background="#0A1017"
+                    ClipToBounds="True">
+              <StackPanel x:Name="SourceLineNumberPanel"
+                          Margin="0,10,6,0" />
+            </Border>
 
-        <RichTextBox x:Name="SourceEditor"
-                     Grid.Row="1"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     Foreground="#D8E3EE"
-                     CaretBrush="#7FD0FF"
-                     SelectionBrush="#1A4A7A"
-                     Padding="10"
-                     HorizontalScrollBarVisibility="Auto"
-                     VerticalScrollBarVisibility="Auto"
-                     AcceptsReturn="True"
-                     AcceptsTab="True"
-                     TextWrapping="NoWrap"
-                     FontFamily="Consolas" />
-      </Grid>
+            <Border Grid.Column="1"
+                    Background="#1A2637" />
+
+            <RichTextBox x:Name="SourceEditor"
+                         Grid.Column="2"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Foreground="#D8E3EE"
+                         CaretBrush="#7FD0FF"
+                         SelectionBrush="#1A4A7A"
+                         Padding="10"
+                         HorizontalScrollBarVisibility="Auto"
+                         VerticalScrollBarVisibility="Auto"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         TextWrapping="NoWrap"
+                         FontFamily="Consolas" />
+          </Grid>
+        </TabItem>
+
+        <TabItem x:Name="DiagnosticsTab"
+                 Header="Diagnostics">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0"
+                    BorderBrush="#1A2637"
+                    BorderThickness="0,0,0,1"
+                    Padding="10,7">
+              <TextBlock x:Name="DiagnosticsSummaryText"
+                         Foreground="#4A6880"
+                         FontSize="12"
+                         Text="Errors and warnings appear after refresh." />
+            </Border>
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="6">
+              <StackPanel x:Name="DiagnosticsPanel" />
+            </ScrollViewer>
+          </Grid>
+        </TabItem>
+      </TabControl>
     </Border>
   </Grid>
 </UserControl>

@@ -50,6 +50,18 @@ public static partial class XamlLoader
             return true;
         }
 
+        if (target is Paragraph paragraphWithTabs &&
+            string.Equals(propertyName, nameof(Paragraph.Tabs), StringComparison.Ordinal))
+        {
+            ApplyTypedCollectionPropertyElement<TextTabProperties>(
+                propertyElementName,
+                propertyElement,
+                codeBehind,
+                resourceScope,
+                item => paragraphWithTabs.Tabs.Add(item));
+            return true;
+        }
+
         if (target is Span span &&
             string.Equals(propertyName, nameof(Span.Inlines), StringComparison.Ordinal))
         {

@@ -8,6 +8,37 @@
         <Setter Property="FontFamily" Value="Segoe UI" />
         <Setter Property="FontSize" Value="14" />
       </Style>
+
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <!-- SCROLLBAR — slim dark-theme bars matching the designer palette -->
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <Style TargetType="{x:Type ScrollBar}">
+        <!-- Track background: barely-visible dark trough -->
+        <Setter Property="Background" Value="#111822" />
+        <!-- Thumb fill: muted steel-blue that fits #1A2637–#35506B range -->
+        <Setter Property="Foreground" Value="#2E4A6A" />
+        <!-- No border on track or thumb -->
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <!-- Vertical bar: 8 px wide -->
+        <Setter Property="Width" Value="8" />
+        <Style.Triggers>
+          <Trigger Property="Orientation" Value="Horizontal">
+            <Setter Property="Width" Value="Auto" />
+            <Setter Property="Height" Value="8" />
+          </Trigger>
+        </Style.Triggers>
+      </Style>
+
+      <!-- ══════════════════════════════════════════════════════════════ -->
+      <!-- SCROLLVIEWER — transparent host, uses slim ScrollBarThickness -->
+      <!-- ══════════════════════════════════════════════════════════════ -->
+      <Style TargetType="{x:Type ScrollViewer}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="ScrollBarThickness" Value="8" />
+      </Style>
     </ResourceDictionary>
   </Application.Resources>
 </Application>

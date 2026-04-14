@@ -13,6 +13,7 @@ internal static class UiTextRenderer
     private const int MetricsCacheCapacity = 4096;
     private const int LineHeightCacheCapacity = 256;
     private const int ShapedTextLayoutCacheCapacity = 2048;
+    private const int DefaultTabColumnCount = 4;
     private static readonly object SyncRoot = new();
     private static readonly HashSet<string> PrewarmedGlyphBuckets = new(StringComparer.Ordinal);
     private static readonly Dictionary<GraphicsDevice, UiGlyphAtlas> GrayscaleAtlases = new();
@@ -501,13 +502,13 @@ internal static class UiTextRenderer
         }
 
         var typeface = ResolveTypefaceCached(typography);
-        var metrics = GetTextMetrics(typography, text, UiTextStyleOverride.None);
-        var lineHeight = MathF.Max(1f, metrics.LineHeight);
+    var lineMetrics = ResolveLineMetrics(typography);
+    var lineHeight = MathF.Max(1f, lineMetrics.LineHeight);
         var pixelSize = Math.Max(1, (int)MathF.Round(typography.Size));
         var codePoints = new List<int>(text.Length);
         var positions = new List<Vector2>(text.Length);
         var penX = 0f;
-        var baselineY = metrics.Ascent;
+    var baselineY = lineMetrics.Ascent;
         var maxWidth = 0f;
         uint previousGlyphIndex = 0;
         var characterSpacing = GetCharacterSpacingPixels(typography);
@@ -527,6 +528,13 @@ internal static class UiTextRenderer
                 baselineY += lineHeight;
                 previousGlyphIndex = 0;
                 hasGlyphOnCurrentLine = false;
+                continue;
+            }
+
+            if (rune.Value == '\t')
+            {
+                penX += ResolveTabAdvance(typography, penX);
+                previousGlyphIndex = 0;
                 continue;
             }
 
@@ -592,7 +600,22 @@ internal static class UiTextRenderer
 
         _metricsCacheMissCount++;
         var typeface = ResolveTypefaceCached(typography);
-        var measured = ApplyCharacterSpacing(_rasterizer.Measure(typeface, typography.Size, text, styleOverride), typography, text);
+        UiTextMetrics measured;
+        if (ContainsLayoutControlCharacters(text))
+        {
+            var verticalMetrics = _rasterizer.Measure(typeface, typography.Size, "Ag", styleOverride);
+            measured = new UiTextMetrics(
+                ResolveShapedTextLayout(typography, text).Width,
+                verticalMetrics.Height,
+                verticalMetrics.LineHeight,
+                verticalMetrics.Ascent,
+                verticalMetrics.Descent);
+        }
+        else
+        {
+            measured = ApplyCharacterSpacing(_rasterizer.Measure(typeface, typography.Size, text, styleOverride), typography, text);
+        }
+
         lock (SyncRoot)
         {
             AddMetricsCacheEntryNoLock(cacheKey, measured);
@@ -737,6 +760,83 @@ internal static class UiTextRenderer
     private static Vector2 GetGlyphDrawPosition(float penX, float baselineY, float bearingX, float bearingY)
     {
         return new Vector2(penX + bearingX, baselineY - bearingY);
+    }
+
+    internal static float ResolveTabAdvance(
+        UiTypography typography,
+        float currentLineWidth,
+        double defaultIncrementalTab = double.NaN,
+        IList<TextTabProperties>? tabs = null)
+    {
+        if (tabs != null)
+        {
+            TextTabProperties? nextExplicitTab = null;
+            for (var i = 0; i < tabs.Count; i++)
+            {
+                var candidate = tabs[i];
+                if (candidate.Alignment != TextTabAlignment.Left)
+                {
+                    continue;
+                }
+
+                if (candidate.Location + 0.001d <= currentLineWidth)
+                {
+                    continue;
+                }
+
+                if (nextExplicitTab == null || candidate.Location < nextExplicitTab.Location)
+                {
+                    nextExplicitTab = candidate;
+                }
+            }
+
+            if (nextExplicitTab != null)
+            {
+                return MathF.Max(0f, (float)nextExplicitTab.Location - currentLineWidth);
+            }
+        }
+
+        var tabStopWidth = ResolveDefaultIncrementalTabWidth(typography, defaultIncrementalTab);
+        var remainder = currentLineWidth % tabStopWidth;
+        if (remainder < 0f)
+        {
+            remainder += tabStopWidth;
+        }
+
+        return remainder <= 0.001f
+            ? tabStopWidth
+            : tabStopWidth - remainder;
+    }
+
+    private static UiTextMetrics ResolveLineMetrics(UiTypography typography)
+    {
+        var typeface = ResolveTypefaceCached(typography);
+        return _rasterizer.Measure(typeface, typography.Size, "Ag", UiTextStyleOverride.None);
+    }
+
+    private static float ResolveDefaultIncrementalTabWidth(UiTypography typography, double defaultIncrementalTab)
+    {
+        if (!double.IsNaN(defaultIncrementalTab) &&
+            double.IsFinite(defaultIncrementalTab) &&
+            defaultIncrementalTab > 0d)
+        {
+            return (float)defaultIncrementalTab;
+        }
+
+        return MathF.Max(1f, typography.Size * 4f);
+    }
+
+    private static bool ContainsLayoutControlCharacters(string text)
+    {
+        foreach (var character in text)
+        {
+            if (character == '\n' || character == '\r' || character == '\t')
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static UiTextMetrics ApplyCharacterSpacing(UiTextMetrics metrics, UiTypography typography, string text)

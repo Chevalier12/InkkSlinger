@@ -123,6 +123,22 @@ public static class FlowDocumentSerializer
     private static XElement SerializeParagraph(Paragraph paragraph)
     {
         var element = new XElement(nameof(Paragraph));
+        if (!double.IsNaN(paragraph.DefaultIncrementalTab))
+        {
+            element.SetAttributeValue(nameof(Paragraph.DefaultIncrementalTab), paragraph.DefaultIncrementalTab);
+        }
+
+        if (paragraph.Tabs.Count > 0)
+        {
+            var tabsElement = new XElement($"{nameof(Paragraph)}.{nameof(Paragraph.Tabs)}");
+            foreach (var tab in paragraph.Tabs)
+            {
+                tabsElement.Add(SerializeTextTabProperties(tab));
+            }
+
+            element.Add(tabsElement);
+        }
+
         foreach (var inline in paragraph.Inlines)
         {
             element.Add(SerializeInline(inline));
@@ -285,8 +301,23 @@ public static class FlowDocumentSerializer
     private static Paragraph DeserializeParagraph(XElement element)
     {
         var paragraph = new Paragraph();
+        if (double.TryParse((string?)element.Attribute(nameof(Paragraph.DefaultIncrementalTab)), out var defaultIncrementalTab))
+        {
+            paragraph.DefaultIncrementalTab = defaultIncrementalTab;
+        }
+
         foreach (var child in element.Elements())
         {
+            if (string.Equals(child.Name.LocalName, $"{nameof(Paragraph)}.{nameof(Paragraph.Tabs)}", StringComparison.Ordinal))
+            {
+                foreach (var tabElement in child.Elements())
+                {
+                    paragraph.Tabs.Add(DeserializeTextTabProperties(tabElement));
+                }
+
+                continue;
+            }
+
             paragraph.Inlines.Add(DeserializeInline(child));
         }
 
@@ -436,6 +467,7 @@ public static class FlowDocumentSerializer
     private static Paragraph SliceParagraph(Paragraph source, int start, int end)
     {
         var paragraph = new Paragraph();
+        CopyParagraphSettings(source, paragraph);
         var offset = 0;
         foreach (var inline in source.Inlines)
         {
@@ -462,6 +494,64 @@ public static class FlowDocumentSerializer
         }
 
         return paragraph;
+    }
+
+    private static XElement SerializeTextTabProperties(TextTabProperties properties)
+    {
+        var element = new XElement(nameof(TextTabProperties));
+        element.SetAttributeValue(nameof(TextTabProperties.Alignment), properties.Alignment);
+        element.SetAttributeValue(nameof(TextTabProperties.Location), properties.Location);
+        if (properties.TabLeader != 0)
+        {
+            element.SetAttributeValue(nameof(TextTabProperties.TabLeader), properties.TabLeader);
+        }
+
+        if (properties.AligningCharacter != 0)
+        {
+            element.SetAttributeValue(nameof(TextTabProperties.AligningCharacter), properties.AligningCharacter);
+        }
+
+        return element;
+    }
+
+    private static TextTabProperties DeserializeTextTabProperties(XElement element)
+    {
+        if (!string.Equals(element.Name.LocalName, nameof(TextTabProperties), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Unsupported tab stop element '{element.Name.LocalName}'.");
+        }
+
+        var tab = new TextTabProperties();
+        if (Enum.TryParse<TextTabAlignment>((string?)element.Attribute(nameof(TextTabProperties.Alignment)), true, out var alignment))
+        {
+            tab.Alignment = alignment;
+        }
+
+        if (double.TryParse((string?)element.Attribute(nameof(TextTabProperties.Location)), out var location))
+        {
+            tab.Location = location;
+        }
+
+        if (int.TryParse((string?)element.Attribute(nameof(TextTabProperties.TabLeader)), out var tabLeader))
+        {
+            tab.TabLeader = tabLeader;
+        }
+
+        if (int.TryParse((string?)element.Attribute(nameof(TextTabProperties.AligningCharacter)), out var aligningCharacter))
+        {
+            tab.AligningCharacter = aligningCharacter;
+        }
+
+        return tab;
+    }
+
+    private static void CopyParagraphSettings(Paragraph source, Paragraph destination)
+    {
+        destination.DefaultIncrementalTab = source.DefaultIncrementalTab;
+        foreach (var tab in source.Tabs)
+        {
+            destination.Tabs.Add(new TextTabProperties(tab.Alignment, tab.Location, tab.TabLeader, tab.AligningCharacter));
+        }
     }
 
     private static Inline? SliceInline(Inline inline, int localStart, int localEnd)

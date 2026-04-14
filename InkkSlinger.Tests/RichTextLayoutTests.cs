@@ -218,6 +218,40 @@ public sealed class RichTextLayoutTests
         Assert.Equal(lastLine.Bounds.Y, caretPos.Y);
     }
 
+    [Fact]
+    public void ParagraphDefaultIncrementalTab_UsesFourEmFallback()
+    {
+        var document = new FlowDocument();
+        var paragraph = new Paragraph();
+        paragraph.Inlines.Add(new Run("A\tB"));
+        document.Blocks.Add(paragraph);
+
+        var layout = Layout(document, 800f, 16f);
+        var line = Assert.Single(layout.Lines);
+
+        Assert.True(layout.TryGetCaretPosition(2, out var afterTab));
+        Assert.Equal(line.TextStartX + 64f, afterTab.X, 3);
+    }
+
+    [Fact]
+    public void ParagraphExplicitTabs_OverrideIncrementalTabStops()
+    {
+        var document = new FlowDocument();
+        var paragraph = new Paragraph
+        {
+            DefaultIncrementalTab = 96d
+        };
+        paragraph.Tabs.Add(new TextTabProperties(TextTabAlignment.Left, 72d, 0, 0));
+        paragraph.Inlines.Add(new Run("A\tB"));
+        document.Blocks.Add(paragraph);
+
+        var layout = Layout(document, 800f, 16f);
+        var line = Assert.Single(layout.Lines);
+
+        Assert.True(layout.TryGetCaretPosition(2, out var afterTab));
+        Assert.Equal(line.TextStartX + 72f, afterTab.X, 3);
+    }
+
     private static ListItem BuildItem(string text)
     {
         var item = new ListItem();

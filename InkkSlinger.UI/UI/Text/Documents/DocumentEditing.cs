@@ -799,6 +799,12 @@ public static class DocumentEditing
         {
             case Paragraph paragraph:
                 var clonedParagraph = new Paragraph();
+                clonedParagraph.DefaultIncrementalTab = paragraph.DefaultIncrementalTab;
+                foreach (var tab in paragraph.Tabs)
+                {
+                    clonedParagraph.Tabs.Add(new TextTabProperties(tab.Alignment, tab.Location, tab.TabLeader, tab.AligningCharacter));
+                }
+
                 foreach (var inline in paragraph.Inlines)
                 {
                     clonedParagraph.Inlines.Add(CloneInline(inline));

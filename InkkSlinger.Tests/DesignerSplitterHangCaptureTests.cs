@@ -48,8 +48,8 @@ public sealed class DesignerSplitterHangCaptureTests
             Assert.True(shell.RefreshPreview());
             RunFrames(uiRoot, 10);
 
-            var previewDockSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewDockSplitter"));
-            var previewSourceSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewSourceSplitter"));
+                var previewDockSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewDockSplitter"));
+                var previewSourceSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewSourceSplitter"));
 
             Assert.True(previewDockSplitter.ActualWidth > 0f);
             Assert.True(previewSourceSplitter.ActualHeight > 0f);
@@ -57,7 +57,7 @@ public sealed class DesignerSplitterHangCaptureTests
             DragSplitter(uiRoot, previewDockSplitter, new Vector2(-650f, 0f), travelFrames: 18);
             RunFrames(uiRoot, 12);
 
-            DragSplitter(uiRoot, previewSourceSplitter, new Vector2(96f, -560f), travelFrames: 18);
+                    DragSplitter(uiRoot, previewSourceSplitter, new Vector2(96f, -560f), travelFrames: 18);
             RunFrames(uiRoot, 18);
         }
         finally
@@ -83,7 +83,7 @@ public sealed class DesignerSplitterHangCaptureTests
 
             var previewDockSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewDockSplitter"));
             var previewSourceSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewSourceSplitter"));
-            var sourceEditor = Assert.IsType<RichTextBox>(shell.FindName("SourceEditor"));
+            var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
 
             DragSplitter(uiRoot, previewDockSplitter, new Vector2(-650f, 0f), travelFrames: 18);
             RunFrames(uiRoot, 12);
@@ -98,6 +98,132 @@ public sealed class DesignerSplitterHangCaptureTests
 
             Assert.True(previewDockSplitter.LayoutSlot.X > dockSplitterXBeforeGrowth + 100f);
             Assert.True(sourceEditor.LayoutSlot.Y + sourceEditor.LayoutSlot.Height > sourceBottomBeforeGrowth + 100f);
+        }
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
+    }
+
+    [Fact]
+    public void PreviewScrollViewer_ThumbRemainsInteractive_AfterShrinkScrollAndReexpand()
+    {
+        var snapshot = CaptureApplicationResources();
+        try
+        {
+            LoadDesignerApplicationResources();
+
+            var shell = new DesignerShellView
+            {
+                SourceText = BuildLargeScrollablePreviewXml()
+            };
+            var uiRoot = new UiRoot(shell);
+
+            RunFrames(uiRoot, 6);
+            Assert.True(shell.RefreshPreview());
+            RunFrames(uiRoot, 10);
+
+            var previewViewer = Assert.IsType<ScrollViewer>(shell.FindName("PreviewScrollViewer"));
+            var previewDockSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewDockSplitter"));
+            var previewSourceSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewSourceSplitter"));
+
+            Assert.True(previewViewer.ExtentWidth > previewViewer.ViewportWidth + 0.01f);
+            Assert.True(previewViewer.ExtentHeight > previewViewer.ViewportHeight + 0.01f);
+
+            var verticalBar = GetPrivateScrollBar(previewViewer, "_verticalBar");
+            var verticalThumb = FindNamedVisualChild<Thumb>(verticalBar, "PART_Thumb");
+            Assert.NotNull(verticalThumb);
+
+            var firstThumbCenter = GetCenter(verticalBar.GetThumbRectForInput());
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(firstThumbCenter, pointerMoved: true));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(firstThumbCenter, leftPressed: true));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(firstThumbCenter.X, firstThumbCenter.Y + 40f), pointerMoved: true));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(firstThumbCenter.X, firstThumbCenter.Y + 40f), leftReleased: true));
+            RunFrames(uiRoot, 2);
+
+            Assert.True(previewViewer.VerticalOffset > 0.01f);
+
+            DragSplitter(uiRoot, previewDockSplitter, new Vector2(-650f, 0f), travelFrames: 18);
+            RunFrames(uiRoot, 12);
+            DragSplitter(uiRoot, previewSourceSplitter, new Vector2(96f, -560f), travelFrames: 18);
+            RunFrames(uiRoot, 18);
+
+            DragSplitter(uiRoot, previewDockSplitter, new Vector2(900f, 0f), travelFrames: 18);
+            RunFrames(uiRoot, 12);
+            DragSplitter(uiRoot, previewSourceSplitter, new Vector2(-96f, 700f), travelFrames: 18);
+            RunFrames(uiRoot, 18);
+
+            verticalBar = GetPrivateScrollBar(previewViewer, "_verticalBar");
+            verticalThumb = FindNamedVisualChild<Thumb>(verticalBar, "PART_Thumb");
+            Assert.NotNull(verticalThumb);
+
+            var secondThumbCenter = GetCenter(verticalBar.GetThumbRectForInput());
+            var hit = VisualTreeHelper.HitTest(shell, secondThumbCenter);
+            Assert.Same(verticalThumb, hit);
+
+            var offsetBeforeSecondDrag = previewViewer.VerticalOffset;
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(secondThumbCenter, pointerMoved: true));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(secondThumbCenter, leftPressed: true));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(secondThumbCenter.X, secondThumbCenter.Y + 28f), pointerMoved: true));
+            uiRoot.RunInputDeltaForTests(CreatePointerDelta(new Vector2(secondThumbCenter.X, secondThumbCenter.Y + 28f), leftReleased: true));
+            RunFrames(uiRoot, 2);
+
+            Assert.True(previewViewer.VerticalOffset > offsetBeforeSecondDrag + 0.01f);
+        }
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
+    }
+
+    [Fact]
+    public void PreviewScrollViewer_ScrollBarVisibilityToggle_TriggersVisualStructureDirty()
+    {
+        var snapshot = CaptureApplicationResources();
+        try
+        {
+            LoadDesignerApplicationResources();
+
+            var shell = new DesignerShellView
+            {
+                SourceText = BuildResizeSensitivePreviewXml()
+            };
+            var uiRoot = new UiRoot(shell);
+
+            RunFrames(uiRoot, 6);
+            Assert.True(shell.RefreshPreview());
+            RunFrames(uiRoot, 10);
+
+            var previewViewer = Assert.IsType<ScrollViewer>(shell.FindName("PreviewScrollViewer"));
+            var previewDockSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewDockSplitter"));
+
+            Assert.True(previewViewer.ExtentWidth <= previewViewer.ViewportWidth + 0.01f);
+            Assert.True(previewViewer.ExtentHeight <= previewViewer.ViewportHeight + 0.01f);
+            Assert.Equal(0, CountVisualChildrenOfType<ScrollBar>(previewViewer));
+
+            DragSplitter(uiRoot, previewDockSplitter, new Vector2(-650f, 0f), travelFrames: 18);
+            RunFrames(uiRoot, 18);
+
+            Assert.True(previewViewer.ExtentWidth > previewViewer.ViewportWidth + 0.01f ||
+                        previewViewer.ExtentHeight > previewViewer.ViewportHeight + 0.01f);
+            Assert.True(CountVisualChildrenOfType<ScrollBar>(previewViewer) > 0);
+
+            uiRoot.CompleteDrawStateForTests();
+            uiRoot.ResetDirtyStateForTests();
+            shell.ClearRenderInvalidationRecursive();
+            var beforeMetrics = uiRoot.GetMetricsSnapshot();
+
+            DragSplitter(uiRoot, previewDockSplitter, new Vector2(900f, 0f), travelFrames: 18);
+            RunFrames(uiRoot, 18);
+
+            var afterMetrics = uiRoot.GetMetricsSnapshot();
+
+            Assert.True(previewViewer.ExtentWidth <= previewViewer.ViewportWidth + 0.01f);
+            Assert.True(previewViewer.ExtentHeight <= previewViewer.ViewportHeight + 0.01f);
+            Assert.Equal(0, CountVisualChildrenOfType<ScrollBar>(previewViewer));
+            Assert.True(afterMetrics.VisualStructureChangeCount > beforeMetrics.VisualStructureChangeCount);
+            Assert.True(uiRoot.IsFullDirtyForTests(), "Expected a full dirty redraw when preview scroll bars disappear after re-expanding the designer shell.");
+            Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
         }
         finally
         {
@@ -254,7 +380,7 @@ public sealed class DesignerSplitterHangCaptureTests
             uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
             RunFrames(uiRoot, 1);
         }
-
+                        // DragSplitter(uiRoot, previewSourceSplitter, new Vector2(96f, -560f), travelFrames: 18);
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, leftReleased: true));
         RunFrames(uiRoot, 1);
     }
@@ -314,6 +440,122 @@ public sealed class DesignerSplitterHangCaptureTests
         var appXmlPath = Path.Combine(repositoryRoot, "InkkSlinger.Designer", "App.xml");
         Assert.True(File.Exists(appXmlPath), $"Expected Designer App.xml to exist at '{appXmlPath}'.");
         XamlLoader.LoadApplicationResourcesFromFile(appXmlPath, clearExisting: true);
+    }
+
+    private static string BuildLargeScrollablePreviewXml()
+    {
+        return """
+        <UserControl xmlns="urn:inkkslinger-ui"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     Width="2200"
+                     Height="1600"
+                     Background="#111827">
+          <Canvas Width="2200" Height="1600">
+            <Border Width="2100"
+                    Height="1500"
+                    Background="#182230"
+                    BorderBrush="#35506B"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="18">
+              <StackPanel>
+                <TextBlock Text="Scrollable Preview"
+                           Foreground="#E7EDF5"
+                           FontSize="28"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="Use the splitters, then keep scrolling."
+                           Foreground="#8AA3B8"
+                           Margin="0,6,0,12" />
+                <Button Content="Preview Action"
+                        Width="220"
+                        Height="48"
+                        Background="#1F8EFA"
+                        BorderBrush="#56A7F7"
+                        BorderThickness="1" />
+              </StackPanel>
+            </Border>
+          </Canvas>
+        </UserControl>
+        """;
+    }
+
+        private static string BuildResizeSensitivePreviewXml()
+        {
+                return """
+                <UserControl xmlns="urn:inkkslinger-ui"
+                                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                                         Width="760"
+                                         Height="240"
+                                         Background="#111827">
+                    <Canvas Width="760" Height="240">
+                        <Border Width="760"
+                                        Height="240"
+                                        Background="#182230"
+                                        BorderBrush="#35506B"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="18">
+                            <StackPanel>
+                                <TextBlock Text="Resize-sensitive Preview"
+                                                     Foreground="#E7EDF5"
+                                                     FontSize="28"
+                                                     FontWeight="SemiBold" />
+                                <TextBlock Text="This should fit at the default designer size and overflow only after splitter shrink."
+                                                     Foreground="#8AA3B8"
+                                                     Margin="0,6,0,12" />
+                                <Button Content="Preview Action"
+                                                Width="220"
+                                                Height="48"
+                                                Background="#1F8EFA"
+                                                BorderBrush="#56A7F7"
+                                                BorderThickness="1" />
+                            </StackPanel>
+                        </Border>
+                    </Canvas>
+                </UserControl>
+                """;
+        }
+
+    private static ScrollBar GetPrivateScrollBar(ScrollViewer viewer, string fieldName)
+    {
+        var field = typeof(ScrollViewer).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<ScrollBar>(field!.GetValue(viewer));
+    }
+
+    private static TElement? FindNamedVisualChild<TElement>(UIElement root, string name)
+        where TElement : FrameworkElement
+    {
+        if (root is TElement typed && typed.Name == name)
+        {
+            return typed;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindNamedVisualChild<TElement>(child, name);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static int CountVisualChildrenOfType<TElement>(UIElement root)
+        where TElement : UIElement
+    {
+        var count = 0;
+        foreach (var child in root.GetVisualChildren())
+        {
+            if (child is TElement)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static bool IsWorkerEnabled()

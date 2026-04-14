@@ -173,6 +173,69 @@ public sealed class RichTextBoxRegressionTests
     }
 
     [Fact]
+    public void TabInput_CreatesTabStopWidthForCaretAndSelection()
+    {
+        var editor = CreateEditor(320f, 90f, string.Empty);
+
+        Assert.True(editor.HandleTextInputFromInput('A'));
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Tab, ModifierKeys.None));
+        Assert.True(editor.HandleTextInputFromInput('B'));
+
+        Assert.Equal("A\tB", DocumentEditing.GetText(editor.Document));
+
+        var layout = Layout(editor);
+        Assert.True(layout.TryGetCaretPosition(1, out var afterA));
+        Assert.True(layout.TryGetCaretPosition(2, out var afterTab));
+        Assert.True(layout.TryGetCaretPosition(3, out var afterB));
+
+        var tabRect = Assert.Single(layout.BuildSelectionRects(1, 1));
+        var plainSpaceAdvance = UiTextRenderer.MeasureWidth(editor, " ", editor.FontSize);
+
+        Assert.True(afterTab.X > afterA.X);
+        Assert.True(afterB.X > afterTab.X);
+        Assert.Equal(afterTab.X - afterA.X, tabRect.Width, 3);
+        Assert.True(tabRect.Width > plainSpaceAdvance);
+    }
+
+    [Fact]
+    public void TabInput_AfterPointerPlacementInRichStructuredDocument_ShouldPreserveFormattingContainers()
+    {
+        var editor = CreateEditor(480f, 220f, string.Empty);
+        editor.Document = BuildWelcomeStyleDocument();
+
+        var host = new Canvas
+        {
+            Width = 640f,
+            Height = 360f
+        };
+        host.AddChild(editor);
+        var uiRoot = new UiRoot(host);
+
+        RunLayout(uiRoot, 640, 360);
+        RunLayout(uiRoot, 640, 360);
+
+        var before = SummarizeDocumentStructure(editor.Document);
+        var textLeft = 1f + 8f;
+        var textTop = 1f + 5f;
+        var clickPoint = new Vector2(
+            textLeft + UiTextRenderer.MeasureWidth("RichT", editor.FontSize),
+            textTop + 2f);
+
+        Assert.True(editor.HandlePointerDownFromInput(clickPoint, extendSelection: false));
+        Assert.True(editor.HandlePointerUpFromInput());
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Tab, ModifierKeys.None));
+        RunLayout(uiRoot, 640, 360);
+
+        var after = SummarizeDocumentStructure(editor.Document);
+
+        Assert.Contains("\t", DocumentEditing.GetText(editor.Document));
+        Assert.Equal(before.BlockCount, after.BlockCount);
+        Assert.Equal(before.ListCount, after.ListCount);
+        Assert.Equal(before.TableCount, after.TableCount);
+        Assert.Equal(before.BoldCount, after.BoldCount);
+    }
+
+    [Fact]
     public void ReadOnlyCtrlEnter_StillActivatesHyperlink()
     {
         var editor = CreateEditor(320f, 90f, string.Empty);
@@ -264,6 +327,22 @@ public sealed class RichTextBoxRegressionTests
             new Viewport(0, 0, width, height));
     }
 
+    private static DocumentLayoutResult Layout(RichTextBox editor)
+    {
+        var typography = UiTextRenderer.ResolveTypography(editor, editor.FontSize);
+        var settings = new DocumentLayoutSettings(
+            AvailableWidth: editor.LayoutSlot.Width - 18f,
+            Typography: typography,
+            Wrapping: TextWrapping.Wrap,
+            Foreground: Color.White,
+            LineHeight: Math.Max(1f, UiTextRenderer.GetLineHeight(typography)),
+            ListIndent: 16f,
+            ListMarkerGap: 4f,
+            TableCellPadding: 4f,
+            TableBorderThickness: 1f);
+        return new DocumentLayoutEngine().Layout(editor.Document, settings);
+    }
+
     private static string[] BuildLines(int count)
     {
         var lines = new string[count];
@@ -344,6 +423,86 @@ public sealed class RichTextBoxRegressionTests
         return table;
     }
 
+    private static DocumentStructureSummary SummarizeDocumentStructure(FlowDocument document)
+    {
+        var summary = new DocumentStructureSummary();
+        foreach (var block in document.Blocks)
+        {
+            summary.BlockCount++;
+            AccumulateBlock(block, summary);
+        }
+
+        return summary;
+    }
+
+    private static void AccumulateBlock(Block block, DocumentStructureSummary summary)
+    {
+        switch (block)
+        {
+            case Paragraph paragraph:
+                foreach (var inline in paragraph.Inlines)
+                {
+                    AccumulateInline(inline, summary);
+                }
+                break;
+            case Section section:
+                foreach (var nested in section.Blocks)
+                {
+                    summary.BlockCount++;
+                    AccumulateBlock(nested, summary);
+                }
+                break;
+            case InkkSlinger.List list:
+                summary.ListCount++;
+                foreach (var item in list.Items)
+                {
+                    foreach (var nested in item.Blocks)
+                    {
+                        summary.BlockCount++;
+                        AccumulateBlock(nested, summary);
+                    }
+                }
+                break;
+            case Table table:
+                summary.TableCount++;
+                foreach (var group in table.RowGroups)
+                {
+                    foreach (var row in group.Rows)
+                    {
+                        foreach (var cell in row.Cells)
+                        {
+                            foreach (var nested in cell.Blocks)
+                            {
+                                summary.BlockCount++;
+                                AccumulateBlock(nested, summary);
+                            }
+                        }
+                    }
+                }
+                break;
+        }
+    }
+
+    private static void AccumulateInline(Inline inline, DocumentStructureSummary summary)
+    {
+        switch (inline)
+        {
+            case Bold bold:
+                summary.BoldCount++;
+                foreach (var nested in bold.Inlines)
+                {
+                    AccumulateInline(nested, summary);
+                }
+                break;
+            case Span span:
+                foreach (var nested in span.Inlines)
+                {
+                    AccumulateInline(nested, summary);
+                }
+                break;
+        }
+    }
+
     private static TableRow CreateStatusRow(string label, string value)
     {
         var row = new TableRow();
@@ -359,5 +518,13 @@ public sealed class RichTextBoxRegressionTests
         paragraph.Inlines.Add(new Run(text));
         cell.Blocks.Add(paragraph);
         return cell;
+    }
+
+    private sealed class DocumentStructureSummary
+    {
+        public int BlockCount;
+        public int ListCount;
+        public int TableCount;
+        public int BoldCount;
     }
 }

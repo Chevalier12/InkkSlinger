@@ -238,6 +238,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private bool _preserveRenderDirtyBoundsHint;
     private float _horizontalOffset;
     private float _verticalOffset;
+    private float _lastViewportChangedHorizontalOffset = float.NaN;
+    private float _lastViewportChangedVerticalOffset = float.NaN;
+    private float _lastViewportChangedViewportWidth = float.NaN;
+    private float _lastViewportChangedViewportHeight = float.NaN;
+    private float _lastViewportChangedExtentWidth = float.NaN;
+    private float _lastViewportChangedExtentHeight = float.NaN;
     private int _documentChangeBatchDepth;
     private bool _hasPendingDocumentChangedEvent;
     private bool _hasPendingTextChangedEvent;
@@ -268,7 +274,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private const string ClipboardTextFormat = "Text";
     private const string ClipboardUnicodeTextFormat = "UnicodeText";
     private static readonly ImmutableHashSet<string> RichGuardedReplaceSelectionCommands =
-        ImmutableHashSet.Create(StringComparer.Ordinal, "InsertText", "InsertTextStyled", "Backspace", "DeleteForward", "DeleteSelection", "DeletePreviousWord", "DeleteNextWord");
+        ImmutableHashSet.Create(StringComparer.Ordinal, "InsertText", "InsertTextStyled", "TabForward", "Backspace", "DeleteForward", "DeleteSelection", "DeletePreviousWord", "DeleteNextWord");
     private static readonly ImmutableHashSet<string> RichGuardedFragmentCommands =
         ImmutableHashSet.Create(StringComparer.Ordinal, "EnterParagraphBreak", "InsertTextStyled", "InsertText");
 
@@ -281,6 +287,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         RegisterEditingCommandBindings();
         RegisterEditingInputBindings();
     }
+
+    public event EventHandler? ViewportChanged;
 
     public event EventHandler<RoutedSimpleEventArgs> DocumentChanged
     {
@@ -900,14 +908,16 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var sourceParagraph = entries[paragraphIndex].Paragraph;
         var beforeParagraph = DocumentEditing.CloneParagraph(sourceParagraph);
         var destination = new Paragraph();
+        CopyParagraphSettings(sourceParagraph, destination);
         destination.Inlines.Clear();
         AppendStyledInlineRangeFromParagraph(sourceParagraph, 0, localStart, destination);
         if (!string.IsNullOrEmpty(replacement))
         {
-            destination.Inlines.Add(new Run(replacement));
+            destination.Inlines.Add(CreateReplacementInlinePreservingContext(sourceParagraph, localStart, replacement));
         }
 
         AppendStyledInlineRangeFromParagraph(sourceParagraph, localEnd, paragraphLength, destination);
+        NormalizeAdjacentInlines(destination);
         if (destination.Inlines.Count == 0)
         {
             destination.Inlines.Add(new Run(string.Empty));
@@ -2292,6 +2302,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         var arranged = base.ArrangeOverride(finalSize);
         EnsureHostedDocumentChildLayout();
+        NotifyViewportChangedIfNeeded();
         return arranged;
     }
 
@@ -2767,8 +2778,31 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         _horizontalOffset = clampedHorizontal;
         _verticalOffset = clampedVertical;
+        NotifyViewportChangedIfNeeded();
         InvalidateVisualWithReason(reason);
         return true;
+    }
+
+    private void NotifyViewportChangedIfNeeded()
+    {
+        var metrics = GetScrollMetrics();
+        if (Math.Abs(metrics.HorizontalOffset - _lastViewportChangedHorizontalOffset) <= 0.01f &&
+            Math.Abs(metrics.VerticalOffset - _lastViewportChangedVerticalOffset) <= 0.01f &&
+            Math.Abs(metrics.ViewportWidth - _lastViewportChangedViewportWidth) <= 0.01f &&
+            Math.Abs(metrics.ViewportHeight - _lastViewportChangedViewportHeight) <= 0.01f &&
+            Math.Abs(metrics.ExtentWidth - _lastViewportChangedExtentWidth) <= 0.01f &&
+            Math.Abs(metrics.ExtentHeight - _lastViewportChangedExtentHeight) <= 0.01f)
+        {
+            return;
+        }
+
+        _lastViewportChangedHorizontalOffset = metrics.HorizontalOffset;
+        _lastViewportChangedVerticalOffset = metrics.VerticalOffset;
+        _lastViewportChangedViewportWidth = metrics.ViewportWidth;
+        _lastViewportChangedViewportHeight = metrics.ViewportHeight;
+        _lastViewportChangedExtentWidth = metrics.ExtentWidth;
+        _lastViewportChangedExtentHeight = metrics.ExtentHeight;
+        ViewportChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private RichTextBoxScrollMetrics GetScrollMetrics()
@@ -3319,6 +3353,160 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             Hyperlink hyperlink => new Hyperlink { NavigateUri = hyperlink.NavigateUri },
             _ => new Span()
         };
+    }
+
+    private static void CopyParagraphSettings(Paragraph source, Paragraph destination)
+    {
+        destination.DefaultIncrementalTab = source.DefaultIncrementalTab;
+        for (var i = 0; i < source.Tabs.Count; i++)
+        {
+            var tab = source.Tabs[i];
+            destination.Tabs.Add(new TextTabProperties(tab.Alignment, tab.Location, tab.TabLeader, tab.AligningCharacter));
+        }
+    }
+
+    private static Inline CreateReplacementInlinePreservingContext(Paragraph source, int offset, string text)
+    {
+        var clampedOffset = Math.Clamp(offset, 0, GetParagraphLogicalLength(source));
+        var cursor = 0;
+        for (var i = 0; i < source.Inlines.Count; i++)
+        {
+            if (TryCreateInlineWithInheritedFormatting(source.Inlines[i], clampedOffset, ref cursor, text, out var replacement))
+            {
+                return replacement;
+            }
+        }
+
+        return new Run(text);
+    }
+
+    private static bool TryCreateInlineWithInheritedFormatting(Inline inline, int offset, ref int cursor, string text, out Inline replacement)
+    {
+        var inlineStart = cursor;
+        var inlineLength = GetInlineLogicalLength(inline);
+        var inlineEnd = inlineStart + inlineLength;
+        cursor = inlineEnd;
+        if (offset < inlineStart || offset > inlineEnd)
+        {
+            replacement = null!;
+            return false;
+        }
+
+        switch (inline)
+        {
+            case Run run:
+                replacement = new Run(text)
+                {
+                    Foreground = run.Foreground
+                };
+                return true;
+            case Span span:
+            {
+                var nestedCursor = inlineStart;
+                for (var i = 0; i < span.Inlines.Count; i++)
+                {
+                    if (!TryCreateInlineWithInheritedFormatting(span.Inlines[i], offset, ref nestedCursor, text, out var nestedReplacement))
+                    {
+                        continue;
+                    }
+
+                    var clonedSpan = CloneSpanShell(span);
+                    clonedSpan.Inlines.Add(nestedReplacement);
+                    replacement = clonedSpan;
+                    return true;
+                }
+
+                var shell = CloneSpanShell(span);
+                shell.Inlines.Add(new Run(text));
+                replacement = shell;
+                return true;
+            }
+            default:
+                replacement = new Run(text);
+                return true;
+        }
+    }
+
+    private static void NormalizeAdjacentInlines(Paragraph paragraph)
+    {
+        var normalized = NormalizeInlineSequence(paragraph.Inlines);
+        paragraph.Inlines.Clear();
+        for (var i = 0; i < normalized.Count; i++)
+        {
+            paragraph.Inlines.Add(normalized[i]);
+        }
+    }
+
+    private static List<Inline> NormalizeInlineSequence(IEnumerable<Inline> source)
+    {
+        var normalized = new List<Inline>();
+        foreach (var inline in source)
+        {
+            var current = NormalizeInline(inline);
+            if (normalized.Count > 0 && TryMergeAdjacentInlines(normalized[^1], current))
+            {
+                continue;
+            }
+
+            normalized.Add(current);
+        }
+
+        return normalized;
+    }
+
+    private static Inline NormalizeInline(Inline inline)
+    {
+        if (inline is not Span span)
+        {
+            return inline;
+        }
+
+        var normalizedChildren = NormalizeInlineSequence(span.Inlines);
+        span.Inlines.Clear();
+        for (var i = 0; i < normalizedChildren.Count; i++)
+        {
+            span.Inlines.Add(normalizedChildren[i]);
+        }
+
+        return span;
+    }
+
+    private static bool TryMergeAdjacentInlines(Inline previous, Inline current)
+    {
+        if (previous is Run previousRun && current is Run currentRun && previousRun.Foreground == currentRun.Foreground)
+        {
+            previousRun.Text += currentRun.Text;
+            return true;
+        }
+
+        if (previous is not Span previousSpan || current is not Span currentSpan || !CanMergeSpanShells(previousSpan, currentSpan))
+        {
+            return false;
+        }
+
+        while (currentSpan.Inlines.Count > 0)
+        {
+            var child = currentSpan.Inlines[0];
+            currentSpan.Inlines.RemoveAt(0);
+            previousSpan.Inlines.Add(child);
+        }
+
+        return true;
+    }
+
+    private static bool CanMergeSpanShells(Span left, Span right)
+    {
+        if (left.GetType() != right.GetType())
+        {
+            return false;
+        }
+
+        if (left is Hyperlink leftHyperlink && right is Hyperlink rightHyperlink)
+        {
+            return string.Equals(leftHyperlink.NavigateUri, rightHyperlink.NavigateUri, StringComparison.Ordinal);
+        }
+
+        return true;
     }
 
     private static void PruneEmptyStructuralScaffolding(FlowDocument document)
@@ -4609,6 +4797,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private void DrawRunText(SpriteBatch spriteBatch, DocumentLayoutRun run, Vector2 position, Color baseColor)
     {
+        if (run.Text.Length == 0)
+        {
+            return;
+        }
+
         var overlapStart = Math.Max(SelectionStart, run.StartOffset);
         var overlapEnd = Math.Min(SelectionStart + SelectionLength, run.StartOffset + run.Length);
         var styleOverride = ToStyleOverride(run.Style);

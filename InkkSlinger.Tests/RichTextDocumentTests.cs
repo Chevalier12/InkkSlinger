@@ -41,6 +41,29 @@ public class RichTextDocumentTests
         Assert.Contains("World", text);
     }
 
+      [Fact]
+      public void FlowDocumentSerializer_RoundTripsParagraphTabs()
+      {
+        var document = new FlowDocument();
+        var paragraph = new Paragraph
+        {
+          DefaultIncrementalTab = 96d
+        };
+        paragraph.Tabs.Add(new TextTabProperties(TextTabAlignment.Left, 72d, 0, 0));
+        paragraph.Inlines.Add(new Run("A\tB"));
+        document.Blocks.Add(paragraph);
+
+        var xml = FlowDocumentSerializer.Serialize(document);
+        var restored = FlowDocumentSerializer.Deserialize(xml);
+        var restoredParagraph = Assert.IsType<Paragraph>(Assert.Single(restored.Blocks));
+
+        Assert.Equal(96d, restoredParagraph.DefaultIncrementalTab);
+        var restoredTab = Assert.Single(restoredParagraph.Tabs);
+        Assert.Equal(TextTabAlignment.Left, restoredTab.Alignment);
+        Assert.Equal(72d, restoredTab.Location);
+        Assert.Equal("A\tB", FlowDocumentPlainText.GetText(restored));
+      }
+
     [Fact]
     public void DocumentUndoManager_UndoRedo_TracksTextReplacement()
     {
@@ -162,5 +185,37 @@ public class RichTextDocumentTests
 
         Assert.NotNull(editor);
         Assert.Equal("Hello Rich", FlowDocumentPlainText.GetText(editor!.Document));
+    }
+
+    [Fact]
+    public void XamlLoader_CanBuildParagraphTabs()
+    {
+        const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <RichTextBox x:Name="Editor">
+    <RichTextBox.Document>
+      <FlowDocument>
+        <Paragraph DefaultIncrementalTab="96">
+          <Paragraph.Tabs>
+            <TextTabProperties Alignment="Left" Location="72" />
+          </Paragraph.Tabs>
+          <Run Text="A&#x9;B" />
+        </Paragraph>
+      </FlowDocument>
+    </RichTextBox.Document>
+  </RichTextBox>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xml);
+        var editor = Assert.IsType<RichTextBox>(root.FindName("Editor"));
+        var paragraph = Assert.IsType<Paragraph>(Assert.Single(editor.Document.Blocks));
+
+        Assert.Equal(96d, paragraph.DefaultIncrementalTab);
+        var tab = Assert.Single(paragraph.Tabs);
+        Assert.Equal(TextTabAlignment.Left, tab.Alignment);
+        Assert.Equal(72d, tab.Location);
+        Assert.Equal("A\tB", FlowDocumentPlainText.GetText(editor.Document));
     }
 }

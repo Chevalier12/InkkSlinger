@@ -65,6 +65,287 @@ public abstract class Inline : TextElement;
 
 public abstract class Block : TextElement;
 
+public enum TextTabAlignment
+{
+    Left,
+    Center,
+    Right,
+    Character
+}
+
+public sealed class TextTabProperties
+{
+    private TextTabAlignment _alignment;
+    private double _location;
+    private int _tabLeader;
+    private int _aligningCharacter;
+
+    public TextTabProperties()
+        : this(TextTabAlignment.Left, 0d, 0, 0)
+    {
+    }
+
+    public TextTabProperties(TextTabAlignment alignment, double location, int tabLeader, int aligningCharacter)
+    {
+        _alignment = alignment;
+        _location = location;
+        _tabLeader = tabLeader;
+        _aligningCharacter = aligningCharacter;
+    }
+
+    public event EventHandler? Changed;
+
+    public TextTabAlignment Alignment
+    {
+        get => _alignment;
+        set
+        {
+            if (_alignment == value)
+            {
+                return;
+            }
+
+            _alignment = value;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public double Location
+    {
+        get => _location;
+        set
+        {
+            if (Math.Abs(_location - value) <= double.Epsilon)
+            {
+                return;
+            }
+
+            _location = value;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public int TabLeader
+    {
+        get => _tabLeader;
+        set
+        {
+            if (_tabLeader == value)
+            {
+                return;
+            }
+
+            _tabLeader = value;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public int AligningCharacter
+    {
+        get => _aligningCharacter;
+        set
+        {
+            if (_aligningCharacter == value)
+            {
+                return;
+            }
+
+            _aligningCharacter = value;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+}
+
+public sealed class TextTabPropertiesCollection : IList<TextTabProperties>, IList
+{
+    private readonly Action _onChanged;
+    private readonly List<TextTabProperties> _items = new();
+
+    public TextTabPropertiesCollection(Action onChanged)
+    {
+        _onChanged = onChanged;
+    }
+
+    public int Count => _items.Count;
+
+    public bool IsReadOnly => false;
+
+    bool IList.IsReadOnly => false;
+
+    bool IList.IsFixedSize => false;
+
+    object ICollection.SyncRoot => this;
+
+    bool ICollection.IsSynchronized => false;
+
+    public TextTabProperties this[int index]
+    {
+        get => _items[index];
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            Detach(_items[index]);
+            _items[index] = value;
+            Attach(value);
+            _onChanged();
+        }
+    }
+
+    object? IList.this[int index]
+    {
+        get => this[index];
+        set
+        {
+            if (value is not TextTabProperties typed)
+            {
+                throw new ArgumentException($"Value must be of type '{nameof(TextTabProperties)}'.", nameof(value));
+            }
+
+            this[index] = typed;
+        }
+    }
+
+    public void Add(TextTabProperties item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        _items.Add(item);
+        Attach(item);
+        _onChanged();
+    }
+
+    public void Clear()
+    {
+        for (var i = 0; i < _items.Count; i++)
+        {
+            Detach(_items[i]);
+        }
+
+        _items.Clear();
+        _onChanged();
+    }
+
+    public bool Contains(TextTabProperties item)
+    {
+        return _items.Contains(item);
+    }
+
+    public void CopyTo(TextTabProperties[] array, int arrayIndex)
+    {
+        _items.CopyTo(array, arrayIndex);
+    }
+
+    void ICollection.CopyTo(Array array, int index)
+    {
+        if (array is TextTabProperties[] typed)
+        {
+            CopyTo(typed, index);
+            return;
+        }
+
+        for (var i = 0; i < _items.Count; i++)
+        {
+            array.SetValue(_items[i], index + i);
+        }
+    }
+
+    public IEnumerator<TextTabProperties> GetEnumerator()
+    {
+        return _items.GetEnumerator();
+    }
+
+    public int IndexOf(TextTabProperties item)
+    {
+        return _items.IndexOf(item);
+    }
+
+    int IList.Add(object? value)
+    {
+        if (value is not TextTabProperties typed)
+        {
+            throw new ArgumentException($"Value must be of type '{nameof(TextTabProperties)}'.", nameof(value));
+        }
+
+        Add(typed);
+        return _items.Count - 1;
+    }
+
+    bool IList.Contains(object? value)
+    {
+        return value is TextTabProperties typed && Contains(typed);
+    }
+
+    int IList.IndexOf(object? value)
+    {
+        return value is TextTabProperties typed ? IndexOf(typed) : -1;
+    }
+
+    public void Insert(int index, TextTabProperties item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        _items.Insert(index, item);
+        Attach(item);
+        _onChanged();
+    }
+
+    void IList.Insert(int index, object? value)
+    {
+        if (value is not TextTabProperties typed)
+        {
+            throw new ArgumentException($"Value must be of type '{nameof(TextTabProperties)}'.", nameof(value));
+        }
+
+        Insert(index, typed);
+    }
+
+    public bool Remove(TextTabProperties item)
+    {
+        if (!_items.Remove(item))
+        {
+            return false;
+        }
+
+        Detach(item);
+        _onChanged();
+        return true;
+    }
+
+    void IList.Remove(object? value)
+    {
+        if (value is TextTabProperties typed)
+        {
+            Remove(typed);
+        }
+    }
+
+    public void RemoveAt(int index)
+    {
+        var item = _items[index];
+        _items.RemoveAt(index);
+        Detach(item);
+        _onChanged();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    private void Attach(TextTabProperties item)
+    {
+        item.Changed += HandleItemChanged;
+    }
+
+    private void Detach(TextTabProperties item)
+    {
+        item.Changed -= HandleItemChanged;
+    }
+
+    private void HandleItemChanged(object? sender, EventArgs e)
+    {
+        _onChanged();
+    }
+}
+
 public sealed class FlowDocument : TextElement
 {
     public FlowDocument()
@@ -87,12 +368,34 @@ public sealed class Section : Block
 
 public sealed class Paragraph : Block
 {
+    public static readonly DependencyProperty DefaultIncrementalTabProperty =
+        DependencyProperty.Register(
+            nameof(DefaultIncrementalTab),
+            typeof(double),
+            typeof(Paragraph),
+            new FrameworkPropertyMetadata(double.NaN),
+            static value => IsValidDefaultIncrementalTab((double)value));
+
     public Paragraph()
     {
         Inlines = new TextElementCollection<Paragraph, Inline>(this, RaiseChanged);
+        Tabs = new TextTabPropertiesCollection(RaiseChanged);
     }
 
     public TextElementCollection<Paragraph, Inline> Inlines { get; }
+
+    public double DefaultIncrementalTab
+    {
+        get => GetValue<double>(DefaultIncrementalTabProperty);
+        set => SetValue(DefaultIncrementalTabProperty, value);
+    }
+
+    public TextTabPropertiesCollection Tabs { get; }
+
+    private static bool IsValidDefaultIncrementalTab(double value)
+    {
+        return double.IsNaN(value) || (double.IsFinite(value) && value >= 0d);
+    }
 }
 
 public sealed class Run : Inline

@@ -1,3 +1,5 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Xunit;
 
@@ -127,10 +129,23 @@ public class DesignerControllerTests
 
         var previewDockSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewDockSplitter"));
         var previewSourceSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewSourceSplitter"));
+        var previewScrollViewer = Assert.IsType<ScrollViewer>(shell.FindName("PreviewScrollViewer"));
+        var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
+        var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
+        var sourceLineNumberBorder = Assert.IsType<Border>(shell.FindName("SourceLineNumberBorder"));
+        var sourceLineNumberPanel = Assert.IsType<StackPanel>(shell.FindName("SourceLineNumberPanel"));
 
         _ = Assert.IsType<ContentControl>(shell.FindName("PreviewHost"));
         _ = Assert.IsType<TreeView>(shell.FindName("VisualTreeView"));
-        _ = Assert.IsType<RichTextBox>(shell.FindName("SourceEditor"));
+        _ = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        _ = Assert.IsType<StackPanel>(shell.FindName("DiagnosticsPanel"));
+
+        Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.HorizontalScrollBarVisibility);
+        Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.VerticalScrollBarVisibility);
+        Assert.Equal(0, editorTabControl.SelectedIndex);
+        Assert.Equal("Diagnostics", diagnosticsTab.Header);
+        Assert.NotNull(sourceLineNumberBorder.Child);
+        Assert.NotEmpty(sourceLineNumberPanel.Children);
 
         Assert.Equal(1, Grid.GetColumn(previewDockSplitter));
         Assert.Equal(GridResizeDirection.Columns, previewDockSplitter.ResizeDirection);
@@ -143,6 +158,90 @@ public class DesignerControllerTests
         Assert.Equal(GridResizeBehavior.PreviousAndNext, previewSourceSplitter.ResizeBehavior);
         Assert.Equal(HorizontalAlignment.Stretch, previewSourceSplitter.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Center, previewSourceSplitter.VerticalAlignment);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorLineNumberGutter_FollowsVerticalScroll()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = BuildNumberedSource(80)
+        };
+
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceLineNumberPanel = Assert.IsType<StackPanel>(shell.FindName("SourceLineNumberPanel"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(sourceLineNumberPanel.Children.Count > 0);
+        Assert.Equal("1", GetLineNumberText(sourceLineNumberPanel, 0));
+
+        sourceEditor.SetFocusedFromInput(true);
+        var lineHeight = UiTextRenderer.GetLineHeight(sourceEditor, sourceEditor.FontSize);
+        var scrollMetrics = sourceEditor.GetScrollMetricsSnapshot();
+        var desiredVerticalOffset = Math.Max(0f, (18f * lineHeight) - (scrollMetrics.ViewportHeight * 0.5f));
+        sourceEditor.ScrollToVerticalOffset(desiredVerticalOffset);
+        Assert.True(sourceEditor.VerticalOffset > 0f);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.NotEqual("1", GetLineNumberText(sourceLineNumberPanel, 0));
+    }
+
+    [Fact]
+    public void ShellView_RefreshError_SelectsDiagnosticsTabAndShowsErrorCountInHeader()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = InvalidViewXml
+        };
+
+        Assert.True(shell.RefreshPreview() == false);
+
+        var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
+        var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
+        var diagnosticsSummary = Assert.IsType<TextBlock>(shell.FindName("DiagnosticsSummaryText"));
+
+        Assert.Equal(1, editorTabControl.SelectedIndex);
+        Assert.Contains("(!", diagnosticsTab.Header, StringComparison.Ordinal);
+        Assert.Contains("error", diagnosticsSummary.Text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorTyping_PreservesVerticalScrollOffsetDuringRehighlight()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = BuildLongSourceXml()
+        };
+
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        var targetOffset = shell.SourceText.IndexOf("Line 18", StringComparison.Ordinal);
+        Assert.True(targetOffset >= 0);
+
+        sourceEditor.Select(targetOffset, 0);
+
+        var lineHeight = UiTextRenderer.GetLineHeight(sourceEditor, sourceEditor.FontSize);
+        var metricsBeforeScroll = sourceEditor.GetScrollMetricsSnapshot();
+        var desiredVerticalOffset = Math.Max(0f, (18f * lineHeight) - (metricsBeforeScroll.ViewportHeight * 0.5f));
+        sourceEditor.ScrollToVerticalOffset(desiredVerticalOffset);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var before = sourceEditor.GetScrollMetricsSnapshot();
+
+        Assert.True(sourceEditor.HandleTextInputFromInput('X'));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var after = sourceEditor.GetScrollMetricsSnapshot();
+
+        Assert.Equal(before.VerticalOffset, after.VerticalOffset, 3);
+        Assert.Contains("XLine 18", shell.SourceText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -262,6 +361,47 @@ public class DesignerControllerTests
         return text
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
+    }
+
+    private static string BuildLongSourceXml()
+    {
+        var lines = new System.Text.StringBuilder();
+        lines.AppendLine("<UserControl xmlns=\"urn:inkkslinger-ui\"");
+        lines.AppendLine("             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">");
+        lines.AppendLine("  <StackPanel>");
+        for (var i = 0; i < 40; i++)
+        {
+            lines.Append("    <TextBlock Text=\"Line ");
+            lines.Append(i.ToString("00", System.Globalization.CultureInfo.InvariantCulture));
+            lines.AppendLine("\" />");
+        }
+
+        lines.AppendLine("  </StackPanel>");
+        lines.Append("</UserControl>");
+        return lines.ToString();
+    }
+
+    private static string BuildNumberedSource(int lineCount)
+    {
+        return string.Join(
+            "\n",
+            Enumerable.Range(1, lineCount).Select(static line => string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"<Line Number=\"{line}\" />")));
+    }
+
+    private static string GetLineNumberText(StackPanel panel, int index)
+    {
+        var container = Assert.IsType<Border>(panel.Children[index]);
+        var textBlock = Assert.IsType<TextBlock>(container.Child);
+        return textBlock.Text;
+    }
+
+    private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
+    {
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
+            new Viewport(0, 0, width, height));
     }
 
     private sealed class FakeDocumentFileStore : InkkSlinger.Designer.IDesignerDocumentFileStore

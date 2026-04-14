@@ -558,6 +558,8 @@ public sealed class DocumentLayoutEngine
                 ? 0f
                 : UiTextRenderer.MeasureWidth(_settings.Typography, marker);
             var textStartX = markerX + (markerWidth > 0f ? markerWidth + _settings.ListMarkerGap : 0f);
+            var paragraphDefaultIncrementalTab = paragraph.DefaultIncrementalTab;
+            var paragraphTabs = paragraph.Tabs;
 
             var segments = new List<StyledChar>();
             foreach (var inline in paragraph.Inlines)
@@ -574,12 +576,15 @@ public sealed class DocumentLayoutEngine
 
             MeasureHostedSegments(segments, width);
             var hasHostedVisuals = ContainsHostedVisuals(segments);
+            var usesParagraphTabConfiguration = plainText.IndexOf('\t') >= 0 ||
+                                              !double.IsNaN(paragraphDefaultIncrementalTab) ||
+                                              paragraphTabs.Count > 0;
 
             var y = fixedY ?? _cursorY;
             var blockTop = y;
             var blockBottom = y;
 
-            if (!hasHostedVisuals)
+            if (!hasHostedVisuals && !usesParagraphTabConfiguration)
             {
                 var layoutLines = plainText.Length == 0
                     ? new[] { string.Empty }
@@ -609,8 +614,16 @@ public sealed class DocumentLayoutEngine
                         globalLineStart,
                         isTableCell,
                         _settings.LineHeight,
-                        _settings.Typography);
-                    var prefixWidths = BuildPrefixWidths(segments, scanIndex, lineText.Length, _settings.Typography);
+                        _settings.Typography,
+                        paragraphDefaultIncrementalTab,
+                        paragraphTabs);
+                    var prefixWidths = BuildPrefixWidths(
+                        segments,
+                        scanIndex,
+                        lineText.Length,
+                        _settings.Typography,
+                        paragraphDefaultIncrementalTab,
+                        paragraphTabs);
                     var lineWidth = prefixWidths[prefixWidths.Length - 1];
                     var lineBounds = new LayoutRect(textStartX, lineY, Math.Max(lineWidth, markerWidth), _settings.LineHeight);
                     for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
@@ -660,7 +673,14 @@ public sealed class DocumentLayoutEngine
             }
             else
             {
-                var layoutLines = BuildStyledLines(segments, width, _settings.Wrapping, _settings.LineHeight, _settings.Typography);
+                var layoutLines = BuildStyledLines(
+                    segments,
+                    width,
+                    _settings.Wrapping,
+                    _settings.LineHeight,
+                    _settings.Typography,
+                    paragraphDefaultIncrementalTab,
+                    paragraphTabs);
                 var currentLineY = y;
                 for (var lineIndex = 0; lineIndex < layoutLines.Count; lineIndex++)
                 {
@@ -675,8 +695,16 @@ public sealed class DocumentLayoutEngine
                         globalLineStart,
                         isTableCell,
                         styledLine.Height,
-                        _settings.Typography);
-                    var prefixWidths = BuildPrefixWidths(segments, styledLine.Start, styledLine.Length, _settings.Typography);
+                        _settings.Typography,
+                        paragraphDefaultIncrementalTab,
+                        paragraphTabs);
+                    var prefixWidths = BuildPrefixWidths(
+                        segments,
+                        styledLine.Start,
+                        styledLine.Length,
+                        _settings.Typography,
+                        paragraphDefaultIncrementalTab,
+                        paragraphTabs);
                     var lineBounds = new LayoutRect(textStartX, currentLineY, Math.Max(styledLine.Width, markerWidth), styledLine.Height);
                     for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
                     {
@@ -841,7 +869,9 @@ public sealed class DocumentLayoutEngine
             int globalStartOffset,
             bool isTableCell,
             float lineHeight,
-            UiTypography typography)
+            UiTypography typography,
+            double defaultIncrementalTab,
+            IList<TextTabProperties> tabs)
         {
             var runs = new List<DocumentLayoutRun>();
             if (length <= 0)
@@ -873,15 +903,37 @@ public sealed class DocumentLayoutEngine
                     continue;
                 }
 
+                if (chars[index].Character == '\t')
+                {
+                    var tabWidth = MeasureChar(chars[index], typography, cursor - x, defaultIncrementalTab, tabs);
+                    runs.Add(
+                        new DocumentLayoutRun
+                        {
+                            Text = string.Empty,
+                            Bounds = new LayoutRect(cursor, y, tabWidth, lineHeight),
+                            StartOffset = globalStartOffset + (index - start),
+                            Length = 1,
+                            Style = chars[index].Style,
+                            IsListMarker = false,
+                            IsTableContent = isTableCell
+                        });
+                    cursor += tabWidth;
+                    index++;
+                    continue;
+                }
+
                 var style = chars[index].Style;
                 var chunkStart = index;
-                while (index < end && chars[index].HostedChild == null && chars[index].Style.Equals(style))
+                while (index < end &&
+                       chars[index].HostedChild == null &&
+                       chars[index].Character != '\t' &&
+                       chars[index].Style.Equals(style))
                 {
                     index++;
                 }
 
                 var text = BuildText(chars, chunkStart, index - chunkStart);
-                var width = MeasureSegment(chars, chunkStart, index - chunkStart, typography);
+                var width = MeasureSegment(chars, chunkStart, index - chunkStart, typography, cursor - x, defaultIncrementalTab, tabs);
                 var run = new DocumentLayoutRun
                 {
                     Text = text,
@@ -899,14 +951,20 @@ public sealed class DocumentLayoutEngine
             return runs;
         }
 
-        private static float[] BuildPrefixWidths(IReadOnlyList<StyledChar> chars, int start, int length, UiTypography typography)
+        private static float[] BuildPrefixWidths(
+            IReadOnlyList<StyledChar> chars,
+            int start,
+            int length,
+            UiTypography typography,
+            double defaultIncrementalTab,
+            IList<TextTabProperties> tabs)
         {
             var widths = new float[length + 1];
             widths[0] = 0f;
             var current = 0f;
             for (var index = 0; index < length; index++)
             {
-                current += MeasureChar(chars[start + index], typography);
+                current += MeasureChar(chars[start + index], typography, current, defaultIncrementalTab, tabs);
                 widths[index + 1] = current;
             }
 
@@ -982,22 +1040,39 @@ public sealed class DocumentLayoutEngine
             return false;
         }
 
-        private static float MeasureSegment(IReadOnlyList<StyledChar> chars, int start, int length, UiTypography typography)
+        private static float MeasureSegment(
+            IReadOnlyList<StyledChar> chars,
+            int start,
+            int length,
+            UiTypography typography,
+            float initialWidth,
+            double defaultIncrementalTab,
+            IList<TextTabProperties> tabs)
         {
             var total = 0f;
             for (var index = 0; index < length; index++)
             {
-                total += MeasureChar(chars[start + index], typography);
+                total += MeasureChar(chars[start + index], typography, initialWidth + total, defaultIncrementalTab, tabs);
             }
 
             return total;
         }
 
-        private static float MeasureChar(StyledChar value, UiTypography typography)
+        private static float MeasureChar(
+            StyledChar value,
+            UiTypography typography,
+            float currentLineWidth,
+            double defaultIncrementalTab,
+            IList<TextTabProperties> tabs)
         {
             if (value.WidthOverride > 0f)
             {
                 return value.WidthOverride;
+            }
+
+            if (value.Character == '\t')
+            {
+                return UiTextRenderer.ResolveTabAdvance(typography, currentLineWidth, defaultIncrementalTab, tabs);
             }
 
             var character = value.Character == '\0' || value.Character == '\uFFFC'
@@ -1022,7 +1097,9 @@ public sealed class DocumentLayoutEngine
             float availableWidth,
             TextWrapping wrapping,
             float defaultLineHeight,
-            UiTypography typography)
+            UiTypography typography,
+            double defaultIncrementalTab,
+            IList<TextTabProperties> tabs)
         {
             var lines = new List<StyledLine>();
             if (chars.Count == 0)
@@ -1043,13 +1120,13 @@ public sealed class DocumentLayoutEngine
                 var logicalLength = end - start;
                 if (wrapping == TextWrapping.NoWrap || float.IsInfinity(availableWidth) || availableWidth <= 0f)
                 {
-                    var width = MeasureSegment(chars, start, logicalLength, typography);
+                    var width = MeasureSegment(chars, start, logicalLength, typography, 0f, defaultIncrementalTab, tabs);
                     var height = ResolveLineHeight(chars, start, logicalLength, defaultLineHeight);
                     lines.Add(new StyledLine(start, logicalLength, width, height));
                 }
                 else
                 {
-                    LayoutStyledLogicalLine(chars, start, logicalLength, typography, availableWidth, defaultLineHeight, lines);
+                    LayoutStyledLogicalLine(chars, start, logicalLength, typography, availableWidth, defaultLineHeight, lines, defaultIncrementalTab, tabs);
                 }
 
                 if (end >= chars.Count)
@@ -1075,7 +1152,9 @@ public sealed class DocumentLayoutEngine
             UiTypography typography,
             float availableWidth,
             float defaultLineHeight,
-            List<StyledLine> lines)
+            List<StyledLine> lines,
+            double defaultIncrementalTab,
+            IList<TextTabProperties> tabs)
         {
             if (length == 0)
             {
@@ -1093,10 +1172,18 @@ public sealed class DocumentLayoutEngine
             while (index < end)
             {
                 var tokenStart = index;
-                var tokenIsWhitespace = char.IsWhiteSpace(chars[index].Character) && chars[index].Character != '\uFFFC';
+                var tokenIsTab = chars[index].Character == '\t';
+                var tokenIsWhitespace = !tokenIsTab && char.IsWhiteSpace(chars[index].Character) && chars[index].Character != '\uFFFC';
                 index++;
-                while (index < end && (char.IsWhiteSpace(chars[index].Character) && chars[index].Character != '\uFFFC') == tokenIsWhitespace)
+                while (index < end)
                 {
+                    var nextIsTab = chars[index].Character == '\t';
+                    var nextIsWhitespace = !nextIsTab && char.IsWhiteSpace(chars[index].Character) && chars[index].Character != '\uFFFC';
+                    if (tokenIsTab != nextIsTab || tokenIsWhitespace != nextIsWhitespace)
+                    {
+                        break;
+                    }
+
                     index++;
                 }
 
@@ -1106,7 +1193,7 @@ public sealed class DocumentLayoutEngine
                     continue;
                 }
 
-                var tokenWidth = MeasureSegment(chars, tokenStart, tokenLength, typography);
+                var tokenWidth = MeasureSegment(chars, tokenStart, tokenLength, typography, lineWidth, defaultIncrementalTab, tabs);
                 var tokenHeight = ResolveLineHeight(chars, tokenStart, tokenLength, defaultLineHeight);
                 if ((lineWidth + tokenWidth) <= availableWidth)
                 {
@@ -1136,13 +1223,13 @@ public sealed class DocumentLayoutEngine
                 var remainingLength = tokenLength;
                 while (remainingLength > 0)
                 {
-                    var fitLength = FindLongestFittingStyledSegmentLength(chars, remainingStart, remainingLength, typography, availableWidth);
+                    var fitLength = FindLongestFittingStyledSegmentLength(chars, remainingStart, remainingLength, typography, availableWidth, defaultIncrementalTab, tabs);
                     if (fitLength <= 0)
                     {
                         fitLength = 1;
                     }
 
-                    var fitWidth = MeasureSegment(chars, remainingStart, fitLength, typography);
+                    var fitWidth = MeasureSegment(chars, remainingStart, fitLength, typography, 0f, defaultIncrementalTab, tabs);
                     var fitHeight = ResolveLineHeight(chars, remainingStart, fitLength, defaultLineHeight);
                     lines.Add(new StyledLine(remainingStart, fitLength, fitWidth, fitHeight));
                     remainingStart += fitLength;
@@ -1161,13 +1248,15 @@ public sealed class DocumentLayoutEngine
             int start,
             int length,
             UiTypography typography,
-            float availableWidth)
+            float availableWidth,
+            double defaultIncrementalTab,
+            IList<TextTabProperties> tabs)
         {
             var width = 0f;
             var fitLength = 0;
             for (var index = 0; index < length; index++)
             {
-                width += MeasureChar(chars[start + index], typography);
+                width += MeasureChar(chars[start + index], typography, width, defaultIncrementalTab, tabs);
                 if (width > availableWidth)
                 {
                     break;

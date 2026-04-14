@@ -1476,9 +1476,18 @@ public class ScrollViewer : ContentControl
 
     private void CacheResolvedScrollBarVisibility(bool showHorizontalBar, bool showVerticalBar)
     {
+        var visibilityChanged = _hasPreviousScrollBarResolution &&
+            (_previousShowHorizontalScrollBar != showHorizontalBar ||
+             _previousShowVerticalScrollBar != showVerticalBar);
+
         _hasPreviousScrollBarResolution = true;
         _previousShowHorizontalScrollBar = showHorizontalBar;
         _previousShowVerticalScrollBar = showVerticalBar;
+
+        if (visibilityChanged)
+        {
+            UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
+        }
     }
 
     private bool ResolveInitialHorizontalScrollBarVisibility()
