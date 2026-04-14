@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace InkkSlinger;
 
@@ -81,6 +82,35 @@ public static partial class XamlLoader
             CurrentLoadCodeBehind = previousLoadCodeBehind;
             CurrentConstructionScopes = previousConstructionScopes;
             CurrentConstructionRootScope = previousConstructionRootScope;
+        }
+    }
+
+    private static T RunWithinTemplateDeclarationScope<T>(
+        FrameworkElement? declarationScope,
+        IReadOnlyList<XamlResourceBuildContext>? declarationBuildContexts,
+        Func<T> factory)
+    {
+        var previousLoadRootScope = CurrentLoadRootScope;
+        var previousResourceBuildContexts = CurrentResourceBuildContexts;
+
+        if (declarationScope != null)
+        {
+            CurrentLoadRootScope = declarationScope;
+        }
+
+        if (declarationBuildContexts is { Count: > 0 })
+        {
+            CurrentResourceBuildContexts = new Stack<XamlResourceBuildContext>(declarationBuildContexts.Reverse());
+        }
+
+        try
+        {
+            return factory();
+        }
+        finally
+        {
+            CurrentLoadRootScope = previousLoadRootScope;
+            CurrentResourceBuildContexts = previousResourceBuildContexts;
         }
     }
 }

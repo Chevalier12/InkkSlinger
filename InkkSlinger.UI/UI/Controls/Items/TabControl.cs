@@ -158,9 +158,12 @@ public class TabControl : Selector
             yield return child;
         }
 
-        if (SelectedItem is TabItem selected)
+        foreach (var item in ItemContainers)
         {
-            yield return selected;
+            if (item is TabItem tab)
+            {
+                yield return tab;
+            }
         }
     }
 

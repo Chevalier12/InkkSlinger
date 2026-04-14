@@ -315,6 +315,8 @@ public static partial class XamlLoader
     private static DataTemplate BuildDataTemplate(XElement element, object? codeBehind, FrameworkElement? resourceScope)
     {
         XElement? rootVisual = null;
+        var declarationScope = resourceScope;
+        var declarationBuildContexts = CurrentResourceBuildContexts?.ToArray();
         foreach (var child in element.Elements())
         {
             if (rootVisual != null)
@@ -333,14 +335,18 @@ public static partial class XamlLoader
             }
 
             var built = RunWithinIsolatedTemplateInstantiationScope(() =>
-            {
-                UIElement builtVisual = null!;
-                RunWithinDeferredFinalizeActions(() =>
+                RunWithinTemplateDeclarationScope(
+                    declarationScope,
+                    declarationBuildContexts,
+                    () =>
                 {
-                    builtVisual = BuildElement(rootVisual, null, scope ?? resourceScope);
-                });
-                return builtVisual;
-            });
+                    UIElement builtVisual = null!;
+                    RunWithinDeferredFinalizeActions(() =>
+                    {
+                        builtVisual = BuildElement(rootVisual, null, scope ?? resourceScope);
+                    });
+                    return builtVisual;
+                }));
             if (built is FrameworkElement elementRoot)
             {
                 elementRoot.DataContext = item;

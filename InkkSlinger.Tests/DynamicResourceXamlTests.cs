@@ -1,10 +1,18 @@
 using System;
+using System.Collections.Generic;
 using Xunit;
 
 namespace InkkSlinger.Tests;
 
 public class DynamicResourceXamlTests
 {
+  private sealed class RecursiveTemplateNode
+  {
+    public required string Label { get; init; }
+
+    public IReadOnlyList<RecursiveTemplateNode> Children { get; init; } = Array.Empty<RecursiveTemplateNode>();
+  }
+
     [Fact]
     public void DynamicResource_UpdatesWhenAncestorResourceChanges()
     {
@@ -180,4 +188,72 @@ public class DynamicResourceXamlTests
         var probe = Assert.IsType<Button>(root.FindName("Probe"));
         Assert.NotNull(probe);
     }
+
+      [Fact]
+      public void StaticResource_InRecursiveDataTemplate_ResolvesTemplateFromDeclaringResources()
+      {
+        const string xaml = """
+    <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+      <UserControl.Resources>
+      <DataTemplate x:Key="RecursiveNodeTemplate">
+        <StackPanel>
+        <TextBlock Text="{Binding Path=Label}" />
+        <ItemsControl ItemsSource="{Binding Path=Children}"
+                ItemTemplate="{StaticResource RecursiveNodeTemplate}" />
+        </StackPanel>
+      </DataTemplate>
+      </UserControl.Resources>
+      <ItemsControl x:Name="Host"
+            ItemTemplate="{StaticResource RecursiveNodeTemplate}" />
+    </UserControl>
+    """;
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        var host = Assert.IsType<ItemsControl>(root.FindName("Host"));
+        host.ItemsSource = new[]
+        {
+          new RecursiveTemplateNode
+          {
+            Label = "root",
+            Children = new[]
+            {
+              new RecursiveTemplateNode
+              {
+                Label = "child",
+                Children = new[]
+                {
+                  new RecursiveTemplateNode { Label = "grandchild" }
+                }
+              }
+            }
+          }
+        };
+
+        var textBlocks = FindDescendants<TextBlock>(host);
+        Assert.Contains(textBlocks, static block => string.Equals(block.Text, "root", StringComparison.Ordinal));
+        Assert.Contains(textBlocks, static block => string.Equals(block.Text, "child", StringComparison.Ordinal));
+        Assert.Contains(textBlocks, static block => string.Equals(block.Text, "grandchild", StringComparison.Ordinal));
+      }
+
+      private static List<TElement> FindDescendants<TElement>(UIElement root)
+        where TElement : UIElement
+      {
+        var matches = new List<TElement>();
+        CollectDescendants(root, matches);
+        return matches;
+      }
+
+      private static void CollectDescendants<TElement>(UIElement root, List<TElement> matches)
+        where TElement : UIElement
+      {
+        foreach (var child in root.GetVisualChildren())
+        {
+          if (child is TElement match)
+          {
+            matches.Add(match);
+          }
+
+          CollectDescendants(child, matches);
+        }
+      }
 }

@@ -9,6 +9,129 @@
              VerticalAlignment="Stretch"
              Background="#0B0F14">
   <UserControl.Resources>
+    <DataTemplate x:Key="PreviewPlaceholderTemplate">
+      <StackPanel VerticalAlignment="Center"
+                  HorizontalAlignment="Center"
+                  Width="420">
+        <Border Width="56"
+                Height="4"
+          Background="{Binding Accent}"
+                Margin="0,0,0,16" />
+        <TextBlock Text="{Binding Title}"
+                   Foreground="#E7EDF5"
+                   FontSize="24"
+                   HorizontalAlignment="Center" />
+        <TextBlock Text="{Binding Body}"
+             Foreground="{Binding BodyColor}"
+                   Margin="0,10,0,0"
+                   TextWrapping="Wrap"
+                   HorizontalAlignment="Center" />
+      </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate x:Key="VisualTreeNodeTemplate">
+      <StackPanel Margin="{Binding IndentMargin}">
+        <Border Background="{Binding RowBackground}"
+                BorderBrush="{Binding RowBorderBrush}"
+                BorderThickness="0,0,0,1"
+                CornerRadius="4">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+                <Button Grid.Column="0"
+                  Content="{Binding ExpandGlyph}"
+                    Width="20"
+                    Height="20"
+                    Padding="0"
+                    Margin="0,0,6,0"
+                    Background="Transparent"
+                    Foreground="#6F8DAA"
+                    BorderBrush="Transparent"
+                    BorderThickness="0"
+                    Visibility="{Binding ExpanderVisibility}"
+                    Command="{Binding DataContext.ToggleVisualTreeNodeExpansionCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
+                    CommandParameter="{Binding}" />
+            <Button Grid.Column="1"
+                    Content="{Binding Label}"
+                    Padding="6,4"
+                    Margin="0"
+                    Background="Transparent"
+                    Foreground="{Binding RowForeground}"
+                    BorderBrush="Transparent"
+                    BorderThickness="0"
+                    HorizontalContentAlignment="Left"
+                    Command="{Binding DataContext.SelectVisualTreeNodeCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
+                    CommandParameter="{Binding}" />
+          </Grid>
+        </Border>
+        <ItemsControl ItemsSource="{Binding Children}"
+                      ItemTemplate="{StaticResource VisualTreeNodeTemplate}"
+                      Visibility="{Binding ChildrenVisibility}" />
+      </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate x:Key="InspectorSectionTemplate">
+      <Border Margin="0,8,0,0"
+              Background="#0B1118"
+              BorderBrush="#1E4A78"
+              BorderThickness="3,1,1,1"
+              CornerRadius="6"
+              ClipToBounds="True">
+        <StackPanel>
+          <Border Background="#090D13"
+                  BorderBrush="#142232"
+                  BorderThickness="0,0,0,1"
+                  Padding="10,5">
+            <TextBlock Text="{Binding Title}"
+                       Foreground="#4A6880"
+                       FontSize="11" />
+          </Border>
+          <ItemsControl ItemsSource="{Binding Properties}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="#0B1118"
+                        BorderBrush="#0F1A26"
+                        BorderThickness="0,0,0,1"
+                        Padding="10,5">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Name}"
+                               Foreground="#4A6880"
+                               FontSize="12"
+                               VerticalAlignment="Top"
+                               Margin="0,0,12,0" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Value}"
+                               Foreground="#B8D8F0"
+                               FontSize="12"
+                               VerticalAlignment="Top"
+                               TextWrapping="Wrap" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </DataTemplate>
+
+    <DataTemplate x:Key="SourceLineNumberTemplate">
+      <Border Height="{Binding LineHeight}">
+        <TextBlock Text="{Binding NumberText}"
+                   Foreground="#4E667C"
+                   FontFamily="Consolas"
+                   FontSize="{Binding FontSize}"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Center" />
+      </Border>
+    </DataTemplate>
+
     <Style x:Key="DiagnosticCardButtonStyle" TargetType="{x:Type Button}">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="Transparent" />
@@ -33,7 +156,8 @@
       </Setter>
       <Style.Triggers>
         <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Background" Value="#0F1E2E" />
+          <Setter Property="Background" Value="#132131" />
+          <Setter Property="BorderBrush" Value="#294866" />
         </Trigger>
         <Trigger Property="IsPressed" Value="True">
           <Setter Property="Background" Value="#13253A" />
@@ -47,21 +171,18 @@
 
     <DataTemplate x:Key="DiagnosticCardTemplate">
       <Button Style="{StaticResource DiagnosticCardButtonStyle}"
-              Background="Transparent"
-              BorderBrush="Transparent"
-              BorderThickness="0"
               Padding="0"
               Margin="0"
               HorizontalContentAlignment="Stretch"
               VerticalContentAlignment="Stretch"
-              Cursor="{Binding Path=CursorText}"
-              Command="{Binding Path=DataContext.NavigateToDiagnosticCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
+                Cursor="{Binding CursorText}"
+                Command="{Binding DataContext.NavigateToDiagnosticCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
               CommandParameter="{Binding}">
-        <Border BorderBrush="{Binding Path=SeverityColor}"
+              <Border BorderBrush="{Binding SeverityColor}"
                 BorderThickness="2,0,0,0"
                 Padding="8,4,10,4"
                 Margin="0,0,0,1"
-                Opacity="{Binding Path=CardOpacity}">
+                  Opacity="{Binding CardOpacity}">
           <StackPanel>
             <Grid>
               <Grid.ColumnDefinitions>
@@ -70,37 +191,37 @@
                 <ColumnDefinition Width="Auto" />
               </Grid.ColumnDefinitions>
               <TextBlock Grid.Column="0"
-                         Text="{Binding Path=CodeText}"
-                         Foreground="{Binding Path=SeverityColor}"
+                         Text="{Binding CodeText}"
+                         Foreground="{Binding SeverityColor}"
                          FontSize="11"
                          FontWeight="SemiBold"
                          Margin="0,0,7,0"
                          VerticalAlignment="Center" />
               <TextBlock Grid.Column="1"
-                         Text="{Binding Path=Message}"
+                         Text="{Binding Message}"
                          Foreground="#C0CDD8"
                          FontSize="11"
                          TextWrapping="NoWrap"
                          VerticalAlignment="Center" />
               <TextBlock Grid.Column="2"
-                         Text="{Binding Path=LocationText}"
+                         Text="{Binding LocationText}"
                          Foreground="#3A5268"
                          FontSize="10"
                          Margin="10,0,0,0"
                          VerticalAlignment="Center"
                          HorizontalAlignment="Right" />
             </Grid>
-            <TextBlock Text="{Binding Path=TargetDescription}"
+            <TextBlock Text="{Binding TargetDescription}"
                        Foreground="#3A5872"
                        FontSize="10"
                        Margin="0,1,0,0"
-                       Visibility="{Binding Path=TargetVisibility}" />
-            <TextBlock Text="{Binding Path=Hint}"
+                       Visibility="{Binding TargetVisibility}" />
+            <TextBlock Text="{Binding Hint}"
                        Foreground="#4A7090"
                        FontSize="10"
                        Margin="0,1,0,0"
                        TextWrapping="Wrap"
-                       Visibility="{Binding Path=HintVisibility}" />
+                       Visibility="{Binding HintVisibility}" />
           </StackPanel>
         </Border>
       </Button>
@@ -180,14 +301,12 @@
                     Orientation="Horizontal"
                     VerticalAlignment="Center"
                     Margin="14,0,8,0">
-          <TextBlock x:Name="DocumentStatusText"
-                     Foreground="#8FD2B3"
-                     Text="Untitled.xml • memory only" />
+          <TextBlock Foreground="{Binding DocumentStatusForeground}"
+                     Text="{Binding DocumentStatusText}" />
           <TextBlock Text="  ·  "
                      Foreground="#243342" />
-          <TextBlock x:Name="ToolbarStatusText"
-                     Foreground="#6FB7FF"
-                     Text="Refresh idle. Edit the source and press F5." />
+          <TextBlock Foreground="{Binding ToolbarStatusForeground}"
+                     Text="{Binding ToolbarStatusText}" />
         </StackPanel>
       </Grid>
     </Border>
@@ -199,7 +318,7 @@
             BorderBrush="#1A2637"
             BorderThickness="0,0,0,1"
             Padding="12,8"
-            Visibility="Collapsed">
+          Visibility="{Binding WorkflowPromptVisibility}">
       <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto" />
@@ -211,14 +330,14 @@
         <StackPanel Grid.Column="0"
                     VerticalAlignment="Center"
                     Margin="0,0,16,0">
-          <TextBlock x:Name="WorkflowPromptTitleText"
+          <TextBlock
                      Foreground="#E7EDF5"
                      FontWeight="SemiBold"
-                     Text="Document Prompt" />
-          <TextBlock x:Name="WorkflowPromptMessageText"
+                     Text="{Binding WorkflowPrompt.Title}" />
+          <TextBlock
                      Foreground="#8DA1B5"
                      Margin="0,2,0,0"
-                     Text="Prompt details appear here." />
+                     Text="{Binding WorkflowPrompt.Message}" />
         </StackPanel>
 
         <TextBox x:Name="DocumentPathTextBox"
@@ -233,13 +352,13 @@
                  BorderBrush="#243342"
                  BorderThickness="1"
                  Padding="8,5"
-                 Visibility="Collapsed" />
+                 Visibility="{Binding WorkflowPromptPathEditorVisibility}" />
 
         <StackPanel Grid.Column="3"
                     Orientation="Horizontal"
                     VerticalAlignment="Center">
           <Button x:Name="WorkflowPromptPrimaryButton"
-                  Content="Confirm"
+                Content="{Binding WorkflowPrompt.ConfirmText}"
               Command="{Binding PromptPrimaryCommand}"
                   Background="#0D2218"
                   Foreground="#8FD2B3"
@@ -256,7 +375,7 @@
                   BorderThickness="1"
                   Padding="10,5"
                   Margin="0,0,6,0"
-                  Visibility="Collapsed" />
+                  Visibility="{Binding WorkflowPromptDiscardVisibility}" />
           <Button x:Name="WorkflowPromptCancelButton"
                   Content="Cancel"
               Command="{Binding PromptCancelCommand}"
@@ -264,7 +383,8 @@
                   Foreground="#8DA1B5"
                   BorderBrush="#243342"
                   BorderThickness="1"
-                  Padding="10,5" />
+                  Padding="10,5"
+                  Visibility="{Binding WorkflowPromptVisibility}" />
         </StackPanel>
       </Grid>
     </Border>
@@ -303,11 +423,11 @@
                          Text="Preview"
                          Foreground="#C8D8E8"
                          FontWeight="SemiBold" />
-              <TextBlock x:Name="PreviewStatusText"
+              <TextBlock
                          Grid.Column="1"
-                         Foreground="#5A7A9A"
+                         Foreground="{Binding PreviewStatusForeground}"
                          VerticalAlignment="Center"
-                         Text="Idle" />
+                         Text="{Binding PreviewStatusText}" />
             </Grid>
           </Border>
 
@@ -315,9 +435,18 @@
                         Grid.Row="1"
                         HorizontalScrollBarVisibility="Auto"
                         VerticalScrollBarVisibility="Auto">
-            <ContentControl x:Name="PreviewHost"
-                            HorizontalAlignment="Stretch"
-                            VerticalAlignment="Stretch" />
+            <Grid>
+              <ContentControl x:Name="PreviewHost"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Content="{Binding PreviewContent}"
+                              Visibility="{Binding PreviewContentVisibility}" />
+              <ContentControl HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Content="{Binding PreviewPlaceholder}"
+                              ContentTemplate="{StaticResource PreviewPlaceholderTemplate}"
+                              Visibility="{Binding PreviewPlaceholderVisibility}" />
+            </Grid>
           </ScrollViewer>
         </Grid>
       </Border>
@@ -360,22 +489,20 @@
                 <TextBlock Text="Visual Tree"
                            Foreground="#C8D8E8"
                            FontWeight="SemiBold" />
-                <TextBlock x:Name="VisualTreeSummaryText"
+                <TextBlock
                            Foreground="#4A6880"
                            FontSize="12"
                            Margin="0,2,0,0"
-                           Text="Refresh to inspect." />
+                           Text="{Binding VisualTreeSummaryText}" />
               </StackPanel>
             </Border>
             <ScrollViewer Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Auto"
                           Padding="6">
-              <TreeView x:Name="VisualTreeView"
-                        SelectedItemChanged="OnVisualTreeSelectionChanged"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Foreground="#D8E3EE" />
+              <ItemsControl x:Name="VisualTreeView"
+                            ItemsSource="{Binding VisualTreeRoots}"
+                            ItemTemplate="{StaticResource VisualTreeNodeTemplate}" />
             </ScrollViewer>
           </Grid>
         </Border>
@@ -399,18 +526,20 @@
                 <TextBlock Text="Inspector"
                            Foreground="#C8D8E8"
                            FontWeight="SemiBold" />
-                <TextBlock x:Name="InspectorSummaryText"
+                <TextBlock
                            Foreground="#4A6880"
                            FontSize="12"
                            Margin="0,2,0,0"
-                           Text="Select a node." />
+                           Text="{Binding InspectorSummaryText}" />
               </StackPanel>
             </Border>
             <ScrollViewer Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Padding="6">
-              <StackPanel x:Name="InspectorPanel" />
+              <ItemsControl x:Name="InspectorPanel"
+                            ItemsSource="{Binding InspectorSections}"
+                            ItemTemplate="{StaticResource InspectorSectionTemplate}" />
             </ScrollViewer>
           </Grid>
         </Border>
@@ -438,6 +567,7 @@
             BorderThickness="1"
             CornerRadius="8">
       <TabControl x:Name="EditorTabControl"
+                  SelectedIndex="{Binding SelectedEditorTabIndex}"
                   Background="#0D131A"
                   Foreground="#C8D8E8"
                   HeaderBackground="#0B1118"
@@ -458,8 +588,9 @@
                     Grid.Column="0"
                     Background="#0A1017"
                     ClipToBounds="True">
-              <StackPanel x:Name="SourceLineNumberPanel"
-                          Margin="0,10,6,0" />
+              <ItemsControl x:Name="SourceLineNumberPanel"
+                    ItemTemplate="{StaticResource SourceLineNumberTemplate}"
+                    Margin="0,10,6,0" />
             </Border>
 
             <Border Grid.Column="1"
@@ -486,7 +617,7 @@
         </TabItem>
 
         <TabItem x:Name="DiagnosticsTab"
-                 Header="Diagnostics">
+                 Header="{Binding DataContext.DiagnosticsTabHeader, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}">
           <Grid>
             <Grid.RowDefinitions>
               <RowDefinition Height="Auto" />
@@ -499,13 +630,14 @@
               <TextBlock x:Name="DiagnosticsSummaryText"
                          Foreground="#4A6880"
                          FontSize="12"
-                         Text="Errors and warnings appear after refresh." />
+                         Text="{Binding DataContext.DiagnosticsSummaryText, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}" />
             </Border>
             <ScrollViewer Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Padding="6">
               <ItemsControl x:Name="DiagnosticsItemsControl"
+                            ItemsSource="{Binding DataContext.Diagnostics, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
                             ItemTemplate="{StaticResource DiagnosticCardTemplate}" />
             </ScrollViewer>
           </Grid>

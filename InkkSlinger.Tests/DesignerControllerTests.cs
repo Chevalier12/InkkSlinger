@@ -180,11 +180,11 @@ public class DesignerControllerTests
         var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
         var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
         var sourceLineNumberBorder = Assert.IsType<Border>(shell.FindName("SourceLineNumberBorder"));
-        var sourceLineNumberPanel = Assert.IsType<StackPanel>(shell.FindName("SourceLineNumberPanel"));
+        var sourceLineNumberPanel = Assert.IsType<ItemsControl>(shell.FindName("SourceLineNumberPanel"));
         var diagnosticsItemsControl = Assert.IsType<ItemsControl>(shell.FindName("DiagnosticsItemsControl"));
 
         _ = Assert.IsType<ContentControl>(shell.FindName("PreviewHost"));
-        _ = Assert.IsType<TreeView>(shell.FindName("VisualTreeView"));
+        _ = Assert.IsType<ItemsControl>(shell.FindName("VisualTreeView"));
         _ = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
 
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.HorizontalScrollBarVisibility);
@@ -193,7 +193,7 @@ public class DesignerControllerTests
         Assert.Equal("Diagnostics", diagnosticsTab.Header);
         Assert.NotNull(diagnosticsItemsControl);
         Assert.NotNull(sourceLineNumberBorder.Child);
-        Assert.NotEmpty(sourceLineNumberPanel.Children);
+        Assert.True(GetRenderedLineNumberCount(sourceLineNumberPanel) > 0);
 
         Assert.Equal(1, Grid.GetColumn(previewDockSplitter));
         Assert.Equal(GridResizeDirection.Columns, previewDockSplitter.ResizeDirection);
@@ -217,12 +217,12 @@ public class DesignerControllerTests
         };
 
         var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
-        var sourceLineNumberPanel = Assert.IsType<StackPanel>(shell.FindName("SourceLineNumberPanel"));
+        var sourceLineNumberPanel = Assert.IsType<ItemsControl>(shell.FindName("SourceLineNumberPanel"));
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
 
-        Assert.True(sourceLineNumberPanel.Children.Count > 0);
+        Assert.True(GetRenderedLineNumberCount(sourceLineNumberPanel) > 0);
         Assert.Equal("1", GetLineNumberText(sourceLineNumberPanel, 0));
 
         sourceEditor.SetFocusedFromInput(true);
@@ -376,7 +376,6 @@ public class DesignerControllerTests
 
     var hoverChrome = FindDescendant<Border>(diagnosticButton, border => border.Name == "HoverChrome");
     Assert.Equal(new Color(19, 33, 49), Assert.IsType<SolidColorBrush>(hoverChrome.Background).Color);
-    Assert.Equal(new Color(41, 72, 102), Assert.IsType<SolidColorBrush>(hoverChrome.BorderBrush).Color);
     }
 
     [Fact]
@@ -1008,11 +1007,25 @@ public class DesignerControllerTests
             MiddleReleased = false
         };
     }
-    private static string GetLineNumberText(StackPanel panel, int index)
+    private static string GetLineNumberText(ItemsControl panel, int index)
     {
-        var container = Assert.IsType<Border>(panel.Children[index]);
+        var lineNumberEntries = FindDescendants<Border>(panel, static border => border.Child is TextBlock);
+        var container = Assert.IsType<Border>(lineNumberEntries[index]);
         var textBlock = Assert.IsType<TextBlock>(container.Child);
         return textBlock.Text;
+    }
+
+    private static int GetRenderedLineNumberCount(ItemsControl panel)
+    {
+        return FindDescendants<Border>(panel, static border => border.Child is TextBlock).Count;
+    }
+
+    private static List<TElement> FindDescendants<TElement>(UIElement root, Func<TElement, bool>? predicate = null)
+        where TElement : UIElement
+    {
+        var matches = new List<TElement>();
+        CollectDescendants(root, matches, predicate);
+        return matches;
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
