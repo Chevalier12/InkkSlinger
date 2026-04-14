@@ -229,7 +229,7 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
 
         ClearDocumentStatusOverride();
         SyncEditorTextIntoDocumentController();
-        LoadDocumentIntoEditor();
+        UpdateSourceLineNumberGutter(force: true);
         UpdateDocumentChrome();
     }
 

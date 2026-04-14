@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading;
@@ -26,6 +27,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
     private readonly List<PendingResize> _pendingResizes = new();
     private readonly List<PendingCapture> _pendingCaptures = new();
     private readonly List<AutomationEventRecord> _automationEvents = new();
+    private readonly HashSet<Keys> _automationHeldKeys = new();
     private InkkOopsInteractionRecorder? _recorder;
     private Vector2 _pointerPosition;
     private bool _hasPointerPosition;
@@ -90,6 +92,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
             _window.ClientSize,
             launchProjectPath,
             _artifactNamingPolicy);
+        _window.NativeWindow.TextInput += OnRecordingTextInput;
     }
 
     public string StopRecording()
@@ -100,6 +103,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         }
 
         var directoryPath = _recorder.DirectoryPath;
+        _window.NativeWindow.TextInput -= OnRecordingTextInput;
         _recorder.Dispose();
         _recorder = null;
         return directoryPath;
@@ -201,6 +205,61 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
             {
                 var current = _hasPointerPosition ? _pointerPosition : Vector2.Zero;
                 UiRoot.RunInputDeltaForTests(CreateDelta(current, current, wheelDelta: delta));
+            },
+            cancellationToken);
+    }
+
+    public Task KeyDownAsync(Keys key, CancellationToken cancellationToken = default)
+    {
+        return ExecuteOnUiThreadAsync(
+            () =>
+            {
+                var pointer = _hasPointerPosition ? _pointerPosition : Vector2.Zero;
+                var previousKeyboard = CreateKeyboardState(_automationHeldKeys);
+                _automationHeldKeys.Add(key);
+                var currentKeyboard = CreateKeyboardState(_automationHeldKeys);
+                UiRoot.RunInputDeltaForTests(CreateDelta(
+                    pointer,
+                    pointer,
+                    previousKeyboard: previousKeyboard,
+                    currentKeyboard: currentKeyboard,
+                    pressedKeys: [key]));
+            },
+            cancellationToken);
+    }
+
+    public Task KeyUpAsync(Keys key, CancellationToken cancellationToken = default)
+    {
+        return ExecuteOnUiThreadAsync(
+            () =>
+            {
+                var pointer = _hasPointerPosition ? _pointerPosition : Vector2.Zero;
+                var previousKeyboard = CreateKeyboardState(_automationHeldKeys);
+                _automationHeldKeys.Remove(key);
+                var currentKeyboard = CreateKeyboardState(_automationHeldKeys);
+                UiRoot.RunInputDeltaForTests(CreateDelta(
+                    pointer,
+                    pointer,
+                    previousKeyboard: previousKeyboard,
+                    currentKeyboard: currentKeyboard,
+                    releasedKeys: [key]));
+            },
+            cancellationToken);
+    }
+
+    public Task TextInputAsync(char character, CancellationToken cancellationToken = default)
+    {
+        return ExecuteOnUiThreadAsync(
+            () =>
+            {
+                var pointer = _hasPointerPosition ? _pointerPosition : Vector2.Zero;
+                var keyboard = CreateKeyboardState(_automationHeldKeys);
+                UiRoot.RunInputDeltaForTests(CreateDelta(
+                    pointer,
+                    pointer,
+                    previousKeyboard: keyboard,
+                    currentKeyboard: keyboard,
+                    textInput: [character]));
             },
             cancellationToken);
     }
@@ -317,7 +376,7 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
     {
         CompleteFrameGates();
         CompleteResizeRequestsIfReady();
-        _recorder?.RecordFrame(_window.ClientSize, Mouse.GetState());
+        _recorder?.RecordFrame(_window.ClientSize, Mouse.GetState(), Keyboard.GetState());
     }
 
     public void Dispose()
@@ -345,6 +404,11 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
                 args.OldPeer?.RuntimeId,
                 args.NewPeer?.RuntimeId));
         }
+    }
+
+    private void OnRecordingTextInput(object? sender, Microsoft.Xna.Framework.TextInputEventArgs args)
+    {
+        _recorder?.RecordTextInput(args.Character);
     }
 
     private void CompleteFrameGates()
@@ -618,6 +682,11 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
     private static InputDelta CreateDelta(
         Vector2 previous,
         Vector2 current,
+        KeyboardState? previousKeyboard = null,
+        KeyboardState? currentKeyboard = null,
+        IReadOnlyList<Microsoft.Xna.Framework.Input.Keys>? pressedKeys = null,
+        IReadOnlyList<Microsoft.Xna.Framework.Input.Keys>? releasedKeys = null,
+        IReadOnlyList<char>? textInput = null,
         bool pointerMoved = false,
         MouseButton? buttonPressed = null,
         MouseButton? buttonReleased = null,
@@ -631,11 +700,11 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
         var middleReleased = buttonReleased == MouseButton.Middle;
         return new InputDelta
         {
-            Previous = new InputSnapshot(default, default, previous),
-            Current = new InputSnapshot(default, default, current),
-            PressedKeys = Array.Empty<Microsoft.Xna.Framework.Input.Keys>(),
-            ReleasedKeys = Array.Empty<Microsoft.Xna.Framework.Input.Keys>(),
-            TextInput = Array.Empty<char>(),
+            Previous = new InputSnapshot(previousKeyboard ?? default, default, previous),
+            Current = new InputSnapshot(currentKeyboard ?? default, default, current),
+            PressedKeys = pressedKeys ?? Array.Empty<Microsoft.Xna.Framework.Input.Keys>(),
+            ReleasedKeys = releasedKeys ?? Array.Empty<Microsoft.Xna.Framework.Input.Keys>(),
+            TextInput = textInput ?? Array.Empty<char>(),
             PointerMoved = pointerMoved || buttonPressed != null || buttonReleased != null,
             WheelDelta = wheelDelta,
             LeftPressed = leftPressed,
@@ -645,6 +714,11 @@ public sealed class InkkOopsGameHost : IInkkOopsHost, IDisposable
             MiddlePressed = middlePressed,
             MiddleReleased = middleReleased
         };
+    }
+
+    private static KeyboardState CreateKeyboardState(HashSet<Keys> keys)
+    {
+        return keys.Count == 0 ? default : new KeyboardState([.. keys.OrderBy(static key => (int)key)]);
     }
 
     private static string DescribeElement(UIElement? element)

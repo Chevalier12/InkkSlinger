@@ -254,6 +254,21 @@ public sealed class InkkOopsScriptBuilder
         return Add(new InkkOopsPointerUpTargetCommand(new InkkOopsTargetReference(selector), anchor, button));
     }
 
+    public InkkOopsScriptBuilder KeyDown(Microsoft.Xna.Framework.Input.Keys key)
+    {
+        return Add(new InkkOopsKeyDownCommand(key));
+    }
+
+    public InkkOopsScriptBuilder KeyUp(Microsoft.Xna.Framework.Input.Keys key)
+    {
+        return Add(new InkkOopsKeyUpCommand(key));
+    }
+
+    public InkkOopsScriptBuilder TextInput(char character)
+    {
+        return Add(new InkkOopsTextInputCommand(character));
+    }
+
     public InkkOopsScriptBuilder Drag(string targetName, float deltaX, float deltaY)
     {
         return Add(new InkkOopsDragTargetCommand(new InkkOopsTargetReference(targetName), deltaX, deltaY));

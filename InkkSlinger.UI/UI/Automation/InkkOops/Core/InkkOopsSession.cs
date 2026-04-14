@@ -126,6 +126,21 @@ public sealed class InkkOopsSession
         return TrackPointerUpAsync(position, button, cancellationToken);
     }
 
+    public Task KeyDownAsync(Microsoft.Xna.Framework.Input.Keys key, CancellationToken cancellationToken = default)
+    {
+        return Host.KeyDownAsync(key, cancellationToken);
+    }
+
+    public Task KeyUpAsync(Microsoft.Xna.Framework.Input.Keys key, CancellationToken cancellationToken = default)
+    {
+        return Host.KeyUpAsync(key, cancellationToken);
+    }
+
+    public Task TextInputAsync(char character, CancellationToken cancellationToken = default)
+    {
+        return Host.TextInputAsync(character, cancellationToken);
+    }
+
     public Task WheelAsync(int delta, CancellationToken cancellationToken = default)
     {
         return TrackWheelAsync(delta, cancellationToken);

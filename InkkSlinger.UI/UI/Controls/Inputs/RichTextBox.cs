@@ -2216,6 +2216,10 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private void InvalidateAfterTextMutation(string reason)
     {
+        InvalidateMeasure();
+        _scrollContentPresenter.InvalidateMeasure();
+        _contentHost?.InvalidateScrollInfo();
+
         // Hosted document children only need a local placement refresh when the editor slot is stable.
         if (ContainsHostedDocumentChildren(Document) &&
             !TryRefreshHostedDocumentChildLayoutAfterTextMutation())

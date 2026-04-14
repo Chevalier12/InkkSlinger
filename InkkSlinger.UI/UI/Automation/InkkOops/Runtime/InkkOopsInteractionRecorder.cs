@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Xna.Framework.Input;
@@ -23,6 +24,8 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
     private int _lastPointerY;
     private bool _lastLeftPressed;
     private int _lastWheelValue;
+    private readonly HashSet<Keys> _lastPressedKeys = new();
+    private readonly List<char> _pendingTextInputCharacters = new();
     private Microsoft.Xna.Framework.Point _lastClientSize;
     private bool _disposed;
 
@@ -59,7 +62,7 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
 
     public string DirectoryPath => _directoryPath;
 
-    public void RecordFrame(Microsoft.Xna.Framework.Point clientSize, MouseState mouseState)
+    public void RecordFrame(Microsoft.Xna.Framework.Point clientSize, MouseState mouseState, KeyboardState keyboardState)
     {
         var updated = false;
 
@@ -70,8 +73,12 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
             _lastLeftPressed = mouseState.LeftButton == ButtonState.Pressed;
             _lastWheelValue = mouseState.ScrollWheelValue;
             _lastClientSize = clientSize;
+            _lastPressedKeys.Clear();
+            foreach (var key in keyboardState.GetPressedKeys())
+            {
+                _lastPressedKeys.Add(key);
+            }
             _hasLastState = true;
-            return;
         }
 
         _pendingWaitFrames++;
@@ -113,10 +120,18 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
             updated = true;
         }
 
+        updated |= RecordKeyboardTransitions(keyboardState.GetPressedKeys());
+        updated |= FlushPendingTextInputCharacters();
+
         if (updated)
         {
             PersistSnapshot();
         }
+    }
+
+    public void RecordTextInput(char character)
+    {
+        _pendingTextInputCharacters.Add(character);
     }
 
     public void Dispose()
@@ -174,7 +189,77 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
             actions.Add(RecordedAction.WaitFrames(_pendingWaitFrames));
         }
 
+        for (var i = 0; i < _pendingTextInputCharacters.Count; i++)
+        {
+            actions.Add(RecordedAction.TextInput(_pendingTextInputCharacters[i]));
+        }
+
         return actions;
+    }
+
+    private bool RecordKeyboardTransitions(IReadOnlyList<Keys> currentPressedKeys)
+    {
+        var updated = false;
+        var currentPressedKeySet = new HashSet<Keys>(currentPressedKeys);
+
+        var releasedKeys = _lastPressedKeys
+            .Where(key => !currentPressedKeySet.Contains(key))
+            .OrderByDescending(GetKeyReplayPriority)
+            .ThenByDescending(static key => (int)key)
+            .ToArray();
+        for (var i = 0; i < releasedKeys.Length; i++)
+        {
+            FlushWaitFrames();
+            _actions.Add(RecordedAction.KeyUp(releasedKeys[i]));
+            updated = true;
+        }
+
+        var pressedKeys = currentPressedKeySet
+            .Where(key => !_lastPressedKeys.Contains(key))
+            .OrderBy(GetKeyReplayPriority)
+            .ThenBy(static key => (int)key)
+            .ToArray();
+        for (var i = 0; i < pressedKeys.Length; i++)
+        {
+            FlushWaitFrames();
+            _actions.Add(RecordedAction.KeyDown(pressedKeys[i]));
+            updated = true;
+        }
+
+        _lastPressedKeys.Clear();
+        foreach (var key in currentPressedKeys)
+        {
+            _lastPressedKeys.Add(key);
+        }
+
+        return updated;
+    }
+
+    private bool FlushPendingTextInputCharacters()
+    {
+        if (_pendingTextInputCharacters.Count == 0)
+        {
+            return false;
+        }
+
+        FlushWaitFrames();
+        for (var i = 0; i < _pendingTextInputCharacters.Count; i++)
+        {
+            _actions.Add(RecordedAction.TextInput(_pendingTextInputCharacters[i]));
+        }
+
+        _pendingTextInputCharacters.Clear();
+        return true;
+    }
+
+    private static int GetKeyReplayPriority(Keys key)
+    {
+        return IsModifierKey(key) ? 0 : 1;
+    }
+
+    private static bool IsModifierKey(Keys key)
+    {
+        return key is Keys.LeftShift or Keys.RightShift or Keys.LeftControl or Keys.RightControl or Keys.LeftAlt or Keys.RightAlt;
     }
 
     private static void TryWriteSnapshotFile(string path, string content)
@@ -224,7 +309,10 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
         MovePointer,
         PointerDown,
         PointerUp,
-        Wheel
+        Wheel,
+        KeyDown,
+        KeyUp,
+        TextInput
     }
 
     public sealed record RecordedAction(
@@ -234,7 +322,9 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
         int? Height = null,
         int? X = null,
         int? Y = null,
-        int? WheelDelta = null)
+        int? WheelDelta = null,
+        Keys? Key = null,
+        char? Character = null)
     {
         public static RecordedAction WaitFrames(int frameCount) => new(RecordedActionKind.WaitFrames, FrameCount: frameCount);
 
@@ -247,5 +337,11 @@ public sealed class InkkOopsInteractionRecorder : IDisposable
         public static RecordedAction PointerUp(int x, int y) => new(RecordedActionKind.PointerUp, X: x, Y: y);
 
         public static RecordedAction Wheel(int delta) => new(RecordedActionKind.Wheel, WheelDelta: delta);
+
+        public static RecordedAction KeyDown(Keys key) => new(RecordedActionKind.KeyDown, Key: key);
+
+        public static RecordedAction KeyUp(Keys key) => new(RecordedActionKind.KeyUp, Key: key);
+
+        public static RecordedAction TextInput(char character) => new(RecordedActionKind.TextInput, Character: character);
     }
 }

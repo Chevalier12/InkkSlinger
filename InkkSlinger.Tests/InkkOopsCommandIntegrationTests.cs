@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
 using Xunit;
 using Vector2 = System.Numerics.Vector2;
 
@@ -292,6 +293,34 @@ public sealed class InkkOopsCommandIntegrationTests
 
         Assert.True(offsetAfterScrollTo > 0f);
         Assert.True(viewer.VerticalOffset >= offsetAfterScrollTo);
+    }
+
+    [Fact]
+    public async Task Key_And_TextInput_Commands_Type_Into_Focused_TextBox()
+    {
+        var textBox = new TextBox
+        {
+            Name = "InputBox",
+            Width = 160f,
+            Height = 32f
+        };
+        Canvas.SetLeft(textBox, 80f);
+        Canvas.SetTop(textBox, 60f);
+        var root = new Canvas { Width = 400f, Height = 240f };
+        root.AddChild(textBox);
+
+        using var host = new InkkOopsTestHost(root);
+        using var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "key-text-input");
+        var session = new InkkOopsSession(host, artifacts);
+
+        await new InkkOopsClickTargetCommand(new InkkOopsTargetReference("InputBox")).ExecuteAsync(session);
+        await new InkkOopsKeyDownCommand(Keys.LeftShift).ExecuteAsync(session);
+        await new InkkOopsKeyDownCommand(Keys.A).ExecuteAsync(session);
+        await new InkkOopsTextInputCommand('A').ExecuteAsync(session);
+        await new InkkOopsKeyUpCommand(Keys.A).ExecuteAsync(session);
+        await new InkkOopsKeyUpCommand(Keys.LeftShift).ExecuteAsync(session);
+
+        Assert.Equal("A", textBox.Text);
     }
 
     [Fact]

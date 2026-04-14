@@ -20,12 +20,12 @@ public sealed class InkkOopsInteractionRecorderTests
             string directoryPath;
             using (var recorder = new InkkOopsInteractionRecorder(root, new Point(1280, 820)))
             {
-                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30));
-                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160));
-                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160, left: ButtonState.Pressed));
-                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160, left: ButtonState.Released));
-                recorder.RecordFrame(new Point(930, 610), CreateMouseState(140, 160));
-                recorder.RecordFrame(new Point(930, 610), CreateMouseState(140, 160, scrollWheel: 120));
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30), default);
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160), default);
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160, left: ButtonState.Pressed), default);
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160, left: ButtonState.Released), default);
+                recorder.RecordFrame(new Point(930, 610), CreateMouseState(140, 160), default);
+                recorder.RecordFrame(new Point(930, 610), CreateMouseState(140, 160, scrollWheel: 120), default);
                 directoryPath = recorder.DirectoryPath;
             }
 
@@ -68,8 +68,8 @@ public sealed class InkkOopsInteractionRecorderTests
             var jsonPath = Path.Combine(recorder.DirectoryPath, "recording.json");
             Assert.True(File.Exists(jsonPath));
 
-            recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30));
-            recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160));
+            recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30), default);
+            recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160), default);
 
             var json = File.ReadAllText(jsonPath);
             Assert.Contains("\"actionCount\": 3", json);
@@ -125,8 +125,8 @@ public sealed class InkkOopsInteractionRecorderTests
 
             var exception = Record.Exception(() =>
             {
-                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30));
-                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160));
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30), default);
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(140, 160), default);
             });
 
             Assert.Null(exception);
@@ -247,6 +247,86 @@ public sealed class InkkOopsInteractionRecorderTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    [Fact]
+    public void Recorder_Writes_Key_And_TextInput_Actions()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"inkkoops-recorder-keys-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            string directoryPath;
+            using (var recorder = new InkkOopsInteractionRecorder(root, new Point(1280, 820)))
+            {
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30), default);
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30), CreateKeyboardState(Keys.LeftControl));
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30), CreateKeyboardState(Keys.LeftControl, Keys.S));
+                recorder.RecordTextInput('s');
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30), CreateKeyboardState(Keys.LeftControl));
+                recorder.RecordFrame(new Point(1280, 820), CreateMouseState(20, 30), default);
+                directoryPath = recorder.DirectoryPath;
+            }
+
+            var json = File.ReadAllText(Path.Combine(directoryPath, "recording.json"));
+
+            Assert.Contains("\"Kind\": 6", json);
+            Assert.Contains("\"Kind\": 7", json);
+            Assert.Contains("\"Kind\": 8", json);
+            Assert.Contains("\"Key\": 162", json);
+            Assert.Contains("\"Key\": 83", json);
+            Assert.Contains("\"Character\": \"s\"", json);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void RecordedSessionLoader_Loads_Key_And_TextInput_Actions()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"inkkoops-loader-keys-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var jsonPath = Path.Combine(root, "recording.json");
+            File.WriteAllText(
+                jsonPath,
+                """
+                {
+                  "actions": [
+                    { "kind": 6, "key": 162 },
+                    { "kind": 6, "key": 83 },
+                    { "kind": 8, "character": "s" },
+                    { "kind": 7, "key": 83 },
+                    { "kind": 7, "key": 162 }
+                  ]
+                }
+                """);
+
+            var script = InkkOopsRecordedSessionLoader.LoadFromJson(jsonPath);
+            var commandDescriptions = script.Commands.Select(static command => command.Describe()).ToArray();
+
+            Assert.Equal(["KeyDown(LeftControl)", "KeyDown(S)", "TextInput(s)", "KeyUp(S)", "KeyUp(LeftControl)"], commandDescriptions);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private static KeyboardState CreateKeyboardState(params Keys[] keys)
+    {
+        return keys.Length == 0 ? default : new KeyboardState(keys);
     }
 
     private static MouseState CreateMouseState(

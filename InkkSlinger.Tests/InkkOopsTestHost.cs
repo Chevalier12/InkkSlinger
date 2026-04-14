@@ -21,6 +21,7 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
     private readonly IInkkOopsDiagnosticsFilterPolicy _diagnosticsFilterPolicy;
     private readonly string _displayedFps;
     private readonly List<Vector2> _pointerTrace = new();
+    private readonly HashSet<Keys> _automationHeldKeys = new();
     private Vector2 _pointerPosition;
     private bool _hasPointer;
     private int _width;
@@ -161,6 +162,49 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
     {
         var current = _hasPointer ? _pointerPosition : Vector2.Zero;
         UiRoot.RunInputDeltaForTests(CreateDelta(current, current, wheelDelta: delta));
+        return Task.CompletedTask;
+    }
+
+    public Task KeyDownAsync(Keys key, CancellationToken cancellationToken = default)
+    {
+        var pointer = _hasPointer ? _pointerPosition : Vector2.Zero;
+        var previousKeyboard = CreateKeyboardState(_automationHeldKeys);
+        _automationHeldKeys.Add(key);
+        var currentKeyboard = CreateKeyboardState(_automationHeldKeys);
+        UiRoot.RunInputDeltaForTests(CreateDelta(
+            pointer,
+            pointer,
+            previousKeyboard: previousKeyboard,
+            currentKeyboard: currentKeyboard,
+            pressedKeys: [key]));
+        return Task.CompletedTask;
+    }
+
+    public Task KeyUpAsync(Keys key, CancellationToken cancellationToken = default)
+    {
+        var pointer = _hasPointer ? _pointerPosition : Vector2.Zero;
+        var previousKeyboard = CreateKeyboardState(_automationHeldKeys);
+        _automationHeldKeys.Remove(key);
+        var currentKeyboard = CreateKeyboardState(_automationHeldKeys);
+        UiRoot.RunInputDeltaForTests(CreateDelta(
+            pointer,
+            pointer,
+            previousKeyboard: previousKeyboard,
+            currentKeyboard: currentKeyboard,
+            releasedKeys: [key]));
+        return Task.CompletedTask;
+    }
+
+    public Task TextInputAsync(char character, CancellationToken cancellationToken = default)
+    {
+        var pointer = _hasPointer ? _pointerPosition : Vector2.Zero;
+        var keyboard = CreateKeyboardState(_automationHeldKeys);
+        UiRoot.RunInputDeltaForTests(CreateDelta(
+            pointer,
+            pointer,
+            previousKeyboard: keyboard,
+            currentKeyboard: keyboard,
+            textInput: [character]));
         return Task.CompletedTask;
     }
 
@@ -332,6 +376,11 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
     private static InputDelta CreateDelta(
         Vector2 previous,
         Vector2 current,
+        KeyboardState? previousKeyboard = null,
+        KeyboardState? currentKeyboard = null,
+        IReadOnlyList<Keys>? pressedKeys = null,
+        IReadOnlyList<Keys>? releasedKeys = null,
+        IReadOnlyList<char>? textInput = null,
         bool pointerMoved = false,
         MouseButton? buttonPressed = null,
         MouseButton? buttonReleased = null,
@@ -345,11 +394,11 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
         var middleReleased = buttonReleased == MouseButton.Middle;
         return new InputDelta
         {
-            Previous = new InputSnapshot(default, default, previous),
-            Current = new InputSnapshot(default, default, current),
-            PressedKeys = Array.Empty<Keys>(),
-            ReleasedKeys = Array.Empty<Keys>(),
-            TextInput = Array.Empty<char>(),
+            Previous = new InputSnapshot(previousKeyboard ?? default, default, previous),
+            Current = new InputSnapshot(currentKeyboard ?? default, default, current),
+            PressedKeys = pressedKeys ?? Array.Empty<Keys>(),
+            ReleasedKeys = releasedKeys ?? Array.Empty<Keys>(),
+            TextInput = textInput ?? Array.Empty<char>(),
             PointerMoved = pointerMoved || buttonPressed != null || buttonReleased != null,
             WheelDelta = wheelDelta,
             LeftPressed = leftPressed,
@@ -359,6 +408,11 @@ internal sealed class InkkOopsTestHost : IInkkOopsHost, IDisposable
             MiddlePressed = middlePressed,
             MiddleReleased = middleReleased
         };
+    }
+
+    private static KeyboardState CreateKeyboardState(HashSet<Keys> keys)
+    {
+        return keys.Count == 0 ? default : new KeyboardState([.. keys]);
     }
 
     private IdleSnapshot CaptureIdleSnapshot(InkkOopsIdlePolicy policy)

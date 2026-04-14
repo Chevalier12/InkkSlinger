@@ -245,6 +245,233 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditorEnterAtLineTen_ShouldOnlyInsertOneNewlineAtCaret()
+    {
+        var source = NormalizeLineEndings(BuildLongSourceXml());
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var lineTenStart = GetLineStartOffset(source, 10);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(lineTenStart, 0);
+
+        var expected = source.Insert(lineTenStart, "\n");
+
+        Assert.True(sourceEditor.HandleKeyDownFromInput(Keys.Enter, ModifierKeys.None));
+
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Contains("Line 39", shell.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorBackspaceAtLineTen_ShouldOnlyDeleteTheImmediatePreviousNewline()
+    {
+        var source = NormalizeLineEndings(BuildLongSourceXml());
+        var lineTenStart = GetLineStartOffset(source, 10);
+        var sourceWithInsertedLineBreak = source.Insert(lineTenStart, "\n");
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = sourceWithInsertedLineBreak
+        };
+
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(lineTenStart > 0);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(lineTenStart + 1, 0);
+
+        var expected = source;
+
+        Assert.True(sourceEditor.HandleKeyDownFromInput(Keys.Back, ModifierKeys.None));
+
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Contains("Line 39", shell.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorEnterOnBlankLineAtLineTen_ShouldPreserveDocumentTail()
+    {
+        var source = NormalizeLineEndings(BuildBlankLineAtLineTenSourceXml());
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var lineTenStart = GetLineStartOffset(source, 10);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(lineTenStart, 0);
+
+        var expected = source.Insert(lineTenStart, "\n");
+
+        Assert.True(sourceEditor.HandleKeyDownFromInput(Keys.Enter, ModifierKeys.None));
+
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Contains("</UserControl>", shell.SourceText, StringComparison.Ordinal);
+        Assert.Contains("<TextBlock Text=\"Designer Preview\" />", shell.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorRepeatedEnterOnBlankLineAtLineTen_ShouldPreserveDocumentTail()
+    {
+        var source = NormalizeLineEndings(BuildBlankLineAtLineTenSourceXml());
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var lineTenStart = GetLineStartOffset(source, 10);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(lineTenStart, 0);
+
+        var expected = source;
+        for (var i = 0; i < 3; i++)
+        {
+            expected = expected.Insert(lineTenStart, "\n");
+            Assert.True(sourceEditor.HandleKeyDownFromInput(Keys.Enter, ModifierKeys.None));
+        }
+
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Contains("</UserControl>", shell.SourceText, StringComparison.Ordinal);
+        Assert.Contains("<TextBlock Text=\"Designer Preview\" />", shell.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorEnter_ShouldPreserveTrailingBlankLineAtEndOfDocument()
+    {
+        var source = NormalizeLineEndings(BuildLongSourceXml()) + "\n";
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var lineTenStart = GetLineStartOffset(source, 10);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(lineTenStart, 0);
+
+        var expected = source.Insert(lineTenStart, "\n");
+
+        Assert.True(sourceEditor.HandleKeyDownFromInput(Keys.Enter, ModifierKeys.None));
+
+        Assert.Equal(expected, shell.SourceText);
+        Assert.EndsWith("\n", shell.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_DefaultSourceEditorEnterAtLineTen_ShouldPreserveTailAndScrollableExtent()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var source = shell.SourceText;
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var beforeMetrics = sourceEditor.GetScrollMetricsSnapshot();
+        var beforeDocumentText = NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document));
+        Assert.Equal(source, beforeDocumentText);
+
+        var lineTenStart = GetLineStartOffset(source, 10);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(lineTenStart, 0);
+
+        var expected = source.Insert(lineTenStart, "\n");
+
+        Assert.True(sourceEditor.HandleKeyDownFromInput(Keys.Enter, ModifierKeys.None));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var afterMetrics = sourceEditor.GetScrollMetricsSnapshot();
+        var afterDocumentText = NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document));
+
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Equal(expected, afterDocumentText);
+        Assert.Contains("Content=\"Preview Action\"", shell.SourceText, StringComparison.Ordinal);
+        Assert.True(afterMetrics.ExtentHeight - afterMetrics.ViewportHeight >= beforeMetrics.ExtentHeight - beforeMetrics.ViewportHeight);
+        Assert.Equal(CountLogicalLines(expected), CountLogicalLines(afterDocumentText));
+    }
+
+    [Fact]
+    public void ShellView_DefaultSourceEditorEnterViaUiRootInputAtLineTen_ShouldPreserveTailAndScrollableExtent()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var source = shell.SourceText;
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var beforeMetrics = sourceEditor.GetScrollMetricsSnapshot();
+        var beforeLineCount = CountLogicalLines(source);
+        var lineTenStart = GetLineStartOffset(source, 10);
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 10);
+        Click(uiRoot, clickPoint);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter, clickPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var afterDocumentText = NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document));
+        var afterMetrics = sourceEditor.GetScrollMetricsSnapshot();
+
+        Assert.Equal(shell.SourceText, afterDocumentText);
+        Assert.Contains("Content=\"Preview Action\"", shell.SourceText, StringComparison.Ordinal);
+        Assert.Equal(beforeLineCount + 1, CountLogicalLines(shell.SourceText));
+        Assert.True(afterMetrics.ExtentHeight - afterMetrics.ViewportHeight >= beforeMetrics.ExtentHeight - beforeMetrics.ViewportHeight);
+    }
+
+    [Fact]
+    public void ShellView_DefaultSourceEditorRepeatedEnterViaUiRootInputAtLineTen_ShouldIncreaseExtentHeight()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var source = shell.SourceText;
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var beforeMetrics = sourceEditor.GetScrollMetricsSnapshot();
+        var beforeLineCount = CountLogicalLines(source);
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 10);
+        Click(uiRoot, clickPoint);
+        for (var i = 0; i < 4; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter, clickPoint));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        var afterMetrics = sourceEditor.GetScrollMetricsSnapshot();
+        var afterDocumentText = NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document));
+
+        Assert.Equal(shell.SourceText, afterDocumentText);
+        Assert.Equal(beforeLineCount + 4, CountLogicalLines(shell.SourceText));
+        Assert.True(afterMetrics.ExtentHeight > beforeMetrics.ExtentHeight + 0.01f);
+        Assert.True(afterMetrics.ExtentHeight - afterMetrics.ViewportHeight > beforeMetrics.ExtentHeight - beforeMetrics.ViewportHeight + 0.01f);
+    }
+
+    [Fact]
     public void ShellView_FileCommands_WireToolbarButtonsAndUseDocumentWorkflow()
     {
         var fileStore = new FakeDocumentFileStore();
@@ -390,6 +617,124 @@ public class DesignerControllerTests
                 $"<Line Number=\"{line}\" />")));
     }
 
+        private static string BuildBlankLineAtLineTenSourceXml()
+        {
+                return """
+                        <UserControl xmlns="urn:inkkslinger-ui"
+                                                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                                                 Background="#101820">
+                            <Grid Margin="24">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="18" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="Designer Preview" />
+                            </Grid>
+                        </UserControl>
+                        """;
+        }
+
+    private static int GetLineStartOffset(string text, int oneBasedLineNumber)
+    {
+        Assert.True(oneBasedLineNumber >= 1);
+
+        if (oneBasedLineNumber == 1)
+        {
+            return 0;
+        }
+
+        var currentLine = 1;
+        for (var index = 0; index < text.Length; index++)
+        {
+            if (text[index] != '\n')
+            {
+                continue;
+            }
+
+            currentLine++;
+            if (currentLine == oneBasedLineNumber)
+            {
+                return index + 1;
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException($"Could not find line {oneBasedLineNumber}.");
+    }
+
+    private static int CountLogicalLines(string text)
+    {
+        if (text.Length == 0)
+        {
+            return 1;
+        }
+
+        var count = 1;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n')
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static Vector2 GetSourceEditorLinePoint(RichTextBox sourceEditor, int oneBasedLineNumber)
+    {
+        var lineHeight = UiTextRenderer.GetLineHeight(sourceEditor, sourceEditor.FontSize);
+        return new Vector2(
+            sourceEditor.LayoutSlot.X + 1f + 8f,
+            sourceEditor.LayoutSlot.Y + 1f + 5f + ((oneBasedLineNumber - 1) * lineHeight) + 2f);
+    }
+
+    private static void Click(UiRoot uiRoot, Vector2 pointer)
+    {
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true));
+    }
+
+    private static InputDelta CreatePointerDelta(Vector2 pointer, bool leftPressed = false, bool leftReleased = false)
+    {
+        return new InputDelta
+        {
+            Previous = new InputSnapshot(default, default, pointer),
+            Current = new InputSnapshot(default, default, pointer),
+            PressedKeys = new List<Keys>(),
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char>(),
+            PointerMoved = true,
+            WheelDelta = 0,
+            LeftPressed = leftPressed,
+            LeftReleased = leftReleased,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
+    }
+
+    private static InputDelta CreateKeyDownDelta(Keys key, Vector2 pointer)
+    {
+        return new InputDelta
+        {
+            Previous = new InputSnapshot(new KeyboardState(), default, pointer),
+            Current = new InputSnapshot(new KeyboardState(key), default, pointer),
+            PressedKeys = new List<Keys> { key },
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char>(),
+            PointerMoved = false,
+            WheelDelta = 0,
+            LeftPressed = false,
+            LeftReleased = false,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
+    }
     private static string GetLineNumberText(StackPanel panel, int index)
     {
         var container = Assert.IsType<Border>(panel.Children[index]);

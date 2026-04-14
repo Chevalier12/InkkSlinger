@@ -36,6 +36,12 @@ public interface IInkkOopsHost
 
     Task ReleasePointerAsync(Vector2 position, MouseButton button = MouseButton.Left, CancellationToken cancellationToken = default);
 
+    Task KeyDownAsync(Microsoft.Xna.Framework.Input.Keys key, CancellationToken cancellationToken = default);
+
+    Task KeyUpAsync(Microsoft.Xna.Framework.Input.Keys key, CancellationToken cancellationToken = default);
+
+    Task TextInputAsync(char character, CancellationToken cancellationToken = default);
+
     Task WheelAsync(int delta, CancellationToken cancellationToken = default);
 
     Task CaptureFrameAsync(string artifactName, CancellationToken cancellationToken = default);

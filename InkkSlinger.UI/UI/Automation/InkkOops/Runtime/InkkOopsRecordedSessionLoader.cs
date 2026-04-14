@@ -39,6 +39,24 @@ public static class InkkOopsRecordedSessionLoader
                 case InkkOopsInteractionRecorder.RecordedActionKind.Wheel:
                     builder.Wheel(action.WheelDelta ?? 0);
                     break;
+                case InkkOopsInteractionRecorder.RecordedActionKind.KeyDown:
+                    if (action.Key is not null)
+                    {
+                        builder.KeyDown(action.Key.Value);
+                    }
+                    break;
+                case InkkOopsInteractionRecorder.RecordedActionKind.KeyUp:
+                    if (action.Key is not null)
+                    {
+                        builder.KeyUp(action.Key.Value);
+                    }
+                    break;
+                case InkkOopsInteractionRecorder.RecordedActionKind.TextInput:
+                    if (action.Character is not null)
+                    {
+                        builder.TextInput(action.Character.Value);
+                    }
+                    break;
                 default:
                     throw new InvalidOperationException($"Unsupported recorded action kind '{action.Kind}'.");
             }
