@@ -278,7 +278,8 @@ public readonly record struct DocumentLayoutSettings(
     float ListIndent,
     float ListMarkerGap,
     float TableCellPadding,
-    float TableBorderThickness);
+    float TableBorderThickness,
+    bool ConstrainTablesToAvailableWidth = true);
 public sealed class DocumentLayoutEngine
 {
     private readonly Dictionary<UIElement, HostedMeasureCacheEntry> _hostedMeasureCache = [];
@@ -1487,7 +1488,9 @@ public sealed class DocumentLayoutEngine
                 }
             }
 
-            if (!float.IsInfinity(availableWidth) && availableWidth > 0f)
+            if (_settings.ConstrainTablesToAvailableWidth &&
+                !float.IsInfinity(availableWidth) &&
+                availableWidth > 0f)
             {
                 var total = 0f;
                 for (var i = 0; i < widths.Length; i++)

@@ -131,6 +131,13 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
             typeof(Track),
             new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty ShowLineButtonsProperty =
+        DependencyProperty.Register(
+            nameof(ShowLineButtons),
+            typeof(bool),
+            typeof(Track),
+            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange | FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty IsDirectionReversedProperty =
         DependencyProperty.Register(
             nameof(IsDirectionReversed),
@@ -416,6 +423,12 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
     {
         get => GetValue<bool>(IsViewportSizedThumbProperty);
         set => SetValue(IsViewportSizedThumbProperty, value);
+    }
+
+    public bool ShowLineButtons
+    {
+        get => GetValue<bool>(ShowLineButtonsProperty);
+        set => SetValue(ShowLineButtonsProperty, value);
     }
 
     public bool IsDirectionReversed
@@ -991,9 +1004,9 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
                     MathF.Max(GetCrossDesiredSize(decreaseButton, isVertical: true), GetCrossDesiredSize(increaseButton, isVertical: true)),
                     MathF.Max(GetCrossDesiredSize(thumb, isVertical: true), MathF.Max(ResolveTrackCrossLength(MathF.Max(GetCrossDesiredSize(thumb, isVertical: true), 12f)), 12f)));
                 var desiredHeight =
-                    ResolveDesiredButtonLength(decreaseButton, cross, isVertical: true) +
+                    ResolveDesiredButtonLength(decreaseButton, cross, isVertical: true, includeButton: ShowLineButtons) +
                     MathF.Max(thumbLength, ThumbMinLength) +
-                    ResolveDesiredButtonLength(increaseButton, cross, isVertical: true);
+                    ResolveDesiredButtonLength(increaseButton, cross, isVertical: true, includeButton: ShowLineButtons);
                 return new Vector2(MathF.Max(baseDesired.X, cross), MathF.Max(baseDesired.Y, desiredHeight));
             }
 
@@ -1002,9 +1015,9 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
                 MathF.Max(GetCrossDesiredSize(decreaseButton, isVertical: false), GetCrossDesiredSize(increaseButton, isVertical: false)),
                 MathF.Max(GetCrossDesiredSize(thumb, isVertical: false), MathF.Max(ResolveTrackCrossLength(MathF.Max(GetCrossDesiredSize(thumb, isVertical: false), 12f)), 12f)));
             var desiredWidth =
-                ResolveDesiredButtonLength(decreaseButton, horizontalCross, isVertical: false) +
+                ResolveDesiredButtonLength(decreaseButton, horizontalCross, isVertical: false, includeButton: ShowLineButtons) +
                 MathF.Max(thumbLength, ThumbMinLength) +
-                ResolveDesiredButtonLength(increaseButton, horizontalCross, isVertical: false);
+                ResolveDesiredButtonLength(increaseButton, horizontalCross, isVertical: false, includeButton: ShowLineButtons);
             return new Vector2(MathF.Max(baseDesired.X, desiredWidth), MathF.Max(baseDesired.Y, horizontalCross));
         }
         finally
@@ -1093,8 +1106,8 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         if (IsViewportSizedThumb)
         {
             IncrementAggregate(ref _diagArrangeVerticalViewportSizedThumbCount);
-            var decreaseLength = MathF.Min(slotHeight, ResolveArrangedButtonLength(decreaseButton, slotWidth, isVertical: true));
-            var increaseLength = MathF.Min(MathF.Max(0f, slotHeight - decreaseLength), ResolveArrangedButtonLength(increaseButton, slotWidth, isVertical: true));
+            var decreaseLength = MathF.Min(slotHeight, ResolveArrangedButtonLength(decreaseButton, slotWidth, isVertical: true, includeButton: ShowLineButtons));
+            var increaseLength = MathF.Min(MathF.Max(0f, slotHeight - decreaseLength), ResolveArrangedButtonLength(increaseButton, slotWidth, isVertical: true, includeButton: ShowLineButtons));
 
             ArrangePartIfNeeded(decreaseButton, new LayoutRect(slot.X, slot.Y, slotWidth, decreaseLength));
             ArrangePartIfNeeded(increaseButton, new LayoutRect(slot.X, slot.Y + slotHeight - increaseLength, slotWidth, increaseLength));
@@ -1158,8 +1171,8 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         if (IsViewportSizedThumb)
         {
             IncrementAggregate(ref _diagArrangeHorizontalViewportSizedThumbCount);
-            var decreaseLength = MathF.Min(slotWidth, ResolveArrangedButtonLength(decreaseButton, slotHeight, isVertical: false));
-            var increaseLength = MathF.Min(MathF.Max(0f, slotWidth - decreaseLength), ResolveArrangedButtonLength(increaseButton, slotHeight, isVertical: false));
+            var decreaseLength = MathF.Min(slotWidth, ResolveArrangedButtonLength(decreaseButton, slotHeight, isVertical: false, includeButton: ShowLineButtons));
+            var increaseLength = MathF.Min(MathF.Max(0f, slotWidth - decreaseLength), ResolveArrangedButtonLength(increaseButton, slotHeight, isVertical: false, includeButton: ShowLineButtons));
 
             ArrangePartIfNeeded(decreaseButton, new LayoutRect(slot.X, slot.Y, decreaseLength, slotHeight));
             ArrangePartIfNeeded(increaseButton, new LayoutRect(slot.X + slotWidth - increaseLength, slot.Y, increaseLength, slotHeight));
@@ -1295,9 +1308,9 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         return isVertical ? element.DesiredSize.X : element.DesiredSize.Y;
     }
 
-    private static float ResolveDesiredButtonLength(FrameworkElement? element, float crossAxisLength, bool isVertical)
+    private static float ResolveDesiredButtonLength(FrameworkElement? element, float crossAxisLength, bool isVertical, bool includeButton)
     {
-        if (element == null)
+        if (!includeButton || element == null)
         {
             return 0f;
         }
@@ -1307,9 +1320,9 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
             : MathF.Max(crossAxisLength, element.DesiredSize.X);
     }
 
-    private static float ResolveArrangedButtonLength(FrameworkElement? element, float crossAxisLength, bool isVertical)
+    private static float ResolveArrangedButtonLength(FrameworkElement? element, float crossAxisLength, bool isVertical, bool includeButton)
     {
-        if (element == null)
+        if (!includeButton || element == null)
         {
             return 0f;
         }
@@ -1330,7 +1343,7 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
             return element.Width;
         }
 
-        return ResolveDesiredButtonLength(element, crossAxisLength, isVertical);
+        return ResolveDesiredButtonLength(element, crossAxisLength, isVertical, includeButton: true);
     }
 
     private float ResolveThumbAxisLength()

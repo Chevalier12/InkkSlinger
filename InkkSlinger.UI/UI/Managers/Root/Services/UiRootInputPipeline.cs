@@ -3692,13 +3692,19 @@ public sealed partial class UiRoot
         return modifiers;
     }
 
-    private static bool TryHandleTextInputWheel(UIElement? element, int delta)
+        private bool TryHandleTextInputWheel(UIElement? element, int delta)
     {
-        return element switch
+            if (element is not ITextInputControl textInput)
         {
-            ITextInputControl textInput => textInput.HandleMouseWheelFromInput(delta),
-            _ => false
-        };
+                return false;
+            }
+
+            if (!ReferenceEquals(_inputState.FocusedElement, element))
+            {
+                SetFocus(element);
+            }
+
+            return textInput.HandleMouseWheelFromInput(delta);
     }
 
     private ReadOnlySpan<UIElement> GetInputAncestorChain(UIElement start)

@@ -300,6 +300,8 @@ public class ScrollViewer : ContentControl
     private static long _diagUpdateScrollBarsElapsedTicks;
     private const float DefaultLineScrollStep = 24f;
 
+    public event EventHandler? ViewportChanged;
+
     public ScrollViewer()
     {
         _horizontalBar = new ScrollBar { Orientation = Orientation.Horizontal };
@@ -323,6 +325,21 @@ public class ScrollViewer : ContentControl
     {
         get => GetValue<ScrollBarVisibility>(VerticalScrollBarVisibilityProperty);
         set => SetValue(VerticalScrollBarVisibilityProperty, value);
+    }
+
+    internal void SetInternalScrollBarLineButtonVisibility(bool showHorizontalLineButtons, bool showVerticalLineButtons)
+    {
+        var horizontalChanged = _horizontalBar.ShowLineButtons != showHorizontalLineButtons;
+        var verticalChanged = _verticalBar.ShowLineButtons != showVerticalLineButtons;
+        if (!horizontalChanged && !verticalChanged)
+        {
+            return;
+        }
+
+        _horizontalBar.ShowLineButtons = showHorizontalLineButtons;
+        _verticalBar.ShowLineButtons = showVerticalLineButtons;
+        InvalidateMeasure();
+        InvalidateArrange();
     }
 
     public float HorizontalOffset
@@ -1576,6 +1593,14 @@ public class ScrollViewer : ContentControl
 
         SetIfChanged(ViewportWidthProperty, CoerceViewportMetric(viewportWidth, previousViewportWidth, ExtentWidth), "scrollviewer_viewport_width_write_count");
         SetIfChanged(ViewportHeightProperty, CoerceViewportMetric(viewportHeight, previousViewportHeight, ExtentHeight), "scrollviewer_viewport_height_write_count");
+
+        if (MathF.Abs(previousExtentWidth - ExtentWidth) > 0.01f ||
+            MathF.Abs(previousExtentHeight - ExtentHeight) > 0.01f ||
+            MathF.Abs(previousViewportWidth - ViewportWidth) > 0.01f ||
+            MathF.Abs(previousViewportHeight - ViewportHeight) > 0.01f)
+        {
+            ViewportChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     internal bool HandleMouseWheelFromInput(int delta)
@@ -1689,6 +1714,7 @@ public class ScrollViewer : ContentControl
         _runtimeSetOffsetsWorkCount++;
         SetIfChanged(HorizontalOffsetProperty, nextHorizontal);
         SetIfChanged(VerticalOffsetProperty, nextVertical);
+        ViewportChanged?.Invoke(this, EventArgs.Empty);
 
         if (!NeedsMeasure &&
             !NeedsArrange)

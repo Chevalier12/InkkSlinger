@@ -306,6 +306,11 @@ public partial class RichTextBox
 
     private void DrawTableBorders(SpriteBatch spriteBatch, LayoutRect textRect, DocumentLayoutResult layout)
     {
+        DrawTableBorders(spriteBatch, textRect, layout, GetEffectiveHorizontalOffset(), GetEffectiveVerticalOffset());
+    }
+
+    private void DrawTableBorders(SpriteBatch spriteBatch, LayoutRect textRect, DocumentLayoutResult layout, float horizontalOffset, float verticalOffset)
+    {
         if (layout.TableCellBounds.Count == 0)
         {
             return;
@@ -318,7 +323,7 @@ public partial class RichTextBox
             var cell = layout.TableCellBounds[i];
             UiDrawing.DrawRectStroke(
                 spriteBatch,
-                new LayoutRect(textRect.X + cell.X - _horizontalOffset, textRect.Y + cell.Y - _verticalOffset, cell.Width, cell.Height),
+                new LayoutRect(textRect.X + cell.X - horizontalOffset, textRect.Y + cell.Y - verticalOffset, cell.Width, cell.Height),
                 stroke,
                 color);
         }

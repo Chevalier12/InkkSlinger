@@ -139,6 +139,22 @@ public class ScrollBar : RangeBase
                 },
                 coerceValueCallback: static (_, value) => value is float numeric && float.IsFinite(numeric) && numeric >= 0f ? numeric : 0f));
 
+    public static readonly DependencyProperty ShowLineButtonsProperty =
+        DependencyProperty.Register(
+            nameof(ShowLineButtons),
+            typeof(bool),
+            typeof(ScrollBar),
+            new FrameworkPropertyMetadata(
+                true,
+                FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange,
+                propertyChangedCallback: static (dependencyObject, _) =>
+                {
+                    if (dependencyObject is ScrollBar scrollBar)
+                    {
+                        scrollBar.SyncTrackState();
+                    }
+                }));
+
     public new static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(
             nameof(Background),
@@ -201,6 +217,12 @@ public class ScrollBar : RangeBase
     {
         get => GetValue<float>(ViewportSizeProperty);
         set => SetValue(ViewportSizeProperty, value);
+    }
+
+    public bool ShowLineButtons
+    {
+        get => GetValue<bool>(ShowLineButtonsProperty);
+        set => SetValue(ShowLineButtonsProperty, value);
     }
 
     public new Color Background
@@ -474,6 +496,7 @@ public class ScrollBar : RangeBase
         SetIfChanged(Track.MaximumProperty, _track, Maximum);
         SetIfChanged(Track.ValueProperty, _track, coercedValue);
         SetIfChanged(Track.ViewportSizeProperty, _track, ViewportSize);
+        SetIfChanged(Track.ShowLineButtonsProperty, _track, ShowLineButtons);
         RefreshTrackLayoutIfPossible();
         var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
         _runtimeSyncTrackStateElapsedTicks += elapsedTicks;

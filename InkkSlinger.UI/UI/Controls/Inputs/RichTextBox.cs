@@ -280,6 +280,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     public RichTextBox()
     {
+        _scrollContentPresenter = new RichTextBoxScrollContentPresenter(this);
         SetValue(DocumentProperty, CreateDefaultDocument());
         _lastDocumentRichness = CaptureDocumentRichness(Document);
         _undoManager.IsUndoEnabled = IsUndoEnabled;
@@ -741,12 +742,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     public void ScrollToHorizontalOffset(float offset)
     {
-        SetScrollOffsets(offset, _verticalOffset, "ScrollToHorizontalOffset");
+        SetScrollOffsets(offset, GetEffectiveVerticalOffset(), "ScrollToHorizontalOffset");
     }
 
     public void ScrollToVerticalOffset(float offset)
     {
-        SetScrollOffsets(_horizontalOffset, offset, "ScrollToVerticalOffset");
+        SetScrollOffsets(GetEffectiveHorizontalOffset(), offset, "ScrollToVerticalOffset");
     }
 
     public bool HandleTextInputFromInput(char character)
@@ -2120,6 +2121,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             return false;
         }
 
+        if (_contentHost != null)
+        {
+                return _contentHost.HandleMouseWheelFromInput(delta);
+        }
+
         return ScrollBy(0f, -MathF.Sign(delta) * (UiTextRenderer.GetLineHeight(this, FontSize) * 3f), "MouseWheelScroll");
     }
 
@@ -2338,17 +2344,6 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
-        var renderStartTicks = Stopwatch.GetTimestamp();
-        var layoutResolveMs = 0d;
-        var selectionMs = 0d;
-        var runsMs = 0d;
-        var runCount = 0;
-        var runCharacterCount = 0;
-        var tableBordersMs = 0d;
-        var caretMs = 0d;
-        var hostedLayoutMs = 0d;
-        var hostedChildrenDrawMs = 0d;
-        var hostedChildrenDrawCount = 0;
         var hasTemplateRoot = HasTemplateRoot;
         if (hasTemplateRoot)
         {
@@ -2363,6 +2358,33 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             }
         }
 
+        if (_contentHost != null)
+        {
+            var hostedTextRect = GetTextRect();
+            if (hostedTextRect.Width > 0f && hostedTextRect.Height > 0f)
+            {
+                var hostedLayout = BuildOrGetLayout(hostedTextRect.Width);
+                ClampScrollOffsets(hostedLayout, hostedTextRect);
+                EnsureHostedDocumentChildLayout(hostedTextRect, hostedLayout);
+                CaptureDirtyHint(hostedLayout, hostedTextRect);
+                _lastRenderedLayout = hostedLayout;
+            }
+
+            return;
+        }
+
+        var renderStartTicks = Stopwatch.GetTimestamp();
+        var layoutResolveMs = 0d;
+        var selectionMs = 0d;
+        var runsMs = 0d;
+        var runCount = 0;
+        var runCharacterCount = 0;
+        var tableBordersMs = 0d;
+        var caretMs = 0d;
+        var hostedLayoutMs = 0d;
+        var hostedChildrenDrawMs = 0d;
+        var hostedChildrenDrawCount = 0;
+
         var textRect = GetTextRect();
 
         var layoutResolveStart = Stopwatch.GetTimestamp();
@@ -2370,72 +2392,22 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         ClampScrollOffsets(layout, textRect);
         layoutResolveMs = Stopwatch.GetElapsedTime(layoutResolveStart).TotalMilliseconds;
 
-        UiDrawing.PushClip(spriteBatch, textRect);
-        try
-        {
-            var selectionStart = Stopwatch.GetTimestamp();
-            DrawSelection(spriteBatch, textRect, layout);
-            selectionMs = Stopwatch.GetElapsedTime(selectionStart).TotalMilliseconds;
-
-            var runsStart = Stopwatch.GetTimestamp();
-            for (var i = 0; i < layout.Runs.Count; i++)
-            {
-                var run = layout.Runs[i];
-                if (string.IsNullOrEmpty(run.Text))
-                {
-                    continue;
-                }
-
-                var color = ResolveRunColor(run.Style);
-                var position = new Vector2(textRect.X + run.Bounds.X - _horizontalOffset, textRect.Y + run.Bounds.Y - _verticalOffset);
-                if (position.Y + run.Bounds.Height < textRect.Y || position.Y > textRect.Y + textRect.Height)
-                {
-                    continue;
-                }
-
-                runCount++;
-                runCharacterCount += run.Text.Length;
-                DrawRunText(spriteBatch, run, position, color);
-
-                if (run.Style.IsUnderline)
-                {
-                    var underlineY = position.Y + run.Bounds.Height - 1f;
-                    UiDrawing.DrawFilledRect(
-                        spriteBatch,
-                        new LayoutRect(position.X, underlineY, Math.Max(1f, run.Bounds.Width), 1f),
-                        color * Opacity);
-                }
-            }
-            runsMs = Stopwatch.GetElapsedTime(runsStart).TotalMilliseconds;
-
-            var tableBordersStart = Stopwatch.GetTimestamp();
-            DrawTableBorders(spriteBatch, textRect, layout);
-            tableBordersMs = Stopwatch.GetElapsedTime(tableBordersStart).TotalMilliseconds;
-            if (IsFocused && _isCaretVisible && (!IsReadOnly || IsReadOnlyCaretVisible))
-            {
-                var caretStart = Stopwatch.GetTimestamp();
-                DrawCaret(spriteBatch, textRect, layout);
-                caretMs = Stopwatch.GetElapsedTime(caretStart).TotalMilliseconds;
-            }
-
-            if (hasTemplateRoot)
-            {
-                var hostedLayoutStart = Stopwatch.GetTimestamp();
-                EnsureHostedDocumentChildLayout(textRect, layout);
-                hostedLayoutMs = Stopwatch.GetElapsedTime(hostedLayoutStart).TotalMilliseconds;
-                var hostedChildrenDrawStart = Stopwatch.GetTimestamp();
-                if (_documentHostedVisualChildren.Count > 0)
-                {
-                    hostedChildrenDrawCount = _documentHostedVisualChildren.Count;
-                    _hostedDocumentVisualHost.Draw(spriteBatch);
-                }
-                hostedChildrenDrawMs = Stopwatch.GetElapsedTime(hostedChildrenDrawStart).TotalMilliseconds;
-            }
-        }
-        finally
-        {
-            UiDrawing.PopClip(spriteBatch);
-        }
+        RenderDocumentSurface(
+            spriteBatch,
+            textRect,
+            layout,
+            GetEffectiveHorizontalOffset(),
+            GetEffectiveVerticalOffset(),
+            includeHostedChildren: hasTemplateRoot,
+            out selectionMs,
+            out runsMs,
+            out runCount,
+            out runCharacterCount,
+            out tableBordersMs,
+            out caretMs,
+            out hostedLayoutMs,
+            out hostedChildrenDrawMs,
+            out hostedChildrenDrawCount);
 
         CaptureDirtyHint(layout, textRect);
         _lastRenderedLayout = layout;
@@ -2516,6 +2488,129 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         foreach (var child in base.GetVisualChildren())
         {
             child.Draw(spriteBatch);
+        }
+    }
+
+    private void RenderDocumentSurface(
+        SpriteBatch spriteBatch,
+        LayoutRect textRect,
+        DocumentLayoutResult layout,
+        float horizontalOffset,
+        float verticalOffset,
+        bool includeHostedChildren)
+    {
+        RenderDocumentSurface(
+            spriteBatch,
+            textRect,
+            layout,
+            horizontalOffset,
+            verticalOffset,
+            includeHostedChildren,
+            out _,
+            out _,
+            out _,
+            out _,
+            out _,
+            out _,
+            out _,
+            out _,
+            out _);
+    }
+
+    private void RenderDocumentSurface(
+        SpriteBatch spriteBatch,
+        LayoutRect textRect,
+        DocumentLayoutResult layout,
+        float horizontalOffset,
+        float verticalOffset,
+        bool includeHostedChildren,
+        out double selectionMs,
+        out double runsMs,
+        out int runCount,
+        out int runCharacterCount,
+        out double tableBordersMs,
+        out double caretMs,
+        out double hostedLayoutMs,
+        out double hostedChildrenDrawMs,
+        out int hostedChildrenDrawCount)
+    {
+        selectionMs = 0d;
+        runsMs = 0d;
+        runCount = 0;
+        runCharacterCount = 0;
+        tableBordersMs = 0d;
+        caretMs = 0d;
+        hostedLayoutMs = 0d;
+        hostedChildrenDrawMs = 0d;
+        hostedChildrenDrawCount = 0;
+
+        UiDrawing.PushClip(spriteBatch, textRect);
+        try
+        {
+            var selectionStart = Stopwatch.GetTimestamp();
+            DrawSelection(spriteBatch, textRect, layout, horizontalOffset, verticalOffset);
+            selectionMs = Stopwatch.GetElapsedTime(selectionStart).TotalMilliseconds;
+
+            var runsStart = Stopwatch.GetTimestamp();
+            for (var i = 0; i < layout.Runs.Count; i++)
+            {
+                var run = layout.Runs[i];
+                if (string.IsNullOrEmpty(run.Text))
+                {
+                    continue;
+                }
+
+                var color = ResolveRunColor(run.Style);
+                var position = new Vector2(textRect.X + run.Bounds.X - horizontalOffset, textRect.Y + run.Bounds.Y - verticalOffset);
+                if (position.Y + run.Bounds.Height < textRect.Y || position.Y > textRect.Y + textRect.Height)
+                {
+                    continue;
+                }
+
+                runCount++;
+                runCharacterCount += run.Text.Length;
+                DrawRunText(spriteBatch, run, position, color);
+
+                if (run.Style.IsUnderline)
+                {
+                    var underlineY = position.Y + run.Bounds.Height - 1f;
+                    UiDrawing.DrawFilledRect(
+                        spriteBatch,
+                        new LayoutRect(position.X, underlineY, Math.Max(1f, run.Bounds.Width), 1f),
+                        color * Opacity);
+                }
+            }
+
+            runsMs = Stopwatch.GetElapsedTime(runsStart).TotalMilliseconds;
+
+            var tableBordersStart = Stopwatch.GetTimestamp();
+            DrawTableBorders(spriteBatch, textRect, layout, horizontalOffset, verticalOffset);
+            tableBordersMs = Stopwatch.GetElapsedTime(tableBordersStart).TotalMilliseconds;
+            if (IsFocused && _isCaretVisible && (!IsReadOnly || IsReadOnlyCaretVisible))
+            {
+                var caretStart = Stopwatch.GetTimestamp();
+                DrawCaret(spriteBatch, textRect, layout, horizontalOffset, verticalOffset);
+                caretMs = Stopwatch.GetElapsedTime(caretStart).TotalMilliseconds;
+            }
+
+            if (includeHostedChildren)
+            {
+                var hostedLayoutStart = Stopwatch.GetTimestamp();
+                EnsureHostedDocumentChildLayout(textRect, layout);
+                hostedLayoutMs = Stopwatch.GetElapsedTime(hostedLayoutStart).TotalMilliseconds;
+                var hostedChildrenDrawStart = Stopwatch.GetTimestamp();
+                if (_documentHostedVisualChildren.Count > 0)
+                {
+                    hostedChildrenDrawCount = _documentHostedVisualChildren.Count;
+                    _hostedDocumentVisualHost.Draw(spriteBatch);
+                }
+
+                hostedChildrenDrawMs = Stopwatch.GetElapsedTime(hostedChildrenDrawStart).TotalMilliseconds;
+            }
+        }
+        finally
+        {
+            UiDrawing.PopClip(spriteBatch);
         }
     }
 
@@ -2762,7 +2857,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private bool ScrollBy(float horizontalDelta, float verticalDelta, string reason)
     {
-        return SetScrollOffsets(_horizontalOffset + horizontalDelta, _verticalOffset + verticalDelta, reason);
+        return SetScrollOffsets(GetEffectiveHorizontalOffset() + horizontalDelta, GetEffectiveVerticalOffset() + verticalDelta, reason);
     }
 
     private bool SetScrollOffsets(float horizontalOffset, float verticalOffset, string reason)
@@ -2770,14 +2865,27 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var metrics = GetScrollMetrics();
         var clampedHorizontal = Math.Clamp(horizontalOffset, 0f, metrics.ScrollableWidth);
         var clampedVertical = Math.Clamp(verticalOffset, 0f, metrics.ScrollableHeight);
-        if (Math.Abs(clampedHorizontal - _horizontalOffset) <= 0.01f &&
-            Math.Abs(clampedVertical - _verticalOffset) <= 0.01f)
+        var currentHorizontal = GetEffectiveHorizontalOffset();
+        var currentVertical = GetEffectiveVerticalOffset();
+        if (Math.Abs(clampedHorizontal - currentHorizontal) <= 0.01f &&
+            Math.Abs(clampedVertical - currentVertical) <= 0.01f)
         {
             return false;
         }
 
+        if (_contentHost != null && HasUsableContentHostMetrics())
+        {
+            _hasPendingContentHostScrollOffsets = false;
+            _contentHost.ScrollToHorizontalOffset(clampedHorizontal);
+            _contentHost.ScrollToVerticalOffset(clampedVertical);
+            NotifyViewportChangedIfNeeded();
+            EnsureHostedDocumentChildLayout();
+            return true;
+        }
+
         _horizontalOffset = clampedHorizontal;
         _verticalOffset = clampedVertical;
+        _hasPendingContentHostScrollOffsets = _contentHost != null;
         NotifyViewportChangedIfNeeded();
         InvalidateVisualWithReason(reason);
         return true;
@@ -2807,6 +2915,17 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private RichTextBoxScrollMetrics GetScrollMetrics()
     {
+        if (_contentHost != null && HasUsableContentHostMetrics())
+        {
+            return new RichTextBoxScrollMetrics(
+                _contentHost.HorizontalOffset,
+                _contentHost.VerticalOffset,
+                _contentHost.ViewportWidth,
+                _contentHost.ViewportHeight,
+                _contentHost.ExtentWidth,
+                _contentHost.ExtentHeight);
+        }
+
         var textRect = GetTextRect();
         if (textRect.Width <= 0f || textRect.Height <= 0f)
         {
@@ -4488,6 +4607,9 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             return;
         }
 
+        var horizontalOffset = GetEffectiveHorizontalOffset();
+        var verticalOffset = GetEffectiveVerticalOffset();
+
         var hostedLayoutChanged = !AreLayoutRectsEquivalent(_hostedDocumentVisualHost.LayoutSlot, textRect);
         _hostedDocumentVisualHost.SetLayoutSlot(textRect);
 
@@ -4495,8 +4617,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         {
             var placement = layout.HostedElements[i];
             var rect = new LayoutRect(
-                textRect.X + placement.Bounds.X - _horizontalOffset,
-                textRect.Y + placement.Bounds.Y - _verticalOffset,
+                textRect.X + placement.Bounds.X - horizontalOffset,
+                textRect.Y + placement.Bounds.Y - verticalOffset,
                 placement.Bounds.Width,
                 placement.Bounds.Height);
 
@@ -4748,13 +4870,18 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var layout = BuildOrGetLayout(textRect.Width);
         ClampScrollOffsets(layout, textRect);
         var hit = layout.HitTestOffset(new Vector2(
-            (point.X - textRect.X) + _horizontalOffset,
-            (point.Y - textRect.Y) + _verticalOffset));
+            (point.X - textRect.X) + GetEffectiveHorizontalOffset(),
+            (point.Y - textRect.Y) + GetEffectiveVerticalOffset()));
         _lastSelectionHitTestOffset = hit;
         return hit;
     }
 
     private void DrawCaret(SpriteBatch spriteBatch, LayoutRect textRect, DocumentLayoutResult layout)
+    {
+        DrawCaret(spriteBatch, textRect, layout, GetEffectiveHorizontalOffset(), GetEffectiveVerticalOffset());
+    }
+
+    private void DrawCaret(SpriteBatch spriteBatch, LayoutRect textRect, DocumentLayoutResult layout, float horizontalOffset, float verticalOffset)
     {
         if (!layout.TryGetCaretPosition(_caretIndex, out var caret))
         {
@@ -4762,7 +4889,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         }
 
         var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize));
-        var caretRect = new LayoutRect(textRect.X + caret.X - _horizontalOffset, textRect.Y + caret.Y - _verticalOffset, 1f, lineHeight);
+        var caretRect = new LayoutRect(textRect.X + caret.X - horizontalOffset, textRect.Y + caret.Y - verticalOffset, 1f, lineHeight);
         UiDrawing.DrawFilledRect(
             spriteBatch,
             caretRect,
@@ -4771,6 +4898,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     }
 
     private void DrawSelection(SpriteBatch spriteBatch, LayoutRect textRect, DocumentLayoutResult layout)
+    {
+        DrawSelection(spriteBatch, textRect, layout, GetEffectiveHorizontalOffset(), GetEffectiveVerticalOffset());
+    }
+
+    private void DrawSelection(SpriteBatch spriteBatch, LayoutRect textRect, DocumentLayoutResult layout, float horizontalOffset, float verticalOffset)
     {
         if (SelectionLength <= 0 || (!IsFocused && !IsInactiveSelectionHighlightEnabled))
         {
@@ -4784,13 +4916,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             var rect = rects[i];
             UiDrawing.DrawFilledRect(
                 spriteBatch,
-                new LayoutRect(textRect.X + rect.X - _horizontalOffset, textRect.Y + rect.Y - _verticalOffset, rect.Width, rect.Height),
+                new LayoutRect(textRect.X + rect.X - horizontalOffset, textRect.Y + rect.Y - verticalOffset, rect.Width, rect.Height),
                 SelectionBrush * (Opacity * SelectionOpacity));
         }
 
         var line = ResolveLineForOffset(layout, _caretIndex);
         var caretRect = layout.TryGetCaretPosition(_caretIndex, out var caret)
-            ? new LayoutRect(textRect.X + caret.X - _horizontalOffset, textRect.Y + caret.Y - _verticalOffset, 1f, Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize)))
+            ? new LayoutRect(textRect.X + caret.X - horizontalOffset, textRect.Y + caret.Y - verticalOffset, 1f, Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize)))
             : default;
         _perfTracker.RecordSelectionGeometry(Stopwatch.GetElapsedTime(selectionStartTicks).TotalMilliseconds);
     }
@@ -5938,7 +6070,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             ListIndent: lineHeight * 1.2f,
             ListMarkerGap: 4f,
             TableCellPadding: 4f,
-            TableBorderThickness: 1f);
+            TableBorderThickness: 1f,
+            ConstrainTablesToAvailableWidth: false);
         var built = _layoutEngine.Layout(Document, settings);
         _layoutCache.Store(key, built);
         var buildMs = Stopwatch.GetElapsedTime(buildStart).TotalMilliseconds;
@@ -6140,8 +6273,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         var local = new LayoutRect(minX, minY, Math.Max(1f, maxX - minX), Math.Max(1f, maxY - minY));
         var absolute = new LayoutRect(
-            textRect.X + local.X - _horizontalOffset,
-            textRect.Y + local.Y - _verticalOffset,
+            textRect.X + local.X - GetEffectiveHorizontalOffset(),
+            textRect.Y + local.Y - GetEffectiveVerticalOffset(),
             local.Width,
             local.Height);
         absolute = IntersectRect(ExpandRect(absolute, 2f), textRect);
@@ -6170,6 +6303,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private LayoutRect GetTextRect()
     {
+        if (_contentHost != null && _contentHost.TryGetContentViewportClipRect(out var clipRect))
+        {
+            return clipRect;
+        }
+
         return new LayoutRect(
             LayoutSlot.X + BorderThickness + Padding.Left,
             LayoutSlot.Y + BorderThickness + Padding.Top,

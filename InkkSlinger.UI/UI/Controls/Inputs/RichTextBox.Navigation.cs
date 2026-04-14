@@ -594,34 +594,39 @@ public partial class RichTextBox
 
         var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize));
         var changed = false;
-        var visibleX = caret.X - _horizontalOffset;
+        var nextHorizontalOffset = GetEffectiveHorizontalOffset();
+        var nextVerticalOffset = GetEffectiveVerticalOffset();
+        var visibleX = caret.X - nextHorizontalOffset;
         if (visibleX < 0f)
         {
-            _horizontalOffset = caret.X;
+            nextHorizontalOffset = caret.X;
             changed = true;
         }
         else if (visibleX > Math.Max(0f, textRect.Width - 2f))
         {
-            _horizontalOffset = Math.Max(0f, caret.X - textRect.Width + 2f);
+            nextHorizontalOffset = Math.Max(0f, caret.X - textRect.Width + 2f);
             changed = true;
         }
 
-        var visibleY = caret.Y - _verticalOffset;
+        var visibleY = caret.Y - nextVerticalOffset;
         if (visibleY < 0f)
         {
-            _verticalOffset = caret.Y;
+            nextVerticalOffset = caret.Y;
             changed = true;
         }
         else if (visibleY + lineHeight > textRect.Height)
         {
-            _verticalOffset = Math.Max(0f, caret.Y + lineHeight - textRect.Height);
+            nextVerticalOffset = Math.Max(0f, caret.Y + lineHeight - textRect.Height);
             changed = true;
         }
 
-        ClampScrollOffsets(layout, textRect);
         if (changed)
         {
-            InvalidateVisualWithReason("CaretBlink");
+            SetScrollOffsets(nextHorizontalOffset, nextVerticalOffset, "EnsureCaretVisible");
+        }
+        else
+        {
+            ClampScrollOffsets(layout, textRect);
         }
     }
 
@@ -629,8 +634,28 @@ public partial class RichTextBox
     {
         var maxX = Math.Max(0f, layout.ContentWidth - textRect.Width);
         var maxY = Math.Max(0f, layout.ContentHeight - textRect.Height);
-        _horizontalOffset = Math.Clamp(_horizontalOffset, 0f, maxX);
-        _verticalOffset = Math.Clamp(_verticalOffset, 0f, maxY);
+        if (_contentHost != null && HasUsableContentHostMetrics())
+        {
+            maxX = Math.Max(0f, _contentHost.ExtentWidth - _contentHost.ViewportWidth);
+            maxY = Math.Max(0f, _contentHost.ExtentHeight - _contentHost.ViewportHeight);
+        }
+
+        var nextHorizontalOffset = Math.Clamp(GetEffectiveHorizontalOffset(), 0f, maxX);
+        var nextVerticalOffset = Math.Clamp(GetEffectiveVerticalOffset(), 0f, maxY);
+        if (_contentHost != null)
+        {
+            if (Math.Abs(nextHorizontalOffset - _contentHost.HorizontalOffset) > 0.01f ||
+                Math.Abs(nextVerticalOffset - _contentHost.VerticalOffset) > 0.01f)
+            {
+                _contentHost.ScrollToHorizontalOffset(nextHorizontalOffset);
+                _contentHost.ScrollToVerticalOffset(nextVerticalOffset);
+            }
+
+            return;
+        }
+
+        _horizontalOffset = nextHorizontalOffset;
+        _verticalOffset = nextVerticalOffset;
     }
 
     private void SelectWordAt(int index)
@@ -718,35 +743,38 @@ public partial class RichTextBox
         var textRect = GetTextRect();
         var layout = BuildOrGetLayout(textRect.Width);
         var changed = false;
+        var nextHorizontalOffset = GetEffectiveHorizontalOffset();
+        var nextVerticalOffset = GetEffectiveVerticalOffset();
         if (pointer.Y < textRect.Y)
         {
-            _verticalOffset = Math.Max(0f, _verticalOffset - PointerAutoScrollStep);
+            nextVerticalOffset = Math.Max(0f, nextVerticalOffset - PointerAutoScrollStep);
             changed = true;
         }
         else if (pointer.Y > textRect.Y + textRect.Height)
         {
-            _verticalOffset += PointerAutoScrollStep;
+            nextVerticalOffset += PointerAutoScrollStep;
             changed = true;
         }
 
         if (pointer.X < textRect.X)
         {
-            _horizontalOffset = Math.Max(0f, _horizontalOffset - PointerAutoScrollStep);
+            nextHorizontalOffset = Math.Max(0f, nextHorizontalOffset - PointerAutoScrollStep);
             changed = true;
         }
         else if (pointer.X > textRect.X + textRect.Width)
         {
-            _horizontalOffset += PointerAutoScrollStep;
+            nextHorizontalOffset += PointerAutoScrollStep;
             changed = true;
         }
 
-        ClampScrollOffsets(layout, textRect);
+        nextHorizontalOffset = Math.Clamp(nextHorizontalOffset, 0f, Math.Max(0f, layout.ContentWidth - textRect.Width));
+        nextVerticalOffset = Math.Clamp(nextVerticalOffset, 0f, Math.Max(0f, layout.ContentHeight - textRect.Height));
         pointer = new Vector2(
             Math.Clamp(pointer.X, textRect.X, textRect.X + textRect.Width),
             Math.Clamp(pointer.Y, textRect.Y, textRect.Y + textRect.Height));
         if (changed)
         {
-            InvalidateVisual();
+            SetScrollOffsets(nextHorizontalOffset, nextVerticalOffset, "PointerAutoScroll");
         }
     }
 }
