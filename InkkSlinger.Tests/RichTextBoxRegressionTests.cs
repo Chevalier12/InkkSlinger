@@ -173,6 +173,22 @@ public sealed class RichTextBoxRegressionTests
     }
 
     [Fact]
+    public void TryGetCaretBounds_EmptyDocument_UsesVisibleTextViewportOrigin()
+    {
+        var editor = CreateEditor(320f, 90f, string.Empty);
+
+        Assert.True(editor.TryGetCaretBounds(out var caretBounds));
+
+        var expected = new LayoutRect(
+            editor.LayoutSlot.X + editor.BorderThickness + editor.Padding.Left,
+            editor.LayoutSlot.Y + editor.BorderThickness + editor.Padding.Top,
+            1f,
+            Math.Max(1f, UiTextRenderer.GetLineHeight(editor, editor.FontSize)));
+
+        AssertRectClose(expected, caretBounds);
+    }
+
+    [Fact]
     public void TabInput_CreatesTabStopWidthForCaretAndSelection()
     {
         var editor = CreateEditor(320f, 90f, string.Empty);
@@ -518,6 +534,14 @@ public sealed class RichTextBoxRegressionTests
         paragraph.Inlines.Add(new Run(text));
         cell.Blocks.Add(paragraph);
         return cell;
+    }
+
+    private static void AssertRectClose(LayoutRect expected, LayoutRect actual, int precision = 3)
+    {
+        Assert.Equal(expected.X, actual.X, precision);
+        Assert.Equal(expected.Y, actual.Y, precision);
+        Assert.Equal(expected.Width, actual.Width, precision);
+        Assert.Equal(expected.Height, actual.Height, precision);
     }
 
     private sealed class DocumentStructureSummary

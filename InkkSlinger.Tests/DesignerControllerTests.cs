@@ -695,6 +695,228 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditorCtrlSpaceAfterLessThan_OpensControlCompletionPopup()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(1, 0);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.Contains("Button", shell.SourceEditorView.ControlCompletionItems);
+        Assert.True(shell.SourceEditorView.ControlCompletionSelectedIndex >= 0);
+        Assert.True(shell.SourceEditorView.ControlCompletionBounds.Width > 0f);
+        Assert.True(shell.SourceEditorView.ControlCompletionBounds.Height > 0f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionAccept_InsertsFullElementAndPlacesCaretBetweenTags()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<But"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(4, 0);
+
+        Assert.True(shell.SourceEditorView.TryOpenControlCompletion());
+        Assert.True(shell.SourceEditorView.TryAcceptControlCompletion());
+
+        Assert.Equal("<Button></Button>", shell.SourceText);
+        Assert.Equal("<Button></Button>", NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(8, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+        Assert.False(shell.SourceEditorView.IsControlCompletionOpen);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionAccept_ReplacesPartialEmptyElementSkeleton()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<But></But>"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(4, 0);
+
+        Assert.True(shell.SourceEditorView.TryOpenControlCompletion());
+        Assert.True(shell.SourceEditorView.TryAcceptControlCompletion());
+
+        Assert.Equal("<Button></Button>", shell.SourceText);
+        Assert.Equal(8, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionClickAccept_InsertsSelectedElement()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<But"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(4, 0);
+
+        Assert.True(shell.SourceEditorView.TryOpenControlCompletion());
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var listBoxItem = FindDescendant<ListBoxItem>(shell, static item =>
+            item.Content is Label label && string.Equals(label.Content as string, "Button", StringComparison.Ordinal));
+
+        Click(uiRoot, GetCenter(listBoxItem.LayoutSlot));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal("<Button></Button>", shell.SourceText);
+        Assert.False(shell.SourceEditorView.IsControlCompletionOpen);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionEscape_DismissesPopup()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(1, 0);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Escape, clickPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.False(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.Equal("<", shell.SourceText);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletion_OutsideClickDismissesAndClearsState()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(1, 0);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.NotEmpty(shell.SourceEditorView.ControlCompletionItems);
+
+        Click(uiRoot, GetDiagnosticsTabHeaderPoint(Assert.IsType<TabControl>(shell.FindName("EditorTabControl"))));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.False(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.Empty(shell.SourceEditorView.ControlCompletionItems);
+        Assert.Equal(-1, shell.SourceEditorView.ControlCompletionSelectedIndex);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletion_InvalidClosingTagContext_DoesNotOpen()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "</"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(2, 0);
+
+        Assert.False(shell.SourceEditorView.TryOpenControlCompletion());
+        Assert.False(shell.SourceEditorView.IsControlCompletionOpen);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletion_ScrollRepositionsPopupWithCaret()
+    {
+        var source = NormalizeLineEndings(BuildLongSourceXml()).Replace(
+            "    <TextBlock Text=\"Line 20\" />",
+            "    <But",
+            StringComparison.Ordinal);
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var caretOffset = source.IndexOf("<But", StringComparison.Ordinal) + 4;
+        Assert.True(caretOffset >= 4);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(caretOffset, 0);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var lineHeight = UiTextRenderer.GetLineHeight(sourceEditor, sourceEditor.FontSize);
+        Assert.True(shell.SourceEditorView.TryOpenControlCompletion());
+        RunLayout(uiRoot, 1280, 840, 16);
+        var before = shell.SourceEditorView.ControlCompletionBounds;
+        var beforeMetrics = sourceEditor.GetScrollMetricsSnapshot();
+
+        sourceEditor.ScrollToVerticalOffset(beforeMetrics.VerticalOffset + (3f * lineHeight));
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+        var after = shell.SourceEditorView.ControlCompletionBounds;
+
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.NotEqual(before.Y, after.Y);
+    }
+
+    [Fact]
     public void ShellView_FileCommands_WireToolbarButtonsAndUseDocumentWorkflow()
     {
         var fileStore = new FakeDocumentFileStore();
@@ -1049,12 +1271,16 @@ public class DesignerControllerTests
         };
     }
 
-    private static InputDelta CreateKeyDownDelta(Keys key, Vector2 pointer)
+    private static InputDelta CreateKeyDownDelta(Keys key, Vector2 pointer, Keys[]? heldModifiers = null)
     {
+        var keyboard = heldModifiers == null || heldModifiers.Length == 0
+            ? new KeyboardState(key)
+            : new KeyboardState(heldModifiers.Concat([key]).ToArray());
+
         return new InputDelta
         {
-            Previous = new InputSnapshot(new KeyboardState(), default, pointer),
-            Current = new InputSnapshot(new KeyboardState(key), default, pointer),
+            Previous = new InputSnapshot(new KeyboardState(heldModifiers ?? Array.Empty<Keys>()), default, pointer),
+            Current = new InputSnapshot(keyboard, default, pointer),
             PressedKeys = new List<Keys> { key },
             ReleasedKeys = new List<Keys>(),
             TextInput = new List<char>(),

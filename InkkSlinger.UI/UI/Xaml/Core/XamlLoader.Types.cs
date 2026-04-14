@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Xml.Linq;
 using Microsoft.Xna.Framework;
@@ -8,6 +9,33 @@ namespace InkkSlinger;
 
 public static partial class XamlLoader
 {
+    public static IReadOnlyList<XamlKnownTypeInfo> GetKnownTypes()
+    {
+        var result = new List<XamlKnownTypeInfo>();
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var pair in TypeByName.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+        {
+            if (seenNames.Add(pair.Key))
+            {
+                result.Add(new XamlKnownTypeInfo(pair.Key, pair.Value));
+            }
+        }
+
+        foreach (var assembly in EnumerateSupplementalResolutionAssemblies())
+        {
+            foreach (var pair in GetSupplementalTypeMap(assembly).OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+            {
+                if (seenNames.Add(pair.Key))
+                {
+                    result.Add(new XamlKnownTypeInfo(pair.Key, pair.Value));
+                }
+            }
+        }
+
+        return result;
+    }
+
     private static Type ResolveTypeReference(string rawValue)
     {
         var trimmed = rawValue.Trim();
@@ -242,3 +270,5 @@ public static partial class XamlLoader
 
 
 }
+
+public readonly record struct XamlKnownTypeInfo(string Name, Type Type);

@@ -98,6 +98,44 @@ public sealed class RichTextBoxScrollHostTests
     }
 
     [Fact]
+    public void TryGetCaretBounds_HostedScrollViewport_UsesViewportOffsets()
+    {
+        const string text = "line00\nline01\nline02\nline03\nline04 abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz\nline05\nline06";
+        var (uiRoot, editor, contentHost) = CreateUiRootEditorFixture(
+            180f,
+            76f,
+            text,
+            static editor =>
+            {
+                editor.TextWrapping = TextWrapping.NoWrap;
+                editor.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
+                editor.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+            });
+
+        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(editor, editor.FontSize));
+        var caretIndex = text.IndexOf("abcdefghijkl", System.StringComparison.Ordinal) + 12;
+        editor.Select(caretIndex, 0);
+        editor.ScrollToHorizontalOffset(56f);
+        editor.ScrollToVerticalOffset(lineHeight * 3f);
+        RunLayout(uiRoot, 220, 116, 32);
+
+        Assert.True(contentHost.TryGetContentViewportClipRect(out var textRect));
+
+        var layout = Layout(editor, textRect.Width);
+        Assert.True(layout.TryGetCaretPosition(editor.CaretIndex, out var caretPosition));
+
+        var expected = new LayoutRect(
+            textRect.X + caretPosition.X - editor.HorizontalOffset,
+            textRect.Y + caretPosition.Y - editor.VerticalOffset,
+            1f,
+            lineHeight);
+        expected = IntersectRect(expected, textRect);
+
+        Assert.True(editor.TryGetCaretBounds(out var actual));
+        AssertRectClose(expected, actual);
+    }
+
+    [Fact]
     public void HandleMouseWheelFromInput_DelegatesToTemplateScrollHost()
     {
         var editor = CreateLaidOutEditor(140f, 80f, string.Join("\n", Enumerable.Range(1, 40).Select(static i => $"Line {i}")));
@@ -457,6 +495,39 @@ public sealed class RichTextBoxScrollHostTests
     private static string FormatRect(LayoutRect rect)
     {
         return $"({rect.X:0.###},{rect.Y:0.###},{rect.Width:0.###},{rect.Height:0.###})";
+    }
+
+    private static DocumentLayoutResult Layout(RichTextBox editor, float availableWidth)
+    {
+        var typography = UiTextRenderer.ResolveTypography(editor, editor.FontSize);
+        var settings = new DocumentLayoutSettings(
+            AvailableWidth: availableWidth,
+            Typography: typography,
+            Wrapping: editor.TextWrapping,
+            Foreground: Color.White,
+            LineHeight: Math.Max(1f, UiTextRenderer.GetLineHeight(typography)),
+            ListIndent: 16f,
+            ListMarkerGap: 4f,
+            TableCellPadding: 4f,
+            TableBorderThickness: 1f);
+        return new DocumentLayoutEngine().Layout(editor.Document, settings);
+    }
+
+    private static LayoutRect IntersectRect(LayoutRect left, LayoutRect right)
+    {
+        var x = MathF.Max(left.X, right.X);
+        var y = MathF.Max(left.Y, right.Y);
+        var rightEdge = MathF.Min(left.X + left.Width, right.X + right.Width);
+        var bottomEdge = MathF.Min(left.Y + left.Height, right.Y + right.Height);
+        return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
+    }
+
+    private static void AssertRectClose(LayoutRect expected, LayoutRect actual, int precision = 3)
+    {
+        Assert.Equal(expected.X, actual.X, precision);
+        Assert.Equal(expected.Y, actual.Y, precision);
+        Assert.Equal(expected.Width, actual.Width, precision);
+        Assert.Equal(expected.Height, actual.Height, precision);
     }
 
     private static TElement? FindNamedVisualChild<TElement>(UIElement root, string name)

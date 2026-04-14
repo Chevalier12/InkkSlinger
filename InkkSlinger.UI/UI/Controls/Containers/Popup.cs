@@ -371,6 +371,28 @@ public class Popup : ContentControl
         Open(host);
     }
 
+    public bool TrySetRootSpacePosition(float left, float top)
+    {
+        Dispatcher.VerifyAccess();
+        if (_host == null)
+        {
+            return false;
+        }
+
+        var hostOrigin = ResolveRenderedOrigin(_host);
+        var hostRelativeLeft = left - hostOrigin.X;
+        var hostRelativeTop = top - hostOrigin.Y;
+        if (MathF.Abs(hostRelativeLeft - Left) < 0.001f &&
+            MathF.Abs(hostRelativeTop - Top) < 0.001f)
+        {
+            return true;
+        }
+
+        Left = hostRelativeLeft;
+        Top = hostRelativeTop;
+        return true;
+    }
+
     public void Close()
     {
         Dispatcher.VerifyAccess();

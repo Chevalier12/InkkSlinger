@@ -689,6 +689,35 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         return CreateTextPointer(offset);
     }
 
+    /// <summary>
+    /// Gets the caret's rendered bounds in root-space coordinates, clipped to the visible text viewport.
+    /// </summary>
+    public bool TryGetCaretBounds(out LayoutRect bounds)
+    {
+        bounds = default;
+
+        var textRect = GetTextRect();
+        if (textRect.Width <= 0f || textRect.Height <= 0f)
+        {
+            return false;
+        }
+
+        var layout = BuildOrGetLayout(textRect.Width);
+        ClampScrollOffsets(layout, textRect);
+        if (!TryGetCaretRenderRect(textRect, layout, GetEffectiveHorizontalOffset(), GetEffectiveVerticalOffset(), out var caretRect))
+        {
+            return false;
+        }
+
+        if (TryProjectRectToRootSpace(caretRect, out var rootSpaceBounds))
+        {
+            caretRect = rootSpaceBounds;
+        }
+
+        bounds = NormalizeRect(caretRect);
+        return bounds.Width > 0f && bounds.Height > 0f;
+    }
+
     public void LineUp()
     {
         ScrollBy(0f, -UiTextRenderer.GetLineHeight(this, FontSize), "LineUp");
@@ -4887,13 +4916,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private void DrawCaret(SpriteBatch spriteBatch, LayoutRect textRect, DocumentLayoutResult layout, float horizontalOffset, float verticalOffset)
     {
-        if (!layout.TryGetCaretPosition(_caretIndex, out var caret))
+        if (!TryGetCaretRenderRect(textRect, layout, horizontalOffset, verticalOffset, out var caretRect))
         {
             return;
         }
 
-        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize));
-        var caretRect = new LayoutRect(textRect.X + caret.X - horizontalOffset, textRect.Y + caret.Y - verticalOffset, 1f, lineHeight);
         UiDrawing.DrawFilledRect(
             spriteBatch,
             caretRect,
@@ -4929,6 +4956,34 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             ? new LayoutRect(textRect.X + caret.X - horizontalOffset, textRect.Y + caret.Y - verticalOffset, 1f, Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize)))
             : default;
         _perfTracker.RecordSelectionGeometry(Stopwatch.GetElapsedTime(selectionStartTicks).TotalMilliseconds);
+    }
+
+    private bool TryGetCaretRenderRect(
+        LayoutRect textRect,
+        DocumentLayoutResult layout,
+        float horizontalOffset,
+        float verticalOffset,
+        out LayoutRect caretRect)
+    {
+        caretRect = default;
+        if (textRect.Width <= 0f || textRect.Height <= 0f)
+        {
+            return false;
+        }
+
+        if (!layout.TryGetCaretPosition(_caretIndex, out var caret))
+        {
+            return false;
+        }
+
+        var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(this, FontSize));
+        var rawRect = new LayoutRect(
+            textRect.X + caret.X - horizontalOffset,
+            textRect.Y + caret.Y - verticalOffset,
+            1f,
+            lineHeight);
+        caretRect = IntersectRect(rawRect, textRect);
+        return caretRect.Width > 0f && caretRect.Height > 0f;
     }
 
     private void DrawRunText(SpriteBatch spriteBatch, DocumentLayoutRun run, Vector2 position, Color baseColor)
