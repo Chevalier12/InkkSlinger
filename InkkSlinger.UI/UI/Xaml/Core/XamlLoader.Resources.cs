@@ -149,7 +149,7 @@ public static partial class XamlLoader
                     continue;
                 }
 
-                if (TryAttachEventHandler(target, localName, value, codeBehind))
+                if (TryQueueEventHandlerAttachment(target, localName, value, codeBehind, element, attribute))
                 {
                     continue;
                 }

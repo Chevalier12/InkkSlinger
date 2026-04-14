@@ -229,6 +229,96 @@ public class UserControl
         Assert.Contains("XNAME042", ids);
     }
 
+        [Fact]
+        public void UserControlResources_WithStyleSettersAndTriggers_DoesNotReportXName042()
+        {
+                const string source = """
+namespace InkkSlinger;
+
+public partial class SampleView : UserControl
+{
+}
+
+public class UserControl
+{
+}
+
+public class Button : UserControl
+{
+        public bool IsMouseOver { get; set; }
+        public bool IsPressed { get; set; }
+        public bool IsFocused { get; set; }
+        public bool IsEnabled { get; set; }
+        public object? Background { get; set; }
+        public object? BorderBrush { get; set; }
+        public object? BorderThickness { get; set; }
+        public object? Padding { get; set; }
+        public object? HorizontalContentAlignment { get; set; }
+        public object? VerticalContentAlignment { get; set; }
+        public object? Cursor { get; set; }
+        public object? Template { get; set; }
+}
+
+public class Border : UserControl
+{
+        public object? Background { get; set; }
+        public object? BorderBrush { get; set; }
+        public object? BorderThickness { get; set; }
+        public object? CornerRadius { get; set; }
+        public object? Padding { get; set; }
+}
+
+public class ContentPresenter : UserControl
+{
+        public object? HorizontalAlignment { get; set; }
+        public object? VerticalAlignment { get; set; }
+}
+""";
+
+                const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         x:Class="InkkSlinger.SampleView">
+    <UserControl.Resources>
+        <Style x:Key="DiagnosticCardButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="HoverChrome"
+                                        Background="Transparent"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="1"
+                                        CornerRadius="7"
+                                        Padding="1">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HoverChrome" Property="Background" Value="#132131" />
+                                <Setter TargetName="HoverChrome" Property="BorderBrush" Value="#294866" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+</UserControl>
+""";
+
+                var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
+                var ids = result.Results.Single().Diagnostics.Select(static d => d.Id).ToImmutableHashSet(StringComparer.Ordinal);
+                Assert.DoesNotContain("XNAME042", ids);
+        }
+
     [Fact]
     public void ReportsDiagnostic_WhenClassModifierDoesNotMatchOwnerAccessibility()
     {

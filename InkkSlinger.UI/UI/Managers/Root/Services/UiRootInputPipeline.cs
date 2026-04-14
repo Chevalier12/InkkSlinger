@@ -2247,7 +2247,7 @@ public sealed partial class UiRoot
 
         if (hovered is ITextInputControl or
             ListBox or ListView or DataGrid or
-            MenuItem or ComboBoxItem or TabItem)
+            MenuItem or ComboBoxItem)
         {
             return true;
         }

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
+using System.Xml;
 using Microsoft.Xna.Framework;
 using InkkSlinger;
 
@@ -37,8 +39,32 @@ public sealed record DesignerDiagnosticEntry(
             : string.Create(CultureInfo.InvariantCulture, $"{ElementName}.{PropertyName}"));
 
     public string LocationText => Line.HasValue
-        ? string.Create(CultureInfo.InvariantCulture, $"Line {Line}, Col {Position ?? 1}")
+        ? string.Create(CultureInfo.InvariantCulture, $"Line {Line}")
         : "No location";
+
+    public string CodeText => Code.ToString();
+
+    public bool IsNavigable => Line.HasValue;
+
+    public Color SeverityColor => Level == DesignerDiagnosticLevel.Warning
+        ? new Color(255, 205, 96)
+        : new Color(255, 110, 90);
+
+    public Color SeverityMutedColor => Level == DesignerDiagnosticLevel.Warning
+        ? new Color(120, 90, 20)
+        : new Color(110, 40, 30);
+
+    public float CardOpacity => IsNavigable ? 1f : 0.82f;
+
+    public string CursorText => IsNavigable ? "Hand" : "Arrow";
+
+    public Visibility TargetVisibility => string.IsNullOrWhiteSpace(ElementName) && string.IsNullOrWhiteSpace(PropertyName)
+        ? Visibility.Collapsed
+        : Visibility.Visible;
+
+    public Visibility HintVisibility => string.IsNullOrWhiteSpace(Hint)
+        ? Visibility.Collapsed
+        : Visibility.Visible;
 }
 
 public sealed record DesignerVisualNode(
@@ -60,6 +86,16 @@ public sealed record DesignerInspectorModel(string Header, IReadOnlyList<Designe
 
 public sealed class DesignerController
 {
+    private static readonly Regex DiagnosticLinePattern = new(
+        @"\bLine\s+(?<line>\d+)(?:,\s*(?:Col|Column|Position)\s+(?<position>\d+))?",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex InlineLinePattern = new(
+        @"\s*\(Line\s+\d+(?:,\s*(?:Col|Column|Position)\s+\d+)?\)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex DiagnosticContextPattern = new(
+        @"\s*\[Diagnostic:\s*.*?\]",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
     private static readonly string[] PreferredInspectorPropertyNames =
     [
         nameof(FrameworkElement.Width),
@@ -144,6 +180,7 @@ public sealed class DesignerController
         }
         catch (Exception ex)
         {
+            var exceptionLocation = GetExceptionLocation(ex);
             PreviewRoot = null;
             PreviewFailureMessage = ex.Message;
             PreviewState = DesignerPreviewState.Error;
@@ -152,18 +189,22 @@ public sealed class DesignerController
             Inspector = DesignerInspectorModel.Empty;
             _elementsByNodeId.Clear();
 
-            var mappedDiagnostics = new List<DesignerDiagnosticEntry>(MapDiagnostics(capturedDiagnostics));
+            var mappedDiagnostics = EnrichDiagnosticsWithExceptionLocation(
+                new List<DesignerDiagnosticEntry>(MapDiagnostics(capturedDiagnostics)),
+                ex,
+                exceptionLocation.Line,
+                exceptionLocation.Position);
             if (mappedDiagnostics.Count == 0)
             {
                 mappedDiagnostics.Add(
                     new DesignerDiagnosticEntry(
                         DesignerDiagnosticLevel.Error,
                         XamlDiagnosticCode.GeneralFailure,
-                        ex.Message,
+                        SanitizeDiagnosticMessage(ex.Message),
                         null,
                         null,
-                        null,
-                        null,
+                        exceptionLocation.Line,
+                        exceptionLocation.Position,
                         null));
             }
 
@@ -242,7 +283,7 @@ public sealed class DesignerController
                 diagnostic => new DesignerDiagnosticEntry(
                     MapDiagnosticLevel(diagnostic),
                     diagnostic.Code,
-                    diagnostic.Message,
+                    SanitizeDiagnosticMessage(diagnostic.Message),
                     diagnostic.ElementName,
                     diagnostic.PropertyName,
                     diagnostic.Line,
@@ -270,6 +311,110 @@ public sealed class DesignerController
         return string.IsNullOrWhiteSpace(elementName)
             ? typeName
             : string.Create(CultureInfo.InvariantCulture, $"{elementName} : {typeName}");
+    }
+
+    private static List<DesignerDiagnosticEntry> EnrichDiagnosticsWithExceptionLocation(
+        List<DesignerDiagnosticEntry> diagnostics,
+        Exception exception,
+        int? line,
+        int? position)
+    {
+        if (!line.HasValue)
+        {
+            return diagnostics;
+        }
+
+        var updatedAny = false;
+        for (var i = 0; i < diagnostics.Count; i++)
+        {
+            var diagnostic = diagnostics[i];
+            if (diagnostic.Line.HasValue)
+            {
+                continue;
+            }
+
+            if (diagnostic.Code != XamlDiagnosticCode.GeneralFailure &&
+                !string.Equals(diagnostic.Message, exception.Message, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            diagnostics[i] = diagnostic with
+            {
+                Line = line,
+                Position = diagnostic.Position ?? position
+            };
+            updatedAny = true;
+        }
+
+        return diagnostics;
+    }
+
+    private static string SanitizeDiagnosticMessage(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return string.Empty;
+        }
+
+        var sanitized = DiagnosticContextPattern.Replace(message, string.Empty);
+        sanitized = InlineLinePattern.Replace(sanitized, string.Empty);
+        return sanitized.Trim();
+    }
+
+    private static (int? Line, int? Position) GetExceptionLocation(Exception exception)
+    {
+        for (var current = exception; current != null; current = current.InnerException)
+        {
+            if (current is XmlException xmlException && xmlException.LineNumber > 0)
+            {
+                return (xmlException.LineNumber, xmlException.LinePosition > 0 ? xmlException.LinePosition : 1);
+            }
+
+            if (TryParseLineAndPosition(current.Message, out var line, out var position))
+            {
+                return (line, position);
+            }
+        }
+
+        return (null, null);
+    }
+
+    private static bool TryParseLineAndPosition(string? message, out int? line, out int? position)
+    {
+        line = null;
+        position = null;
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var match = DiagnosticLinePattern.Match(message);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(match.Groups["line"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedLine) ||
+            parsedLine <= 0)
+        {
+            return false;
+        }
+
+        line = parsedLine;
+        if (match.Groups["position"].Success &&
+            int.TryParse(match.Groups["position"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedPosition) &&
+            parsedPosition > 0)
+        {
+            position = parsedPosition;
+        }
+        else
+        {
+            position = 1;
+        }
+
+        return true;
     }
 
     private static IReadOnlyList<DesignerInspectorProperty> BuildDependencyPropertyInspectorRows(UIElement element)

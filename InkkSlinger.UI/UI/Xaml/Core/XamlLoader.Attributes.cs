@@ -56,6 +56,78 @@ public static partial class XamlLoader
             return false;
         }
 
+        AttachEventHandler(target, eventInfo, eventName, handlerName, codeBehind);
+        return true;
+    }
+
+
+    private static bool TryQueueEventHandlerAttachment(
+        object target,
+        string eventName,
+        string handlerName,
+        object? codeBehind,
+        XElement element,
+        XAttribute attribute)
+    {
+        var eventInfo = XamlTypeResolver.GetEvent(target.GetType(), eventName);
+        if (eventInfo == null)
+        {
+            return false;
+        }
+
+        QueueDeferredFinalizeAction(() =>
+        {
+            try
+            {
+                AttachEventHandler(target, eventInfo, eventName, handlerName, codeBehind);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or FormatException)
+            {
+                var diagnosticCode = ex switch
+                {
+                    FormatException => XamlDiagnosticCode.InvalidValue,
+                    ArgumentException => XamlDiagnosticCode.InvalidValue,
+                    _ when ex.Message.Contains("not supported", StringComparison.OrdinalIgnoreCase) =>
+                        XamlDiagnosticCode.UnsupportedConstruct,
+                    _ when ex.Message.Contains("was not found on type", StringComparison.OrdinalIgnoreCase) =>
+                        XamlDiagnosticCode.UnknownProperty,
+                    _ => XamlDiagnosticCode.GeneralFailure
+                };
+
+                var hint = diagnosticCode switch
+                {
+                    XamlDiagnosticCode.UnknownProperty =>
+                        $"Verify that '{attribute.Name.LocalName}' is a valid property on '{element.Name.LocalName}'.",
+                    XamlDiagnosticCode.InvalidValue =>
+                        $"Check the value assigned to '{attribute.Name.LocalName}' and ensure it can be converted.",
+                    XamlDiagnosticCode.UnsupportedConstruct =>
+                        $"'{attribute.Name.LocalName}' uses a construct that is not supported by this loader.",
+                    _ => null
+                };
+
+                throw CreateXamlException(
+                    $"Failed to apply attribute '{attribute.Name.LocalName}' on '{element.Name.LocalName}': {ex.Message}",
+                    attribute,
+                    ex,
+                    diagnosticCode,
+                    propertyName: attribute.Name.LocalName,
+                    hint: hint,
+                    elementName: element.Name.LocalName);
+            }
+        });
+
+        return true;
+    }
+
+
+    private static void AttachEventHandler(
+        object target,
+        EventInfo eventInfo,
+        string eventName,
+        string handlerName,
+        object? codeBehind)
+    {
+
         if (codeBehind == null)
         {
             throw new InvalidOperationException(
@@ -66,7 +138,6 @@ public static partial class XamlLoader
 
         var delegateInstance = Delegate.CreateDelegate(eventInfo.EventHandlerType!, codeBehind, method);
         eventInfo.AddEventHandler(target, delegateInstance);
-        return true;
     }
 
 

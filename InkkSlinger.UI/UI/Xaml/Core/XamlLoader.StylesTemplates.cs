@@ -333,7 +333,14 @@ public static partial class XamlLoader
             }
 
             var built = RunWithinIsolatedTemplateInstantiationScope(() =>
-                BuildElement(rootVisual, null, scope ?? resourceScope));
+            {
+                UIElement builtVisual = null!;
+                RunWithinDeferredFinalizeActions(() =>
+                {
+                    builtVisual = BuildElement(rootVisual, null, scope ?? resourceScope);
+                });
+                return builtVisual;
+            });
             if (built is FrameworkElement elementRoot)
             {
                 elementRoot.DataContext = item;
@@ -380,7 +387,14 @@ public static partial class XamlLoader
         return new ItemsPanelTemplate(owner =>
         {
             var built = RunWithinIsolatedTemplateInstantiationScope(() =>
-                BuildElement(templatePanelRoot, codeBehind, owner ?? resourceScope));
+            {
+                UIElement builtPanel = null!;
+                RunWithinDeferredFinalizeActions(() =>
+                {
+                    builtPanel = BuildElement(templatePanelRoot, codeBehind, owner ?? resourceScope);
+                });
+                return builtPanel;
+            });
             if (built is Panel panel)
             {
                 return panel;
@@ -440,7 +454,14 @@ public static partial class XamlLoader
         var template = new ControlTemplate(owner =>
         {
             var built = RunWithinIsolatedTemplateInstantiationScope(() =>
-                BuildElement(templateVisualRoot, null, owner));
+            {
+                UIElement builtVisual = null!;
+                RunWithinDeferredFinalizeActions(() =>
+                {
+                    builtVisual = BuildElement(templateVisualRoot, null, owner);
+                });
+                return builtVisual;
+            });
             if (built is FrameworkElement templateRoot && visualStateGroupElements.Count > 0)
             {
                 VisualStateManager.SetVisualStateGroups(

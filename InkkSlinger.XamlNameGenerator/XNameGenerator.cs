@@ -831,6 +831,11 @@ public sealed class XNameGenerator : IIncrementalGenerator
                         continue;
                     }
 
+                    if (ShouldSkipEventLikeAttributeValidation(element))
+                    {
+                        continue;
+                    }
+
                     var localName = attribute.Name.LocalName;
                     if (localName.IndexOf('.') >= 0 ||
                         string.Equals(localName, "Name", StringComparison.Ordinal))
@@ -889,6 +894,30 @@ public sealed class XNameGenerator : IIncrementalGenerator
                     DiagnosticSeverity.Warning,
                     CreateLocation(file.Path, text, 1, 1)));
         }
+    }
+
+    private static bool ShouldSkipEventLikeAttributeValidation(XElement element)
+    {
+        return element.Name.LocalName switch
+        {
+            "Style" => true,
+            "Setter" => true,
+            "EventSetter" => true,
+            "Trigger" => true,
+            "MultiTrigger" => true,
+            "DataTrigger" => true,
+            "MultiDataTrigger" => true,
+            "EventTrigger" => true,
+            "Condition" => true,
+            "ControlTemplate" => true,
+            "DataTemplate" => true,
+            "ItemsPanelTemplate" => true,
+            "Binding" => true,
+            "MultiBinding" => true,
+            "PriorityBinding" => true,
+            "BindingGroup" => true,
+            _ => false
+        };
     }
 
     private static Diagnostic CreateDiagnostic(

@@ -8,6 +8,108 @@
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
              Background="#0B0F14">
+  <UserControl.Resources>
+    <Style x:Key="DiagnosticCardButtonStyle" TargetType="{x:Type Button}">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Stretch" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type Button}">
+            <Border x:Name="HoverChrome"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="7"
+                    Padding="1">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="#132131" />
+          <Setter Property="BorderBrush" Value="#294866" />
+        </Trigger>
+        <Trigger Property="IsPressed" Value="True">
+          <Setter Property="Background" Value="#1A2B40" />
+          <Setter Property="BorderBrush" Value="#3A648A" />
+        </Trigger>
+        <Trigger Property="IsFocused" Value="True">
+          <Setter Property="BorderBrush" Value="#4C89BC" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <DataTemplate x:Key="DiagnosticCardTemplate">
+      <Button Style="{StaticResource DiagnosticCardButtonStyle}"
+              Background="Transparent"
+              BorderBrush="Transparent"
+              BorderThickness="0"
+              Padding="0"
+              Margin="0,0,0,10"
+              HorizontalContentAlignment="Stretch"
+              VerticalContentAlignment="Stretch"
+              Cursor="{Binding Path=CursorText}"
+              Command="{Binding Path=DataContext.NavigateToDiagnosticCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
+              CommandParameter="{Binding}">
+        <Border Background="#0B111A"
+                BorderBrush="{Binding Path=SeverityColor}"
+                BorderThickness="2,0,0,0"
+                CornerRadius="0,5,5,0"
+                Padding="12,10,12,10"
+                Opacity="{Binding Path=CardOpacity}">
+          <StackPanel>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="0"
+                         Text="{Binding Path=CodeText}"
+                         Foreground="{Binding Path=SeverityColor}"
+                         FontSize="12"
+                         VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1"
+                         Text="{Binding Path=LocationText}"
+                         Foreground="#4A6880"
+                         FontSize="11"
+                         VerticalAlignment="Center"
+                         HorizontalAlignment="Right" />
+            </Grid>
+            <Border Background="{Binding Path=SeverityMutedColor}"
+                    Height="1"
+                    Margin="0,7,0,7" />
+            <TextBlock Text="{Binding Path=Message}"
+                       Foreground="#D2DCE8"
+                       FontSize="12"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Path=TargetDescription}"
+                       Foreground="#4A6880"
+                       FontSize="11"
+                       Margin="0,5,0,0"
+                       Visibility="{Binding Path=TargetVisibility}" />
+            <Border Background="#0E1620"
+                    BorderBrush="#1A2A3C"
+                    BorderThickness="0,1,0,0"
+                    Padding="0,6,0,0"
+                    Margin="0,7,0,0"
+                    Visibility="{Binding Path=HintVisibility}">
+              <TextBlock Text="{Binding Path=Hint}"
+                         Foreground="#648CAA"
+                         FontSize="11"
+                         TextWrapping="Wrap" />
+            </Border>
+          </StackPanel>
+        </Border>
+      </Button>
+    </DataTemplate>
+  </UserControl.Resources>
   <Grid x:Name="DesignerShellRootGrid">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
@@ -34,6 +136,7 @@
                     VerticalAlignment="Center">
           <Button x:Name="NewButton"
                   Content="New"
+              Command="{Binding NewCommand}"
                   Background="Transparent"
                   Foreground="#8DA1B5"
                   BorderBrush="#243342"
@@ -42,6 +145,7 @@
                   Margin="0,0,3,0" />
           <Button x:Name="OpenButton"
                   Content="Open"
+              Command="{Binding OpenCommand}"
                   Background="Transparent"
                   Foreground="#8DA1B5"
                   BorderBrush="#243342"
@@ -50,6 +154,7 @@
                   Margin="0,0,3,0" />
           <Button x:Name="SaveButton"
                   Content="Save"
+              Command="{Binding SaveCommand}"
                   Background="#0D2218"
                   Foreground="#8FD2B3"
                   BorderBrush="#1A4030"
@@ -58,6 +163,7 @@
                   Margin="0,0,3,0" />
           <Button x:Name="SaveAsButton"
                   Content="Save As"
+              Command="{Binding SaveAsCommand}"
                   Background="Transparent"
                   Foreground="#8DA1B5"
                   BorderBrush="#243342"
@@ -66,6 +172,7 @@
                   Margin="0,0,10,0" />
           <Button x:Name="RefreshButton"
                   Content="Refresh  F5"
+              Command="{Binding RefreshCommand}"
                   Background="#0A1E36"
                   Foreground="#6FB7FF"
                   BorderBrush="#163658"
@@ -123,7 +230,8 @@
                  Width="340"
                  VerticalAlignment="Center"
                  Margin="0,0,12,0"
-                 Text=""
+                 Text="{Binding PromptPathText}"
+                 TextChanged="OnDocumentPathTextChanged"
                  Background="#080F18"
                  Foreground="#D8E3EE"
                  BorderBrush="#243342"
@@ -136,6 +244,7 @@
                     VerticalAlignment="Center">
           <Button x:Name="WorkflowPromptPrimaryButton"
                   Content="Confirm"
+              Command="{Binding PromptPrimaryCommand}"
                   Background="#0D2218"
                   Foreground="#8FD2B3"
                   BorderBrush="#1A4030"
@@ -144,6 +253,7 @@
                   Margin="0,0,6,0" />
           <Button x:Name="WorkflowPromptSecondaryButton"
                   Content="Discard"
+              Command="{Binding PromptSecondaryCommand}"
                   Background="#201408"
                   Foreground="#D4A87A"
                   BorderBrush="#3D2808"
@@ -153,6 +263,7 @@
                   Visibility="Collapsed" />
           <Button x:Name="WorkflowPromptCancelButton"
                   Content="Cancel"
+              Command="{Binding PromptCancelCommand}"
                   Background="Transparent"
                   Foreground="#8DA1B5"
                   BorderBrush="#243342"
@@ -265,6 +376,7 @@
                           HorizontalScrollBarVisibility="Auto"
                           Padding="6">
               <TreeView x:Name="VisualTreeView"
+                        SelectedItemChanged="OnVisualTreeSelectionChanged"
                         Background="Transparent"
                         BorderThickness="0"
                         Foreground="#D8E3EE" />
@@ -359,6 +471,9 @@
 
             <RichTextBox x:Name="SourceEditor"
                          Grid.Column="2"
+                         TextChanged="OnSourceEditorTextChanged"
+                         ViewportChanged="OnSourceEditorViewportChanged"
+                         LayoutUpdated="OnSourceEditorLayoutUpdated"
                          Background="Transparent"
                          BorderThickness="0"
                          Foreground="#D8E3EE"
@@ -394,7 +509,8 @@
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Padding="6">
-              <StackPanel x:Name="DiagnosticsPanel" />
+              <ItemsControl x:Name="DiagnosticsItemsControl"
+                            ItemTemplate="{StaticResource DiagnosticCardTemplate}" />
             </ScrollViewer>
           </Grid>
         </TabItem>

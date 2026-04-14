@@ -77,6 +77,21 @@ public sealed class XamlLoaderOptimizationTests
         }
     }
 
+        [Fact]
+        public void LoadIntoFromString_DelaysEventHandlerAttachment_UntilConstructorCompletes()
+        {
+          var host = new ConstructorEventOrderHost();
+
+          Assert.NotNull(host.Editor);
+          Assert.False(host.EventObservedBeforeConstructorCompleted);
+          Assert.Equal(0, host.TextChangedCount);
+
+          host.Editor!.Text = "after";
+
+          Assert.False(host.EventObservedBeforeConstructorCompleted);
+          Assert.True(host.TextChangedCount > 0);
+        }
+
     [Fact]
     public void PushDiagnosticSink_RepeatedFailures_EmitStableDiagnosticMetadata()
     {
@@ -332,6 +347,44 @@ public sealed class XamlLoaderOptimizationTests
             ClickCount++;
         }
     }
+
+      private sealed class ConstructorEventOrderHost : UserControl
+      {
+        private const string Xaml = """
+    <UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+      <TextBox x:Name="Editor"
+               Text="boot"
+               TextChanged="OnEditorTextChanged" />
+    </UserControl>
+    """;
+
+        private bool _constructorCompleted;
+
+        public ConstructorEventOrderHost()
+        {
+          XamlLoader.LoadIntoFromString(this, Xaml, this);
+          _constructorCompleted = true;
+        }
+
+        public TextBox? Editor { get; private set; }
+
+        public bool EventObservedBeforeConstructorCompleted { get; private set; }
+
+        public int TextChangedCount { get; private set; }
+
+        private void OnEditorTextChanged(object? sender, RoutedSimpleEventArgs args)
+        {
+          _ = sender;
+          _ = args;
+
+          if (!_constructorCompleted)
+          {
+            EventObservedBeforeConstructorCompleted = true;
+          }
+
+          TextChangedCount++;
+        }
+      }
 
     private static string CreateTempDirectory()
     {

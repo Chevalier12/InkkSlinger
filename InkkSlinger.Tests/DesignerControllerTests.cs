@@ -31,6 +31,34 @@ public class DesignerControllerTests
         </UserControl>
         """;
 
+        private const string LateInvalidViewXml = """
+                <UserControl xmlns="urn:inkkslinger-ui"
+                                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    <StackPanel>
+                        <TextBlock Text="Line 01" />
+                        <TextBlock Text="Line 02" />
+                        <TextBlock Text="Line 03" />
+                        <TextBlock Text="Line 04" />
+                        <TextBlock Text="Line 05" />
+                        <TextBlock Text="Line 06" />
+                        <TextBlock Text="Line 07" />
+                        <TextBlock Text="Line 08" />
+                        <TextBlock Text="Line 09" />
+                        <Button UnknownProperty="Boom"
+                                        Content="Broken" />
+                    </StackPanel>
+                </UserControl>
+                """;
+
+        private const string MalformedViewXml = """
+                <UserControl xmlns="urn:inkkslinger-ui"
+                                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    <Grid>
+                        <Button Content="Broken">
+                    </Grid>
+                </UserControl>
+                """;
+
     [Fact]
     public void Refresh_ValidUserControl_SucceedsAndBuildsVisualTreeAndInspector()
     {
@@ -84,8 +112,27 @@ public class DesignerControllerTests
         Assert.Equal(InkkSlinger.Designer.DesignerInspectorModel.Empty, controller.Inspector);
         Assert.NotEmpty(controller.Diagnostics);
         Assert.Contains(controller.Diagnostics, diagnostic => diagnostic.Code == XamlDiagnosticCode.UnknownProperty);
+        Assert.DoesNotContain(controller.Diagnostics, diagnostic => diagnostic.Code == XamlDiagnosticCode.GeneralFailure);
         Assert.Contains(controller.Diagnostics, diagnostic => diagnostic.TargetDescription == "Button.UnknownProperty");
         Assert.Contains(controller.Diagnostics, diagnostic => diagnostic.LocationText.StartsWith("Line ", StringComparison.Ordinal));
+        Assert.DoesNotContain(controller.Diagnostics, diagnostic => diagnostic.LocationText.Contains("Col", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Refresh_MalformedXml_CapturesFallbackDiagnosticLineInformation()
+    {
+        var controller = new InkkSlinger.Designer.DesignerController();
+
+        var succeeded = controller.Refresh(MalformedViewXml);
+
+        Assert.False(succeeded);
+        var diagnostic = Assert.Single(controller.Diagnostics);
+        Assert.Equal(XamlDiagnosticCode.GeneralFailure, diagnostic.Code);
+        Assert.Equal(5, diagnostic.Line);
+        Assert.NotNull(diagnostic.Position);
+        Assert.Equal("Line 5", diagnostic.LocationText);
+        Assert.DoesNotContain("Position", diagnostic.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Diagnostic:", diagnostic.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -134,16 +181,17 @@ public class DesignerControllerTests
         var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
         var sourceLineNumberBorder = Assert.IsType<Border>(shell.FindName("SourceLineNumberBorder"));
         var sourceLineNumberPanel = Assert.IsType<StackPanel>(shell.FindName("SourceLineNumberPanel"));
+        var diagnosticsItemsControl = Assert.IsType<ItemsControl>(shell.FindName("DiagnosticsItemsControl"));
 
         _ = Assert.IsType<ContentControl>(shell.FindName("PreviewHost"));
         _ = Assert.IsType<TreeView>(shell.FindName("VisualTreeView"));
         _ = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
-        _ = Assert.IsType<StackPanel>(shell.FindName("DiagnosticsPanel"));
 
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.HorizontalScrollBarVisibility);
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.VerticalScrollBarVisibility);
         Assert.Equal(0, editorTabControl.SelectedIndex);
         Assert.Equal("Diagnostics", diagnosticsTab.Header);
+        Assert.NotNull(diagnosticsItemsControl);
         Assert.NotNull(sourceLineNumberBorder.Child);
         Assert.NotEmpty(sourceLineNumberPanel.Children);
 
@@ -206,6 +254,96 @@ public class DesignerControllerTests
         Assert.Equal(1, editorTabControl.SelectedIndex);
         Assert.Contains("(!", diagnosticsTab.Header, StringComparison.Ordinal);
         Assert.Contains("error", diagnosticsSummary.Text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ShellView_DiagnosticCard_Click_SelectsReportedSourceLine()
+    {
+        var source = NormalizeLineEndings(LateInvalidViewXml);
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        Assert.False(shell.RefreshPreview());
+
+        var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
+        var diagnosticsItemsControl = Assert.IsType<ItemsControl>(shell.FindName("DiagnosticsItemsControl"));
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+        var diagnosticsCardButtons = FindDiagnosticsCardButtons(diagnosticsItemsControl);
+
+        var diagnosticIndex = -1;
+        for (var i = 0; i < shell.Controller.Diagnostics.Count; i++)
+        {
+            if (shell.Controller.Diagnostics[i].Code == XamlDiagnosticCode.UnknownProperty)
+            {
+                diagnosticIndex = i;
+                break;
+            }
+        }
+
+        Assert.True(diagnosticIndex >= 0);
+    var diagnosticButton = diagnosticsCardButtons[diagnosticIndex];
+        Assert.Equal(1, editorTabControl.SelectedIndex);
+
+    Click(uiRoot, GetCenter(diagnosticButton.LayoutSlot));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var highlightedLineNumber = GetLineNumberContaining(source, "UnknownProperty=\"Boom\"");
+        var expectedStart = GetLineStartOffset(source, highlightedLineNumber);
+        var expectedLineText = GetLineText(source, highlightedLineNumber);
+        var selectedText = source.Substring(sourceEditor.SelectionStart, sourceEditor.SelectionLength);
+
+        Assert.Equal(0, editorTabControl.SelectedIndex);
+        Assert.Equal(expectedStart, sourceEditor.SelectionStart);
+        Assert.Equal(expectedLineText, selectedText);
+        Assert.Contains("UnknownProperty=\"Boom\"", selectedText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_DiagnosticCard_Hover_SetsButtonMouseOver()
+    {
+        var source = NormalizeLineEndings(LateInvalidViewXml);
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        Assert.False(shell.RefreshPreview());
+
+        var diagnosticsItemsControl = Assert.IsType<ItemsControl>(shell.FindName("DiagnosticsItemsControl"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+        var diagnosticsCardButtons = FindDiagnosticsCardButtons(diagnosticsItemsControl);
+
+        var diagnosticIndex = -1;
+        for (var i = 0; i < shell.Controller.Diagnostics.Count; i++)
+        {
+            if (shell.Controller.Diagnostics[i].Code == XamlDiagnosticCode.UnknownProperty)
+            {
+                diagnosticIndex = i;
+                break;
+            }
+        }
+
+        Assert.True(diagnosticIndex >= 0);
+    var diagnosticButton = diagnosticsCardButtons[diagnosticIndex];
+    Assert.False(diagnosticButton.IsMouseOver);
+    Assert.Equal(Color.Transparent, diagnosticButton.Background);
+    Assert.Equal(Color.Transparent, diagnosticButton.BorderBrush);
+
+    uiRoot.RunInputDeltaForTests(CreatePointerDelta(GetCenter(diagnosticButton.LayoutSlot), pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+    Assert.True(diagnosticButton.IsMouseOver);
+
+    var hoverChrome = FindDescendant<Border>(diagnosticButton, border => border.Name == "HoverChrome");
+    Assert.Equal(new Color(19, 33, 49), Assert.IsType<SolidColorBrush>(hoverChrome.Background).Color);
+    Assert.Equal(new Color(41, 72, 102), Assert.IsType<SolidColorBrush>(hoverChrome.BorderBrush).Color);
     }
 
     [Fact]
@@ -663,6 +801,35 @@ public class DesignerControllerTests
         throw new Xunit.Sdk.XunitException($"Could not find line {oneBasedLineNumber}.");
     }
 
+    private static string GetLineText(string text, int oneBasedLineNumber)
+    {
+        var lineStart = GetLineStartOffset(text, oneBasedLineNumber);
+        var lineEnd = lineStart;
+        while (lineEnd < text.Length && text[lineEnd] != '\n')
+        {
+            lineEnd++;
+        }
+
+        return text.Substring(lineStart, lineEnd - lineStart);
+    }
+
+    private static int GetLineNumberContaining(string text, string fragment)
+    {
+        var index = text.IndexOf(fragment, StringComparison.Ordinal);
+        Assert.True(index >= 0);
+
+        var lineNumber = 1;
+        for (var i = 0; i < index; i++)
+        {
+            if (text[i] == '\n')
+            {
+                lineNumber++;
+            }
+        }
+
+        return lineNumber;
+    }
+
     private static int CountLogicalLines(string text)
     {
         if (text.Length == 0)
@@ -690,13 +857,86 @@ public class DesignerControllerTests
             sourceEditor.LayoutSlot.Y + 1f + 5f + ((oneBasedLineNumber - 1) * lineHeight) + 2f);
     }
 
+    private static Vector2 GetCenter(LayoutRect rect)
+    {
+        return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
+    }
+
+    private static IReadOnlyList<Button> FindDiagnosticsCardButtons(ItemsControl itemsControl)
+    {
+        var buttons = new List<Button>();
+        CollectDescendants(itemsControl, buttons, button => button.DataContext is InkkSlinger.Designer.DesignerDiagnosticEntry);
+
+        if (buttons.Count == 0)
+        {
+            throw new InvalidOperationException("Expected diagnostics items control to expose button-backed cards.");
+        }
+
+        return buttons;
+    }
+
+    private static void CollectDescendants<TElement>(UIElement root, List<TElement> matches, Func<TElement, bool>? predicate = null)
+        where TElement : UIElement
+    {
+        foreach (var child in root.GetVisualChildren())
+        {
+            if (child is TElement match && (predicate == null || predicate(match)))
+            {
+                matches.Add(match);
+            }
+
+            CollectDescendants(child, matches, predicate);
+        }
+    }
+
+    private static TElement FindDescendant<TElement>(UIElement root, Func<TElement, bool>? predicate = null)
+        where TElement : UIElement
+    {
+        foreach (var child in root.GetVisualChildren())
+        {
+            if (child is TElement match && (predicate == null || predicate(match)))
+            {
+                return match;
+            }
+
+            var descendant = FindDescendantOrDefault(child, predicate);
+            if (descendant != null)
+            {
+                return descendant;
+            }
+        }
+
+        throw new InvalidOperationException($"Expected descendant of type '{typeof(TElement).Name}'.");
+    }
+
+    private static TElement? FindDescendantOrDefault<TElement>(UIElement root, Func<TElement, bool>? predicate = null)
+        where TElement : UIElement
+    {
+        foreach (var child in root.GetVisualChildren())
+        {
+            if (child is TElement match && (predicate == null || predicate(match)))
+            {
+                return match;
+            }
+
+            var descendant = FindDescendantOrDefault(child, predicate);
+            if (descendant != null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+
     private static void Click(UiRoot uiRoot, Vector2 pointer)
     {
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true));
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true));
     }
 
-    private static InputDelta CreatePointerDelta(Vector2 pointer, bool leftPressed = false, bool leftReleased = false)
+    private static InputDelta CreatePointerDelta(Vector2 pointer, bool leftPressed = false, bool leftReleased = false, bool pointerMoved = true)
     {
         return new InputDelta
         {
@@ -705,7 +945,7 @@ public class DesignerControllerTests
             PressedKeys = new List<Keys>(),
             ReleasedKeys = new List<Keys>(),
             TextInput = new List<char>(),
-            PointerMoved = true,
+            PointerMoved = pointerMoved,
             WheelDelta = 0,
             LeftPressed = leftPressed,
             LeftReleased = leftReleased,
