@@ -12,8 +12,8 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
 {
     private const string DiagnosticsTabBaseHeader = "Diagnostics";
     private const float SourceLineNumberGutterRightPadding = 6f;
-    private static readonly Color DiagnosticCardHoverBackground = new(19, 33, 49);
-    private static readonly Color DiagnosticCardHoverBorderBrush = new(41, 72, 102);
+    private static readonly Color DiagnosticCardHoverBackground = new(15, 30, 46);
+    private static readonly Color DiagnosticCardHoverBorderBrush = Color.Transparent;
     private static readonly Color DiagnosticCardDefaultChrome = Color.Transparent;
     private readonly DesignerShellViewModel _viewModel;
     private readonly Action _requestAppExit;

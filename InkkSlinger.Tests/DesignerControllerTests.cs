@@ -257,6 +257,39 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_F5RefreshError_AutoSwitchToDiagnostics_ShouldNotLeaveHoverOnSourceEditor()
+    {
+        InputGestureService.Clear();
+        var source = NormalizeLineEndings(LateInvalidViewXml);
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
+        var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var sourceHoverPoint = GetSourceEditorLinePoint(sourceEditor, 2);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(sourceHoverPoint, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Same(sourceEditor, uiRoot.GetHoveredElementForDiagnostics());
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.F5, sourceHoverPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.False(shell.Controller.LastRefreshSucceeded);
+        Assert.Equal(1, editorTabControl.SelectedIndex);
+        Assert.Contains("(!", diagnosticsTab.Header, StringComparison.Ordinal);
+        Assert.NotSame(sourceEditor, uiRoot.GetHoveredElementForDiagnostics());
+    }
+
+    [Fact]
     public void ShellView_DiagnosticCard_Click_SelectsReportedSourceLine()
     {
         var source = NormalizeLineEndings(LateInvalidViewXml);
@@ -984,9 +1017,8 @@ public class DesignerControllerTests
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
     {
-        uiRoot.Update(
-            new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
-            new Viewport(0, 0, width, height));
+        _ = elapsedMs;
+        uiRoot.RunLayoutForTests(new Viewport(0, 0, width, height));
     }
 
     private sealed class FakeDocumentFileStore : InkkSlinger.Designer.IDesignerDocumentFileStore

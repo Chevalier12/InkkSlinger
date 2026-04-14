@@ -535,6 +535,11 @@ public sealed partial class UiRoot
         return _inputState.HoveredElement;
     }
 
+    internal void RunLayoutForTests(Viewport viewport)
+    {
+        RunLayoutPhase(viewport);
+    }
+
     internal UIElement? GetLastClickDownTargetForDiagnostics()
     {
         return _lastClickDownTarget;

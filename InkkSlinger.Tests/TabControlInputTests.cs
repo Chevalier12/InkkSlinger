@@ -201,8 +201,6 @@ public sealed class TabControlInputTests
 
     private static void RunLayout(UiRoot uiRoot)
     {
-        uiRoot.Update(
-            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
-            new Viewport(0, 0, 500, 320));
+        uiRoot.RunLayoutForTests(new Viewport(0, 0, 500, 320));
     }
 }

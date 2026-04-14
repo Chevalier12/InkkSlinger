@@ -20,6 +20,7 @@ public sealed partial class UiRoot
     private const float WheelPointerMoveThresholdSquared = 4f;
     private const float ClickPointerReuseThresholdSquared = 9f;
     private const float SweptPointerPressSampleSpacing = 1f;
+    private bool _shouldRevalidateHoverAfterLayoutMutation = true;
     private string _lastPointerResolvePath = "None";
     private HitTestMetrics? _lastPointerResolveHitTestMetrics;
     private ContextMenu? _lastKnownOpenContextMenu;
@@ -102,6 +103,7 @@ public sealed partial class UiRoot
         _lastPointerResolveHitTestMetrics = null;
         var pointerStart = Stopwatch.GetTimestamp();
         _inputState.CurrentModifiers = GetModifiers(delta.Current.Keyboard);
+        _shouldRevalidateHoverAfterLayoutMutation = !delta.PointerMoved;
         if (delta.IsEmpty)
         {
             _lastPointerResolvePath = "NoInputBypass";
@@ -1634,6 +1636,7 @@ public sealed partial class UiRoot
 
     private void RefreshPointerTargetsAfterLayoutMutation()
     {
+        var cachedWheelScrollViewerTarget = _cachedWheelScrollViewerTarget;
         _hasCachedPointerResolveTarget = false;
         _cachedPointerResolveTarget = null;
         _cachedClickTarget = null;
@@ -1644,6 +1647,34 @@ public sealed partial class UiRoot
         _cachedWheelTextInputTarget = null;
         _cachedWheelScrollViewerTarget = null;
         BumpPointerResolveStateVersion();
+        if (_shouldRevalidateHoverAfterLayoutMutation &&
+            (_inputState.HoveredElement != null || _inputState.CapturedPointerElement != null))
+        {
+            RevalidateHoverAfterLayoutMutation(cachedWheelScrollViewerTarget);
+        }
+    }
+
+    private void RevalidateHoverAfterLayoutMutation(ScrollViewer? cachedWheelScrollViewerTarget)
+    {
+        var pointerPosition = _inputState.LastPointerPosition;
+
+        if (_inputState.CapturedPointerElement is UIElement capturedElement)
+        {
+            UpdateHover(
+                IsElementConnectedToVisualRoot(capturedElement)
+                    ? capturedElement
+                    : null,
+                pointerPosition);
+            return;
+        }
+
+        if (ShouldPreserveWheelDrivenHoverDuringLayoutMutation(pointerPosition, cachedWheelScrollViewerTarget))
+        {
+            return;
+        }
+
+        var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        UpdateHover(hoverTarget, pointerPosition);
     }
 
     private void RefreshHoverAfterWheelContentMutation(Vector2 pointerPosition, UIElement? mutationRoot = null)
@@ -1678,6 +1709,16 @@ public sealed partial class UiRoot
             return false;
         }
 
+        return ShouldPreserveWheelDrivenHoverDuringLayoutMutation(pointerPosition, scrollViewer);
+    }
+
+    private bool ShouldPreserveWheelDrivenHoverDuringLayoutMutation(Vector2 pointerPosition, ScrollViewer? cachedWheelScrollViewerTarget)
+    {
+        if (cachedWheelScrollViewerTarget == null)
+        {
+            return false;
+        }
+
         var hovered = _inputState.HoveredElement;
         if (hovered == null ||
             !IsElementConnectedToVisualRoot(hovered) ||
@@ -1693,7 +1734,7 @@ public sealed partial class UiRoot
         }
 
         if (!TryFindAncestor<ScrollViewer>(hovered, out var hoveredScrollViewer) ||
-            !ReferenceEquals(hoveredScrollViewer, scrollViewer))
+            !ReferenceEquals(hoveredScrollViewer, cachedWheelScrollViewerTarget))
         {
             return false;
         }
