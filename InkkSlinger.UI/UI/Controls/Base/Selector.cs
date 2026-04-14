@@ -17,7 +17,7 @@ public class Selector : ItemsControl
             typeof(Selector),
             new FrameworkPropertyMetadata(
                 -1,
-                FrameworkPropertyMetadataOptions.None,
+                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
                 propertyChangedCallback: static (dependencyObject, args) =>
                 {
                     if (dependencyObject is Selector selector && args.NewValue is int selectedIndex)
@@ -33,7 +33,7 @@ public class Selector : ItemsControl
             typeof(Selector),
             new FrameworkPropertyMetadata(
                 null,
-                FrameworkPropertyMetadataOptions.None,
+                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
                 propertyChangedCallback: static (dependencyObject, args) =>
                 {
                     if (dependencyObject is Selector selector)
@@ -49,7 +49,7 @@ public class Selector : ItemsControl
             typeof(Selector),
             new FrameworkPropertyMetadata(
                 null,
-                FrameworkPropertyMetadataOptions.None,
+                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
                 propertyChangedCallback: static (dependencyObject, args) =>
                 {
                     if (dependencyObject is Selector selector)

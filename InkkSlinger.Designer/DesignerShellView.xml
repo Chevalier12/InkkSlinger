@@ -121,17 +121,6 @@
       </Border>
     </DataTemplate>
 
-    <DataTemplate x:Key="SourceLineNumberTemplate">
-      <Border Height="{Binding LineHeight}">
-        <TextBlock Text="{Binding NumberText}"
-                   Foreground="#4E667C"
-                   FontFamily="Consolas"
-                   FontSize="{Binding FontSize}"
-                   HorizontalAlignment="Right"
-                   VerticalAlignment="Center" />
-      </Border>
-    </DataTemplate>
-
     <Style x:Key="DiagnosticCardButtonStyle" TargetType="{x:Type Button}">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="Transparent" />
@@ -346,7 +335,6 @@
                  VerticalAlignment="Center"
                  Margin="0,0,12,0"
                  Text="{Binding PromptPathText}"
-                 TextChanged="OnDocumentPathTextChanged"
                  Background="#080F18"
                  Foreground="#D8E3EE"
                  BorderBrush="#243342"
@@ -414,21 +402,9 @@
                   BorderBrush="#1A2637"
                   BorderThickness="0,0,0,1"
                   Padding="10,7">
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-              </Grid.ColumnDefinitions>
-              <TextBlock Grid.Column="0"
-                         Text="Preview"
-                         Foreground="#C8D8E8"
-                         FontWeight="SemiBold" />
-              <TextBlock
-                         Grid.Column="1"
-                         Foreground="{Binding PreviewStatusForeground}"
-                         VerticalAlignment="Center"
-                         Text="{Binding PreviewStatusText}" />
-            </Grid>
+            <TextBlock Text="Preview"
+                       Foreground="#C8D8E8"
+                       FontWeight="SemiBold" />
           </Border>
 
           <ScrollViewer x:Name="PreviewScrollViewer"
@@ -577,47 +553,13 @@
                   HeaderPadding="14,8">
         <TabItem x:Name="SourceTab"
                  Header="Source">
-          <Grid>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="56" />
-              <ColumnDefinition Width="1" />
-              <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <Border x:Name="SourceLineNumberBorder"
-                    Grid.Column="0"
-                    Background="#0A1017"
-                    ClipToBounds="True">
-              <ItemsControl x:Name="SourceLineNumberPanel"
-                    ItemTemplate="{StaticResource SourceLineNumberTemplate}"
-                    Margin="0,10,6,0" />
-            </Border>
-
-            <Border Grid.Column="1"
-                    Background="#1A2637" />
-
-            <RichTextBox x:Name="SourceEditor"
-                         Grid.Column="2"
-                         TextChanged="OnSourceEditorTextChanged"
-                         ViewportChanged="OnSourceEditorViewportChanged"
-                         LayoutUpdated="OnSourceEditorLayoutUpdated"
-                         Background="Transparent"
-                         BorderThickness="0"
-                         Foreground="#D8E3EE"
-                         CaretBrush="#7FD0FF"
-                         SelectionBrush="#1A4A7A"
-                         Padding="10"
-                         HorizontalScrollBarVisibility="Auto"
-                         VerticalScrollBarVisibility="Auto"
-                         AcceptsReturn="True"
-                         AcceptsTab="True"
-                         TextWrapping="NoWrap"
-                         FontFamily="Consolas" />
-          </Grid>
+          <DesignerSourceEditorView x:Name="SourceEditorPane"
+                                    SourceText="{Binding SourceText}"
+                                    NavigationRequest="{Binding SourceNavigationRequest}" />
         </TabItem>
 
         <TabItem x:Name="DiagnosticsTab"
-                 Header="{Binding DataContext.DiagnosticsTabHeader, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}">
+                 Header="{Binding DiagnosticsTabHeader}">
           <Grid>
             <Grid.RowDefinitions>
               <RowDefinition Height="Auto" />
@@ -630,14 +572,14 @@
               <TextBlock x:Name="DiagnosticsSummaryText"
                          Foreground="#4A6880"
                          FontSize="12"
-                         Text="{Binding DataContext.DiagnosticsSummaryText, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}" />
+                         Text="{Binding DiagnosticsSummaryText}" />
             </Border>
             <ScrollViewer Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Padding="6">
               <ItemsControl x:Name="DiagnosticsItemsControl"
-                            ItemsSource="{Binding DataContext.Diagnostics, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
+                            ItemsSource="{Binding Diagnostics}"
                             ItemTemplate="{StaticResource DiagnosticCardTemplate}" />
             </ScrollViewer>
           </Grid>

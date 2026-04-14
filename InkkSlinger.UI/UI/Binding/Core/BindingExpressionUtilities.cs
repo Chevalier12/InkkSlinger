@@ -280,7 +280,7 @@ internal static class BindingExpressionUtilities
 
         if (binding.RelativeSourceMode == RelativeSourceMode.TemplatedParent)
         {
-            for (var current = targetElement.VisualParent; current != null; current = current.VisualParent)
+            for (var current = UIElement.GetTreeParent(targetElement); current != null; current = UIElement.GetTreeParent(current))
             {
                 if (current is Control control)
                 {
@@ -296,7 +296,7 @@ internal static class BindingExpressionUtilities
             var ancestorType = binding.RelativeSourceAncestorType ?? typeof(UIElement);
             var remainingMatches = Math.Max(1, binding.RelativeSourceAncestorLevel);
 
-            for (var current = targetElement.VisualParent; current != null; current = current.VisualParent)
+            for (var current = UIElement.GetTreeParent(targetElement); current != null; current = UIElement.GetTreeParent(current))
             {
                 if (!ancestorType.IsInstanceOfType(current))
                 {
@@ -372,7 +372,7 @@ internal static class BindingExpressionUtilities
 
     private static UIElement? GetTreeParent(UIElement element)
     {
-        return element.VisualParent ?? element.LogicalParent;
+        return UIElement.GetTreeParent(element);
     }
 
     private static object? ResolvePreviousData(UIElement targetElement)

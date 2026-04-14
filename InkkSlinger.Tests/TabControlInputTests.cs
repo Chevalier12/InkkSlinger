@@ -169,6 +169,71 @@ public sealed class TabControlInputTests
         Assert.Equal(0, tabControl.SelectedIndex);
     }
 
+    [Fact]
+    public void ClickingTabHeader_ShouldUpdateSelectedIndexBindingSource_ByDefault()
+    {
+        var host = new Canvas
+        {
+            Width = 500f,
+            Height = 320f
+        };
+
+        var viewModel = new TabSelectionViewModel
+        {
+            SelectedIndex = 0
+        };
+
+        var tabControl = new TabControl
+        {
+            Width = 320f,
+            Height = 220f,
+            HeaderPadding = new Thickness(0f)
+        };
+        tabControl.Items.Add(new TabItem
+        {
+            Header = "Tab One",
+            Content = new Label { Content = "First" }
+        });
+        tabControl.Items.Add(new TabItem
+        {
+            Header = "Tab Two",
+            Content = new Label { Content = "Second" }
+        });
+        BindingOperations.SetBinding(
+            tabControl,
+            Selector.SelectedIndexProperty,
+            new Binding
+            {
+                Source = viewModel,
+                Path = nameof(TabSelectionViewModel.SelectedIndex)
+            });
+
+        host.AddChild(tabControl);
+        Canvas.SetLeft(tabControl, 30f);
+        Canvas.SetTop(tabControl, 20f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        Assert.Equal(0, tabControl.SelectedIndex);
+        Assert.Equal(0, viewModel.SelectedIndex);
+
+        var firstHeaderWidth = MathF.Max(
+            36f,
+            tabControl.HeaderPadding.Horizontal + UiTextRenderer.MeasureWidth(tabControl, "Tab One", tabControl.FontSize));
+        var secondHeaderPoint = new Vector2(tabControl.LayoutSlot.X + firstHeaderWidth + 4f, tabControl.LayoutSlot.Y + 4f);
+        Click(uiRoot, secondHeaderPoint);
+        RunLayout(uiRoot);
+
+        Assert.Equal(1, tabControl.SelectedIndex);
+        Assert.Equal(1, viewModel.SelectedIndex);
+    }
+
+    private sealed class TabSelectionViewModel
+    {
+        public int SelectedIndex { get; set; }
+    }
+
     private static void Click(UiRoot uiRoot, Vector2 pointer)
     {
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true));

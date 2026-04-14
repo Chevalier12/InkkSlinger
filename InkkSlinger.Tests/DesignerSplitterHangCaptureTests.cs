@@ -83,7 +83,7 @@ public sealed class DesignerSplitterHangCaptureTests
 
             var previewDockSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewDockSplitter"));
             var previewSourceSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewSourceSplitter"));
-            var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+            var sourceEditor = shell.SourceEditorControl;
 
             DragSplitter(uiRoot, previewDockSplitter, new Vector2(-650f, 0f), travelFrames: 18);
             RunFrames(uiRoot, 12);

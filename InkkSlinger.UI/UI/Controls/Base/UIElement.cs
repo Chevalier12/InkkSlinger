@@ -812,6 +812,16 @@ public class UIElement : DependencyObject
 
     protected virtual void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
+        NotifyInheritedPropertiesChanged(oldParent, newParent);
+    }
+
+    protected virtual void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
+    {
+        NotifyInheritedPropertiesChanged(oldParent, newParent);
+    }
+
+    private void NotifyInheritedPropertiesChanged(UIElement? oldParent, UIElement? newParent)
+    {
         var inheritableProperties = new HashSet<DependencyProperty>
         {
             UIElement.IsEnabledProperty,
@@ -861,10 +871,6 @@ public class UIElement : DependencyObject
                 NotifyInheritedPropertyChanged(property);
             }
         }
-    }
-
-    protected virtual void OnLogicalParentChanged(UIElement? oldParent, UIElement? newParent)
-    {
     }
 
     protected void RaiseRoutedEvent(RoutedEvent routedEvent, RoutedEventArgs args)
@@ -1025,7 +1031,7 @@ public class UIElement : DependencyObject
     {
         var visited = new HashSet<UIElement>();
 
-        for (var current = parent; current != null; current = current.VisualParent)
+        for (var current = parent; current != null; current = GetTreeParent(current))
         {
             if (!visited.Add(current))
             {
@@ -1258,6 +1264,11 @@ public class UIElement : DependencyObject
         {
             child.NotifyInheritedPropertyChanged(args.Property);
         }
+
+        foreach (var child in GetLogicalChildren())
+        {
+            child.NotifyInheritedPropertyChanged(args.Property);
+        }
     }
 
     protected virtual bool ShouldInvalidateMeasureForPropertyChange(
@@ -1406,7 +1417,12 @@ public class UIElement : DependencyObject
 
     internal UIElement? GetInvalidationParent()
     {
-        return VisualParent ?? LogicalParent;
+        return GetTreeParent(this);
+    }
+
+    internal static UIElement? GetTreeParent(UIElement element)
+    {
+        return element.VisualParent ?? element.LogicalParent;
     }
 
     private void MarkSubtreeDirty()

@@ -67,8 +67,6 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     private Visibility _previewPlaceholderVisibility = Visibility.Visible;
     private string _toolbarStatusText = "Refresh idle. Edit the source and press F5.";
     private Color _toolbarStatusForeground = new(111, 183, 255);
-    private string _previewStatusText = "Preview is idle until you refresh.";
-    private Color _previewStatusForeground = new(141, 161, 181);
     private string _visualTreeSummaryText = "Refresh to inspect the last successful preview.";
     private string _inspectorSummaryText = "Select a visual tree node to inspect it.";
     private string _diagnosticsSummaryText = "Errors and warnings appear after refresh.";
@@ -78,6 +76,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     private string? _documentStatusOverrideText;
     private Color? _documentStatusOverrideColor;
     private int _selectedEditorTabIndex;
+    private DesignerSourceNavigationRequest? _sourceNavigationRequest;
     private DesignerDocumentPromptState _workflowPrompt = DesignerDocumentPromptState.None;
     private IReadOnlyList<DesignerVisualTreeNodeViewModel> _visualTreeNodes = Array.Empty<DesignerVisualTreeNodeViewModel>();
     private IReadOnlyList<DesignerVisualTreeNodeViewModel> _visualTreeRoots = Array.Empty<DesignerVisualTreeNodeViewModel>();
@@ -122,12 +121,6 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     public DesignerDocumentWorkflowController Workflow { get; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-
-    public event Action<bool>? RefreshCompleted;
-
-    public event Action<DesignerDocumentWorkflowResult>? WorkflowResultProduced;
-
-    public event Action<DesignerDiagnosticEntry>? DiagnosticNavigationRequested;
 
     public event Action? DeferredAppExitRequested;
 
@@ -187,18 +180,6 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
     {
         get => _toolbarStatusForeground;
         private set => SetField(ref _toolbarStatusForeground, value);
-    }
-
-    public string PreviewStatusText
-    {
-        get => _previewStatusText;
-        private set => SetField(ref _previewStatusText, value);
-    }
-
-    public Color PreviewStatusForeground
-    {
-        get => _previewStatusForeground;
-        private set => SetField(ref _previewStatusForeground, value);
     }
 
     public string VisualTreeSummaryText
@@ -275,6 +256,12 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         set => SetField(ref _selectedEditorTabIndex, value);
     }
 
+    public DesignerSourceNavigationRequest? SourceNavigationRequest
+    {
+        get => _sourceNavigationRequest;
+        private set => SetField(ref _sourceNavigationRequest, value);
+    }
+
     public string SourceText
     {
         get => DocumentController.CurrentText;
@@ -312,7 +299,6 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         var succeeded = Controller.Refresh(DocumentController.CurrentText);
         RefreshPresentationState(selectDiagnosticsOnError: true);
         RefreshCommandStates();
-        RefreshCompleted?.Invoke(succeeded);
         return succeeded;
     }
 
@@ -385,19 +371,25 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
 
     private void ExecuteNavigateToDiagnostic(object? parameter)
     {
-        if (parameter is DesignerDiagnosticEntry diagnostic)
+        if (parameter is DesignerDiagnosticEntry diagnostic && diagnostic.Line.HasValue)
         {
-            DiagnosticNavigationRequested?.Invoke(diagnostic);
+            SelectedEditorTabIndex = 0;
+            SourceNavigationRequest = new DesignerSourceNavigationRequest(diagnostic.Line.Value);
         }
     }
 
     private void HandleWorkflowResult(DesignerDocumentWorkflowResult result)
     {
         PromptPathText = Workflow.Prompt.PathText ?? string.Empty;
+        if (result.ReloadEditor)
+        {
+            OnPropertyChanged(nameof(SourceText));
+            SourceNavigationRequest = null;
+        }
+
         RefreshWorkflowPromptState();
         RefreshCommandStates();
         ApplyDocumentWorkflowStatus(result);
-        WorkflowResultProduced?.Invoke(result);
 
         if (result.CloseAction == DesignerWorkflowCloseAction.RequestDeferredClose)
         {
@@ -429,22 +421,16 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
                     CultureInfo.InvariantCulture,
                     $"Refresh succeeded. Diagnostics: {Controller.Diagnostics.Count}.");
                 ToolbarStatusForeground = new Color(111, 183, 255);
-                PreviewStatusText = "Preview loaded from the latest manual refresh.";
-                PreviewStatusForeground = new Color(141, 161, 181);
                 break;
 
             case DesignerPreviewState.Error:
                 ToolbarStatusText = "Refresh failed. Preview was cleared to an error state.";
                 ToolbarStatusForeground = new Color(255, 164, 128);
-                PreviewStatusText = Controller.PreviewFailureMessage ?? "Preview failed to load.";
-                PreviewStatusForeground = new Color(255, 164, 128);
                 break;
 
             default:
                 ToolbarStatusText = "Refresh idle. Edit the source and press F5.";
                 ToolbarStatusForeground = new Color(111, 183, 255);
-                PreviewStatusText = "Preview is idle until you refresh.";
-                PreviewStatusForeground = new Color(141, 161, 181);
                 break;
         }
     }

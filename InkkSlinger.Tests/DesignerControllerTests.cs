@@ -179,13 +179,13 @@ public class DesignerControllerTests
         var previewScrollViewer = Assert.IsType<ScrollViewer>(shell.FindName("PreviewScrollViewer"));
         var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
         var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
-        var sourceLineNumberBorder = Assert.IsType<Border>(shell.FindName("SourceLineNumberBorder"));
-        var sourceLineNumberPanel = Assert.IsType<ItemsControl>(shell.FindName("SourceLineNumberPanel"));
+        var sourceLineNumberBorder = shell.SourceLineNumberBorderControl;
+        var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
         var diagnosticsItemsControl = Assert.IsType<ItemsControl>(shell.FindName("DiagnosticsItemsControl"));
 
         _ = Assert.IsType<ContentControl>(shell.FindName("PreviewHost"));
         _ = Assert.IsType<ItemsControl>(shell.FindName("VisualTreeView"));
-        _ = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        _ = Assert.IsAssignableFrom<RichTextBox>(shell.SourceEditorControl);
 
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.HorizontalScrollBarVisibility);
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.VerticalScrollBarVisibility);
@@ -216,8 +216,8 @@ public class DesignerControllerTests
             SourceText = BuildNumberedSource(80)
         };
 
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
-        var sourceLineNumberPanel = Assert.IsType<ItemsControl>(shell.FindName("SourceLineNumberPanel"));
+        var sourceEditor = shell.SourceEditorControl;
+        var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -266,7 +266,7 @@ public class DesignerControllerTests
             SourceText = source
         };
 
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
         var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
         var uiRoot = new UiRoot(shell);
@@ -302,7 +302,7 @@ public class DesignerControllerTests
 
         var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
         var diagnosticsItemsControl = Assert.IsType<ItemsControl>(shell.FindName("DiagnosticsItemsControl"));
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -334,6 +334,59 @@ public class DesignerControllerTests
         Assert.Equal(expectedStart, sourceEditor.SelectionStart);
         Assert.Equal(expectedLineText, selectedText);
         Assert.Contains("UnknownProperty=\"Boom\"", selectedText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_ClickingSameDiagnosticAgain_AfterReturningToDiagnostics_ShouldNavigateBackToSource()
+    {
+        var source = NormalizeLineEndings(LateInvalidViewXml);
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        Assert.False(shell.RefreshPreview());
+
+        var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
+        var diagnosticsItemsControl = Assert.IsType<ItemsControl>(shell.FindName("DiagnosticsItemsControl"));
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var diagnosticsCardButtons = FindDiagnosticsCardButtons(diagnosticsItemsControl);
+        var diagnosticIndex = -1;
+        for (var i = 0; i < shell.Controller.Diagnostics.Count; i++)
+        {
+            if (shell.Controller.Diagnostics[i].Code == XamlDiagnosticCode.UnknownProperty)
+            {
+                diagnosticIndex = i;
+                break;
+            }
+        }
+
+        Assert.True(diagnosticIndex >= 0);
+        var diagnosticButton = diagnosticsCardButtons[diagnosticIndex];
+
+        Click(uiRoot, GetCenter(diagnosticButton.LayoutSlot));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal(0, editorTabControl.SelectedIndex);
+        var firstSelectionStart = sourceEditor.SelectionStart;
+        var firstSelectionLength = sourceEditor.SelectionLength;
+
+        Click(uiRoot, GetDiagnosticsTabHeaderPoint(editorTabControl));
+        RunLayout(uiRoot, 1280, 840, 16);
+        Assert.Equal(1, editorTabControl.SelectedIndex);
+
+        sourceEditor.Select(0, 0);
+
+        Click(uiRoot, GetCenter(diagnosticButton.LayoutSlot));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal(0, editorTabControl.SelectedIndex);
+        Assert.Equal(firstSelectionStart, sourceEditor.SelectionStart);
+        Assert.Equal(firstSelectionLength, sourceEditor.SelectionLength);
     }
 
     [Fact]
@@ -386,7 +439,7 @@ public class DesignerControllerTests
             SourceText = BuildLongSourceXml()
         };
 
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -423,7 +476,7 @@ public class DesignerControllerTests
             SourceText = source
         };
 
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -451,7 +504,7 @@ public class DesignerControllerTests
             SourceText = sourceWithInsertedLineBreak
         };
 
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -477,7 +530,7 @@ public class DesignerControllerTests
             SourceText = source
         };
 
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -504,7 +557,7 @@ public class DesignerControllerTests
             SourceText = source
         };
 
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -534,7 +587,7 @@ public class DesignerControllerTests
             SourceText = source
         };
 
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -556,7 +609,7 @@ public class DesignerControllerTests
     {
         var shell = new InkkSlinger.Designer.DesignerShellView();
         var source = shell.SourceText;
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -589,7 +642,7 @@ public class DesignerControllerTests
     {
         var shell = new InkkSlinger.Designer.DesignerShellView();
         var source = shell.SourceText;
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -617,7 +670,7 @@ public class DesignerControllerTests
     {
         var shell = new InkkSlinger.Designer.DesignerShellView();
         var source = shell.SourceText;
-        var sourceEditor = Assert.IsAssignableFrom<RichTextBox>(shell.FindName("SourceEditor"));
+        var sourceEditor = shell.SourceEditorControl;
         var uiRoot = new UiRoot(shell);
         RunLayout(uiRoot, 1280, 840, 16);
         RunLayout(uiRoot, 1280, 840, 16);
@@ -652,10 +705,10 @@ public class DesignerControllerTests
         var openButton = Assert.IsType<Button>(shell.FindName("OpenButton"));
         var saveButton = Assert.IsType<Button>(shell.FindName("SaveButton"));
         var promptPrimaryButton = Assert.IsType<Button>(shell.FindName("WorkflowPromptPrimaryButton"));
-        var pathEditor = Assert.IsType<TextBox>(shell.FindName("DocumentPathTextBox"));
+        _ = Assert.IsType<TextBox>(shell.FindName("DocumentPathTextBox"));
 
         Assert.True(CommandSourceExecution.TryExecute(openButton, shell));
-        pathEditor.Text = "C:/designer/open.xml";
+        shell.ViewModel.PromptPathText = "C:/designer/open.xml";
         Assert.True(CommandSourceExecution.TryExecute(promptPrimaryButton, shell));
         Assert.Equal(NormalizeLineEndings(ValidViewXml), shell.SourceText);
         Assert.False(shell.DocumentController.IsDirty);
@@ -887,6 +940,14 @@ public class DesignerControllerTests
         return new Vector2(
             sourceEditor.LayoutSlot.X + 1f + 8f,
             sourceEditor.LayoutSlot.Y + 1f + 5f + ((oneBasedLineNumber - 1) * lineHeight) + 2f);
+    }
+
+    private static Vector2 GetDiagnosticsTabHeaderPoint(TabControl tabControl)
+    {
+        var sourceHeaderWidth = MathF.Max(
+            36f,
+            tabControl.HeaderPadding.Horizontal + UiTextRenderer.MeasureWidth(tabControl, "Source", tabControl.FontSize));
+        return new Vector2(tabControl.LayoutSlot.X + sourceHeaderWidth + 8f, tabControl.LayoutSlot.Y + 8f);
     }
 
     private static Vector2 GetCenter(LayoutRect rect)

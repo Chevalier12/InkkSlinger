@@ -644,6 +644,43 @@ public class XamlBindingParserTests
         Assert.Contains("both as an attribute and as a Binding.RelativeSource", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void TabItemBindings_InheritDataContext_AndFindAncestor_ThroughLogicalTree_WhenTabIsNotSelected()
+    {
+        const string xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="77">
+  <TabControl x:Name="Tabs"
+              SelectedIndex="0">
+    <TabItem Header="Source">
+      <TextBlock Text="source" />
+    </TabItem>
+    <TabItem x:Name="DiagnosticsTab"
+             Header="{Binding HeaderText}">
+      <Grid>
+        <ContentControl x:Name="Probe"
+                        Content="{Binding Width, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}" />
+      </Grid>
+    </TabItem>
+  </TabControl>
+</UserControl>
+""";
+
+        var root = (UserControl)XamlLoader.LoadFromString(xaml);
+        root.DataContext = new HeaderTextViewModel
+        {
+            HeaderText = "Diagnostics"
+        };
+
+        var diagnosticsTab = (TabItem?)root.FindName("DiagnosticsTab");
+        var probe = (ContentControl?)root.FindName("Probe");
+
+        Assert.NotNull(diagnosticsTab);
+        Assert.NotNull(probe);
+        Assert.Equal("Diagnostics", diagnosticsTab!.Header);
+        Assert.Equal(77f, Assert.IsType<float>(probe!.Content));
+    }
+
     private sealed class ThrowingSetterViewModel
     {
         private string _value = "seed";
@@ -654,4 +691,9 @@ public class XamlBindingParserTests
             set => throw new InvalidOperationException("setter failed");
         }
     }
+
+        private sealed class HeaderTextViewModel
+        {
+          public string HeaderText { get; set; } = string.Empty;
+        }
 }

@@ -249,7 +249,7 @@ public abstract class DependencyObject
                 source = DependencyPropertyValueSource.Default;
                 var visited = new HashSet<UIElement> { element };
 
-                for (var parent = element.VisualParent; parent != null; parent = parent.VisualParent)
+                for (var parent = UIElement.GetTreeParent(element); parent != null; parent = UIElement.GetTreeParent(parent))
                 {
                     if (!visited.Add(parent))
                     {
@@ -296,7 +296,7 @@ public abstract class DependencyObject
 
             // For non-inherited true values (local/style/template), immediate parent is sufficient:
             // parent effective IsEnabled itself already reflects all of its ancestors.
-            var parent = enabledElement.VisualParent;
+            var parent = UIElement.GetTreeParent(enabledElement);
             if (parent != null && !parent.IsEnabled)
             {
                 value = false;

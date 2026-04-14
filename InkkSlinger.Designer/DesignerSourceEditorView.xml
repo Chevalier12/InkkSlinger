@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.Designer.DesignerSourceEditorView"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch">
+  <UserControl.Resources>
+    <DataTemplate x:Key="SourceLineNumberTemplate">
+      <Border Height="{Binding LineHeight}">
+        <TextBlock Text="{Binding NumberText}"
+                   Foreground="#4A6880"
+                   FontFamily="Consolas"
+                   FontSize="{Binding FontSize}"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Center" />
+      </Border>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="56" />
+      <ColumnDefinition Width="1" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+
+    <Border x:Name="SourceLineNumberBorder"
+            Grid.Column="0"
+            Background="#0A1017"
+            ClipToBounds="True">
+      <ItemsControl x:Name="SourceLineNumberPanel"
+                    ItemTemplate="{StaticResource SourceLineNumberTemplate}"
+                    Margin="0,10,6,0" />
+    </Border>
+
+    <Border Grid.Column="1"
+            Background="#1A2637" />
+
+    <RichTextBox x:Name="SourceEditor"
+                 Grid.Column="2"
+                 TextChanged="OnSourceEditorTextChanged"
+                 ViewportChanged="OnSourceEditorViewportChanged"
+                 LayoutUpdated="OnSourceEditorLayoutUpdated"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 Foreground="#D8E3EE"
+                 CaretBrush="#7FD0FF"
+                 SelectionBrush="#1A4A7A"
+                 Padding="10"
+                 HorizontalScrollBarVisibility="Auto"
+                 VerticalScrollBarVisibility="Auto"
+                 AcceptsReturn="True"
+                 AcceptsTab="True"
+                 TextWrapping="NoWrap"
+                 FontFamily="Consolas" />
+  </Grid>
+</UserControl>
