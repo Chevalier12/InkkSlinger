@@ -214,10 +214,7 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
 
     public bool TryRequestAppExit()
     {
-        SyncEditorTextIntoDocumentController();
-        var result = _workflow.BeginClose();
-        HandleDocumentWorkflowResult(result);
-        return result.CloseAction == DesignerWorkflowCloseAction.AllowCurrentRequest;
+        return true;
     }
 
     private void OnSourceEditorTextChanged(object? sender, RoutedSimpleEventArgs args)
