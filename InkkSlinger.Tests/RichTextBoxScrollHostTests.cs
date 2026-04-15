@@ -297,6 +297,25 @@ public sealed class RichTextBoxScrollHostTests
     }
 
     [Fact]
+    public void HostedScrollContent_NarrowerViewportThatStillContainsExtent_DoesNotRebuildDocumentLayout()
+    {
+        const string text = "Completion popups should not force the hosted source editor document to relayout when the viewport narrows by a few pixels but still remains far wider than the document extent.";
+        var (uiRoot, editor, contentHost) = CreateUiRootEditorFixture(1185f, 160f, text);
+
+        Assert.True(
+            contentHost.ExtentWidth > 0f && contentHost.ExtentWidth < 1176f,
+            $"Expected the hosted RichTextBox document extent to stay well below the narrowed viewport width. extent={contentHost.ExtentWidth:0.###}, viewport={contentHost.ViewportWidth:0.###}.");
+
+        editor.ResetPerformanceSnapshot();
+        editor.Width = 1176f;
+        RunLayout(uiRoot, 1225, 200, 32);
+
+        var snapshot = editor.GetPerformanceSnapshot();
+        Assert.Equal(0, snapshot.LayoutCacheMissCount);
+        Assert.Equal(0, snapshot.LayoutBuildSampleCount);
+    }
+
+    [Fact]
     public void RichTextBoxStudio_HorizontalThumb_WhenDraggedPartway_ShouldStayInSyncWithScrollOffset()
     {
         var snapshot = SnapshotApplicationResources();

@@ -1638,7 +1638,7 @@ public sealed class DocumentViewportLayoutCache
 
     public bool TryGet(in CacheKey key, out DocumentLayoutResult result)
     {
-        if (_result != null && _key.Equals(key))
+        if (_result != null && CanReuse(_key, key, _result))
         {
             result = _result;
             return true;
@@ -1657,6 +1657,50 @@ public sealed class DocumentViewportLayoutCache
     public void Invalidate()
     {
         _result = null;
+    }
+
+    private static bool CanReuse(in CacheKey cachedKey, in CacheKey requestedKey, DocumentLayoutResult result)
+    {
+        if (cachedKey.DocumentSignature != requestedKey.DocumentSignature ||
+            cachedKey.Wrapping != requestedKey.Wrapping ||
+            cachedKey.FontIdentity != requestedKey.FontIdentity ||
+            !AreEquivalentWidths(cachedKey.LineHeight, requestedKey.LineHeight) ||
+            cachedKey.Foreground != requestedKey.Foreground)
+        {
+            return false;
+        }
+
+        if (AreEquivalentWidths(cachedKey.Width, requestedKey.Width))
+        {
+            return true;
+        }
+
+        if (!float.IsFinite(cachedKey.Width) || !float.IsFinite(requestedKey.Width))
+        {
+            return false;
+        }
+
+        if (requestedKey.Width > cachedKey.Width + 0.01f)
+        {
+            return false;
+        }
+
+        return result.ContentWidth <= requestedKey.Width + 0.01f;
+    }
+
+    private static bool AreEquivalentWidths(float left, float right)
+    {
+        if (float.IsPositiveInfinity(left) || float.IsPositiveInfinity(right))
+        {
+            return float.IsPositiveInfinity(left) == float.IsPositiveInfinity(right);
+        }
+
+        if (float.IsNaN(left) || float.IsNaN(right))
+        {
+            return false;
+        }
+
+        return MathF.Abs(left - right) <= 0.01f;
     }
 
     public readonly record struct CacheKey(

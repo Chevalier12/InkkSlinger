@@ -92,7 +92,7 @@ public class Decorator : FrameworkElement
         return (IsMeasuring || IsArrangingOverride) && IsDescendantOfChildSubtree(descendant);
     }
 
-    private bool IsDescendantOfChildSubtree(FrameworkElement descendant)
+    private bool IsDescendantOfChildSubtree(UIElement descendant)
     {
         if (_child == null)
         {

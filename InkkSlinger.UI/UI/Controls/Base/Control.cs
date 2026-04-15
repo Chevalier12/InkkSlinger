@@ -439,6 +439,11 @@ public class Control : FrameworkElement, ICommandSource
     {
     }
 
+    protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        return (IsMeasuring || IsArrangingOverride) && IsDescendantOfTemplateRootSubtree(descendant);
+    }
+
     protected UIElement? GetTemplateChild(string name)
     {
         return _namedTemplateChildren.TryGetValue(name, out var element) ? element : null;
@@ -560,6 +565,24 @@ public class Control : FrameworkElement, ICommandSource
             _runtimeMeasureOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
             RecordAggregateElapsed(ref _diagMeasureOverrideCallCount, ref _diagMeasureOverrideElapsedTicks, start);
         }
+    }
+
+    private bool IsDescendantOfTemplateRootSubtree(UIElement descendant)
+    {
+        if (_templateRoot == null)
+        {
+            return false;
+        }
+
+        for (UIElement? current = descendant; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, this) || ReferenceEquals(current, _templateRoot))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)

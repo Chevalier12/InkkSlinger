@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework.Input;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -21,6 +23,7 @@ public sealed class InkkOopsTestScriptUsageTests
     private const string NavigationSplitterName = "NavigationSplitter";
     private const string PreviewDockSplitterName = "PreviewDockSplitter";
     private const string PreviewSourceSplitterName = "PreviewSourceSplitter";
+    private const string SourceEditorName = "SourceEditor";
 
     [Fact]
     public async Task RuntimePlayback_Opens_Real_App_And_Writes_Result()
@@ -297,6 +300,33 @@ public sealed class InkkOopsTestScriptUsageTests
         Assert.Contains(PreviewSourceSplitterName, actionLog);
     }
 
+    [Fact]
+    public async Task RuntimeRun_Designer_SourceEditor_CtrlSpace_Completion_Fps_Drop_Path_Passes_And_Preserves_Artifacts()
+    {
+        var artifactsRoot = CreatePreservedArtifactsRoot("runtime-designer-source-editor-ctrl-space-completion-fps-drop");
+        var runDirectory = await RunRuntimeScenarioFromTestAssemblyAllowCompletedArtifactsAsync(
+            "runtime-designer-source-editor-ctrl-space-completion-fps-drop-scenario",
+            GetDesignerProjectPath(),
+            artifactsRoot);
+
+        var resultJson = File.ReadAllText(Path.Combine(runDirectory, "result.json"));
+        var actionLogPath = Path.Combine(runDirectory, "action.log");
+        var actionLog = File.ReadAllText(actionLogPath);
+
+        Assert.Contains("\"status\": \"Completed\"", resultJson);
+        Assert.Contains("\"scriptName\": \"runtime-designer-source-editor-ctrl-space-completion-fps-drop-scenario\"", resultJson);
+        Assert.True(File.Exists(actionLogPath));
+        Assert.Contains(SourceEditorName, actionLog);
+        Assert.Contains("TextInput(<)", actionLog);
+        Assert.Contains("KeyDown(LeftControl)", actionLog);
+        Assert.Contains("KeyDown(Space)", actionLog);
+        Assert.Contains("KeyUp(Space)", actionLog);
+        Assert.True(
+            TryFindLoggedFpsForAction(actionLog, "KeyDown(Space)", out var ctrlSpaceFps),
+            "Action log did not contain an fps entry for KeyDown(Space).");
+        Assert.True(ctrlSpaceFps >= 0d, "Ctrl+Space fps entry should be non-negative.");
+    }
+
     private static async Task<string> RunRuntimeScenarioFromTestAssemblyAsync(string scriptName, string artifactsRoot)
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -329,6 +359,67 @@ public sealed class InkkOopsTestScriptUsageTests
             environmentVariables);
 
         return Assert.Single(Directory.GetDirectories(artifactsRoot));
+    }
+
+    private static async Task<string> RunRuntimeScenarioFromTestAssemblyAllowCompletedArtifactsAsync(
+        string scriptName,
+        string projectPath,
+        string artifactsRoot)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var testAssemblyPath = typeof(InkkOopsTestScriptUsageTests).Assembly.Location;
+        var arguments =
+            $"run --project \"{projectPath}\" --no-restore -- --inkkoops-script-assembly \"{testAssemblyPath}\" --inkkoops-script \"{scriptName}\" --inkkoops-artifacts \"{artifactsRoot}\"";
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            Arguments = arguments,
+            WorkingDirectory = repositoryRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+
+        using var process = Process.Start(startInfo);
+        Assert.NotNull(process);
+
+        var timeoutAtUtc = DateTime.UtcNow + RuntimeProcessTimeout;
+        while (DateTime.UtcNow < timeoutAtUtc)
+        {
+            if (TryFindCompletedRunDirectory(artifactsRoot, scriptName, out var completedRunDirectory))
+            {
+                TryTerminateProcess(process);
+                return completedRunDirectory;
+            }
+
+            if (process.HasExited)
+            {
+                var stdout = await process.StandardOutput.ReadToEndAsync();
+                var stderr = await process.StandardError.ReadToEndAsync();
+
+                Assert.True(
+                    process.ExitCode == 0,
+                    $"Runtime scenario launch failed.{Environment.NewLine}ExitCode: {process.ExitCode}{Environment.NewLine}STDOUT:{Environment.NewLine}{stdout}{Environment.NewLine}STDERR:{Environment.NewLine}{stderr}");
+
+                return Assert.Single(Directory.GetDirectories(artifactsRoot));
+            }
+
+            await Task.Delay(200);
+        }
+
+        if (TryFindCompletedRunDirectory(artifactsRoot, scriptName, out var timedOutCompletedRunDirectory))
+        {
+            TryTerminateProcess(process);
+            return timedOutCompletedRunDirectory;
+        }
+
+        var timedOutStdout = await process.StandardOutput.ReadToEndAsync();
+        var timedOutStderr = await process.StandardError.ReadToEndAsync();
+        TryTerminateProcess(process);
+        Assert.Fail(
+            $"Runtime scenario launch failed.{Environment.NewLine}Process timed out after {RuntimeProcessTimeout.TotalSeconds:0} seconds.{Environment.NewLine}Arguments: {arguments}{Environment.NewLine}STDOUT:{Environment.NewLine}{timedOutStdout}{Environment.NewLine}STDERR:{Environment.NewLine}{timedOutStderr}");
+        return string.Empty;
     }
 
     private static async Task<string> RunRuntimeRecordingAsync(string recordingPath, string artifactsRoot)
@@ -427,6 +518,87 @@ public sealed class InkkOopsTestScriptUsageTests
     {
         var repositoryRoot = FindRepositoryRoot();
         return Path.Combine(repositoryRoot, "InkkSlinger.Designer", "InkkSlinger.Designer.csproj");
+    }
+
+    private static bool TryFindLoggedFpsForAction(string actionLog, string actionDescription, out double fps)
+    {
+        fps = -1d;
+
+        using var reader = new StringReader(actionLog);
+        while (reader.ReadLine() is { } line)
+        {
+            if (!line.Contains(actionDescription, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var fpsIndex = line.IndexOf("fps=", StringComparison.Ordinal);
+            if (fpsIndex < 0)
+            {
+                continue;
+            }
+
+            fpsIndex += 4;
+            var fpsEndIndex = line.IndexOf(' ', fpsIndex);
+            var fpsText = fpsEndIndex >= 0
+                ? line.Substring(fpsIndex, fpsEndIndex - fpsIndex)
+                : line.Substring(fpsIndex);
+
+            if (double.TryParse(fpsText, NumberStyles.Float, CultureInfo.InvariantCulture, out fps))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryFindCompletedRunDirectory(string artifactsRoot, string scriptName, out string runDirectory)
+    {
+        runDirectory = string.Empty;
+
+        if (!Directory.Exists(artifactsRoot))
+        {
+            return false;
+        }
+
+        var candidateDirectories = Directory.GetDirectories(artifactsRoot);
+        if (candidateDirectories.Length != 1)
+        {
+            return false;
+        }
+
+        var resultPath = Path.Combine(candidateDirectories[0], "result.json");
+        if (!File.Exists(resultPath))
+        {
+            return false;
+        }
+
+        var resultJson = File.ReadAllText(resultPath);
+        if (!resultJson.Contains("\"status\": \"Completed\"", StringComparison.Ordinal) ||
+            !resultJson.Contains($"\"scriptName\": \"{scriptName}\"", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        runDirectory = candidateDirectories[0];
+        return true;
+    }
+
+    private static void TryTerminateProcess(Process process)
+    {
+        if (process.HasExited)
+        {
+            return;
+        }
+
+        try
+        {
+            process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     private static string FindRepositoryRoot()
@@ -582,6 +754,33 @@ public sealed class InkkOopsTestScriptUsageTests
                 .WaitFrames(12)
                 .WaitForInteractive(PreviewSourceSplitterName)
                 .Drag(PreviewSourceSplitterName, 96f, -560f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12);
+        }
+    }
+
+    public sealed class RuntimeDesignerSourceEditorCtrlSpaceCompletionFpsDropScenario : InkkOopsRuntimeScenario
+    {
+        public override string Name => "runtime-designer-source-editor-ctrl-space-completion-fps-drop-scenario";
+
+        protected override IEnumerable<int>? ActionDiagnosticsIndexes => [16, 17, 18, 19];
+
+        protected override void Build(InkkOopsScriptBuilder builder)
+        {
+            builder
+                .ResizeWindow(1280, 820)
+                .WaitFrames(24)
+                .WaitForInteractive(SourceEditorName)
+                .Click(SourceEditorName)
+                .WaitFrames(8)
+                .PressKey(Keys.End, ModifierKeys.Control)
+                .WaitFrames(4)
+                .PressKey(Keys.Enter)
+                .WaitFrames(4)
+                .TextInput('<')
+                .WaitFrames(4)
+                .PressKey(Keys.Space, ModifierKeys.Control)
+                .WaitFrames(24)
+                .PressKey(Keys.Escape)
                 .WaitFrames(12);
         }
     }

@@ -84,6 +84,8 @@ public sealed class InkkOopsArtifacts : IDisposable
 
     public void WriteResult(InkkOopsRunResult result)
     {
+        FlushBufferedArtifacts();
+
         var json = JsonSerializer.Serialize(
             new
             {
@@ -102,6 +104,11 @@ public sealed class InkkOopsArtifacts : IDisposable
     }
 
     public void Dispose()
+    {
+        FlushBufferedArtifacts();
+    }
+
+    private void FlushBufferedArtifacts()
     {
         File.WriteAllLines(GetActionLogPath(), _actionLogLines, Encoding.UTF8);
         foreach (var pair in _bufferedTextArtifacts)

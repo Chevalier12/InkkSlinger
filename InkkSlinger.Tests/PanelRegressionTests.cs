@@ -201,6 +201,73 @@ public sealed class PanelRegressionTests
             visual => Assert.Equal("A", Assert.IsType<Border>(visual).Name));
     }
 
+    [Fact]
+    public void DescendantMeasureInvalidation_PopupChildWithStableDesiredSize_DoesNotInvalidatePanelMeasure()
+    {
+        var root = new Panel();
+        root.AddChild(new Border { Width = 240f, Height = 120f });
+
+        var leaf = new FixedMeasureElement(84f, 32f);
+        var popup = new Popup
+        {
+            Width = 180f,
+            Height = 120f,
+            TitleBarHeight = 0f,
+            BorderThickness = 0f,
+            Padding = new Thickness(0f),
+            Content = leaf
+        };
+        root.AddChild(popup);
+
+        var availableSize = new Vector2(640f, 360f);
+        root.Measure(availableSize);
+        var initialPanelMeasureWork = root.MeasureWorkCount;
+
+        leaf.InvalidateMeasure();
+
+        Assert.False(root.NeedsMeasure);
+
+        root.Measure(availableSize);
+
+        Assert.Equal(initialPanelMeasureWork, root.MeasureWorkCount);
+        Assert.True(leaf.MeasureWorkCount >= 2);
+    }
+
+    [Fact]
+    public void DescendantMeasureInvalidation_ExplicitSizeDecorator_DoesNotInvalidateAncestorGridMeasure()
+    {
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(100f, GridUnitType.Pixel) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(100f, GridUnitType.Pixel) });
+
+        var header = new Border { Width = 180f, Height = 80f };
+        root.AddChild(header);
+
+        var leaf = new FixedMeasureElement(60f, 24f);
+        var wrapper = new Border
+        {
+            Width = 220f,
+            Height = 100f,
+            Child = leaf
+        };
+        Grid.SetRow(wrapper, 1);
+        root.AddChild(wrapper);
+
+        var availableSize = new Vector2(320f, 220f);
+        root.Measure(availableSize);
+        var initialGridMeasureWork = root.MeasureWorkCount;
+
+        leaf.InvalidateMeasure();
+
+        Assert.False(root.NeedsMeasure);
+        Assert.False(wrapper.NeedsMeasure);
+
+        root.Measure(availableSize);
+
+        Assert.Equal(initialGridMeasureWork, root.MeasureWorkCount);
+        Assert.True(leaf.MeasureWorkCount >= 2);
+    }
+
     private static Panel CreateNamedPanel(params string[] names)
     {
         var panel = new Panel();
@@ -248,5 +315,25 @@ public sealed class PanelRegressionTests
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
             new Viewport(0, 0, width, height));
+    }
+
+    private sealed class FixedMeasureElement : FrameworkElement
+    {
+        private readonly Vector2 _desiredSize;
+
+        public FixedMeasureElement(float width, float height)
+        {
+            _desiredSize = new Vector2(width, height);
+        }
+
+        protected override Vector2 MeasureOverride(Vector2 availableSize)
+        {
+            return _desiredSize;
+        }
+
+        protected override Vector2 ArrangeOverride(Vector2 finalSize)
+        {
+            return finalSize;
+        }
     }
 }

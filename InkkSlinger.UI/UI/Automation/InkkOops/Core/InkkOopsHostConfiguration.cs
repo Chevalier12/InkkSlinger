@@ -58,6 +58,7 @@ public sealed class InkkOopsHostConfiguration
             new InkkOopsContentPresenterDiagnosticsContributor(),
             new InkkOopsUserControlDiagnosticsContributor(),
             new InkkOopsGridDiagnosticsContributor(),
+            new InkkOopsScrollViewerDiagnosticsContributor(),
             new InkkOopsScrollBarDiagnosticsContributor(),
             new InkkOopsTrackDiagnosticsContributor()
         };

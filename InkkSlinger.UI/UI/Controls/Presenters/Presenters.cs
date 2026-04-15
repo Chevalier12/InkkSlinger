@@ -379,6 +379,11 @@ public class ContentPresenter : FrameworkElement
         }
     }
 
+    protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        return (IsMeasuring || IsArrangingOverride) && IsDescendantOfPresentedSubtree(descendant);
+    }
+
     protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
         IncrementMetric(ref _runtimeCanReuseMeasureCallCount, ref _diagCanReuseMeasureCallCount);
@@ -428,6 +433,24 @@ public class ContentPresenter : FrameworkElement
     {
         IncrementMetric(ref _runtimeRefreshSourceBindingCallCount, ref _diagRefreshSourceBindingCallCount);
         EnsureSourceBinding();
+    }
+
+    private bool IsDescendantOfPresentedSubtree(UIElement descendant)
+    {
+        if (_presentedElement == null)
+        {
+            return false;
+        }
+
+        for (UIElement? current = descendant; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, this) || ReferenceEquals(current, _presentedElement))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void EnsureSourceBinding()

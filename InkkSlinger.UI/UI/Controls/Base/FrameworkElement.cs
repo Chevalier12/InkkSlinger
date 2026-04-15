@@ -1058,23 +1058,21 @@ public class FrameworkElement : UIElement
 
         var arrangedX = ResolveAlignedPosition(clientX, clientWidth, arrangedWidth, HorizontalAlignment);
         var arrangedY = ResolveAlignedPosition(clientY, clientHeight, arrangedHeight, VerticalAlignment);
+        var arrangedRect = new LayoutRect(arrangedX, arrangedY, arrangedWidth, arrangedHeight);
+        arrangedRect = ResolveArrangeRect(effectiveFinalRect, arrangedRect);
         if (useLayoutRounding)
         {
-            var roundedAlignedRect = RoundLayoutRect(new LayoutRect(arrangedX, arrangedY, arrangedWidth, arrangedHeight));
-            arrangedX = roundedAlignedRect.X;
-            arrangedY = roundedAlignedRect.Y;
-            arrangedWidth = roundedAlignedRect.Width;
-            arrangedHeight = roundedAlignedRect.Height;
+            arrangedRect = RoundLayoutRect(arrangedRect);
         }
 
         // ArrangeOverride needs the final aligned origin for child layout decisions.
-        SetLayoutSlot(new LayoutRect(arrangedX, arrangedY, arrangedWidth, arrangedHeight));
+        SetLayoutSlot(arrangedRect);
         var measureInvalidationCountBeforeOverride = MeasureInvalidationCount;
         var arrangeInvalidationCountBeforeOverride = ArrangeInvalidationCount;
         _activeArrangeOverrideDepth++;
         try
         {
-            RenderSize = ArrangeOverride(new Vector2(arrangedWidth, arrangedHeight));
+            RenderSize = ArrangeOverride(new Vector2(arrangedRect.Width, arrangedRect.Height));
         }
         finally
         {
@@ -1086,7 +1084,7 @@ public class FrameworkElement : UIElement
             RenderSize = RoundLayoutSize(RenderSize);
         }
 
-        var finalLayoutSlot = new LayoutRect(arrangedX, arrangedY, RenderSize.X, RenderSize.Y);
+        var finalLayoutSlot = new LayoutRect(arrangedRect.X, arrangedRect.Y, RenderSize.X, RenderSize.Y);
         if (useLayoutRounding)
         {
             finalLayoutSlot = RoundLayoutRect(finalLayoutSlot);
@@ -1489,6 +1487,12 @@ public class FrameworkElement : UIElement
     protected virtual Vector2 ArrangeOverride(Vector2 finalSize)
     {
         return finalSize;
+    }
+
+    protected virtual LayoutRect ResolveArrangeRect(LayoutRect finalRect, LayoutRect arrangedRect)
+    {
+        _ = finalRect;
+        return arrangedRect;
     }
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
@@ -1922,6 +1926,32 @@ public class FrameworkElement : UIElement
     {
         _isMeasureValid = true;
         ClearMeasureInvalidation();
+    }
+
+    protected Vector2 ResolveDesiredSizeFromMeasuredSizeForLocalReconciliation(Vector2 measuredSize)
+    {
+        var useLayoutRounding = UseLayoutRounding;
+        var resolvedMeasuredSize = ApplyExplicitConstraints(measuredSize);
+        if (useLayoutRounding)
+        {
+            resolvedMeasuredSize = RoundLayoutSize(resolvedMeasuredSize);
+        }
+
+        var margin = Margin;
+        var desiredSize = new Vector2(
+            resolvedMeasuredSize.X + margin.Horizontal,
+            resolvedMeasuredSize.Y + margin.Vertical);
+        if (useLayoutRounding)
+        {
+            desiredSize = RoundLayoutSize(desiredSize);
+        }
+
+        return desiredSize;
+    }
+
+    protected static bool AreLocalLayoutSizesClose(Vector2 left, Vector2 right)
+    {
+        return AreSizesEqual(left, right);
     }
 
     private Vector2 ApplyExplicitConstraints(Vector2 measured)

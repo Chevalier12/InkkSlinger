@@ -244,7 +244,12 @@ public class Panel : FrameworkElement
         return finalSize;
     }
 
-    internal static PanelTelemetrySnapshot GetTelemetryAndReset()
+    protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        return (IsMeasuring || IsArrangingOverride) && IsDescendantOfOwnedChildSubtree(descendant);
+    }
+
+    internal new static PanelTelemetrySnapshot GetTelemetryAndReset()
     {
         var snapshot = new PanelTelemetrySnapshot(
             _diagMeasureCallCount,
@@ -260,6 +265,24 @@ public class Panel : FrameworkElement
         _diagArrangeElapsedTicks = 0L;
         _diagArrangeChildCount = 0;
         return snapshot;
+    }
+
+    private bool IsDescendantOfOwnedChildSubtree(FrameworkElement descendant)
+    {
+        for (UIElement? current = descendant; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, this))
+            {
+                return true;
+            }
+
+            if (_children.Contains(current))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)

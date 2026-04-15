@@ -1617,7 +1617,14 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         var startTicks = Stopwatch.GetTimestamp();
         _runtimeOnStateMutationChangedCallCount++;
         IncrementAggregate(ref _diagOnStateMutationChangedCallCount);
-        RefreshLayoutForStateMutation();
+        if (ShouldDeferStateMutationLayoutRefresh())
+        {
+            InvalidateArrangeForDirectLayoutOnly();
+        }
+        else
+        {
+            RefreshLayoutForStateMutation();
+        }
         var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
 
         switch (source)
@@ -1702,6 +1709,26 @@ public class Track : Panel, IRenderDirtyBoundsHintProvider
         IncrementAggregate(ref _diagRefreshLayoutVisualFallbackCount);
         _runtimeRefreshLayoutForStateMutationElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         AddAggregate(ref _diagRefreshLayoutForStateMutationElapsedTicks, Stopwatch.GetTimestamp() - startTicks);
+    }
+
+    private bool ShouldDeferStateMutationLayoutRefresh()
+    {
+        if (IsMeasuring || IsArrangingOverride)
+        {
+            return true;
+        }
+
+        for (var current = VisualParent as FrameworkElement ?? LogicalParent as FrameworkElement;
+             current != null;
+             current = current.VisualParent as FrameworkElement ?? current.LogicalParent as FrameworkElement)
+        {
+            if (current.IsMeasuring || current.IsArrangingOverride)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void InvalidateVisualWithDirtyBoundsHint(LayoutRect dirtyBounds)

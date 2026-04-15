@@ -408,6 +408,80 @@ public class VirtualizingStackPanel : Panel
         return finalSize;
     }
 
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (GetType() != typeof(VirtualizingStackPanel))
+        {
+            return false;
+        }
+
+        EnsureCacheLength();
+
+        var previousContext = ResolveViewportContext(previousAvailableSize);
+        var nextContext = ResolveViewportContext(nextAvailableSize);
+        var previousVirtualizationActive = IsVirtualizationActiveContext(previousContext);
+        var nextVirtualizationActive = IsVirtualizationActiveContext(nextContext);
+        if (previousVirtualizationActive != nextVirtualizationActive)
+        {
+            return false;
+        }
+
+        var previousChildAvailable = GetChildConstraint(previousAvailableSize);
+        var nextChildAvailable = GetChildConstraint(nextAvailableSize);
+
+        if (!previousVirtualizationActive)
+        {
+            foreach (var child in Children)
+            {
+                if (child is not FrameworkElement frameworkChild)
+                {
+                    continue;
+                }
+
+                if (!frameworkChild.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousChildAvailable, nextChildAvailable))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        var previousFirst = ResolveStartIndex(previousContext.StartOffset);
+        var previousLast = ResolveEndIndex(previousContext.EndOffset, previousFirst);
+        var nextFirst = ResolveStartIndex(nextContext.StartOffset);
+        var nextLast = ResolveEndIndex(nextContext.EndOffset, nextFirst);
+        if (previousFirst != nextFirst || previousLast != nextLast)
+        {
+            return false;
+        }
+
+        if (_lastMeasuredFirst != previousFirst ||
+            _lastMeasuredLast != previousLast ||
+            _lastMeasuredChildOrderVersion != _childOrderVersion ||
+            RangeNeedsMeasure(previousFirst, previousLast))
+        {
+            return false;
+        }
+
+        var first = Math.Max(0, previousFirst);
+        var last = Math.Min(Children.Count - 1, previousLast);
+        for (var i = first; i <= last; i++)
+        {
+            if (Children[i] is not FrameworkElement frameworkChild)
+            {
+                continue;
+            }
+
+            if (!frameworkChild.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousChildAvailable, nextChildAvailable))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     protected override void OnVisualParentChanged(UIElement? oldParent, UIElement? newParent)
     {
         base.OnVisualParentChanged(oldParent, newParent);

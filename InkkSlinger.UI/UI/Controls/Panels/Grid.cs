@@ -741,7 +741,7 @@ public class Grid : Panel
             }
 
             MarkMeasureValidAfterLocalReconciliation();
-            InvalidateArrange();
+            InvalidateArrangeForDirectLayoutOnly();
             return true;
         }
         finally

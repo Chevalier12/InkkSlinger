@@ -21,6 +21,7 @@ public sealed partial class UiRoot
     private const float ClickPointerReuseThresholdSquared = 9f;
     private const float SweptPointerPressSampleSpacing = 1f;
     private bool _shouldRevalidateHoverAfterLayoutMutation = true;
+    private int _lastProcessedInputVisualStructureVersion;
     private string _lastPointerResolvePath = "None";
     private HitTestMetrics? _lastPointerResolveHitTestMetrics;
     private ContextMenu? _lastKnownOpenContextMenu;
@@ -98,12 +99,26 @@ public sealed partial class UiRoot
 
     private void ProcessInputDelta(InputDelta delta)
     {
-        _inputState.LastPointerPosition = delta.Current.PointerPosition;
+        if (!delta.IsEmpty)
+        {
+            _inputState.LastPointerPosition = delta.Current.PointerPosition;
+        }
+
         _lastPointerResolvePath = "None";
         _lastPointerResolveHitTestMetrics = null;
         var pointerStart = Stopwatch.GetTimestamp();
         _inputState.CurrentModifiers = GetModifiers(delta.Current.Keyboard);
-        _shouldRevalidateHoverAfterLayoutMutation = !delta.PointerMoved;
+        _lastProcessedInputVisualStructureVersion = _visualStructureVersion;
+        _shouldRevalidateHoverAfterLayoutMutation =
+            delta.PointerMoved ||
+            delta.WheelDelta != 0 ||
+            delta.LeftPressed ||
+            delta.LeftReleased ||
+            delta.RightPressed ||
+            delta.RightReleased ||
+            delta.MiddlePressed ||
+            delta.MiddleReleased;
+
         if (delta.IsEmpty)
         {
             _lastPointerResolvePath = "NoInputBypass";
@@ -1647,11 +1662,39 @@ public sealed partial class UiRoot
         _cachedWheelTextInputTarget = null;
         _cachedWheelScrollViewerTarget = null;
         BumpPointerResolveStateVersion();
-        if (_shouldRevalidateHoverAfterLayoutMutation &&
+        var shouldRevalidateHover =
+            _shouldRevalidateHoverAfterLayoutMutation ||
+            _visualStructureVersion != _lastProcessedInputVisualStructureVersion;
+
+        if (!shouldRevalidateHover)
+        {
+            ClearHoverStateIfInvalidAfterNonPointerLayoutMutation();
+        }
+
+        if (shouldRevalidateHover &&
             (_inputState.HoveredElement != null || _inputState.CapturedPointerElement != null))
         {
             RevalidateHoverAfterLayoutMutation(cachedWheelScrollViewerTarget);
         }
+    }
+
+    private void ClearHoverStateIfInvalidAfterNonPointerLayoutMutation()
+    {
+        var hovered = _inputState.HoveredElement;
+        if (hovered == null)
+        {
+            return;
+        }
+
+        if (IsElementConnectedToVisualRoot(hovered) &&
+            hovered.IsVisible &&
+            hovered.IsEnabled &&
+            hovered.IsHitTestVisible)
+        {
+            return;
+        }
+
+        UpdateHover(null, _inputState.LastPointerPosition);
     }
 
     private void RevalidateHoverAfterLayoutMutation(ScrollViewer? cachedWheelScrollViewerTarget)

@@ -263,6 +263,24 @@ public sealed class InkkOopsScriptBuilder
     {
         return Add(new InkkOopsKeyUpCommand(key));
     }
+    public InkkOopsScriptBuilder PressKey(Microsoft.Xna.Framework.Input.Keys key, ModifierKeys modifiers = ModifierKeys.None)
+    {
+        var heldModifierKeys = GetHeldModifierKeys(modifiers);
+        for (var i = 0; i < heldModifierKeys.Length; i++)
+        {
+            Add(new InkkOopsKeyDownCommand(heldModifierKeys[i]));
+        }
+
+        Add(new InkkOopsKeyDownCommand(key));
+        Add(new InkkOopsKeyUpCommand(key));
+
+        for (var i = heldModifierKeys.Length - 1; i >= 0; i--)
+        {
+            Add(new InkkOopsKeyUpCommand(heldModifierKeys[i]));
+        }
+
+        return this;
+    }
 
     public InkkOopsScriptBuilder TextInput(char character)
     {
@@ -422,5 +440,26 @@ public sealed class InkkOopsScriptBuilder
     public InkkOopsScript Build()
     {
         return _script;
+    }
+    private static Microsoft.Xna.Framework.Input.Keys[] GetHeldModifierKeys(ModifierKeys modifiers)
+    {
+        var keys = new List<Microsoft.Xna.Framework.Input.Keys>(3);
+
+        if ((modifiers & ModifierKeys.Control) != 0)
+        {
+            keys.Add(Microsoft.Xna.Framework.Input.Keys.LeftControl);
+        }
+
+        if ((modifiers & ModifierKeys.Shift) != 0)
+        {
+            keys.Add(Microsoft.Xna.Framework.Input.Keys.LeftShift);
+        }
+
+        if ((modifiers & ModifierKeys.Alt) != 0)
+        {
+            keys.Add(Microsoft.Xna.Framework.Input.Keys.LeftAlt);
+        }
+
+        return keys.ToArray();
     }
 }

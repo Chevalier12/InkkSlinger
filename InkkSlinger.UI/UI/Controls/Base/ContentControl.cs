@@ -342,6 +342,12 @@ public class ContentControl : Control
         }
     }
 
+    protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        return base.ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(descendant) ||
+               ((IsMeasuring || IsArrangingOverride) && IsDescendantOfContentSubtree(descendant));
+    }
+
     protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
         _runtimeCanReuseMeasureCallCount++;
@@ -400,6 +406,24 @@ public class ContentControl : Control
             _runtimeArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - start;
             RecordAggregateElapsed(ref _diagArrangeOverrideCallCount, ref _diagArrangeOverrideElapsedTicks, start);
         }
+    }
+
+    private bool IsDescendantOfContentSubtree(UIElement descendant)
+    {
+        if (_contentElement == null)
+        {
+            return false;
+        }
+
+        for (UIElement? current = descendant; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, this) || ReferenceEquals(current, _contentElement))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal void AttachContentPresenter(ContentPresenter presenter)

@@ -135,6 +135,15 @@ public class ScrollViewer : ContentControl
     private LayoutRect _contentViewportRect;
     private LayoutRect _lastArrangedContentRect;
     private FrameworkElement? _lastArrangedContentElement;
+    private bool _hasSyncedScrollBarState;
+    private float _lastSyncedHorizontalViewportSize;
+    private float _lastSyncedVerticalViewportSize;
+    private float _lastSyncedHorizontalMaximum;
+    private float _lastSyncedVerticalMaximum;
+    private float _lastSyncedHorizontalLargeChange;
+    private float _lastSyncedVerticalLargeChange;
+    private float _lastSyncedHorizontalValue;
+    private float _lastSyncedVerticalValue;
     private bool _showHorizontalBar;
     private bool _showVerticalBar;
     private bool _hasArrangedContentRect;
@@ -462,7 +471,7 @@ public class ScrollViewer : ContentControl
             }
             else
             {
-                InvalidateArrange();
+                InvalidateArrangeForDirectLayoutOnly();
             }
 
             return true;
@@ -941,11 +950,11 @@ public class ScrollViewer : ContentControl
         var fullRect = new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, MathF.Max(0f, finalSize.X - (border * 2f)), MathF.Max(0f, finalSize.Y - (border * 2f)));
         var decision = ResolveBarsForArrange(fullRect);
         ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight, publishViewportMetrics: true);
-        SetOffsets(HorizontalOffset, VerticalOffset);
         _showHorizontalBar = decision.ShowHorizontalBar;
         _showVerticalBar = decision.ShowVerticalBar;
         CacheResolvedScrollBarVisibility(decision.ShowHorizontalBar, decision.ShowVerticalBar);
         _contentViewportRect = decision.ViewportRect;
+        CoerceOffsetsToCurrentMetrics();
         ArrangeContentForCurrentOffsets(previousViewportRect);
 
         if (_showHorizontalBar)
@@ -1137,7 +1146,10 @@ public class ScrollViewer : ContentControl
 
                 if (i == 0)
                 {
-                    MeasureContent(viewportWidth, viewportHeight, out extentWidth, out extentHeight);
+                    if (!TryReuseCurrentMeasuredContentForViewport(viewportWidth, viewportHeight, out extentWidth, out extentHeight))
+                    {
+                        MeasureContent(viewportWidth, viewportHeight, out extentWidth, out extentHeight);
+                    }
                 }
 
                 var nextShowHorizontal = ResolveHorizontalAutoBarVisibility(showHorizontal, extentWidth, viewportWidth);
@@ -1204,6 +1216,9 @@ public class ScrollViewer : ContentControl
 
         _diagResolveBarsAndMeasureContentRemeasurePathCount++;
         _runtimeResolveBarsAndMeasureContentRemeasurePathCount++;
+        var hasRemeasureViewport = false;
+        var previousRemeasureViewportWidth = 0f;
+        var previousRemeasureViewportHeight = 0f;
         for (var i = 0; i < 3; i++)
         {
             _diagResolveBarsAndMeasureContentIterationCount++;
@@ -1211,7 +1226,28 @@ public class ScrollViewer : ContentControl
             var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
             var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
 
-            MeasureContent(viewportWidth, viewportHeight, out var extentWidth, out var extentHeight);
+            var extentWidth = 0f;
+            var extentHeight = 0f;
+            var reusedMeasure = hasRemeasureViewport && TryReuseMeasuredContent(
+                previousRemeasureViewportWidth,
+                previousRemeasureViewportHeight,
+                viewportWidth,
+                viewportHeight,
+                out extentWidth,
+                out extentHeight);
+            if (!reusedMeasure)
+            {
+                reusedMeasure = TryReuseCurrentMeasuredContentForViewport(viewportWidth, viewportHeight, out extentWidth, out extentHeight);
+            }
+
+            if (!reusedMeasure)
+            {
+                MeasureContent(viewportWidth, viewportHeight, out extentWidth, out extentHeight);
+            }
+
+            hasRemeasureViewport = true;
+            previousRemeasureViewportWidth = viewportWidth;
+            previousRemeasureViewportHeight = viewportHeight;
             var nextShowHorizontal = showHorizontal;
             var nextShowVertical = showVertical;
 
@@ -1241,7 +1277,20 @@ public class ScrollViewer : ContentControl
                 var fallbackShowVertical = showVertical || nextShowVertical;
                 var fallbackViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(fallbackShowVertical, verticalBarThickness));
                 var fallbackViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(fallbackShowHorizontal, horizontalBarThickness));
-                MeasureContent(fallbackViewportWidth, fallbackViewportHeight, out var fallbackExtentWidth, out var fallbackExtentHeight);
+                float fallbackExtentWidth;
+                float fallbackExtentHeight;
+                if (!TryReuseMeasuredContent(
+                        previousRemeasureViewportWidth,
+                        previousRemeasureViewportHeight,
+                        fallbackViewportWidth,
+                        fallbackViewportHeight,
+                        out fallbackExtentWidth,
+                        out fallbackExtentHeight) &&
+                    !TryReuseCurrentMeasuredContentForViewport(fallbackViewportWidth, fallbackViewportHeight, out fallbackExtentWidth, out fallbackExtentHeight))
+                {
+                    MeasureContent(fallbackViewportWidth, fallbackViewportHeight, out fallbackExtentWidth, out fallbackExtentHeight);
+                }
+
                 _diagResolveBarsAndMeasureContentFallbackCount++;
                 _runtimeResolveBarsAndMeasureContentFallbackCount++;
                 RecordResolvedBarState(fallbackShowHorizontal, fallbackShowVertical);
@@ -1264,9 +1313,22 @@ public class ScrollViewer : ContentControl
 
         var finalViewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
         var finalViewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
-        MeasureContent(finalViewportWidth, finalViewportHeight, out var finalExtentWidth, out var finalExtentHeight);
-    RecordResolvedBarState(showHorizontal, showVertical);
-    RecordResolveBarsMeasureTrace(trace + $"|finalVp={finalViewportWidth:0.##}x{finalViewportHeight:0.##},finalExt={finalExtentWidth:0.##}x{finalExtentHeight:0.##},result={(showHorizontal ? 1 : 0)},{(showVertical ? 1 : 0)}", Stopwatch.GetTimestamp() - startTicks);
+        float finalExtentWidth;
+        float finalExtentHeight;
+        if (!TryReuseMeasuredContent(
+                previousRemeasureViewportWidth,
+                previousRemeasureViewportHeight,
+                finalViewportWidth,
+                finalViewportHeight,
+                out finalExtentWidth,
+                out finalExtentHeight) &&
+            !TryReuseCurrentMeasuredContentForViewport(finalViewportWidth, finalViewportHeight, out finalExtentWidth, out finalExtentHeight))
+        {
+            MeasureContent(finalViewportWidth, finalViewportHeight, out finalExtentWidth, out finalExtentHeight);
+        }
+
+        RecordResolvedBarState(showHorizontal, showVertical);
+        RecordResolveBarsMeasureTrace(trace + $"|finalVp={finalViewportWidth:0.##}x{finalViewportHeight:0.##},finalExt={finalExtentWidth:0.##}x{finalExtentHeight:0.##},result={(showHorizontal ? 1 : 0)},{(showVertical ? 1 : 0)}", Stopwatch.GetTimestamp() - startTicks);
         _diagResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         _runtimeResolveBarsAndMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
 
@@ -1412,6 +1474,53 @@ public class ScrollViewer : ContentControl
         _diagMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         _runtimeMeasureContentCallCount++;
         _runtimeMeasureContentElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+    }
+
+    private bool TryReuseCurrentMeasuredContentForViewport(float viewportWidth, float viewportHeight, out float extentWidth, out float extentHeight)
+    {
+        if (!_hasPreviousScrollBarResolution)
+        {
+            extentWidth = 0f;
+            extentHeight = 0f;
+            return false;
+        }
+
+        return TryReuseMeasuredContent(
+            _contentViewportRect.Width,
+            _contentViewportRect.Height,
+            viewportWidth,
+            viewportHeight,
+            out extentWidth,
+            out extentHeight);
+    }
+
+    private bool TryReuseMeasuredContent(
+        float previousViewportWidth,
+        float previousViewportHeight,
+        float nextViewportWidth,
+        float nextViewportHeight,
+        out float extentWidth,
+        out float extentHeight)
+    {
+        if (ContentElement is not FrameworkElement content)
+        {
+            extentWidth = 0f;
+            extentHeight = 0f;
+            return false;
+        }
+
+        var previousConstraint = CreateContentMeasureConstraint(previousViewportWidth, previousViewportHeight);
+        var nextConstraint = CreateContentMeasureConstraint(nextViewportWidth, nextViewportHeight);
+        if (!content.CanReuseMeasureForAvailableSizeChangeForParentLayout(previousConstraint, nextConstraint))
+        {
+            extentWidth = 0f;
+            extentHeight = 0f;
+            return false;
+        }
+
+        extentWidth = content.DesiredSize.X;
+        extentHeight = content.DesiredSize.Y;
+        return true;
     }
 
     private bool IsContentDescendant(UIElement element)
@@ -1601,6 +1710,16 @@ public class ScrollViewer : ContentControl
         {
             ViewportChanged?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    private void CoerceOffsetsToCurrentMetrics()
+    {
+        var maxHorizontal = MathF.Max(0f, ExtentWidth - ViewportWidth);
+        var maxVertical = MathF.Max(0f, ExtentHeight - ViewportHeight);
+        var nextHorizontal = Math.Clamp(HorizontalOffset, 0f, maxHorizontal);
+        var nextVertical = Math.Clamp(VerticalOffset, 0f, maxVertical);
+        SetIfChanged(HorizontalOffsetProperty, nextHorizontal);
+        SetIfChanged(VerticalOffsetProperty, nextVertical);
     }
 
     internal bool HandleMouseWheelFromInput(int delta)
@@ -1862,6 +1981,13 @@ public class ScrollViewer : ContentControl
             arrangedWidth,
             arrangedHeight);
 
+        if (CanReuseExistingContentArrange(content, arrangeRect))
+        {
+            _diagArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _runtimeArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            return;
+        }
+
         if (CanTranslateExistingContentArrange(content, arrangeRect) &&
             content.TryTranslateArrangedSubtree(arrangeRect))
         {
@@ -1883,6 +2009,15 @@ public class ScrollViewer : ContentControl
         _runtimeArrangeContentForCurrentOffsetsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
     }
 
+    private bool CanReuseExistingContentArrange(FrameworkElement content, LayoutRect nextArrangeRect)
+    {
+        return _hasArrangedContentRect &&
+               ReferenceEquals(_lastArrangedContentElement, content) &&
+               !content.NeedsMeasure &&
+               !content.NeedsArrange &&
+               AreLayoutRectsClose(_lastArrangedContentRect, nextArrangeRect);
+    }
+
     private bool CanTranslateExistingContentArrange(FrameworkElement content, LayoutRect nextArrangeRect)
     {
         return UsesTransformBasedContentScrolling() &&
@@ -1896,6 +2031,11 @@ public class ScrollViewer : ContentControl
 
     private float ResolveContentArrangeWidth(FrameworkElement content, LayoutRect previousViewportRect)
     {
+        if (ShouldArrangeVirtualizedContentToViewport(content, horizontalAxis: true))
+        {
+            return ViewportWidth;
+        }
+
         var arrangedWidth = HorizontalScrollBarVisibility == ScrollBarVisibility.Disabled
             ? ViewportWidth
             : MathF.Max(ViewportWidth, ExtentWidth);
@@ -1912,6 +2052,11 @@ public class ScrollViewer : ContentControl
 
     private float ResolveContentArrangeHeight(FrameworkElement content, LayoutRect previousViewportRect)
     {
+        if (ShouldArrangeVirtualizedContentToViewport(content, horizontalAxis: false))
+        {
+            return ViewportHeight;
+        }
+
         var arrangedHeight = MathF.Max(ViewportHeight, ExtentHeight);
 
         if (VerticalScrollBarVisibility != ScrollBarVisibility.Disabled)
@@ -1960,6 +2105,18 @@ public class ScrollViewer : ContentControl
         return true;
     }
 
+    private static bool ShouldArrangeVirtualizedContentToViewport(FrameworkElement content, bool horizontalAxis)
+    {
+        if (content is not VirtualizingStackPanel panel)
+        {
+            return false;
+        }
+
+        return horizontalAxis
+            ? panel.Orientation == Orientation.Horizontal
+            : panel.Orientation == Orientation.Vertical;
+    }
+
     private Vector2 CreateContentMeasureConstraint(float viewportWidth, float viewportHeight)
     {
         var canScrollHorizontally = HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled;
@@ -1985,21 +2142,54 @@ public class ScrollViewer : ContentControl
     {
         var startTicks = Stopwatch.GetTimestamp();
         _runtimeUpdateScrollBarsCallCount++;
+        var desiredHorizontalViewportSize = ViewportWidth;
+        var desiredVerticalViewportSize = ViewportHeight;
+        var desiredHorizontalMaximum = ExtentWidth;
+        var desiredVerticalMaximum = ExtentHeight;
+        var desiredHorizontalLargeChange = MathF.Max(1f, ViewportWidth);
+        var desiredVerticalLargeChange = MathF.Max(1f, ViewportHeight);
+        var desiredHorizontalValue = HorizontalOffset;
+        var desiredVerticalValue = VerticalOffset;
+        if (HasSynchronizedScrollBarState(
+                desiredHorizontalViewportSize,
+                desiredVerticalViewportSize,
+                desiredHorizontalMaximum,
+                desiredVerticalMaximum,
+                desiredHorizontalLargeChange,
+                desiredVerticalLargeChange,
+                desiredHorizontalValue,
+                desiredVerticalValue))
+        {
+            _runtimeUpdateScrollBarsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            _diagUpdateScrollBarsCallCount++;
+            _diagUpdateScrollBarsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+            return;
+        }
+
         _suppressInternalScrollBarValueChange = true;
         try
         {
-            SetIfChanged(ScrollBar.ViewportSizeProperty, _horizontalBar, ViewportWidth);
-            SetIfChanged(ScrollBar.ViewportSizeProperty, _verticalBar, ViewportHeight);
+            SetIfChanged(ScrollBar.ViewportSizeProperty, _horizontalBar, desiredHorizontalViewportSize);
+            SetIfChanged(ScrollBar.ViewportSizeProperty, _verticalBar, desiredVerticalViewportSize);
             SetIfChanged(ScrollBar.MinimumProperty, _horizontalBar, 0f);
             SetIfChanged(ScrollBar.MinimumProperty, _verticalBar, 0f);
-            SetIfChanged(ScrollBar.MaximumProperty, _horizontalBar, ExtentWidth);
-            SetIfChanged(ScrollBar.MaximumProperty, _verticalBar, ExtentHeight);
+            SetIfChanged(ScrollBar.MaximumProperty, _horizontalBar, desiredHorizontalMaximum);
+            SetIfChanged(ScrollBar.MaximumProperty, _verticalBar, desiredVerticalMaximum);
             SetIfChanged(ScrollBar.SmallChangeProperty, _horizontalBar, DefaultLineScrollStep);
             SetIfChanged(ScrollBar.SmallChangeProperty, _verticalBar, DefaultLineScrollStep);
-            SetIfChanged(ScrollBar.LargeChangeProperty, _horizontalBar, MathF.Max(1f, ViewportWidth));
-            SetIfChanged(ScrollBar.LargeChangeProperty, _verticalBar, MathF.Max(1f, ViewportHeight));
-            SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, HorizontalOffset);
-            SetIfChanged(ScrollBar.ValueProperty, _verticalBar, VerticalOffset);
+            SetIfChanged(ScrollBar.LargeChangeProperty, _horizontalBar, desiredHorizontalLargeChange);
+            SetIfChanged(ScrollBar.LargeChangeProperty, _verticalBar, desiredVerticalLargeChange);
+            SetIfChanged(ScrollBar.ValueProperty, _horizontalBar, desiredHorizontalValue);
+            SetIfChanged(ScrollBar.ValueProperty, _verticalBar, desiredVerticalValue);
+            CacheSynchronizedScrollBarState(
+                desiredHorizontalViewportSize,
+                desiredVerticalViewportSize,
+                desiredHorizontalMaximum,
+                desiredVerticalMaximum,
+                desiredHorizontalLargeChange,
+                desiredVerticalLargeChange,
+                desiredHorizontalValue,
+                desiredVerticalValue);
         }
         finally
         {
@@ -2180,6 +2370,48 @@ public class ScrollViewer : ContentControl
     private static bool AreClose(float left, float right)
     {
         return MathF.Abs(left - right) <= 0.01f;
+    }
+
+    private bool HasSynchronizedScrollBarState(
+        float horizontalViewportSize,
+        float verticalViewportSize,
+        float horizontalMaximum,
+        float verticalMaximum,
+        float horizontalLargeChange,
+        float verticalLargeChange,
+        float horizontalValue,
+        float verticalValue)
+    {
+        return _hasSyncedScrollBarState &&
+               AreClose(_lastSyncedHorizontalViewportSize, horizontalViewportSize) &&
+               AreClose(_lastSyncedVerticalViewportSize, verticalViewportSize) &&
+               AreClose(_lastSyncedHorizontalMaximum, horizontalMaximum) &&
+               AreClose(_lastSyncedVerticalMaximum, verticalMaximum) &&
+               AreClose(_lastSyncedHorizontalLargeChange, horizontalLargeChange) &&
+               AreClose(_lastSyncedVerticalLargeChange, verticalLargeChange) &&
+               AreClose(_lastSyncedHorizontalValue, horizontalValue) &&
+               AreClose(_lastSyncedVerticalValue, verticalValue);
+    }
+
+    private void CacheSynchronizedScrollBarState(
+        float horizontalViewportSize,
+        float verticalViewportSize,
+        float horizontalMaximum,
+        float verticalMaximum,
+        float horizontalLargeChange,
+        float verticalLargeChange,
+        float horizontalValue,
+        float verticalValue)
+    {
+        _hasSyncedScrollBarState = true;
+        _lastSyncedHorizontalViewportSize = horizontalViewportSize;
+        _lastSyncedVerticalViewportSize = verticalViewportSize;
+        _lastSyncedHorizontalMaximum = horizontalMaximum;
+        _lastSyncedVerticalMaximum = verticalMaximum;
+        _lastSyncedHorizontalLargeChange = horizontalLargeChange;
+        _lastSyncedVerticalLargeChange = verticalLargeChange;
+        _lastSyncedHorizontalValue = horizontalValue;
+        _lastSyncedVerticalValue = verticalValue;
     }
 
     private static float CoerceViewportMetric(float candidate, float previous, float extent)

@@ -6102,8 +6102,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             RuntimeHelpers.GetHashCode(Document),
             StringComparer.Ordinal.GetHashCode(text),
             typography,
-            (int)TextWrapping,
-            (int)MathF.Round(normalizedWidth * 100f));
+            (int)TextWrapping);
         var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(typography));
         var key = new DocumentViewportLayoutCache.CacheKey(
             signature,

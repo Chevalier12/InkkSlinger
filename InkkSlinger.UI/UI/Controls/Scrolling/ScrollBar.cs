@@ -91,6 +91,7 @@ public class ScrollBar : RangeBase
     private RepeatButton? _lineDownButton;
     private float _thumbDragOriginTravel;
     private float _thumbDragAccumulatedDelta;
+    private bool _suppressImmediateTrackLayoutRefresh;
 
     public new static readonly RoutedEvent ValueChangedEvent = RangeBase.ValueChangedEvent;
 
@@ -128,13 +129,12 @@ public class ScrollBar : RangeBase
             typeof(ScrollBar),
             new FrameworkPropertyMetadata(
                 0f,
-                FrameworkPropertyMetadataOptions.AffectsArrange,
+                FrameworkPropertyMetadataOptions.None,
                 propertyChangedCallback: static (dependencyObject, _) =>
                 {
                     if (dependencyObject is ScrollBar scrollBar)
                     {
-                        scrollBar.SetValue(ValueProperty, scrollBar.Value);
-                        scrollBar.SyncTrackState();
+                        scrollBar.OnViewportSizeChanged();
                     }
                 },
                 coerceValueCallback: static (_, value) => value is float numeric && float.IsFinite(numeric) && numeric >= 0f ? numeric : 0f));
@@ -187,13 +187,13 @@ public class ScrollBar : RangeBase
     {
         MinimumProperty.OverrideMetadata(
             typeof(ScrollBar),
-            CreateDerivedMetadata(MinimumProperty, 0f, FrameworkPropertyMetadataOptions.AffectsArrange));
+            CreateDerivedMetadata(MinimumProperty, 0f, FrameworkPropertyMetadataOptions.None));
         MaximumProperty.OverrideMetadata(
             typeof(ScrollBar),
-            CreateDerivedMetadata(MaximumProperty, 0f, FrameworkPropertyMetadataOptions.AffectsArrange));
+            CreateDerivedMetadata(MaximumProperty, 0f, FrameworkPropertyMetadataOptions.None));
         ValueProperty.OverrideMetadata(
             typeof(ScrollBar),
-            CreateDerivedMetadata(ValueProperty, 0f, FrameworkPropertyMetadataOptions.AffectsArrange));
+            CreateDerivedMetadata(ValueProperty, 0f, FrameworkPropertyMetadataOptions.None));
         SmallChangeProperty.OverrideMetadata(
             typeof(ScrollBar),
             CreateDerivedMetadata(SmallChangeProperty, 16f, FrameworkPropertyMetadataOptions.None));
@@ -327,7 +327,7 @@ public class ScrollBar : RangeBase
         _diagOnValueChangedBaseElapsedTicks += baseElapsedTicks;
 
         var syncStartTicks = Stopwatch.GetTimestamp();
-        SyncTrackState();
+        SyncTrackState(refreshTrackLayout: !_suppressImmediateTrackLayoutRefresh);
         var syncElapsedTicks = Stopwatch.GetTimestamp() - syncStartTicks;
         _runtimeOnValueChangedSyncTrackStateElapsedTicks += syncElapsedTicks;
         _diagOnValueChangedSyncTrackStateElapsedTicks += syncElapsedTicks;
@@ -468,7 +468,21 @@ public class ScrollBar : RangeBase
         args.Handled = true;
     }
 
-    private void SyncTrackState()
+    private void OnViewportSizeChanged()
+    {
+        _suppressImmediateTrackLayoutRefresh = true;
+        try
+        {
+            SetValue(ValueProperty, Value);
+            SyncTrackState(refreshTrackLayout: false);
+        }
+        finally
+        {
+            _suppressImmediateTrackLayoutRefresh = false;
+        }
+    }
+
+    private void SyncTrackState(bool refreshTrackLayout = true)
     {
         var startTicks = Stopwatch.GetTimestamp();
         _runtimeSyncTrackStateCallCount++;
@@ -497,7 +511,10 @@ public class ScrollBar : RangeBase
         SetIfChanged(Track.ValueProperty, _track, coercedValue);
         SetIfChanged(Track.ViewportSizeProperty, _track, ViewportSize);
         SetIfChanged(Track.ShowLineButtonsProperty, _track, ShowLineButtons);
-        RefreshTrackLayoutIfPossible();
+        if (refreshTrackLayout)
+        {
+            RefreshTrackLayoutIfPossible();
+        }
         var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
         _runtimeSyncTrackStateElapsedTicks += elapsedTicks;
         _diagSyncTrackStateElapsedTicks += elapsedTicks;
@@ -640,6 +657,14 @@ public class ScrollBar : RangeBase
             return;
         }
 
+        if (ShouldDeferTrackLayoutRefresh())
+        {
+            var deferredElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _runtimeRefreshTrackLayoutElapsedTicks += deferredElapsedTicks;
+            _diagRefreshTrackLayoutElapsedTicks += deferredElapsedTicks;
+            return;
+        }
+
         if (!track.NeedsMeasure && !track.NeedsArrange)
         {
             _runtimeRefreshTrackLayoutNoLayoutNeededCount++;
@@ -657,6 +682,26 @@ public class ScrollBar : RangeBase
         var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
         _runtimeRefreshTrackLayoutElapsedTicks += elapsedTicks;
         _diagRefreshTrackLayoutElapsedTicks += elapsedTicks;
+    }
+
+    private bool ShouldDeferTrackLayoutRefresh()
+    {
+        if (IsMeasuring || IsArrangingOverride)
+        {
+            return true;
+        }
+
+        for (var current = VisualParent as FrameworkElement ?? LogicalParent as FrameworkElement;
+             current != null;
+             current = current.VisualParent as FrameworkElement ?? current.LogicalParent as FrameworkElement)
+        {
+            if (current.IsMeasuring || current.IsArrangingOverride)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal ScrollBarRuntimeDiagnosticsSnapshot GetScrollBarSnapshotForDiagnostics()

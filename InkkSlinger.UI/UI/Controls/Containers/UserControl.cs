@@ -455,6 +455,12 @@ public class UserControl : ContentControl
         }
     }
 
+    protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        return base.ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(descendant) ||
+               ((IsMeasuring || IsArrangingOverride) && IsDescendantOfContentSubtree(descendant));
+    }
+
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
         var start = Stopwatch.GetTimestamp();
@@ -697,6 +703,24 @@ public class UserControl : ContentControl
     private bool HasTemplateAssigned()
     {
         return Template != null;
+    }
+
+    private bool IsDescendantOfContentSubtree(UIElement descendant)
+    {
+        if (ContentElement == null)
+        {
+            return false;
+        }
+
+        for (UIElement? current = descendant; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, this) || ReferenceEquals(current, ContentElement))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void EnsureTemplateAppliedIfNeeded()

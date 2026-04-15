@@ -1073,13 +1073,12 @@ public class DocumentViewer : Control, ITextInputControl, IRenderDirtyBoundsHint
             ? float.PositiveInfinity
             : availableWidth;
         var text = GetText();
+        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
         var signature = HashCode.Combine(
             RuntimeHelpers.GetHashCode(Document),
             StringComparer.Ordinal.GetHashCode(text),
-            UiTextRenderer.ResolveTypography(this, FontSize),
-            (int)TextWrapping,
-            (int)MathF.Round(normalizedWidth * 100f));
-        var typography = UiTextRenderer.ResolveTypography(this, FontSize);
+            typography,
+            (int)TextWrapping);
         var lineHeight = Math.Max(1f, UiTextRenderer.GetLineHeight(typography));
         var key = new DocumentViewportLayoutCache.CacheKey(
             signature,

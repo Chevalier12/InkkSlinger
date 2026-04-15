@@ -14,28 +14,28 @@ public class Popup : ContentControl
             nameof(PlacementMode),
             typeof(PopupPlacementMode),
             typeof(Popup),
-            new FrameworkPropertyMetadata(PopupPlacementMode.Absolute, FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(PopupPlacementMode.Absolute));
 
     public static readonly DependencyProperty PlacementTargetProperty =
         DependencyProperty.Register(
             nameof(PlacementTarget),
             typeof(UIElement),
             typeof(Popup),
-            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(null));
 
     public static readonly DependencyProperty HorizontalOffsetProperty =
         DependencyProperty.Register(
             nameof(HorizontalOffset),
             typeof(float),
             typeof(Popup),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(0f));
 
     public static readonly DependencyProperty VerticalOffsetProperty =
         DependencyProperty.Register(
             nameof(VerticalOffset),
             typeof(float),
             typeof(Popup),
-            new FrameworkPropertyMetadata(0f, FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(0f));
 
     public static readonly DependencyProperty TitleProperty =
         DependencyProperty.Register(
@@ -49,14 +49,14 @@ public class Popup : ContentControl
             nameof(Left),
             typeof(float),
             typeof(Popup),
-            new FrameworkPropertyMetadata(100f, FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(100f));
 
     public static readonly DependencyProperty TopProperty =
         DependencyProperty.Register(
             nameof(Top),
             typeof(float),
             typeof(Popup),
-            new FrameworkPropertyMetadata(100f, FrameworkPropertyMetadataOptions.AffectsArrange));
+            new FrameworkPropertyMetadata(100f));
 
     public static readonly DependencyProperty TitleBarHeightProperty =
         DependencyProperty.Register(
@@ -154,9 +154,12 @@ public class Popup : ContentControl
     private bool _isCloseHovered;
     private bool _isClosePressed;
     private bool _isDragging;
+    private bool _isReconcilingDescendantMeasureInvalidation;
     private Vector2 _dragPointerOffset;
-    private bool _updatingPlacement;
     private bool _coercingPlacement;
+    private float _resolvedLeft;
+    private float _resolvedTop;
+    private bool _hasResolvedPlacement;
 
     public string Title
     {
@@ -329,7 +332,6 @@ public class Popup : ContentControl
     {
         HorizontalAlignment = HorizontalAlignment.Left;
         VerticalAlignment = VerticalAlignment.Top;
-        SyncMarginFromPlacement();
     }
 
     public void Open(Panel host)
@@ -446,13 +448,6 @@ public class Popup : ContentControl
             throw new InvalidOperationException("Popup.Content must be a UIElement.");
         }
 
-        if (!_updatingPlacement &&
-            (args.Property == LeftProperty || args.Property == TopProperty) &&
-            PlacementMode == PopupPlacementMode.Absolute)
-        {
-            SyncMarginFromPlacement();
-        }
-
         base.OnDependencyPropertyChanged(args);
 
         if (_host == null)
@@ -473,27 +468,94 @@ public class Popup : ContentControl
         }
     }
 
-    protected override Vector2 MeasureOverride(Vector2 availableSize)
+    protected override bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
     {
-        var desired = base.MeasureOverride(availableSize);
-        if (HasTemplateRoot)
+        if (base.TryHandleMeasureInvalidation(origin, source, reason))
         {
-            return desired;
+            return true;
         }
 
-        var border = BorderThickness;
-        var padding = Padding;
-        var chromeHorizontal = (border * 2f) + padding.Horizontal;
-        var chromeVertical = (border * 2f) + TitleBarHeight + padding.Vertical;
+        if (Template != null || HasTemplateRoot ||
+            ReferenceEquals(origin, this) ||
+            _isReconcilingDescendantMeasureInvalidation ||
+            NeedsMeasure ||
+            ContentElement is not FrameworkElement content ||
+            !IsDescendantOfContentSubtree(origin))
+        {
+            return false;
+        }
+
+        var availableSize = PreviousAvailableSizeForTests;
+        if (float.IsNaN(availableSize.X) || float.IsNaN(availableSize.Y))
+        {
+            return false;
+        }
+
+        _isReconcilingDescendantMeasureInvalidation = true;
+        try
+        {
+            var availableContentSize = GetAvailableContentSizeForMeasure(availableSize, content);
+            content.Measure(availableContentSize);
+            if (content.NeedsMeasure || !content.IsMeasureValidForTests)
+            {
+                return false;
+            }
+
+            var chromeHorizontal = GetChromeHorizontal();
+            var chromeVertical = GetChromeVertical();
+            var minTitleWidth = !string.IsNullOrWhiteSpace(Title)
+                ? TextLayout.Layout(Title, UiTextRenderer.ResolveTypography(this, FontSize), FontSize, float.PositiveInfinity, TextWrapping.NoWrap).Size.X + 96f
+                : 120f;
+            var desiredSize = ResolveDesiredSizeFromMeasuredSizeForLocalReconciliation(new Vector2(
+                MathF.Max(minTitleWidth, content.DesiredSize.X + chromeHorizontal),
+                content.DesiredSize.Y + chromeVertical));
+            if (!AreLocalLayoutSizesClose(desiredSize, DesiredSize))
+            {
+                return false;
+            }
+
+            MarkMeasureValidAfterLocalReconciliation();
+            InvalidateArrangeForDirectLayoutOnly();
+            return true;
+        }
+        finally
+        {
+            _isReconcilingDescendantMeasureInvalidation = false;
+        }
+    }
+
+    protected internal override bool ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(FrameworkElement descendant)
+    {
+        if (base.ShouldSuppressMeasureInvalidationFromDescendantDuringMeasure(descendant))
+        {
+            return true;
+        }
+
+        return (_isReconcilingDescendantMeasureInvalidation || IsMeasuring || IsArrangingOverride) &&
+               IsDescendantOfContentSubtree(descendant);
+    }
+
+    protected override Vector2 MeasureOverride(Vector2 availableSize)
+    {
+        if (Template != null || HasTemplateRoot)
+        {
+            var desired = base.MeasureOverride(availableSize);
+            if (HasTemplateRoot)
+            {
+                return desired;
+            }
+        }
 
         var measured = Vector2.Zero;
         if (ContentElement is FrameworkElement content)
         {
-            content.Measure(new Vector2(
-                MathF.Max(0f, availableSize.X - chromeHorizontal),
-                MathF.Max(0f, availableSize.Y - chromeVertical)));
+            var availableContentSize = GetAvailableContentSizeForMeasure(availableSize, content);
+            content.Measure(availableContentSize);
             measured = content.DesiredSize;
         }
+
+        var chromeHorizontal = GetChromeHorizontal();
+        var chromeVertical = GetChromeVertical();
 
         var minTitleWidth = !string.IsNullOrWhiteSpace(Title)
             ? TextLayout.Layout(Title, UiTextRenderer.ResolveTypography(this, FontSize), FontSize, float.PositiveInfinity, TextWrapping.NoWrap).Size.X + 96f
@@ -506,25 +568,74 @@ public class Popup : ContentControl
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
-        base.ArrangeOverride(finalSize);
-        if (HasTemplateRoot)
+        if (Template != null || HasTemplateRoot)
         {
-            return finalSize;
+            base.ArrangeOverride(finalSize);
+            if (HasTemplateRoot)
+            {
+                return finalSize;
+            }
         }
-
-        var border = BorderThickness;
-        var padding = Padding;
 
         if (ContentElement is FrameworkElement content)
         {
-            var contentX = LayoutSlot.X + border + padding.Left;
-            var contentY = LayoutSlot.Y + border + TitleBarHeight + padding.Top;
-            var contentWidth = MathF.Max(0f, finalSize.X - (border * 2f) - padding.Horizontal);
-            var contentHeight = MathF.Max(0f, finalSize.Y - (border * 2f) - TitleBarHeight - padding.Vertical);
-            content.Arrange(new LayoutRect(contentX, contentY, contentWidth, contentHeight));
+            var contentRect = GetContentRect(finalSize);
+            if (content.TryTranslateArrangedSubtree(contentRect))
+            {
+                content.InvalidateVisual();
+            }
+            else if (RequiresContentArrange(content, contentRect))
+            {
+                content.Arrange(contentRect);
+            }
         }
 
         return finalSize;
+    }
+
+    protected override LayoutRect ResolveArrangeRect(LayoutRect finalRect, LayoutRect arrangedRect)
+    {
+        if (_host == null)
+        {
+            return base.ResolveArrangeRect(finalRect, arrangedRect);
+        }
+
+        return new LayoutRect(
+            finalRect.X + _resolvedLeft,
+            finalRect.Y + _resolvedTop,
+            arrangedRect.Width,
+            arrangedRect.Height);
+    }
+
+    protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
+    {
+        if (Template != null || HasTemplateRoot)
+        {
+            return base.CanReuseMeasureForAvailableSizeChange(previousAvailableSize, nextAvailableSize);
+        }
+
+        if (AreClose(previousAvailableSize.X, nextAvailableSize.X) &&
+            AreClose(previousAvailableSize.Y, nextAvailableSize.Y))
+        {
+            return true;
+        }
+
+        if (ContentElement is not FrameworkElement content)
+        {
+            return true;
+        }
+
+        var previousContentAvailableSize = GetAvailableContentSizeForMeasure(previousAvailableSize, content);
+        var nextContentAvailableSize = GetAvailableContentSizeForMeasure(nextAvailableSize, content);
+        if (AreClose(previousContentAvailableSize.X, nextContentAvailableSize.X) &&
+            AreClose(previousContentAvailableSize.Y, nextContentAvailableSize.Y))
+        {
+            return true;
+        }
+
+        return content.CanReuseMeasureForAvailableSizeChangeForParentLayout(
+            previousContentAvailableSize,
+            nextContentAvailableSize);
     }
 
     protected override void OnRender(SpriteBatch spriteBatch)
@@ -621,6 +732,127 @@ public class Popup : ContentControl
         return true;
     }
 
+    private float GetChromeHorizontal()
+    {
+        var border = BorderThickness;
+        var padding = Padding;
+        return (border * 2f) + padding.Horizontal;
+    }
+
+    private float GetChromeVertical()
+    {
+        var border = BorderThickness;
+        var padding = Padding;
+        return (border * 2f) + TitleBarHeight + padding.Vertical;
+    }
+
+    private Vector2 GetAvailableContentSize(Vector2 availableSize)
+    {
+        return new Vector2(
+            MathF.Max(0f, availableSize.X - GetChromeHorizontal()),
+            MathF.Max(0f, availableSize.Y - GetChromeVertical()));
+    }
+
+    private Vector2 GetAvailableContentSizeForMeasure(Vector2 availableSize, FrameworkElement content)
+    {
+        var constrainedAvailableSize = availableSize;
+
+        if (!float.IsNaN(Width) && Width > 0f)
+        {
+            constrainedAvailableSize.X = MathF.Min(constrainedAvailableSize.X, Width);
+        }
+
+        if (!float.IsNaN(Height) && Height > 0f)
+        {
+            constrainedAvailableSize.Y = MathF.Min(constrainedAvailableSize.Y, Height);
+        }
+
+        if (ShouldConstrainContentMeasureToCurrentViewport(content))
+        {
+            var currentWidth = ResolveCurrentDimension(Width, ActualWidth, DesiredSize.X);
+            var currentHeight = ResolveCurrentDimension(Height, ActualHeight, DesiredSize.Y);
+            if (currentWidth > 0f)
+            {
+                constrainedAvailableSize.X = MathF.Min(constrainedAvailableSize.X, currentWidth);
+            }
+
+            if (currentHeight > 0f)
+            {
+                constrainedAvailableSize.Y = MathF.Min(constrainedAvailableSize.Y, currentHeight);
+            }
+        }
+
+        return GetAvailableContentSize(constrainedAvailableSize);
+    }
+
+    private LayoutRect GetContentRect(Vector2 finalSize)
+    {
+        var border = BorderThickness;
+        var padding = Padding;
+        return new LayoutRect(
+            LayoutSlot.X + border + padding.Left,
+            LayoutSlot.Y + border + TitleBarHeight + padding.Top,
+            MathF.Max(0f, finalSize.X - GetChromeHorizontal()),
+            MathF.Max(0f, finalSize.Y - GetChromeVertical()));
+    }
+
+    private static bool RequiresContentArrange(FrameworkElement content, LayoutRect targetRect)
+    {
+        return content.NeedsMeasure ||
+               content.NeedsArrange ||
+               !AreLayoutRectsClose(content.LayoutSlot, targetRect);
+    }
+
+    private bool ShouldConstrainContentMeasureToCurrentViewport(FrameworkElement content)
+    {
+        if (!_isOpen)
+        {
+            return false;
+        }
+
+        if (content.NeedsMeasure ||
+            content.HasPendingMeasureInvalidationInVisualSubtreeForLayout())
+        {
+            return false;
+        }
+
+        return ActualWidth > 0f ||
+               ActualHeight > 0f ||
+               (!float.IsNaN(Width) && Width > 0f) ||
+               (!float.IsNaN(Height) && Height > 0f);
+    }
+
+    private static bool AreLayoutRectsClose(LayoutRect left, LayoutRect right)
+    {
+        return AreClose(left.X, right.X) &&
+               AreClose(left.Y, right.Y) &&
+               AreClose(left.Width, right.Width) &&
+               AreClose(left.Height, right.Height);
+    }
+
+    private bool IsDescendantOfContentSubtree(UIElement descendant)
+    {
+        if (ContentElement == null)
+        {
+            return false;
+        }
+
+        for (UIElement? current = descendant; current != null; current = current.GetInvalidationParent())
+        {
+            if (ReferenceEquals(current, this) || ReferenceEquals(current, ContentElement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool AreClose(float left, float right)
+    {
+        return MathF.Abs(left - right) <= 0.01f;
+    }
+
     private LayoutRect GetCloseButtonRect()
     {
         if (TitleBarHeight <= 0f)
@@ -652,41 +884,6 @@ public class Popup : ContentControl
             (byte)(from.G + ((to.G - from.G) * clamped)),
             (byte)(from.B + ((to.B - from.B) * clamped)),
             (byte)(from.A + ((to.A - from.A) * clamped)));
-    }
-
-    private void SyncMarginFromPlacement()
-    {
-        if (_host is Canvas)
-        {
-            var current = Margin;
-            if (current.Left == 0f && current.Top == 0f && current.Right == 0f && current.Bottom == 0f)
-            {
-                return;
-            }
-
-            _updatingPlacement = true;
-            try
-            {
-                Margin = new Thickness(0f);
-            }
-            finally
-            {
-                _updatingPlacement = false;
-            }
-
-            return;
-        }
-
-        _updatingPlacement = true;
-        try
-        {
-            var margin = Margin;
-            Margin = new Thickness(Left, Top, margin.Right, margin.Bottom);
-        }
-        finally
-        {
-            _updatingPlacement = false;
-        }
     }
 
     private bool IsSelfOrDescendant(UIElement element)
@@ -901,10 +1098,11 @@ public class Popup : ContentControl
 
         var clampedLeft = Math.Clamp(computedLeft, 0f, maxLeft);
         var clampedTop = Math.Clamp(computedTop, 0f, maxTop);
-        var requiresCanvasPositionSync = _host is Canvas;
-        if (!requiresCanvasPositionSync &&
-            MathF.Abs(clampedLeft - Left) < 0.001f &&
-            MathF.Abs(clampedTop - Top) < 0.001f)
+        if (_hasResolvedPlacement &&
+            MathF.Abs(clampedLeft - _resolvedLeft) < 0.001f &&
+            MathF.Abs(clampedTop - _resolvedTop) < 0.001f &&
+            MathF.Abs(Left - clampedLeft) < 0.001f &&
+            MathF.Abs(Top - clampedTop) < 0.001f)
         {
             return;
         }
@@ -912,28 +1110,21 @@ public class Popup : ContentControl
         _coercingPlacement = true;
         try
         {
-            if (MathF.Abs(clampedLeft - Left) >= 0.001f)
+            _resolvedLeft = clampedLeft;
+            _resolvedTop = clampedTop;
+            _hasResolvedPlacement = true;
+
+            if (MathF.Abs(Left - clampedLeft) >= 0.001f)
             {
                 Left = clampedLeft;
             }
 
-            if (MathF.Abs(clampedTop - Top) >= 0.001f)
+            if (MathF.Abs(Top - clampedTop) >= 0.001f)
             {
                 Top = clampedTop;
             }
 
-            // Canvas arranges children via attached Canvas.Left/Top, not Margin.
-            if (_host is Canvas)
-            {
-                SyncMarginFromPlacement();
-                Canvas.SetLeft(this, clampedLeft);
-                Canvas.SetTop(this, clampedTop);
-            }
-            else
-            {
-                // Non-canvas hosts position via Margin in the base panel layout.
-                SyncMarginFromPlacement();
-            }
+            InvalidateArrangeForDirectLayoutOnly();
         }
         finally
         {
