@@ -296,36 +296,18 @@ public partial class DesignerSourceEditorView : UserControl
         DismissCompletionPopup();
     }
 
-    private static (Popup Popup, ListBox ListBox) CreateCompletionPopup()
+    private (Popup Popup, ListBox ListBox) CreateCompletionPopup()
     {
         var listBox = new ListBox
         {
-            Background = new Color(11, 16, 24),
-            BorderBrush = new Color(35, 52, 73),
-            BorderThickness = 0f,
-            Padding = new Thickness(0f),
-            SelectionMode = SelectionMode.Single,
-            IsVirtualizing = true,
-            MaxHeight = CompletionPopupMaxHeight,
-            MinWidth = CompletionPopupMinWidth,
-            MaxWidth = CompletionPopupMaxWidth,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            Style = (Style)FindResource("CompletionListBoxStyle")
         };
 
         var popup = new Popup
         {
-            Title = string.Empty,
-            TitleBarHeight = 0f,
-            CanClose = false,
-            CanDragMove = false,
-            DismissOnOutsideClick = true,
-            BorderThickness = 1f,
-            BorderBrush = new Color(35, 52, 73),
-            Background = new Color(9, 13, 19),
-            Padding = new Thickness(0f),
-            PlacementMode = PopupPlacementMode.Absolute,
-            Content = listBox
+            Style = (Style)FindResource("CompletionPopupStyle"),
+            Content = listBox,
+            MaxHeight = CompletionPopupMaxHeight
         };
 
         return (popup, listBox);
@@ -390,7 +372,7 @@ public partial class DesignerSourceEditorView : UserControl
         _suppressCompletionListSelectionChanged = true;
         try
         {
-            _completionListBox.ItemsSource = _completionItemNames;
+            _completionListBox.ItemsSource = _completionItems;
             _completionListBox.SelectedIndex = _completionItems.Count > 0 ? 0 : -1;
         }
         finally

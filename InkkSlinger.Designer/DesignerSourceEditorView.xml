@@ -18,6 +18,68 @@
                    VerticalAlignment="Center" />
       </Border>
     </DataTemplate>
+
+    <DataTemplate x:Key="CompletionItemTemplate">
+      <StackPanel Orientation="Horizontal"
+                  VerticalAlignment="Center">
+        <Border Width="16"
+                Height="16"
+                VerticalAlignment="Center"
+                Margin="0,0,6,0">
+            <Path Data="M 3,3.5 L 13,3.5 M 3,6.5 L 11.5,6.5 M 3,9.5 L 13,9.5 M 3,12.5 L 9.5,12.5"
+              Fill="Transparent"
+              Stroke="#74B9FF"
+              StrokeThickness="1.25"
+              Stretch="Uniform" />
+        </Border>
+        <TextBlock Text="{Binding ElementName}"
+                   Foreground="#F0F7FF"
+                   FontFamily="Segoe UI"
+                   FontSize="12"
+                   VerticalAlignment="Center" />
+      </StackPanel>
+    </DataTemplate>
+
+    <Style x:Key="CompletionListBoxItemStyle"
+           TargetType="{x:Type ListBoxItem}">
+      <Setter Property="Background" Value="#0B1018" />
+      <Setter Property="SelectedBackground" Value="#094771" />
+      <Setter Property="BorderBrush" Value="#0B1018" />
+      <Setter Property="Foreground" Value="#F0F7FF" />
+      <Setter Property="Padding" Value="4,3,8,3" />
+    </Style>
+
+    <Style x:Key="CompletionListBoxStyle"
+           TargetType="{x:Type ListBox}">
+      <Setter Property="Background" Value="#0B1018" />
+      <Setter Property="BorderBrush" Value="#233449" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="SelectionMode" Value="Single" />
+      <Setter Property="IsVirtualizing" Value="True" />
+      <Setter Property="MinWidth" Value="180" />
+      <Setter Property="MaxWidth" Value="420" />
+      <Setter Property="MaxHeight" Value="260" />
+      <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+      <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="ItemTemplate" Value="{StaticResource CompletionItemTemplate}" />
+      <Setter Property="ItemContainerStyle" Value="{StaticResource CompletionListBoxItemStyle}" />
+    </Style>
+
+    <Style x:Key="CompletionPopupStyle"
+           TargetType="{x:Type Popup}">
+      <Setter Property="TitleBarHeight" Value="0" />
+      <Setter Property="CanClose" Value="False" />
+      <Setter Property="CanDragMove" Value="False" />
+      <Setter Property="DismissOnOutsideClick" Value="True" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="#233449" />
+      <Setter Property="Background" Value="#090D13" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="PlacementMode" Value="Absolute" />
+    </Style>
   </UserControl.Resources>
 
   <Grid>
