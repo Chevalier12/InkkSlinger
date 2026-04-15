@@ -272,10 +272,15 @@ public sealed partial class UiRoot
         _lastInputPointerRouteMs = (double)pointerRouteTicks * 1000d / Stopwatch.Frequency;
         _lastInputPointerDispatchMs = Stopwatch.GetElapsedTime(pointerStart).TotalMilliseconds;
 
+        var suppressedTextInputCount = 0;
         var keyStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < delta.PressedKeys.Count; i++)
         {
-            DispatchKeyDown(delta.PressedKeys[i], _inputState.CurrentModifiers);
+            if (DispatchKeyDown(delta.PressedKeys[i], _inputState.CurrentModifiers) &&
+                ShouldSuppressTextInputForHandledKey(delta.PressedKeys[i]))
+            {
+                suppressedTextInputCount++;
+            }
         }
 
         for (var i = 0; i < delta.ReleasedKeys.Count; i++)
@@ -287,6 +292,12 @@ public sealed partial class UiRoot
         var textStart = Stopwatch.GetTimestamp();
         for (var i = 0; i < delta.TextInput.Count; i++)
         {
+            if (suppressedTextInputCount > 0)
+            {
+                suppressedTextInputCount--;
+                continue;
+            }
+
             DispatchTextInput(delta.TextInput[i]);
         }
         _lastInputTextDispatchMs = Stopwatch.GetElapsedTime(textStart).TotalMilliseconds;
@@ -2820,7 +2831,7 @@ public sealed partial class UiRoot
         }
     }
 
-    private void DispatchKeyDown(Keys key, ModifierKeys modifiers)
+    private bool DispatchKeyDown(Keys key, ModifierKeys modifiers)
     {
         var target = _inputState.FocusedElement ?? _visualRoot;
         var dispatchStart = Stopwatch.GetTimestamp();
@@ -2833,11 +2844,11 @@ public sealed partial class UiRoot
             _lastInputKeyEventCount++;
             _lastInputRoutedEventCount += 2; var previewArgs = new KeyRoutedEventArgs(UIElement.PreviewKeyDownEvent, key, modifiers);
             target.RaiseRoutedEventInternal(UIElement.PreviewKeyDownEvent, previewArgs);
-            if (previewArgs.Handled) return;
+            if (previewArgs.Handled) return true;
 
             var keyArgs = new KeyRoutedEventArgs(UIElement.KeyDownEvent, key, modifiers);
             target.RaiseRoutedEventInternal(UIElement.KeyDownEvent, keyArgs);
-            if (keyArgs.Handled) return;
+            if (keyArgs.Handled) return true;
 
             if (key == Keys.F10 && modifiers == ModifierKeys.None)
             {
@@ -2845,7 +2856,7 @@ public sealed partial class UiRoot
                     menu.TryActivateMenuBarFromKeyboard(_inputState.FocusedElement))
                 {
                     TrySynchronizeMenuFocusRestore(menu);
-                    return;
+                    return true;
                 }
             }
 
@@ -2854,12 +2865,12 @@ public sealed partial class UiRoot
                 var accessKey = (char)('A' + (int)(key - Keys.A));
                 if (TryHandleMenuAccessKey(accessKey))
                 {
-                    return;
+                    return true;
                 }
 
                 if (AccessKeyService.TryExecute(accessKey, _visualRoot, _inputState.FocusedElement))
                 {
-                    return;
+                    return true;
                 }
             }
 
@@ -2867,66 +2878,76 @@ public sealed partial class UiRoot
                 activeMenu.TryHandleKeyDownFromInput(key, modifiers))
             {
                 TrySynchronizeMenuFocusRestore(activeMenu);
-                return;
+                return true;
             }
 
             if ((key == Keys.Apps || (key == Keys.F10 && modifiers == ModifierKeys.Shift)) &&
                 TryOpenContextMenuForElement(_inputState.FocusedElement))
             {
-                return;
+                return true;
             }
 
             if (TryFindOpenContextMenu(out var openContextMenu) &&
                 openContextMenu.TryHandleKeyDownFromInput(key, modifiers))
             {
                 TrySynchronizeContextMenuFocusRestore(openContextMenu);
-                return;
+                return true;
             }
 
             if (key == Keys.Escape &&
                 modifiers == ModifierKeys.None &&
                 TryDismissTopOverlayOnEscape())
             {
-                return;
+                return true;
             }
 
             if (_inputState.FocusedElement is DataGrid focusedDataGrid &&
                 focusedDataGrid.HandleKeyDownFromInput(key, modifiers))
             {
-                return;
+                return true;
             }
 
             if (_inputState.FocusedElement is ITextInputControl focusedTextInput &&
                 focusedTextInput.HandleKeyDownFromInput(key, modifiers))
             {
-                return;
+                return true;
             }
 
             if (TryFindFocusedListBox(out var focusedListBox) &&
                 focusedListBox.HandleKeyDownFromInput(key, modifiers))
             {
-                return;
+                return true;
             }
 
             if (_inputState.FocusedElement is Button button && (key == Keys.Enter || key == Keys.Space))
             {
                 button.InvokeFromInput();
-                return;
+                return true;
             }
 
             if (_inputState.FocusedElement is Menu focusedMenu && focusedMenu.TryHandleKeyDownFromInput(key, modifiers))
             {
                 TrySynchronizeMenuFocusRestore(focusedMenu);
-                return;
+                return true;
             }
 
-            _ = InputGestureService.Execute(key, modifiers, _inputState.FocusedElement, _visualRoot);
+            return InputGestureService.Execute(key, modifiers, _inputState.FocusedElement, _visualRoot);
         }
         finally
         {
             _activeKeyboardMenuScope = previousScope;
             _hasActiveKeyboardMenuScope = hadActiveScope;
         }
+    }
+
+    private static bool ShouldSuppressTextInputForHandledKey(Keys key)
+    {
+        return !IsModifierKey(key);
+    }
+
+    private static bool IsModifierKey(Keys key)
+    {
+        return key is Keys.LeftShift or Keys.RightShift or Keys.LeftControl or Keys.RightControl or Keys.LeftAlt or Keys.RightAlt;
     }
 
     private void DispatchKeyUp(Keys key, ModifierKeys modifiers)

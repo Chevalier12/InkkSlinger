@@ -722,6 +722,33 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditorCtrlSpaceAfterLessThan_ShouldNotInsertSpaceBeforeOpeningControlCompletion()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(1, 0);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, textInput: [' '], heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.Equal("<", shell.SourceText);
+        Assert.Equal("<", NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(1, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
     public void ShellView_SourceEditorControlCompletionAccept_InsertsFullElementAndPlacesCaretBetweenTags()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -1271,7 +1298,7 @@ public class DesignerControllerTests
         };
     }
 
-    private static InputDelta CreateKeyDownDelta(Keys key, Vector2 pointer, Keys[]? heldModifiers = null)
+    private static InputDelta CreateKeyDownDelta(Keys key, Vector2 pointer, char[]? textInput = null, Keys[]? heldModifiers = null)
     {
         var keyboard = heldModifiers == null || heldModifiers.Length == 0
             ? new KeyboardState(key)
@@ -1283,7 +1310,7 @@ public class DesignerControllerTests
             Current = new InputSnapshot(keyboard, default, pointer),
             PressedKeys = new List<Keys> { key },
             ReleasedKeys = new List<Keys>(),
-            TextInput = new List<char>(),
+            TextInput = textInput == null ? new List<char>() : new List<char>(textInput),
             PointerMoved = false,
             WheelDelta = 0,
             LeftPressed = false,
