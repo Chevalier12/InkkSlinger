@@ -520,6 +520,7 @@ public partial class DesignerSourceEditorView : UserControl
 
         var selectedItem = _completionItems[selectedIndex];
         var replacement = BuildCompletionReplacement(selectedItem.ElementName);
+        SourceEditor.SetFocusedFromInput(true);
         SourceEditor.Select(context.ReplaceStart, context.ReplaceLength);
         if (!SourceEditor.HandleTextCompositionFromInput(replacement))
         {

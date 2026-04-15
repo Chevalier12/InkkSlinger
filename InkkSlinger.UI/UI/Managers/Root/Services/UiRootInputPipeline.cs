@@ -1663,6 +1663,12 @@ public sealed partial class UiRoot
     private void RefreshPointerTargetsAfterLayoutMutation()
     {
         var cachedWheelScrollViewerTarget = _cachedWheelScrollViewerTarget;
+        var lastClickDownTarget = _lastClickDownTarget;
+        var hasLastClickDownPointerPosition = _hasLastClickDownPointerPosition;
+        var lastClickDownPointerPosition = _lastClickDownPointerPosition;
+        var lastClickUpTarget = _lastClickUpTarget;
+        var hasLastClickUpPointerPosition = _hasLastClickUpPointerPosition;
+        var lastClickUpPointerPosition = _lastClickUpPointerPosition;
         _hasCachedPointerResolveTarget = false;
         _cachedPointerResolveTarget = null;
         _cachedClickTarget = null;
@@ -1673,6 +1679,13 @@ public sealed partial class UiRoot
         _cachedWheelTextInputTarget = null;
         _cachedWheelScrollViewerTarget = null;
         BumpPointerResolveStateVersion();
+        RestoreStoredClickTargetsAfterLayoutMutation(
+            lastClickDownTarget,
+            hasLastClickDownPointerPosition,
+            lastClickDownPointerPosition,
+            lastClickUpTarget,
+            hasLastClickUpPointerPosition,
+            lastClickUpPointerPosition);
         var shouldRevalidateHover =
             _shouldRevalidateHoverAfterLayoutMutation ||
             _visualStructureVersion != _lastProcessedInputVisualStructureVersion;
@@ -1687,6 +1700,89 @@ public sealed partial class UiRoot
         {
             RevalidateHoverAfterLayoutMutation(cachedWheelScrollViewerTarget);
         }
+    }
+
+    private void RestoreStoredClickTargetsAfterLayoutMutation(
+        UIElement? lastClickDownTarget,
+        bool hasLastClickDownPointerPosition,
+        Vector2 lastClickDownPointerPosition,
+        UIElement? lastClickUpTarget,
+        bool hasLastClickUpPointerPosition,
+        Vector2 lastClickUpPointerPosition)
+    {
+        if (TryRevalidateStoredClickTargetAfterLayoutMutation(
+                lastClickDownTarget,
+                hasLastClickDownPointerPosition,
+                lastClickDownPointerPosition,
+                out var resolvedLastClickDownTarget))
+        {
+            _lastClickDownTarget = resolvedLastClickDownTarget;
+            _lastClickDownPointerPosition = lastClickDownPointerPosition;
+            _hasLastClickDownPointerPosition = true;
+        }
+
+        if (TryRevalidateStoredClickTargetAfterLayoutMutation(
+                lastClickUpTarget,
+                hasLastClickUpPointerPosition,
+                lastClickUpPointerPosition,
+                out var resolvedLastClickUpTarget))
+        {
+            _lastClickUpTarget = resolvedLastClickUpTarget;
+            _lastClickUpPointerPosition = lastClickUpPointerPosition;
+            _hasLastClickUpPointerPosition = true;
+        }
+    }
+
+    private bool TryRevalidateStoredClickTargetAfterLayoutMutation(
+        UIElement? target,
+        bool hasPointerPosition,
+        Vector2 pointerPosition,
+        out UIElement? resolvedTarget)
+    {
+        resolvedTarget = null;
+        if (!hasPointerPosition)
+        {
+            return false;
+        }
+
+        if (target != null &&
+            !IsElementConnectedToVisualRoot(target))
+        {
+            resolvedTarget = target;
+            return true;
+        }
+
+        if (TryResolveClickTargetFromCandidate(target, pointerPosition, out resolvedTarget) &&
+            resolvedTarget != null)
+        {
+            return true;
+        }
+
+        if (TryResolvePreciseClickTargetWithinAnchorSubtree(target, pointerPosition, out resolvedTarget) &&
+            resolvedTarget != null)
+        {
+            return true;
+        }
+
+        _lastInputHitTestCount++;
+        _clickCpuResolveHitTestCount++;
+        var hitTestStart = Stopwatch.GetTimestamp();
+        var hit = VisualTreeHelper.HitTest(_visualRoot, pointerPosition, out var metrics);
+        _lastInputPointerResolveFinalHitTestMs += Stopwatch.GetElapsedTime(hitTestStart).TotalMilliseconds;
+        _lastPointerResolveHitTestMetrics = metrics;
+        if (TryResolveClickTargetFromCandidate(hit, pointerPosition, out resolvedTarget) &&
+            resolvedTarget != null)
+        {
+            return true;
+        }
+
+        if (hit != null && IsClickCapableElement(hit))
+        {
+            resolvedTarget = hit;
+            return true;
+        }
+
+        return false;
     }
 
     private void ClearHoverStateIfInvalidAfterNonPointerLayoutMutation()

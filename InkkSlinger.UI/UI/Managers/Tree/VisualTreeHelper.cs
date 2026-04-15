@@ -285,19 +285,25 @@ public static class VisualTreeHelper
                 itemContainers.Count > 0)
             {
                 collector?.RecordTraversal("ItemsPresenter");
-                var probeX = position.X + nextHorizontalOffset;
-                var probeY = position.Y + nextVerticalOffset;
+                var probePoint = new Vector2(
+                    position.X + nextHorizontalOffset,
+                    position.Y + nextVerticalOffset);
                 var presenterSlot = itemsPresenter.LayoutSlot;
-                if (probeY < presenterSlot.Y ||
-                    probeY > presenterSlot.Y + presenterSlot.Height ||
-                    probeX < presenterSlot.X ||
-                    probeX > presenterSlot.X + presenterSlot.Width)
+                if (hasNextAncestorTransformToRoot)
+                {
+                    presenterSlot = TransformRect(presenterSlot, nextAncestorTransformToRoot);
+                }
+
+                if (probePoint.Y < presenterSlot.Y ||
+                    probePoint.Y > presenterSlot.Y + presenterSlot.Height ||
+                    probePoint.X < presenterSlot.X ||
+                    probePoint.X > presenterSlot.X + presenterSlot.Width)
                 {
                     return AcceptHitCandidate(root, isWithinSelfBounds, acceptancePredicate);
                 }
 
-                var relativeY = probeY - presenterSlot.Y;
-                var averageHeight = itemsPresenter.DesiredSize.Y / itemContainers.Count;
+                var relativeY = probePoint.Y - presenterSlot.Y;
+                var averageHeight = presenterSlot.Height / itemContainers.Count;
                 if (!IsFinitePositive(averageHeight))
                 {
                     averageHeight = 24f;
@@ -306,8 +312,19 @@ public static class VisualTreeHelper
                 var candidate = (int)(relativeY / averageHeight);
                 candidate = Math.Clamp(candidate, 0, itemContainers.Count - 1);
 
-                candidate = FindCandidateIndexByY(itemContainers, probeY, candidate, isMonotonicByY: true);
-                candidate = RefineIndexByLayoutSlot(itemContainers, probeY, candidate);
+                candidate = FindCandidateIndexByY(
+                    itemContainers,
+                    probePoint.Y,
+                    candidate,
+                    isMonotonicByY: true,
+                    nextAncestorTransformToRoot,
+                    hasNextAncestorTransformToRoot);
+                candidate = RefineIndexByLayoutSlot(
+                    itemContainers,
+                    probePoint.Y,
+                    candidate,
+                    nextAncestorTransformToRoot,
+                    hasNextAncestorTransformToRoot);
 
                 var hit = HitTestCore(
                     itemContainers[candidate],
@@ -336,8 +353,13 @@ public static class VisualTreeHelper
                 {
                     if (searchLeft && left >= 0)
                     {
-                        if (TryGetVerticalRange(itemContainers[left], out _, out var leftBottom) &&
-                            probeY > leftBottom)
+                        if (TryGetVerticalRange(
+                                itemContainers[left],
+                                nextAncestorTransformToRoot,
+                                hasNextAncestorTransformToRoot,
+                                out _,
+                                out var leftBottom) &&
+                            probePoint.Y > leftBottom)
                         {
                             searchLeft = false;
                         }
@@ -373,8 +395,13 @@ public static class VisualTreeHelper
 
                     if (searchRight && right < itemContainers.Count)
                     {
-                        if (TryGetVerticalRange(itemContainers[right], out var rightTop, out _) &&
-                            probeY < rightTop)
+                        if (TryGetVerticalRange(
+                                itemContainers[right],
+                                nextAncestorTransformToRoot,
+                                hasNextAncestorTransformToRoot,
+                                out var rightTop,
+                                out _) &&
+                            probePoint.Y < rightTop)
                         {
                             searchRight = false;
                         }
@@ -735,8 +762,19 @@ public static class VisualTreeHelper
 
         var candidate = (int)((probeY - originY) / averageHeight);
         candidate = Math.Clamp(candidate, 0, children.Count - 1);
-        candidate = FindCandidateIndexByY(children, probeY, candidate, isMonotonicByY: true);
-        candidate = RefineIndexByLayoutSlot(children, probeY, candidate);
+        candidate = FindCandidateIndexByY(
+            children,
+            probeY,
+            candidate,
+            isMonotonicByY: true,
+            ancestorTransformToRoot,
+            hasAncestorTransformToRoot);
+        candidate = RefineIndexByLayoutSlot(
+            children,
+            probeY,
+            candidate,
+            ancestorTransformToRoot,
+            hasAncestorTransformToRoot);
 
         hit = HitTestCore(
             children[candidate],
@@ -945,6 +983,11 @@ public static class VisualTreeHelper
             return true;
         }
 
+        if (IsScrollViewerOwnedVirtualizingContentHost(element))
+        {
+            return true;
+        }
+
         if (element.TryGetLocalRenderTransformSnapshot(out _, out _))
         {
             return true;
@@ -971,6 +1014,17 @@ public static class VisualTreeHelper
         }
 
         return false;
+    }
+
+    private static bool IsScrollViewerOwnedVirtualizingContentHost(UIElement element)
+    {
+        if (element is not VirtualizingStackPanel panel)
+        {
+            return false;
+        }
+
+        return (panel.VisualParent is ScrollViewer visualOwner && ReferenceEquals(visualOwner.Content, panel)) ||
+               (panel.LogicalParent is ScrollViewer logicalOwner && ReferenceEquals(logicalOwner.Content, panel));
     }
 
     private static float EstimateAverageItemHeight(IReadOnlyList<UIElement> children)
@@ -1020,21 +1074,36 @@ public static class VisualTreeHelper
         return !float.IsNaN(value) && !float.IsInfinity(value) && value > 0f;
     }
 
-    private static int RefineIndexByLayoutSlot(IReadOnlyList<UIElement> containers, float y, int candidate)
+    private static int RefineIndexByLayoutSlot(
+        IReadOnlyList<UIElement> containers,
+        float y,
+        int candidate,
+        Matrix ancestorTransformToRoot,
+        bool hasAncestorTransformToRoot)
     {
-        if (containers[candidate] is not FrameworkElement current)
+        if (!TryGetVerticalRange(
+                containers[candidate],
+                ancestorTransformToRoot,
+                hasAncestorTransformToRoot,
+                out var top,
+                out var bottom))
         {
             return candidate;
         }
 
-        var slot = current.LayoutSlot;
-        if (y < slot.Y)
+        if (y < top)
         {
             var index = candidate;
             for (var i = 0; i < 64 && index > 0; i++)
             {
                 index--;
-                if (containers[index] is FrameworkElement element && y >= element.LayoutSlot.Y)
+                if (TryGetVerticalRange(
+                        containers[index],
+                        ancestorTransformToRoot,
+                        hasAncestorTransformToRoot,
+                        out var previousTop,
+                        out _) &&
+                    y >= previousTop)
                 {
                     return index;
                 }
@@ -1043,14 +1112,19 @@ public static class VisualTreeHelper
             return candidate;
         }
 
-        if (y > slot.Y + slot.Height)
+        if (y > bottom)
         {
             var index = candidate;
             for (var i = 0; i < 64 && index < containers.Count - 1; i++)
             {
                 index++;
-                if (containers[index] is FrameworkElement element &&
-                    y < element.LayoutSlot.Y + element.LayoutSlot.Height)
+                if (TryGetVerticalRange(
+                        containers[index],
+                        ancestorTransformToRoot,
+                        hasAncestorTransformToRoot,
+                        out _,
+                        out var nextBottom) &&
+                    y < nextBottom)
                 {
                     return index;
                 }
@@ -1060,7 +1134,13 @@ public static class VisualTreeHelper
         return candidate;
     }
 
-    private static int FindCandidateIndexByY(IReadOnlyList<UIElement> containers, float y, int guess, bool isMonotonicByY)
+    private static int FindCandidateIndexByY(
+        IReadOnlyList<UIElement> containers,
+        float y,
+        int guess,
+        bool isMonotonicByY,
+        Matrix ancestorTransformToRoot,
+        bool hasAncestorTransformToRoot)
     {
         if (containers.Count == 0)
         {
@@ -1078,7 +1158,12 @@ public static class VisualTreeHelper
         while (low <= high)
         {
             var middle = low + ((high - low) / 2);
-            if (!TryGetVerticalRange(containers[middle], out var top, out var bottom))
+            if (!TryGetVerticalRange(
+                    containers[middle],
+                    ancestorTransformToRoot,
+                    hasAncestorTransformToRoot,
+                    out var top,
+                    out var bottom))
             {
                 return guess;
             }
@@ -1151,6 +1236,37 @@ public static class VisualTreeHelper
         top = 0f;
         bottom = 0f;
         return false;
+    }
+
+    private static bool TryGetVerticalRange(
+        UIElement element,
+        Matrix ancestorTransformToRoot,
+        bool hasAncestorTransformToRoot,
+        out float top,
+        out float bottom)
+    {
+        if (element is not FrameworkElement frameworkElement)
+        {
+            top = 0f;
+            bottom = 0f;
+            return false;
+        }
+
+        var slot = frameworkElement.LayoutSlot;
+        if (element.TryGetLocalRenderTransformSnapshot(out var localTransform, out _))
+        {
+            slot = hasAncestorTransformToRoot
+                ? TransformRect(slot, localTransform * ancestorTransformToRoot)
+                : TransformRect(slot, localTransform);
+        }
+        else if (hasAncestorTransformToRoot)
+        {
+            slot = TransformRect(slot, ancestorTransformToRoot);
+        }
+
+        top = slot.Y;
+        bottom = slot.Y + slot.Height;
+        return true;
     }
 
     private static int CompareTraversalEntries(TraversalIndexEntry left, TraversalIndexEntry right)
@@ -1256,7 +1372,18 @@ public static class VisualTreeHelper
             return true;
         }
 
-        return element is Panel panel && ScrollViewer.GetUseTransformContentScrolling(panel);
+        if (element is VirtualizingStackPanel)
+        {
+            return false;
+        }
+
+        if (element is not Panel panel || !ScrollViewer.GetUseTransformContentScrolling(panel))
+        {
+            return false;
+        }
+
+        return (panel.VisualParent is ScrollViewer visualOwner && ReferenceEquals(visualOwner.Content, panel)) ||
+               (panel.LogicalParent is ScrollViewer logicalOwner && ReferenceEquals(logicalOwner.Content, panel));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

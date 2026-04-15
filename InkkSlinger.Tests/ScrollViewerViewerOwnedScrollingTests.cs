@@ -191,7 +191,7 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
-    public void VirtualizingStackPanel_WheelScroll_InvalidatesViewerLayoutForRealizationRefresh()
+    public void VirtualizingStackPanel_WheelScroll_UsesVirtualizingRefreshPath()
     {
         var root = new Panel();
         var virtualizingPanel = new VirtualizingStackPanel
@@ -219,11 +219,17 @@ public class ScrollViewerViewerOwnedScrollingTests
         RunLayout(uiRoot, 320, 200, 16);
 
         var handled = viewer.HandleMouseWheelFromInput(-120);
+        var runtime = viewer.GetScrollViewerSnapshotForDiagnostics();
 
         Assert.True(handled);
         Assert.True(viewer.VerticalOffset > 0f);
-        Assert.True(viewer.NeedsMeasure);
-        Assert.True(viewer.NeedsArrange);
+        Assert.True(virtualizingPanel.NeedsMeasure || virtualizingPanel.NeedsArrange);
+        Assert.True(
+            runtime.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0 || runtime.SetOffsetsVirtualizingArrangeOnlyPathCount > 0,
+            $"Expected viewer-owned virtualized wheel scrolling to stay on a virtualizing SetOffsets path, but runtime was {runtime}.");
+        Assert.True(
+            runtime.SetOffsetsTransformInvalidationPathCount == 0 && runtime.SetOffsetsManualArrangePathCount == 0,
+            $"Expected viewer-owned virtualized wheel scrolling to avoid transform or manual-arrange fallback paths, but runtime was {runtime}.");
     }
 
     [Fact]
