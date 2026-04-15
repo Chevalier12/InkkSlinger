@@ -1844,8 +1844,7 @@ public class ScrollViewer : ContentControl
                 {
                     _diagSetOffsetsVirtualizingMeasureInvalidationPathCount++;
                     _runtimeSetOffsetsVirtualizingMeasureInvalidationPathCount++;
-                    InvalidateMeasure();
-                    InvalidateArrange();
+                    virtualizingStackPanel.InvalidateMeasure();
                 }
                 else
                 {

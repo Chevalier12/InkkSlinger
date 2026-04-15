@@ -1,3 +1,8 @@
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -58,6 +63,9 @@ public class DesignerControllerTests
                     </Grid>
                 </UserControl>
                 """;
+
+    private const int FixedCompletionScrollFrameworkMeasureCallCount = 36;
+    private const int FixedCompletionScrollVisualChildrenTraversalCount = 5874;
 
     [Fact]
     public void Refresh_ValidUserControl_SucceedsAndBuildsVisualTreeAndInspector()
@@ -722,6 +730,589 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditorControlCompletionWheelScroll_WritesHotTelemetryReport_ForFixedVirtualizedBranchBehavior()
+    {
+        _ = ScrollViewer.GetTelemetryAndReset();
+        _ = FrameworkElement.GetTelemetryAndReset();
+        _ = Control.GetTelemetryAndReset();
+        _ = Panel.GetTelemetryAndReset();
+        _ = TextBlock.GetTelemetryAndReset();
+        _ = Label.GetTelemetryAndReset();
+        UiTextRenderer.ResetTimingForTests();
+        TextLayout.ResetMetricsForTests();
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(1, 0);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+
+        var completionList = FindDescendant<ListBox>(shell);
+        var completionScrollViewer = FindDescendant<ScrollViewer>(completionList);
+        Assert.True(
+            completionScrollViewer.ExtentHeight > completionScrollViewer.ViewportHeight + 0.01f,
+            $"Expected completion popup to be scrollable, but extent={completionScrollViewer.ExtentHeight:0.###} viewport={completionScrollViewer.ViewportHeight:0.###}.");
+
+        var pointer = GetCenter(completionList.LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        _ = ScrollViewer.GetTelemetryAndReset();
+        _ = FrameworkElement.GetTelemetryAndReset();
+        _ = Control.GetTelemetryAndReset();
+        _ = Panel.GetTelemetryAndReset();
+        _ = TextBlock.GetTelemetryAndReset();
+        _ = Label.GetTelemetryAndReset();
+        UiTextRenderer.ResetTimingForTests();
+        TextLayout.ResetMetricsForTests();
+
+        const int wheelTicks = 12;
+        for (var i = 0; i < wheelTicks; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        var scrollTelemetry = ScrollViewer.GetTelemetryAndReset();
+        var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+        var controlTelemetry = Control.GetTelemetryAndReset();
+        var panelTelemetry = Panel.GetTelemetryAndReset();
+        var textBlockTelemetry = TextBlock.GetTelemetryAndReset();
+        var labelTelemetry = Label.GetTelemetryAndReset();
+        var uiPerformanceTelemetry = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        var uiRenderTelemetry = uiRoot.GetRenderTelemetrySnapshotForTests();
+        var textRendererTelemetry = UiTextRenderer.GetTimingSnapshotForTests();
+        var textLayoutTelemetry = TextLayout.GetMetricsSnapshot();
+
+        var suspiciousSignals = new (string Name, long Value)[]
+        {
+            ("framework.update_layout_max_pass_exit", frameworkTelemetry.UpdateLayoutMaxPassExitCount),
+            ("framework.update_layout_passes", frameworkTelemetry.UpdateLayoutPassCount),
+            ("framework.layout_updated_raise", frameworkTelemetry.LayoutUpdatedRaiseCount),
+            ("framework.measure_calls", frameworkTelemetry.MeasureCallCount),
+            ("framework.arrange_calls", frameworkTelemetry.ArrangeCallCount),
+            ("control.get_visual_children", controlTelemetry.GetVisualChildrenCallCount),
+            ("control.measure_override", controlTelemetry.MeasureOverrideCallCount),
+            ("scrollviewer.measure_override", scrollTelemetry.MeasureOverrideCallCount),
+            ("scrollviewer.arrange_override", scrollTelemetry.ArrangeOverrideCallCount),
+            ("textblock.resolve_layout", textBlockTelemetry.ResolveLayoutCallCount),
+            ("textblock.render", textBlockTelemetry.RenderCallCount),
+            ("textlayout.build", textLayoutTelemetry.BuildCount),
+            ("uitextrenderer.measure_width", textRendererTelemetry.MeasureWidthCallCount),
+            ("uitextrenderer.draw_string", textRendererTelemetry.DrawStringCallCount)
+        };
+
+        var hottestSignal = suspiciousSignals
+            .OrderByDescending(static entry => entry.Value)
+            .First();
+        var pathologySignal = frameworkTelemetry.UpdateLayoutMaxPassExitCount > 0
+            ? (Name: "framework.update_layout_max_pass_exit", Value: frameworkTelemetry.UpdateLayoutMaxPassExitCount)
+            : hottestSignal;
+
+        var frameworkMeasureCallsPerWheel = frameworkTelemetry.MeasureCallCount / (double)wheelTicks;
+        var scrollViewerMeasureOverridesPerWheel = scrollTelemetry.MeasureOverrideCallCount / (double)wheelTicks;
+        var updateLayoutPassesPerWheel = frameworkTelemetry.UpdateLayoutPassCount / (double)wheelTicks;
+        var visualChildrenTraversalsPerWheel = controlTelemetry.GetVisualChildrenCallCount / (double)wheelTicks;
+
+        var repoRoot = TestApplicationResources.GetRepositoryRoot();
+        var artifactsDir = Path.Combine(repoRoot, "artifacts");
+        Directory.CreateDirectory(artifactsDir);
+        var reportPath = Path.Combine(artifactsDir, "designer-source-completion-scroll-telemetry.txt");
+
+        var report = new StringBuilder();
+        report.AppendLine("DESIGNER_SOURCE_COMPLETION_SCROLL_TELEMETRY");
+        report.AppendLine($"completion_items={shell.SourceEditorView.ControlCompletionItems.Count}");
+        report.AppendLine($"wheel_ticks={wheelTicks}");
+        report.AppendLine($"completion_vertical_offset={completionScrollViewer.VerticalOffset:0.###}");
+        report.AppendLine($"completion_extent_height={completionScrollViewer.ExtentHeight:0.###}");
+        report.AppendLine($"completion_viewport_height={completionScrollViewer.ViewportHeight:0.###}");
+        report.AppendLine($"hottest_signal={hottestSignal.Name}:{hottestSignal.Value}");
+        report.AppendLine($"pathology_signal={pathologySignal.Name}:{pathologySignal.Value}");
+        report.AppendLine($"framework_measure_calls_per_wheel={frameworkMeasureCallsPerWheel:0.###}");
+        report.AppendLine($"scrollviewer_measure_overrides_per_wheel={scrollViewerMeasureOverridesPerWheel:0.###}");
+        report.AppendLine($"update_layout_passes_per_wheel={updateLayoutPassesPerWheel:0.###}");
+        report.AppendLine($"visual_children_traversals_per_wheel={visualChildrenTraversalsPerWheel:0.###}");
+        report.AppendLine();
+        report.AppendLine($"scrollviewer={scrollTelemetry}");
+        report.AppendLine($"framework={frameworkTelemetry}");
+        report.AppendLine($"control={controlTelemetry}");
+        report.AppendLine($"panel={panelTelemetry}");
+        report.AppendLine($"textblock={textBlockTelemetry}");
+        report.AppendLine($"label={labelTelemetry}");
+        report.AppendLine($"ui_performance={uiPerformanceTelemetry}");
+        report.AppendLine($"ui_render={uiRenderTelemetry}");
+        report.AppendLine($"text_renderer={textRendererTelemetry}");
+        report.AppendLine($"text_layout={textLayoutTelemetry}");
+        File.WriteAllText(reportPath, report.ToString());
+
+        Assert.True(completionScrollViewer.VerticalOffset > 0f, $"Expected completion popup to scroll, but offset stayed {completionScrollViewer.VerticalOffset:0.###}.");
+        Assert.Equal(wheelTicks, scrollTelemetry.WheelHandled);
+        Assert.Equal(0, frameworkTelemetry.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(FixedCompletionScrollFrameworkMeasureCallCount, frameworkTelemetry.MeasureCallCount);
+        Assert.Equal(0, scrollTelemetry.MeasureOverrideCallCount);
+        Assert.Equal(FixedCompletionScrollVisualChildrenTraversalCount, controlTelemetry.GetVisualChildrenCallCount);
+        Assert.True(
+            scrollTelemetry.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0,
+            $"Expected the fixed completion popup to stay on the virtualizing SetOffsets branch, but telemetry was {scrollTelemetry}.");
+        Assert.Equal(0, scrollTelemetry.SetOffsetsTransformInvalidationPathCount);
+        Assert.Equal(0, scrollTelemetry.SetOffsetsManualArrangePathCount);
+        Assert.Equal("control.get_visual_children", pathologySignal.Name);
+        Assert.Equal(FixedCompletionScrollVisualChildrenTraversalCount, pathologySignal.Value);
+        Assert.True(File.Exists(reportPath), $"Expected telemetry report at '{reportPath}'.");
+    }
+
+    [Fact]
+    public void AbsolutePopupListWheelScroll_StaysInSameCheapEnvelopeAsDesignerCompletionPopup()
+    {
+        var plainPopup = RunPopupListWheelTelemetryScenario(includeRichTextBoxSibling: false);
+        var designerPopup = RunDesignerCompletionWheelTelemetryScenario();
+
+        Assert.True(plainPopup.ScrollViewer.VerticalOffset > 0f);
+        Assert.True(designerPopup.ScrollViewer.VerticalOffset > 0f);
+        Assert.Equal(plainPopup.Scroll.PopupCloseCallCount, designerPopup.Scroll.PopupCloseCallCount);
+        Assert.Equal(0, plainPopup.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(0, designerPopup.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(FixedCompletionScrollFrameworkMeasureCallCount, designerPopup.Framework.MeasureCallCount);
+        Assert.Equal(plainPopup.Framework.MeasureCallCount, designerPopup.Framework.MeasureCallCount);
+        Assert.Equal(0, designerPopup.Scroll.MeasureOverrideCallCount);
+        Assert.Equal(FixedCompletionScrollVisualChildrenTraversalCount, designerPopup.Control.GetVisualChildrenCallCount);
+        Assert.True(
+            designerPopup.Scroll.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0,
+            $"Expected designer completion popup scrolling to remain on the virtualizing SetOffsets branch, but telemetry was {designerPopup.Scroll}.");
+        Assert.True(
+            designerPopup.Control.GetVisualChildrenCallCount < plainPopup.Control.GetVisualChildrenCallCount * 2,
+            $"Expected designer completion popup scrolling to stay in the same cheap visual-traversal envelope as a plain absolute popup list after the fix. plain={plainPopup.Control.GetVisualChildrenCallCount} designer={designerPopup.Control.GetVisualChildrenCallCount}");
+    }
+
+    [Fact]
+    public void AbsolutePopupListWheelScroll_WithRichTextBoxSibling_RemainsNearPlainPopupCost()
+    {
+        var plainPopup = RunPopupListWheelTelemetryScenario(includeRichTextBoxSibling: false);
+        var popupWithRichTextBox = RunPopupListWheelTelemetryScenario(includeRichTextBoxSibling: true);
+
+        Assert.True(popupWithRichTextBox.ScrollViewer.VerticalOffset > 0f);
+        Assert.Equal(plainPopup.Scroll.PopupCloseCallCount, popupWithRichTextBox.Scroll.PopupCloseCallCount);
+        Assert.True(
+            popupWithRichTextBox.Framework.UpdateLayoutMaxPassExitCount <= plainPopup.Framework.UpdateLayoutMaxPassExitCount + 8,
+            $"Expected adding a sibling RichTextBox to stay near plain popup cost, but max-pass exits jumped from {plainPopup.Framework.UpdateLayoutMaxPassExitCount} to {popupWithRichTextBox.Framework.UpdateLayoutMaxPassExitCount}.");
+        Assert.True(
+            popupWithRichTextBox.Framework.MeasureCallCount < plainPopup.Framework.MeasureCallCount * 3,
+            $"Expected adding a sibling RichTextBox to avoid designer-scale measure churn, but measure calls jumped from {plainPopup.Framework.MeasureCallCount} to {popupWithRichTextBox.Framework.MeasureCallCount}.");
+        Assert.True(
+            popupWithRichTextBox.Control.GetVisualChildrenCallCount < plainPopup.Control.GetVisualChildrenCallCount * 3,
+            $"Expected adding a sibling RichTextBox to avoid designer-scale visual traversal churn, but get-visual-children calls jumped from {plainPopup.Control.GetVisualChildrenCallCount} to {popupWithRichTextBox.Control.GetVisualChildrenCallCount}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionWheelScroll_ScrollsCheaplyWithoutMovingEditorViewportOrPopupAnchor()
+    {
+        const int wheelTicks = 12;
+        ResetCompletionScrollTelemetry();
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(1, 0);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+
+        var completionList = FindDescendant<ListBox>(shell);
+        var completionScrollViewer = FindDescendant<ScrollViewer>(completionList);
+        var pointer = GetCenter(completionList.LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        ResetCompletionScrollTelemetry();
+
+        var editorVerticalOffsetBefore = sourceEditor.VerticalOffset;
+        var popupBoundsBefore = shell.SourceEditorView.ControlCompletionBounds;
+        var caretBoundsAvailableBefore = sourceEditor.TryGetCaretBounds(out var caretBoundsBefore);
+
+        for (var i = 0; i < wheelTicks; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        var scrollTelemetry = ScrollViewer.GetTelemetryAndReset();
+        var frameworkTelemetry = FrameworkElement.GetTelemetryAndReset();
+        var controlTelemetry = Control.GetTelemetryAndReset();
+
+        var editorVerticalOffsetAfter = sourceEditor.VerticalOffset;
+        var popupBoundsAfter = shell.SourceEditorView.ControlCompletionBounds;
+        var caretBoundsAvailableAfter = sourceEditor.TryGetCaretBounds(out var caretBoundsAfter);
+
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.Equal(editorVerticalOffsetBefore, editorVerticalOffsetAfter);
+        Assert.True(AreRectsEffectivelyEqual(popupBoundsBefore, popupBoundsAfter));
+        Assert.Equal(caretBoundsAvailableBefore, caretBoundsAvailableAfter);
+        if (caretBoundsAvailableBefore && caretBoundsAvailableAfter)
+        {
+            Assert.True(AreRectsEffectivelyEqual(caretBoundsBefore, caretBoundsAfter));
+        }
+
+        Assert.Equal(0, frameworkTelemetry.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(FixedCompletionScrollFrameworkMeasureCallCount, frameworkTelemetry.MeasureCallCount);
+        Assert.Equal(0, scrollTelemetry.MeasureOverrideCallCount);
+        Assert.Equal(FixedCompletionScrollVisualChildrenTraversalCount, controlTelemetry.GetVisualChildrenCallCount);
+        Assert.True(
+            scrollTelemetry.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0,
+            $"Expected the stable-anchor completion popup to keep using the virtualizing SetOffsets branch, but telemetry was {scrollTelemetry}.");
+        Assert.Equal(0, scrollTelemetry.SetOffsetsTransformInvalidationPathCount);
+        Assert.Equal(0, scrollTelemetry.SetOffsetsManualArrangePathCount);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionWheelScroll_DoesNotRebuildLineNumberGutterWhenViewportStaysStable()
+    {
+        const int wheelTicks = 12;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(1, 0);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var completionList = FindDescendant<ListBox>(shell);
+        var pointer = GetCenter(completionList.LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var lineNumberPanel = shell.SourceLineNumberPanelControl;
+        var gutterItemsSourceBefore = lineNumberPanel.ItemsSource;
+        var firstLineBefore = GetLineNumberText(lineNumberPanel, 0);
+        var renderedLineCountBefore = GetRenderedLineNumberCount(lineNumberPanel);
+        var editorVerticalOffsetBefore = sourceEditor.VerticalOffset;
+        var popupBoundsBefore = shell.SourceEditorView.ControlCompletionBounds;
+
+        var gutterRebuildCount = 0;
+        var previousItemsSource = gutterItemsSourceBefore;
+        for (var i = 0; i < wheelTicks; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, 1280, 840, 16);
+
+            var currentItemsSource = lineNumberPanel.ItemsSource;
+            if (!ReferenceEquals(previousItemsSource, currentItemsSource))
+            {
+                gutterRebuildCount++;
+                previousItemsSource = currentItemsSource;
+            }
+        }
+
+        var firstLineAfter = GetLineNumberText(lineNumberPanel, 0);
+        var renderedLineCountAfter = GetRenderedLineNumberCount(lineNumberPanel);
+        var editorVerticalOffsetAfter = sourceEditor.VerticalOffset;
+        var popupBoundsAfter = shell.SourceEditorView.ControlCompletionBounds;
+
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.Equal(0, gutterRebuildCount);
+        Assert.Equal(firstLineBefore, firstLineAfter);
+        Assert.Equal(renderedLineCountBefore, renderedLineCountAfter);
+        Assert.Equal(editorVerticalOffsetBefore, editorVerticalOffsetAfter);
+        Assert.True(AreRectsEffectivelyEqual(popupBoundsBefore, popupBoundsAfter));
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionWheelScroll_DetachingSourceEditorHandlers_DoesNotCollapseLayoutChurn()
+    {
+        var baseline = RunDesignerCompletionWheelTelemetryScenario();
+        var withoutViewportChanged = RunDesignerCompletionWheelTelemetryScenario(static (shell, _, _) =>
+            DetachSourceEditorEventHandler(shell.SourceEditorView, shell.SourceEditorControl, eventName: "ViewportChanged", methodName: "OnSourceEditorViewportChanged"));
+        var withoutLayoutUpdated = RunDesignerCompletionWheelTelemetryScenario(static (shell, _, _) =>
+            DetachSourceEditorEventHandler(shell.SourceEditorView, shell.SourceEditorControl, eventName: "LayoutUpdated", methodName: "OnSourceEditorLayoutUpdated"));
+
+        Assert.True(
+            withoutLayoutUpdated.Framework.UpdateLayoutMaxPassExitCount >= baseline.Framework.UpdateLayoutMaxPassExitCount * 0.9,
+            $"Expected detaching the LayoutUpdated handler to leave most layout churn intact. baseline={baseline.Framework.UpdateLayoutMaxPassExitCount} withoutLayoutUpdated={withoutLayoutUpdated.Framework.UpdateLayoutMaxPassExitCount}");
+        Assert.True(
+            withoutLayoutUpdated.Framework.MeasureCallCount >= baseline.Framework.MeasureCallCount * 0.9,
+            $"Expected detaching the LayoutUpdated handler to leave most measure churn intact. baseline={baseline.Framework.MeasureCallCount} withoutLayoutUpdated={withoutLayoutUpdated.Framework.MeasureCallCount}");
+        Assert.True(
+            withoutViewportChanged.Framework.UpdateLayoutMaxPassExitCount >= baseline.Framework.UpdateLayoutMaxPassExitCount * 0.9,
+            $"Expected detaching the ViewportChanged handler to leave most layout churn intact. baseline={baseline.Framework.UpdateLayoutMaxPassExitCount} withoutViewportChanged={withoutViewportChanged.Framework.UpdateLayoutMaxPassExitCount}");
+        Assert.True(
+            withoutViewportChanged.Framework.MeasureCallCount >= baseline.Framework.MeasureCallCount * 0.9,
+            $"Expected detaching the ViewportChanged handler to leave most measure churn intact. baseline={baseline.Framework.MeasureCallCount} withoutViewportChanged={withoutViewportChanged.Framework.MeasureCallCount}");
+        Assert.True(
+            withoutLayoutUpdated.Control.GetVisualChildrenCallCount >= baseline.Control.GetVisualChildrenCallCount * 0.9,
+            $"Expected detaching the LayoutUpdated handler to leave most visual-tree traversal churn intact. baseline={baseline.Control.GetVisualChildrenCallCount} withoutLayoutUpdated={withoutLayoutUpdated.Control.GetVisualChildrenCallCount}");
+    }
+
+    [Fact]
+    public void StandaloneSourceEditorView_ControlCompletionWheelScroll_MatchesShellFixedBehaviorWithoutReintroducingStorm()
+    {
+        var plainPopup = RunPopupListWheelTelemetryScenario(includeRichTextBoxSibling: false);
+        var standalone = RunStandaloneSourceEditorCompletionWheelTelemetryScenario();
+        var fullShell = RunDesignerCompletionWheelTelemetryScenario();
+
+        Assert.True(plainPopup.ScrollViewer.VerticalOffset > 0f);
+        Assert.True(standalone.ScrollViewer.VerticalOffset > 0f);
+        Assert.True(fullShell.ScrollViewer.VerticalOffset > 0f);
+        Assert.Equal(0, plainPopup.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(0, standalone.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(0, fullShell.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(plainPopup.Framework.MeasureCallCount, standalone.Framework.MeasureCallCount);
+        Assert.Equal(standalone.Framework.MeasureCallCount, fullShell.Framework.MeasureCallCount);
+        Assert.Equal(FixedCompletionScrollFrameworkMeasureCallCount, fullShell.Framework.MeasureCallCount);
+        Assert.Equal(0, standalone.Scroll.MeasureOverrideCallCount);
+        Assert.Equal(0, fullShell.Scroll.MeasureOverrideCallCount);
+        Assert.Equal(FixedCompletionScrollVisualChildrenTraversalCount, fullShell.Control.GetVisualChildrenCallCount);
+        Assert.True(
+            standalone.Scroll.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0,
+            $"Expected the standalone source editor view to keep using the virtualizing SetOffsets branch, but telemetry was {standalone.Scroll}.");
+        Assert.True(
+            fullShell.Scroll.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0,
+            $"Expected the full shell source editor completion popup to keep using the virtualizing SetOffsets branch, but telemetry was {fullShell.Scroll}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionWheelScroll_DoesNotCloseOrReopenPopup()
+    {
+        const int wheelTicks = 12;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(1, 0);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var completionPopup = GetCompletionPopup(shell.SourceEditorView);
+        var opened = 0;
+        var closed = 0;
+        completionPopup.Opened += (_, _) => opened++;
+        completionPopup.Closed += (_, _) => closed++;
+
+        var completionList = FindDescendant<ListBox>(shell);
+        var pointer = GetCenter(completionList.LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        for (var i = 0; i < wheelTicks; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.Equal(0, opened);
+        Assert.Equal(0, closed);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionWheelScroll_PopupHostLayoutUpdatedFeedback_DoesNotDriveMostChurn()
+    {
+        var baseline = RunDesignerCompletionWheelTelemetryScenario();
+        var withoutPopupHostLayoutUpdated = RunDesignerCompletionWheelTelemetryScenario(static (shell, _, _) =>
+            DetachPopupHostLayoutUpdatedHandler(GetCompletionPopup(shell.SourceEditorView)));
+
+        Assert.True(
+            withoutPopupHostLayoutUpdated.Framework.UpdateLayoutMaxPassExitCount >= baseline.Framework.UpdateLayoutMaxPassExitCount * 0.9,
+            $"Expected detaching the popup host LayoutUpdated handler to leave most max-pass exits intact. baseline={baseline.Framework.UpdateLayoutMaxPassExitCount} withoutPopupHostLayoutUpdated={withoutPopupHostLayoutUpdated.Framework.UpdateLayoutMaxPassExitCount}");
+        Assert.True(
+            withoutPopupHostLayoutUpdated.Framework.MeasureCallCount >= baseline.Framework.MeasureCallCount * 0.9,
+            $"Expected detaching the popup host LayoutUpdated handler to leave most framework measure churn intact. baseline={baseline.Framework.MeasureCallCount} withoutPopupHostLayoutUpdated={withoutPopupHostLayoutUpdated.Framework.MeasureCallCount}");
+        Assert.True(
+            withoutPopupHostLayoutUpdated.Control.GetVisualChildrenCallCount >= baseline.Control.GetVisualChildrenCallCount * 0.9,
+            $"Expected detaching the popup host LayoutUpdated handler to leave most visual-tree traversal churn intact. baseline={baseline.Control.GetVisualChildrenCallCount} withoutPopupHostLayoutUpdated={withoutPopupHostLayoutUpdated.Control.GetVisualChildrenCallCount}");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionWheelScroll_DoesNotFireSelectionChangedPaths()
+    {
+        const int wheelTicks = 12;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(1, 0);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var completionList = GetCompletionListBox(shell.SourceEditorView);
+        var sourceEditorSelectionChanged = 0;
+        var completionSelectionChanged = 0;
+        sourceEditor.SelectionChanged += (_, _) => sourceEditorSelectionChanged++;
+        completionList.SelectionChanged += (_, _) => completionSelectionChanged++;
+
+        var pointer = GetCenter(completionList.LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        for (var i = 0; i < wheelTicks; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.Equal(0, sourceEditorSelectionChanged);
+        Assert.Equal(0, completionSelectionChanged);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionWheelScroll_DisablingCompletionListVirtualization_NoLongerChangesCostEnvelope()
+    {
+        var baseline = RunDesignerCompletionWheelTelemetryScenario();
+        var withoutVirtualization = RunDesignerCompletionWheelTelemetryScenario(static (shell, _, _) =>
+            GetCompletionListBox(shell.SourceEditorView).IsVirtualizing = false);
+
+        Assert.Equal(0, baseline.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(0, withoutVirtualization.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(FixedCompletionScrollFrameworkMeasureCallCount, baseline.Framework.MeasureCallCount);
+        Assert.Equal(0, baseline.Scroll.MeasureOverrideCallCount);
+        Assert.Equal(FixedCompletionScrollVisualChildrenTraversalCount, baseline.Control.GetVisualChildrenCallCount);
+        Assert.True(
+            baseline.Scroll.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0,
+            $"Expected the default completion list to keep using the virtualizing SetOffsets branch, but telemetry was {baseline.Scroll}.");
+        Assert.Equal(0, withoutVirtualization.Scroll.SetOffsetsVirtualizingMeasureInvalidationPathCount);
+        Assert.True(
+            withoutVirtualization.Scroll.SetOffsetsTransformInvalidationPathCount > 0,
+            $"Expected disabling completion-list virtualization to move the same repro into the transform-scrolling SetOffsets branch, but telemetry was {withoutVirtualization.Scroll}.");
+        Assert.Equal(0, withoutVirtualization.Scroll.SetOffsetsManualArrangePathCount);
+        Assert.True(
+            withoutVirtualization.Framework.MeasureCallCount <= baseline.Framework.MeasureCallCount * 2,
+            $"Expected disabling completion-list virtualization to stay in the same cheap measure envelope after the fix. baseline={baseline.Framework.MeasureCallCount} withoutVirtualization={withoutVirtualization.Framework.MeasureCallCount}");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionWheelScroll_VirtualizationSwitchesScrollViewerIntoExactSetOffsetsBranch()
+    {
+        var virtualized = RunDesignerCompletionWheelTelemetryScenario();
+        var nonVirtualized = RunDesignerCompletionWheelTelemetryScenario(static (shell, _, _) =>
+            GetCompletionListBox(shell.SourceEditorView).IsVirtualizing = false);
+
+        var virtualizedRuntime = virtualized.ScrollViewer.GetScrollViewerSnapshotForDiagnostics();
+        var nonVirtualizedRuntime = nonVirtualized.ScrollViewer.GetScrollViewerSnapshotForDiagnostics();
+
+        Assert.True(
+            virtualizedRuntime.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0,
+            $"Expected the default completion list to take the VirtualizingStackPanel measure-invalidation branch, but runtime was {virtualizedRuntime}.");
+        Assert.Equal(
+            0,
+            virtualizedRuntime.SetOffsetsTransformInvalidationPathCount);
+        Assert.Equal(
+            0,
+            virtualizedRuntime.SetOffsetsManualArrangePathCount);
+
+        Assert.Equal(
+            0,
+            nonVirtualizedRuntime.SetOffsetsVirtualizingMeasureInvalidationPathCount);
+        Assert.True(
+            nonVirtualizedRuntime.SetOffsetsTransformInvalidationPathCount > 0,
+            $"Expected disabling completion-list virtualization to move the same wheel-scroll scenario into the transform-scrolling SetOffsets branch, but runtime was {nonVirtualizedRuntime}.");
+        Assert.Equal(
+            0,
+            nonVirtualizedRuntime.SetOffsetsManualArrangePathCount);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorControlCompletionWheelScroll_VirtualizedFixedPath_StaysNearPlainPopupWithoutDisablingVirtualization()
+    {
+        var plainPopup = RunPopupListWheelTelemetryScenario(includeRichTextBoxSibling: false);
+        var virtualized = RunDesignerCompletionWheelTelemetryScenario();
+        var withoutVirtualization = RunDesignerCompletionWheelTelemetryScenario(static (shell, _, _) =>
+            GetCompletionListBox(shell.SourceEditorView).IsVirtualizing = false);
+
+        Assert.Equal(0, plainPopup.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(0, virtualized.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(FixedCompletionScrollFrameworkMeasureCallCount, virtualized.Framework.MeasureCallCount);
+        Assert.Equal(plainPopup.Framework.MeasureCallCount, virtualized.Framework.MeasureCallCount);
+        Assert.Equal(0, virtualized.Scroll.MeasureOverrideCallCount);
+        Assert.Equal(FixedCompletionScrollVisualChildrenTraversalCount, virtualized.Control.GetVisualChildrenCallCount);
+        Assert.True(
+            virtualized.Scroll.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0,
+            $"Expected the fixed designer completion popup to stay on the virtualizing SetOffsets branch, but telemetry was {virtualized.Scroll}.");
+        Assert.Equal(0, withoutVirtualization.Scroll.SetOffsetsVirtualizingMeasureInvalidationPathCount);
+        Assert.True(
+            withoutVirtualization.Scroll.SetOffsetsTransformInvalidationPathCount > 0,
+            $"Expected disabling completion-list virtualization to move the same repro into the transform-scrolling SetOffsets branch, but telemetry was {withoutVirtualization.Scroll}.");
+        Assert.True(
+            virtualized.Control.GetVisualChildrenCallCount < plainPopup.Control.GetVisualChildrenCallCount * 2,
+            $"Expected the fixed virtualized completion path to stay near plain popup traversal cost without turning virtualization off. plain={plainPopup.Control.GetVisualChildrenCallCount} virtualized={virtualized.Control.GetVisualChildrenCallCount}");
+        Assert.True(
+            virtualized.Control.GetVisualChildrenCallCount < withoutVirtualization.Control.GetVisualChildrenCallCount,
+            $"Expected the fixed virtualized completion path to stay cheaper than the non-virtualized fallback for visual-tree traversal cost. virtualized={virtualized.Control.GetVisualChildrenCallCount} nonVirtualized={withoutVirtualization.Control.GetVisualChildrenCallCount}");
+    }
+
+    [Fact]
+    public void StandaloneSourceEditorView_ControlCompletionWheelScroll_DisablingCompletionListVirtualization_NoLongerChangesCostEnvelope()
+    {
+        var baseline = RunStandaloneSourceEditorCompletionWheelTelemetryScenario();
+        var withoutVirtualization = RunStandaloneSourceEditorCompletionWheelTelemetryScenario(static (sourceEditorView, _, _) =>
+            GetCompletionListBox(sourceEditorView).IsVirtualizing = false);
+
+        Assert.Equal(0, baseline.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(0, withoutVirtualization.Framework.UpdateLayoutMaxPassExitCount);
+        Assert.Equal(FixedCompletionScrollFrameworkMeasureCallCount, baseline.Framework.MeasureCallCount);
+        Assert.Equal(0, baseline.Scroll.MeasureOverrideCallCount);
+        Assert.True(
+            baseline.Scroll.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0,
+            $"Expected the standalone source editor completion popup to keep using the virtualizing SetOffsets branch, but telemetry was {baseline.Scroll}.");
+        Assert.Equal(0, withoutVirtualization.Scroll.SetOffsetsVirtualizingMeasureInvalidationPathCount);
+        Assert.True(
+            withoutVirtualization.Scroll.SetOffsetsTransformInvalidationPathCount > 0,
+            $"Expected disabling completion-list virtualization in the standalone source editor view to move the same repro into the transform-scrolling SetOffsets branch, but telemetry was {withoutVirtualization.Scroll}.");
+        Assert.Equal(0, withoutVirtualization.Scroll.SetOffsetsManualArrangePathCount);
+        Assert.True(
+            withoutVirtualization.Framework.MeasureCallCount <= baseline.Framework.MeasureCallCount * 2,
+            $"Expected disabling completion-list virtualization in the standalone source editor view to stay in the same cheap measure envelope after the fix. baseline={baseline.Framework.MeasureCallCount} withoutVirtualization={withoutVirtualization.Framework.MeasureCallCount}");
+    }
+
+    [Fact]
     public void ShellView_SourceEditorCtrlSpaceAfterLessThan_ShouldNotInsertSpaceBeforeOpeningControlCompletion()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -1321,12 +1912,324 @@ public class DesignerControllerTests
             MiddleReleased = false
         };
     }
+
+    private static InputDelta CreatePointerWheelDelta(Vector2 pointer, int wheelDelta)
+    {
+        return new InputDelta
+        {
+            Previous = new InputSnapshot(default, default, pointer),
+            Current = new InputSnapshot(default, default, pointer),
+            PressedKeys = new List<Keys>(),
+            ReleasedKeys = new List<Keys>(),
+            TextInput = new List<char>(),
+            PointerMoved = false,
+            WheelDelta = wheelDelta,
+            LeftPressed = false,
+            LeftReleased = false,
+            RightPressed = false,
+            RightReleased = false,
+            MiddlePressed = false,
+            MiddleReleased = false
+        };
+    }
+
+    private static CompletionWheelTelemetryResult RunPopupListWheelTelemetryScenario(bool includeRichTextBoxSibling)
+    {
+        const int wheelTicks = 12;
+        ResetCompletionScrollTelemetry();
+
+        var host = new Canvas
+        {
+            Width = 1280f,
+            Height = 840f
+        };
+
+        if (includeRichTextBoxSibling)
+        {
+            var editor = new RichTextBox
+            {
+                Width = 620f,
+                Height = 360f,
+                AcceptsReturn = true,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                TextWrapping = TextWrapping.NoWrap
+            };
+            DocumentEditing.ReplaceAllText(editor.Document, string.Join("\n", Enumerable.Range(1, 80).Select(static i => $"Line {i:000} <Button Content=\"Probe\" />")));
+            host.AddChild(editor);
+            Canvas.SetLeft(editor, 80f);
+            Canvas.SetTop(editor, 80f);
+        }
+
+        var listBox = CreateCompletionProbeListBox();
+        var popup = CreateCompletionProbePopup(listBox);
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1280, 840, 16);
+        popup.Open(host);
+        Assert.True(popup.TrySetRootSpacePosition(300f, 140f));
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var completionScrollViewer = FindDescendant<ScrollViewer>(listBox);
+        var pointer = GetCenter(listBox.LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        ResetCompletionScrollTelemetry();
+
+        for (var i = 0; i < wheelTicks; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        return new CompletionWheelTelemetryResult(
+            includeRichTextBoxSibling ? "popup-with-richtextbox" : "plain-popup",
+            completionScrollViewer,
+            popup.LayoutSlot,
+            ScrollViewer.GetTelemetryAndReset(),
+            FrameworkElement.GetTelemetryAndReset(),
+            Control.GetTelemetryAndReset(),
+            Panel.GetTelemetryAndReset(),
+            TextBlock.GetTelemetryAndReset(),
+            Label.GetTelemetryAndReset(),
+            UiTextRenderer.GetTimingSnapshotForTests(),
+            TextLayout.GetMetricsSnapshot());
+    }
+
+    private static CompletionWheelTelemetryResult RunDesignerCompletionWheelTelemetryScenario(Action<InkkSlinger.Designer.DesignerShellView, RichTextBox, UiRoot>? configure = null)
+    {
+        const int wheelTicks = 12;
+        ResetCompletionScrollTelemetry();
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(1, 0);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        configure?.Invoke(shell, sourceEditor, uiRoot);
+
+        var completionList = FindDescendant<ListBox>(shell);
+        var completionScrollViewer = FindDescendant<ScrollViewer>(completionList);
+        var pointer = GetCenter(completionList.LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        ResetCompletionScrollTelemetry();
+
+        for (var i = 0; i < wheelTicks; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        return new CompletionWheelTelemetryResult(
+            "designer-completion",
+            completionScrollViewer,
+            shell.SourceEditorView.ControlCompletionBounds,
+            ScrollViewer.GetTelemetryAndReset(),
+            FrameworkElement.GetTelemetryAndReset(),
+            Control.GetTelemetryAndReset(),
+            Panel.GetTelemetryAndReset(),
+            TextBlock.GetTelemetryAndReset(),
+            Label.GetTelemetryAndReset(),
+            UiTextRenderer.GetTimingSnapshotForTests(),
+            TextLayout.GetMetricsSnapshot());
+    }
+
+    private static CompletionWheelTelemetryResult RunStandaloneSourceEditorCompletionWheelTelemetryScenario(Action<InkkSlinger.Designer.DesignerSourceEditorView, RichTextBox, UiRoot>? configure = null)
+    {
+        const int wheelTicks = 12;
+        ResetCompletionScrollTelemetry();
+
+        var host = new Canvas
+        {
+            Width = 1280f,
+            Height = 840f
+        };
+
+        var sourceEditorView = new InkkSlinger.Designer.DesignerSourceEditorView
+        {
+            Width = 760f,
+            Height = 420f,
+            SourceText = "<"
+        };
+        host.AddChild(sourceEditorView);
+        Canvas.SetLeft(sourceEditorView, 80f);
+        Canvas.SetTop(sourceEditorView, 80f);
+
+        var sourceEditor = sourceEditorView.Editor;
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(1, 0);
+        Assert.True(sourceEditorView.TryOpenControlCompletion());
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        configure?.Invoke(sourceEditorView, sourceEditor, uiRoot);
+
+        var completionList = FindDescendant<ListBox>(host);
+        var completionScrollViewer = FindDescendant<ScrollViewer>(completionList);
+        var pointer = GetCenter(completionList.LayoutSlot);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        ResetCompletionScrollTelemetry();
+
+        for (var i = 0; i < wheelTicks; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        return new CompletionWheelTelemetryResult(
+            "standalone-source-editor-view",
+            completionScrollViewer,
+            sourceEditorView.ControlCompletionBounds,
+            ScrollViewer.GetTelemetryAndReset(),
+            FrameworkElement.GetTelemetryAndReset(),
+            Control.GetTelemetryAndReset(),
+            Panel.GetTelemetryAndReset(),
+            TextBlock.GetTelemetryAndReset(),
+            Label.GetTelemetryAndReset(),
+            UiTextRenderer.GetTimingSnapshotForTests(),
+            TextLayout.GetMetricsSnapshot());
+    }
+
+    private static void DetachSourceEditorEventHandler(
+        InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView,
+        RichTextBox sourceEditor,
+        string eventName,
+        string methodName)
+    {
+        var handlerMethod = typeof(InkkSlinger.Designer.DesignerSourceEditorView).GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(handlerMethod);
+        var handler = (EventHandler)Delegate.CreateDelegate(typeof(EventHandler), sourceEditorView, handlerMethod!);
+
+        switch (eventName)
+        {
+            case "LayoutUpdated":
+                sourceEditor.LayoutUpdated -= handler;
+                break;
+            case "ViewportChanged":
+                sourceEditor.ViewportChanged -= handler;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(eventName), eventName, "Unsupported RichTextBox event.");
+        }
+    }
+
+    private static Popup GetCompletionPopup(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
+    {
+        var field = typeof(InkkSlinger.Designer.DesignerSourceEditorView).GetField("_completionPopup", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<Popup>(field!.GetValue(sourceEditorView));
+    }
+
+    private static ListBox GetCompletionListBox(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
+    {
+        var field = typeof(InkkSlinger.Designer.DesignerSourceEditorView).GetField("_completionListBox", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<ListBox>(field!.GetValue(sourceEditorView));
+    }
+
+    private static void DetachPopupHostLayoutUpdatedHandler(Popup popup)
+    {
+        var hostField = typeof(Popup).GetField("_host", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(hostField);
+        var host = Assert.IsAssignableFrom<Panel>(hostField!.GetValue(popup));
+
+        var handlerMethod = typeof(Popup).GetMethod("OnHostLayoutUpdated", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(handlerMethod);
+        var handler = (EventHandler)Delegate.CreateDelegate(typeof(EventHandler), popup, handlerMethod!);
+        host.LayoutUpdated -= handler;
+    }
+
+    private static void ResetCompletionScrollTelemetry()
+    {
+        _ = ScrollViewer.GetTelemetryAndReset();
+        _ = FrameworkElement.GetTelemetryAndReset();
+        _ = Control.GetTelemetryAndReset();
+        _ = Panel.GetTelemetryAndReset();
+        _ = TextBlock.GetTelemetryAndReset();
+        _ = Label.GetTelemetryAndReset();
+        UiTextRenderer.ResetTimingForTests();
+        TextLayout.ResetMetricsForTests();
+    }
+
+    private static ListBox CreateCompletionProbeListBox()
+    {
+        var listBox = new ListBox
+        {
+            Background = new Color(11, 16, 24),
+            BorderBrush = new Color(35, 52, 73),
+            BorderThickness = 0f,
+            Padding = new Thickness(0f),
+            SelectionMode = SelectionMode.Single,
+            IsVirtualizing = true,
+            MaxHeight = 260f,
+            MinWidth = 180f,
+            MaxWidth = 420f,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        for (var i = 0; i < 90; i++)
+        {
+            listBox.Items.Add($"Completion Item {i:000}");
+        }
+
+        listBox.SelectedIndex = 0;
+        return listBox;
+    }
+
+    private static Popup CreateCompletionProbePopup(ListBox listBox)
+    {
+        return new Popup
+        {
+            Title = string.Empty,
+            TitleBarHeight = 0f,
+            CanClose = false,
+            CanDragMove = false,
+            DismissOnOutsideClick = true,
+            BorderThickness = 1f,
+            BorderBrush = new Color(35, 52, 73),
+            Background = new Color(9, 13, 19),
+            Padding = new Thickness(0f),
+            PlacementMode = PopupPlacementMode.Absolute,
+            Content = listBox
+        };
+    }
+
     private static string GetLineNumberText(ItemsControl panel, int index)
     {
         var lineNumberEntries = FindDescendants<Border>(panel, static border => border.Child is TextBlock);
         var container = Assert.IsType<Border>(lineNumberEntries[index]);
         var textBlock = Assert.IsType<TextBlock>(container.Child);
         return textBlock.Text;
+    }
+
+    private static bool AreRectsEffectivelyEqual(LayoutRect left, LayoutRect right)
+    {
+        return MathF.Abs(left.X - right.X) < 0.001f &&
+               MathF.Abs(left.Y - right.Y) < 0.001f &&
+               MathF.Abs(left.Width - right.Width) < 0.001f &&
+               MathF.Abs(left.Height - right.Height) < 0.001f;
     }
 
     private static int GetRenderedLineNumberCount(ItemsControl panel)
@@ -1369,4 +2272,17 @@ public class DesignerControllerTests
             WrittenTexts[path] = text;
         }
     }
+
+    private readonly record struct CompletionWheelTelemetryResult(
+        string Scenario,
+        ScrollViewer ScrollViewer,
+        LayoutRect PopupBounds,
+        ScrollViewerTelemetrySnapshot Scroll,
+        FrameworkElementTelemetrySnapshot Framework,
+        ControlTelemetrySnapshot Control,
+        PanelTelemetrySnapshot Panel,
+        TextBlockTelemetrySnapshot TextBlock,
+        LabelTelemetrySnapshot Label,
+        UiTextRendererTimingSnapshot TextRenderer,
+        TextLayoutMetricsSnapshot TextLayout);
 }
