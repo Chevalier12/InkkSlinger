@@ -711,28 +711,7 @@ public sealed partial class UiRoot
 
     private static bool IsScrollTranslationFastPathCandidate(UIElement visual)
     {
-        if (visual is IScrollTransformContent)
-        {
-            return true;
-        }
-
-        if (visual is VirtualizingStackPanel)
-        {
-            return false;
-        }
-
-        if (visual is not Panel)
-        {
-            return false;
-        }
-
-        if (!ScrollViewer.GetUseTransformContentScrolling(visual))
-        {
-            return false;
-        }
-
-        return (visual.VisualParent is ScrollViewer visualOwner && ReferenceEquals(visualOwner.Content, visual)) ||
-               (visual.LogicalParent is ScrollViewer logicalOwner && ReferenceEquals(logicalOwner.Content, visual));
+        return visual is IScrollTransformContent;
     }
 
     private static bool TryGetTranslationDelta(RenderNode previous, RenderNode updated, out float translationX, out float translationY)

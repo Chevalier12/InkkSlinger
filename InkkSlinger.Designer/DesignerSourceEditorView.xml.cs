@@ -62,9 +62,17 @@ public partial class DesignerSourceEditorView : UserControl
     private readonly ListBox _completionListBox;
     private IReadOnlyList<DesignerControlCompletionItem> _completionItems = Array.Empty<DesignerControlCompletionItem>();
     private IReadOnlyList<string> _completionItemNames = Array.Empty<string>();
+    private IReadOnlyList<DesignerSourceInspectableProperty> _currentSourceInspectorProperties = Array.Empty<DesignerSourceInspectableProperty>();
     private CompletionContext? _completionContext;
     private bool _suppressCompletionListSelectionChanged;
     private LayoutRect _lastCompletionCaretBounds;
+    private readonly Dictionary<string, FrameworkElement> _sourcePropertyEditorsByName = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TextBlock> _sourcePropertyDescriptionsByName = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Border> _sourcePropertyRowsByName = new(StringComparer.Ordinal);
+    private Type? _currentSourceInspectorControlType;
+    private DesignerSourceTagSelection? _currentSourceTagSelection;
+    private bool _suppressSourceInspectorApply;
+    private bool _suppressSourceInspectorFilterTextChanged;
 
     public DesignerSourceEditorView()
     {
@@ -81,6 +89,7 @@ public partial class DesignerSourceEditorView : UserControl
         SourceEditor.SelectionChanged += OnSourceEditorSelectionChanged;
         LoadDocumentIntoEditor(SourceText);
         UpdateSourceLineNumberGutter(force: true);
+        RefreshSourcePropertyInspector();
     }
 
     public string SourceText
@@ -142,6 +151,7 @@ public partial class DesignerSourceEditorView : UserControl
 
         UpdateCachedSourceLineCount(currentText);
         UpdateSourceLineNumberGutter(force: true);
+        RefreshSourcePropertyInspector();
         if (IsControlCompletionOpen)
         {
             _ = RefreshCompletionPopup(openIfPossible: false);
@@ -216,6 +226,7 @@ public partial class DesignerSourceEditorView : UserControl
 
         DismissCompletionPopup();
         LoadDocumentIntoEditor(newText);
+        RefreshSourcePropertyInspector();
     }
 
     private void LoadDocumentIntoEditor(string? text)
@@ -264,6 +275,7 @@ public partial class DesignerSourceEditorView : UserControl
         var desiredVerticalOffset = Math.Max(0f, ((oneBasedLineNumber - 1) * lineHeight) - (SourceEditor.ViewportHeight * 0.35f));
         SourceEditor.ScrollToVerticalOffset(desiredVerticalOffset);
         UpdateSourceLineNumberGutter(force: true);
+        RefreshSourcePropertyInspector();
     }
 
     private void OnSourceEditorKeyDown(object? sender, KeyRoutedEventArgs args)
@@ -343,6 +355,391 @@ public partial class DesignerSourceEditorView : UserControl
         }
 
         DismissCompletionPopup();
+    }
+
+    private void RefreshSourcePropertyInspector(string? activePropertyName = null, string? activeEditorText = null)
+    {
+        var previousVerticalOffset = SourcePropertyInspectorScrollViewer.VerticalOffset;
+        var sourceText = DocumentEditing.GetText(SourceEditor.Document);
+        if (!DesignerSourcePropertyInspector.TryResolveTagSelection(sourceText, SourceEditor.SelectionStart, out var selection))
+        {
+            _currentSourceTagSelection = null;
+            _currentSourceInspectorControlType = null;
+            _currentSourceInspectorProperties = Array.Empty<DesignerSourceInspectableProperty>();
+            _sourcePropertyEditorsByName.Clear();
+            _sourcePropertyDescriptionsByName.Clear();
+            _sourcePropertyRowsByName.Clear();
+            ClearSourcePropertyInspectorRows();
+            SourcePropertyInspectorHeaderText.Text = "Select a control tag in the source editor.";
+            SourcePropertyInspectorSummaryText.Text = "Changes update the XML source. Press F5 to refresh the preview.";
+            SourcePropertyInspectorEmptyState.Text = "Place the caret inside a control start tag such as <Button /> or <Button> to edit its properties.";
+            SourcePropertyInspectorEmptyState.Visibility = Visibility.Visible;
+            SourcePropertyInspectorFilterBorder.Visibility = Visibility.Collapsed;
+            SourcePropertyInspectorScrollViewer.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var controlType = DesignerSourcePropertyInspector.ResolveControlType(selection.ElementName);
+        if (controlType == null)
+        {
+            _currentSourceTagSelection = selection;
+            _currentSourceInspectorControlType = null;
+            _currentSourceInspectorProperties = Array.Empty<DesignerSourceInspectableProperty>();
+            _sourcePropertyEditorsByName.Clear();
+            _sourcePropertyDescriptionsByName.Clear();
+            _sourcePropertyRowsByName.Clear();
+            ClearSourcePropertyInspectorRows();
+            SourcePropertyInspectorHeaderText.Text = selection.ElementName;
+            SourcePropertyInspectorSummaryText.Text = "The source tag was found, but no matching control type is registered for editing.";
+            SourcePropertyInspectorEmptyState.Text = "This tag cannot be edited through the source property inspector yet.";
+            SourcePropertyInspectorEmptyState.Visibility = Visibility.Visible;
+            SourcePropertyInspectorFilterBorder.Visibility = Visibility.Collapsed;
+            SourcePropertyInspectorScrollViewer.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var properties = DesignerSourcePropertyInspector.GetInspectableProperties(controlType, selection);
+        var shouldRebuild =
+            _currentSourceInspectorControlType != controlType ||
+            _sourcePropertyEditorsByName.Count != properties.Count ||
+            properties.Any(property => !_sourcePropertyEditorsByName.ContainsKey(property.Name));
+
+        _currentSourceTagSelection = selection;
+        _currentSourceInspectorControlType = controlType;
+        _currentSourceInspectorProperties = properties;
+        SourcePropertyInspectorHeaderText.Text = selection.ElementName;
+        SourcePropertyInspectorSummaryText.Text = selection.IsSelfClosing
+            ? "Editing a self-closing start tag. Source updates immediately. Press F5 to refresh the preview."
+            : "Editing an opening start tag. Source updates immediately. Press F5 to refresh the preview.";
+        SourcePropertyInspectorFilterBorder.Visibility = Visibility.Visible;
+
+        if (shouldRebuild)
+        {
+            RebuildSourcePropertyEditorRows(properties, selection);
+        }
+
+        UpdateSourcePropertyEditorValues(selection, properties, activePropertyName, activeEditorText);
+        ApplySourcePropertyInspectorFilter(selection, properties);
+        SourcePropertyInspectorScrollViewer.ScrollToVerticalOffset(previousVerticalOffset);
+    }
+
+    private void RebuildSourcePropertyEditorRows(
+        IReadOnlyList<DesignerSourceInspectableProperty> properties,
+        DesignerSourceTagSelection selection)
+    {
+        _sourcePropertyEditorsByName.Clear();
+        _sourcePropertyDescriptionsByName.Clear();
+        _sourcePropertyRowsByName.Clear();
+        ClearSourcePropertyInspectorRows();
+
+        foreach (var property in properties)
+        {
+            var rowBorder = new Border
+            {
+                Background = new Color(11, 17, 24),
+                BorderBrush = new Color(15, 26, 38),
+                BorderThickness = new Thickness(0f, 0f, 0f, 1f),
+                Padding = new Thickness(0f, 0f, 0f, 10f),
+                Margin = new Thickness(0f, 0f, 0f, 10f)
+            };
+
+            var rowStack = new StackPanel();
+            var headerText = new TextBlock
+            {
+                Text = property.Name,
+                Foreground = new Color(200, 216, 232),
+                FontSize = 12f,
+                FontWeight = "SemiBold"
+            };
+            var descriptionText = new TextBlock
+            {
+                Foreground = new Color(74, 104, 128),
+                FontSize = 10f,
+                Margin = new Thickness(0f, 2f, 0f, 6f),
+                TextWrapping = TextWrapping.Wrap
+            };
+            var editor = CreateSourcePropertyEditor(property);
+
+            rowStack.AddChild(headerText);
+            rowStack.AddChild(descriptionText);
+            rowStack.AddChild(editor);
+            rowBorder.Child = rowStack;
+            SourcePropertyInspectorPropertiesHost.AddChild(rowBorder);
+
+            _sourcePropertyEditorsByName[property.Name] = editor;
+            _sourcePropertyDescriptionsByName[property.Name] = descriptionText;
+            _sourcePropertyRowsByName[property.Name] = rowBorder;
+        }
+
+        UpdateSourcePropertyEditorValues(selection, properties, activePropertyName: null, activeEditorText: null);
+    }
+
+    private void UpdateSourcePropertyEditorValues(
+        DesignerSourceTagSelection selection,
+        IReadOnlyList<DesignerSourceInspectableProperty> properties,
+        string? activePropertyName,
+        string? activeEditorText)
+    {
+        _suppressSourceInspectorApply = true;
+        try
+        {
+            foreach (var property in properties)
+            {
+                if (!_sourcePropertyEditorsByName.TryGetValue(property.Name, out var editor) ||
+                    !_sourcePropertyDescriptionsByName.TryGetValue(property.Name, out var description))
+                {
+                    continue;
+                }
+
+                var currentValue = selection.TryGetAttribute(property.Name, out var attribute)
+                    ? attribute.Value
+                    : string.Empty;
+                description.Text = BuildSourcePropertyDescription(property, currentValue);
+                if (editor is TextBox textEditor &&
+                    string.Equals(activePropertyName, property.Name, StringComparison.Ordinal) &&
+                    textEditor.IsFocused)
+                {
+                    if (activeEditorText != null && !string.Equals(textEditor.Text, activeEditorText, StringComparison.Ordinal))
+                    {
+                        textEditor.Text = activeEditorText;
+                    }
+
+                    continue;
+                }
+
+                switch (editor)
+                {
+                    case TextBox currentTextEditor when !string.Equals(currentTextEditor.Text, currentValue, StringComparison.Ordinal):
+                        currentTextEditor.Text = currentValue;
+                        break;
+                    case ComboBox currentComboBox:
+                        UpdateSourcePropertyChoiceEditorValue(currentComboBox, property, currentValue);
+                        break;
+                }
+            }
+        }
+        finally
+        {
+            _suppressSourceInspectorApply = false;
+        }
+    }
+
+    private static string BuildSourcePropertyDescription(DesignerSourceInspectableProperty property, string currentValue)
+    {
+        if (!string.IsNullOrEmpty(currentValue))
+        {
+            return string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{property.TypeName} • set in source • default {property.DefaultValueDisplay}");
+        }
+
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{property.TypeName} • not set in source • default {property.DefaultValueDisplay}");
+    }
+
+    private void OnSourcePropertyInspectorFilterTextChanged(object? sender, RoutedSimpleEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        if (_suppressSourceInspectorFilterTextChanged || _currentSourceTagSelection is not DesignerSourceTagSelection selection)
+        {
+            return;
+        }
+
+        ApplySourcePropertyInspectorFilter(selection, _currentSourceInspectorProperties);
+        SourcePropertyInspectorScrollViewer.ScrollToVerticalOffset(0f);
+    }
+
+    private void ApplySourcePropertyInspectorFilter(
+        DesignerSourceTagSelection selection,
+        IReadOnlyList<DesignerSourceInspectableProperty> properties)
+    {
+        var filterText = SourcePropertyInspectorFilterTextBox.Text ?? string.Empty;
+        var hasVisibleProperties = false;
+        foreach (var property in properties)
+        {
+            if (!_sourcePropertyRowsByName.TryGetValue(property.Name, out var row))
+            {
+                continue;
+            }
+
+            var currentValue = selection.TryGetAttribute(property.Name, out var attribute)
+                ? attribute.Value
+                : string.Empty;
+            var isVisible = MatchesSourcePropertyInspectorFilter(property, currentValue, filterText);
+            row.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+            hasVisibleProperties |= isVisible;
+        }
+
+        if (hasVisibleProperties)
+        {
+            SourcePropertyInspectorEmptyState.Visibility = Visibility.Collapsed;
+            SourcePropertyInspectorScrollViewer.Visibility = Visibility.Visible;
+            return;
+        }
+
+        SourcePropertyInspectorEmptyState.Text = string.IsNullOrWhiteSpace(filterText)
+            ? "No editable properties are available for this control."
+            : $"No properties match '{filterText.Trim()}'.";
+        SourcePropertyInspectorEmptyState.Visibility = Visibility.Visible;
+        SourcePropertyInspectorScrollViewer.Visibility = Visibility.Collapsed;
+    }
+
+    private static bool MatchesSourcePropertyInspectorFilter(
+        DesignerSourceInspectableProperty property,
+        string currentValue,
+        string filterText)
+    {
+        if (string.IsNullOrWhiteSpace(filterText))
+        {
+            return true;
+        }
+
+        var trimmedFilter = filterText.Trim();
+        return property.Name.Contains(trimmedFilter, StringComparison.OrdinalIgnoreCase) ||
+               property.TypeName.Contains(trimmedFilter, StringComparison.OrdinalIgnoreCase) ||
+               property.DefaultValueDisplay.Contains(trimmedFilter, StringComparison.OrdinalIgnoreCase) ||
+               (!string.IsNullOrEmpty(currentValue) && currentValue.Contains(trimmedFilter, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void OnSourcePropertyEditorTextChanged(object? sender, RoutedSimpleEventArgs args)
+    {
+        _ = args;
+        if (_suppressSourceInspectorApply || sender is not TextBox editor || editor.Tag is not string propertyName)
+        {
+            return;
+        }
+
+        if (!TryApplySourceInspectorEdit(propertyName, editor.Text))
+        {
+            return;
+        }
+
+        RefreshSourcePropertyInspector(propertyName, editor.Text);
+    }
+
+    private void OnSourcePropertyChoiceSelectionChanged(object? sender, SelectionChangedEventArgs args)
+    {
+        _ = args;
+        if (_suppressSourceInspectorApply || sender is not ComboBox comboBox || comboBox.Tag is not string propertyName)
+        {
+            return;
+        }
+
+        var selectedValue = comboBox.SelectedItem as string;
+        if (!TryApplySourceInspectorEdit(propertyName, selectedValue))
+        {
+            return;
+        }
+
+        RefreshSourcePropertyInspector(propertyName, selectedValue);
+    }
+
+    private bool TryApplySourceInspectorEdit(string propertyName, string? propertyValue)
+    {
+        var sourceText = DocumentEditing.GetText(SourceEditor.Document);
+        if (!DesignerSourcePropertyInspector.TryResolveTagSelection(sourceText, SourceEditor.SelectionStart, out var selection))
+        {
+            return false;
+        }
+
+        if (!DesignerSourcePropertyInspector.TryApplyPropertyEdit(
+                sourceText,
+                selection,
+                propertyName,
+                propertyValue,
+                out var updatedText,
+                out var updatedAnchorIndex) ||
+            string.Equals(updatedText, sourceText, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        SourceText = updatedText;
+        var clampedAnchorIndex = Math.Clamp(updatedAnchorIndex, 0, DocumentEditing.GetText(SourceEditor.Document).Length);
+        SourceEditor.Select(clampedAnchorIndex, 0);
+        return true;
+    }
+
+    private void ClearSourcePropertyInspectorRows()
+    {
+        while (SourcePropertyInspectorPropertiesHost.Children.Count > 0)
+        {
+            _ = SourcePropertyInspectorPropertiesHost.RemoveChildAt(SourcePropertyInspectorPropertiesHost.Children.Count - 1);
+        }
+    }
+
+    private FrameworkElement CreateSourcePropertyEditor(DesignerSourceInspectableProperty property)
+    {
+        if (property.EditorKind == DesignerSourcePropertyEditorKind.Choice)
+        {
+            var comboBox = new ComboBox
+            {
+                Tag = property.Name,
+                Background = new Color(8, 15, 24),
+                Foreground = new Color(216, 227, 238),
+                BorderBrush = new Color(36, 51, 66),
+                BorderThickness = 1f,
+                Padding = new Thickness(8f, 5f, 8f, 5f),
+                FontFamily = new FontFamily("Consolas"),
+                MaxDropDownHeight = 240f
+            };
+
+            foreach (var choiceValue in property.ChoiceValues)
+            {
+                comboBox.Items.Add(choiceValue);
+            }
+
+            comboBox.SelectionChanged += OnSourcePropertyChoiceSelectionChanged;
+            return comboBox;
+        }
+
+        var editor = new TextBox
+        {
+            Tag = property.Name,
+            Background = new Color(8, 15, 24),
+            Foreground = new Color(216, 227, 238),
+            BorderBrush = new Color(36, 51, 66),
+            BorderThickness = 1f,
+            Padding = new Thickness(8f, 5f, 8f, 5f),
+            FontFamily = new FontFamily("Consolas")
+        };
+        editor.TextChanged += OnSourcePropertyEditorTextChanged;
+        return editor;
+    }
+
+    private static void UpdateSourcePropertyChoiceEditorValue(
+        ComboBox comboBox,
+        DesignerSourceInspectableProperty property,
+        string currentValue)
+    {
+        if (string.IsNullOrEmpty(currentValue))
+        {
+            if (comboBox.SelectedIndex != -1)
+            {
+                comboBox.SelectedIndex = -1;
+            }
+
+            return;
+        }
+
+        var selectedChoice = property.ChoiceValues.FirstOrDefault(
+            choice => string.Equals(choice, currentValue, StringComparison.OrdinalIgnoreCase));
+        if (selectedChoice == null)
+        {
+            if (comboBox.SelectedIndex != -1)
+            {
+                comboBox.SelectedIndex = -1;
+            }
+
+            return;
+        }
+
+        if (!string.Equals(comboBox.SelectedItem as string, selectedChoice, StringComparison.Ordinal))
+        {
+            comboBox.SelectedItem = selectedChoice;
+        }
     }
 
     private (Popup Popup, ListBox ListBox) CreateCompletionPopup()
@@ -682,6 +1079,12 @@ public partial class DesignerSourceEditorView : UserControl
     {
         _ = sender;
         _ = args;
+        if (_suppressSourceEditorChanges)
+        {
+            return;
+        }
+
+        RefreshSourcePropertyInspector();
         if (!IsControlCompletionOpen)
         {
             return;

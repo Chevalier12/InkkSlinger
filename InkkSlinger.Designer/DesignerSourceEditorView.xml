@@ -82,6 +82,8 @@
       <ColumnDefinition Width="56" />
       <ColumnDefinition Width="1" />
       <ColumnDefinition Width="*" />
+      <ColumnDefinition Width="8" />
+      <ColumnDefinition Width="320" MinWidth="220" />
     </Grid.ColumnDefinitions>
 
     <Border x:Name="SourceLineNumberBorder"
@@ -111,5 +113,96 @@
                  AcceptsTab="True"
                  TextWrapping="NoWrap"
                  FontFamily="Consolas" />
+
+    <GridSplitter x:Name="SourcePropertyInspectorSplitter"
+                  Grid.Column="3"
+                  Background="#0B0F14"
+                  BorderBrush="#1E3450"
+                  BorderThickness="1,0,1,0"
+                  Margin="1,0"
+                  HorizontalAlignment="Stretch"
+                  VerticalAlignment="Stretch"
+                  ResizeDirection="Columns"
+                  ResizeBehavior="PreviousAndNext" />
+
+    <Border x:Name="SourcePropertyInspectorBorder"
+            Grid.Column="4"
+            Background="#0D131A"
+            BorderBrush="#1A2637"
+            BorderThickness="1,0,0,0">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                BorderBrush="#1A2637"
+                BorderThickness="0,0,0,1"
+                Padding="10,8">
+          <StackPanel>
+            <TextBlock Text="Property Inspector"
+                       Foreground="#C8D8E8"
+                       FontWeight="SemiBold" />
+            <TextBlock x:Name="SourcePropertyInspectorHeaderText"
+                       Foreground="#8DA1B5"
+                       FontSize="12"
+                       Margin="0,3,0,0"
+                       Text="Select a control tag in the source editor." />
+            <TextBlock x:Name="SourcePropertyInspectorSummaryText"
+                       Foreground="#4A6880"
+                       FontSize="11"
+                       Margin="0,3,0,0"
+                       Text="Changes update the XML source. Press F5 to refresh the preview." />
+          </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+
+          <Border x:Name="SourcePropertyInspectorFilterBorder"
+                  Grid.Row="0"
+                  BorderBrush="#1A2637"
+                  BorderThickness="0,0,0,1"
+                  Padding="8,8,8,6"
+                  Visibility="Collapsed">
+            <StackPanel>
+              <TextBlock Text="Filter properties"
+                         Foreground="#4A6880"
+                         FontSize="11"
+                         Margin="0,0,0,4" />
+              <TextBox x:Name="SourcePropertyInspectorFilterTextBox"
+                       TextChanged="OnSourcePropertyInspectorFilterTextChanged"
+                       Background="#081018"
+                       Foreground="#D8E3EE"
+                       BorderBrush="#243342"
+                       BorderThickness="1"
+                       Padding="8,5,8,5"
+                       FontFamily="Consolas" />
+            </StackPanel>
+          </Border>
+
+          <Grid Grid.Row="1">
+            <TextBlock x:Name="SourcePropertyInspectorEmptyState"
+                       Foreground="#4A6880"
+                       Margin="12"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Top"
+                       Text="Place the caret inside a control start tag such as &lt;Button /&gt; or &lt;Button&gt; to edit its properties." />
+
+            <ScrollViewer x:Name="SourcePropertyInspectorScrollViewer"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Visibility="Collapsed">
+              <StackPanel x:Name="SourcePropertyInspectorPropertiesHost"
+                          Margin="8,8,8,10" />
+            </ScrollViewer>
+          </Grid>
+        </Grid>
+      </Grid>
+    </Border>
   </Grid>
 </UserControl>

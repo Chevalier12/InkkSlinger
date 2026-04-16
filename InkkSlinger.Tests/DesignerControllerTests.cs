@@ -189,6 +189,8 @@ public class DesignerControllerTests
 
         var previewDockSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewDockSplitter"));
         var previewSourceSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewSourceSplitter"));
+        var sourcePropertyInspectorSplitter = Assert.IsType<GridSplitter>(shell.SourceEditorView.FindName("SourcePropertyInspectorSplitter"));
+        var sourcePropertyInspectorBorder = Assert.IsType<Border>(shell.SourceEditorView.FindName("SourcePropertyInspectorBorder"));
         var previewScrollViewer = Assert.IsType<ScrollViewer>(shell.FindName("PreviewScrollViewer"));
         var editorTabControl = Assert.IsType<TabControl>(shell.FindName("EditorTabControl"));
         var diagnosticsTab = Assert.IsType<TabItem>(shell.FindName("DiagnosticsTab"));
@@ -219,6 +221,459 @@ public class DesignerControllerTests
         Assert.Equal(GridResizeBehavior.PreviousAndNext, previewSourceSplitter.ResizeBehavior);
         Assert.Equal(HorizontalAlignment.Stretch, previewSourceSplitter.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Center, previewSourceSplitter.VerticalAlignment);
+
+        Assert.Equal(3, Grid.GetColumn(sourcePropertyInspectorSplitter));
+        Assert.Equal(GridResizeDirection.Columns, sourcePropertyInspectorSplitter.ResizeDirection);
+        Assert.Equal(GridResizeBehavior.PreviousAndNext, sourcePropertyInspectorSplitter.ResizeBehavior);
+        Assert.Equal(HorizontalAlignment.Stretch, sourcePropertyInspectorSplitter.HorizontalAlignment);
+        Assert.Equal(VerticalAlignment.Stretch, sourcePropertyInspectorSplitter.VerticalAlignment);
+        Assert.Equal(4, Grid.GetColumn(sourcePropertyInspectorBorder));
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_SelectingControlTag_ShowsApplicableProperties()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var buttonIndex = shell.SourceText.IndexOf("<Button", StringComparison.Ordinal);
+        Assert.True(buttonIndex >= 0);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(buttonIndex + 2, 0);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        Assert.Contains("Content", propertyEditors.Keys);
+        Assert.Contains("Width", propertyEditors.Keys);
+
+        var header = Assert.IsType<TextBlock>(shell.SourceEditorView.FindName("SourcePropertyInspectorHeaderText"));
+        Assert.Equal("Button", header.Text);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_EditingExistingProperty_UpdatesSourceWithoutRefreshingPreview()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var buttonIndex = shell.SourceText.IndexOf("<Button", StringComparison.Ordinal);
+        Assert.True(buttonIndex >= 0);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(buttonIndex + 2, 0);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var contentEditor = Assert.IsType<TextBox>(propertyEditors["Content"]);
+
+        contentEditor.Text = "Save Later";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Contains("Content=\"Save Later\"", shell.SourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"Save Later\"", shell.Controller.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_AddingMissingProperty_InsertsAttributeWithoutRefreshingPreview()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var buttonIndex = shell.SourceText.IndexOf("<Button", StringComparison.Ordinal);
+        Assert.True(buttonIndex >= 0);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(buttonIndex + 2, 0);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var widthEditor = Assert.IsType<TextBox>(propertyEditors["Width"]);
+        Assert.True(string.IsNullOrEmpty(widthEditor.Text));
+
+        widthEditor.Text = "180";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Contains("Width=\"180\"", shell.SourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Width=\"180\"", shell.Controller.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_EditingProperty_F5RefreshesPreviewOnDemand()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var buttonIndex = shell.SourceText.IndexOf("<Button", StringComparison.Ordinal);
+        Assert.True(buttonIndex >= 0);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(buttonIndex + 2, 0);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var contentEditor = Assert.IsType<TextBox>(propertyEditors["Content"]);
+
+        contentEditor.Text = "Save Later";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Contains("Content=\"Save Later\"", shell.SourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"Save Later\"", shell.Controller.SourceText, StringComparison.Ordinal);
+
+        var executed = InputGestureService.Execute(Keys.F5, ModifierKeys.None, shell, shell);
+
+        Assert.True(executed);
+        Assert.True(shell.Controller.LastRefreshSucceeded);
+        Assert.Contains("Content=\"Save Later\"", shell.Controller.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_EditingProperty_PreservesInspectorScrollOffset()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var buttonIndex = shell.SourceText.IndexOf("<Button", StringComparison.Ordinal);
+        Assert.True(buttonIndex >= 0);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(buttonIndex + 2, 0);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var scrollViewer = GetSourceInspectorScrollViewer(shell.SourceEditorView);
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var widthEditor = Assert.IsType<TextBox>(propertyEditors["Width"]);
+
+        scrollViewer.ScrollToVerticalOffset(180f);
+        RunLayout(uiRoot, 1280, 840, 16);
+        var verticalOffsetBefore = scrollViewer.VerticalOffset;
+        Assert.True(verticalOffsetBefore > 0f, $"Expected the source property inspector to scroll before editing, but offset stayed {verticalOffsetBefore:0.###}.");
+
+        widthEditor.Text = "180";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var verticalOffsetAfter = scrollViewer.VerticalOffset;
+        Assert.Equal(verticalOffsetBefore, verticalOffsetAfter, 3);
+        Assert.Contains("Width=\"180\"", shell.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_FilterText_FiltersVisiblePropertiesCaseInsensitively()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var filterTextBox = GetSourceInspectorFilterTextBox(shell.SourceEditorView);
+        filterTextBox.Text = "wid";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var visibleProperties = GetVisibleSourceInspectorPropertyNames(shell.SourceEditorView);
+        Assert.Contains("Width", visibleProperties);
+        Assert.DoesNotContain("Content", visibleProperties);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_FilterText_NoMatches_ShowsFilterEmptyState()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var filterTextBox = GetSourceInspectorFilterTextBox(shell.SourceEditorView);
+        var emptyState = Assert.IsType<TextBlock>(shell.SourceEditorView.FindName("SourcePropertyInspectorEmptyState"));
+        var scrollViewer = GetSourceInspectorScrollViewer(shell.SourceEditorView);
+
+        filterTextBox.Text = "zzzz-no-match";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal(Visibility.Visible, emptyState.Visibility);
+        Assert.Contains("No properties match", emptyState.Text, StringComparison.Ordinal);
+        Assert.Equal(Visibility.Collapsed, scrollViewer.Visibility);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_FontWeight_UsesChoiceEditor()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
+
+        Assert.Contains("Normal", fontWeightEditor.Items.Cast<object>());
+        Assert.Contains("Bold", fontWeightEditor.Items.Cast<object>());
+        Assert.Equal(-1, fontWeightEditor.SelectedIndex);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_FontWeightChoice_UpdatesSourceWithoutRefreshingPreview()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
+
+        fontWeightEditor.SelectedItem = "Bold";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Contains("FontWeight=\"Bold\"", shell.SourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("FontWeight=\"Bold\"", shell.Controller.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspectorHoveringFontWeightComboBox_ResolvesHoveredElementToComboBox()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
+    EnsureSourceInspectorPropertyVisible(shell.SourceEditorView, uiRoot, fontWeightEditor, "FontWeight");
+        var pointer = GetCenter(fontWeightEditor.LayoutSlot);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var hovered = uiRoot.GetHoveredElementForDiagnostics();
+
+        Assert.Same(
+            fontWeightEditor,
+            hovered);
+        Assert.True(
+            hovered is ComboBox,
+            $"Expected hovering FontWeight combo box to resolve the combo box itself, but hovered={DescribeElement(hovered)}, comboSlot={fontWeightEditor.LayoutSlot}.");
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspectorMouseDownOnFontWeightComboBox_ResolvesClickDownTargetToComboBox()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
+    EnsureSourceInspectorPropertyVisible(shell.SourceEditorView, uiRoot, fontWeightEditor, "FontWeight");
+        var pointer = GetCenter(fontWeightEditor.LayoutSlot);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true, pointerMoved: false));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickDownTarget = uiRoot.GetLastClickDownTargetForDiagnostics();
+
+        Assert.Same(fontWeightEditor, clickDownTarget);
+        Assert.True(
+            clickDownTarget is ComboBox,
+            $"Expected mouse down on FontWeight combo box to resolve click-down target to the combo box, but clickDown={DescribeElement(clickDownTarget)}, comboSlot={fontWeightEditor.LayoutSlot}, pointer={pointer}.");
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspectorPropertyEditors_AreArrangedWithinInspectorViewport()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var contentEditor = Assert.IsType<TextBox>(propertyEditors["Content"]);
+        var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
+
+        EnsureSourceInspectorPropertyVisible(shell.SourceEditorView, uiRoot, contentEditor, "Content");
+        var viewport = GetSourceInspectorScrollViewer(shell.SourceEditorView).LayoutSlot;
+
+        Assert.True(
+            IsWithinViewport(contentEditor.LayoutSlot, viewport),
+            $"Expected Content editor to be arranged within the Property Inspector viewport, but contentSlot={FormatRect(contentEditor.LayoutSlot)}, viewport={FormatRect(viewport)}.");
+
+        EnsureSourceInspectorPropertyVisible(shell.SourceEditorView, uiRoot, fontWeightEditor, "FontWeight");
+        viewport = GetSourceInspectorScrollViewer(shell.SourceEditorView).LayoutSlot;
+
+        Assert.True(
+            IsWithinViewport(fontWeightEditor.LayoutSlot, viewport),
+            $"Expected FontWeight combo box to be arranged within the Property Inspector viewport, but comboSlot={FormatRect(fontWeightEditor.LayoutSlot)}, viewport={FormatRect(viewport)}.");
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspectorSplitter_WhenDragged_ShouldCapturePointerAndResizeAdjacentColumns()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var splitter = Assert.IsType<GridSplitter>(shell.SourceEditorView.FindName("SourcePropertyInspectorSplitter"));
+        var inspectorBorder = Assert.IsType<Border>(shell.SourceEditorView.FindName("SourcePropertyInspectorBorder"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var start = GetCenter(splitter.LayoutSlot);
+        var end = new Vector2(start.X - 72f, start.Y);
+        var initialEditorWidth = sourceEditor.LayoutSlot.Width;
+        var initialInspectorWidth = inspectorBorder.LayoutSlot.Width;
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var hoverBeforePress = uiRoot.GetHoveredElementForDiagnostics();
+        var manualHitBeforePress = VisualTreeHelper.HitTest(shell, start);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, leftPressed: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var hoverAfterPress = uiRoot.GetHoveredElementForDiagnostics();
+        var capturedAfterPress = FocusManager.GetCapturedPointerElement();
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(end, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(
+            splitter.IsDragging,
+            $"Expected dragging to start when pressing SourcePropertyInspectorSplitter, but IsDragging was false. manualHitBeforePress={DescribeElement(manualHitBeforePress)}, hoverBeforePress={DescribeElement(hoverBeforePress)}, hoverAfterPress={DescribeElement(hoverAfterPress)}, capturedAfterPress={DescribeElement(capturedAfterPress)}.");
+        Assert.Same(splitter, FocusManager.GetCapturedPointerElement());
+        Assert.True(
+            MathF.Abs(sourceEditor.LayoutSlot.Width - initialEditorWidth) > 0.01f ||
+            MathF.Abs(inspectorBorder.LayoutSlot.Width - initialInspectorWidth) > 0.01f,
+            $"Expected adjacent widths to change after dragging SourcePropertyInspectorSplitter, but sourceEditorWidth stayed {sourceEditor.LayoutSlot.Width:0.###} from {initialEditorWidth:0.###} and inspectorWidth stayed {inspectorBorder.LayoutSlot.Width:0.###} from {initialInspectorWidth:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspectorSplitter_PointerPress_HitTestsToSplitterButDoesNotReachGridSplitterHandler()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var splitter = Assert.IsType<GridSplitter>(shell.SourceEditorView.FindName("SourcePropertyInspectorSplitter"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var start = GetCenter(splitter.LayoutSlot);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var manualHitBeforePress = VisualTreeHelper.HitTest(shell, start);
+        var hoverBeforePress = uiRoot.GetHoveredElementForDiagnostics();
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(start, leftPressed: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var hoverAfterPress = uiRoot.GetHoveredElementForDiagnostics();
+        var runtime = splitter.GetGridSplitterSnapshotForDiagnostics();
+
+        Assert.Same(splitter, manualHitBeforePress);
+        Assert.Same(splitter, hoverBeforePress);
+        Assert.Same(splitter, hoverAfterPress);
+        Assert.True(splitter.IsDragging);
+        Assert.Same(splitter, FocusManager.GetCapturedPointerElement());
+        Assert.Equal(1L, runtime.PointerDownCallCount);
+        Assert.Equal(0L, runtime.PointerDownHitTestRejectCount);
+        Assert.Equal(0L, runtime.PointerDownDisabledRejectCount);
+        Assert.Equal(1L, runtime.PointerDownBeginDragSuccessCount);
+        Assert.Equal(0L, runtime.PointerDownBeginDragFailureCount);
+        Assert.Equal(1L, runtime.BeginDragCallCount);
+        Assert.Equal(1L, runtime.BeginDragSuccessCount);
+        Assert.Equal(0L, runtime.BeginDragRejectedMissingGridCount);
+        Assert.Equal(0L, runtime.BeginDragRejectedTargetResolutionCount);
     }
 
     [Fact]
@@ -1953,6 +2408,34 @@ public class DesignerControllerTests
         return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
     }
 
+    private static bool IsWithinViewport(LayoutRect slot, LayoutRect viewport)
+    {
+        return slot.X >= viewport.X &&
+               slot.Y >= viewport.Y &&
+               slot.X + slot.Width <= viewport.X + viewport.Width &&
+               slot.Y + slot.Height <= viewport.Y + viewport.Height;
+    }
+
+    private static string FormatRect(LayoutRect rect)
+    {
+        return $"x={rect.X:0.###},y={rect.Y:0.###},w={rect.Width:0.###},h={rect.Height:0.###}";
+    }
+
+    private static string DescribeElement(UIElement? element)
+    {
+        if (element == null)
+        {
+            return "<null>";
+        }
+
+        if (element is FrameworkElement frameworkElement && !string.IsNullOrEmpty(frameworkElement.Name))
+        {
+            return $"{element.GetType().Name}#{frameworkElement.Name}";
+        }
+
+        return element.GetType().Name;
+    }
+
     private static IReadOnlyList<Button> FindDiagnosticsCardButtons(ItemsControl itemsControl)
     {
         var buttons = new List<Button>();
@@ -2025,6 +2508,62 @@ public class DesignerControllerTests
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true));
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true));
+    }
+
+    private static void SelectControlTagForSourceInspector(
+        InkkSlinger.Designer.DesignerShellView shell,
+        RichTextBox sourceEditor,
+        UiRoot uiRoot,
+        string elementName)
+    {
+        var elementIndex = shell.SourceText.IndexOf($"<{elementName}", StringComparison.Ordinal);
+        Assert.True(elementIndex >= 0, $"Expected source text to contain start tag for '{elementName}'.");
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(elementIndex + 2, 0);
+        RunLayout(uiRoot, 1280, 840, 16);
+    }
+
+    private static void EnsureSourceInspectorPropertyVisible(
+        InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView,
+        UiRoot uiRoot,
+        FrameworkElement editor,
+        string propertyName)
+    {
+        var filterTextBox = GetSourceInspectorFilterTextBox(sourceEditorView);
+        filterTextBox.Text = propertyName;
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var visibleProperties = GetVisibleSourceInspectorPropertyNames(sourceEditorView);
+        Assert.True(
+            visibleProperties.Contains(propertyName, StringComparer.Ordinal),
+            $"Expected Property Inspector filter to show '{propertyName}', but visible properties were [{string.Join(", ", visibleProperties)}].");
+
+        var scrollViewer = GetSourceInspectorScrollViewer(sourceEditorView);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var viewport = scrollViewer.LayoutSlot;
+            if (IsWithinViewport(editor.LayoutSlot, viewport))
+            {
+                return;
+            }
+
+            var targetTop = editor.LayoutSlot.Y - viewport.Y;
+            var targetBottom = (editor.LayoutSlot.Y + editor.LayoutSlot.Height) - (viewport.Y + viewport.Height);
+            var delta = targetTop < 0f ? targetTop : Math.Max(0f, targetBottom);
+
+            if (Math.Abs(delta) < 0.01f)
+            {
+                break;
+            }
+
+            scrollViewer.ScrollToVerticalOffset(Math.Max(0f, scrollViewer.VerticalOffset + delta));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        Assert.True(
+            IsWithinViewport(editor.LayoutSlot, scrollViewer.LayoutSlot),
+            $"Expected {propertyName} editor to be visible within the Property Inspector viewport after filtering, but editorSlot={FormatRect(editor.LayoutSlot)}, viewport={FormatRect(scrollViewer.LayoutSlot)}, verticalOffset={scrollViewer.VerticalOffset:0.###}.");
     }
 
     private static InputDelta CreatePointerDelta(Vector2 pointer, bool leftPressed = false, bool leftReleased = false, bool pointerMoved = true)
@@ -2306,6 +2845,45 @@ public class DesignerControllerTests
         return Assert.IsType<ListBox>(field!.GetValue(sourceEditorView));
     }
 
+    private static IReadOnlyDictionary<string, FrameworkElement> GetSourceInspectorPropertyEditors(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
+    {
+        var field = typeof(InkkSlinger.Designer.DesignerSourceEditorView).GetField("_sourcePropertyEditorsByName", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsAssignableFrom<IReadOnlyDictionary<string, FrameworkElement>>(field!.GetValue(sourceEditorView));
+    }
+
+    private static ScrollViewer GetSourceInspectorScrollViewer(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
+    {
+        return Assert.IsType<ScrollViewer>(sourceEditorView.FindName("SourcePropertyInspectorScrollViewer"));
+    }
+
+    private static TextBox GetSourceInspectorFilterTextBox(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
+    {
+        return Assert.IsType<TextBox>(sourceEditorView.FindName("SourcePropertyInspectorFilterTextBox"));
+    }
+
+    private static IReadOnlyList<string> GetVisibleSourceInspectorPropertyNames(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
+    {
+        var host = Assert.IsType<StackPanel>(sourceEditorView.FindName("SourcePropertyInspectorPropertiesHost"));
+        var names = new List<string>();
+        foreach (var child in host.Children)
+        {
+            if (child is not Border { Visibility: Visibility.Visible, Child: StackPanel rowStack })
+            {
+                continue;
+            }
+
+            if (rowStack.Children.Count == 0 || rowStack.Children[0] is not TextBlock header)
+            {
+                continue;
+            }
+
+            names.Add(header.Text);
+        }
+
+        return names;
+    }
+
     private static ListBoxItem OpenCompletionAndScrollToItem(
         InkkSlinger.Designer.DesignerShellView shell,
         RichTextBox sourceEditor,
@@ -2358,8 +2936,8 @@ public class DesignerControllerTests
 
     private static bool IsCompletionItem(ListBoxItem item, string itemName)
     {
-        if (item.Content is InkkSlinger.Designer.DesignerControlCompletionItem completionItem &&
-            string.Equals(completionItem.ElementName, itemName, StringComparison.Ordinal))
+        if (TryGetCompletionItemElementName(item.Content, out var completionElementName) &&
+            string.Equals(completionElementName, itemName, StringComparison.Ordinal))
         {
             return true;
         }
@@ -2370,6 +2948,30 @@ public class DesignerControllerTests
         }
 
         return string.Equals(item.Content as string, itemName, StringComparison.Ordinal);
+    }
+
+    private static bool TryGetCompletionItemElementName(object? content, out string? elementName)
+    {
+        elementName = null;
+        if (content == null)
+        {
+            return false;
+        }
+
+        var contentType = content.GetType();
+        if (!string.Equals(contentType.Name, "DesignerControlCompletionItem", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var property = contentType.GetProperty("ElementName", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (property == null)
+        {
+            return false;
+        }
+
+        elementName = property.GetValue(content) as string;
+        return !string.IsNullOrEmpty(elementName);
     }
 
     private static int GetCompletionItemIndex(IReadOnlyList<string> items, string itemName)

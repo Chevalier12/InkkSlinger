@@ -170,7 +170,7 @@ public sealed class RichTextBoxScrollHostTests
     }
 
     [Fact]
-    public void MouseWheel_OverUnfocusedScrollableRichTextBox_ShouldFocusAndScrollHostedScrollViewer()
+    public void MouseWheel_OverUnfocusedScrollableRichTextBox_ShouldScrollHostedScrollViewer_WithoutTakingFocus()
     {
         var (uiRoot, editor, contentHost) = CreateUiRootEditorFixture(140f, 80f, string.Join("\n", Enumerable.Range(1, 40).Select(static i => $"Line {i}")));
         editor.SetFocusedFromInput(false);
@@ -187,12 +187,12 @@ public sealed class RichTextBoxScrollHostTests
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: pointer));
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: pointer, wheelDelta: -120));
 
-        Assert.True(
+        Assert.False(
             editor.IsFocused,
-            $"Expected wheel scrolling over an unfocused RichTextBox to focus it, but IsFocused remained {editor.IsFocused}.");
+            $"Expected wheel scrolling over an unfocused RichTextBox not to move keyboard focus, but IsFocused became {editor.IsFocused}.");
         Assert.True(
             contentHost.VerticalOffset > 0f,
-            $"Expected wheel scrolling over an unfocused RichTextBox to move the hosted ScrollViewer after focusing, but offset stayed {contentHost.VerticalOffset:0.###}. editorFocused={editor.IsFocused}, editorOffset={editor.VerticalOffset:0.###}, extent={contentHost.ExtentHeight:0.###}, viewport={contentHost.ViewportHeight:0.###}.");
+            $"Expected wheel scrolling over an unfocused RichTextBox to move the hosted ScrollViewer without moving focus, but offset stayed {contentHost.VerticalOffset:0.###}. editorFocused={editor.IsFocused}, editorOffset={editor.VerticalOffset:0.###}, extent={contentHost.ExtentHeight:0.###}, viewport={contentHost.ViewportHeight:0.###}.");
     }
 
     [Fact]

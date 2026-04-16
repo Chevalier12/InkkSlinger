@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InkkOops.Cli", "InkkOops.Cl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InkkSlinger.WpfLab", "InkkSlinger.WpfLab\InkkSlinger.WpfLab.csproj", "{A2E76795-8E18-4BB4-95A8-4A819E6A70A5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InkkSlinger.WpfLab.Tests", "InkkSlinger.WpfLab.Tests\InkkSlinger.WpfLab.Tests.csproj", "{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InkkSlinger.DemoApp", "InkkSlinger.DemoApp\InkkSlinger.DemoApp.csproj", "{088DBF76-AD40-492E-97BF-A95004678805}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InkkSlinger.Designer", "InkkSlinger.Designer\InkkSlinger.Designer.csproj", "{2D65191A-1C40-4BA9-A3D4-48D43C5E60D5}"
@@ -91,6 +93,18 @@ Global
 		{A2E76795-8E18-4BB4-95A8-4A819E6A70A5}.Release|x64.Build.0 = Release|Any CPU
 		{A2E76795-8E18-4BB4-95A8-4A819E6A70A5}.Release|x86.ActiveCfg = Release|Any CPU
 		{A2E76795-8E18-4BB4-95A8-4A819E6A70A5}.Release|x86.Build.0 = Release|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Debug|x64.Build.0 = Debug|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Debug|x86.Build.0 = Debug|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Release|x64.ActiveCfg = Release|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Release|x64.Build.0 = Release|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Release|x86.ActiveCfg = Release|Any CPU
+		{10B2AE2F-4A04-4A9F-93F0-9C9F3596E8AA}.Release|x86.Build.0 = Release|Any CPU
 		{088DBF76-AD40-492E-97BF-A95004678805}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{088DBF76-AD40-492E-97BF-A95004678805}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{088DBF76-AD40-492E-97BF-A95004678805}.Debug|x64.ActiveCfg = Debug|Any CPU

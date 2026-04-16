@@ -1367,23 +1367,7 @@ public static class VisualTreeHelper
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool UsesTransformBasedScrollHitTesting(UIElement element)
     {
-        if (element is IScrollTransformContent)
-        {
-            return true;
-        }
-
-        if (element is VirtualizingStackPanel)
-        {
-            return false;
-        }
-
-        if (element is not Panel panel || !ScrollViewer.GetUseTransformContentScrolling(panel))
-        {
-            return false;
-        }
-
-        return (panel.VisualParent is ScrollViewer visualOwner && ReferenceEquals(visualOwner.Content, panel)) ||
-               (panel.LogicalParent is ScrollViewer logicalOwner && ReferenceEquals(logicalOwner.Content, panel));
+        return element is IScrollTransformContent;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

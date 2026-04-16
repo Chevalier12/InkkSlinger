@@ -864,7 +864,7 @@ public sealed partial class UiRoot
 
     private static bool IsHoverHostElement(UIElement element)
     {
-        return element is ITextInputControl or Button or Thumb or GridSplitter or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
+        return element is ITextInputControl or Button or ComboBox or Thumb or GridSplitter or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
     }
 
     private static void SetHoverState(UIElement? element, bool isMouseOver)
@@ -1620,7 +1620,7 @@ public sealed partial class UiRoot
                 TryHandleTextInputWheel(textInput, delta))
             {
                 _cachedWheelTextInputTarget = textInput;
-                _cachedWheelScrollViewerTarget = null;
+                _cachedWheelScrollViewerTarget = scrollViewer;
                 TrackWheelPointerPosition(pointerPosition);
                 return;
             }
@@ -1628,7 +1628,7 @@ public sealed partial class UiRoot
             if (scrollViewer != null)
             {
                 _cachedWheelScrollViewerTarget = scrollViewer;
-                _cachedWheelTextInputTarget = null;
+                _cachedWheelTextInputTarget = textInput;
                 var beforeHorizontal = scrollViewer.HorizontalOffset;
                 var beforeVertical = scrollViewer.VerticalOffset;
                 var wheelHandleStart = Stopwatch.GetTimestamp();
@@ -2021,13 +2021,11 @@ public sealed partial class UiRoot
             if (textInput != null)
             {
                 _cachedWheelTextInputTarget = textInput;
-                return;
             }
 
             if (scrollViewer != null)
             {
                 _cachedWheelScrollViewerTarget = scrollViewer;
-                return;
             }
         }
     }
@@ -2520,7 +2518,7 @@ public sealed partial class UiRoot
 
     private static bool IsKnownClickCapableElement(UIElement element)
     {
-        return element is Button or ITextInputControl or Thumb or ScrollViewer or ScrollBar or
+        return element is Button or ComboBox or ITextInputControl or Thumb or GridSplitter or ScrollViewer or ScrollBar or
             ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem or TreeViewItem;
     }
 
@@ -2893,7 +2891,7 @@ public sealed partial class UiRoot
 
     private static bool IsClickCapableElement(UIElement element)
     {
-        if (element is Button or ITextInputControl or Thumb or ScrollViewer or ScrollBar or
+        if (element is Button or ComboBox or ITextInputControl or Thumb or GridSplitter or ScrollViewer or ScrollBar or
             ListBoxItem or ListViewItem or DataGridRow or ComboBoxItem or TabItem or TreeViewItem)
         {
             return true;
@@ -3893,19 +3891,14 @@ public sealed partial class UiRoot
         return modifiers;
     }
 
-        private bool TryHandleTextInputWheel(UIElement? element, int delta)
+    private bool TryHandleTextInputWheel(UIElement? element, int delta)
     {
-            if (element is not ITextInputControl textInput)
+        if (element is not ITextInputControl textInput)
         {
-                return false;
-            }
+            return false;
+        }
 
-            if (!ReferenceEquals(_inputState.FocusedElement, element))
-            {
-                SetFocus(element);
-            }
-
-            return textInput.HandleMouseWheelFromInput(delta);
+        return textInput.HandleMouseWheelFromInput(delta);
     }
 
     private ReadOnlySpan<UIElement> GetInputAncestorChain(UIElement start)
@@ -3932,16 +3925,18 @@ public sealed partial class UiRoot
         scrollViewer = null;
         foreach (var current in GetInputAncestorChain(start))
         {
-            if (current is ITextInputControl)
+            if (textInput == null && current is ITextInputControl)
             {
                 textInput = current;
-                return true;
             }
 
-            scrollViewer ??= current as ScrollViewer;
+            if (scrollViewer == null && current is ScrollViewer viewer)
+            {
+                scrollViewer = viewer;
+            }
         }
 
-        return scrollViewer != null;
+        return textInput != null || scrollViewer != null;
     }
 
     private bool TryFindWheelTextInputAncestor(UIElement start, out UIElement? textInput)

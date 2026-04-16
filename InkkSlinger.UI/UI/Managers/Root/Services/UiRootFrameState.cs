@@ -479,28 +479,7 @@ public sealed partial class UiRoot
 
     private static bool IsTransformScrollRetainedSyncCandidate(UIElement element)
     {
-        if (element is IScrollTransformContent)
-        {
-            return true;
-        }
-
-        if (element is VirtualizingStackPanel)
-        {
-            return false;
-        }
-
-        if (element is not Panel)
-        {
-            return false;
-        }
-
-        if (!ScrollViewer.GetUseTransformContentScrolling(element))
-        {
-            return false;
-        }
-
-        return (element.VisualParent is ScrollViewer visualOwner && ReferenceEquals(visualOwner.Content, element)) ||
-               (element.LogicalParent is ScrollViewer logicalOwner && ReferenceEquals(logicalOwner.Content, element));
+        return element is IScrollTransformContent;
     }
 
     private static UIElement? FindEscapingRenderClipAncestor(UIElement source)

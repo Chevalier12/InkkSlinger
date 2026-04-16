@@ -2127,14 +2127,7 @@ public class ScrollViewer : ContentControl
 
     private bool UsesTransformBasedContentScrolling()
     {
-        if (ContentElement is IScrollTransformContent)
-        {
-            return true;
-        }
-
-        return ContentElement is Panel panel &&
-               panel is not VirtualizingStackPanel &&
-               GetUseTransformContentScrolling(panel);
+        return ContentElement is IScrollTransformContent;
     }
 
     private void UpdateScrollBars()

@@ -425,9 +425,8 @@ public sealed partial class UiRoot
             return bounds.Width > 0f && bounds.Height > 0f;
         }
 
-        if (visual is Panel panel &&
-            ScrollViewer.GetUseTransformContentScrolling(panel) &&
-            TryGetDirectTransformScrollOwner(panel, out transformOwner) &&
+        if (visual is IScrollTransformContent &&
+            TryGetDirectTransformScrollOwner(visual, out transformOwner) &&
             transformOwner.TryGetContentViewportClipRect(out bounds))
         {
             return bounds.Width > 0f && bounds.Height > 0f;
