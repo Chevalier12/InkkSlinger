@@ -244,6 +244,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     private float _lastViewportChangedViewportHeight = float.NaN;
     private float _lastViewportChangedExtentWidth = float.NaN;
     private float _lastViewportChangedExtentHeight = float.NaN;
+    private bool _hasPendingViewportChangedNotification;
     private int _documentChangeBatchDepth;
     private bool _hasPendingDocumentChangedEvent;
     private bool _hasPendingTextChangedEvent;
@@ -2341,7 +2342,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
     {
         var arranged = base.ArrangeOverride(finalSize);
         EnsureHostedDocumentChildLayout();
-        NotifyViewportChangedIfNeeded();
+        QueueViewportChangedNotification();
         return arranged;
     }
 
@@ -2351,7 +2352,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         UpdateRichTextState(gameTime);
     }
 
-    bool IUiRootUpdateParticipant.IsFrameUpdateActive => IsFocused;
+    bool IUiRootUpdateParticipant.IsFrameUpdateActive => _hasPendingViewportChangedNotification || IsFocused;
 
     void IUiRootUpdateParticipant.UpdateFromUiRoot(GameTime gameTime)
     {
@@ -2361,6 +2362,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private void UpdateRichTextState(GameTime gameTime)
     {
+        FlushPendingViewportChangedNotification();
+
         if (!IsFocused)
         {
             return;
@@ -2924,8 +2927,27 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         return true;
     }
 
+    private void QueueViewportChangedNotification()
+    {
+        _hasPendingViewportChangedNotification = true;
+    }
+
+    private void FlushPendingViewportChangedNotification()
+    {
+        if (!_hasPendingViewportChangedNotification)
+        {
+            return;
+        }
+
+        _hasPendingViewportChangedNotification = false;
+        NotifyViewportChangedIfNeeded();
+    }
+
     private void NotifyViewportChangedIfNeeded()
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagNotifyViewportChangedCallCount++;
+        _runtimeNotifyViewportChangedCallCount++;
         var metrics = GetScrollMetrics();
         if (Math.Abs(metrics.HorizontalOffset - _lastViewportChangedHorizontalOffset) <= 0.01f &&
             Math.Abs(metrics.VerticalOffset - _lastViewportChangedVerticalOffset) <= 0.01f &&
@@ -2934,6 +2956,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             Math.Abs(metrics.ExtentWidth - _lastViewportChangedExtentWidth) <= 0.01f &&
             Math.Abs(metrics.ExtentHeight - _lastViewportChangedExtentHeight) <= 0.01f)
         {
+            _diagNotifyViewportChangedSkippedNoChangeCount++;
+            _runtimeNotifyViewportChangedSkippedNoChangeCount++;
+            var skippedElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagNotifyViewportChangedElapsedTicks += skippedElapsedTicks;
+            _runtimeNotifyViewportChangedElapsedTicks += skippedElapsedTicks;
             return;
         }
 
@@ -2943,7 +2970,16 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _lastViewportChangedViewportHeight = metrics.ViewportHeight;
         _lastViewportChangedExtentWidth = metrics.ExtentWidth;
         _lastViewportChangedExtentHeight = metrics.ExtentHeight;
+        _diagNotifyViewportChangedRaisedCount++;
+        _runtimeNotifyViewportChangedRaisedCount++;
+        var subscriberStartTicks = Stopwatch.GetTimestamp();
         ViewportChanged?.Invoke(this, EventArgs.Empty);
+        var subscriberElapsedTicks = Stopwatch.GetTimestamp() - subscriberStartTicks;
+        _diagNotifyViewportChangedSubscriberElapsedTicks += subscriberElapsedTicks;
+        _runtimeNotifyViewportChangedSubscriberElapsedTicks += subscriberElapsedTicks;
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagNotifyViewportChangedElapsedTicks += elapsedTicks;
+        _runtimeNotifyViewportChangedElapsedTicks += elapsedTicks;
     }
 
     private RichTextBoxScrollMetrics GetScrollMetrics()
@@ -4622,21 +4658,34 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private void EnsureHostedDocumentChildLayout()
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagEnsureHostedDocumentChildLayoutCallCount++;
+        _runtimeEnsureHostedDocumentChildLayoutCallCount++;
         var textRect = GetTextRect();
         if (textRect.Width <= 0f || textRect.Height <= 0f)
         {
+            _diagEnsureHostedDocumentChildLayoutSkippedZeroTextRectCount++;
+            _runtimeEnsureHostedDocumentChildLayoutSkippedZeroTextRectCount++;
+            var skippedElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagEnsureHostedDocumentChildLayoutElapsedTicks += skippedElapsedTicks;
+            _runtimeEnsureHostedDocumentChildLayoutElapsedTicks += skippedElapsedTicks;
             return;
         }
 
         var layout = BuildOrGetLayout(textRect.Width);
         ClampScrollOffsets(layout, textRect);
         EnsureHostedDocumentChildLayout(textRect, layout);
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagEnsureHostedDocumentChildLayoutElapsedTicks += elapsedTicks;
+        _runtimeEnsureHostedDocumentChildLayoutElapsedTicks += elapsedTicks;
     }
 
     private void EnsureHostedDocumentChildLayout(LayoutRect textRect, DocumentLayoutResult layout)
     {
         if (_documentHostedVisualChildren.Count == 0)
         {
+            _diagEnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount++;
+            _runtimeEnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount++;
             return;
         }
 

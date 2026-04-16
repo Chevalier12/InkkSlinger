@@ -1020,7 +1020,7 @@ public class DesignerControllerTests
         RunLayout(uiRoot, 1280, 840, 16);
 
         var lineNumberPanel = shell.SourceLineNumberPanelControl;
-        var gutterItemsSourceBefore = lineNumberPanel.ItemsSource;
+        var gutterItemsSourceBefore = lineNumberPanel.VisibleLineTexts;
         var firstLineBefore = GetLineNumberText(lineNumberPanel, 0);
         var renderedLineCountBefore = GetRenderedLineNumberCount(lineNumberPanel);
         var editorVerticalOffsetBefore = sourceEditor.VerticalOffset;
@@ -1033,7 +1033,7 @@ public class DesignerControllerTests
             uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
             RunLayout(uiRoot, 1280, 840, 16);
 
-            var currentItemsSource = lineNumberPanel.ItemsSource;
+            var currentItemsSource = lineNumberPanel.VisibleLineTexts;
             if (!ReferenceEquals(previousItemsSource, currentItemsSource))
             {
                 gutterRebuildCount++;
@@ -1425,8 +1425,7 @@ public class DesignerControllerTests
         Assert.True(shell.SourceEditorView.TryOpenControlCompletion());
         RunLayout(uiRoot, 1280, 840, 16);
 
-        var listBoxItem = FindDescendant<ListBoxItem>(shell, static item =>
-            item.Content is Label label && string.Equals(label.Content as string, "Button", StringComparison.Ordinal));
+        var listBoxItem = FindDescendant<ListBoxItem>(shell, static item => IsCompletionItem(item, "Button"));
 
         Click(uiRoot, GetCenter(listBoxItem.LayoutSlot));
         RunLayout(uiRoot, 1280, 840, 16);
@@ -2359,6 +2358,12 @@ public class DesignerControllerTests
 
     private static bool IsCompletionItem(ListBoxItem item, string itemName)
     {
+        if (item.Content is InkkSlinger.Designer.DesignerControlCompletionItem completionItem &&
+            string.Equals(completionItem.ElementName, itemName, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
         if (item.Content is Label label && string.Equals(label.Content as string, itemName, StringComparison.Ordinal))
         {
             return true;
@@ -2469,12 +2474,9 @@ public class DesignerControllerTests
         };
     }
 
-    private static string GetLineNumberText(ItemsControl panel, int index)
+    private static string GetLineNumberText(InkkSlinger.Designer.DesignerSourceLineNumberPresenter panel, int index)
     {
-        var lineNumberEntries = FindDescendants<Border>(panel, static border => border.Child is TextBlock);
-        var container = Assert.IsType<Border>(lineNumberEntries[index]);
-        var textBlock = Assert.IsType<TextBlock>(container.Child);
-        return textBlock.Text;
+        return panel.VisibleLineTexts[index];
     }
 
     private static bool AreRectsEffectivelyEqual(LayoutRect left, LayoutRect right)
@@ -2485,9 +2487,9 @@ public class DesignerControllerTests
                MathF.Abs(left.Height - right.Height) < 0.001f;
     }
 
-    private static int GetRenderedLineNumberCount(ItemsControl panel)
+    private static int GetRenderedLineNumberCount(InkkSlinger.Designer.DesignerSourceLineNumberPresenter panel)
     {
-        return FindDescendants<Border>(panel, static border => border.Child is TextBlock).Count;
+        return panel.VisibleLineCount;
     }
 
     private static List<TElement> FindDescendants<TElement>(UIElement root, Func<TElement, bool>? predicate = null)

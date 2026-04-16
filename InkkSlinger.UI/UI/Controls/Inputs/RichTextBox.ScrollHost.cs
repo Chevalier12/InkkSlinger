@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -7,10 +9,50 @@ namespace InkkSlinger;
 public partial class RichTextBox
 {
     private static readonly Lazy<Style> DefaultRichTextBoxStyle = new(BuildDefaultRichTextBoxStyle);
+    private static int _diagContentHostViewportChangedCallCount;
+    private static long _diagContentHostViewportChangedElapsedTicks;
+    private static long _diagContentHostViewportChangedApplyPendingElapsedTicks;
+    private static long _diagContentHostViewportChangedEnsureHostedLayoutElapsedTicks;
+    private static long _diagContentHostViewportChangedNotifyViewportElapsedTicks;
+    private static int _diagApplyPendingContentHostScrollOffsetsCallCount;
+    private static int _diagApplyPendingContentHostScrollOffsetsAppliedCount;
+    private static int _diagApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount;
+    private static int _diagApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount;
+    private static int _diagApplyPendingContentHostScrollOffsetsSkippedNoPendingCount;
+    private static long _diagApplyPendingContentHostScrollOffsetsElapsedTicks;
+    private static int _diagEnsureHostedDocumentChildLayoutCallCount;
+    private static int _diagEnsureHostedDocumentChildLayoutSkippedZeroTextRectCount;
+    private static int _diagEnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount;
+    private static long _diagEnsureHostedDocumentChildLayoutElapsedTicks;
+    private static int _diagNotifyViewportChangedCallCount;
+    private static int _diagNotifyViewportChangedRaisedCount;
+    private static int _diagNotifyViewportChangedSkippedNoChangeCount;
+    private static long _diagNotifyViewportChangedElapsedTicks;
+    private static long _diagNotifyViewportChangedSubscriberElapsedTicks;
 
     private readonly RichTextBoxScrollContentPresenter _scrollContentPresenter;
     private ScrollViewer? _contentHost;
     private bool _hasPendingContentHostScrollOffsets;
+    private int _runtimeContentHostViewportChangedCallCount;
+    private long _runtimeContentHostViewportChangedElapsedTicks;
+    private long _runtimeContentHostViewportChangedApplyPendingElapsedTicks;
+    private long _runtimeContentHostViewportChangedEnsureHostedLayoutElapsedTicks;
+    private long _runtimeContentHostViewportChangedNotifyViewportElapsedTicks;
+    private int _runtimeApplyPendingContentHostScrollOffsetsCallCount;
+    private int _runtimeApplyPendingContentHostScrollOffsetsAppliedCount;
+    private int _runtimeApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount;
+    private int _runtimeApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount;
+    private int _runtimeApplyPendingContentHostScrollOffsetsSkippedNoPendingCount;
+    private long _runtimeApplyPendingContentHostScrollOffsetsElapsedTicks;
+    private int _runtimeEnsureHostedDocumentChildLayoutCallCount;
+    private int _runtimeEnsureHostedDocumentChildLayoutSkippedZeroTextRectCount;
+    private int _runtimeEnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount;
+    private long _runtimeEnsureHostedDocumentChildLayoutElapsedTicks;
+    private int _runtimeNotifyViewportChangedCallCount;
+    private int _runtimeNotifyViewportChangedRaisedCount;
+    private int _runtimeNotifyViewportChangedSkippedNoChangeCount;
+    private long _runtimeNotifyViewportChangedElapsedTicks;
+    private long _runtimeNotifyViewportChangedSubscriberElapsedTicks;
 
     protected override Style? GetFallbackStyle()
     {
@@ -33,7 +75,7 @@ public partial class RichTextBox
         SyncContentHostProperties();
         ApplyPendingScrollOffsetsToContentHost();
         EnsureHostedDocumentChildLayout();
-        NotifyViewportChangedIfNeeded();
+        QueueViewportChangedNotification();
     }
 
     protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
@@ -45,7 +87,7 @@ public partial class RichTextBox
         {
             SyncContentHostProperties();
             _contentHost?.InvalidateScrollInfo();
-            NotifyViewportChangedIfNeeded();
+            QueueViewportChangedNotification();
         }
     }
 
@@ -69,9 +111,31 @@ public partial class RichTextBox
     {
         _ = sender;
         _ = args;
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagContentHostViewportChangedCallCount++;
+        _runtimeContentHostViewportChangedCallCount++;
+
+        var applyPendingStart = Stopwatch.GetTimestamp();
         ApplyPendingScrollOffsetsToContentHost();
+        var applyPendingElapsed = Stopwatch.GetTimestamp() - applyPendingStart;
+        _diagContentHostViewportChangedApplyPendingElapsedTicks += applyPendingElapsed;
+        _runtimeContentHostViewportChangedApplyPendingElapsedTicks += applyPendingElapsed;
+
+        var ensureHostedLayoutStart = Stopwatch.GetTimestamp();
         EnsureHostedDocumentChildLayout();
-        NotifyViewportChangedIfNeeded();
+        var ensureHostedLayoutElapsed = Stopwatch.GetTimestamp() - ensureHostedLayoutStart;
+        _diagContentHostViewportChangedEnsureHostedLayoutElapsedTicks += ensureHostedLayoutElapsed;
+        _runtimeContentHostViewportChangedEnsureHostedLayoutElapsedTicks += ensureHostedLayoutElapsed;
+
+        var notifyViewportStart = Stopwatch.GetTimestamp();
+        QueueViewportChangedNotification();
+        var notifyViewportElapsed = Stopwatch.GetTimestamp() - notifyViewportStart;
+        _diagContentHostViewportChangedNotifyViewportElapsedTicks += notifyViewportElapsed;
+        _runtimeContentHostViewportChangedNotifyViewportElapsedTicks += notifyViewportElapsed;
+
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagContentHostViewportChangedElapsedTicks += elapsedTicks;
+        _runtimeContentHostViewportChangedElapsedTicks += elapsedTicks;
     }
 
     private void SyncContentHostProperties()
@@ -87,8 +151,31 @@ public partial class RichTextBox
 
     private void ApplyPendingScrollOffsetsToContentHost()
     {
-        if (_contentHost == null || !HasUsableContentHostMetrics() || !_hasPendingContentHostScrollOffsets)
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagApplyPendingContentHostScrollOffsetsCallCount++;
+        _runtimeApplyPendingContentHostScrollOffsetsCallCount++;
+
+        if (_contentHost == null)
         {
+            _diagApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount++;
+            _runtimeApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount++;
+            AccumulateApplyPendingScrollOffsetsElapsed(startTicks);
+            return;
+        }
+
+        if (!HasUsableContentHostMetrics())
+        {
+            _diagApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount++;
+            _runtimeApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount++;
+            AccumulateApplyPendingScrollOffsetsElapsed(startTicks);
+            return;
+        }
+
+        if (!_hasPendingContentHostScrollOffsets)
+        {
+            _diagApplyPendingContentHostScrollOffsetsSkippedNoPendingCount++;
+            _runtimeApplyPendingContentHostScrollOffsetsSkippedNoPendingCount++;
+            AccumulateApplyPendingScrollOffsetsElapsed(startTicks);
             return;
         }
 
@@ -97,6 +184,16 @@ public partial class RichTextBox
         _horizontalOffset = _contentHost.HorizontalOffset;
         _verticalOffset = _contentHost.VerticalOffset;
         _hasPendingContentHostScrollOffsets = false;
+        _diagApplyPendingContentHostScrollOffsetsAppliedCount++;
+        _runtimeApplyPendingContentHostScrollOffsetsAppliedCount++;
+        AccumulateApplyPendingScrollOffsetsElapsed(startTicks);
+    }
+
+    private void AccumulateApplyPendingScrollOffsetsElapsed(long startTicks)
+    {
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagApplyPendingContentHostScrollOffsetsElapsedTicks += elapsedTicks;
+        _runtimeApplyPendingContentHostScrollOffsetsElapsedTicks += elapsedTicks;
     }
 
     private float GetEffectiveHorizontalOffset()
@@ -252,6 +349,108 @@ public partial class RichTextBox
         template.BindTemplate("PART_ContentHost", ScrollViewer.VerticalScrollBarVisibilityProperty, VerticalScrollBarVisibilityProperty);
 
         return template;
+    }
+
+    internal RichTextBoxRuntimeDiagnosticsSnapshot GetRichTextBoxSnapshotForDiagnostics()
+    {
+        var metrics = GetScrollMetrics();
+        return new RichTextBoxRuntimeDiagnosticsSnapshot(
+            HasContentHost: _contentHost != null,
+            HasUsableContentHostMetrics: HasUsableContentHostMetrics(),
+            HasPendingContentHostScrollOffsets: _hasPendingContentHostScrollOffsets,
+            HorizontalOffset: metrics.HorizontalOffset,
+            VerticalOffset: metrics.VerticalOffset,
+            ViewportWidth: metrics.ViewportWidth,
+            ViewportHeight: metrics.ViewportHeight,
+            ExtentWidth: metrics.ExtentWidth,
+            ExtentHeight: metrics.ExtentHeight,
+            HostedDocumentVisualChildCount: _documentHostedVisualChildren.Count,
+            ContentHostViewportChangedCallCount: _runtimeContentHostViewportChangedCallCount,
+            ContentHostViewportChangedMilliseconds: TicksToMilliseconds(_runtimeContentHostViewportChangedElapsedTicks),
+            ContentHostViewportChangedApplyPendingMilliseconds: TicksToMilliseconds(_runtimeContentHostViewportChangedApplyPendingElapsedTicks),
+            ContentHostViewportChangedEnsureHostedLayoutMilliseconds: TicksToMilliseconds(_runtimeContentHostViewportChangedEnsureHostedLayoutElapsedTicks),
+            ContentHostViewportChangedNotifyViewportMilliseconds: TicksToMilliseconds(_runtimeContentHostViewportChangedNotifyViewportElapsedTicks),
+            ApplyPendingContentHostScrollOffsetsCallCount: _runtimeApplyPendingContentHostScrollOffsetsCallCount,
+            ApplyPendingContentHostScrollOffsetsAppliedCount: _runtimeApplyPendingContentHostScrollOffsetsAppliedCount,
+            ApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount: _runtimeApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount,
+            ApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount: _runtimeApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount,
+            ApplyPendingContentHostScrollOffsetsSkippedNoPendingCount: _runtimeApplyPendingContentHostScrollOffsetsSkippedNoPendingCount,
+            ApplyPendingContentHostScrollOffsetsMilliseconds: TicksToMilliseconds(_runtimeApplyPendingContentHostScrollOffsetsElapsedTicks),
+            EnsureHostedDocumentChildLayoutCallCount: _runtimeEnsureHostedDocumentChildLayoutCallCount,
+            EnsureHostedDocumentChildLayoutSkippedZeroTextRectCount: _runtimeEnsureHostedDocumentChildLayoutSkippedZeroTextRectCount,
+            EnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount: _runtimeEnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount,
+            EnsureHostedDocumentChildLayoutMilliseconds: TicksToMilliseconds(_runtimeEnsureHostedDocumentChildLayoutElapsedTicks),
+            NotifyViewportChangedCallCount: _runtimeNotifyViewportChangedCallCount,
+            NotifyViewportChangedRaisedCount: _runtimeNotifyViewportChangedRaisedCount,
+            NotifyViewportChangedSkippedNoChangeCount: _runtimeNotifyViewportChangedSkippedNoChangeCount,
+            NotifyViewportChangedMilliseconds: TicksToMilliseconds(_runtimeNotifyViewportChangedElapsedTicks),
+            NotifyViewportChangedSubscriberMilliseconds: TicksToMilliseconds(_runtimeNotifyViewportChangedSubscriberElapsedTicks));
+    }
+
+    internal new static RichTextBoxTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateTelemetrySnapshot(reset: false);
+    }
+
+    internal new static RichTextBoxTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateTelemetrySnapshot(reset: true);
+    }
+
+    private static RichTextBoxTelemetrySnapshot CreateTelemetrySnapshot(bool reset)
+    {
+        var snapshot = new RichTextBoxTelemetrySnapshot(
+            ContentHostViewportChangedCallCount: _diagContentHostViewportChangedCallCount,
+            ContentHostViewportChangedMilliseconds: TicksToMilliseconds(_diagContentHostViewportChangedElapsedTicks),
+            ContentHostViewportChangedApplyPendingMilliseconds: TicksToMilliseconds(_diagContentHostViewportChangedApplyPendingElapsedTicks),
+            ContentHostViewportChangedEnsureHostedLayoutMilliseconds: TicksToMilliseconds(_diagContentHostViewportChangedEnsureHostedLayoutElapsedTicks),
+            ContentHostViewportChangedNotifyViewportMilliseconds: TicksToMilliseconds(_diagContentHostViewportChangedNotifyViewportElapsedTicks),
+            ApplyPendingContentHostScrollOffsetsCallCount: _diagApplyPendingContentHostScrollOffsetsCallCount,
+            ApplyPendingContentHostScrollOffsetsAppliedCount: _diagApplyPendingContentHostScrollOffsetsAppliedCount,
+            ApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount: _diagApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount,
+            ApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount: _diagApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount,
+            ApplyPendingContentHostScrollOffsetsSkippedNoPendingCount: _diagApplyPendingContentHostScrollOffsetsSkippedNoPendingCount,
+            ApplyPendingContentHostScrollOffsetsMilliseconds: TicksToMilliseconds(_diagApplyPendingContentHostScrollOffsetsElapsedTicks),
+            EnsureHostedDocumentChildLayoutCallCount: _diagEnsureHostedDocumentChildLayoutCallCount,
+            EnsureHostedDocumentChildLayoutSkippedZeroTextRectCount: _diagEnsureHostedDocumentChildLayoutSkippedZeroTextRectCount,
+            EnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount: _diagEnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount,
+            EnsureHostedDocumentChildLayoutMilliseconds: TicksToMilliseconds(_diagEnsureHostedDocumentChildLayoutElapsedTicks),
+            NotifyViewportChangedCallCount: _diagNotifyViewportChangedCallCount,
+            NotifyViewportChangedRaisedCount: _diagNotifyViewportChangedRaisedCount,
+            NotifyViewportChangedSkippedNoChangeCount: _diagNotifyViewportChangedSkippedNoChangeCount,
+            NotifyViewportChangedMilliseconds: TicksToMilliseconds(_diagNotifyViewportChangedElapsedTicks),
+            NotifyViewportChangedSubscriberMilliseconds: TicksToMilliseconds(_diagNotifyViewportChangedSubscriberElapsedTicks));
+
+        if (reset)
+        {
+            _diagContentHostViewportChangedCallCount = 0;
+            _diagContentHostViewportChangedElapsedTicks = 0;
+            _diagContentHostViewportChangedApplyPendingElapsedTicks = 0;
+            _diagContentHostViewportChangedEnsureHostedLayoutElapsedTicks = 0;
+            _diagContentHostViewportChangedNotifyViewportElapsedTicks = 0;
+            _diagApplyPendingContentHostScrollOffsetsCallCount = 0;
+            _diagApplyPendingContentHostScrollOffsetsAppliedCount = 0;
+            _diagApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount = 0;
+            _diagApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount = 0;
+            _diagApplyPendingContentHostScrollOffsetsSkippedNoPendingCount = 0;
+            _diagApplyPendingContentHostScrollOffsetsElapsedTicks = 0;
+            _diagEnsureHostedDocumentChildLayoutCallCount = 0;
+            _diagEnsureHostedDocumentChildLayoutSkippedZeroTextRectCount = 0;
+            _diagEnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount = 0;
+            _diagEnsureHostedDocumentChildLayoutElapsedTicks = 0;
+            _diagNotifyViewportChangedCallCount = 0;
+            _diagNotifyViewportChangedRaisedCount = 0;
+            _diagNotifyViewportChangedSkippedNoChangeCount = 0;
+            _diagNotifyViewportChangedElapsedTicks = 0;
+            _diagNotifyViewportChangedSubscriberElapsedTicks = 0;
+        }
+
+        return snapshot;
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 
     private sealed class RichTextBoxScrollContentPresenter : FrameworkElement, IHyperlinkHoverHost

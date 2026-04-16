@@ -301,6 +301,25 @@ public sealed class InkkOopsTestScriptUsageTests
     }
 
     [Fact]
+    public async Task RuntimeRun_Designer_PreviewSourceSplitter_Repeated_Vertical_Drag_Fps_Drop_Path_Passes_And_Preserves_Artifacts()
+    {
+        var artifactsRoot = CreatePreservedArtifactsRoot("runtime-designer-preview-source-splitter-repeated-vertical-drag-fps-drop");
+        var runDirectory = await RunRuntimeScenarioFromTestAssemblyAllowCompletedArtifactsAsync(
+            "runtime-designer-preview-source-splitter-repeated-vertical-drag-fps-drop-scenario",
+            GetDesignerProjectPath(),
+            artifactsRoot);
+
+        var resultJson = File.ReadAllText(Path.Combine(runDirectory, "result.json"));
+        var actionLogPath = Path.Combine(runDirectory, "action.log");
+        var actionLog = File.ReadAllText(actionLogPath);
+
+        Assert.Contains("\"status\": \"Completed\"", resultJson);
+        Assert.Contains("\"scriptName\": \"runtime-designer-preview-source-splitter-repeated-vertical-drag-fps-drop-scenario\"", resultJson);
+        Assert.True(File.Exists(actionLogPath));
+        Assert.Contains(PreviewSourceSplitterName, actionLog);
+    }
+
+    [Fact]
     public async Task RuntimeRun_Designer_SourceEditor_CtrlSpace_Completion_Fps_Drop_Path_Passes_And_Preserves_Artifacts()
     {
         var artifactsRoot = CreatePreservedArtifactsRoot("runtime-designer-source-editor-ctrl-space-completion-fps-drop");
@@ -754,6 +773,33 @@ public sealed class InkkOopsTestScriptUsageTests
                 .WaitFrames(12)
                 .WaitForInteractive(PreviewSourceSplitterName)
                 .Drag(PreviewSourceSplitterName, 96f, -560f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12);
+        }
+    }
+
+    public sealed class RuntimeDesignerPreviewSourceSplitterRepeatedVerticalDragFpsDropScenario : InkkOopsRuntimeScenario
+    {
+        public override string Name => "runtime-designer-preview-source-splitter-repeated-vertical-drag-fps-drop-scenario";
+
+        protected override IEnumerable<int>? ActionDiagnosticsIndexes => [7, 8];
+
+        protected override void Build(InkkOopsScriptBuilder builder)
+        {
+            var dragMotion = InkkOopsPointerMotion.WithTravelFrames(18, stepDistance: 8f);
+
+            builder
+                .ResizeWindow(1280, 820)
+                .WaitFrames(24)
+                .WaitForInteractive(PreviewSourceSplitterName)
+                .Drag(PreviewSourceSplitterName, 96f, -560f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12)
+                .Drag(PreviewSourceSplitterName, -96f, 700f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12)
+                .Drag(PreviewSourceSplitterName, 96f, -620f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12)
+                .Drag(PreviewSourceSplitterName, -96f, 640f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12)
+                .Drag(PreviewSourceSplitterName, 96f, -420f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
                 .WaitFrames(12);
         }
     }

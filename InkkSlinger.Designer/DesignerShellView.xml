@@ -30,46 +30,42 @@
     </DataTemplate>
 
     <DataTemplate x:Key="VisualTreeNodeTemplate">
-      <StackPanel Margin="{Binding IndentMargin}">
-        <Border Background="{Binding RowBackground}"
-                BorderBrush="{Binding RowBorderBrush}"
-                BorderThickness="0,0,0,1"
-                CornerRadius="4">
-          <Grid>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="Auto" />
-              <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-                <Button Grid.Column="0"
+      <Border Margin="{Binding IndentMargin}"
+              Background="{Binding RowBackground}"
+              BorderBrush="{Binding RowBorderBrush}"
+              BorderThickness="0,0,0,1"
+              CornerRadius="4">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Button Grid.Column="0"
                   Content="{Binding ExpandGlyph}"
-                    Width="20"
-                    Height="20"
-                    Padding="0"
-                    Margin="0,0,6,0"
-                    Background="Transparent"
-                    Foreground="#6F8DAA"
-                    BorderBrush="Transparent"
-                    BorderThickness="0"
-                    Visibility="{Binding ExpanderVisibility}"
-                    Command="{Binding DataContext.ToggleVisualTreeNodeExpansionCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
-                    CommandParameter="{Binding}" />
-            <Button Grid.Column="1"
-                    Content="{Binding Label}"
-                    Padding="6,4"
-                    Margin="0"
-                    Background="Transparent"
-                    Foreground="{Binding RowForeground}"
-                    BorderBrush="Transparent"
-                    BorderThickness="0"
-                    HorizontalContentAlignment="Left"
-                    Command="{Binding DataContext.SelectVisualTreeNodeCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
-                    CommandParameter="{Binding}" />
-          </Grid>
-        </Border>
-        <ItemsControl ItemsSource="{Binding Children}"
-                      ItemTemplate="{StaticResource VisualTreeNodeTemplate}"
-                      Visibility="{Binding ChildrenVisibility}" />
-      </StackPanel>
+                  Width="20"
+                  Height="20"
+                  Padding="0"
+                  Margin="0,0,6,0"
+                  Background="Transparent"
+                  Foreground="#6F8DAA"
+                  BorderBrush="Transparent"
+                  BorderThickness="0"
+                  Visibility="{Binding ExpanderVisibility}"
+                  Command="{Binding DataContext.ToggleVisualTreeNodeExpansionCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
+                  CommandParameter="{Binding}" />
+          <Button Grid.Column="1"
+                  Content="{Binding Label}"
+                  Padding="6,4"
+                  Margin="0"
+                  Background="Transparent"
+                  Foreground="{Binding RowForeground}"
+                  BorderBrush="Transparent"
+                  BorderThickness="0"
+                  HorizontalContentAlignment="Left"
+                  Command="{Binding DataContext.SelectVisualTreeNodeCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UserControl}}}"
+                  CommandParameter="{Binding}" />
+        </Grid>
+      </Border>
     </DataTemplate>
 
     <DataTemplate x:Key="InspectorSectionTemplate">
@@ -89,6 +85,15 @@
                        FontSize="11" />
           </Border>
           <ItemsControl ItemsSource="{Binding Properties}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel Orientation="Vertical"
+                                        IsVirtualizing="True"
+                                        VirtualizationMode="Recycling"
+                                        CacheLength="1"
+                                        CacheLengthUnit="Page" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate>
                 <Border Background="#0B1118"
@@ -477,8 +482,18 @@
                           HorizontalScrollBarVisibility="Auto"
                           Padding="6">
               <ItemsControl x:Name="VisualTreeView"
-                            ItemsSource="{Binding VisualTreeRoots}"
-                            ItemTemplate="{StaticResource VisualTreeNodeTemplate}" />
+                            ItemsSource="{Binding VisualTreeNodes}"
+                            ItemTemplate="{StaticResource VisualTreeNodeTemplate}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel Orientation="Vertical"
+                                            IsVirtualizing="True"
+                                            VirtualizationMode="Recycling"
+                                            CacheLength="1"
+                                            CacheLengthUnit="Page" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
             </ScrollViewer>
           </Grid>
         </Border>
@@ -515,7 +530,17 @@
                           Padding="6">
               <ItemsControl x:Name="InspectorPanel"
                             ItemsSource="{Binding InspectorSections}"
-                            ItemTemplate="{StaticResource InspectorSectionTemplate}" />
+                            ItemTemplate="{StaticResource InspectorSectionTemplate}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel Orientation="Vertical"
+                                            IsVirtualizing="True"
+                                            VirtualizationMode="Recycling"
+                                            CacheLength="1"
+                                            CacheLengthUnit="Page" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
             </ScrollViewer>
           </Grid>
         </Border>

@@ -40,7 +40,7 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
 
     public Border SourceLineNumberBorderControl => SourceEditorView.LineNumberBorder;
 
-    public ItemsControl SourceLineNumberPanelControl => SourceEditorView.LineNumberPanel;
+    public DesignerSourceLineNumberPresenter SourceLineNumberPanelControl => SourceEditorView.LineNumberPanel;
 
     public string SourceText
     {

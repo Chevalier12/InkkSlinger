@@ -1,5 +1,59 @@
 namespace InkkSlinger.UI.Telemetry;
 
+internal readonly record struct RichTextBoxTelemetrySnapshot(
+    int ContentHostViewportChangedCallCount,
+    double ContentHostViewportChangedMilliseconds,
+    double ContentHostViewportChangedApplyPendingMilliseconds,
+    double ContentHostViewportChangedEnsureHostedLayoutMilliseconds,
+    double ContentHostViewportChangedNotifyViewportMilliseconds,
+    int ApplyPendingContentHostScrollOffsetsCallCount,
+    int ApplyPendingContentHostScrollOffsetsAppliedCount,
+    int ApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount,
+    int ApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount,
+    int ApplyPendingContentHostScrollOffsetsSkippedNoPendingCount,
+    double ApplyPendingContentHostScrollOffsetsMilliseconds,
+    int EnsureHostedDocumentChildLayoutCallCount,
+    int EnsureHostedDocumentChildLayoutSkippedZeroTextRectCount,
+    int EnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount,
+    double EnsureHostedDocumentChildLayoutMilliseconds,
+    int NotifyViewportChangedCallCount,
+    int NotifyViewportChangedRaisedCount,
+    int NotifyViewportChangedSkippedNoChangeCount,
+    double NotifyViewportChangedMilliseconds,
+    double NotifyViewportChangedSubscriberMilliseconds);
+
+internal readonly record struct RichTextBoxRuntimeDiagnosticsSnapshot(
+    bool HasContentHost,
+    bool HasUsableContentHostMetrics,
+    bool HasPendingContentHostScrollOffsets,
+    float HorizontalOffset,
+    float VerticalOffset,
+    float ViewportWidth,
+    float ViewportHeight,
+    float ExtentWidth,
+    float ExtentHeight,
+    int HostedDocumentVisualChildCount,
+    int ContentHostViewportChangedCallCount,
+    double ContentHostViewportChangedMilliseconds,
+    double ContentHostViewportChangedApplyPendingMilliseconds,
+    double ContentHostViewportChangedEnsureHostedLayoutMilliseconds,
+    double ContentHostViewportChangedNotifyViewportMilliseconds,
+    int ApplyPendingContentHostScrollOffsetsCallCount,
+    int ApplyPendingContentHostScrollOffsetsAppliedCount,
+    int ApplyPendingContentHostScrollOffsetsSkippedNoContentHostCount,
+    int ApplyPendingContentHostScrollOffsetsSkippedNoMetricsCount,
+    int ApplyPendingContentHostScrollOffsetsSkippedNoPendingCount,
+    double ApplyPendingContentHostScrollOffsetsMilliseconds,
+    int EnsureHostedDocumentChildLayoutCallCount,
+    int EnsureHostedDocumentChildLayoutSkippedZeroTextRectCount,
+    int EnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount,
+    double EnsureHostedDocumentChildLayoutMilliseconds,
+    int NotifyViewportChangedCallCount,
+    int NotifyViewportChangedRaisedCount,
+    int NotifyViewportChangedSkippedNoChangeCount,
+    double NotifyViewportChangedMilliseconds,
+    double NotifyViewportChangedSubscriberMilliseconds);
+
 /// <summary>
 /// RichTextBox performance snapshot.
 /// </summary>

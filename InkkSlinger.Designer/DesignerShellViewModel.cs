@@ -366,6 +366,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         if (parameter is DesignerVisualTreeNodeViewModel node && node.HasChildren)
         {
             node.IsExpanded = !node.IsExpanded;
+            RefreshVisibleVisualTreeNodes();
         }
     }
 
@@ -476,6 +477,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         if (Controller.VisualTreeRoot == null)
         {
             _visualTreeRoots = Array.Empty<DesignerVisualTreeNodeViewModel>();
+            VisualTreeNodes = Array.Empty<DesignerVisualTreeNodeViewModel>();
             OnPropertyChanged(nameof(VisualTreeRoots));
             VisualTreeSummaryText = Controller.PreviewState == DesignerPreviewState.Error
                 ? "No visual tree is available because the last refresh failed."
@@ -486,6 +488,7 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
 
         var rootNode = BuildVisualTreeNode(Controller.VisualTreeRoot, depth: 0);
         _visualTreeRoots = new[] { rootNode };
+        RefreshVisibleVisualTreeNodes();
         OnPropertyChanged(nameof(VisualTreeRoots));
         VisualTreeSummaryText = "Selecting a node updates the inspector below.";
         ApplySelectedVisualTreeNode(Controller.SelectedNodeId ?? rootNode.Id);
@@ -502,6 +505,39 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
             isExpanded: depth < 1);
         _visualTreeNodesById[node.Id] = viewModel;
         return viewModel;
+    }
+
+    private void RefreshVisibleVisualTreeNodes()
+    {
+        if (_visualTreeRoots.Count == 0)
+        {
+            VisualTreeNodes = Array.Empty<DesignerVisualTreeNodeViewModel>();
+            return;
+        }
+
+        var visibleNodes = new List<DesignerVisualTreeNodeViewModel>();
+        for (var index = 0; index < _visualTreeRoots.Count; index++)
+        {
+            AppendVisibleVisualTreeNodes(_visualTreeRoots[index], visibleNodes);
+        }
+
+        VisualTreeNodes = visibleNodes;
+    }
+
+    private static void AppendVisibleVisualTreeNodes(
+        DesignerVisualTreeNodeViewModel node,
+        List<DesignerVisualTreeNodeViewModel> destination)
+    {
+        destination.Add(node);
+        if (!node.IsExpanded)
+        {
+            return;
+        }
+
+        for (var index = 0; index < node.Children.Count; index++)
+        {
+            AppendVisibleVisualTreeNodes(node.Children[index], destination);
+        }
     }
 
     private void ApplySelectedVisualTreeNode(string? nodeId)

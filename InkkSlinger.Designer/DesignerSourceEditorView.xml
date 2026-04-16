@@ -8,17 +8,6 @@
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch">
   <UserControl.Resources>
-    <DataTemplate x:Key="SourceLineNumberTemplate">
-      <Border Height="{Binding LineHeight}">
-        <TextBlock Text="{Binding NumberText}"
-                   Foreground="#4A6880"
-                   FontFamily="Consolas"
-                   FontSize="{Binding FontSize}"
-                   HorizontalAlignment="Right"
-                   VerticalAlignment="Center" />
-      </Border>
-    </DataTemplate>
-
     <DataTemplate x:Key="CompletionItemTemplate">
       <StackPanel Orientation="Horizontal"
                   VerticalAlignment="Center">
@@ -93,9 +82,7 @@
             Grid.Column="0"
             Background="#0A1017"
             ClipToBounds="True">
-      <ItemsControl x:Name="SourceLineNumberPanel"
-                    ItemTemplate="{StaticResource SourceLineNumberTemplate}"
-                    Margin="0,10,6,0" />
+      <DesignerSourceLineNumberPresenter x:Name="SourceLineNumberPanel" />
     </Border>
 
     <Border Grid.Column="1"

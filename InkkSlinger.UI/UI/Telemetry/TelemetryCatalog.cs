@@ -96,6 +96,8 @@ public static class TelemetryCatalog
     // - PasswordBox (UI/Telemetry/PasswordBoxSnapshots.cs)
     // - PasswordBoxPerformanceSnapshot
     // - RichTextBox (UI/Telemetry/RichTextBoxSnapshots.cs)
+    // - RichTextBoxTelemetrySnapshot
+    // - RichTextBoxRuntimeDiagnosticsSnapshot
     // - RichTextBoxPerformanceSnapshot
     // - GridSplitter (UI/Telemetry/GridSplitterSnapshots.cs)
     // - GridSplitterTelemetrySnapshot
