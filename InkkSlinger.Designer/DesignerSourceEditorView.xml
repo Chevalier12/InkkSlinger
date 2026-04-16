@@ -36,6 +36,12 @@
       <Setter Property="BorderBrush" Value="#0B1018" />
       <Setter Property="Foreground" Value="#F0F7FF" />
       <Setter Property="Padding" Value="4,3,8,3" />
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="#142132" />
+          <Setter Property="BorderBrush" Value="#233449" />
+        </Trigger>
+      </Style.Triggers>
     </Style>
 
     <Style x:Key="CompletionListBoxStyle"
