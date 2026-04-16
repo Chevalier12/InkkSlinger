@@ -28,6 +28,12 @@
       <xs:enumeration value="MultipleRange" />
     </xs:restriction>
   </xs:simpleType>
+  <xs:simpleType name="colorSpectrumModeEnumType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Hue" />
+      <xs:enumeration value="Alpha" />
+    </xs:restriction>
+  </xs:simpleType>
   <xs:simpleType name="dataGridClipboardCopyModeEnumType">
     <xs:restriction base="xs:string">
       <xs:enumeration value="None" />
@@ -10420,6 +10426,30 @@
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
+  <xs:complexType name="colorPickerType">
+    <xs:complexContent>
+      <xs:extension base="controlType">
+        <xs:attribute name="Alpha" type="xs:float" />
+        <xs:attribute name="Hue" type="xs:float" />
+        <xs:attribute name="Saturation" type="xs:float" />
+        <xs:attribute name="SelectedColor" type="colorType" />
+        <xs:attribute name="Value" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="colorSpectrumType">
+    <xs:complexContent>
+      <xs:extension base="controlType">
+        <xs:attribute name="Alpha" type="xs:float" />
+        <xs:attribute name="Hue" type="xs:float" />
+        <xs:attribute name="Mode" type="colorSpectrumModeEnumType" />
+        <xs:attribute name="Orientation" type="orientationEnumType" />
+        <xs:attribute name="Saturation" type="xs:float" />
+        <xs:attribute name="SelectedColor" type="colorType" />
+        <xs:attribute name="Value" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
   <xs:complexType name="solidColorBrushType">
     <xs:complexContent>
       <xs:extension base="xamlObjectType">
@@ -12811,6 +12841,18 @@
   <xs:element name="CollectionViewSource.SortDescriptions" type="xamlPropertyElementType" />
   <xs:element name="CollectionViewSource.Source" type="xamlPropertyElementType" />
   <xs:element name="CollectionViewSource.View" type="xamlPropertyElementType" />
+  <xs:element name="ColorPicker.Alpha" type="xamlPropertyElementType" />
+  <xs:element name="ColorPicker.Hue" type="xamlPropertyElementType" />
+  <xs:element name="ColorPicker.Saturation" type="xamlPropertyElementType" />
+  <xs:element name="ColorPicker.SelectedColor" type="xamlPropertyElementType" />
+  <xs:element name="ColorPicker.Value" type="xamlPropertyElementType" />
+  <xs:element name="ColorSpectrum.Alpha" type="xamlPropertyElementType" />
+  <xs:element name="ColorSpectrum.Hue" type="xamlPropertyElementType" />
+  <xs:element name="ColorSpectrum.Mode" type="xamlPropertyElementType" />
+  <xs:element name="ColorSpectrum.Orientation" type="xamlPropertyElementType" />
+  <xs:element name="ColorSpectrum.Saturation" type="xamlPropertyElementType" />
+  <xs:element name="ColorSpectrum.SelectedColor" type="xamlPropertyElementType" />
+  <xs:element name="ColorSpectrum.Value" type="xamlPropertyElementType" />
   <xs:element name="ColorAnimation.EasingFunction" type="xamlPropertyElementType" />
   <xs:element name="ColorAnimation.From" type="xamlPropertyElementType" />
   <xs:element name="ColorAnimation.To" type="xamlPropertyElementType" />
@@ -13799,6 +13841,8 @@
   <xs:element name="CheckBox" type="checkBoxType" />
   <xs:element name="CircleEase" type="circleEaseType" />
   <xs:element name="CollectionViewSource" type="collectionViewSourceType" />
+  <xs:element name="ColorPicker" type="colorPickerType" />
+  <xs:element name="ColorSpectrum" type="colorSpectrumType" />
   <xs:element name="ColorAnimation" type="colorAnimationType" />
   <xs:element name="ColorAnimationUsingKeyFrames" type="colorAnimationUsingKeyFramesType" />
   <xs:element name="ColumnDefinition" type="columnDefinitionType" />

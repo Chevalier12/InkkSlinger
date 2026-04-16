@@ -864,7 +864,7 @@ public sealed partial class UiRoot
 
     private static bool IsHoverHostElement(UIElement element)
     {
-        return element is ITextInputControl or Button or ComboBox or Thumb or GridSplitter or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
+        return element is ITextInputControl or Button or ComboBox or Thumb or GridSplitter or ColorPicker or ColorSpectrum or ListBoxItem or DataGridRow or TabItem or TreeViewItem;
     }
 
     private static void SetHoverState(UIElement? element, bool isMouseOver)
@@ -891,6 +891,16 @@ public sealed partial class UiRoot
             case GridSplitter gridSplitter:
             {
                 gridSplitter.SetMouseOverFromInput(isMouseOver);
+                return;
+            }
+            case ColorPicker colorPicker:
+            {
+                colorPicker.SetMouseOverFromInput(isMouseOver);
+                return;
+            }
+            case ColorSpectrum colorSpectrum:
+            {
+                colorSpectrum.SetMouseOverFromInput(isMouseOver);
                 return;
             }
             case ListBoxItem listBoxItem:
@@ -1177,6 +1187,20 @@ public sealed partial class UiRoot
             _lastInputPointerMoveHandlerMs += elapsed;
             _lastInputPointerMoveCapturedSliderHandlerMs += elapsed;
         }
+        else if (_inputState.CapturedPointerElement is ColorPicker dragColorPicker)
+        {
+            var handlerStart = Stopwatch.GetTimestamp();
+            dragColorPicker.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+        }
+        else if (_inputState.CapturedPointerElement is ColorSpectrum dragColorSpectrum)
+        {
+            var handlerStart = Stopwatch.GetTimestamp();
+            dragColorSpectrum.HandlePointerMoveFromInput(pointerPosition);
+            var elapsed = Stopwatch.GetElapsedTime(handlerStart).TotalMilliseconds;
+            _lastInputPointerMoveHandlerMs += elapsed;
+        }
         else if (_inputState.CapturedPointerElement is Popup dragPopup)
         {
             var handlerStart = Stopwatch.GetTimestamp();
@@ -1379,6 +1403,16 @@ public sealed partial class UiRoot
         {
             CapturePointer(target);
         }
+        else if (button == MouseButton.Left && target is ColorPicker colorPicker &&
+                 colorPicker.HandlePointerDownFromInput(pointerPosition))
+        {
+            CapturePointer(target);
+        }
+        else if (button == MouseButton.Left && target is ColorSpectrum colorSpectrum &&
+                 colorSpectrum.HandlePointerDownFromInput(pointerPosition))
+        {
+            CapturePointer(target);
+        }
         else if (button == MouseButton.Left &&
                  expanderTarget != null &&
                  expanderTarget.HandlePointerDownFromInput(pointerPosition))
@@ -1474,6 +1508,14 @@ public sealed partial class UiRoot
         else if (_inputState.CapturedPointerElement is Slider slider && button == MouseButton.Left)
         {
             slider.HandlePointerUpFromInput();
+        }
+        else if (_inputState.CapturedPointerElement is ColorPicker colorPicker && button == MouseButton.Left)
+        {
+            colorPicker.HandlePointerUpFromInput();
+        }
+        else if (_inputState.CapturedPointerElement is ColorSpectrum colorSpectrum && button == MouseButton.Left)
+        {
+            colorSpectrum.HandlePointerUpFromInput();
         }
         else if (_inputState.CapturedPointerElement is Expander expander && button == MouseButton.Left)
         {
