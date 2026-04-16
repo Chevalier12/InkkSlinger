@@ -62,10 +62,11 @@ public sealed class CalendarDayTextPresenter : FrameworkElement
             return;
         }
 
-        var textWidth = UiTextRenderer.MeasureWidth(this, Text, FontSize);
-        var lineHeight = UiTextRenderer.GetLineHeight(this, FontSize);
+        var fontSize = FrameworkElement.GetFontSize(this);
+        var textWidth = UiTextRenderer.MeasureWidth(this, Text, fontSize);
+        var lineHeight = UiTextRenderer.GetLineHeight(this, fontSize);
         var textX = LayoutSlot.X + ((LayoutSlot.Width - textWidth) * 0.5f);
         var textY = LayoutSlot.Y + ((LayoutSlot.Height - lineHeight) * 0.5f);
-        UiTextRenderer.DrawString(spriteBatch, this, Text, new Vector2(textX, textY), Foreground * Opacity, FontSize);
+        UiTextRenderer.DrawString(spriteBatch, this, Text, new Vector2(textX, textY), Foreground * Opacity, fontSize);
     }
 }

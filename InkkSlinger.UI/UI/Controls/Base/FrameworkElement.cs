@@ -131,15 +131,15 @@ public class FrameworkElement : UIElement
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.Inherits));
 
     public static readonly DependencyProperty FontFamilyProperty =
-        DependencyProperty.Register(
-            nameof(FontFamily),
+        DependencyProperty.RegisterAttached(
+            "FontFamily",
             typeof(FontFamily),
             typeof(FrameworkElement),
             new FrameworkPropertyMetadata(FontFamily.Empty, FrameworkPropertyMetadataOptions.Inherits));
 
     public static readonly DependencyProperty FontSizeProperty =
-        DependencyProperty.Register(
-            nameof(FontSize),
+        DependencyProperty.RegisterAttached(
+            "FontSize",
             typeof(float),
             typeof(FrameworkElement),
             new FrameworkPropertyMetadata(
@@ -147,15 +147,15 @@ public class FrameworkElement : UIElement
                 FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty FontWeightProperty =
-        DependencyProperty.Register(
-            nameof(FontWeight),
+        DependencyProperty.RegisterAttached(
+            "FontWeight",
             typeof(string),
             typeof(FrameworkElement),
             new FrameworkPropertyMetadata("Normal", FrameworkPropertyMetadataOptions.Inherits));
 
     public static readonly DependencyProperty FontStyleProperty =
-        DependencyProperty.Register(
-            nameof(FontStyle),
+        DependencyProperty.RegisterAttached(
+            "FontStyle",
             typeof(string),
             typeof(FrameworkElement),
             new FrameworkPropertyMetadata("Normal", FrameworkPropertyMetadataOptions.Inherits));
@@ -448,28 +448,52 @@ public class FrameworkElement : UIElement
         set => SetValue(BindingGroupProperty, value);
     }
 
-    public FontFamily FontFamily
+    public static FontFamily GetFontFamily(DependencyObject target)
     {
-        get => GetValue<FontFamily>(FontFamilyProperty) ?? FontFamily.Empty;
-        set => SetValue(FontFamilyProperty, value);
+        ArgumentNullException.ThrowIfNull(target);
+        return target.GetValue<FontFamily>(FontFamilyProperty) ?? FontFamily.Empty;
     }
 
-    public float FontSize
+    public static void SetFontFamily(DependencyObject target, FontFamily value)
     {
-        get => GetValue<float>(FontSizeProperty);
-        set => SetValue(FontSizeProperty, value);
+        ArgumentNullException.ThrowIfNull(target);
+        target.SetValue(FontFamilyProperty, value);
     }
 
-    public string FontWeight
+    public static float GetFontSize(DependencyObject target)
     {
-        get => GetValue<string>(FontWeightProperty) ?? "Normal";
-        set => SetValue(FontWeightProperty, value);
+        ArgumentNullException.ThrowIfNull(target);
+        return target.GetValue<float>(FontSizeProperty);
     }
 
-    public string FontStyle
+    public static void SetFontSize(DependencyObject target, float value)
     {
-        get => GetValue<string>(FontStyleProperty) ?? "Normal";
-        set => SetValue(FontStyleProperty, value);
+        ArgumentNullException.ThrowIfNull(target);
+        target.SetValue(FontSizeProperty, value);
+    }
+
+    public static string GetFontWeight(DependencyObject target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return target.GetValue<string>(FontWeightProperty) ?? "Normal";
+    }
+
+    public static void SetFontWeight(DependencyObject target, string value)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        target.SetValue(FontWeightProperty, value);
+    }
+
+    public static string GetFontStyle(DependencyObject target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return target.GetValue<string>(FontStyleProperty) ?? "Normal";
+    }
+
+    public static void SetFontStyle(DependencyObject target, string value)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        target.SetValue(FontStyleProperty, value);
     }
 
     public string Cursor

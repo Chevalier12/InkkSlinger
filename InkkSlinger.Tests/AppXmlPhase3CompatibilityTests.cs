@@ -87,9 +87,9 @@ public sealed class AppXmlPhase3CompatibilityTests
         window.FontWeight = "Bold";
 
         Assert.Equal(new Color(0x18, 0x2A, 0x3C), root.Background);
-        Assert.Equal("Segoe UI", root.FontFamily);
-        Assert.Equal(15f, root.FontSize);
-        Assert.Equal("Bold", root.FontWeight);
+        Assert.Equal("Segoe UI", FrameworkElement.GetFontFamily(root));
+        Assert.Equal(15f, FrameworkElement.GetFontSize(root));
+        Assert.Equal("Bold", FrameworkElement.GetFontWeight(root));
     }
 
     [Fact]

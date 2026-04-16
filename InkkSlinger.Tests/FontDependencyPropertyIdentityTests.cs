@@ -16,13 +16,11 @@ public sealed class FontDependencyPropertyIdentityTests
             ClearApplicationResources();
 
             var expectedFamily = new FontFamily("Segoe UI");
-            var host = new StackPanel
-            {
-                FontFamily = expectedFamily,
-                FontSize = 18f,
-                FontWeight = "SemiBold",
-                FontStyle = "Italic"
-            };
+            var host = new StackPanel();
+            FrameworkElement.SetFontFamily(host, expectedFamily);
+            FrameworkElement.SetFontSize(host, 18f);
+            FrameworkElement.SetFontWeight(host, "SemiBold");
+            FrameworkElement.SetFontStyle(host, "Italic");
 
             var descendants = new FrameworkElement[]
             {
@@ -49,10 +47,10 @@ public sealed class FontDependencyPropertyIdentityTests
             {
                 host.AddChild(descendant);
 
-                Assert.Equal(expectedFamily, descendant.FontFamily);
-                Assert.Equal(18f, descendant.FontSize);
-                Assert.Equal("SemiBold", descendant.FontWeight);
-                Assert.Equal("Italic", descendant.FontStyle);
+                Assert.Equal(expectedFamily, FrameworkElement.GetFontFamily(descendant));
+                Assert.Equal(18f, FrameworkElement.GetFontSize(descendant));
+                Assert.Equal("SemiBold", FrameworkElement.GetFontWeight(descendant));
+                Assert.Equal("Italic", FrameworkElement.GetFontStyle(descendant));
                 Assert.Equal(DependencyPropertyValueSource.Inherited, descendant.GetValueSource(FrameworkElement.FontFamilyProperty));
                 Assert.Equal(DependencyPropertyValueSource.Inherited, descendant.GetValueSource(FrameworkElement.FontSizeProperty));
                 Assert.Equal(DependencyPropertyValueSource.Inherited, descendant.GetValueSource(FrameworkElement.FontWeightProperty));
@@ -75,6 +73,15 @@ public sealed class FontDependencyPropertyIdentityTests
     }
 
     [Fact]
+    public void TypographyPublicSurface_IsNotOnBorderButRemainsOnControlsAndTextBlocks()
+    {
+        Assert.Null(typeof(Border).GetProperty("FontFamily"));
+        Assert.Null(typeof(Border).GetProperty("FontSize"));
+        Assert.NotNull(typeof(Button).GetProperty("FontFamily"));
+        Assert.NotNull(typeof(TextBlock).GetProperty("FontFamily"));
+    }
+
+    [Fact]
     public void InheritedTypographyLookup_CachesEffectiveValues_OnDescendantWithoutLocalEntries()
     {
         var snapshot = SnapshotApplicationResources();
@@ -82,13 +89,11 @@ public sealed class FontDependencyPropertyIdentityTests
         {
             ClearApplicationResources();
 
-            var host = new StackPanel
-            {
-                FontFamily = new FontFamily("Cascadia Code"),
-                FontSize = 17f,
-                FontWeight = "SemiBold",
-                FontStyle = "Italic"
-            };
+            var host = new StackPanel();
+            FrameworkElement.SetFontFamily(host, new FontFamily("Cascadia Code"));
+            FrameworkElement.SetFontSize(host, 17f);
+            FrameworkElement.SetFontWeight(host, "SemiBold");
+            FrameworkElement.SetFontStyle(host, "Italic");
 
             var descendant = new TextBlock
             {
@@ -123,13 +128,11 @@ public sealed class FontDependencyPropertyIdentityTests
         {
             ClearApplicationResources();
 
-            var host = new StackPanel
-            {
-                FontFamily = new FontFamily("Segoe UI"),
-                FontSize = 16f,
-                FontWeight = "Normal",
-                FontStyle = "Normal"
-            };
+            var host = new StackPanel();
+            FrameworkElement.SetFontFamily(host, new FontFamily("Segoe UI"));
+            FrameworkElement.SetFontSize(host, 16f);
+            FrameworkElement.SetFontWeight(host, "Normal");
+            FrameworkElement.SetFontStyle(host, "Normal");
 
             var descendant = new TextBlock
             {
@@ -140,10 +143,10 @@ public sealed class FontDependencyPropertyIdentityTests
 
             _ = UiTypography.FromElement(descendant);
 
-            host.FontFamily = new FontFamily("Consolas");
-            host.FontSize = 20f;
-            host.FontWeight = "Bold";
-            host.FontStyle = "Italic";
+            FrameworkElement.SetFontFamily(host, new FontFamily("Consolas"));
+            FrameworkElement.SetFontSize(host, 20f);
+            FrameworkElement.SetFontWeight(host, "Bold");
+            FrameworkElement.SetFontStyle(host, "Italic");
 
             var typography = UiTypography.FromElement(descendant);
 

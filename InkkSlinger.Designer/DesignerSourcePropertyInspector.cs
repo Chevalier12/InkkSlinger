@@ -221,7 +221,7 @@ internal static class DesignerSourcePropertyInspector
 
             cached = DependencyProperty
                 .GetRegisteredProperties()
-                .Where(property => !property.IsAttached && property.IsApplicableTo(element))
+                .Where(property => ShouldIncludeInspectableProperty(element, property))
                 .GroupBy(property => property.Name, StringComparer.Ordinal)
                 .Select(
                     group => group
@@ -241,6 +241,34 @@ internal static class DesignerSourcePropertyInspector
             PropertyCache[controlType] = cached;
             return cached;
         }
+    }
+
+    private static bool ShouldIncludeInspectableProperty(UIElement element, DependencyProperty property)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        ArgumentNullException.ThrowIfNull(property);
+
+        if (!property.IsApplicableTo(element))
+        {
+            return false;
+        }
+
+        if (!property.IsAttached)
+        {
+            return true;
+        }
+
+        return IsDirectTypographySurface(element, property.Name);
+    }
+
+    private static bool IsDirectTypographySurface(UIElement element, string propertyName)
+    {
+        if (element is not Control && element is not TextBlock)
+        {
+            return false;
+        }
+
+        return propertyName is "FontFamily" or "FontSize" or "FontWeight" or "FontStyle";
     }
 
     private static DesignerSourcePropertyEditorKind GetEditorKind(DependencyProperty property)
@@ -266,12 +294,12 @@ internal static class DesignerSourcePropertyInspector
 
         if (property.PropertyType == typeof(string))
         {
-            if (string.Equals(property.Name, nameof(FrameworkElement.FontWeight), StringComparison.Ordinal))
+            if (string.Equals(property.Name, "FontWeight", StringComparison.Ordinal))
             {
                 return FontWeightChoiceValues;
             }
 
-            if (string.Equals(property.Name, nameof(FrameworkElement.FontStyle), StringComparison.Ordinal))
+            if (string.Equals(property.Name, "FontStyle", StringComparison.Ordinal))
             {
                 return FontStyleChoiceValues;
             }

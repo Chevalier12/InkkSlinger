@@ -65,6 +65,18 @@ public sealed class DesignerSourceLineNumberPresenter : Panel
         }
     }
 
+    public FontFamily FontFamily
+    {
+        get => FrameworkElement.GetFontFamily(this);
+        set => FrameworkElement.SetFontFamily(this, value);
+    }
+
+    public float FontSize
+    {
+        get => FrameworkElement.GetFontSize(this);
+        set => FrameworkElement.SetFontSize(this, value);
+    }
+
     public IReadOnlyList<string> VisibleLineTexts => _visibleLineTexts;
 
     public int FirstVisibleLine { get; private set; }

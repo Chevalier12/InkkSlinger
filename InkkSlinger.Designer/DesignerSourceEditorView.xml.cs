@@ -676,13 +676,11 @@ public partial class DesignerSourceEditorView : UserControl
         {
             var comboBox = new ComboBox
             {
+                Style = (Style)FindResource("DesignerInspectorComboBoxStyle"),
+                ItemContainerStyle = (Style)FindResource("DesignerComboBoxItemStyle"),
+                DropDownListStyle = (Style)FindResource("DesignerComboBoxDropDownListStyle"),
+                DropDownPopupStyle = (Style)FindResource("DesignerComboBoxDropDownPopupStyle"),
                 Tag = property.Name,
-                Background = new Color(8, 15, 24),
-                Foreground = new Color(216, 227, 238),
-                BorderBrush = new Color(36, 51, 66),
-                BorderThickness = 1f,
-                Padding = new Thickness(8f, 5f, 8f, 5f),
-                FontFamily = new FontFamily("Consolas"),
                 MaxDropDownHeight = 240f
             };
 

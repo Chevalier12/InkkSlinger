@@ -119,6 +119,20 @@ public class ComboBox : Selector
                 FrameworkPropertyMetadataOptions.None,
                 coerceValueCallback: static (_, value) => value is float f && f >= 40f ? f : 40f));
 
+    public static readonly DependencyProperty DropDownListStyleProperty =
+        DependencyProperty.Register(
+            nameof(DropDownListStyle),
+            typeof(Style),
+            typeof(ComboBox),
+            new FrameworkPropertyMetadata(null));
+
+    public static readonly DependencyProperty DropDownPopupStyleProperty =
+        DependencyProperty.Register(
+            nameof(DropDownPopupStyle),
+            typeof(Style),
+            typeof(ComboBox),
+            new FrameworkPropertyMetadata(null));
+
     public new static readonly DependencyProperty ForegroundProperty =
         DependencyProperty.Register(
             nameof(Foreground),
@@ -259,6 +273,18 @@ public class ComboBox : Selector
     {
         get => GetValue<float>(MaxDropDownHeightProperty);
         set => SetValue(MaxDropDownHeightProperty, value);
+    }
+
+    public Style? DropDownListStyle
+    {
+        get => GetValue<Style>(DropDownListStyleProperty);
+        set => SetValue(DropDownListStyleProperty, value);
+    }
+
+    public Style? DropDownPopupStyle
+    {
+        get => GetValue<Style>(DropDownPopupStyleProperty);
+        set => SetValue(DropDownPopupStyleProperty, value);
     }
 
     public new Color Foreground
@@ -413,6 +439,16 @@ public class ComboBox : Selector
             ApplyDropDownSizing();
         }
 
+        if (args.Property == DropDownListStyleProperty && _dropDownList != null)
+        {
+            _dropDownList.Style = DropDownListStyle;
+        }
+
+        if (args.Property == DropDownPopupStyleProperty && _dropDownPopup != null)
+        {
+            _dropDownPopup.Style = DropDownPopupStyle;
+        }
+
         if (args.Property == ItemContainerStyleProperty ||
             args.Property == ItemContainerStyleSelectorProperty ||
             args.Property == DisplayMemberPathProperty ||
@@ -422,7 +458,8 @@ public class ComboBox : Selector
             args.Property == FontSizeProperty ||
             args.Property == FontFamilyProperty ||
             args.Property == FontWeightProperty ||
-            args.Property == FontStyleProperty)
+            args.Property == FontStyleProperty ||
+            args.Property == DropDownListStyleProperty)
         {
             IncrementMetric(ref _runtimeDependencyPropertyRefreshTriggerCount, ref _diagDependencyPropertyRefreshTriggerCount);
             RefreshDropDownItems();
@@ -614,6 +651,7 @@ public class ComboBox : Selector
                 IncrementMetric(ref _runtimeEnsureDropDownListCreateCount, ref _diagEnsureDropDownListCreateCount);
                 _dropDownList = new ListBox
                 {
+                    Style = DropDownListStyle,
                     SelectionMode = SelectionMode.Single
                 };
                 _dropDownList.SelectionChanged += OnDropDownSelectionChanged;
@@ -632,6 +670,7 @@ public class ComboBox : Selector
             IncrementMetric(ref _runtimeEnsureDropDownPopupCreateCount, ref _diagEnsureDropDownPopupCreateCount);
             _dropDownPopup = new Popup
             {
+                Style = DropDownPopupStyle,
                 Title = string.Empty,
                 TitleBarHeight = 0f,
                 CanClose = false,

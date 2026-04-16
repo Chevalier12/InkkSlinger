@@ -108,7 +108,7 @@ internal static class UiTextRenderer
     {
         ArgumentNullException.ThrowIfNull(element);
         var typography = UiTypography.FromElement(element);
-        if (element.FontFamily.IsEmpty)
+        if (FrameworkElement.GetFontFamily(element).IsEmpty)
         {
             typography = typography with { Family = _defaultTypography.Family };
         }

@@ -48,13 +48,11 @@ public sealed class DefaultFontFallbackControlTests
     [Fact]
     public void ControlTree_Inherits_FontStyle_AlongsideOtherTypographyProperties()
     {
-        var host = new StackPanel
-        {
-            FontFamily = "Segoe UI",
-            FontSize = 15f,
-            FontWeight = "SemiBold",
-            FontStyle = "Italic"
-        };
+        var host = new StackPanel();
+        FrameworkElement.SetFontFamily(host, "Segoe UI");
+        FrameworkElement.SetFontSize(host, 15f);
+        FrameworkElement.SetFontWeight(host, "SemiBold");
+        FrameworkElement.SetFontStyle(host, "Italic");
         var checkBox = new CheckBox
         {
             Content = "Inherit me"

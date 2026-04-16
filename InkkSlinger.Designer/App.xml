@@ -2,6 +2,17 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Application.Resources>
     <ResourceDictionary>
+      <Color x:Key="DesignerPanelBackground">#0D131A</Color>
+      <Color x:Key="DesignerInputBackground">#081018</Color>
+      <Color x:Key="DesignerPopupBackground">#090D13</Color>
+      <Color x:Key="DesignerPopupItemHoverBackground">#142132</Color>
+      <Color x:Key="DesignerPopupItemSelectedBackground">#1A4A7A</Color>
+      <Color x:Key="DesignerChromeBorder">#1A2637</Color>
+      <Color x:Key="DesignerInputBorder">#243342</Color>
+      <Color x:Key="DesignerPopupBorder">#233449</Color>
+      <Color x:Key="DesignerTextPrimary">#D8E3EE</Color>
+      <Color x:Key="DesignerTextMuted">#8DA1B5</Color>
+
       <Style TargetType="{x:Type Window}">
         <Setter Property="Background" Value="#0B0F14" />
         <Setter Property="Foreground" Value="#E7EDF5" />
@@ -38,6 +49,57 @@
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="ScrollBarThickness" Value="8" />
+      </Style>
+
+      <Style TargetType="{x:Type Popup}">
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{StaticResource DesignerPopupBorder}" />
+        <Setter Property="Background" Value="{StaticResource DesignerPopupBackground}" />
+        <Setter Property="Padding" Value="0" />
+      </Style>
+
+      <Style TargetType="{x:Type ListBox}">
+        <Setter Property="Background" Value="{StaticResource DesignerPopupBackground}" />
+        <Setter Property="Foreground" Value="{StaticResource DesignerTextPrimary}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DesignerPopupBorder}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontSize" Value="12" />
+      </Style>
+
+      <Style x:Key="DesignerComboBoxItemStyle"
+             TargetType="{x:Type ComboBoxItem}">
+        <Setter Property="Background" Value="{StaticResource DesignerPopupBackground}" />
+        <Setter Property="SelectedBackground" Value="{StaticResource DesignerPopupItemSelectedBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DesignerPopupBackground}" />
+        <Setter Property="Foreground" Value="{StaticResource DesignerTextPrimary}" />
+        <Setter Property="Padding" Value="8,6,8,6" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontSize" Value="12" />
+        <Style.Triggers>
+          <Trigger Property="IsMouseOver" Value="True">
+            <Setter Property="Background" Value="{StaticResource DesignerPopupItemHoverBackground}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DesignerPopupBorder}" />
+          </Trigger>
+          <Trigger Property="IsSelected" Value="True">
+            <Setter Property="Background" Value="{StaticResource DesignerPopupItemSelectedBackground}" />
+            <Setter Property="BorderBrush" Value="#2D5D8D" />
+            <Setter Property="Foreground" Value="#F0F7FF" />
+          </Trigger>
+        </Style.Triggers>
+      </Style>
+
+      <Style x:Key="DesignerInspectorComboBoxStyle"
+             TargetType="{x:Type ComboBox}">
+        <Setter Property="Background" Value="{StaticResource DesignerInputBackground}" />
+        <Setter Property="Foreground" Value="{StaticResource DesignerTextPrimary}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DesignerInputBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8,5,8,5" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource DesignerComboBoxItemStyle}" />
       </Style>
     </ResourceDictionary>
   </Application.Resources>

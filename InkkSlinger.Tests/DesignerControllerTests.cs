@@ -258,6 +258,50 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourcePropertyInspector_HidesTypographyForBorder_ButKeepsItForButton()
+    {
+        const string borderAndButtonViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 Background="#101820">
+              <StackPanel>
+            <Border x:Name="ChromeBorder"
+                BorderBrush="#334455"
+                BorderThickness="1" />
+            <Button x:Name="SaveButton"
+                Content="Save" />
+              </StackPanel>
+            </UserControl>
+            """;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = borderAndButtonViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Border");
+        var borderPropertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+
+        Assert.DoesNotContain("FontFamily", borderPropertyEditors.Keys);
+        Assert.DoesNotContain("FontSize", borderPropertyEditors.Keys);
+        Assert.DoesNotContain("FontWeight", borderPropertyEditors.Keys);
+        Assert.DoesNotContain("FontStyle", borderPropertyEditors.Keys);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+        var buttonPropertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+
+        Assert.Contains("FontFamily", buttonPropertyEditors.Keys);
+        Assert.Contains("FontSize", buttonPropertyEditors.Keys);
+        Assert.Contains("FontWeight", buttonPropertyEditors.Keys);
+        Assert.Contains("FontStyle", buttonPropertyEditors.Keys);
+    }
+
+    [Fact]
     public void ShellView_SourcePropertyInspector_EditingExistingProperty_UpdatesSourceWithoutRefreshingPreview()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -484,6 +528,52 @@ public class DesignerControllerTests
 
         Assert.Contains("FontWeight=\"Bold\"", shell.SourceText, StringComparison.Ordinal);
         Assert.DoesNotContain("FontWeight=\"Bold\"", shell.Controller.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_FontWeightComboBoxDropdown_UsesDesignerPalette()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
+
+        Assert.Equal(new Color(8, 16, 24), fontWeightEditor.Background);
+        Assert.Equal(new Color(216, 227, 238), fontWeightEditor.Foreground);
+        Assert.Equal(new Color(36, 51, 66), fontWeightEditor.BorderBrush);
+        Assert.Equal(12f, fontWeightEditor.FontSize);
+        Assert.Equal(new FontFamily("Consolas"), fontWeightEditor.FontFamily);
+
+        fontWeightEditor.IsDropDownOpen = true;
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var dropDownPopupField = typeof(ComboBox).GetField("_dropDownPopup", BindingFlags.Instance | BindingFlags.NonPublic);
+        var dropDownListField = typeof(ComboBox).GetField("_dropDownList", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(dropDownPopupField);
+        Assert.NotNull(dropDownListField);
+
+        var dropDownPopup = Assert.IsType<Popup>(dropDownPopupField!.GetValue(fontWeightEditor));
+        var dropDownList = Assert.IsType<ListBox>(dropDownListField!.GetValue(fontWeightEditor));
+
+        Assert.Equal(new Color(9, 13, 19), dropDownPopup.Background);
+        Assert.Equal(new Color(35, 52, 73), dropDownPopup.BorderBrush);
+        Assert.Equal(new Color(9, 13, 19), dropDownList.Background);
+        Assert.Equal(new Color(216, 227, 238), dropDownList.Foreground);
+        Assert.Equal(new Color(35, 52, 73), dropDownList.BorderBrush);
+        Assert.Equal(12f, dropDownList.FontSize);
+        Assert.Equal(new FontFamily("Consolas"), dropDownList.FontFamily);
+        Assert.NotNull(dropDownList.ItemContainerStyle);
     }
 
     [Fact]

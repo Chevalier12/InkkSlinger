@@ -52,10 +52,10 @@ internal sealed class WindowThemeBinding : IDisposable
         
         ApplyForegroundIfSupported(_root, _window.Foreground);
 
-        _root.FontFamily = _window.FontFamily;
-        _root.FontSize = _window.FontSize;
-        _root.FontWeight = _window.FontWeight;
-        _root.FontStyle = _window.FontStyle;
+        FrameworkElement.SetFontFamily(_root, _window.FontFamily);
+        FrameworkElement.SetFontSize(_root, _window.FontSize);
+        FrameworkElement.SetFontWeight(_root, _window.FontWeight);
+        FrameworkElement.SetFontStyle(_root, _window.FontStyle);
     }
 
     private static void ApplyForegroundIfSupported(FrameworkElement target, Color value)

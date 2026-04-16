@@ -23,9 +23,9 @@ public sealed class WindowThemeBindingTests
 
         Assert.Equal(new Color(0x11, 0x22, 0x33), panelRoot.Background);
         Assert.Equal(new Color(0xEE, 0xDD, 0xCC), controlRoot.Foreground);
-        Assert.Equal("Segoe UI", panelRoot.FontFamily);
-        Assert.Equal(18f, panelRoot.FontSize);
-        Assert.Equal("Bold", panelRoot.FontWeight);
+        Assert.Equal("Segoe UI", FrameworkElement.GetFontFamily(panelRoot));
+        Assert.Equal(18f, FrameworkElement.GetFontSize(panelRoot));
+        Assert.Equal("Bold", FrameworkElement.GetFontWeight(panelRoot));
     }
 
     [Fact]

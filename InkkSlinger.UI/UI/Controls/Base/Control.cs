@@ -121,6 +121,30 @@ public class Control : FrameworkElement, ICommandSource
             typeof(Control),
             new FrameworkPropertyMetadata(Thickness.Empty));
 
+    public FontFamily FontFamily
+    {
+        get => FrameworkElement.GetFontFamily(this);
+        set => FrameworkElement.SetFontFamily(this, value);
+    }
+
+    public float FontSize
+    {
+        get => FrameworkElement.GetFontSize(this);
+        set => FrameworkElement.SetFontSize(this, value);
+    }
+
+    public string FontWeight
+    {
+        get => FrameworkElement.GetFontWeight(this);
+        set => FrameworkElement.SetFontWeight(this, value);
+    }
+
+    public string FontStyle
+    {
+        get => FrameworkElement.GetFontStyle(this);
+        set => FrameworkElement.SetFontStyle(this, value);
+    }
+
     public static readonly DependencyProperty PaddingProperty =
         DependencyProperty.Register(
             nameof(Padding),

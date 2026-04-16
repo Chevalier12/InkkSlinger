@@ -29,10 +29,10 @@ public readonly record struct UiTypography(
     {
         ArgumentNullException.ThrowIfNull(element);
         return new UiTypography(
-            NormalizeFamily(element.FontFamily),
-            MathF.Max(1f, element.FontSize),
-            NormalizeWeight(element.FontWeight),
-            NormalizeStyle(element.FontStyle),
+            NormalizeFamily(FrameworkElement.GetFontFamily(element)),
+            MathF.Max(1f, FrameworkElement.GetFontSize(element)),
+            NormalizeWeight(FrameworkElement.GetFontWeight(element)),
+            NormalizeStyle(FrameworkElement.GetFontStyle(element)),
             element is TextBlock textBlock ? textBlock.CharacterSpacing : 0);
     }
 

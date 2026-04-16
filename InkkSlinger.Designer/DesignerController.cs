@@ -443,7 +443,7 @@ public sealed class DesignerController
     {
         return DependencyProperty
             .GetRegisteredProperties()
-            .Where(property => !property.IsAttached && property.IsApplicableTo(element))
+            .Where(property => ShouldIncludeInspectableProperty(element, property))
             .GroupBy(property => property.Name, StringComparer.Ordinal)
             .Select(
                 group => group
@@ -451,6 +451,22 @@ public sealed class DesignerController
                     .ThenBy(property => property.OwnerType.Name, StringComparer.Ordinal)
                     .First())
             .ToArray();
+    }
+
+    private static bool ShouldIncludeInspectableProperty(UIElement element, DependencyProperty property)
+    {
+        if (!property.IsApplicableTo(element))
+        {
+            return false;
+        }
+
+        if (!property.IsAttached)
+        {
+            return true;
+        }
+
+        return element is Control or TextBlock &&
+               property.Name is "FontFamily" or "FontSize" or "FontWeight" or "FontStyle";
     }
 
     private static bool ShouldShowInspectorProperty(UIElement element, DependencyProperty property)

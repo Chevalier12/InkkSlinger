@@ -643,10 +643,10 @@ public class ContentPresenter : FrameworkElement
             return true;
         }
 
-        if (string.Equals(property.Name, nameof(FrameworkElement.FontFamily), StringComparison.Ordinal) ||
-            string.Equals(property.Name, nameof(FrameworkElement.FontSize), StringComparison.Ordinal) ||
-            string.Equals(property.Name, nameof(FrameworkElement.FontWeight), StringComparison.Ordinal) ||
-            string.Equals(property.Name, nameof(FrameworkElement.FontStyle), StringComparison.Ordinal) ||
+        if (string.Equals(property.Name, "FontFamily", StringComparison.Ordinal) ||
+            string.Equals(property.Name, "FontSize", StringComparison.Ordinal) ||
+            string.Equals(property.Name, "FontWeight", StringComparison.Ordinal) ||
+            string.Equals(property.Name, "FontStyle", StringComparison.Ordinal) ||
             string.Equals(property.Name, nameof(Control.Foreground), StringComparison.Ordinal) ||
             string.Equals(property.Name, nameof(Control.HorizontalContentAlignment), StringComparison.Ordinal) ||
             string.Equals(property.Name, nameof(Control.VerticalContentAlignment), StringComparison.Ordinal))
@@ -1000,25 +1000,25 @@ public class ContentPresenter : FrameworkElement
                 "FontFamily",
                 static currentLabel => currentLabel.FontFamily,
                 static (currentLabel, value) => currentLabel.FontFamily = value,
-                frameworkElement.FontFamily);
+                FrameworkElement.GetFontFamily(frameworkElement));
             ApplyFallbackLabelAssignment(
                 label,
                 "FontSize",
                 static currentLabel => currentLabel.FontSize,
                 static (currentLabel, value) => currentLabel.FontSize = value,
-                frameworkElement.FontSize);
+                FrameworkElement.GetFontSize(frameworkElement));
             ApplyFallbackLabelAssignment(
                 label,
                 "FontWeight",
                 static currentLabel => currentLabel.FontWeight,
                 static (currentLabel, value) => currentLabel.FontWeight = value,
-                frameworkElement.FontWeight);
+                FrameworkElement.GetFontWeight(frameworkElement));
             ApplyFallbackLabelAssignment(
                 label,
                 "FontStyle",
                 static currentLabel => currentLabel.FontStyle,
                 static (currentLabel, value) => currentLabel.FontStyle = value,
-                frameworkElement.FontStyle);
+                FrameworkElement.GetFontStyle(frameworkElement));
         }
 
         if (_sourceOwner != null && TryGetOwnerPropertyValue<Color>(_sourceOwner, nameof(Control.Foreground), out var foreground))
@@ -1054,22 +1054,22 @@ public class ContentPresenter : FrameworkElement
                 textBlock,
                 static currentTextBlock => currentTextBlock.FontFamily,
                 static (currentTextBlock, value) => currentTextBlock.FontFamily = value,
-                frameworkElement.FontFamily);
+                FrameworkElement.GetFontFamily(frameworkElement));
             ApplyFallbackTextBlockAssignment(
                 textBlock,
                 static currentTextBlock => currentTextBlock.FontSize,
                 static (currentTextBlock, value) => currentTextBlock.FontSize = value,
-                frameworkElement.FontSize);
+                FrameworkElement.GetFontSize(frameworkElement));
             ApplyFallbackTextBlockAssignment(
                 textBlock,
                 static currentTextBlock => currentTextBlock.FontWeight,
                 static (currentTextBlock, value) => currentTextBlock.FontWeight = value,
-                frameworkElement.FontWeight);
+                FrameworkElement.GetFontWeight(frameworkElement));
             ApplyFallbackTextBlockAssignment(
                 textBlock,
                 static currentTextBlock => currentTextBlock.FontStyle,
                 static (currentTextBlock, value) => currentTextBlock.FontStyle = value,
-                frameworkElement.FontStyle);
+                FrameworkElement.GetFontStyle(frameworkElement));
         }
 
         if (_sourceOwner != null && TryGetOwnerPropertyValue<Color>(_sourceOwner, nameof(Control.Foreground), out var foreground))
@@ -1095,10 +1095,10 @@ public class ContentPresenter : FrameworkElement
 
     private static bool IsCalendarDayTextPresentationVisualProperty(DependencyProperty property)
     {
-        return string.Equals(property.Name, nameof(FrameworkElement.FontFamily), StringComparison.Ordinal) ||
-               string.Equals(property.Name, nameof(FrameworkElement.FontSize), StringComparison.Ordinal) ||
-               string.Equals(property.Name, nameof(FrameworkElement.FontWeight), StringComparison.Ordinal) ||
-               string.Equals(property.Name, nameof(FrameworkElement.FontStyle), StringComparison.Ordinal);
+         return string.Equals(property.Name, "FontFamily", StringComparison.Ordinal) ||
+             string.Equals(property.Name, "FontSize", StringComparison.Ordinal) ||
+             string.Equals(property.Name, "FontWeight", StringComparison.Ordinal) ||
+             string.Equals(property.Name, "FontStyle", StringComparison.Ordinal);
     }
 
     private void ApplyFallbackLabelAssignment<TValue>(
