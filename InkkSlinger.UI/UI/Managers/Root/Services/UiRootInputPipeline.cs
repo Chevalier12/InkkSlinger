@@ -421,6 +421,7 @@ public sealed partial class UiRoot
 
             var hoverReuseCheckStart = Stopwatch.GetTimestamp();
             var canReuseHoveredTarget =
+                !TryGetTopOverlayCandidate(out _) &&
                 _inputState.HoveredElement != null &&
                 (delta.WheelDelta != 0 || ShouldReuseHoveredTargetForPointerMove(_inputState.HoveredElement)) &&
                 PointerInsideHoveredTargetForReuse(_inputState.HoveredElement, pointerPosition);
@@ -440,6 +441,7 @@ public sealed partial class UiRoot
 
         if (!requiresPreciseTarget &&
             delta.PointerMoved &&
+            !TryGetTopOverlayCandidate(out _) &&
             TryResolvePointerMoveWithinHoveredHostSubtree(pointerPosition, out var hoveredHostTarget) &&
             hoveredHostTarget != null)
         {
@@ -1134,10 +1136,11 @@ public sealed partial class UiRoot
         var routedEventsStart = Stopwatch.GetTimestamp();
         _lastInputRoutedEventCount += 2;
         var previewStart = Stopwatch.GetTimestamp();
-        routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseMoveEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers));
+        var mouseMoveArgs = new MouseRoutedEventArgs(UIElement.PreviewMouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers);
+        routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseMoveEvent, mouseMoveArgs);
         _lastInputPointerMovePreviewEventMs += Stopwatch.GetElapsedTime(previewStart).TotalMilliseconds;
         var bubbleStart = Stopwatch.GetTimestamp();
-        routedTarget.RaiseRoutedEventInternal(UIElement.MouseMoveEvent, new MouseRoutedEventArgs(UIElement.MouseMoveEvent, pointerPosition, MouseButton.Left, _inputState.CurrentModifiers));
+        routedTarget.RaiseRoutedEventInternal(UIElement.MouseMoveEvent, mouseMoveArgs);
         _lastInputPointerMoveBubbleEventMs += Stopwatch.GetElapsedTime(bubbleStart).TotalMilliseconds;
         _lastInputPointerMoveRoutedEventsMs += Stopwatch.GetElapsedTime(routedEventsStart).TotalMilliseconds;
 
@@ -1328,9 +1331,8 @@ public sealed partial class UiRoot
         RefreshCachedClickTarget(target);
 
         _lastInputPointerEventCount++;
-        _lastInputRoutedEventCount += 2;
-        target.RaiseRoutedEventInternal(UIElement.PreviewMouseDownEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseDownEvent, pointerPosition, button, _inputState.CurrentModifiers));
-        target.RaiseRoutedEventInternal(UIElement.MouseDownEvent, new MouseRoutedEventArgs(UIElement.MouseDownEvent, pointerPosition, button, _inputState.CurrentModifiers));
+    _lastInputRoutedEventCount += button is MouseButton.Left or MouseButton.Right ? 4 : 2;
+    RaiseMouseDownRoutedEvents(target, pointerPosition, button, _inputState.CurrentModifiers);
         var dataGridFocusTarget = target != null &&
                                   TryFindAncestor<DataGrid>(target, out var focusedDataGrid) &&
                                   focusedDataGrid != null &&
@@ -1470,9 +1472,8 @@ public sealed partial class UiRoot
         RefreshCachedClickTarget(routedTarget);
 
         _lastInputPointerEventCount++;
-        _lastInputRoutedEventCount += 2;
-        routedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseUpEvent, new MouseRoutedEventArgs(UIElement.PreviewMouseUpEvent, pointerPosition, button, _inputState.CurrentModifiers));
-        routedTarget.RaiseRoutedEventInternal(UIElement.MouseUpEvent, new MouseRoutedEventArgs(UIElement.MouseUpEvent, pointerPosition, button, _inputState.CurrentModifiers));
+        _lastInputRoutedEventCount += 4;
+        RaiseMouseUpRoutedEvents(routedTarget, pointerPosition, button, _inputState.CurrentModifiers);
         if (_inputState.CapturedPointerElement is DataGrid capturedDataGrid && button == MouseButton.Left)
         {
             _ = capturedDataGrid.HandlePointerUpFromInput(pointerPosition);
@@ -1617,8 +1618,11 @@ public sealed partial class UiRoot
         if (HasWheelRoutedEventHandlers(resolvedTarget))
         {
             _lastInputRoutedEventCount += 2;
-            resolvedTarget.RaiseRoutedEventInternal(UIElement.PreviewMouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
-            resolvedTarget.RaiseRoutedEventInternal(UIElement.MouseWheelEvent, new MouseWheelRoutedEventArgs(UIElement.MouseWheelEvent, pointerPosition, delta));
+            RaisePreviewBubbleRoutedEvent(
+                resolvedTarget,
+                UIElement.PreviewMouseWheelEvent,
+                UIElement.MouseWheelEvent,
+                new MouseWheelRoutedEventArgs(UIElement.PreviewMouseWheelEvent, pointerPosition, delta));
         }
 
         if (TryFindOpenContextMenu(out var openContextMenu) &&
@@ -1679,6 +1683,32 @@ public sealed partial class UiRoot
                 if (handled)
                 {
                     RefreshHoverAfterWheelContentMutation(pointerPosition, scrollViewer);
+                    TrackWheelPointerPosition(pointerPosition);
+                    return;
+                }
+            }
+        }
+
+        if (TryFindWheelCapableTargetAtPointer(pointerPosition, out var preciseWheelTarget) &&
+            preciseWheelTarget != null)
+        {
+            RefreshCachedWheelTargets(preciseWheelTarget);
+
+            if (TryHandleTextInputWheel(_cachedWheelTextInputTarget, delta))
+            {
+                RefreshHoverAfterWheelContentMutation(pointerPosition);
+                TrackWheelPointerPosition(pointerPosition);
+                return;
+            }
+
+            if (_cachedWheelScrollViewerTarget != null)
+            {
+                var preciseViewer = _cachedWheelScrollViewerTarget;
+                if (preciseViewer.HandleMouseWheelFromInput(delta))
+                {
+                    RefreshHoverAfterWheelContentMutation(pointerPosition, preciseViewer);
+                    TrackWheelPointerPosition(pointerPosition);
+                    return;
                 }
             }
         }
@@ -2040,6 +2070,33 @@ public sealed partial class UiRoot
         {
             target = textInput ?? scrollViewer;
             return target != null;
+        }
+
+        EnsureVisualIndexCurrent();
+        UIElement? broadTarget = null;
+        var broadTargetDepth = -1;
+        var broadTargetPreorderIndex = -1;
+        foreach (var candidate in _visualIndex.WheelCapableVisuals)
+        {
+            if (!IsPointInsideElementSlot(candidate, pointerPosition.X, pointerPosition.Y) ||
+                !_visualIndex.TryGetNode(candidate, out var node))
+            {
+                continue;
+            }
+
+            if (node.Depth > broadTargetDepth ||
+                (node.Depth == broadTargetDepth && node.PreorderIndex > broadTargetPreorderIndex))
+            {
+                broadTarget = candidate;
+                broadTargetDepth = node.Depth;
+                broadTargetPreorderIndex = node.PreorderIndex;
+            }
+        }
+
+        if (broadTarget != null)
+        {
+            target = broadTarget;
+            return true;
         }
 
         target = null;
@@ -2560,7 +2617,7 @@ public sealed partial class UiRoot
 
     private static bool IsKnownClickCapableElement(UIElement element)
     {
-        return element is Button or ComboBox or ITextInputControl or Thumb or GridSplitter or ScrollViewer or ScrollBar or
+        return element is Button or ComboBox or ITextInputControl or Thumb or GridSplitter or ColorPicker or ColorSpectrum or ScrollViewer or ScrollBar or
             ListBoxItem or ListViewItem or DataGridRow or MenuItem or ComboBoxItem or TabItem or TreeViewItem;
     }
 
@@ -2933,7 +2990,7 @@ public sealed partial class UiRoot
 
     private static bool IsClickCapableElement(UIElement element)
     {
-        if (element is Button or ComboBox or ITextInputControl or Thumb or GridSplitter or ScrollViewer or ScrollBar or
+        if (element is Button or ComboBox or ITextInputControl or Thumb or GridSplitter or ColorPicker or ColorSpectrum or ScrollViewer or ScrollBar or
             ListBoxItem or ListViewItem or DataGridRow or ComboBoxItem or TabItem or TreeViewItem)
         {
             return true;
@@ -2941,12 +2998,28 @@ public sealed partial class UiRoot
 
         return element.HasRoutedHandlerForEvent(UIElement.PreviewMouseDownEvent) ||
                element.HasRoutedHandlerForEvent(UIElement.MouseDownEvent) ||
-               element.HasRoutedHandlerForEvent(UIElement.PreviewMouseUpEvent) ||
-               element.HasRoutedHandlerForEvent(UIElement.MouseUpEvent) ||
+             element.HasRoutedHandlerForEvent(UIElement.PreviewMouseLeftButtonDownEvent) ||
+             element.HasRoutedHandlerForEvent(UIElement.MouseLeftButtonDownEvent) ||
+             element.HasRoutedHandlerForEvent(UIElement.PreviewMouseRightButtonDownEvent) ||
+             element.HasRoutedHandlerForEvent(UIElement.MouseRightButtonDownEvent) ||
+                             element.HasRoutedHandlerForEvent(UIElement.PreviewMouseUpEvent) ||
+                             element.HasRoutedHandlerForEvent(UIElement.MouseUpEvent) ||
+                             element.HasRoutedHandlerForEvent(UIElement.PreviewMouseLeftButtonUpEvent) ||
+                             element.HasRoutedHandlerForEvent(UIElement.MouseLeftButtonUpEvent) ||
+                             element.HasRoutedHandlerForEvent(UIElement.PreviewMouseRightButtonUpEvent) ||
+                             element.HasRoutedHandlerForEvent(UIElement.MouseRightButtonUpEvent) ||
                EventManager.HasClassHandlers(element.GetType(), UIElement.PreviewMouseDownEvent) ||
                EventManager.HasClassHandlers(element.GetType(), UIElement.MouseDownEvent) ||
-               EventManager.HasClassHandlers(element.GetType(), UIElement.PreviewMouseUpEvent) ||
-               EventManager.HasClassHandlers(element.GetType(), UIElement.MouseUpEvent);
+             EventManager.HasClassHandlers(element.GetType(), UIElement.PreviewMouseLeftButtonDownEvent) ||
+             EventManager.HasClassHandlers(element.GetType(), UIElement.MouseLeftButtonDownEvent) ||
+             EventManager.HasClassHandlers(element.GetType(), UIElement.PreviewMouseRightButtonDownEvent) ||
+             EventManager.HasClassHandlers(element.GetType(), UIElement.MouseRightButtonDownEvent) ||
+                             EventManager.HasClassHandlers(element.GetType(), UIElement.PreviewMouseUpEvent) ||
+                             EventManager.HasClassHandlers(element.GetType(), UIElement.MouseUpEvent) ||
+                             EventManager.HasClassHandlers(element.GetType(), UIElement.PreviewMouseLeftButtonUpEvent) ||
+                             EventManager.HasClassHandlers(element.GetType(), UIElement.MouseLeftButtonUpEvent) ||
+                             EventManager.HasClassHandlers(element.GetType(), UIElement.PreviewMouseRightButtonUpEvent) ||
+                             EventManager.HasClassHandlers(element.GetType(), UIElement.MouseRightButtonUpEvent);
     }
 
     private void RefreshCachedClickTarget(UIElement? anchor)
@@ -2978,12 +3051,9 @@ public sealed partial class UiRoot
             _activeKeyboardMenuScope = BuildKeyboardMenuScope();
             _hasActiveKeyboardMenuScope = true;
             _lastInputKeyEventCount++;
-            _lastInputRoutedEventCount += 2; var previewArgs = new KeyRoutedEventArgs(UIElement.PreviewKeyDownEvent, key, modifiers);
-            target.RaiseRoutedEventInternal(UIElement.PreviewKeyDownEvent, previewArgs);
-            if (previewArgs.Handled) return true;
-
-            var keyArgs = new KeyRoutedEventArgs(UIElement.KeyDownEvent, key, modifiers);
-            target.RaiseRoutedEventInternal(UIElement.KeyDownEvent, keyArgs);
+            _lastInputRoutedEventCount += 2;
+            var keyArgs = new KeyRoutedEventArgs(UIElement.PreviewKeyDownEvent, key, modifiers);
+            RaisePreviewBubbleRoutedEvent(target, UIElement.PreviewKeyDownEvent, UIElement.KeyDownEvent, keyArgs);
             if (keyArgs.Handled) return true;
 
             if (key == Keys.F10 && modifiers == ModifierKeys.None)
@@ -3081,6 +3151,76 @@ public sealed partial class UiRoot
         return !IsModifierKey(key);
     }
 
+    private static void RaisePreviewBubbleRoutedEvent(
+        UIElement target,
+        RoutedEvent previewEvent,
+        RoutedEvent bubbleEvent,
+        RoutedEventArgs args)
+    {
+        target.RaiseRoutedEventInternal(previewEvent, args);
+        target.RaiseRoutedEventInternal(bubbleEvent, args);
+    }
+
+    private static void RaiseMouseDownRoutedEvents(
+        UIElement target,
+        Vector2 pointerPosition,
+        MouseButton button,
+        ModifierKeys modifiers)
+    {
+        var args = new MouseRoutedEventArgs(UIElement.PreviewMouseDownEvent, pointerPosition, button, modifiers);
+        target.RaiseRoutedEventInternal(UIElement.PreviewMouseDownEvent, args);
+
+        if (button == MouseButton.Left)
+        {
+            target.RaiseRoutedEventInternal(UIElement.PreviewMouseLeftButtonDownEvent, args);
+        }
+        else if (button == MouseButton.Right)
+        {
+            target.RaiseRoutedEventInternal(UIElement.PreviewMouseRightButtonDownEvent, args);
+        }
+
+        target.RaiseRoutedEventInternal(UIElement.MouseDownEvent, args);
+
+        if (button == MouseButton.Left)
+        {
+            target.RaiseRoutedEventInternal(UIElement.MouseLeftButtonDownEvent, args);
+        }
+        else if (button == MouseButton.Right)
+        {
+            target.RaiseRoutedEventInternal(UIElement.MouseRightButtonDownEvent, args);
+        }
+    }
+
+    private static void RaiseMouseUpRoutedEvents(
+        UIElement target,
+        Vector2 pointerPosition,
+        MouseButton button,
+        ModifierKeys modifiers)
+    {
+        var args = new MouseRoutedEventArgs(UIElement.PreviewMouseUpEvent, pointerPosition, button, modifiers);
+        target.RaiseRoutedEventInternal(UIElement.PreviewMouseUpEvent, args);
+
+        if (button == MouseButton.Left)
+        {
+            target.RaiseRoutedEventInternal(UIElement.PreviewMouseLeftButtonUpEvent, args);
+        }
+        else if (button == MouseButton.Right)
+        {
+            target.RaiseRoutedEventInternal(UIElement.PreviewMouseRightButtonUpEvent, args);
+        }
+
+        target.RaiseRoutedEventInternal(UIElement.MouseUpEvent, args);
+
+        if (button == MouseButton.Left)
+        {
+            target.RaiseRoutedEventInternal(UIElement.MouseLeftButtonUpEvent, args);
+        }
+        else if (button == MouseButton.Right)
+        {
+            target.RaiseRoutedEventInternal(UIElement.MouseRightButtonUpEvent, args);
+        }
+    }
+
     private static bool IsModifierKey(Keys key)
     {
         return key is Keys.LeftShift or Keys.RightShift or Keys.LeftControl or Keys.RightControl or Keys.LeftAlt or Keys.RightAlt;
@@ -3089,8 +3229,14 @@ public sealed partial class UiRoot
     private void DispatchKeyUp(Keys key, ModifierKeys modifiers)
     {
         var target = _inputState.FocusedElement ?? _visualRoot;
-        var dispatchStart = Stopwatch.GetTimestamp(); _lastInputKeyEventCount++;
-        _lastInputRoutedEventCount += 2; target.RaiseRoutedEventInternal(UIElement.PreviewKeyUpEvent, new KeyRoutedEventArgs(UIElement.PreviewKeyUpEvent, key, modifiers)); target.RaiseRoutedEventInternal(UIElement.KeyUpEvent, new KeyRoutedEventArgs(UIElement.KeyUpEvent, key, modifiers));
+        var dispatchStart = Stopwatch.GetTimestamp();
+        _lastInputKeyEventCount++;
+        _lastInputRoutedEventCount += 2;
+        RaisePreviewBubbleRoutedEvent(
+            target,
+            UIElement.PreviewKeyUpEvent,
+            UIElement.KeyUpEvent,
+            new KeyRoutedEventArgs(UIElement.PreviewKeyUpEvent, key, modifiers));
     }
 
     private bool TryFindFocusedListBox(out ListBox listBox)
@@ -3116,8 +3262,14 @@ public sealed partial class UiRoot
             return;
         }
 
-        var dispatchStart = Stopwatch.GetTimestamp(); _lastInputTextEventCount++;
-        _lastInputRoutedEventCount += 2; focused.RaiseRoutedEventInternal(UIElement.PreviewTextInputEvent, new TextInputRoutedEventArgs(UIElement.PreviewTextInputEvent, character)); focused.RaiseRoutedEventInternal(UIElement.TextInputEvent, new TextInputRoutedEventArgs(UIElement.TextInputEvent, character));
+        var dispatchStart = Stopwatch.GetTimestamp();
+        _lastInputTextEventCount++;
+        _lastInputRoutedEventCount += 2;
+        RaisePreviewBubbleRoutedEvent(
+            focused,
+            UIElement.PreviewTextInputEvent,
+            UIElement.TextInputEvent,
+            new TextInputRoutedEventArgs(UIElement.PreviewTextInputEvent, character));
 
         if (focused is DataGrid dataGrid)
         {

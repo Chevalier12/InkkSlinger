@@ -204,7 +204,7 @@ public class InputDispatchOptimizationTests
 
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, wheelDelta: -120, position: new Vector2(30f, 120f)));
         Assert.True(scrollViewer.VerticalOffset > 0f);
-        Assert.True(content.HasLocalRenderTransform());
+        Assert.False(content.HasLocalRenderTransform());
     }
 
     [Fact]
@@ -258,11 +258,10 @@ public class InputDispatchOptimizationTests
 
         scrollViewer.ScrollToVerticalOffset(72f);
         RunLayout(uiRoot, 700, 420, 32);
-        Assert.True(content.HasLocalRenderTransform());
+        Assert.False(content.HasLocalRenderTransform());
 
-        var scrollOffset = scrollViewer.VerticalOffset;
-        var titlePoint = GetScrolledCenter(titleText.LayoutSlot, scrollOffset);
-        var subtitlePoint = GetScrolledCenter(subtitleText.LayoutSlot, scrollOffset);
+        var titlePoint = GetCenter(titleText.LayoutSlot);
+        var subtitlePoint = GetCenter(subtitleText.LayoutSlot);
 
         var directTitleHit = VisualTreeHelper.HitTest(root, titlePoint);
         Assert.NotSame(expandButton, directTitleHit);

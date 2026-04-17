@@ -84,7 +84,7 @@ public class ListBox : Selector
         _fallbackScrollViewer.SetVisualParent(this);
         _fallbackScrollViewer.SetLogicalParent(this);
 
-        AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnMouseDownSelectItem);
+        AddHandler<MouseRoutedEventArgs>(UIElement.MouseLeftButtonDownEvent, OnMouseLeftButtonDownSelectItem);
     }
 
     public override void OnApplyTemplate()
@@ -497,7 +497,7 @@ public class ListBox : Selector
         InvalidateMeasure();
     }
 
-    private void OnMouseDownSelectItem(object? sender, MouseRoutedEventArgs args)
+    private void OnMouseLeftButtonDownSelectItem(object? sender, MouseRoutedEventArgs args)
     {
         if (!IsEnabled || args.Button != MouseButton.Left)
         {

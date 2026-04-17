@@ -366,10 +366,7 @@ public partial class DesignerSourceEditorView : UserControl
             _currentSourceTagSelection = null;
             _currentSourceInspectorControlType = null;
             _currentSourceInspectorProperties = Array.Empty<DesignerSourceInspectableProperty>();
-            _sourcePropertyEditorsByName.Clear();
-            _sourcePropertyDescriptionsByName.Clear();
-            _sourcePropertyRowsByName.Clear();
-            ClearSourcePropertyInspectorRows();
+            ClearSourcePropertyInspectorEditorState();
             SourcePropertyInspectorHeaderText.Text = "Select a control tag in the source editor.";
             SourcePropertyInspectorSummaryText.Text = "Changes update the XML source. Press F5 to refresh the preview.";
             SourcePropertyInspectorEmptyState.Text = "Place the caret inside a control start tag such as <Button /> or <Button> to edit its properties.";
@@ -385,10 +382,7 @@ public partial class DesignerSourceEditorView : UserControl
             _currentSourceTagSelection = selection;
             _currentSourceInspectorControlType = null;
             _currentSourceInspectorProperties = Array.Empty<DesignerSourceInspectableProperty>();
-            _sourcePropertyEditorsByName.Clear();
-            _sourcePropertyDescriptionsByName.Clear();
-            _sourcePropertyRowsByName.Clear();
-            ClearSourcePropertyInspectorRows();
+            ClearSourcePropertyInspectorEditorState();
             SourcePropertyInspectorHeaderText.Text = selection.ElementName;
             SourcePropertyInspectorSummaryText.Text = "The source tag was found, but no matching control type is registered for editing.";
             SourcePropertyInspectorEmptyState.Text = "This tag cannot be edited through the source property inspector yet.";
@@ -427,10 +421,7 @@ public partial class DesignerSourceEditorView : UserControl
         IReadOnlyList<DesignerSourceInspectableProperty> properties,
         DesignerSourceTagSelection selection)
     {
-        _sourcePropertyEditorsByName.Clear();
-        _sourcePropertyDescriptionsByName.Clear();
-        _sourcePropertyRowsByName.Clear();
-        ClearSourcePropertyInspectorRows();
+        ClearSourcePropertyInspectorEditorState();
 
         foreach (var property in properties)
         {
@@ -511,6 +502,9 @@ public partial class DesignerSourceEditorView : UserControl
                 {
                     case TextBox currentTextEditor when !string.Equals(currentTextEditor.Text, currentValue, StringComparison.Ordinal):
                         currentTextEditor.Text = currentValue;
+                        break;
+                    case SourceColorPropertyEditor currentColorEditor:
+                        UpdateSourcePropertyColorEditorValue(currentColorEditor, property, currentValue);
                         break;
                     case ComboBox currentComboBox:
                         UpdateSourcePropertyChoiceEditorValue(currentComboBox, property, currentValue);
@@ -636,6 +630,17 @@ public partial class DesignerSourceEditorView : UserControl
         RefreshSourcePropertyInspector(propertyName, selectedValue);
     }
 
+    private void ApplySourceColorPropertyEdit(string propertyName, Color color)
+    {
+        var propertyValue = DesignerSourcePropertyInspector.FormatColorValue(color);
+        if (!TryApplySourceInspectorEdit(propertyName, propertyValue))
+        {
+            return;
+        }
+
+        RefreshSourcePropertyInspector(propertyName, propertyValue);
+    }
+
     private bool TryApplySourceInspectorEdit(string propertyName, string? propertyValue)
     {
         var sourceText = DocumentEditing.GetText(SourceEditor.Document);
@@ -670,8 +675,26 @@ public partial class DesignerSourceEditorView : UserControl
         }
     }
 
+    private void ClearSourcePropertyInspectorEditorState()
+    {
+        foreach (var editor in _sourcePropertyEditorsByName.Values.OfType<SourceColorPropertyEditor>())
+        {
+            editor.ClosePopup();
+        }
+
+        _sourcePropertyEditorsByName.Clear();
+        _sourcePropertyDescriptionsByName.Clear();
+        _sourcePropertyRowsByName.Clear();
+        ClearSourcePropertyInspectorRows();
+    }
+
     private FrameworkElement CreateSourcePropertyEditor(DesignerSourceInspectableProperty property)
     {
+        if (property.EditorKind == DesignerSourcePropertyEditorKind.Color)
+        {
+            return new SourceColorPropertyEditor(this, property.Name);
+        }
+
         if (property.EditorKind == DesignerSourcePropertyEditorKind.Choice)
         {
             var comboBox = new ComboBox
@@ -705,6 +728,24 @@ public partial class DesignerSourceEditorView : UserControl
         };
         editor.TextChanged += OnSourcePropertyEditorTextChanged;
         return editor;
+    }
+
+    private static void UpdateSourcePropertyColorEditorValue(
+        SourceColorPropertyEditor editor,
+        DesignerSourceInspectableProperty property,
+        string currentValue)
+    {
+        var displayText = string.IsNullOrEmpty(currentValue)
+            ? property.DefaultValueDisplay
+            : currentValue;
+
+        if (!DesignerSourcePropertyInspector.TryParseColorValue(currentValue, out var color) &&
+            !DesignerSourcePropertyInspector.TryParseColorValue(property.DefaultValueDisplay, out color))
+        {
+            color = Color.Transparent;
+        }
+
+        editor.SetDisplayedValue(color, displayText);
     }
 
     private static void UpdateSourcePropertyChoiceEditorValue(
@@ -1167,6 +1208,473 @@ public partial class DesignerSourceEditorView : UserControl
         }
 
         return true;
+    }
+
+    private sealed class SourceColorPropertyEditor : ComboBox
+    {
+        private readonly DesignerSourceEditorView _owner;
+        private readonly string _propertyName;
+        private readonly ComboBoxItem _displayItem;
+        private readonly ComboBoxItem _colorPickerItem;
+        private readonly ComboBoxItem _hueSpectrumItem;
+        private readonly ComboBoxItem _alphaSpectrumItem;
+        private readonly ColorPicker _colorPicker;
+        private readonly ColorSpectrum _hueSpectrum;
+        private readonly ColorSpectrum _alphaSpectrum;
+        private readonly StackPanel _interactivePopupItemsHost;
+        private readonly Popup _interactivePopup;
+        private bool _handlingInteractivePopupToggle;
+        private bool _isSynchronizing;
+        private Color _currentColor;
+        private float _currentHue;
+        private float _currentSaturation;
+        private float _currentValue;
+        private float _currentAlpha = 1f;
+        private string _displayText = string.Empty;
+
+        public SourceColorPropertyEditor(DesignerSourceEditorView owner, string propertyName)
+        {
+            _owner = owner;
+            _propertyName = propertyName;
+            Tag = propertyName;
+
+            Style = (Style)_owner.FindResource("DesignerInspectorComboBoxStyle");
+            ItemContainerStyle = (Style)_owner.FindResource("DesignerComboBoxItemStyle");
+            DropDownListStyle = (Style)_owner.FindResource("DesignerComboBoxDropDownListStyle");
+            DropDownPopupStyle = (Style)_owner.FindResource("DesignerComboBoxDropDownPopupStyle");
+            MaxDropDownHeight = 280f;
+            Padding = new Thickness(8f, 5f, 8f, 5f);
+            FontFamily = new FontFamily("Consolas");
+            FontSize = 12f;
+
+            _colorPicker = new ColorPicker
+            {
+                Height = 140f,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            _colorPicker.SelectedColorChanged += OnColorPickerSelectedColorChanged;
+
+            _hueSpectrum = new ColorSpectrum
+            {
+                Mode = ColorSpectrumMode.Hue,
+                Orientation = Orientation.Horizontal,
+                Height = 20f,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            _hueSpectrum.SelectedColorChanged += OnHueSpectrumSelectedColorChanged;
+
+            _alphaSpectrum = new ColorSpectrum
+            {
+                Mode = ColorSpectrumMode.Alpha,
+                Orientation = Orientation.Horizontal,
+                Height = 20f,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            _alphaSpectrum.SelectedColorChanged += OnAlphaSpectrumSelectedColorChanged;
+
+            _displayItem = new ComboBoxItem
+            {
+                Text = string.Empty
+            };
+
+            _colorPickerItem = new ComboBoxItem
+            {
+                Text = string.Empty,
+                Content = BuildDropDownItemHost(_colorPicker),
+                Padding = new Thickness(6f)
+            };
+
+            _hueSpectrumItem = new ComboBoxItem
+            {
+                Text = "Hue",
+                Content = BuildDropDownItemHost(_hueSpectrum),
+                Padding = new Thickness(6f)
+            };
+
+            _alphaSpectrumItem = new ComboBoxItem
+            {
+                Text = "Alpha",
+                Content = BuildDropDownItemHost(_alphaSpectrum),
+                Padding = new Thickness(6f)
+            };
+
+            _interactivePopupItemsHost = new StackPanel();
+            _interactivePopupItemsHost.AddChild(_colorPickerItem);
+            _interactivePopupItemsHost.AddChild(_hueSpectrumItem);
+            _interactivePopupItemsHost.AddChild(_alphaSpectrumItem);
+
+            _interactivePopup = new Popup
+            {
+                Style = DropDownPopupStyle,
+                Title = string.Empty,
+                TitleBarHeight = 0f,
+                CanClose = false,
+                CanDragMove = false,
+                DismissOnOutsideClick = true,
+                Content = _interactivePopupItemsHost,
+                BorderThickness = 1f,
+                Padding = new Thickness(0f)
+            };
+
+            Items.Add(_displayItem);
+            Items.Add("Hue");
+            Items.Add("Alpha");
+            SelectedIndex = 0;
+        }
+
+        public void ClosePopup()
+        {
+            if (_interactivePopup.IsOpen)
+            {
+                _interactivePopup.Close();
+            }
+        }
+
+        protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
+        {
+            base.OnDependencyPropertyChanged(args);
+
+            if (args.Property != IsDropDownOpenProperty ||
+                _handlingInteractivePopupToggle ||
+                args.NewValue is not bool isOpen ||
+                !isOpen)
+            {
+                return;
+            }
+
+            _handlingInteractivePopupToggle = true;
+            try
+            {
+                IsDropDownOpen = false;
+                if (_interactivePopup.IsOpen)
+                {
+                    _interactivePopup.Close();
+                }
+                else
+                {
+                    OpenInteractivePopup();
+                }
+            }
+            finally
+            {
+                _handlingInteractivePopupToggle = false;
+            }
+        }
+
+        public void SetDisplayedValue(Color color, string displayText)
+        {
+            var nextDisplayText = string.IsNullOrWhiteSpace(displayText)
+                ? DesignerSourcePropertyInspector.FormatColorValue(color)
+                : displayText;
+
+            var preserveExistingHue = AreColorsEqual(color, _currentColor);
+            if (preserveExistingHue)
+            {
+                ApplyHsva(_currentHue, _currentSaturation, _currentValue, _currentAlpha, nextDisplayText, commitToSource: false);
+                return;
+            }
+
+            ToHsva(color, out var hue, out var saturation, out var value, out var alpha);
+            ApplyHsva(hue, saturation, value, alpha, nextDisplayText, commitToSource: false);
+        }
+
+        private void OnColorPickerSelectedColorChanged(object? sender, ColorChangedEventArgs args)
+        {
+            _ = sender;
+            _ = args;
+            if (_isSynchronizing)
+            {
+                return;
+            }
+
+            ApplyHsva(
+                _colorPicker.Hue,
+                _colorPicker.Saturation,
+                _colorPicker.Value,
+                _colorPicker.Alpha,
+                DesignerSourcePropertyInspector.FormatColorValue(_colorPicker.SelectedColor),
+                commitToSource: true);
+        }
+
+        private void OnHueSpectrumSelectedColorChanged(object? sender, ColorChangedEventArgs args)
+        {
+            _ = sender;
+            _ = args;
+            if (_isSynchronizing)
+            {
+                return;
+            }
+
+            ApplyHsva(
+                _hueSpectrum.Hue,
+                _currentSaturation,
+                _currentValue,
+                _currentAlpha,
+                displayText: null,
+                commitToSource: true);
+        }
+
+        private void OnAlphaSpectrumSelectedColorChanged(object? sender, ColorChangedEventArgs args)
+        {
+            _ = sender;
+            _ = args;
+            if (_isSynchronizing)
+            {
+                return;
+            }
+
+            ApplyHsva(
+                _currentHue,
+                _currentSaturation,
+                _currentValue,
+                _alphaSpectrum.Alpha,
+                displayText: null,
+                commitToSource: true);
+        }
+
+        private void ApplyHsva(
+            float hue,
+            float saturation,
+            float value,
+            float alpha,
+            string? displayText,
+            bool commitToSource)
+        {
+            _currentHue = CoerceHueValue(hue);
+            _currentSaturation = Clamp01(saturation);
+            _currentValue = Clamp01(value);
+            _currentAlpha = Clamp01(alpha);
+            _currentColor = FromHsva(_currentHue, _currentSaturation, _currentValue, _currentAlpha);
+            _displayText = string.IsNullOrWhiteSpace(displayText)
+                ? DesignerSourcePropertyInspector.FormatColorValue(_currentColor)
+                : displayText;
+
+            _isSynchronizing = true;
+            try
+            {
+                SelectedIndex = 0;
+                _colorPicker.Hue = _currentHue;
+                _colorPicker.Saturation = _currentSaturation;
+                _colorPicker.Value = _currentValue;
+                _colorPicker.Alpha = _currentAlpha;
+                _colorPicker.SelectedColor = _currentColor;
+
+                _hueSpectrum.Hue = _currentHue;
+                _hueSpectrum.Alpha = _currentAlpha;
+                _hueSpectrum.SelectedColor = _currentColor;
+
+                _alphaSpectrum.Hue = _currentHue;
+                _alphaSpectrum.Alpha = _currentAlpha;
+                _alphaSpectrum.SelectedColor = _currentColor;
+                _displayItem.Text = _displayText;
+                _colorPickerItem.Text = _displayText;
+            }
+            finally
+            {
+                _isSynchronizing = false;
+            }
+
+            if (commitToSource)
+            {
+                _owner.ApplySourceColorPropertyEdit(_propertyName, _currentColor);
+            }
+        }
+
+        private static bool AreColorsEqual(Color left, Color right)
+        {
+            return left.PackedValue == right.PackedValue;
+        }
+
+        private static float CoerceHueValue(float hue)
+        {
+            if (float.IsNaN(hue) || float.IsInfinity(hue))
+            {
+                return 0f;
+            }
+
+            if (hue <= 0f)
+            {
+                return 0f;
+            }
+
+            if (hue >= 360f)
+            {
+                return 360f;
+            }
+
+            return hue;
+        }
+
+        private static float Clamp01(float value)
+        {
+            return Math.Clamp(value, 0f, 1f);
+        }
+
+        private static Color FromHsva(float hue, float saturation, float value, float alpha)
+        {
+            saturation = Clamp01(saturation);
+            value = Clamp01(value);
+            alpha = Clamp01(alpha);
+
+            var normalizedHue = NormalizeHue(hue);
+            var chroma = value * saturation;
+            var hueSector = normalizedHue / 60f;
+            var x = chroma * (1f - MathF.Abs((hueSector % 2f) - 1f));
+
+            float redPrime;
+            float greenPrime;
+            float bluePrime;
+            if (hueSector < 1f)
+            {
+                redPrime = chroma;
+                greenPrime = x;
+                bluePrime = 0f;
+            }
+            else if (hueSector < 2f)
+            {
+                redPrime = x;
+                greenPrime = chroma;
+                bluePrime = 0f;
+            }
+            else if (hueSector < 3f)
+            {
+                redPrime = 0f;
+                greenPrime = chroma;
+                bluePrime = x;
+            }
+            else if (hueSector < 4f)
+            {
+                redPrime = 0f;
+                greenPrime = x;
+                bluePrime = chroma;
+            }
+            else if (hueSector < 5f)
+            {
+                redPrime = x;
+                greenPrime = 0f;
+                bluePrime = chroma;
+            }
+            else
+            {
+                redPrime = chroma;
+                greenPrime = 0f;
+                bluePrime = x;
+            }
+
+            var match = value - chroma;
+            return new Color(
+                ToByte(redPrime + match),
+                ToByte(greenPrime + match),
+                ToByte(bluePrime + match),
+                ToByte(alpha));
+        }
+
+        private static void ToHsva(Color color, out float hue, out float saturation, out float value, out float alpha)
+        {
+            var red = color.R / 255f;
+            var green = color.G / 255f;
+            var blue = color.B / 255f;
+            var max = MathF.Max(red, MathF.Max(green, blue));
+            var min = MathF.Min(red, MathF.Min(green, blue));
+            var delta = max - min;
+
+            value = max;
+            saturation = max <= 0f ? 0f : delta / max;
+            alpha = color.A / 255f;
+
+            if (delta <= 0f)
+            {
+                hue = 0f;
+                return;
+            }
+
+            if (MathF.Abs(max - red) <= 0.0001f)
+            {
+                hue = 60f * (((green - blue) / delta) % 6f);
+            }
+            else if (MathF.Abs(max - green) <= 0.0001f)
+            {
+                hue = 60f * (((blue - red) / delta) + 2f);
+            }
+            else
+            {
+                hue = 60f * (((red - green) / delta) + 4f);
+            }
+
+            hue = NormalizeHue(hue);
+        }
+
+        private static float NormalizeHue(float hue)
+        {
+            var normalized = hue % 360f;
+            if (normalized < 0f)
+            {
+                normalized += 360f;
+            }
+
+            return normalized;
+        }
+
+        private static byte ToByte(float value)
+        {
+            return (byte)Math.Clamp((int)MathF.Round(Clamp01(value) * 255f), 0, 255);
+        }
+
+        private void OpenInteractivePopup()
+        {
+            var host = FindOverlayHost();
+            if (host == null)
+            {
+                return;
+            }
+
+            _owner.CloseOpenSourceColorEditors(this);
+            _interactivePopup.PlacementTarget = this;
+            _interactivePopup.PlacementMode = PopupPlacementMode.Bottom;
+            _interactivePopup.HorizontalOffset = 0f;
+            _interactivePopup.VerticalOffset = 2f;
+            _interactivePopup.Width = Math.Max(ActualWidth > 0f ? ActualWidth : Width, 80f);
+            _interactivePopup.Show(host);
+        }
+
+        private Panel? FindOverlayHost()
+        {
+            Panel? fallbackHost = null;
+            for (var current = (UIElement?)this;
+                 current != null;
+                 current = current.VisualParent ?? current.LogicalParent)
+            {
+                if (current is Panel panel)
+                {
+                    fallbackHost = panel;
+                }
+            }
+
+            return fallbackHost;
+        }
+
+        private static Border BuildDropDownItemHost(FrameworkElement content)
+        {
+            return new Border
+            {
+                Background = new Color(8, 16, 24),
+                BorderBrush = new Color(36, 51, 66),
+                BorderThickness = new Thickness(1f),
+                Padding = new Thickness(6f),
+                Child = content
+            };
+        }
+    }
+
+    private void CloseOpenSourceColorEditors(SourceColorPropertyEditor exceptEditor)
+    {
+        foreach (var editor in _sourcePropertyEditorsByName.Values.OfType<SourceColorPropertyEditor>())
+        {
+            if (!ReferenceEquals(editor, exceptEditor))
+            {
+                editor.ClosePopup();
+            }
+        }
     }
 
     private static bool AreRectsEffectivelyEqual(LayoutRect left, LayoutRect right)

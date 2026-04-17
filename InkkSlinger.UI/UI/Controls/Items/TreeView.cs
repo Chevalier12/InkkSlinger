@@ -70,7 +70,7 @@ public class TreeView : ItemsControl
 
     public TreeView()
     {
-        AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnMouseDownSelectItem);
+        AddHandler<MouseRoutedEventArgs>(UIElement.MouseLeftButtonDownEvent, OnMouseLeftButtonDownSelectItem);
     }
 
     public event System.EventHandler<RoutedSimpleEventArgs> SelectedItemChanged
@@ -217,7 +217,7 @@ public class TreeView : ItemsControl
         return null;
     }
 
-    private void OnMouseDownSelectItem(object? sender, MouseRoutedEventArgs args)
+    private void OnMouseLeftButtonDownSelectItem(object? sender, MouseRoutedEventArgs args)
     {
         _ = sender;
         if (!IsEnabled || args.Button != MouseButton.Left)

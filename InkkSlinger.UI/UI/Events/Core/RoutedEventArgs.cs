@@ -9,7 +9,7 @@ public abstract class RoutedEventArgs : EventArgs
         RoutedEvent = routedEvent;
     }
 
-    public RoutedEvent RoutedEvent { get; }
+    public RoutedEvent RoutedEvent { get; internal set; }
 
     public bool Handled { get; set; }
 

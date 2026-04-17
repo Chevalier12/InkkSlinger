@@ -2146,7 +2146,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     public bool HandleMouseWheelFromInput(int delta)
     {
-        if (!IsEnabled || !IsFocused || delta == 0)
+        if (!IsEnabled || delta == 0)
         {
             return false;
         }

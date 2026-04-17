@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 using InkkSlinger;
 
@@ -37,7 +38,8 @@ internal sealed record DesignerSourceTagSelection(
 internal enum DesignerSourcePropertyEditorKind
 {
     Text,
-    Choice
+    Choice,
+    Color
 }
 
 internal sealed record DesignerSourceInspectableProperty(
@@ -273,9 +275,68 @@ internal static class DesignerSourcePropertyInspector
 
     private static DesignerSourcePropertyEditorKind GetEditorKind(DependencyProperty property)
     {
+        if (IsColorLikeProperty(property))
+        {
+            return DesignerSourcePropertyEditorKind.Color;
+        }
+
         return GetChoiceValues(property).Count > 0
             ? DesignerSourcePropertyEditorKind.Choice
             : DesignerSourcePropertyEditorKind.Text;
+    }
+
+    internal static bool TryParseColorValue(string? value, out Color color)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            color = default;
+            return false;
+        }
+
+        if (trimmed[0] == '#')
+        {
+            var hex = trimmed.AsSpan(1);
+            if (hex.Length == 6)
+            {
+                color = new Color(
+                    ParseHexByte(hex[0..2]),
+                    ParseHexByte(hex[2..4]),
+                    ParseHexByte(hex[4..6]));
+                return true;
+            }
+
+            if (hex.Length == 8)
+            {
+                color = new Color(
+                    ParseHexByte(hex[2..4]),
+                    ParseHexByte(hex[4..6]),
+                    ParseHexByte(hex[6..8]),
+                    ParseHexByte(hex[0..2]));
+                return true;
+            }
+        }
+
+        var namedColorProperty = typeof(Color).GetProperty(
+            trimmed,
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase);
+        if (namedColorProperty?.PropertyType == typeof(Color) &&
+            namedColorProperty.GetIndexParameters().Length == 0 &&
+            namedColorProperty.GetValue(null) is Color namedColor)
+        {
+            color = namedColor;
+            return true;
+        }
+
+        color = default;
+        return false;
+    }
+
+    internal static string FormatColorValue(Color color)
+    {
+        return color.A == byte.MaxValue
+            ? string.Create(CultureInfo.InvariantCulture, $"#{color.R:X2}{color.G:X2}{color.B:X2}")
+            : string.Create(CultureInfo.InvariantCulture, $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}");
     }
 
     private static IReadOnlyList<string> GetChoiceValues(DependencyProperty property)
@@ -306,6 +367,14 @@ internal static class DesignerSourcePropertyInspector
         }
 
         return Array.Empty<string>();
+    }
+
+    private static bool IsColorLikeProperty(DependencyProperty property)
+    {
+        ArgumentNullException.ThrowIfNull(property);
+
+        return property.PropertyType == typeof(Color) ||
+               typeof(Brush).IsAssignableFrom(property.PropertyType);
     }
 
     private static bool TryParseTagSelection(string text, int anchorIndex, int tagStartIndex, int tagCloseIndex, out DesignerSourceTagSelection selection)
@@ -573,9 +642,12 @@ internal static class DesignerSourcePropertyInspector
 
     private static string FormatColor(Color color)
     {
-        return color.A == byte.MaxValue
-            ? string.Create(CultureInfo.InvariantCulture, $"#{color.R:X2}{color.G:X2}{color.B:X2}")
-            : string.Create(CultureInfo.InvariantCulture, $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}");
+        return FormatColorValue(color);
+    }
+
+    private static byte ParseHexByte(ReadOnlySpan<char> value)
+    {
+        return byte.Parse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
     }
 
     private static bool AreClose(float left, float right)

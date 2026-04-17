@@ -65,7 +65,7 @@ public sealed class ScrollViewerContentArrangeReuseTests
     }
 
     [Fact]
-    public void TransformScrolling_ContentPanelTranslatesWithoutRearrangingWhenOnlyOriginChanges()
+    public void ViewerOwnedScrolling_ContentPanelRearrangesWhenOnlyOriginChanges()
     {
         var content = new CountingPanel();
         content.AddChild(new FixedMeasureElement(new Vector2(80f, 40f)));
@@ -85,9 +85,9 @@ public sealed class ScrollViewerContentArrangeReuseTests
 
         MeasureAndArrange(viewer, 320f, 180f, 48f, 0f);
 
-        Assert.Equal(contentArrangeCount, content.ArrangeOverrideCount);
-        Assert.Equal(firstChildArrangeCount, firstChild.ArrangeOverrideCount);
-        Assert.Equal(secondChildArrangeCount, secondChild.ArrangeOverrideCount);
+        Assert.True(content.ArrangeOverrideCount > contentArrangeCount);
+        Assert.True(firstChild.ArrangeOverrideCount > firstChildArrangeCount);
+        Assert.True(secondChild.ArrangeOverrideCount > secondChildArrangeCount);
         Assert.True(MathF.Abs(content.LayoutSlot.X - (initialContentRect.X + 48f)) <= 0.01f);
         Assert.True(MathF.Abs(firstChild.LayoutSlot.X - (initialFirstChildRect.X + 48f)) <= 0.01f);
         Assert.True(MathF.Abs(secondChild.LayoutSlot.X - (initialSecondChildRect.X + 48f)) <= 0.01f);

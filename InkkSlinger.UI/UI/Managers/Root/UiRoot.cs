@@ -258,6 +258,8 @@ public sealed partial class UiRoot
 
     public int DrawExecutedFrameCount { get; private set; }
 
+    internal GraphicsDevice? LastGraphicsDeviceForResources => _lastGraphicsDevice;
+
     public int DrawSkippedFrameCount { get; private set; }
 
     public int LayoutPasses { get; private set; }

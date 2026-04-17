@@ -211,7 +211,7 @@ public sealed class ComboBoxPopupEdgeParityTests
         var dropDown = comboBox.DropDownListForTesting;
         Assert.NotNull(dropDown);
 
-        var renderedComboBoxY = comboBox.LayoutSlot.Y - scrollViewer.VerticalOffset;
+        var renderedComboBoxY = comboBox.LayoutSlot.Y;
         var renderedDropDownY = dropDown!.LayoutSlot.Y;
         Assert.InRange(dropDown.LayoutSlot.X - comboBox.LayoutSlot.X, 0f, 4f);
         Assert.InRange(renderedDropDownY - (renderedComboBoxY + comboBox.LayoutSlot.Height), 0f, 8f);

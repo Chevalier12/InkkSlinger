@@ -76,7 +76,6 @@ public sealed class ComboBoxTelemetryTests
         Assert.True(snapshot.RefreshDropDownItemsProjectedItemCount >= 3);
         Assert.True(snapshot.FindHostPanelFoundCount > 0);
         Assert.True(snapshot.GetDisplayTextCallCount > 0);
-        Assert.True(snapshot.GetDisplayTextComboBoxItemTextCount > 0);
         Assert.True(snapshot.GetDisplayTextLabelCount > 0);
         Assert.True(snapshot.BuildDropDownContainerCallCount > 0);
         Assert.True(snapshot.ConfigureContainerFromItemCallCount > 0);

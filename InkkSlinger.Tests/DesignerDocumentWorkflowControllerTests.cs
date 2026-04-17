@@ -33,18 +33,6 @@ public class DesignerDocumentWorkflowControllerTests
     }
 
     [Fact]
-    public void BeginClose_WhenDocumentIsDirty_ShowsUnsavedChangesPrompt()
-    {
-        var workflow = CreateWorkflow();
-        workflow.DocumentController.UpdateText("<UserControl><Grid /></UserControl>");
-
-        var result = workflow.Workflow.BeginClose();
-
-        Assert.Equal(InkkSlinger.Designer.DesignerWorkflowCloseAction.None, result.CloseAction);
-        Assert.Equal(InkkSlinger.Designer.DesignerDocumentPromptKind.UnsavedChanges, workflow.Workflow.Prompt.Kind);
-    }
-
-    [Fact]
     public void ResolveUnsavedChanges_SaveWithoutPath_ShowsSavePromptThenOpenPrompt()
     {
         var workflow = CreateWorkflow();
@@ -70,37 +58,6 @@ public class DesignerDocumentWorkflowControllerTests
         Assert.True(openResult.PromptChanged);
         Assert.Equal("C:/designer/next.xml", workflow.DocumentController.CurrentPath);
         Assert.Equal("<UserControl><TextBlock Text=\"Opened\" /></UserControl>", workflow.DocumentController.CurrentText);
-    }
-
-    [Fact]
-    public void ResolveUnsavedChanges_SaveBeforeClose_WithExistingPath_RequiresOverwriteAndAllowsNextClose()
-    {
-        var workflow = CreateWorkflow();
-        workflow.Store.ExistingPaths.Add("C:/designer/existing.xml");
-        workflow.DocumentController.UpdateText("<UserControl><Grid /></UserControl>");
-
-        _ = workflow.Workflow.BeginClose();
-
-        var saveChoice = workflow.Workflow.ResolveUnsavedChanges(InkkSlinger.Designer.DesignerUnsavedChangesChoice.Save);
-
-        Assert.Equal(InkkSlinger.Designer.DesignerDocumentPromptKind.SavePath, workflow.Workflow.Prompt.Kind);
-        Assert.True(saveChoice.PromptChanged);
-
-        var submitResult = workflow.Workflow.SubmitPromptPath("C:/designer/existing.xml");
-
-        Assert.Equal(InkkSlinger.Designer.DesignerDocumentPromptKind.OverwriteConfirmation, workflow.Workflow.Prompt.Kind);
-        Assert.Equal(InkkSlinger.Designer.DesignerWorkflowCloseAction.None, submitResult.CloseAction);
-
-        var confirmResult = workflow.Workflow.ConfirmOverwriteSavePath();
-
-        Assert.Equal(InkkSlinger.Designer.DesignerWorkflowCloseAction.RequestDeferredClose, confirmResult.CloseAction);
-        Assert.Equal("<UserControl><Grid /></UserControl>", workflow.Store.WrittenTexts["C:/designer/existing.xml"]);
-        Assert.Equal("C:/designer/existing.xml", workflow.DocumentController.CurrentPath);
-        Assert.False(workflow.DocumentController.IsDirty);
-
-        var allowedCloseResult = workflow.Workflow.BeginClose();
-
-        Assert.Equal(InkkSlinger.Designer.DesignerWorkflowCloseAction.AllowCurrentRequest, allowedCloseResult.CloseAction);
     }
 
     [Fact]

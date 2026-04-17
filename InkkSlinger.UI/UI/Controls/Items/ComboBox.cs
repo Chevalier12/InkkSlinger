@@ -859,6 +859,7 @@ public class ComboBox : Selector
     private ComboBoxItem BuildDropDownContainer(object? item, int index)
     {
         IncrementMetric(ref _runtimeBuildDropDownContainerCallCount, ref _diagBuildDropDownContainerCallCount);
+
         var container = new ComboBoxItem();
         ConfigureContainerFromItem(container, item);
         container.IsSelected = index == SelectedIndex;
@@ -868,8 +869,26 @@ public class ComboBox : Selector
     private void ConfigureContainerFromItem(ComboBoxItem container, object? item)
     {
         IncrementMetric(ref _runtimeConfigureContainerFromItemCallCount, ref _diagConfigureContainerFromItemCallCount);
-        container.ClearValue(ContentControl.ContentProperty);
-        container.Text = GetDisplayText(item);
+        if (item is ComboBoxItem comboBoxItem)
+        {
+            container.Text = comboBoxItem.Text;
+            container.Padding = comboBoxItem.Padding;
+
+            if (comboBoxItem.Content != null)
+            {
+                container.Content = comboBoxItem.Content;
+            }
+            else
+            {
+                container.ClearValue(ContentControl.ContentProperty);
+            }
+        }
+        else
+        {
+            container.ClearValue(ContentControl.ContentProperty);
+            container.Text = GetDisplayText(item);
+        }
+
         SyncContainerTypography(container);
     }
 

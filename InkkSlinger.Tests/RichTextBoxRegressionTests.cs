@@ -145,11 +145,11 @@ public sealed class RichTextBoxRegressionTests
     }
 
     [Fact]
-    public void MouseWheelRequiresFocus_AndScrollsWhenFocused()
+    public void MouseWheel_ScrollsWhenEnabled()
     {
         var editor = CreateEditor(180f, 40f, string.Join("\n", BuildLines(20)));
         editor.SetFocusedFromInput(false);
-        Assert.False(editor.HandleMouseWheelFromInput(-120));
+        Assert.True(editor.HandleMouseWheelFromInput(-120));
 
         editor.SetFocusedFromInput(true);
         Assert.True(editor.HandleMouseWheelFromInput(-120));

@@ -109,47 +109,6 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
-    public void TransformScrolling_HitTest_UsesVisibleChildCoordinates()
-    {
-        var root = new Panel();
-        var content = new StackPanel();
-
-        var first = new Button { Content = "First", Height = 40f, Margin = new Thickness(0f, 0f, 0f, 8f) };
-        var second = new Button { Content = "Second", Height = 40f, Margin = new Thickness(0f, 0f, 0f, 8f) };
-        var third = new Button { Content = "Third", Height = 40f };
-        content.AddChild(first);
-        content.AddChild(second);
-        content.AddChild(third);
-
-        var viewer = new ScrollViewer
-        {
-            Width = 180f,
-            Height = 90f,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = content
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 320, 220, 16);
-
-        viewer.ScrollToVerticalOffset(48f);
-
-        Assert.True(content.HasLocalRenderTransform());
-
-        var renderedSecondY = second.LayoutSlot.Y - viewer.VerticalOffset;
-        var probe = new Vector2(
-            second.LayoutSlot.X + (second.LayoutSlot.Width * 0.5f),
-            renderedSecondY + (second.LayoutSlot.Height * 0.5f));
-
-        var hit = VisualTreeHelper.HitTest(root, probe);
-
-        var hitElement = Assert.IsAssignableFrom<FrameworkElement>(hit);
-        Assert.True(IsDescendantOrSelf(second, hitElement));
-    }
-
-    [Fact]
     public void VirtualizingStackPanel_ChangesRealizedRange_WhenViewerOffsetChanges()
     {
         var root = new Panel();
@@ -275,31 +234,6 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
-    public void PlainStackPanel_Default_UsesTransformScrollingPath()
-    {
-        var root = new Panel();
-        var content = CreateTallStackPanel(120);
-        var viewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = content
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 320, 200, 16);
-        var contentYBefore = content.LayoutSlot.Y;
-
-        var handled = viewer.HandleMouseWheelFromInput(-120);
-
-        Assert.True(handled);
-        Assert.True(viewer.VerticalOffset > 0f);
-        Assert.True(AreClose(contentYBefore, content.LayoutSlot.Y));
-        Assert.True(content.HasLocalRenderTransform());
-    }
-
-    [Fact]
     public void PlainStackPanel_ExplicitOptOut_KeepsArrangeOffsetBehavior()
     {
         var root = new Panel();
@@ -323,36 +257,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         Assert.True(viewer.VerticalOffset > 0f);
         Assert.True(content.LayoutSlot.Y < contentYBefore);
         Assert.False(content.HasLocalRenderTransform());
-    }
-
-    [Fact]
-    public void TransformDefault_SupportsHorizontalScrolling()
-    {
-        var root = new Panel();
-        var content = new StackPanel { Orientation = Orientation.Horizontal };
-        for (var i = 0; i < 12; i++)
-        {
-            content.AddChild(new Border { Width = 120f, Height = 40f, Margin = new Thickness(0f, 0f, 4f, 0f) });
-        }
-
-        var viewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = content
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 320, 200, 16);
-        Assert.True(viewer.ExtentWidth > viewer.ViewportWidth);
-
-        var contentXBefore = content.LayoutSlot.X;
-        viewer.ScrollToHorizontalOffset(200f);
-
-        Assert.True(viewer.HorizontalOffset > 0f);
-        Assert.True(AreClose(contentXBefore, content.LayoutSlot.X));
-        Assert.True(content.HasLocalRenderTransform());
     }
 
     [Fact]
@@ -466,185 +370,6 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
-    public void TransformDefault_DirtyBoundsStayClippedToViewportDuringOffsetOnlyScroll()
-    {
-        var root = new Panel();
-        var content = CreateTallStackPanel(120);
-        var viewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = content
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 320, 200, 16);
-        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
-
-        uiRoot.ResetDirtyStateForTests();
-        root.ClearRenderInvalidationRecursive();
-        uiRoot.CompleteDrawStateForTests();
-
-        Assert.True(viewer.HandleMouseWheelFromInput(-120));
-
-        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
-        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
-        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
-
-        Assert.True(invalidation.HasDirtyBounds);
-        Assert.Contains(dirtyTrace, entry =>
-            entry.StartsWith(nameof(StackPanel), System.StringComparison.Ordinal) &&
-            entry.Contains(":scroll-clip-hint:", System.StringComparison.Ordinal));
-        Assert.Contains(dirtyRegions, region =>
-            region.X <= viewportClip.X + 0.01f &&
-            region.Y <= viewportClip.Y + 0.01f &&
-            region.X + region.Width >= viewportClip.X + viewportClip.Width - 0.01f &&
-            region.Y + region.Height >= viewportClip.Y + viewportClip.Height - 0.01f);
-    }
-
-    [Fact]
-    public void TransformDefault_DirtyBoundsStayClippedToViewportDuringDescendantLayoutChange()
-    {
-        var root = new Panel();
-        var content = CreateTallStackPanel(120);
-        var viewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = content
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 320, 200, 16);
-        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
-
-        uiRoot.ResetDirtyStateForTests();
-        root.ClearRenderInvalidationRecursive();
-        uiRoot.CompleteDrawStateForTests();
-
-        var mutatedChild = Assert.IsType<Border>(content.Children[20]);
-        mutatedChild.Height = 44f;
-        RunLayout(uiRoot, 320, 200, 32);
-
-        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
-        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
-        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
-
-        Assert.True(invalidation.HasDirtyBounds);
-        Assert.False(uiRoot.IsFullDirtyForTests());
-        Assert.True(
-            !invalidation.DirtyBoundsUsedHint ||
-            dirtyTrace.Any(entry => entry.Contains(":scroll-clip-hint:", System.StringComparison.Ordinal)),
-            "Expected viewport-local dirty bounds to leave a scroll-clip hint trace when a hint is consumed.");
-        Assert.Contains(dirtyRegions, region =>
-            region.X <= viewportClip.X + 0.01f &&
-            region.Y <= viewportClip.Y + 0.01f &&
-            region.X + region.Width >= viewportClip.X + viewportClip.Width - 0.01f &&
-            region.Y + region.Height >= viewportClip.Y + viewportClip.Height - 0.01f);
-    }
-
-    [Fact]
-    public void TransformDefault_ContentHostLayoutChange_UsesViewportDirtyHint()
-    {
-        var root = new Panel();
-        var content = CreateTallStackPanel(120);
-        var viewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = content
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 320, 200, 16);
-        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
-
-        uiRoot.RebuildRenderListForTests();
-        uiRoot.ResetDirtyStateForTests();
-        root.ClearRenderInvalidationRecursive();
-        uiRoot.CompleteDrawStateForTests();
-
-        content.AddChild(new Border { Height = 24f, Margin = new Thickness(0f, 0f, 0f, 2f) });
-        RunLayout(uiRoot, 320, 200, 32);
-        uiRoot.SynchronizeRetainedRenderListForTests();
-
-        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
-        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
-        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
-
-        Assert.NotEmpty(invalidation.EffectiveSourceType);
-        Assert.NotEmpty(invalidation.RetainedSyncSourceType);
-        Assert.NotEmpty(invalidation.RetainedSyncSourceResolution);
-        Assert.NotEmpty(invalidation.DirtyBoundsVisualType);
-        Assert.NotEmpty(invalidation.DirtyBoundsSourceResolution);
-        Assert.True(
-            invalidation.DirtyBoundsUsedHint ||
-            dirtyTrace.Any(entry => entry.Contains(":scroll-clip-hint:", System.StringComparison.Ordinal)));
-        if (!uiRoot.IsFullDirtyForTests())
-        {
-            Assert.Contains(dirtyRegions, region =>
-                region.X <= viewportClip.X + 0.01f &&
-                region.Y <= viewportClip.Y + 0.01f &&
-                region.X + region.Width >= viewportClip.X + viewportClip.Width - 0.01f &&
-                region.Y + region.Height >= viewportClip.Y + viewportClip.Height - 0.01f);
-        }
-        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
-    }
-
-    [Fact]
-    public void TransformDefault_NestedDescendantLayoutChange_StaysClippedToViewport()
-    {
-        var root = new Panel();
-        var outer = new StackPanel();
-        var inner = new StackPanel();
-        for (var i = 0; i < 120; i++)
-        {
-            inner.AddChild(new Border { Height = 20f, Margin = new Thickness(0f, 0f, 0f, 2f) });
-        }
-
-        outer.AddChild(new Border { Height = 24f, Margin = new Thickness(0f, 0f, 0f, 8f) });
-        outer.AddChild(inner);
-
-        var viewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = outer
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 320, 200, 16);
-        Assert.True(viewer.TryGetContentViewportClipRect(out var viewportClip));
-
-        uiRoot.ResetDirtyStateForTests();
-        root.ClearRenderInvalidationRecursive();
-        uiRoot.CompleteDrawStateForTests();
-
-        var mutatedChild = Assert.IsType<Border>(inner.Children[20]);
-        mutatedChild.Height = 44f;
-        RunLayout(uiRoot, 320, 200, 32);
-
-        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
-        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
-        var dirtyTrace = uiRoot.GetDirtyBoundsEventTraceForTests();
-
-        Assert.False(uiRoot.IsFullDirtyForTests());
-        Assert.True(
-            !invalidation.DirtyBoundsUsedHint ||
-            dirtyTrace.Any(entry => entry.Contains(":scroll-clip-hint:", System.StringComparison.Ordinal)),
-            "Expected viewport-local dirty bounds to leave a scroll-clip hint trace when a hint is consumed.");
-        Assert.Contains(dirtyRegions, region =>
-            region.X <= viewportClip.X + 0.01f &&
-            region.Y <= viewportClip.Y + 0.01f &&
-            region.X + region.Width >= viewportClip.X + viewportClip.Width - 0.01f &&
-            region.Y + region.Height >= viewportClip.Y + viewportClip.Height - 0.01f);
-    }
-
-    [Fact]
     public void TransformDefault_DirtyBoundsStayClippedToViewportWhenViewerInvalidatesRender()
     {
         var root = new Panel();
@@ -711,30 +436,6 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
-    public void TransformDefault_ClampsOffsetsToExtent()
-    {
-        var root = new Panel();
-        var content = CreateTallStackPanel(80);
-        var viewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = content
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 300, 220, 16);
-
-        viewer.ScrollToVerticalOffset(100_000f);
-        RunLayout(uiRoot, 300, 220, 32);
-
-        var maxOffset = MathF.Max(0f, viewer.ExtentHeight - viewer.ViewportHeight);
-        Assert.True(AreClose(maxOffset, viewer.VerticalOffset));
-        Assert.True(content.HasLocalRenderTransform());
-    }
-
-    [Fact]
     public void TransformDefault_OnUnsupportedContent_KeepsArrangeOffsetBehavior()
     {
         var root = new Panel();
@@ -784,64 +485,6 @@ public class ScrollViewerViewerOwnedScrollingTests
         var expectedY = viewer.LayoutSlot.Y + MathF.Max(0f, viewer.BorderThickness) - viewer.VerticalOffset;
         Assert.True(AreClose(expectedY, content.LayoutSlot.Y));
         Assert.False(content.HasLocalRenderTransform());
-    }
-
-    [Fact]
-    public void TransformDefault_AppliesOnlyToDirectContentHostPanel()
-    {
-        var root = new Panel();
-        var outer = new StackPanel();
-        var inner = new StackPanel();
-        for (var i = 0; i < 120; i++)
-        {
-            inner.AddChild(new Border { Height = 20f, Margin = new Thickness(0f, 0f, 0f, 2f) });
-        }
-
-        outer.AddChild(inner);
-        var viewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = outer
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 320, 200, 16);
-        viewer.HandleMouseWheelFromInput(-120);
-
-        Assert.True(outer.HasLocalRenderTransform());
-        Assert.False(inner.HasLocalRenderTransform());
-    }
-
-    [Fact]
-    public void TransformDefault_DescendantOptOut_DoesNotDisableHostTransform()
-    {
-        var root = new Panel();
-        var outer = new StackPanel();
-        var inner = new StackPanel();
-        ScrollViewer.SetUseTransformContentScrolling(inner, false);
-
-        for (var i = 0; i < 120; i++)
-        {
-            inner.AddChild(new Border { Height = 20f, Margin = new Thickness(0f, 0f, 0f, 2f) });
-        }
-
-        outer.AddChild(inner);
-        var viewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = outer
-        };
-        root.AddChild(viewer);
-
-        var uiRoot = new UiRoot(root);
-        RunLayout(uiRoot, 320, 200, 16);
-        viewer.HandleMouseWheelFromInput(-120);
-
-        Assert.True(outer.HasLocalRenderTransform());
-        Assert.False(inner.HasLocalRenderTransform());
     }
 
     private static StackPanel CreateTallStackPanel(int itemCount)

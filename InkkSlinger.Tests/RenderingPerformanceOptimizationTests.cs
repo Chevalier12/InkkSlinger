@@ -120,6 +120,58 @@ public sealed class RenderingPerformanceOptimizationTests
     }
 
     [Fact]
+    public void ColorSpectrum_HueSelectorDrag_UsesLocalizedDirtyBoundsHint()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 120f));
+
+        var spectrum = new ColorSpectrum
+        {
+            Orientation = Orientation.Horizontal,
+            Mode = ColorSpectrumMode.Hue
+        };
+        spectrum.SetLayoutSlot(new LayoutRect(20f, 40f, 200f, 20f));
+        root.AddChild(spectrum);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 320f, 120f));
+        uiRoot.RebuildRenderListForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        spectrum.Hue = 180f;
+
+        var regions = uiRoot.GetDirtyRegionsSnapshotForTests();
+        Assert.Single(regions);
+        Assert.True(uiRoot.WouldUsePartialDirtyRedrawForTests());
+    }
+
+    [Fact]
+    public void ColorPicker_SelectorMove_UsesLocalizedDirtyBoundsHint()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 220f));
+
+        var picker = new ColorPicker();
+        picker.SetLayoutSlot(new LayoutRect(20f, 20f, 200f, 150f));
+        root.AddChild(picker);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 320f, 220f));
+        uiRoot.RebuildRenderListForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        picker.Saturation = 0.35f;
+
+        var regions = uiRoot.GetDirtyRegionsSnapshotForTests();
+        Assert.Single(regions);
+        Assert.True(uiRoot.WouldUsePartialDirtyRedrawForTests());
+    }
+
+    [Fact]
     public void ShapeRenderCache_InvalidatesOnRenderAndLayoutChanges()
     {
         Shape.ResetRenderCacheMetricsForTests();

@@ -72,7 +72,7 @@ public class TabControl : Selector
 
     public TabControl()
     {
-        AddHandler<MouseRoutedEventArgs>(UIElement.MouseDownEvent, OnMouseDownSelectTab);
+        AddHandler<MouseRoutedEventArgs>(UIElement.MouseLeftButtonDownEvent, OnMouseLeftButtonDownSelectTab);
     }
 
     public new Color Foreground
@@ -357,7 +357,7 @@ public class TabControl : Selector
                point.Y >= rect.Y && point.Y < rect.Y + rect.Height;
     }
 
-    private void OnMouseDownSelectTab(object? sender, MouseRoutedEventArgs args)
+    private void OnMouseLeftButtonDownSelectTab(object? sender, MouseRoutedEventArgs args)
     {
         _ = sender;
         if (!IsEnabled || args.Button != MouseButton.Left)

@@ -17,8 +17,7 @@ public enum DesignerPendingWorkflowContinuation
 {
     None,
     New,
-    Open,
-    Close
+    Open
 }
 
 public enum DesignerUnsavedChangesChoice
@@ -76,7 +75,6 @@ public sealed class DesignerDocumentWorkflowController
     private readonly DesignerDocumentController _documentController;
     private DesignerPendingWorkflowContinuation _pendingContinuation;
     private string? _pendingSavePath;
-    private bool _allowNextCloseRequest;
 
     public DesignerDocumentWorkflowController(DesignerDocumentController documentController)
     {
@@ -110,23 +108,10 @@ public sealed class DesignerDocumentWorkflowController
 
     public DesignerDocumentWorkflowResult BeginClose()
     {
-        if (_allowNextCloseRequest)
-        {
-            _allowNextCloseRequest = false;
-            return AllowCurrentClose(promptChanged: false, string.Empty);
-        }
-
-        if (Prompt.IsVisible)
-        {
-            return Info(promptChanged: false, "Resolve the current document prompt before closing.");
-        }
-
-        if (!TryPrepareForContinuation(DesignerPendingWorkflowContinuation.Close, out var promptResult))
-        {
-            return promptResult;
-        }
-
-        return AllowCurrentClose(promptChanged: false, string.Empty);
+        var promptWasVisible = Prompt.IsVisible;
+        ClearPendingState();
+        ClearPrompt();
+        return AllowCurrentClose(promptChanged: promptWasVisible, string.Empty);
     }
 
     public DesignerDocumentWorkflowResult Save()
@@ -375,18 +360,6 @@ public sealed class DesignerDocumentWorkflowController
                         ? "Saved the current document. Enter a path to open another XML document."
                         : "Discarded unsaved changes. Enter a path to open another XML document.");
 
-            case DesignerPendingWorkflowContinuation.Close:
-            {
-                var promptWasVisible = Prompt.IsVisible;
-                _allowNextCloseRequest = true;
-                ClearPrompt();
-                return RequestDeferredClose(
-                    promptChanged: promptWasVisible,
-                    savedBeforeContinue
-                        ? "Saved the current document and closed the designer."
-                        : "Discarded unsaved changes and closed the designer.");
-            }
-
             default:
             {
                 var promptWasVisible = Prompt.IsVisible;
@@ -469,16 +442,6 @@ public sealed class DesignerDocumentWorkflowController
             message,
             DesignerWorkflowStatusKind.Info,
             DesignerWorkflowCloseAction.AllowCurrentRequest);
-    }
-
-    private static DesignerDocumentWorkflowResult RequestDeferredClose(bool promptChanged, string message)
-    {
-        return new DesignerDocumentWorkflowResult(
-            false,
-            promptChanged,
-            message,
-            DesignerWorkflowStatusKind.Success,
-            DesignerWorkflowCloseAction.RequestDeferredClose);
     }
 
     private static DesignerDocumentWorkflowResult Error(string message)

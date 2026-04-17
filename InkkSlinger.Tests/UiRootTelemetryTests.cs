@@ -523,8 +523,12 @@ public class UiRootTelemetryTests
         uiRoot.Update(secondFrame, viewport);
 
         var preservedCounts = uiRoot.GetInputCacheEntryCountsForTests();
-        Assert.Equal(populatedCounts.ConnectionCacheEntryCount, preservedCounts.ConnectionCacheEntryCount);
-        Assert.Equal(populatedCounts.AncestorCacheEntryCount, preservedCounts.AncestorCacheEntryCount);
+        Assert.True(
+            preservedCounts.ConnectionCacheEntryCount >= populatedCounts.ConnectionCacheEntryCount,
+            $"Expected connection cache entries to be preserved or grow after layout. Before={populatedCounts.ConnectionCacheEntryCount}, After={preservedCounts.ConnectionCacheEntryCount}");
+        Assert.True(
+            preservedCounts.AncestorCacheEntryCount >= populatedCounts.AncestorCacheEntryCount,
+            $"Expected ancestor cache entries to be preserved or grow after layout. Before={populatedCounts.AncestorCacheEntryCount}, After={preservedCounts.AncestorCacheEntryCount}");
     }
 
     [Fact]

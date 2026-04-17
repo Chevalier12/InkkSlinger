@@ -204,8 +204,16 @@ public class UIElement : DependencyObject
     public static readonly RoutedEvent MouseLeaveEvent = new(nameof(MouseLeaveEvent), RoutingStrategy.Direct);
     public static readonly RoutedEvent PreviewMouseDownEvent = new(nameof(PreviewMouseDownEvent), RoutingStrategy.Tunnel);
     public static readonly RoutedEvent MouseDownEvent = new(nameof(MouseDownEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent PreviewMouseLeftButtonDownEvent = new(nameof(PreviewMouseLeftButtonDownEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent MouseLeftButtonDownEvent = new(nameof(MouseLeftButtonDownEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent PreviewMouseRightButtonDownEvent = new(nameof(PreviewMouseRightButtonDownEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent MouseRightButtonDownEvent = new(nameof(MouseRightButtonDownEvent), RoutingStrategy.Bubble);
     public static readonly RoutedEvent PreviewMouseUpEvent = new(nameof(PreviewMouseUpEvent), RoutingStrategy.Tunnel);
     public static readonly RoutedEvent MouseUpEvent = new(nameof(MouseUpEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent PreviewMouseLeftButtonUpEvent = new(nameof(PreviewMouseLeftButtonUpEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent MouseLeftButtonUpEvent = new(nameof(MouseLeftButtonUpEvent), RoutingStrategy.Bubble);
+    public static readonly RoutedEvent PreviewMouseRightButtonUpEvent = new(nameof(PreviewMouseRightButtonUpEvent), RoutingStrategy.Tunnel);
+    public static readonly RoutedEvent MouseRightButtonUpEvent = new(nameof(MouseRightButtonUpEvent), RoutingStrategy.Bubble);
     public static readonly RoutedEvent PreviewMouseWheelEvent = new(nameof(PreviewMouseWheelEvent), RoutingStrategy.Tunnel);
     public static readonly RoutedEvent MouseWheelEvent = new(nameof(MouseWheelEvent), RoutingStrategy.Bubble);
     public static readonly RoutedEvent PreviewKeyDownEvent = new(nameof(PreviewKeyDownEvent), RoutingStrategy.Tunnel);
@@ -875,6 +883,7 @@ public class UIElement : DependencyObject
 
     protected void RaiseRoutedEvent(RoutedEvent routedEvent, RoutedEventArgs args)
     {
+        args.RoutedEvent = routedEvent;
         var trackValueChanged = string.Equals(routedEvent.Name, "ValueChanged", StringComparison.Ordinal);
         var valueChangedStartTicks = trackValueChanged ? Stopwatch.GetTimestamp() : 0L;
         args.OriginalSource ??= this;

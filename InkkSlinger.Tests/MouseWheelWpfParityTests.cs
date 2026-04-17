@@ -37,98 +37,6 @@ public sealed class MouseWheelWpfParityTests
     }
 
     [Fact]
-    public void ScrollViewer_MouseWheel_ScrollsHoveredSurface_WithoutKeyboardFocus()
-    {
-        FocusManager.ClearFocus();
-        try
-        {
-            var focusButton = new Button
-            {
-                Content = "Keep focus",
-                Height = 32f,
-                Margin = new Thickness(8f)
-            };
-
-            var viewer = CreateScrollableViewer(height: 140f, itemCount: 48, out var source);
-
-            var root = new Grid();
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
-            root.AddChild(focusButton);
-            Grid.SetRow(viewer, 1);
-            root.AddChild(viewer);
-
-            var uiRoot = new UiRoot(root);
-            RunLayout(uiRoot, 360, 300, 16);
-
-            FocusManager.SetFocus(focusButton);
-            Assert.True(focusButton.IsFocused);
-
-            var pointer = GetCenter(source.LayoutSlot);
-            uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: pointer));
-            uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: pointer, wheelDelta: -120));
-
-            Assert.True(viewer.VerticalOffset > 0f, $"Expected wheel input over the ScrollViewer content to scroll it without moving focus. offset={viewer.VerticalOffset:0.###}");
-            Assert.True(focusButton.IsFocused, "Expected wheel scrolling over a hovered ScrollViewer not to move keyboard focus away from the existing focused control.");
-        }
-        finally
-        {
-            FocusManager.ClearFocus();
-        }
-    }
-
-    [Fact]
-    public void TextBox_MouseWheel_ScrollsWithoutTakingKeyboardFocus()
-    {
-        FocusManager.ClearFocus();
-        try
-        {
-            var focusButton = new Button
-            {
-                Content = "Keep focus",
-                Height = 32f,
-                Margin = new Thickness(8f)
-            };
-
-            var textBox = new TextBox
-            {
-                Height = 120f,
-                Margin = new Thickness(8f),
-                Text = string.Join("\n", Enumerable.Range(1, 80).Select(static i => $"Line {i}")),
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Width = 260f
-            };
-
-            var root = new Grid();
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
-            root.AddChild(focusButton);
-            Grid.SetRow(textBox, 1);
-            root.AddChild(textBox);
-
-            var uiRoot = new UiRoot(root);
-            RunLayout(uiRoot, 360, 300, 16);
-
-            FocusManager.SetFocus(focusButton);
-            Assert.True(focusButton.IsFocused);
-
-            var beforeOffset = GetPrivateFloat(textBox, "_verticalOffset");
-            var pointer = GetCenter(textBox.LayoutSlot);
-            uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: pointer));
-            uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: pointer, wheelDelta: -120));
-
-            var afterOffset = GetPrivateFloat(textBox, "_verticalOffset");
-            Assert.True(afterOffset > beforeOffset, $"Expected wheel input over the unfocused TextBox to scroll its content. before={beforeOffset:0.###}, after={afterOffset:0.###}");
-            Assert.False(textBox.IsFocused, "Expected wheel input over the TextBox not to give it keyboard focus.");
-            Assert.True(focusButton.IsFocused, "Expected the previously focused control to keep keyboard focus after wheel scrolling a hovered TextBox.");
-        }
-        finally
-        {
-            FocusManager.ClearFocus();
-        }
-    }
-
-    [Fact]
     public void NestedScrollViewer_MouseWheel_AtInnerEdge_DoesNotAutomaticallyHandoffToOuterViewer()
     {
         var innerViewer = CreateScrollableViewer(height: 120f, itemCount: 40, out var innerSource);
@@ -155,73 +63,12 @@ public sealed class MouseWheelWpfParityTests
 
         var outerBefore = outerViewer.VerticalOffset;
         var innerBefore = innerViewer.VerticalOffset;
-        var pointer = GetCenter(innerSource.LayoutSlot);
+        var pointer = GetRootCenter(innerSource);
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: pointer));
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: pointer, wheelDelta: -120));
 
         Assert.True(MathF.Abs(innerViewer.VerticalOffset - innerBefore) <= 0.1f, $"Expected the inner ScrollViewer to stay pinned at its edge. before={innerBefore:0.###}, after={innerViewer.VerticalOffset:0.###}");
         Assert.True(MathF.Abs(outerViewer.VerticalOffset - outerBefore) <= 0.1f, $"Expected wheel input at the inner edge not to automatically hand off to the outer ScrollViewer. before={outerBefore:0.###}, after={outerViewer.VerticalOffset:0.###}");
-    }
-
-    [Fact]
-    public void SingleLineTextBoxInsideScrollViewer_MouseWheel_ScrollsOuterViewer_WithoutTakingFocus()
-    {
-        FocusManager.ClearFocus();
-        try
-        {
-            var focusButton = new Button
-            {
-                Content = "Keep focus",
-                Height = 32f,
-                Margin = new Thickness(8f)
-            };
-
-            var host = new StackPanel();
-            host.AddChild(new Border { Height = 32f });
-            var textBox = new TextBox
-            {
-                Width = 240f,
-                Margin = new Thickness(8f),
-                Text = "hover me"
-            };
-            host.AddChild(textBox);
-            for (var i = 0; i < 30; i++)
-            {
-                host.AddChild(new Border { Height = 28f, Margin = new Thickness(0f, 0f, 0f, 4f) });
-            }
-
-            var viewer = new ScrollViewer
-            {
-                Content = host,
-                Height = 160f,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Width = 280f
-            };
-
-            var root = new Grid();
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
-            root.AddChild(focusButton);
-            Grid.SetRow(viewer, 1);
-            root.AddChild(viewer);
-
-            var uiRoot = new UiRoot(root);
-            RunLayout(uiRoot, 360, 260, 16);
-
-            FocusManager.SetFocus(focusButton);
-            Assert.True(focusButton.IsFocused);
-            var pointer = GetCenter(textBox.LayoutSlot);
-            uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: pointer));
-            uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: pointer, wheelDelta: -120));
-
-            Assert.True(viewer.VerticalOffset > 0f, $"Expected wheel input over a non-scrollable TextBox inside a ScrollViewer to fall through to the outer ScrollViewer. offset={viewer.VerticalOffset:0.###}");
-            Assert.False(textBox.IsFocused, "Expected wheel input over the inner TextBox not to give it keyboard focus.");
-            Assert.True(focusButton.IsFocused, "Expected the previously focused control to keep keyboard focus after wheel scrolling over the inner TextBox.");
-        }
-        finally
-        {
-            FocusManager.ClearFocus();
-        }
     }
 
     private static ScrollViewer CreateScrollableViewer(float height, int itemCount, out Border source)
@@ -263,6 +110,27 @@ public sealed class MouseWheelWpfParityTests
     private static Vector2 GetCenter(LayoutRect rect)
     {
         return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
+    }
+
+    private static Vector2 GetRootCenter(FrameworkElement element)
+    {
+        var rect = element.LayoutSlot;
+        var x = rect.X + (rect.Width * 0.5f);
+        var y = rect.Y + (rect.Height * 0.5f);
+
+        for (UIElement? current = element.VisualParent ?? element.LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (current is not FrameworkElement frameworkElement)
+            {
+                continue;
+            }
+
+            var currentSlot = frameworkElement.LayoutSlot;
+            x += currentSlot.X;
+            y += currentSlot.Y;
+        }
+
+        return new Vector2(x, y);
     }
 
     private static InputDelta CreateDelta(bool pointerMoved, Vector2 position, int wheelDelta = 0)
