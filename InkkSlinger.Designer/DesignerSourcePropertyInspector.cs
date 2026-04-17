@@ -72,6 +72,23 @@ internal static class DesignerSourcePropertyInspector
         "Italic",
         "Oblique"
     ];
+    private static readonly IReadOnlyList<string> CursorChoiceValues =
+    [
+        "Arrow",
+        "Hand",
+        "IBeam",
+        "Cross",
+        "Help",
+        "Wait",
+        "AppStarting",
+        "No",
+        "SizeAll",
+        "SizeNESW",
+        "SizeNS",
+        "SizeNWSE",
+        "SizeWE",
+        "UpArrow"
+    ];
 
     public static bool TryResolveTagSelection(string? sourceText, int anchorIndex, out DesignerSourceTagSelection selection)
     {
@@ -355,6 +372,11 @@ internal static class DesignerSourcePropertyInspector
 
         if (property.PropertyType == typeof(string))
         {
+            if (string.Equals(property.Name, nameof(FrameworkElement.Cursor), StringComparison.Ordinal))
+            {
+                return CursorChoiceValues;
+            }
+
             if (string.Equals(property.Name, "FontWeight", StringComparison.Ordinal))
             {
                 return FontWeightChoiceValues;

@@ -142,6 +142,136 @@ public sealed class ComboBoxPopupEdgeParityTests
     }
 
     [Fact]
+    public void OpenDropDown_WithRawCursorAndFontWeightChoiceSets_HitsSameFrameworkViewportCap()
+    {
+        var host = new Canvas
+        {
+            Width = 520f,
+            Height = 360f
+        };
+
+        var cursorComboBox = CreateComboBox(
+            40f,
+            60f,
+            [
+                "Arrow",
+                "Hand",
+                "IBeam",
+                "Cross",
+                "Help",
+                "Wait",
+                "AppStarting",
+                "No",
+                "SizeAll",
+                "SizeNESW",
+                "SizeNS",
+                "SizeNWSE",
+                "SizeWE",
+                "UpArrow"
+            ]);
+        host.AddChild(cursorComboBox);
+
+        var fontWeightComboBox = CreateComboBox(
+            280f,
+            60f,
+            [
+                "Thin",
+                "Light",
+                "Normal",
+                "Medium",
+                "SemiBold",
+                "Bold",
+                "ExtraBold",
+                "Black"
+            ]);
+        host.AddChild(fontWeightComboBox);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        cursorComboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var cursorDropDown = Assert.IsType<ListBox>(cursorComboBox.DropDownListForTesting);
+        var cursorScrollViewer = FindScrollViewer(cursorDropDown);
+        var cursorAverageRowHeight = GetAverageVisibleListItemHeight(cursorDropDown);
+
+        cursorComboBox.IsDropDownOpen = false;
+        RunLayout(uiRoot);
+
+        fontWeightComboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var fontWeightDropDown = Assert.IsType<ListBox>(fontWeightComboBox.DropDownListForTesting);
+        var fontWeightScrollViewer = FindScrollViewer(fontWeightDropDown);
+        var fontWeightAverageRowHeight = GetAverageVisibleListItemHeight(fontWeightDropDown);
+
+        Assert.True(cursorScrollViewer.ExtentHeight > cursorScrollViewer.ViewportHeight + 40f,
+            $"Expected the larger choice set to exceed the viewport cap. extent={cursorScrollViewer.ExtentHeight:0.##} viewport={cursorScrollViewer.ViewportHeight:0.##}");
+        Assert.True(cursorScrollViewer.ExtentHeight > fontWeightScrollViewer.ExtentHeight,
+            $"Expected the raw Cursor choice set to have more total content height than the raw FontWeight choice set. cursorExtent={cursorScrollViewer.ExtentHeight:0.##} fontWeightExtent={fontWeightScrollViewer.ExtentHeight:0.##}");
+        Assert.InRange(fontWeightScrollViewer.ExtentHeight - fontWeightScrollViewer.ViewportHeight, 0f, 12f);
+        Assert.InRange(MathF.Abs(cursorDropDown.LayoutSlot.Height - fontWeightDropDown.LayoutSlot.Height), 0f, 0.5f);
+        Assert.InRange(MathF.Abs(cursorAverageRowHeight - fontWeightAverageRowHeight), 0f, 2f);
+    }
+
+    [Fact]
+    public void OpenDropDown_WithRawCursorChoiceSet_ScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastItem()
+    {
+        var host = new Canvas
+        {
+            Width = 320f,
+            Height = 360f
+        };
+
+        var comboBox = CreateComboBox(
+            40f,
+            60f,
+            [
+                "Arrow",
+                "Hand",
+                "IBeam",
+                "Cross",
+                "Help",
+                "Wait",
+                "AppStarting",
+                "No",
+                "SizeAll",
+                "SizeNESW",
+                "SizeNS",
+                "SizeNWSE",
+                "SizeWE",
+                "UpArrow"
+            ]);
+        host.AddChild(comboBox);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+
+        var dropDown = Assert.IsType<ListBox>(comboBox.DropDownListForTesting);
+        var scrollViewer = FindScrollViewer(dropDown);
+        scrollViewer.ScrollToVerticalOffset(10000f);
+        RunLayout(uiRoot);
+
+        var lastItem = GetLastVisibleItem(dropDown);
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+        var probe = new Vector2(
+            scrollViewer.LayoutSlot.X + 24f,
+            (scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight) - 2f);
+        var hit = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.HitTest(host, probe));
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset. Offset={scrollViewer.VerticalOffset:0.##}, Max={maxVerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+        Assert.True(
+            IsDescendantOrSelf(lastItem, hit),
+            $"Expected the viewport-bottom hit to land on the last dropdown item after scrolling to the end. hit={hit.GetType().Name}, lastItem={lastItem.GetType().Name}, probe={probe}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+    }
+
+    [Fact]
     public void DropDown_InNestedScrollViewerUserControl_ShouldAnchorToComboBoxInsteadOfFlowingAfterSiblingContent()
     {
         var rootView = new UserControl();
@@ -425,6 +555,25 @@ public sealed class ComboBoxPopupEdgeParityTests
         return (uiRoot, comboBox);
     }
 
+    private static ComboBox CreateComboBox(float left, float top, IReadOnlyList<string> items)
+    {
+        var comboBox = new ComboBox
+        {
+            Width = 180f,
+            Height = 36f
+        };
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            comboBox.Items.Add(items[i]);
+        }
+
+        comboBox.SelectedIndex = 0;
+        Canvas.SetLeft(comboBox, left);
+        Canvas.SetTop(comboBox, top);
+        return comboBox;
+    }
+
     private static (UiRoot UiRoot, ScrollViewer ScrollViewer, ComboBox ComboBox) CreateScrolledSidebarFixture()
     {
         var rootView = new UserControl();
@@ -520,6 +669,38 @@ public sealed class ComboBoxPopupEdgeParityTests
         }
 
         throw new InvalidOperationException("Could not resolve ListBox ScrollViewer.");
+    }
+
+    private static float GetAverageVisibleListItemHeight(ListBox listBox)
+    {
+        var hostPanel = FindItemsHostPanel(listBox);
+        var totalHeight = 0f;
+        var itemCount = 0;
+        foreach (var child in hostPanel.Children)
+        {
+            if (child is FrameworkElement element)
+            {
+                totalHeight += element.LayoutSlot.Height;
+                itemCount++;
+            }
+        }
+
+        Assert.True(itemCount > 0, "Expected ListBox items host to contain visible item containers.");
+        return totalHeight / itemCount;
+    }
+
+    private static FrameworkElement GetLastVisibleItem(ListBox listBox)
+    {
+        var hostPanel = FindItemsHostPanel(listBox);
+        for (var i = hostPanel.Children.Count - 1; i >= 0; i--)
+        {
+            if (hostPanel.Children[i] is FrameworkElement element)
+            {
+                return element;
+            }
+        }
+
+        throw new InvalidOperationException("Expected ListBox items host to contain at least one visible item container.");
     }
 
     private static void Click(UiRoot uiRoot, Vector2 pointer)

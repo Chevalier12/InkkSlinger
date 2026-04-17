@@ -531,6 +531,55 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourcePropertyInspector_Cursor_UsesChoiceEditor()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var cursorEditor = Assert.IsType<ComboBox>(propertyEditors["Cursor"]);
+
+        Assert.Contains("Arrow", cursorEditor.Items.Cast<object>());
+        Assert.Contains("Hand", cursorEditor.Items.Cast<object>());
+        Assert.Contains("IBeam", cursorEditor.Items.Cast<object>());
+        Assert.Equal(-1, cursorEditor.SelectedIndex);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_CursorChoice_UpdatesSourceWithoutRefreshingPreview()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var cursorEditor = Assert.IsType<ComboBox>(propertyEditors["Cursor"]);
+
+        cursorEditor.SelectedItem = "Hand";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Contains("Cursor=\"Hand\"", shell.SourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Cursor=\"Hand\"", shell.Controller.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ShellView_SourcePropertyInspector_FontWeightComboBoxDropdown_UsesDesignerPalette()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -574,6 +623,92 @@ public class DesignerControllerTests
         Assert.Equal(12f, dropDownList.FontSize);
         Assert.Equal(new FontFamily("Consolas"), dropDownList.FontFamily);
         Assert.NotNull(dropDownList.ItemContainerStyle);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_CursorComboBoxDropdown_UsesMoreHeightBecauseItsChoiceListHitsTheViewportCap()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var cursorEditor = Assert.IsType<ComboBox>(propertyEditors["Cursor"]);
+        var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
+
+        cursorEditor.IsDropDownOpen = true;
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var cursorDropDown = GetComboBoxDropDownList(cursorEditor);
+        var cursorScrollViewer = FindListBoxScrollViewer(cursorDropDown);
+        var cursorAverageRowHeight = GetAverageVisibleListItemHeight(cursorDropDown);
+
+        cursorEditor.IsDropDownOpen = false;
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        fontWeightEditor.IsDropDownOpen = true;
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var fontWeightDropDown = GetComboBoxDropDownList(fontWeightEditor);
+        var fontWeightScrollViewer = FindListBoxScrollViewer(fontWeightDropDown);
+        var fontWeightAverageRowHeight = GetAverageVisibleListItemHeight(fontWeightDropDown);
+
+        Assert.True(cursorEditor.Items.Count > fontWeightEditor.Items.Count);
+        Assert.True(cursorDropDown.LayoutSlot.Height > fontWeightDropDown.LayoutSlot.Height,
+            $"Expected Cursor dropdown to be taller than FontWeight because it exposes more choices. cursorHeight={cursorDropDown.LayoutSlot.Height:0.##} fontWeightHeight={fontWeightDropDown.LayoutSlot.Height:0.##} cursorItems={cursorEditor.Items.Count} fontWeightItems={fontWeightEditor.Items.Count}");
+        Assert.True(cursorScrollViewer.ExtentHeight > cursorScrollViewer.ViewportHeight + 40f,
+            $"Expected Cursor dropdown content to exceed the viewport cap. extent={cursorScrollViewer.ExtentHeight:0.##} viewport={cursorScrollViewer.ViewportHeight:0.##} items={cursorEditor.Items.Count}");
+        Assert.InRange(fontWeightScrollViewer.ViewportHeight - fontWeightScrollViewer.ExtentHeight, -0.5f, 6f);
+        Assert.InRange(MathF.Abs(cursorAverageRowHeight - fontWeightAverageRowHeight), 0f, 2f);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_CursorComboBoxDropdown_ScrollingToBottom_ShouldNotLeaveBlankSpaceAfterLastItem()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var cursorEditor = Assert.IsType<ComboBox>(propertyEditors["Cursor"]);
+
+        cursorEditor.IsDropDownOpen = true;
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var cursorDropDown = GetComboBoxDropDownList(cursorEditor);
+        var scrollViewer = FindListBoxScrollViewer(cursorDropDown);
+        scrollViewer.ScrollToVerticalOffset(10000f);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var lastItem = GetLastVisibleListBoxItem(cursorDropDown);
+        var maxVerticalOffset = MathF.Max(0f, scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+        var probe = new Vector2(
+            scrollViewer.LayoutSlot.X + 24f,
+            (scrollViewer.LayoutSlot.Y + scrollViewer.ViewportHeight) - 2f);
+        var hit = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.HitTest(shell, probe));
+
+        Assert.True(
+            MathF.Abs(scrollViewer.VerticalOffset - maxVerticalOffset) <= 0.5f,
+            $"Expected bottom-clamped vertical offset. Offset={scrollViewer.VerticalOffset:0.##}, Max={maxVerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
+        Assert.True(
+            IsVisualAncestorOrSelf(lastItem, hit),
+            $"Expected the viewport-bottom hit to land on the last Cursor dropdown item after scrolling to the end. hit={DescribeElement(hit)}, lastItem={DescribeElement(lastItem)}, probe={probe}, Offset={scrollViewer.VerticalOffset:0.##}, Extent={scrollViewer.ExtentHeight:0.##}, Viewport={scrollViewer.ViewportHeight:0.##}.");
     }
 
     [Fact]
@@ -3196,6 +3331,11 @@ public class DesignerControllerTests
         return GetPrivateField<Popup>(editor, "_interactivePopup");
     }
 
+    private static ListBox GetComboBoxDropDownList(ComboBox editor)
+    {
+        return GetPrivateField<ListBox>(editor, "_dropDownList");
+    }
+
     private static StackPanel GetSourceInspectorColorEditorPopupItemsHost(ComboBox editor)
     {
         return GetPrivateField<StackPanel>(editor, "_interactivePopupItemsHost");
@@ -3299,6 +3439,78 @@ public class DesignerControllerTests
         }
 
         throw new Xunit.Sdk.XunitException($"Could not find a rendered point within bounds {FormatRect(bounds)} that satisfied the requested predicate.");
+    }
+
+    private static ScrollViewer FindListBoxScrollViewer(ListBox listBox)
+    {
+        foreach (var child in listBox.GetVisualChildren())
+        {
+            if (child is ScrollViewer viewer)
+            {
+                return viewer;
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException("Could not resolve ListBox ScrollViewer.");
+    }
+
+    private static float GetAverageVisibleListItemHeight(ListBox listBox)
+    {
+        var host = FindListBoxItemsHostPanel(listBox);
+        var totalHeight = 0f;
+        var itemCount = 0;
+        foreach (var child in host.Children)
+        {
+            if (child is FrameworkElement element)
+            {
+                totalHeight += element.LayoutSlot.Height;
+                itemCount++;
+            }
+        }
+
+        Assert.True(itemCount > 0, "Expected ListBox items host to contain at least one item.");
+        return totalHeight / itemCount;
+    }
+
+    private static FrameworkElement GetLastVisibleListBoxItem(ListBox listBox)
+    {
+        var host = FindListBoxItemsHostPanel(listBox);
+        for (var i = host.Children.Count - 1; i >= 0; i--)
+        {
+            if (host.Children[i] is FrameworkElement element)
+            {
+                return element;
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException("Expected ListBox items host to contain at least one item.");
+    }
+
+    private static bool IsVisualAncestorOrSelf(UIElement ancestor, UIElement? candidate)
+    {
+        for (var current = candidate; current != null; current = current.VisualParent)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static Panel FindListBoxItemsHostPanel(ListBox listBox)
+    {
+        var scrollViewer = FindListBoxScrollViewer(listBox);
+        foreach (var child in scrollViewer.GetVisualChildren())
+        {
+            if (child is Panel panel)
+            {
+                return panel;
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException("Could not resolve ListBox items host panel.");
     }
 
     private static ScrollViewer GetSourceInspectorScrollViewer(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
