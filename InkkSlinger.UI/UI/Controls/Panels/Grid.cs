@@ -709,7 +709,6 @@ public class Grid : Panel
 
     protected override bool TryHandleMeasureInvalidation(UIElement origin, UIElement? source, string reason)
     {
-        _ = source;
         _ = reason;
 
         if (ReferenceEquals(origin, this) ||
@@ -717,6 +716,15 @@ public class Grid : Panel
             NeedsMeasure ||
             HasSharedSizeDefinitions() ||
             !IsGridDescendant(origin))
+        {
+            return false;
+        }
+
+        if (source is FrameworkElement sourceElement &&
+            (!sourceElement.IsMeasureValidForTests ||
+             !sourceElement.IsArrangeValidForTests ||
+             sourceElement.NeedsMeasure ||
+             sourceElement.NeedsArrange))
         {
             return false;
         }

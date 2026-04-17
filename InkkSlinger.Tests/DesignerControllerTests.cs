@@ -302,6 +302,288 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourcePropertyInspector_PropertyDescriptions_RemainRetainedAndRedrawAfterSwitchingControlTypes()
+    {
+        const string multiTypeViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 Background="#101820">
+              <StackPanel>
+                <Border x:Name="ChromeBorder"
+                    BorderBrush="#334455"
+                    BorderThickness="1" />
+                <Button x:Name="SaveButton"
+                    Content="Save" />
+                <TextBlock x:Name="StatusText"
+                    Text="Ready" />
+              </StackPanel>
+            </UserControl>
+            """;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = multiTypeViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        var viewport = new Viewport(0, 0, 1280, 840);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+        var buttonContentDescription = GetSourceInspectorPropertyDescription(shell.SourceEditorView, "Content");
+        Assert.Contains("set in source", buttonContentDescription.Text, StringComparison.Ordinal);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        Assert.Contains(buttonContentDescription, uiRoot.GetRetainedVisualOrderForTests());
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        var borderIndex = shell.SourceText.IndexOf("<Border", StringComparison.Ordinal);
+        Assert.True(borderIndex >= 0);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(borderIndex + 2, 0);
+
+        var borderSwitchShouldDraw = uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            viewport);
+
+        Assert.True(borderSwitchShouldDraw);
+        Assert.True(
+            (uiRoot.LastShouldDrawReasons & (UiRedrawReason.LayoutInvalidated | UiRedrawReason.RenderInvalidated)) != 0,
+            $"Expected switching the Property Inspector from Button to Border to schedule a redraw for rebuilt subtitle rows, but reasons were {uiRoot.LastShouldDrawReasons}.");
+
+        RunLayout(uiRoot, 1280, 840, 16);
+        var borderBrushDescription = GetSourceInspectorPropertyDescription(shell.SourceEditorView, "BorderBrush");
+        Assert.Contains("set in source", borderBrushDescription.Text, StringComparison.Ordinal);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        Assert.Contains(borderBrushDescription, uiRoot.GetRetainedVisualOrderForTests());
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        var textBlockIndex = shell.SourceText.IndexOf("<TextBlock", StringComparison.Ordinal);
+        Assert.True(textBlockIndex >= 0);
+        sourceEditor.Select(textBlockIndex + 2, 0);
+
+        var textBlockSwitchShouldDraw = uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.FromMilliseconds(32), TimeSpan.FromMilliseconds(16)),
+            viewport);
+
+        Assert.True(textBlockSwitchShouldDraw);
+        Assert.True(
+            (uiRoot.LastShouldDrawReasons & (UiRedrawReason.LayoutInvalidated | UiRedrawReason.RenderInvalidated)) != 0,
+            $"Expected switching the Property Inspector from Border to TextBlock to schedule a redraw for rebuilt subtitle rows, but reasons were {uiRoot.LastShouldDrawReasons}.");
+
+        RunLayout(uiRoot, 1280, 840, 16);
+        var textDescription = GetSourceInspectorPropertyDescription(shell.SourceEditorView, "Text");
+        Assert.Contains("set in source", textDescription.Text, StringComparison.Ordinal);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        Assert.Contains(textDescription, uiRoot.GetRetainedVisualOrderForTests());
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        var buttonIndex = shell.SourceText.IndexOf("<Button", StringComparison.Ordinal);
+        Assert.True(buttonIndex >= 0);
+        sourceEditor.Select(buttonIndex + 2, 0);
+
+        var buttonSwitchShouldDraw = uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.FromMilliseconds(48), TimeSpan.FromMilliseconds(16)),
+            viewport);
+
+        Assert.True(buttonSwitchShouldDraw);
+        Assert.True(
+            (uiRoot.LastShouldDrawReasons & (UiRedrawReason.LayoutInvalidated | UiRedrawReason.RenderInvalidated)) != 0,
+            $"Expected switching the Property Inspector back to Button to schedule a redraw for rebuilt subtitle rows, but reasons were {uiRoot.LastShouldDrawReasons}.");
+
+        RunLayout(uiRoot, 1280, 840, 16);
+        var buttonContentDescriptionAfterRoundTrip = GetSourceInspectorPropertyDescription(shell.SourceEditorView, "Content");
+        Assert.Contains("set in source", buttonContentDescriptionAfterRoundTrip.Text, StringComparison.Ordinal);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        Assert.Contains(buttonContentDescriptionAfterRoundTrip, uiRoot.GetRetainedVisualOrderForTests());
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_SwitchingSourceSelection_ShouldKeepDescriptionVisible()
+    {
+        const string multiTypeViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 Background="#101820">
+              <StackPanel>
+                <Border x:Name="ChromeBorder"
+                    BorderBrush="#334455"
+                    BorderThickness="1" />
+                <Button x:Name="SaveButton"
+                    Content="Save" />
+                <TextBlock x:Name="StatusText"
+                    Text="Ready" />
+              </StackPanel>
+            </UserControl>
+            """;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = multiTypeViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 1280f, 840f));
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        shell.ClearRenderInvalidationRecursive();
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Border");
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var borderBrushDescription = GetSourceInspectorPropertyDescription(shell.SourceEditorView, "BorderBrush");
+        var borderBrushDescriptionBounds = ResolveRenderedBounds(borderBrushDescription);
+
+        Assert.False(string.IsNullOrWhiteSpace(borderBrushDescription.Text));
+        Assert.Contains(borderBrushDescription, uiRoot.GetRetainedVisualOrderForTests());
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+        Assert.True(
+            borderBrushDescriptionBounds.Height > 0f,
+            $"Expected switching the source selection from Button to Border to keep the rebuilt subtitle visible, but its rendered height was {borderBrushDescriptionBounds.Height:0.###}. descriptionBounds={FormatRect(borderBrushDescriptionBounds)}, descriptionText='{borderBrushDescription.Text}'.");
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_FilterEdit_RestoresDescriptionVisibilityAfterControlSwitch()
+    {
+        const string multiTypeViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 Background="#101820">
+              <StackPanel>
+                <Border x:Name="ChromeBorder"
+                    BorderBrush="#334455"
+                    BorderThickness="1" />
+                <Button x:Name="SaveButton"
+                    Content="Save" />
+                <TextBlock x:Name="StatusText"
+                    Text="Ready" />
+              </StackPanel>
+            </UserControl>
+            """;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = multiTypeViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 1280f, 840f));
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        shell.ClearRenderInvalidationRecursive();
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Border");
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        var borderBrushDescription = GetSourceInspectorPropertyDescription(shell.SourceEditorView, "BorderBrush");
+        var borderBrushDescriptionBounds = ResolveRenderedBounds(borderBrushDescription);
+
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        shell.ClearRenderInvalidationRecursive();
+
+        var filterTextBox = GetSourceInspectorFilterTextBox(shell.SourceEditorView);
+        filterTextBox.Text = "Border";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var borderBrushDescriptionAfterFilter = GetSourceInspectorPropertyDescription(shell.SourceEditorView, "BorderBrush");
+        var borderBrushDescriptionBoundsAfterFilter = ResolveRenderedBounds(borderBrushDescriptionAfterFilter);
+
+        Assert.False(string.IsNullOrWhiteSpace(borderBrushDescriptionAfterFilter.Text));
+        Assert.True(
+            borderBrushDescriptionBoundsAfterFilter.Height > 0f,
+            $"Expected editing the Property Inspector filter after a control switch to restore the subtitle visibility, but its rendered height stayed {borderBrushDescriptionBoundsAfterFilter.Height:0.###}. beforeFilterBounds={FormatRect(borderBrushDescriptionBounds)}, afterFilterBounds={FormatRect(borderBrushDescriptionBoundsAfterFilter)}, descriptionText='{borderBrushDescriptionAfterFilter.Text}'.");
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_ViewportExpandAfterSourceSelection_ShouldKeepPropertyRowVisible()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 960, 640, 16);
+        RunLayout(uiRoot, 960, 640, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var contentRowBeforeResize = GetSourceInspectorPropertyRow(shell.SourceEditorView, "Content");
+        var contentRowBoundsBeforeResize = ResolveRenderedBounds(contentRowBeforeResize);
+
+        Assert.True(
+            contentRowBoundsBeforeResize.Height > 0f,
+            $"Expected the Content property row to be visible before viewport expansion, but bounds were {FormatRect(contentRowBoundsBeforeResize)}.");
+
+        RunLayout(uiRoot, 1920, 1080, 16);
+        RunLayout(uiRoot, 1920, 1080, 16);
+
+        var contentRowAfterResize = GetSourceInspectorPropertyRow(shell.SourceEditorView, "Content");
+        var contentRowBoundsAfterResize = ResolveRenderedBounds(contentRowAfterResize);
+
+        Assert.True(
+            contentRowBoundsAfterResize.Height > 0f,
+            $"Expected expanding the viewport after selecting a source tag to keep the Content property row visible, but bounds were {FormatRect(contentRowBoundsAfterResize)}.");
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_FilterEdit_RestoresPropertyRowVisibilityAfterViewportExpand()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 960, 640, 16);
+        RunLayout(uiRoot, 960, 640, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+        RunLayout(uiRoot, 1920, 1080, 16);
+        RunLayout(uiRoot, 1920, 1080, 16);
+
+        var contentRowBeforeFilter = GetSourceInspectorPropertyRow(shell.SourceEditorView, "Content");
+        var contentRowBoundsBeforeFilter = ResolveRenderedBounds(contentRowBeforeFilter);
+
+        var filterTextBox = GetSourceInspectorFilterTextBox(shell.SourceEditorView);
+        filterTextBox.Text = "con";
+        RunLayout(uiRoot, 1920, 1080, 16);
+
+        var contentRowAfterFilter = GetSourceInspectorPropertyRow(shell.SourceEditorView, "Content");
+        var contentRowBoundsAfterFilter = ResolveRenderedBounds(contentRowAfterFilter);
+
+        Assert.True(
+            contentRowBoundsAfterFilter.Height > 0f,
+            $"Expected editing the Property Inspector filter after viewport expansion to restore the Content property row visibility, but beforeFilterBounds={FormatRect(contentRowBoundsBeforeFilter)} and afterFilterBounds={FormatRect(contentRowBoundsAfterFilter)}.");
+    }
+
+    [Fact]
     public void ShellView_SourcePropertyInspector_EditingExistingProperty_UpdatesSourceWithoutRefreshingPreview()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -3421,6 +3703,14 @@ public class DesignerControllerTests
         return new LayoutRect(minX, minY, maxX - minX, maxY - minY);
     }
 
+    private static bool Intersects(LayoutRect first, LayoutRect second)
+    {
+        return first.X < second.X + second.Width &&
+               first.X + first.Width > second.X &&
+               first.Y < second.Y + second.Height &&
+               first.Y + first.Height > second.Y;
+    }
+
     private static Vector2 FindRenderedPoint(UIElement root, LayoutRect bounds, Func<UIElement, bool> predicate)
     {
         const float step = 2f;
@@ -3543,6 +3833,54 @@ public class DesignerControllerTests
         }
 
         return names;
+    }
+
+    private static TextBlock GetSourceInspectorPropertyDescription(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView, string propertyName)
+    {
+        var host = Assert.IsType<StackPanel>(sourceEditorView.FindName("SourcePropertyInspectorPropertiesHost"));
+        foreach (var child in host.Children)
+        {
+            if (child is not Border { Child: StackPanel rowStack })
+            {
+                continue;
+            }
+
+            if (rowStack.Children.Count < 2 ||
+                rowStack.Children[0] is not TextBlock header ||
+                rowStack.Children[1] is not TextBlock description ||
+                !string.Equals(header.Text, propertyName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            return description;
+        }
+
+        throw new Xunit.Sdk.XunitException($"Expected Property Inspector description row for '{propertyName}'.");
+    }
+
+    private static Border GetSourceInspectorPropertyRow(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView, string propertyName)
+    {
+        var host = Assert.IsType<StackPanel>(sourceEditorView.FindName("SourcePropertyInspectorPropertiesHost"));
+        foreach (var child in host.Children)
+        {
+            if (child is not Border { Child: StackPanel rowStack } row)
+            {
+                continue;
+            }
+
+            if (rowStack.Children.Count == 0 || rowStack.Children[0] is not TextBlock header)
+            {
+                continue;
+            }
+
+            if (string.Equals(header.Text, propertyName, StringComparison.Ordinal))
+            {
+                return row;
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException($"Expected Property Inspector row for '{propertyName}'.");
     }
 
     private static ListBoxItem OpenCompletionAndScrollToItem(
