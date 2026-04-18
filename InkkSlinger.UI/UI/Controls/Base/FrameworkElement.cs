@@ -1261,6 +1261,7 @@ public class FrameworkElement : UIElement
     {
         element._arrangeRect = OffsetLayoutRect(element._arrangeRect, delta);
         element.SetLayoutSlot(OffsetLayoutRect(element.LayoutSlot, delta));
+        element.OnArrangedSubtreeTranslated(delta);
 
         foreach (var child in element.GetVisualChildren())
         {
@@ -1269,6 +1270,11 @@ public class FrameworkElement : UIElement
                 TranslateArrangedSubtree(frameworkChild, delta);
             }
         }
+    }
+
+    protected virtual void OnArrangedSubtreeTranslated(Vector2 delta)
+    {
+        _ = delta;
     }
 
     private static bool RequiresArrangeRepairTraversal(FrameworkElement element)

@@ -953,6 +953,8 @@ public class ScrollViewer : ContentControl
     {
         var startTicks = Stopwatch.GetTimestamp();
         var previousViewportRect = _contentViewportRect;
+        var previousShowHorizontalBar = _showHorizontalBar;
+        var previousShowVerticalBar = _showVerticalBar;
         var border = MathF.Max(0f, BorderThickness);
         var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
         var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
@@ -963,8 +965,17 @@ public class ScrollViewer : ContentControl
         _showVerticalBar = decision.ShowVerticalBar;
         CacheResolvedScrollBarVisibility(decision.ShowHorizontalBar, decision.ShowVerticalBar);
         _contentViewportRect = decision.ViewportRect;
+        var clipStateChanged =
+            previousShowHorizontalBar != _showHorizontalBar ||
+            previousShowVerticalBar != _showVerticalBar ||
+            !AreLayoutRectsClose(previousViewportRect, _contentViewportRect);
         CoerceOffsetsToCurrentMetrics();
         ArrangeContentForCurrentOffsets(previousViewportRect);
+
+        if (clipStateChanged)
+        {
+            InvalidateVisual();
+        }
 
         if (_showHorizontalBar)
         {
@@ -1097,6 +1108,21 @@ public class ScrollViewer : ContentControl
             _contentViewportRect.Width + GetVerticalBarReservation(_showVerticalBar, verticalBarThickness),
             _contentViewportRect.Height + GetHorizontalBarReservation(_showHorizontalBar, horizontalBarThickness));
         return true;
+    }
+
+    protected override void OnArrangedSubtreeTranslated(Vector2 delta)
+    {
+        if (!AreFloatsClose(delta.X, 0f) || !AreFloatsClose(delta.Y, 0f))
+        {
+            _contentViewportRect = OffsetCachedRect(_contentViewportRect, delta);
+
+            if (_hasArrangedContentRect)
+            {
+                _lastArrangedContentRect = OffsetCachedRect(_lastArrangedContentRect, delta);
+            }
+        }
+
+        base.OnArrangedSubtreeTranslated(delta);
     }
 
     private (bool ShowHorizontalBar, bool ShowVerticalBar, float ExtentWidth, float ExtentHeight, float ViewportWidth, float ViewportHeight, LayoutRect ViewportRect)
@@ -1573,6 +1599,11 @@ public class ScrollViewer : ContentControl
         }
 
         return MathF.Abs(first - second) < 0.01f;
+    }
+
+    private static LayoutRect OffsetCachedRect(LayoutRect rect, Vector2 delta)
+    {
+        return new LayoutRect(rect.X + delta.X, rect.Y + delta.Y, rect.Width, rect.Height);
     }
 
     private bool ResolveHorizontalAutoBarVisibility(bool currentShowHorizontal, float extentWidth, float viewportWidth)

@@ -24,6 +24,8 @@ public sealed class InkkOopsTestScriptUsageTests
     private const string PreviewDockSplitterName = "PreviewDockSplitter";
     private const string PreviewSourceSplitterName = "PreviewSourceSplitter";
     private const string SourceEditorName = "SourceEditor";
+    private const string SourcePropertyInspectorSplitterName = "SourcePropertyInspectorSplitter";
+    private const string SourcePropertyInspectorScrollViewerName = "SourcePropertyInspectorScrollViewer";
 
     [Fact]
     public async Task RuntimePlayback_Opens_Real_App_And_Writes_Result()
@@ -268,6 +270,36 @@ public sealed class InkkOopsTestScriptUsageTests
             TryFindLoggedFpsForAction(actionLog, "KeyDown(Space)", out var ctrlSpaceFps),
             "Action log did not contain an fps entry for KeyDown(Space).");
         Assert.True(ctrlSpaceFps >= 0d, "Ctrl+Space fps entry should be non-negative.");
+    }
+
+    [Fact]
+    public async Task RuntimeRun_Designer_SourcePropertyInspector_Resize_Then_Maximize_Preserves_Repro_Artifacts()
+    {
+        var artifactsRoot = CreatePreservedArtifactsRoot("runtime-designer-source-property-inspector-resize-then-maximize");
+        var runDirectory = await RunRuntimeScenarioFromTestAssemblyAllowCompletedArtifactsAsync(
+            "runtime-designer-source-property-inspector-resize-then-maximize-repro-scenario",
+            GetDesignerProjectPath(),
+            artifactsRoot);
+
+        var resultJson = File.ReadAllText(Path.Combine(runDirectory, "result.json"));
+        var actionLogPath = Path.Combine(runDirectory, "action.log");
+        var actionLog = File.ReadAllText(actionLogPath);
+
+        Assert.Contains("\"status\": \"Completed\"", resultJson);
+        Assert.Contains("\"scriptName\": \"runtime-designer-source-property-inspector-resize-then-maximize-repro-scenario\"", resultJson);
+        Assert.True(File.Exists(actionLogPath));
+        Assert.Contains(SourceEditorName, actionLog);
+        Assert.Contains(SourcePropertyInspectorSplitterName, actionLog);
+        Assert.Contains(PreviewSourceSplitterName, actionLog);
+        Assert.Contains("window", actionLog, StringComparison.Ordinal);
+        Assert.Contains("- action[99] maximize", actionLog, StringComparison.Ordinal);
+
+        Assert.Contains(
+            Directory.GetFiles(runDirectory, "*.png").Select(Path.GetFileName),
+            fileName => fileName != null && fileName.Contains("source-property-inspector-after-maximize", StringComparison.Ordinal));
+        Assert.Contains(
+            Directory.GetFiles(runDirectory, "*.txt").Select(Path.GetFileName),
+            fileName => fileName != null && fileName.Contains("source-property-inspector-after-maximize", StringComparison.Ordinal));
     }
 
     private static async Task<string> RunRuntimeScenarioFromTestAssemblyAsync(string scriptName, string artifactsRoot)
@@ -752,6 +784,62 @@ public sealed class InkkOopsTestScriptUsageTests
                 .WaitFrames(24)
                 .PressKey(Keys.Escape)
                 .WaitFrames(12);
+        }
+    }
+
+    public sealed class RuntimeDesignerSourcePropertyInspectorResizeThenMaximizeReproScenario : InkkOopsRuntimeScenario
+    {
+        private const int PreviewButtonLineMoveCount = 28;
+        private const int PreviewButtonTagCharacterMoveCount = 10;
+
+        public override string Name => "runtime-designer-source-property-inspector-resize-then-maximize-repro-scenario";
+
+        protected override IEnumerable<int>? ActionDiagnosticsIndexes => [97, 98, 99, 100, 101, 102, 103, 104];
+
+        protected override void Build(InkkOopsScriptBuilder builder)
+        {
+            var dragMotion = InkkOopsPointerMotion.WithTravelFrames(18, stepDistance: 8f);
+
+            builder
+                .WaitFrames(24)
+                .WaitForInteractive(SourceEditorName)
+                .CaptureFrame("source-property-inspector-before-selection")
+                .Click(SourceEditorName, InkkOopsPointerAnchor.TopLeft)
+                .WaitFrames(4)
+                .PressKey(Keys.Home, ModifierKeys.Control);
+
+            for (var i = 0; i < PreviewButtonLineMoveCount; i++)
+            {
+                builder.PressKey(Keys.Down);
+            }
+
+            builder.PressKey(Keys.Home);
+
+            for (var i = 0; i < PreviewButtonTagCharacterMoveCount; i++)
+            {
+                builder.PressKey(Keys.Right);
+            }
+
+            builder
+                .WaitFrames(8)
+                .WaitForVisible(SourcePropertyInspectorScrollViewerName)
+                .CaptureFrame("source-property-inspector-after-selection")
+                .DumpTelemetry("source-property-inspector-after-selection")
+                .WaitForInteractive(PreviewSourceSplitterName)
+                .Drag(PreviewSourceSplitterName, 0f, -560f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12)
+                .WaitForInteractive(SourcePropertyInspectorSplitterName)
+                .Drag(SourcePropertyInspectorSplitterName, -520f, 0f, InkkOopsPointerAnchor.Center, MouseButton.Left, dragMotion)
+                .WaitFrames(12)
+                .CaptureFrame("source-property-inspector-after-resize")
+                .DumpTelemetry("source-property-inspector-after-resize")
+                .MaximizeWindow()
+                .WaitFrames(24)
+                .CaptureFrame("source-property-inspector-after-maximize")
+                .DumpTelemetry("source-property-inspector-after-maximize")
+                .WaitFrames(12)
+                .CaptureFrame("source-property-inspector-after-maximize-settled")
+                .DumpTelemetry("source-property-inspector-after-maximize-settled");
         }
     }
 }

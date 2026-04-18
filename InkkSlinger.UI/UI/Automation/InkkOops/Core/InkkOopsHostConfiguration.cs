@@ -49,11 +49,9 @@ public sealed class InkkOopsHostConfiguration
         {
             new InkkOopsGenericElementDiagnosticsContributor(),
             new InkkOopsFrameworkElementDiagnosticsContributor(),
-            new InkkOopsControlDiagnosticsContributor(),
-            new InkkOopsContentControlDiagnosticsContributor(),
-            new InkkOopsComboBoxDiagnosticsContributor(),
-            new InkkOopsColorPickerDiagnosticsContributor(),
-            new InkkOopsColorSpectrumDiagnosticsContributor(),
+            new InkkOopsUserControlDiagnosticsContributor(),
+            new InkkOopsGridDiagnosticsContributor(),
+            new InkkOopsScrollViewerDiagnosticsContributor(),
             new InkkOopsStackPanelDiagnosticsContributor(),
             new InkkOopsBorderDiagnosticsContributor()
         };
