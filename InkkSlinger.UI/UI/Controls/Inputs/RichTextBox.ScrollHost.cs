@@ -128,7 +128,7 @@ public partial class RichTextBox
         _runtimeContentHostViewportChangedEnsureHostedLayoutElapsedTicks += ensureHostedLayoutElapsed;
 
         var notifyViewportStart = Stopwatch.GetTimestamp();
-        QueueViewportChangedNotification();
+        NotifyViewportChangedIfNeeded();
         var notifyViewportElapsed = Stopwatch.GetTimestamp() - notifyViewportStart;
         _diagContentHostViewportChangedNotifyViewportElapsedTicks += notifyViewportElapsed;
         _runtimeContentHostViewportChangedNotifyViewportElapsedTicks += notifyViewportElapsed;

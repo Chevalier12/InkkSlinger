@@ -148,6 +148,54 @@ public sealed class RichTextBoxScrollHostTests
     }
 
     [Fact]
+    public void HandleMouseWheelFromInput_HostedScrollHost_RaisesViewportChangedImmediately()
+    {
+        var editor = CreateLaidOutEditor(140f, 80f, string.Join("\n", Enumerable.Range(1, 40).Select(static i => $"Line {i}")));
+        var border = Assert.IsType<Border>(Assert.Single(editor.GetVisualChildren()));
+        var contentHost = Assert.IsType<ScrollViewer>(border.Child);
+        var viewportChangedCount = 0;
+        editor.ViewportChanged += (_, _) => viewportChangedCount++;
+
+        Assert.True(editor.HandleMouseWheelFromInput(-120));
+        Assert.True(contentHost.VerticalOffset > 0f, $"Expected hosted scroll viewer to move, but offset stayed {contentHost.VerticalOffset:0.###}.");
+        Assert.True(
+            viewportChangedCount > 0,
+            $"Expected RichTextBox.HandleMouseWheelFromInput to raise ViewportChanged immediately when the hosted scroll viewer moved, but no event was raised. editorOffset={editor.VerticalOffset:0.###}, hostOffset={contentHost.VerticalOffset:0.###}.");
+    }
+
+    [Fact]
+    public void StartupLayout_UnfocusedHostedEditor_FlushesQueuedViewportChangedOnNextUpdate()
+    {
+        var editor = new RichTextBox
+        {
+            Width = 140f,
+            Height = 80f
+        };
+        DocumentEditing.ReplaceAllText(editor.Document, string.Join("\n", Enumerable.Range(1, 40).Select(static i => $"Line {i}")));
+
+        var host = new Canvas
+        {
+            Width = 180f,
+            Height = 120f
+        };
+
+        host.AddChild(editor);
+        var uiRoot = new UiRoot(host);
+        var viewport = new Viewport(0, 0, (int)host.Width, (int)host.Height);
+        var viewportChangedCount = 0;
+        editor.ViewportChanged += (_, _) => viewportChangedCount++;
+
+        Assert.False(editor.IsFocused);
+
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)), viewport);
+        uiRoot.Update(new GameTime(TimeSpan.FromMilliseconds(32), TimeSpan.FromMilliseconds(16)), viewport);
+
+        Assert.True(
+            viewportChangedCount > 0,
+            $"Expected startup layout to flush the queued RichTextBox viewport change on the next update frame even when unfocused, but no event was raised. extent={editor.ExtentHeight:0.###}, viewport={editor.ViewportHeight:0.###}, offset={editor.VerticalOffset:0.###}.");
+    }
+
+    [Fact]
     public void MouseWheel_OverScrollableRichTextBox_ShouldScrollHostedScrollViewer()
     {
         var (uiRoot, editor, contentHost) = CreateUiRootEditorFixture(140f, 80f, string.Join("\n", Enumerable.Range(1, 40).Select(static i => $"Line {i}")));

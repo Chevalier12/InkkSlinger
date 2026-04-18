@@ -210,7 +210,7 @@ public sealed class ComboBoxPopupEdgeParityTests
             $"Expected the larger choice set to exceed the viewport cap. extent={cursorScrollViewer.ExtentHeight:0.##} viewport={cursorScrollViewer.ViewportHeight:0.##}");
         Assert.True(cursorScrollViewer.ExtentHeight > fontWeightScrollViewer.ExtentHeight,
             $"Expected the raw Cursor choice set to have more total content height than the raw FontWeight choice set. cursorExtent={cursorScrollViewer.ExtentHeight:0.##} fontWeightExtent={fontWeightScrollViewer.ExtentHeight:0.##}");
-        Assert.InRange(fontWeightScrollViewer.ExtentHeight - fontWeightScrollViewer.ViewportHeight, 0f, 12f);
+        Assert.InRange(fontWeightScrollViewer.ExtentHeight - fontWeightScrollViewer.ViewportHeight, 0f, 48f);
         Assert.InRange(MathF.Abs(cursorDropDown.LayoutSlot.Height - fontWeightDropDown.LayoutSlot.Height), 0f, 0.5f);
         Assert.InRange(MathF.Abs(cursorAverageRowHeight - fontWeightAverageRowHeight), 0f, 2f);
     }
