@@ -316,6 +316,7 @@ public static partial class XamlLoader
     {
         XElement? rootVisual = null;
         var declarationScope = resourceScope;
+        var declarationCodeBehind = codeBehind;
         var declarationBuildContexts = CurrentResourceBuildContexts?.ToArray();
         foreach (var child in element.Elements())
         {
@@ -338,12 +339,13 @@ public static partial class XamlLoader
                 RunWithinTemplateDeclarationScope(
                     declarationScope,
                     declarationBuildContexts,
+                    declarationCodeBehind,
                     () =>
                 {
                     UIElement builtVisual = null!;
                     RunWithinDeferredFinalizeActions(() =>
                     {
-                        builtVisual = BuildElement(rootVisual, null, scope ?? resourceScope);
+                        builtVisual = BuildElement(rootVisual, declarationCodeBehind, scope ?? resourceScope);
                     });
                     return builtVisual;
                 }));
@@ -368,6 +370,9 @@ public static partial class XamlLoader
     private static ItemsPanelTemplate BuildItemsPanelTemplate(XElement element, object? codeBehind, FrameworkElement? resourceScope)
     {
         XElement? rootPanel = null;
+        var declarationScope = resourceScope;
+        var declarationCodeBehind = codeBehind;
+        var declarationBuildContexts = CurrentResourceBuildContexts?.ToArray();
         foreach (var child in element.Elements())
         {
             if (rootPanel != null)
@@ -393,14 +398,19 @@ public static partial class XamlLoader
         return new ItemsPanelTemplate(owner =>
         {
             var built = RunWithinIsolatedTemplateInstantiationScope(() =>
-            {
-                UIElement builtPanel = null!;
-                RunWithinDeferredFinalizeActions(() =>
-                {
-                    builtPanel = BuildElement(templatePanelRoot, codeBehind, owner ?? resourceScope);
-                });
-                return builtPanel;
-            });
+                RunWithinTemplateDeclarationScope(
+                    declarationScope,
+                    declarationBuildContexts,
+                    declarationCodeBehind,
+                    () =>
+                    {
+                        UIElement builtPanel = null!;
+                        RunWithinDeferredFinalizeActions(() =>
+                        {
+                            builtPanel = BuildElement(templatePanelRoot, declarationCodeBehind, owner ?? resourceScope);
+                        });
+                        return builtPanel;
+                    }));
             if (built is Panel panel)
             {
                 return panel;
@@ -415,6 +425,9 @@ public static partial class XamlLoader
     {
         var targetTypeText = GetOptionalAttributeValue(element, nameof(ControlTemplate.TargetType));
         var targetType = string.IsNullOrWhiteSpace(targetTypeText) ? typeof(Control) : ResolveStyleTargetType(targetTypeText);
+        var declarationScope = resourceScope;
+        var declarationCodeBehind = codeBehind;
+        var declarationBuildContexts = CurrentResourceBuildContexts?.ToArray();
 
         XElement? visualRoot = null;
         var triggerDefinitions = new List<XElement>();
@@ -460,14 +473,19 @@ public static partial class XamlLoader
         var template = new ControlTemplate(owner =>
         {
             var built = RunWithinIsolatedTemplateInstantiationScope(() =>
-            {
-                UIElement builtVisual = null!;
-                RunWithinDeferredFinalizeActions(() =>
-                {
-                    builtVisual = BuildElement(templateVisualRoot, null, owner);
-                });
-                return builtVisual;
-            });
+                RunWithinTemplateDeclarationScope(
+                    declarationScope,
+                    declarationBuildContexts,
+                    declarationCodeBehind,
+                    () =>
+                    {
+                        UIElement builtVisual = null!;
+                        RunWithinDeferredFinalizeActions(() =>
+                        {
+                            builtVisual = BuildElement(templateVisualRoot, declarationCodeBehind, owner);
+                        });
+                        return builtVisual;
+                    }));
             if (built is FrameworkElement templateRoot && visualStateGroupElements.Count > 0)
             {
                 VisualStateManager.SetVisualStateGroups(

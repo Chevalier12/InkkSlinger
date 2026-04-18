@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.Designer.DesignerSourceColorPropertyEditor"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="urn:inkkslinger-ui ../InkkSlinger.UI/Schemas/InkkSlinger.UI.xsd
+                                 http://schemas.microsoft.com/winfx/2006/xaml ../InkkSlinger.UI/Schemas/Xaml2006.xsd"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch">
+  <Grid>
+    <ComboBox x:Name="EditorComboBox"
+              Background="#081018"
+              Foreground="#D8E3EE"
+              BorderBrush="#243342"
+              BorderThickness="1"
+              Padding="8,5,8,5"
+              FontFamily="Consolas"
+              FontSize="12"
+              HorizontalAlignment="Stretch"
+              MaxDropDownHeight="280">
+      <ComboBoxItem x:Name="DisplayItem"
+                    Text="" />
+      <ComboBoxItem Text="Hue" />
+      <ComboBoxItem Text="Alpha" />
+    </ComboBox>
+
+    <Popup x:Name="InteractivePopup"
+          Closed="OnInteractivePopupClosed"
+           Title=""
+           TitleBarHeight="0"
+           CanClose="False"
+           CanDragMove="False"
+           DismissOnOutsideClick="True"
+           BorderThickness="1"
+           BorderBrush="#233449"
+           Background="#090D13"
+           Padding="0">
+      <StackPanel x:Name="InteractivePopupItemsHost">
+        <ComboBoxItem x:Name="ColorPickerItem"
+                      Text=""
+                      Padding="6"
+                      Background="#090D13"
+                      SelectedBackground="#090D13"
+                      BorderBrush="#090D13"
+                      Foreground="#D8E3EE"
+                      FontFamily="Consolas"
+                      FontSize="12">
+          <Border Background="#081018"
+                  BorderBrush="#243342"
+                  BorderThickness="1"
+                  Padding="6">
+            <ColorPicker x:Name="ColorPickerControl"
+                         SelectedColorChanged="OnColorPickerSelectedColorChanged"
+                         Height="140"
+                         HorizontalAlignment="Stretch" />
+          </Border>
+        </ComboBoxItem>
+        <ComboBoxItem x:Name="HueSpectrumItem"
+                      Text="Hue"
+                      Padding="6"
+                      Background="#090D13"
+                      SelectedBackground="#090D13"
+                      BorderBrush="#090D13"
+                      Foreground="#D8E3EE"
+                      FontFamily="Consolas"
+                      FontSize="12">
+          <Border Background="#081018"
+                  BorderBrush="#243342"
+                  BorderThickness="1"
+                  Padding="6">
+            <ColorSpectrum x:Name="HueSpectrumControl"
+                           SelectedColorChanged="OnHueSpectrumSelectedColorChanged"
+                           Mode="Hue"
+                           Orientation="Horizontal"
+                           Height="20"
+                           HorizontalAlignment="Stretch" />
+          </Border>
+        </ComboBoxItem>
+        <ComboBoxItem x:Name="AlphaSpectrumItem"
+                      Text="Alpha"
+                      Padding="6"
+                      Background="#090D13"
+                      SelectedBackground="#090D13"
+                      BorderBrush="#090D13"
+                      Foreground="#D8E3EE"
+                      FontFamily="Consolas"
+                      FontSize="12">
+          <Border Background="#081018"
+                  BorderBrush="#243342"
+                  BorderThickness="1"
+                  Padding="6">
+            <ColorSpectrum x:Name="AlphaSpectrumControl"
+                           SelectedColorChanged="OnAlphaSpectrumSelectedColorChanged"
+                           Mode="Alpha"
+                           Orientation="Horizontal"
+                           Height="20"
+                           HorizontalAlignment="Stretch" />
+          </Border>
+        </ComboBoxItem>
+      </StackPanel>
+    </Popup>
+  </Grid>
+</UserControl>

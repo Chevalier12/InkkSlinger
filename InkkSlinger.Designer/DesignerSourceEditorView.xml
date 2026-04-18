@@ -131,6 +131,68 @@
       <Setter Property="FontFamily" Value="Consolas" />
       <Setter Property="FontSize" Value="12" />
     </Style>
+
+    <Style x:Key="DesignerInspectorTextBoxStyle"
+           TargetType="{x:Type TextBox}">
+      <Setter Property="Background" Value="#081018" />
+      <Setter Property="Foreground" Value="#D8E3EE" />
+      <Setter Property="BorderBrush" Value="#243342" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="8,5,8,5" />
+      <Setter Property="FontFamily" Value="Consolas" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <DataTemplate x:Key="SourcePropertyTextEditorTemplate">
+      <TextBox Style="{StaticResource DesignerInspectorTextBoxStyle}"
+               TextChanged="OnSourcePropertyEditorTextChanged"
+               Text="{Binding EditorText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="SourcePropertyChoiceEditorTemplate">
+      <ComboBox Style="{StaticResource DesignerInspectorComboBoxStyle}"
+                SelectionChanged="OnSourcePropertyChoiceSelectionChanged"
+                ItemsSource="{Binding ChoiceValues}"
+                SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                ItemContainerStyle="{StaticResource DesignerComboBoxItemStyle}"
+                DropDownListStyle="{StaticResource DesignerComboBoxDropDownListStyle}"
+                DropDownPopupStyle="{StaticResource DesignerComboBoxDropDownPopupStyle}"
+                MaxDropDownHeight="240" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="SourcePropertyColorEditorTemplate">
+      <DesignerSourceColorPropertyEditor PropertyName="{Binding Name}"
+                                         DisplayText="{Binding ColorDisplayText}"
+                                         SelectedColorValue="{Binding SelectedColor}" />
+    </DataTemplate>
+
+    <DesignerSourceInspectorEditorTemplateSelector x:Key="SourcePropertyEditorTemplateSelector"
+                                                   TextTemplate="{StaticResource SourcePropertyTextEditorTemplate}"
+                                                   ChoiceTemplate="{StaticResource SourcePropertyChoiceEditorTemplate}"
+                                                   ColorTemplate="{StaticResource SourcePropertyColorEditorTemplate}" />
+
+    <DataTemplate x:Key="SourcePropertyRowTemplate">
+      <Border Background="#0B1118"
+              BorderBrush="#0F1A26"
+              BorderThickness="0,0,0,1"
+              Padding="0,0,0,10"
+              Margin="0,0,0,10"
+              Visibility="{Binding RowVisibility}">
+        <StackPanel>
+          <TextBlock Text="{Binding Name}"
+                     Foreground="#C8D8E8"
+                     FontSize="12"
+                     FontWeight="SemiBold" />
+          <TextBlock Text="{Binding DescriptionText}"
+                     Foreground="#4A6880"
+                     FontSize="10"
+                     Margin="0,2,0,6"
+                     TextWrapping="Wrap" />
+          <ContentControl Content="{Binding}"
+                          ContentTemplateSelector="{StaticResource SourcePropertyEditorTemplateSelector}" />
+        </StackPanel>
+      </Border>
+    </DataTemplate>
   </UserControl.Resources>
 
   <Grid>
@@ -253,12 +315,27 @@
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Visibility="Collapsed">
-              <StackPanel x:Name="SourcePropertyInspectorPropertiesHost"
-                          Margin="8,8,8,10" />
+              <ItemsControl x:Name="SourcePropertyInspectorPropertiesHost"
+                            Margin="8,8,8,10"
+                            ItemsSource="{Binding SourcePropertyInspectorItems, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type DesignerSourceEditorView}}}"
+                            ItemTemplate="{StaticResource SourcePropertyRowTemplate}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
             </ScrollViewer>
           </Grid>
         </Grid>
       </Grid>
     </Border>
+
+    <Popup x:Name="CompletionPopup"
+           Style="{StaticResource CompletionPopupStyle}"
+           MaxHeight="260">
+      <ListBox x:Name="CompletionListBox"
+               Style="{StaticResource CompletionListBoxStyle}" />
+    </Popup>
   </Grid>
 </UserControl>

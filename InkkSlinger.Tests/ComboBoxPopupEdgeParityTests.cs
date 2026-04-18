@@ -472,6 +472,62 @@ public sealed class ComboBoxPopupEdgeParityTests
     }
 
     [Fact]
+    public void ClickingDropDownItem_OverlappingComboBox_ShouldNotOpenUnderlyingComboBox()
+    {
+        var host = new Canvas
+        {
+            Width = 480f,
+            Height = 280f
+        };
+
+        var comboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 32f
+        };
+        comboBox.Items.Add("Alpha");
+        comboBox.Items.Add("Beta");
+        comboBox.Items.Add("Gamma");
+        comboBox.SelectedIndex = 2;
+        host.AddChild(comboBox);
+        Canvas.SetLeft(comboBox, 24f);
+        Canvas.SetTop(comboBox, 24f);
+
+        var underlyingComboBox = new ComboBox
+        {
+            Width = 220f,
+            Height = 32f
+        };
+        underlyingComboBox.Items.Add("One");
+        underlyingComboBox.Items.Add("Two");
+        underlyingComboBox.Items.Add("Three");
+        underlyingComboBox.SelectedIndex = 1;
+        host.AddChild(underlyingComboBox);
+        Canvas.SetLeft(underlyingComboBox, 24f);
+        Canvas.SetTop(underlyingComboBox, 58f);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        comboBox.IsDropDownOpen = true;
+        RunLayout(uiRoot);
+        Assert.True(comboBox.IsDropDownOpen);
+        Assert.False(underlyingComboBox.IsDropDownOpen);
+
+        var dropDown = comboBox.DropDownListForTesting;
+        Assert.NotNull(dropDown);
+
+        var clickPoint = new Vector2(dropDown!.LayoutSlot.X + 12f, dropDown.LayoutSlot.Y + 12f);
+        Click(uiRoot, clickPoint);
+
+        Assert.Equal(0, comboBox.SelectedIndex);
+        Assert.False(comboBox.IsDropDownOpen);
+        Assert.False(underlyingComboBox.IsDropDownOpen);
+        Assert.False(underlyingComboBox.IsDropDownPopupOpenForTesting);
+        Assert.Equal(1, underlyingComboBox.SelectedIndex);
+    }
+
+    [Fact]
     public void AfterDropDownCloses_ClickingFormerItemArea_ShouldHitUnderlyingButton()
     {
         var host = new Canvas

@@ -1320,7 +1320,20 @@ public sealed partial class UiRoot
             target = ancestorButton;
         }
 
+        if (button == MouseButton.Left &&
+            target is not ComboBox &&
+            !IsKnownClickCapableElement(target) &&
+            VisualTreeHelper.HitTest(_visualRoot, pointerPosition, static element => element is ComboBox) is ComboBox comboBoxTarget)
+        {
+            target = comboBoxTarget;
+        }
+
         UpdateHover(target);
+
+        if (target == null)
+        {
+            return;
+        }
 
         UIElement? textInputTarget = null;
         if (button == MouseButton.Left &&
@@ -1333,8 +1346,8 @@ public sealed partial class UiRoot
         RefreshCachedClickTarget(target);
 
         _lastInputPointerEventCount++;
-    _lastInputRoutedEventCount += button is MouseButton.Left or MouseButton.Right ? 4 : 2;
-    RaiseMouseDownRoutedEvents(target, pointerPosition, button, _inputState.CurrentModifiers);
+        _lastInputRoutedEventCount += button is MouseButton.Left or MouseButton.Right ? 4 : 2;
+        RaiseMouseDownRoutedEvents(target, pointerPosition, button, _inputState.CurrentModifiers);
         var dataGridFocusTarget = target != null &&
                                   TryFindAncestor<DataGrid>(target, out var focusedDataGrid) &&
                                   focusedDataGrid != null &&

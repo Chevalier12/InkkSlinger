@@ -3703,60 +3703,71 @@ public class DesignerControllerTests
 
     private static ListBox GetCompletionListBox(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
     {
-        var field = typeof(InkkSlinger.Designer.DesignerSourceEditorView).GetField("_completionListBox", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        return Assert.IsType<ListBox>(field!.GetValue(sourceEditorView));
+        return Assert.IsType<ListBox>(sourceEditorView.FindName("CompletionListBox"));
     }
 
     private static IReadOnlyDictionary<string, FrameworkElement> GetSourceInspectorPropertyEditors(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
     {
-        var field = typeof(InkkSlinger.Designer.DesignerSourceEditorView).GetField("_sourcePropertyEditorsByName", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        return Assert.IsAssignableFrom<IReadOnlyDictionary<string, FrameworkElement>>(field!.GetValue(sourceEditorView));
+        var visiblePropertyNames = GetVisibleSourceInspectorPropertyNames(sourceEditorView);
+        var editors = new Dictionary<string, FrameworkElement>(StringComparer.Ordinal);
+        foreach (var propertyName in visiblePropertyNames)
+        {
+            var row = GetSourceInspectorPropertyRow(sourceEditorView, propertyName);
+            FrameworkElement? editor = FindDescendantOrDefault<TextBox>(row);
+            editor ??= FindDescendantOrDefault<ComboBox>(row);
+            if (editor == null)
+            {
+                var colorEditorHost = FindDescendantOrDefault<InkkSlinger.Designer.DesignerSourceColorPropertyEditor>(row);
+                editor = colorEditorHost == null
+                    ? null
+                    : Assert.IsType<ComboBox>(colorEditorHost.FindName("EditorComboBox"));
+            }
+            if (editor == null)
+            {
+                throw new Xunit.Sdk.XunitException($"Expected Property Inspector editor for '{propertyName}'.");
+            }
+
+            editors[propertyName] = editor;
+        }
+
+        return editors;
     }
 
     private static Popup GetSourceInspectorColorEditorPopup(ComboBox editor)
     {
-        return GetPrivateField<Popup>(editor, "_interactivePopup");
+        return Assert.IsType<Popup>(GetSourceInspectorColorEditorHost(editor).FindName("InteractivePopup"));
     }
 
     private static ListBox GetComboBoxDropDownList(ComboBox editor)
     {
-        return GetPrivateField<ListBox>(editor, "_dropDownList");
+        var field = typeof(ComboBox).GetField("_dropDownList", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        return Assert.IsType<ListBox>(field!.GetValue(editor));
     }
 
     private static StackPanel GetSourceInspectorColorEditorPopupItemsHost(ComboBox editor)
     {
-        return GetPrivateField<StackPanel>(editor, "_interactivePopupItemsHost");
+        return Assert.IsType<StackPanel>(GetSourceInspectorColorEditorHost(editor).FindName("InteractivePopupItemsHost"));
     }
 
     private static ColorPicker GetSourceInspectorColorEditorColorPicker(ComboBox editor)
     {
-        return GetPrivateField<ColorPicker>(editor, "_colorPicker");
+        return Assert.IsType<ColorPicker>(GetSourceInspectorColorEditorHost(editor).FindName("ColorPickerControl"));
     }
 
     private static ColorSpectrum GetSourceInspectorColorEditorHueSpectrum(ComboBox editor)
     {
-        return GetPrivateField<ColorSpectrum>(editor, "_hueSpectrum");
+        return Assert.IsType<ColorSpectrum>(GetSourceInspectorColorEditorHost(editor).FindName("HueSpectrumControl"));
     }
 
     private static ColorSpectrum GetSourceInspectorColorEditorAlphaSpectrum(ComboBox editor)
     {
-        return GetPrivateField<ColorSpectrum>(editor, "_alphaSpectrum");
+        return Assert.IsType<ColorSpectrum>(GetSourceInspectorColorEditorHost(editor).FindName("AlphaSpectrumControl"));
     }
 
-    private static T GetPrivateField<T>(object instance, string fieldName)
+    private static InkkSlinger.Designer.DesignerSourceColorPropertyEditor GetSourceInspectorColorEditorHost(ComboBox editor)
     {
-        for (var currentType = instance.GetType(); currentType != null; currentType = currentType.BaseType)
-        {
-            var field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            if (field != null)
-            {
-                return Assert.IsType<T>(field.GetValue(instance));
-            }
-        }
-
-        throw new Xunit.Sdk.XunitException($"Could not find private field '{fieldName}' on type hierarchy rooted at {instance.GetType().FullName}.");
+        return Assert.IsType<InkkSlinger.Designer.DesignerSourceColorPropertyEditor>(FindSelfOrAncestor<InkkSlinger.Designer.DesignerSourceColorPropertyEditor>(editor));
     }
 
     private static void OpenSourceInspectorColorEditor(UiRoot uiRoot, ComboBox editor)
@@ -3922,9 +3933,9 @@ public class DesignerControllerTests
 
     private static IReadOnlyList<string> GetVisibleSourceInspectorPropertyNames(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
     {
-        var host = Assert.IsType<StackPanel>(sourceEditorView.FindName("SourcePropertyInspectorPropertiesHost"));
+        var host = Assert.IsType<ItemsControl>(sourceEditorView.FindName("SourcePropertyInspectorPropertiesHost"));
         var names = new List<string>();
-        foreach (var child in host.Children)
+        foreach (var child in host.GetVisualChildren())
         {
             if (child is not Border { Visibility: Visibility.Visible, Child: StackPanel rowStack })
             {
@@ -3944,8 +3955,8 @@ public class DesignerControllerTests
 
     private static TextBlock GetSourceInspectorPropertyDescription(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView, string propertyName)
     {
-        var host = Assert.IsType<StackPanel>(sourceEditorView.FindName("SourcePropertyInspectorPropertiesHost"));
-        foreach (var child in host.Children)
+        var host = Assert.IsType<ItemsControl>(sourceEditorView.FindName("SourcePropertyInspectorPropertiesHost"));
+        foreach (var child in host.GetVisualChildren())
         {
             if (child is not Border { Child: StackPanel rowStack })
             {
@@ -3968,8 +3979,8 @@ public class DesignerControllerTests
 
     private static Border GetSourceInspectorPropertyRow(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView, string propertyName)
     {
-        var host = Assert.IsType<StackPanel>(sourceEditorView.FindName("SourcePropertyInspectorPropertiesHost"));
-        foreach (var child in host.Children)
+        var host = Assert.IsType<ItemsControl>(sourceEditorView.FindName("SourcePropertyInspectorPropertiesHost"));
+        foreach (var child in host.GetVisualChildren())
         {
             if (child is not Border { Child: StackPanel rowStack } row)
             {

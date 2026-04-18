@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections;
+using System.ComponentModel;
 using System.Linq;
 using InkkSlinger;
 using Microsoft.Xna.Framework;
@@ -9,7 +11,6 @@ namespace InkkSlinger.Designer;
 
 public partial class DesignerSourceEditorView : UserControl
 {
-    private const float SourceLineNumberGutterRightPadding = 6f;
     private const float CompletionPopupVerticalOffset = 4f;
     private const float CompletionPopupMaxHeight = 260f;
     private const float CompletionPopupMinWidth = 180f;
@@ -47,6 +48,13 @@ public partial class DesignerSourceEditorView : UserControl
                     }
                 }));
 
+    public static readonly DependencyProperty SourcePropertyInspectorItemsProperty =
+        DependencyProperty.Register(
+            nameof(SourcePropertyInspectorItems),
+            typeof(IEnumerable),
+            typeof(DesignerSourceEditorView),
+            new FrameworkPropertyMetadata(Array.Empty<object>()));
+
     private bool _suppressSourceEditorChanges;
     private int _cachedSourceLineCount = 1;
     private int _lastRenderedSourceLineCount = -1;
@@ -58,17 +66,13 @@ public partial class DesignerSourceEditorView : UserControl
     private float _lastObservedViewportVerticalOffset = float.NaN;
     private float _lastObservedViewportWidth = float.NaN;
     private float _lastObservedViewportHeight = float.NaN;
-    private readonly Popup _completionPopup;
-    private readonly ListBox _completionListBox;
     private IReadOnlyList<DesignerControlCompletionItem> _completionItems = Array.Empty<DesignerControlCompletionItem>();
     private IReadOnlyList<string> _completionItemNames = Array.Empty<string>();
     private IReadOnlyList<DesignerSourceInspectableProperty> _currentSourceInspectorProperties = Array.Empty<DesignerSourceInspectableProperty>();
     private CompletionContext? _completionContext;
     private bool _suppressCompletionListSelectionChanged;
     private LayoutRect _lastCompletionCaretBounds;
-    private readonly Dictionary<string, FrameworkElement> _sourcePropertyEditorsByName = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, TextBlock> _sourcePropertyDescriptionsByName = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Border> _sourcePropertyRowsByName = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DesignerSourceInspectorPropertyItem> _sourcePropertyItemsByName = new(StringComparer.Ordinal);
     private Type? _currentSourceInspectorControlType;
     private DesignerSourceTagSelection? _currentSourceTagSelection;
     private bool _suppressSourceInspectorApply;
@@ -77,13 +81,17 @@ public partial class DesignerSourceEditorView : UserControl
     public DesignerSourceEditorView()
     {
         InitializeComponent();
-        LineNumberPanel.Margin = new Thickness(0f, 10f, SourceLineNumberGutterRightPadding, 0f);
+        if (Content is Panel rootPanel)
+        {
+            _ = rootPanel.RemoveChild(CompletionPopup);
+        }
+
+        LineNumberPanel.Margin = new Thickness(0f, 10f, 6f, 0f);
         LineNumberPanel.LineForeground = new Color(74, 104, 128);
         LineNumberPanel.FontFamily = new FontFamily("Consolas");
-        (_completionPopup, _completionListBox) = CreateCompletionPopup();
-        _completionPopup.Closed += OnCompletionPopupClosed;
-        _completionListBox.SelectionChanged += OnCompletionListSelectionChanged;
-        _completionListBox.AddHandler<MouseRoutedEventArgs>(UIElement.MouseUpEvent, OnCompletionListMouseUp, handledEventsToo: true);
+        CompletionPopup.Closed += OnCompletionPopupClosed;
+        CompletionListBox.SelectionChanged += OnCompletionListSelectionChanged;
+        CompletionListBox.AddHandler<MouseRoutedEventArgs>(UIElement.MouseUpEvent, OnCompletionListMouseUp, handledEventsToo: true);
         SourceEditor.AddHandler<KeyRoutedEventArgs>(UIElement.KeyDownEvent, OnSourceEditorKeyDown, handledEventsToo: true);
         SourceEditor.AddHandler<FocusChangedRoutedEventArgs>(UIElement.LostFocusEvent, OnSourceEditorLostFocus, handledEventsToo: true);
         SourceEditor.SelectionChanged += OnSourceEditorSelectionChanged;
@@ -110,13 +118,19 @@ public partial class DesignerSourceEditorView : UserControl
 
     public DesignerSourceLineNumberPresenter LineNumberPanel => (DesignerSourceLineNumberPresenter)SourceLineNumberPanel;
 
-    public bool IsControlCompletionOpen => _completionPopup.IsOpen;
+    public IEnumerable SourcePropertyInspectorItems
+    {
+        get => GetValue<IEnumerable>(SourcePropertyInspectorItemsProperty) ?? Array.Empty<object>();
+        private set => SetValue(SourcePropertyInspectorItemsProperty, value ?? Array.Empty<object>());
+    }
+
+    public bool IsControlCompletionOpen => CompletionPopup.IsOpen;
 
     public IReadOnlyList<string> ControlCompletionItems => _completionItemNames;
 
-    public int ControlCompletionSelectedIndex => _completionListBox.SelectedIndex;
+    public int ControlCompletionSelectedIndex => CompletionListBox.SelectedIndex;
 
-    public LayoutRect ControlCompletionBounds => _completionPopup.LayoutSlot;
+    public LayoutRect ControlCompletionBounds => CompletionPopup.LayoutSlot;
 
     public bool TryOpenControlCompletion()
     {
@@ -399,8 +413,8 @@ public partial class DesignerSourceEditorView : UserControl
         var properties = DesignerSourcePropertyInspector.GetInspectableProperties(controlType, selection);
         var shouldRebuild =
             _currentSourceInspectorControlType != controlType ||
-            _sourcePropertyEditorsByName.Count != properties.Count ||
-            properties.Any(property => !_sourcePropertyEditorsByName.ContainsKey(property.Name));
+            _sourcePropertyItemsByName.Count != properties.Count ||
+            properties.Any(property => !_sourcePropertyItemsByName.ContainsKey(property.Name));
 
         _currentSourceTagSelection = selection;
         _currentSourceInspectorControlType = controlType;
@@ -427,44 +441,16 @@ public partial class DesignerSourceEditorView : UserControl
     {
         ClearSourcePropertyInspectorEditorState();
 
+        var items = new List<DesignerSourceInspectorPropertyItem>(properties.Count);
         foreach (var property in properties)
         {
-            var rowBorder = new Border
-            {
-                Background = new Color(11, 17, 24),
-                BorderBrush = new Color(15, 26, 38),
-                BorderThickness = new Thickness(0f, 0f, 0f, 1f),
-                Padding = new Thickness(0f, 0f, 0f, 10f),
-                Margin = new Thickness(0f, 0f, 0f, 10f)
-            };
-
-            var rowStack = new StackPanel();
-            var headerText = new TextBlock
-            {
-                Text = property.Name,
-                Foreground = new Color(200, 216, 232),
-                FontSize = 12f,
-                FontWeight = "SemiBold"
-            };
-            var descriptionText = new TextBlock
-            {
-                Foreground = new Color(74, 104, 128),
-                FontSize = 10f,
-                Margin = new Thickness(0f, 2f, 0f, 6f),
-                TextWrapping = TextWrapping.Wrap
-            };
-            var editor = CreateSourcePropertyEditor(property);
-
-            rowStack.AddChild(headerText);
-            rowStack.AddChild(descriptionText);
-            rowStack.AddChild(editor);
-            rowBorder.Child = rowStack;
-            SourcePropertyInspectorPropertiesHost.AddChild(rowBorder);
-
-            _sourcePropertyEditorsByName[property.Name] = editor;
-            _sourcePropertyDescriptionsByName[property.Name] = descriptionText;
-            _sourcePropertyRowsByName[property.Name] = rowBorder;
+            var item = new DesignerSourceInspectorPropertyItem(property);
+            item.PropertyChanged += OnSourceInspectorPropertyItemPropertyChanged;
+            _sourcePropertyItemsByName[property.Name] = item;
+            items.Add(item);
         }
+
+        SourcePropertyInspectorItems = items;
 
         UpdateSourcePropertyEditorValues(selection, properties, activePropertyName: null, activeEditorText: null);
     }
@@ -480,8 +466,7 @@ public partial class DesignerSourceEditorView : UserControl
         {
             foreach (var property in properties)
             {
-                if (!_sourcePropertyEditorsByName.TryGetValue(property.Name, out var editor) ||
-                    !_sourcePropertyDescriptionsByName.TryGetValue(property.Name, out var description))
+                if (!_sourcePropertyItemsByName.TryGetValue(property.Name, out var item))
                 {
                     continue;
                 }
@@ -489,29 +474,31 @@ public partial class DesignerSourceEditorView : UserControl
                 var currentValue = selection.TryGetAttribute(property.Name, out var attribute)
                     ? attribute.Value
                     : string.Empty;
-                description.Text = BuildSourcePropertyDescription(property, currentValue);
-                if (editor is TextBox textEditor &&
-                    string.Equals(activePropertyName, property.Name, StringComparison.Ordinal) &&
-                    textEditor.IsFocused)
+                item.DescriptionText = BuildSourcePropertyDescription(property, currentValue);
+                if (property.EditorKind == DesignerSourcePropertyEditorKind.Text &&
+                    string.Equals(activePropertyName, property.Name, StringComparison.Ordinal))
                 {
-                    if (activeEditorText != null && !string.Equals(textEditor.Text, activeEditorText, StringComparison.Ordinal))
+                    if (activeEditorText != null && !string.Equals(item.EditorText, activeEditorText, StringComparison.Ordinal))
                     {
-                        textEditor.Text = activeEditorText;
+                        item.EditorText = activeEditorText;
                     }
 
                     continue;
                 }
 
-                switch (editor)
+                switch (property.EditorKind)
                 {
-                    case TextBox currentTextEditor when !string.Equals(currentTextEditor.Text, currentValue, StringComparison.Ordinal):
-                        currentTextEditor.Text = currentValue;
+                    case DesignerSourcePropertyEditorKind.Color:
+                        UpdateSourcePropertyColorEditorValue(item, property, currentValue);
                         break;
-                    case SourceColorPropertyEditor currentColorEditor:
-                        UpdateSourcePropertyColorEditorValue(currentColorEditor, property, currentValue);
+                    case DesignerSourcePropertyEditorKind.Choice:
+                        UpdateSourcePropertyChoiceEditorValue(item, property, currentValue);
                         break;
-                    case ComboBox currentComboBox:
-                        UpdateSourcePropertyChoiceEditorValue(currentComboBox, property, currentValue);
+                    default:
+                        if (!string.Equals(item.EditorText, currentValue, StringComparison.Ordinal))
+                        {
+                            item.EditorText = currentValue;
+                        }
                         break;
                 }
             }
@@ -557,7 +544,7 @@ public partial class DesignerSourceEditorView : UserControl
         var hasVisibleProperties = false;
         foreach (var property in properties)
         {
-            if (!_sourcePropertyRowsByName.TryGetValue(property.Name, out var row))
+            if (!_sourcePropertyItemsByName.TryGetValue(property.Name, out var item))
             {
                 continue;
             }
@@ -566,7 +553,7 @@ public partial class DesignerSourceEditorView : UserControl
                 ? attribute.Value
                 : string.Empty;
             var isVisible = MatchesSourcePropertyInspectorFilter(property, currentValue, filterText);
-            row.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+            item.RowVisibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
             hasVisibleProperties |= isVisible;
         }
 
@@ -604,34 +591,38 @@ public partial class DesignerSourceEditorView : UserControl
     private void OnSourcePropertyEditorTextChanged(object? sender, RoutedSimpleEventArgs args)
     {
         _ = args;
-        if (_suppressSourceInspectorApply || sender is not TextBox editor || editor.Tag is not string propertyName)
+        if (_suppressSourceInspectorApply ||
+            sender is not TextBox editor ||
+            editor.DataContext is not DesignerSourceInspectorPropertyItem item)
         {
             return;
         }
 
-        if (!TryApplySourceInspectorEdit(propertyName, editor.Text))
+        if (!TryApplySourceInspectorEdit(item.Name, editor.Text))
         {
             return;
         }
 
-        RefreshSourcePropertyInspector(propertyName, editor.Text);
+        RefreshSourcePropertyInspector(item.Name, editor.Text);
     }
 
     private void OnSourcePropertyChoiceSelectionChanged(object? sender, SelectionChangedEventArgs args)
     {
         _ = args;
-        if (_suppressSourceInspectorApply || sender is not ComboBox comboBox || comboBox.Tag is not string propertyName)
+        if (_suppressSourceInspectorApply ||
+            sender is not ComboBox comboBox ||
+            comboBox.DataContext is not DesignerSourceInspectorPropertyItem item)
         {
             return;
         }
 
         var selectedValue = comboBox.SelectedItem as string;
-        if (!TryApplySourceInspectorEdit(propertyName, selectedValue))
+        if (!TryApplySourceInspectorEdit(item.Name, selectedValue))
         {
             return;
         }
 
-        RefreshSourcePropertyInspector(propertyName, selectedValue);
+        RefreshSourcePropertyInspector(item.Name, selectedValue);
     }
 
     private void ApplySourceColorPropertyEdit(string propertyName, Color color)
@@ -673,76 +664,39 @@ public partial class DesignerSourceEditorView : UserControl
 
     private void ClearSourcePropertyInspectorRows()
     {
-        while (SourcePropertyInspectorPropertiesHost.Children.Count > 0)
-        {
-            _ = SourcePropertyInspectorPropertiesHost.RemoveChildAt(SourcePropertyInspectorPropertiesHost.Children.Count - 1);
-        }
+        SourcePropertyInspectorItems = Array.Empty<DesignerSourceInspectorPropertyItem>();
     }
 
     private void ClearSourcePropertyInspectorEditorState()
     {
-        foreach (var editor in _sourcePropertyEditorsByName.Values.OfType<SourceColorPropertyEditor>())
+        foreach (var editor in EnumerateVisualDescendants<DesignerSourceColorPropertyEditor>(SourcePropertyInspectorPropertiesHost))
         {
             editor.ClosePopup();
         }
 
-        _sourcePropertyEditorsByName.Clear();
-        _sourcePropertyDescriptionsByName.Clear();
-        _sourcePropertyRowsByName.Clear();
+        foreach (var item in _sourcePropertyItemsByName.Values)
+        {
+            item.PropertyChanged -= OnSourceInspectorPropertyItemPropertyChanged;
+        }
+
+        _sourcePropertyItemsByName.Clear();
         ClearSourcePropertyInspectorRows();
     }
 
-    private FrameworkElement CreateSourcePropertyEditor(DesignerSourceInspectableProperty property)
+    private void OnSourceInspectorPropertyItemPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (property.EditorKind == DesignerSourcePropertyEditorKind.Color)
+        if (_suppressSourceInspectorApply ||
+            sender is not DesignerSourceInspectorPropertyItem item ||
+            !string.Equals(args.PropertyName, nameof(DesignerSourceInspectorPropertyItem.SelectedColor), StringComparison.Ordinal))
         {
-            return new SourceColorPropertyEditor(this, property.Name);
+            return;
         }
 
-        if (property.EditorKind == DesignerSourcePropertyEditorKind.Choice)
-        {
-            var comboBox = new ComboBox
-            {
-                Style = (Style)FindResource("DesignerInspectorComboBoxStyle"),
-                Tag = property.Name,
-                Background = new Color(8, 15, 24),
-                Foreground = new Color(216, 227, 238),
-                BorderBrush = new Color(36, 51, 66),
-                BorderThickness = 1f,
-                Padding = new Thickness(8f, 5f, 8f, 5f),
-                FontFamily = new FontFamily("Consolas"),
-                FontSize = 12f,
-                ItemContainerStyle = (Style)FindResource("DesignerComboBoxItemStyle"),
-                DropDownListStyle = (Style)FindResource("DesignerComboBoxDropDownListStyle"),
-                DropDownPopupStyle = (Style)FindResource("DesignerComboBoxDropDownPopupStyle"),
-                MaxDropDownHeight = 240f
-            };
-
-            foreach (var choiceValue in property.ChoiceValues)
-            {
-                comboBox.Items.Add(choiceValue);
-            }
-
-            comboBox.SelectionChanged += OnSourcePropertyChoiceSelectionChanged;
-            return comboBox;
-        }
-
-        var editor = new TextBox
-        {
-            Tag = property.Name,
-            Background = new Color(8, 15, 24),
-            Foreground = new Color(216, 227, 238),
-            BorderBrush = new Color(36, 51, 66),
-            BorderThickness = 1f,
-            Padding = new Thickness(8f, 5f, 8f, 5f),
-            FontFamily = new FontFamily("Consolas")
-        };
-        editor.TextChanged += OnSourcePropertyEditorTextChanged;
-        return editor;
+        ApplySourceColorPropertyEdit(item.Name, item.SelectedColor);
     }
 
     private static void UpdateSourcePropertyColorEditorValue(
-        SourceColorPropertyEditor editor,
+        DesignerSourceInspectorPropertyItem item,
         DesignerSourceInspectableProperty property,
         string currentValue)
     {
@@ -756,19 +710,20 @@ public partial class DesignerSourceEditorView : UserControl
             color = Color.Transparent;
         }
 
-        editor.SetDisplayedValue(color, displayText);
+        item.SelectedColor = color;
+        item.ColorDisplayText = displayText;
     }
 
     private static void UpdateSourcePropertyChoiceEditorValue(
-        ComboBox comboBox,
+        DesignerSourceInspectorPropertyItem item,
         DesignerSourceInspectableProperty property,
         string currentValue)
     {
         if (string.IsNullOrEmpty(currentValue))
         {
-            if (comboBox.SelectedIndex != -1)
+            if (item.SelectedChoice != null)
             {
-                comboBox.SelectedIndex = -1;
+                item.SelectedChoice = null;
             }
 
             return;
@@ -778,493 +733,17 @@ public partial class DesignerSourceEditorView : UserControl
             choice => string.Equals(choice, currentValue, StringComparison.OrdinalIgnoreCase));
         if (selectedChoice == null)
         {
-            if (comboBox.SelectedIndex != -1)
+            if (item.SelectedChoice != null)
             {
-                comboBox.SelectedIndex = -1;
+                item.SelectedChoice = null;
             }
 
             return;
         }
 
-        if (!string.Equals(comboBox.SelectedItem as string, selectedChoice, StringComparison.Ordinal))
+        if (!string.Equals(item.SelectedChoice, selectedChoice, StringComparison.Ordinal))
         {
-            comboBox.SelectedItem = selectedChoice;
-        }
-    }
-
-    private (Popup Popup, ListBox ListBox) CreateCompletionPopup()
-    {
-        var listBox = new ListBox
-        {
-            Style = (Style)FindResource("CompletionListBoxStyle")
-        };
-
-        var popup = new Popup
-        {
-            Style = (Style)FindResource("CompletionPopupStyle"),
-            Content = listBox,
-            MaxHeight = CompletionPopupMaxHeight
-        };
-
-        return (popup, listBox);
-    }
-
-    private sealed class SourceColorPropertyEditor : ComboBox
-    {
-        private readonly DesignerSourceEditorView _owner;
-        private readonly string _propertyName;
-        private readonly ComboBoxItem _displayItem;
-        private readonly ComboBoxItem _colorPickerItem;
-        private readonly ComboBoxItem _hueSpectrumItem;
-        private readonly ComboBoxItem _alphaSpectrumItem;
-        private readonly ColorPicker _colorPicker;
-        private readonly ColorSpectrum _hueSpectrum;
-        private readonly ColorSpectrum _alphaSpectrum;
-        private readonly StackPanel _interactivePopupItemsHost;
-        private readonly Popup _interactivePopup;
-        private bool _handlingInteractivePopupToggle;
-        private bool _isSynchronizing;
-        private Color _currentColor;
-        private float _currentHue;
-        private float _currentSaturation;
-        private float _currentValue;
-        private float _currentAlpha = 1f;
-        private string _displayText = string.Empty;
-
-        public SourceColorPropertyEditor(DesignerSourceEditorView owner, string propertyName)
-        {
-            _owner = owner;
-            _propertyName = propertyName;
-            Style = (Style)owner.FindResource("DesignerInspectorComboBoxStyle");
-            Tag = propertyName;
-
-            Background = new Color(8, 15, 24);
-            Foreground = new Color(216, 227, 238);
-            BorderBrush = new Color(36, 51, 66);
-            BorderThickness = 1f;
-            Padding = new Thickness(8f, 5f, 8f, 5f);
-            FontFamily = new FontFamily("Consolas");
-            FontSize = 12f;
-            ItemContainerStyle = (Style)owner.FindResource("DesignerComboBoxItemStyle");
-            DropDownListStyle = (Style)owner.FindResource("DesignerComboBoxDropDownListStyle");
-            DropDownPopupStyle = (Style)owner.FindResource("DesignerComboBoxDropDownPopupStyle");
-            MaxDropDownHeight = 280f;
-
-            _colorPicker = new ColorPicker
-            {
-                Height = 140f,
-                HorizontalAlignment = HorizontalAlignment.Stretch
-            };
-            _colorPicker.SelectedColorChanged += OnColorPickerSelectedColorChanged;
-
-            _hueSpectrum = new ColorSpectrum
-            {
-                Mode = ColorSpectrumMode.Hue,
-                Orientation = Orientation.Horizontal,
-                Height = 20f,
-                HorizontalAlignment = HorizontalAlignment.Stretch
-            };
-            _hueSpectrum.SelectedColorChanged += OnHueSpectrumSelectedColorChanged;
-
-            _alphaSpectrum = new ColorSpectrum
-            {
-                Mode = ColorSpectrumMode.Alpha,
-                Orientation = Orientation.Horizontal,
-                Height = 20f,
-                HorizontalAlignment = HorizontalAlignment.Stretch
-            };
-            _alphaSpectrum.SelectedColorChanged += OnAlphaSpectrumSelectedColorChanged;
-
-            _displayItem = new ComboBoxItem
-            {
-                Text = string.Empty
-            };
-
-            _colorPickerItem = new ComboBoxItem
-            {
-                Text = string.Empty,
-                Content = BuildDropDownItemHost(_colorPicker),
-                Padding = new Thickness(6f)
-            };
-
-            _hueSpectrumItem = new ComboBoxItem
-            {
-                Text = "Hue",
-                Content = BuildDropDownItemHost(_hueSpectrum),
-                Padding = new Thickness(6f)
-            };
-
-            _alphaSpectrumItem = new ComboBoxItem
-            {
-                Text = "Alpha",
-                Content = BuildDropDownItemHost(_alphaSpectrum),
-                Padding = new Thickness(6f)
-            };
-
-            _interactivePopupItemsHost = new StackPanel();
-            _interactivePopupItemsHost.AddChild(_colorPickerItem);
-            _interactivePopupItemsHost.AddChild(_hueSpectrumItem);
-            _interactivePopupItemsHost.AddChild(_alphaSpectrumItem);
-
-            _interactivePopup = new Popup
-            {
-                Title = string.Empty,
-                TitleBarHeight = 0f,
-                CanClose = false,
-                CanDragMove = false,
-                DismissOnOutsideClick = true,
-                Content = _interactivePopupItemsHost,
-                BorderThickness = 1f,
-                BorderBrush = new Color(35, 52, 73),
-                Background = new Color(9, 13, 19),
-                Padding = new Thickness(0f)
-            };
-
-            Items.Add(_displayItem);
-            Items.Add("Hue");
-            Items.Add("Alpha");
-            SelectedIndex = 0;
-        }
-
-        public void ClosePopup()
-        {
-            if (_interactivePopup.IsOpen)
-            {
-                _interactivePopup.Close();
-            }
-        }
-
-        protected override void OnDependencyPropertyChanged(DependencyPropertyChangedEventArgs args)
-        {
-            base.OnDependencyPropertyChanged(args);
-
-            if (args.Property != IsDropDownOpenProperty ||
-                _handlingInteractivePopupToggle ||
-                args.NewValue is not bool isOpen ||
-                !isOpen)
-            {
-                return;
-            }
-
-            _handlingInteractivePopupToggle = true;
-            try
-            {
-                IsDropDownOpen = false;
-                if (_interactivePopup.IsOpen)
-                {
-                    _interactivePopup.Close();
-                }
-                else
-                {
-                    OpenInteractivePopup();
-                }
-            }
-            finally
-            {
-                _handlingInteractivePopupToggle = false;
-            }
-        }
-
-        public void SetDisplayedValue(Color color, string displayText)
-        {
-            var nextDisplayText = string.IsNullOrWhiteSpace(displayText)
-                ? DesignerSourcePropertyInspector.FormatColorValue(color)
-                : displayText;
-
-            if (AreColorsEqual(color, _currentColor))
-            {
-                ApplyHsva(_currentHue, _currentSaturation, _currentValue, _currentAlpha, nextDisplayText, commitToSource: false);
-                return;
-            }
-
-            ToHsva(color, out var hue, out var saturation, out var value, out var alpha);
-            ApplyHsva(hue, saturation, value, alpha, nextDisplayText, commitToSource: false);
-        }
-
-        private void OnColorPickerSelectedColorChanged(object? sender, ColorChangedEventArgs args)
-        {
-            _ = sender;
-            _ = args;
-            if (_isSynchronizing)
-            {
-                return;
-            }
-
-            ApplyHsva(
-                _colorPicker.Hue,
-                _colorPicker.Saturation,
-                _colorPicker.Value,
-                _colorPicker.Alpha,
-                DesignerSourcePropertyInspector.FormatColorValue(_colorPicker.SelectedColor),
-                commitToSource: true);
-        }
-
-        private void OnHueSpectrumSelectedColorChanged(object? sender, ColorChangedEventArgs args)
-        {
-            _ = sender;
-            _ = args;
-            if (_isSynchronizing)
-            {
-                return;
-            }
-
-            ApplyHsva(
-                _hueSpectrum.Hue,
-                _currentSaturation,
-                _currentValue,
-                _currentAlpha,
-                displayText: null,
-                commitToSource: true);
-        }
-
-        private void OnAlphaSpectrumSelectedColorChanged(object? sender, ColorChangedEventArgs args)
-        {
-            _ = sender;
-            _ = args;
-            if (_isSynchronizing)
-            {
-                return;
-            }
-
-            ApplyHsva(
-                _currentHue,
-                _currentSaturation,
-                _currentValue,
-                _alphaSpectrum.Alpha,
-                displayText: null,
-                commitToSource: true);
-        }
-
-        private void ApplyHsva(
-            float hue,
-            float saturation,
-            float value,
-            float alpha,
-            string? displayText,
-            bool commitToSource)
-        {
-            _currentHue = CoerceHueValue(hue);
-            _currentSaturation = Clamp01(saturation);
-            _currentValue = Clamp01(value);
-            _currentAlpha = Clamp01(alpha);
-            _currentColor = FromHsva(_currentHue, _currentSaturation, _currentValue, _currentAlpha);
-            _displayText = string.IsNullOrWhiteSpace(displayText)
-                ? DesignerSourcePropertyInspector.FormatColorValue(_currentColor)
-                : displayText;
-
-            _isSynchronizing = true;
-            try
-            {
-                SelectedIndex = 0;
-                _colorPicker.Hue = _currentHue;
-                _colorPicker.Saturation = _currentSaturation;
-                _colorPicker.Value = _currentValue;
-                _colorPicker.Alpha = _currentAlpha;
-                _colorPicker.SelectedColor = _currentColor;
-
-                _hueSpectrum.Hue = _currentHue;
-                _hueSpectrum.Alpha = _currentAlpha;
-                _hueSpectrum.SelectedColor = _currentColor;
-
-                _alphaSpectrum.Hue = _currentHue;
-                _alphaSpectrum.Alpha = _currentAlpha;
-                _alphaSpectrum.SelectedColor = _currentColor;
-                _displayItem.Text = _displayText;
-                _colorPickerItem.Text = _displayText;
-            }
-            finally
-            {
-                _isSynchronizing = false;
-            }
-
-            if (commitToSource)
-            {
-                _owner.ApplySourceColorPropertyEdit(_propertyName, _currentColor);
-            }
-        }
-
-        private static bool AreColorsEqual(Color left, Color right)
-        {
-            return left.PackedValue == right.PackedValue;
-        }
-
-        private static float CoerceHueValue(float hue)
-        {
-            if (float.IsNaN(hue) || float.IsInfinity(hue))
-            {
-                return 0f;
-            }
-
-            return Math.Clamp(hue, 0f, 360f);
-        }
-
-        private static float Clamp01(float value)
-        {
-            return Math.Clamp(value, 0f, 1f);
-        }
-
-        private static Color FromHsva(float hue, float saturation, float value, float alpha)
-        {
-            saturation = Clamp01(saturation);
-            value = Clamp01(value);
-            alpha = Clamp01(alpha);
-
-            var normalizedHue = NormalizeHue(hue);
-            var chroma = value * saturation;
-            var hueSector = normalizedHue / 60f;
-            var x = chroma * (1f - MathF.Abs((hueSector % 2f) - 1f));
-
-            float redPrime;
-            float greenPrime;
-            float bluePrime;
-            if (hueSector < 1f)
-            {
-                redPrime = chroma;
-                greenPrime = x;
-                bluePrime = 0f;
-            }
-            else if (hueSector < 2f)
-            {
-                redPrime = x;
-                greenPrime = chroma;
-                bluePrime = 0f;
-            }
-            else if (hueSector < 3f)
-            {
-                redPrime = 0f;
-                greenPrime = chroma;
-                bluePrime = x;
-            }
-            else if (hueSector < 4f)
-            {
-                redPrime = 0f;
-                greenPrime = x;
-                bluePrime = chroma;
-            }
-            else if (hueSector < 5f)
-            {
-                redPrime = x;
-                greenPrime = 0f;
-                bluePrime = chroma;
-            }
-            else
-            {
-                redPrime = chroma;
-                greenPrime = 0f;
-                bluePrime = x;
-            }
-
-            var match = value - chroma;
-            return new Color(
-                ToByte(redPrime + match),
-                ToByte(greenPrime + match),
-                ToByte(bluePrime + match),
-                ToByte(alpha));
-        }
-
-        private static void ToHsva(Color color, out float hue, out float saturation, out float value, out float alpha)
-        {
-            var red = color.R / 255f;
-            var green = color.G / 255f;
-            var blue = color.B / 255f;
-            var max = MathF.Max(red, MathF.Max(green, blue));
-            var min = MathF.Min(red, MathF.Min(green, blue));
-            var delta = max - min;
-
-            value = max;
-            saturation = max <= 0f ? 0f : delta / max;
-            alpha = color.A / 255f;
-
-            if (delta <= 0f)
-            {
-                hue = 0f;
-                return;
-            }
-
-            if (MathF.Abs(max - red) <= 0.0001f)
-            {
-                hue = 60f * (((green - blue) / delta) % 6f);
-            }
-            else if (MathF.Abs(max - green) <= 0.0001f)
-            {
-                hue = 60f * (((blue - red) / delta) + 2f);
-            }
-            else
-            {
-                hue = 60f * (((red - green) / delta) + 4f);
-            }
-
-            hue = NormalizeHue(hue);
-        }
-
-        private static float NormalizeHue(float hue)
-        {
-            var normalized = hue % 360f;
-            if (normalized < 0f)
-            {
-                normalized += 360f;
-            }
-
-            return normalized;
-        }
-
-        private static byte ToByte(float value)
-        {
-            return (byte)Math.Clamp((int)MathF.Round(Clamp01(value) * 255f), 0, 255);
-        }
-
-        private void OpenInteractivePopup()
-        {
-            var host = FindOverlayHost();
-            if (host == null)
-            {
-                return;
-            }
-
-            _owner.CloseOpenSourceColorEditors(this);
-            _interactivePopup.PlacementTarget = this;
-            _interactivePopup.PlacementMode = PopupPlacementMode.Bottom;
-            _interactivePopup.HorizontalOffset = 0f;
-            _interactivePopup.VerticalOffset = 2f;
-            _interactivePopup.Width = Math.Max(ActualWidth > 0f ? ActualWidth : Width, 80f);
-            _interactivePopup.Show(host);
-        }
-
-        private Panel? FindOverlayHost()
-        {
-            Panel? fallbackHost = null;
-            for (var current = (UIElement?)this; current != null; current = current.VisualParent ?? current.LogicalParent)
-            {
-                if (current is Panel panel)
-                {
-                    fallbackHost = panel;
-                }
-            }
-
-            return fallbackHost;
-        }
-
-        private static Border BuildDropDownItemHost(FrameworkElement content)
-        {
-            return new Border
-            {
-                Background = new Color(8, 15, 24),
-                BorderBrush = new Color(36, 51, 66),
-                BorderThickness = new Thickness(1f),
-                Padding = new Thickness(6f),
-                Child = content
-            };
-        }
-    }
-
-    private void CloseOpenSourceColorEditors(SourceColorPropertyEditor exceptEditor)
-    {
-        foreach (var editor in _sourcePropertyEditorsByName.Values.OfType<SourceColorPropertyEditor>())
-        {
-            if (!ReferenceEquals(editor, exceptEditor))
-            {
-                editor.ClosePopup();
-            }
+            item.SelectedChoice = selectedChoice;
         }
     }
 
@@ -1292,12 +771,12 @@ public partial class DesignerSourceEditorView : UserControl
             _completionItemNames = itemNames;
             RebuildCompletionList();
         }
-        else if (_completionListBox.SelectedIndex < 0 && _completionItems.Count > 0)
+        else if (CompletionListBox.SelectedIndex < 0 && _completionItems.Count > 0)
         {
             SetCompletionSelection(0);
         }
 
-        if (!_completionPopup.IsOpen)
+        if (!CompletionPopup.IsOpen)
         {
             if (!openIfPossible)
             {
@@ -1311,10 +790,10 @@ public partial class DesignerSourceEditorView : UserControl
                 return false;
             }
 
-            _completionPopup.Width = float.NaN;
-            _completionPopup.Height = float.NaN;
-            _completionPopup.MaxHeight = CompletionPopupMaxHeight;
-            _completionPopup.Open(host);
+            CompletionPopup.Width = float.NaN;
+            CompletionPopup.Height = float.NaN;
+            CompletionPopup.MaxHeight = CompletionPopupMaxHeight;
+            CompletionPopup.Open(host);
         }
 
         UpdateCompletionPopupPlacement();
@@ -1327,8 +806,8 @@ public partial class DesignerSourceEditorView : UserControl
         _suppressCompletionListSelectionChanged = true;
         try
         {
-            _completionListBox.ItemsSource = _completionItems;
-            _completionListBox.SelectedIndex = _completionItems.Count > 0 ? 0 : -1;
+            CompletionListBox.ItemsSource = _completionItems;
+            CompletionListBox.SelectedIndex = _completionItems.Count > 0 ? 0 : -1;
         }
         finally
         {
@@ -1338,7 +817,7 @@ public partial class DesignerSourceEditorView : UserControl
 
     private void UpdateCompletionPopupPlacement()
     {
-        if (!_completionPopup.IsOpen)
+        if (!CompletionPopup.IsOpen)
         {
             return;
         }
@@ -1354,7 +833,7 @@ public partial class DesignerSourceEditorView : UserControl
             return;
         }
 
-        if (!_completionPopup.TrySetRootSpacePosition(caretBounds.X, caretBounds.Y + caretBounds.Height + CompletionPopupVerticalOffset))
+        if (!CompletionPopup.TrySetRootSpacePosition(caretBounds.X, caretBounds.Y + caretBounds.Height + CompletionPopupVerticalOffset))
         {
             DismissCompletionPopup();
             return;
@@ -1365,9 +844,9 @@ public partial class DesignerSourceEditorView : UserControl
 
     private void DismissCompletionPopup()
     {
-        if (_completionPopup.IsOpen)
+        if (CompletionPopup.IsOpen)
         {
-            _completionPopup.Close();
+            CompletionPopup.Close();
         }
 
         ResetCompletionState();
@@ -1390,8 +869,8 @@ public partial class DesignerSourceEditorView : UserControl
         _suppressCompletionListSelectionChanged = true;
         try
         {
-            _completionListBox.ItemsSource = null;
-            _completionListBox.SelectedIndex = -1;
+            CompletionListBox.ItemsSource = null;
+            CompletionListBox.SelectedIndex = -1;
         }
         finally
         {
@@ -1406,7 +885,7 @@ public partial class DesignerSourceEditorView : UserControl
             return;
         }
 
-        var selectedIndex = _completionListBox.SelectedIndex;
+        var selectedIndex = CompletionListBox.SelectedIndex;
         if (selectedIndex < 0)
         {
             selectedIndex = 0;
@@ -1426,8 +905,8 @@ public partial class DesignerSourceEditorView : UserControl
         _suppressCompletionListSelectionChanged = true;
         try
         {
-            _completionListBox.SelectedIndex = clamped;
-            _completionListBox.ScrollIntoView(_completionListBox.SelectedItem);
+            CompletionListBox.SelectedIndex = clamped;
+            CompletionListBox.ScrollIntoView(CompletionListBox.SelectedItem);
         }
         finally
         {
@@ -1442,7 +921,7 @@ public partial class DesignerSourceEditorView : UserControl
             return false;
         }
 
-        var selectedIndex = _completionListBox.SelectedIndex;
+        var selectedIndex = CompletionListBox.SelectedIndex;
         if (selectedIndex < 0 || selectedIndex >= _completionItems.Count)
         {
             return false;
@@ -1621,7 +1100,7 @@ public partial class DesignerSourceEditorView : UserControl
     {
         for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
         {
-            if (ReferenceEquals(current, _completionPopup))
+            if (ReferenceEquals(current, CompletionPopup))
             {
                 return true;
             }
@@ -1773,7 +1252,7 @@ public partial class DesignerSourceEditorView : UserControl
                 Math.Max(0, lineCount - 1));
         }
 
-            return firstVisibleLineFromScroll;
+        return firstVisibleLineFromScroll;
     }
 
     private static bool TryGetLineSelectionRange(string text, int oneBasedLineNumber, out int selectionStart, out int selectionLength)
@@ -1833,6 +1312,23 @@ public partial class DesignerSourceEditorView : UserControl
         }
 
         return true;
+    }
+
+    private static IEnumerable<T> EnumerateVisualDescendants<T>(UIElement root)
+        where T : UIElement
+    {
+        foreach (var child in root.GetVisualChildren())
+        {
+            if (child is T match)
+            {
+                yield return match;
+            }
+
+            foreach (var descendant in EnumerateVisualDescendants<T>(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private readonly record struct CompletionContext(int OpenBracketIndex, int ReplaceStart, int ReplaceLength, string Prefix);

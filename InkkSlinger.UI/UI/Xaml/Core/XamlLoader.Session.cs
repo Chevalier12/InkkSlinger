@@ -90,12 +90,27 @@ public static partial class XamlLoader
         IReadOnlyList<XamlResourceBuildContext>? declarationBuildContexts,
         Func<T> factory)
     {
+        return RunWithinTemplateDeclarationScope(declarationScope, declarationBuildContexts, null, factory);
+    }
+
+    private static T RunWithinTemplateDeclarationScope<T>(
+        FrameworkElement? declarationScope,
+        IReadOnlyList<XamlResourceBuildContext>? declarationBuildContexts,
+        object? declarationCodeBehind,
+        Func<T> factory)
+    {
         var previousLoadRootScope = CurrentLoadRootScope;
+        var previousLoadCodeBehind = CurrentLoadCodeBehind;
         var previousResourceBuildContexts = CurrentResourceBuildContexts;
 
         if (declarationScope != null)
         {
             CurrentLoadRootScope = declarationScope;
+        }
+
+        if (declarationCodeBehind != null)
+        {
+            CurrentLoadCodeBehind = declarationCodeBehind;
         }
 
         if (declarationBuildContexts is { Count: > 0 })
@@ -110,6 +125,7 @@ public static partial class XamlLoader
         finally
         {
             CurrentLoadRootScope = previousLoadRootScope;
+            CurrentLoadCodeBehind = previousLoadCodeBehind;
             CurrentResourceBuildContexts = previousResourceBuildContexts;
         }
     }

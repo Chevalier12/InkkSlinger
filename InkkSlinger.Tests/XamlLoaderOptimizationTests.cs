@@ -1,8 +1,11 @@
 using System;
+using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -76,6 +79,51 @@ public sealed class XamlLoaderOptimizationTests
             Assert.Equal(1, host.ClickCount);
         }
     }
+
+        [Fact]
+        public void LoadIntoFromString_DataTemplateGeneratedElements_CanBindEventsToDeclaringCodeBehind()
+        {
+          var host = new DataTemplateEventHost();
+          host.ItemsHost!.ItemsSource = host.Rows;
+
+          host.Rows.Add(new TemplateRow { Label = "Alpha" });
+
+          var generated = Assert.Single(host.ItemsHost!.GetItemContainersForPresenter());
+          var button = Assert.IsType<Button>(generated);
+
+          InvokeButtonClick(button);
+
+          Assert.Equal(1, host.RowClickCount);
+          Assert.Same(button, host.LastRowClickSender);
+        }
+
+        [Fact]
+        public void LoadIntoFromString_ControlTemplateGeneratedElements_CanBindEventsToDeclaringCodeBehind()
+        {
+          var host = new ControlTemplateEventHost();
+
+          Assert.True(host.ApplyTemplate());
+
+          var button = Assert.Single(FindDescendants<Button>(host, static candidate => string.Equals(candidate.Content as string, "TemplateHook", StringComparison.Ordinal)));
+
+          InvokeButtonClick(button);
+
+          Assert.Equal(1, host.TemplateClickCount);
+          Assert.Same(button, host.LastTemplateClickSender);
+        }
+
+        [Fact]
+        public void LoadIntoFromString_ItemsPanelTemplateGeneratedElements_CanBindEventsToDeclaringCodeBehind()
+        {
+          var host = new ItemsPanelTemplateEventHost();
+          var panel = Assert.IsType<StackPanel>(host.ItemsHost!.ItemsPanel!.Build(host.ItemsHost));
+          var button = Assert.Single(FindDescendants<Button>(panel, static candidate => string.Equals(candidate.Content as string, "PanelHook", StringComparison.Ordinal)));
+
+          InvokeButtonClick(button);
+
+          Assert.Equal(1, host.ItemsPanelClickCount);
+          Assert.Same(button, host.LastItemsPanelClickSender);
+        }
 
         [Fact]
         public void LoadIntoFromString_DelaysEventHandlerAttachment_UntilConstructorCompletes()
@@ -348,6 +396,116 @@ public sealed class XamlLoaderOptimizationTests
         }
     }
 
+    private sealed class DataTemplateEventHost : UserControl
+    {
+        private const string Xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ItemsControl x:Name="ItemsHost">
+    <ItemsControl.ItemTemplate>
+      <DataTemplate>
+        <Button Content="{Binding Path=Label}" Click="OnRowClick" />
+      </DataTemplate>
+    </ItemsControl.ItemTemplate>
+  </ItemsControl>
+</UserControl>
+""";
+
+        public DataTemplateEventHost()
+        {
+            XamlLoader.LoadIntoFromString(this, Xaml, this);
+        }
+
+        public ItemsControl? ItemsHost { get; private set; }
+
+        public ObservableCollection<TemplateRow> Rows { get; } = [];
+
+        public int RowClickCount { get; private set; }
+
+        public object? LastRowClickSender { get; private set; }
+
+        private void OnRowClick(object? sender, RoutedSimpleEventArgs args)
+        {
+            _ = args;
+            RowClickCount++;
+            LastRowClickSender = sender;
+        }
+    }
+
+    private sealed class ControlTemplateEventHost : UserControl
+    {
+        private const string Xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Template>
+    <ControlTemplate TargetType="{x:Type UserControl}">
+      <StackPanel>
+        <Button Content="TemplateHook" Click="OnTemplateHookClick" />
+        <ContentPresenter />
+      </StackPanel>
+    </ControlTemplate>
+  </UserControl.Template>
+  <Border Width="8" Height="8" />
+</UserControl>
+""";
+
+        public ControlTemplateEventHost()
+        {
+            XamlLoader.LoadIntoFromString(this, Xaml, this);
+        }
+
+        public int TemplateClickCount { get; private set; }
+
+        public object? LastTemplateClickSender { get; private set; }
+
+        private void OnTemplateHookClick(object? sender, RoutedSimpleEventArgs args)
+        {
+            _ = args;
+            TemplateClickCount++;
+            LastTemplateClickSender = sender;
+        }
+    }
+
+    private sealed class ItemsPanelTemplateEventHost : UserControl
+    {
+        private const string Xaml = """
+<UserControl xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ItemsControl x:Name="ItemsHost">
+    <ItemsControl.ItemsPanel>
+      <ItemsPanelTemplate>
+        <StackPanel>
+          <Button Content="PanelHook" Click="OnItemsPanelHookClick" />
+        </StackPanel>
+      </ItemsPanelTemplate>
+    </ItemsControl.ItemsPanel>
+  </ItemsControl>
+</UserControl>
+""";
+
+        public ItemsPanelTemplateEventHost()
+        {
+            XamlLoader.LoadIntoFromString(this, Xaml, this);
+        }
+
+        public ItemsControl? ItemsHost { get; private set; }
+
+        public ObservableCollection<string> Rows { get; } = [];
+
+        public int ItemsPanelClickCount { get; private set; }
+
+        public object? LastItemsPanelClickSender { get; private set; }
+
+        private void OnItemsPanelHookClick(object? sender, RoutedSimpleEventArgs args)
+        {
+            _ = args;
+          ItemsPanelClickCount++;
+          LastItemsPanelClickSender = sender;
+        }
+    }
+
+    private sealed class TemplateRow
+    {
+        public string Label { get; init; } = string.Empty;
+    }
+
       private sealed class ConstructorEventOrderHost : UserControl
       {
         private const string Xaml = """
@@ -408,6 +566,28 @@ public sealed class XamlLoaderOptimizationTests
         }
     }
 
+      private static List<TElement> FindDescendants<TElement>(UIElement root, Func<TElement, bool>? predicate = null)
+        where TElement : UIElement
+      {
+        var results = new List<TElement>();
+        CollectDescendants(root, results, predicate);
+        return results;
+      }
+
+      private static void CollectDescendants<TElement>(UIElement root, List<TElement> results, Func<TElement, bool>? predicate)
+        where TElement : UIElement
+      {
+        foreach (var child in root.GetVisualChildren())
+        {
+          if (child is TElement match && (predicate == null || predicate(match)))
+          {
+            results.Add(match);
+          }
+
+          CollectDescendants(child, results, predicate);
+        }
+      }
+
     private static (int StringMisses, int FileMisses) GetDocumentCacheMissCounts()
     {
         var method = typeof(XamlLoader).GetMethod(
@@ -433,4 +613,5 @@ public sealed class XamlLoaderOptimizationTests
         var actualBrush = Assert.IsAssignableFrom<Brush>(brush);
         Assert.Equal(expected, actualBrush.ToColor());
     }
+
 }
