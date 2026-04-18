@@ -703,6 +703,7 @@ public partial class DesignerSourceEditorView : UserControl
         {
             var comboBox = new ComboBox
             {
+                Style = (Style)FindResource("DesignerInspectorComboBoxStyle"),
                 Tag = property.Name,
                 Background = new Color(8, 15, 24),
                 Foreground = new Color(216, 227, 238),
@@ -710,6 +711,10 @@ public partial class DesignerSourceEditorView : UserControl
                 BorderThickness = 1f,
                 Padding = new Thickness(8f, 5f, 8f, 5f),
                 FontFamily = new FontFamily("Consolas"),
+                FontSize = 12f,
+                ItemContainerStyle = (Style)FindResource("DesignerComboBoxItemStyle"),
+                DropDownListStyle = (Style)FindResource("DesignerComboBoxDropDownListStyle"),
+                DropDownPopupStyle = (Style)FindResource("DesignerComboBoxDropDownPopupStyle"),
                 MaxDropDownHeight = 240f
             };
 
@@ -830,6 +835,7 @@ public partial class DesignerSourceEditorView : UserControl
         {
             _owner = owner;
             _propertyName = propertyName;
+            Style = (Style)owner.FindResource("DesignerInspectorComboBoxStyle");
             Tag = propertyName;
 
             Background = new Color(8, 15, 24);
@@ -839,6 +845,9 @@ public partial class DesignerSourceEditorView : UserControl
             Padding = new Thickness(8f, 5f, 8f, 5f);
             FontFamily = new FontFamily("Consolas");
             FontSize = 12f;
+            ItemContainerStyle = (Style)owner.FindResource("DesignerComboBoxItemStyle");
+            DropDownListStyle = (Style)owner.FindResource("DesignerComboBoxDropDownListStyle");
+            DropDownPopupStyle = (Style)owner.FindResource("DesignerComboBoxDropDownPopupStyle");
             MaxDropDownHeight = 280f;
 
             _colorPicker = new ColorPicker

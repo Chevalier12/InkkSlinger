@@ -898,6 +898,14 @@ public class DesignerControllerTests
 
         Assert.True(dropDownPopup.IsOpen);
         Assert.Same(fontWeightEditor, dropDownPopup.PlacementTarget);
+        Assert.Equal(new Color(9, 13, 19), dropDownPopup.Background);
+        Assert.Equal(new Color(35, 52, 73), dropDownPopup.BorderBrush);
+        Assert.Equal(new Color(9, 13, 19), dropDownList.Background);
+        Assert.Equal(new Color(216, 227, 238), dropDownList.Foreground);
+        Assert.Equal(new Color(35, 52, 73), dropDownList.BorderBrush);
+        Assert.Equal(new FontFamily("Consolas"), dropDownList.FontFamily);
+        Assert.Equal(12f, dropDownList.FontSize);
+        Assert.NotNull(dropDownList.ItemContainerStyle);
     }
 
     [Fact]

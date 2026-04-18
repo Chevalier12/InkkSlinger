@@ -434,6 +434,53 @@ public class InputDispatchOptimizationTests
     }
 
     [Fact]
+    public void PointerClick_WhenClickMutatesHitTarget_RefreshesHoveredElementAfterRelease()
+    {
+        var root = new Canvas
+        {
+            Width = 320f,
+            Height = 200f
+        };
+
+        var backgroundButton = new Button
+        {
+            Width = 120f,
+            Height = 40f,
+            Content = "Background"
+        };
+        Canvas.SetLeft(backgroundButton, 40f);
+        Canvas.SetTop(backgroundButton, 40f);
+
+        var dismissingButton = new Button
+        {
+            Width = 120f,
+            Height = 40f,
+            Content = "Dismiss"
+        };
+        Canvas.SetLeft(dismissingButton, 40f);
+        Canvas.SetTop(dismissingButton, 40f);
+        dismissingButton.Click += (_, _) => dismissingButton.Visibility = Visibility.Collapsed;
+
+        root.AddChild(backgroundButton);
+        root.AddChild(dismissingButton);
+
+        var uiRoot = new UiRoot(root);
+        RunLayout(uiRoot, 320, 200, 16);
+
+        var pointerPosition = GetCenter(dismissingButton.LayoutSlot);
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: true, position: pointerPosition));
+        Assert.Same(dismissingButton, uiRoot.GetHoveredElementForDiagnostics());
+
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: pointerPosition, leftPressed: true));
+        uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: pointerPosition, leftReleased: true));
+
+        Assert.Equal(Visibility.Collapsed, dismissingButton.Visibility);
+        Assert.Same(backgroundButton, VisualTreeHelper.HitTest(root, pointerPosition));
+        Assert.Same(backgroundButton, uiRoot.GetHoveredElementForDiagnostics());
+    }
+
+    [Fact]
     public void ListBox_ClickingDifferentItems_UpdatesSelectedIndex()
     {
         var root = new Panel();

@@ -217,6 +217,7 @@ public sealed partial class UiRoot
         {
             var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseUp(pointerTarget, delta.Current.PointerPosition, MouseButton.Left);
+            RefreshHoverAfterClick(delta.Current.PointerPosition);
             clickResolveHitTests = 0;
             _lastClickUpTarget = pointerTarget;
             _lastClickUpPointerPosition = delta.Current.PointerPosition;
@@ -258,6 +259,7 @@ public sealed partial class UiRoot
         {
             var routeStart = Stopwatch.GetTimestamp();
             DispatchMouseUp(pointerTarget, delta.Current.PointerPosition, MouseButton.Right);
+            RefreshHoverAfterClick(delta.Current.PointerPosition);
             clickResolveHitTests = 0;
             pointerRouteTicks += Stopwatch.GetTimestamp() - routeStart;
         }
@@ -1730,6 +1732,20 @@ public sealed partial class UiRoot
 
         var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
         UpdateHover(hoverTarget);
+    }
+
+    private void RefreshHoverAfterClick(Vector2 pointerPosition)
+    {
+        _hasCachedPointerResolveTarget = false;
+        _cachedPointerResolveTarget = null;
+
+        if (_inputState.CapturedPointerElement != null)
+        {
+            return;
+        }
+
+        var hoverTarget = VisualTreeHelper.HitTest(_visualRoot, pointerPosition);
+        UpdateHover(hoverTarget, pointerPosition);
     }
 
     private void RefreshPointerTargetsAfterLayoutMutation()
