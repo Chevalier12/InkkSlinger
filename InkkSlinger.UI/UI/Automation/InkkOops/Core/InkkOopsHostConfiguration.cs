@@ -49,11 +49,11 @@ public sealed class InkkOopsHostConfiguration
         {
             new InkkOopsGenericElementDiagnosticsContributor(),
             new InkkOopsFrameworkElementDiagnosticsContributor(),
+            new InkkOopsControlDiagnosticsContributor(),
             new InkkOopsUserControlDiagnosticsContributor(),
-            new InkkOopsGridDiagnosticsContributor(),
-            new InkkOopsScrollViewerDiagnosticsContributor(),
-            new InkkOopsStackPanelDiagnosticsContributor(),
-            new InkkOopsBorderDiagnosticsContributor()
+            new InkkOopsBorderDiagnosticsContributor(),
+            new InkkOopsColorPickerDiagnosticsContributor(),
+            new InkkOopsColorSpectrumDiagnosticsContributor()
         };
 
         contributors.Sort(static (left, right) =>

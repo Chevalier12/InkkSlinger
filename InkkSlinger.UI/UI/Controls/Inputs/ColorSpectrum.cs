@@ -36,10 +36,22 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
     private static long _telemetryUpdateFromPointerZeroRectSkipCount;
     private static long _telemetryUpdateFromPointerHuePathCount;
     private static long _telemetryUpdateFromPointerAlphaPathCount;
+    private static long _telemetryRequestSelectedColorSyncCallCount;
+    private static long _telemetryRequestSelectedColorSyncDragDeferredCount;
+    private static long _telemetryQueueDeferredSelectedColorSyncCallCount;
+    private static long _telemetryQueueDeferredSelectedColorSyncAlreadyQueuedCount;
+    private static long _telemetryFlushDeferredSelectedColorSyncCallCount;
+    private static long _telemetryFlushDeferredSelectedColorSyncNoPendingCount;
+    private static long _telemetryFlushDeferredSelectedColorSyncRequeueWhileDraggingCount;
+    private static long _telemetryFlushPendingSelectedColorSyncAfterDragCallCount;
+    private static long _telemetryFlushPendingSelectedColorSyncAfterDragNoPendingCount;
     private static long _telemetrySyncSelectedColorFromComponentsCallCount;
     private static long _telemetrySyncSelectedColorFromComponentsElapsedTicks;
+    private static long _telemetrySyncSelectedColorFromComponentsReentrantSkipCount;
     private static long _telemetrySyncSelectedColorFromComponentsNoOpCount;
     private static long _telemetrySelectedColorChangedCallCount;
+    private static long _telemetrySelectedColorChangedExternalSyncCount;
+    private static long _telemetrySelectedColorChangedComponentWritebackCount;
     private static long _telemetrySelectedColorChangedRaisedCount;
     private static long _telemetryHueChangedCallCount;
     private static long _telemetrySaturationChangedCallCount;
@@ -206,10 +218,22 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
     private long _runtimeUpdateFromPointerZeroRectSkipCount;
     private long _runtimeUpdateFromPointerHuePathCount;
     private long _runtimeUpdateFromPointerAlphaPathCount;
+    private long _runtimeRequestSelectedColorSyncCallCount;
+    private long _runtimeRequestSelectedColorSyncDragDeferredCount;
+    private long _runtimeQueueDeferredSelectedColorSyncCallCount;
+    private long _runtimeQueueDeferredSelectedColorSyncAlreadyQueuedCount;
+    private long _runtimeFlushDeferredSelectedColorSyncCallCount;
+    private long _runtimeFlushDeferredSelectedColorSyncNoPendingCount;
+    private long _runtimeFlushDeferredSelectedColorSyncRequeueWhileDraggingCount;
+    private long _runtimeFlushPendingSelectedColorSyncAfterDragCallCount;
+    private long _runtimeFlushPendingSelectedColorSyncAfterDragNoPendingCount;
     private long _runtimeSyncSelectedColorFromComponentsCallCount;
     private long _runtimeSyncSelectedColorFromComponentsElapsedTicks;
+    private long _runtimeSyncSelectedColorFromComponentsReentrantSkipCount;
     private long _runtimeSyncSelectedColorFromComponentsNoOpCount;
     private long _runtimeSelectedColorChangedCallCount;
+    private long _runtimeSelectedColorChangedExternalSyncCount;
+    private long _runtimeSelectedColorChangedComponentWritebackCount;
     private long _runtimeSelectedColorChangedRaisedCount;
     private long _runtimeHueChangedCallCount;
     private long _runtimeSaturationChangedCallCount;
@@ -483,9 +507,18 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
             GetSelectorNormalizedOffset(),
             GetSelectorPosition(rect),
             Mode,
+            SelectedColor,
+            Hue,
+            Saturation,
+            Value,
+            Alpha,
             _isDragging,
             _isMouseOver,
             Orientation,
+            _hasPendingSelectedColorSync,
+            _isSelectedColorSyncDeferred,
+            _isSynchronizingSelectedColor,
+            _isSynchronizingComponents,
             _runtimeHandlePointerDownCallCount,
             ToMilliseconds(_runtimeHandlePointerDownElapsedTicks),
             _runtimeHandlePointerDownHitCount,
@@ -503,10 +536,22 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
             _runtimeUpdateFromPointerZeroRectSkipCount,
             _runtimeUpdateFromPointerHuePathCount,
             _runtimeUpdateFromPointerAlphaPathCount,
+            _runtimeRequestSelectedColorSyncCallCount,
+            _runtimeRequestSelectedColorSyncDragDeferredCount,
+            _runtimeQueueDeferredSelectedColorSyncCallCount,
+            _runtimeQueueDeferredSelectedColorSyncAlreadyQueuedCount,
+            _runtimeFlushDeferredSelectedColorSyncCallCount,
+            _runtimeFlushDeferredSelectedColorSyncNoPendingCount,
+            _runtimeFlushDeferredSelectedColorSyncRequeueWhileDraggingCount,
+            _runtimeFlushPendingSelectedColorSyncAfterDragCallCount,
+            _runtimeFlushPendingSelectedColorSyncAfterDragNoPendingCount,
             _runtimeSyncSelectedColorFromComponentsCallCount,
             ToMilliseconds(_runtimeSyncSelectedColorFromComponentsElapsedTicks),
+            _runtimeSyncSelectedColorFromComponentsReentrantSkipCount,
             _runtimeSyncSelectedColorFromComponentsNoOpCount,
             _runtimeSelectedColorChangedCallCount,
+            _runtimeSelectedColorChangedExternalSyncCount,
+            _runtimeSelectedColorChangedComponentWritebackCount,
             _runtimeSelectedColorChangedRaisedCount,
             _runtimeHueChangedCallCount,
             _runtimeSaturationChangedCallCount,
@@ -538,6 +583,8 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
 
         if (!_isSynchronizingComponents && oldColor != newColor)
         {
+            _runtimeSelectedColorChangedExternalSyncCount++;
+            Interlocked.Increment(ref _telemetrySelectedColorChangedExternalSyncCount);
             _isSynchronizingSelectedColor = true;
             try
             {
@@ -551,6 +598,11 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
             {
                 _isSynchronizingSelectedColor = false;
             }
+        }
+        else if (_isSynchronizingComponents && oldColor != newColor)
+        {
+            _runtimeSelectedColorChangedComponentWritebackCount++;
+            Interlocked.Increment(ref _telemetrySelectedColorChangedComponentWritebackCount);
         }
 
         if (oldColor != newColor)
@@ -681,9 +733,13 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
 
     private void RequestSelectedColorSync()
     {
+        _runtimeRequestSelectedColorSyncCallCount++;
+        Interlocked.Increment(ref _telemetryRequestSelectedColorSyncCallCount);
         _hasPendingSelectedColorSync = true;
         if (_isDragging)
         {
+            _runtimeRequestSelectedColorSyncDragDeferredCount++;
+            Interlocked.Increment(ref _telemetryRequestSelectedColorSyncDragDeferredCount);
             return;
         }
 
@@ -692,8 +748,12 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
 
     private void QueueDeferredSelectedColorSync()
     {
+        _runtimeQueueDeferredSelectedColorSyncCallCount++;
+        Interlocked.Increment(ref _telemetryQueueDeferredSelectedColorSyncCallCount);
         if (_isSelectedColorSyncDeferred)
         {
+            _runtimeQueueDeferredSelectedColorSyncAlreadyQueuedCount++;
+            Interlocked.Increment(ref _telemetryQueueDeferredSelectedColorSyncAlreadyQueuedCount);
             return;
         }
 
@@ -703,14 +763,20 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
 
     private void FlushDeferredSelectedColorSync()
     {
+        _runtimeFlushDeferredSelectedColorSyncCallCount++;
+        Interlocked.Increment(ref _telemetryFlushDeferredSelectedColorSyncCallCount);
         _isSelectedColorSyncDeferred = false;
         if (!_hasPendingSelectedColorSync)
         {
+            _runtimeFlushDeferredSelectedColorSyncNoPendingCount++;
+            Interlocked.Increment(ref _telemetryFlushDeferredSelectedColorSyncNoPendingCount);
             return;
         }
 
         if (_isDragging)
         {
+            _runtimeFlushDeferredSelectedColorSyncRequeueWhileDraggingCount++;
+            Interlocked.Increment(ref _telemetryFlushDeferredSelectedColorSyncRequeueWhileDraggingCount);
             QueueDeferredSelectedColorSync();
             return;
         }
@@ -721,8 +787,12 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
 
     private void FlushPendingSelectedColorSyncAfterDrag()
     {
+        _runtimeFlushPendingSelectedColorSyncAfterDragCallCount++;
+        Interlocked.Increment(ref _telemetryFlushPendingSelectedColorSyncAfterDragCallCount);
         if (!_hasPendingSelectedColorSync)
         {
+            _runtimeFlushPendingSelectedColorSyncAfterDragNoPendingCount++;
+            Interlocked.Increment(ref _telemetryFlushPendingSelectedColorSyncAfterDragNoPendingCount);
             return;
         }
 
@@ -739,6 +809,8 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
 
         if (_isSynchronizingSelectedColor)
         {
+            _runtimeSyncSelectedColorFromComponentsReentrantSkipCount++;
+            Interlocked.Increment(ref _telemetrySyncSelectedColorFromComponentsReentrantSkipCount);
             AccumulateSyncSelectedColorElapsed(start);
             return;
         }
@@ -1198,10 +1270,22 @@ public sealed class ColorSpectrum : Control, IRenderDirtyBoundsHintProvider
             ReadCounter(ref _telemetryUpdateFromPointerZeroRectSkipCount, reset),
             ReadCounter(ref _telemetryUpdateFromPointerHuePathCount, reset),
             ReadCounter(ref _telemetryUpdateFromPointerAlphaPathCount, reset),
+            ReadCounter(ref _telemetryRequestSelectedColorSyncCallCount, reset),
+            ReadCounter(ref _telemetryRequestSelectedColorSyncDragDeferredCount, reset),
+            ReadCounter(ref _telemetryQueueDeferredSelectedColorSyncCallCount, reset),
+            ReadCounter(ref _telemetryQueueDeferredSelectedColorSyncAlreadyQueuedCount, reset),
+            ReadCounter(ref _telemetryFlushDeferredSelectedColorSyncCallCount, reset),
+            ReadCounter(ref _telemetryFlushDeferredSelectedColorSyncNoPendingCount, reset),
+            ReadCounter(ref _telemetryFlushDeferredSelectedColorSyncRequeueWhileDraggingCount, reset),
+            ReadCounter(ref _telemetryFlushPendingSelectedColorSyncAfterDragCallCount, reset),
+            ReadCounter(ref _telemetryFlushPendingSelectedColorSyncAfterDragNoPendingCount, reset),
             ReadCounter(ref _telemetrySyncSelectedColorFromComponentsCallCount, reset),
             ReadMilliseconds(ref _telemetrySyncSelectedColorFromComponentsElapsedTicks, reset),
+            ReadCounter(ref _telemetrySyncSelectedColorFromComponentsReentrantSkipCount, reset),
             ReadCounter(ref _telemetrySyncSelectedColorFromComponentsNoOpCount, reset),
             ReadCounter(ref _telemetrySelectedColorChangedCallCount, reset),
+            ReadCounter(ref _telemetrySelectedColorChangedExternalSyncCount, reset),
+            ReadCounter(ref _telemetrySelectedColorChangedComponentWritebackCount, reset),
             ReadCounter(ref _telemetrySelectedColorChangedRaisedCount, reset),
             ReadCounter(ref _telemetryHueChangedCallCount, reset),
             ReadCounter(ref _telemetrySaturationChangedCallCount, reset),

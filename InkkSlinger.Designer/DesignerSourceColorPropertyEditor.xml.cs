@@ -40,12 +40,18 @@ public partial class DesignerSourceColorPropertyEditor : UserControl
                 {
                     if (dependencyObject is DesignerSourceColorPropertyEditor editor)
                     {
+                        if (editor._isWritingSelectedColorValue)
+                        {
+                            return;
+                        }
+
                         editor.SynchronizeFromProperties();
                     }
                 }));
 
     private bool _handlingInteractivePopupToggle;
     private bool _isSynchronizing;
+    private bool _isWritingSelectedColorValue;
     private static DesignerSourceColorPropertyEditor? _openEditor;
     private Color _currentColor;
     private float _currentHue;
@@ -255,7 +261,16 @@ public partial class DesignerSourceColorPropertyEditor : UserControl
 
         if (commitToSource)
         {
-            SelectedColorValue = _currentColor;
+            _isWritingSelectedColorValue = true;
+            try
+            {
+                SelectedColorValue = _currentColor;
+            }
+            finally
+            {
+                _isWritingSelectedColorValue = false;
+            }
+
             ColorValueCommitted?.Invoke(this, EventArgs.Empty);
         }
     }

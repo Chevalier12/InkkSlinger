@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Globalization;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework.Input;
@@ -343,6 +344,31 @@ public sealed class InkkOopsTestScriptUsageTests
             fileName => fileName != null && fileName.Contains("source-property-inspector-after-maximize", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task RuntimeRun_Designer_ColorPicker_FirstClick_FrameEvidence_Preserves_Repro_Artifacts()
+    {
+        var artifactsRoot = CreatePreservedArtifactsRoot("runtime-designer-color-picker-first-click-frame-evidence");
+        var runDirectory = await RunRuntimeScenarioFromTestAssemblyAllowCompletedArtifactsAsync(
+            "runtime-designer-color-picker-first-click-frame-evidence-scenario",
+            GetDesignerProjectPath(),
+            artifactsRoot);
+
+        var resultJson = File.ReadAllText(Path.Combine(runDirectory, "result.json"));
+        var actionLogPath = Path.Combine(runDirectory, "action.log");
+        var actionLog = File.ReadAllText(actionLogPath);
+        var pngFiles = Directory.GetFiles(runDirectory, "*.png").Select(Path.GetFileName).ToArray();
+
+        Assert.Contains("\"status\": \"Completed\"", resultJson);
+        Assert.Contains("\"scriptName\": \"runtime-designer-color-picker-first-click-frame-evidence-scenario\"", resultJson);
+        Assert.True(File.Exists(actionLogPath));
+        Assert.Contains("capture frame", actionLog, StringComparison.Ordinal);
+        Assert.Contains(pngFiles, fileName => string.Equals(fileName, "color-picker-before-action-303.png", StringComparison.Ordinal));
+        Assert.Contains(pngFiles, fileName => string.Equals(fileName, "color-picker-after-action-303.png", StringComparison.Ordinal));
+        Assert.Contains(pngFiles, fileName => string.Equals(fileName, "color-picker-after-action-304.png", StringComparison.Ordinal));
+        Assert.Contains(pngFiles, fileName => string.Equals(fileName, "color-picker-after-action-305.png", StringComparison.Ordinal));
+        Assert.Contains(pngFiles, fileName => string.Equals(fileName, "color-picker-after-action-306.png", StringComparison.Ordinal));
+    }
+
     private static async Task<string> RunRuntimeScenarioFromTestAssemblyAsync(string scriptName, string artifactsRoot)
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -534,6 +560,94 @@ public sealed class InkkOopsTestScriptUsageTests
     {
         var repositoryRoot = FindRepositoryRoot();
         return Path.Combine(repositoryRoot, "InkkSlinger.Designer", "InkkSlinger.Designer.csproj");
+    }
+
+    private static string GetPhase4ColorPickerRecordingPath()
+    {
+        return Path.GetFullPath(Path.Combine(
+            Environment.CurrentDirectory,
+            "artifacts",
+            "inkkoops-recordings",
+            "20260419-130339449-recorded-session",
+            "recording.json"));
+    }
+
+    private static IReadOnlyList<InkkOopsInteractionRecorder.RecordedAction> LoadRecordedActions(string recordingPath)
+    {
+        if (!File.Exists(recordingPath))
+        {
+            throw new FileNotFoundException($"Could not find phase 4 recording at '{recordingPath}'.", recordingPath);
+        }
+
+        var json = File.ReadAllText(recordingPath);
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("actions", out var actionsElement) || actionsElement.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException($"Recording '{recordingPath}' does not contain an actions array.");
+        }
+
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+        var actions = new List<InkkOopsInteractionRecorder.RecordedAction>();
+        foreach (var actionElement in actionsElement.EnumerateArray())
+        {
+            var action = actionElement.Deserialize<InkkOopsInteractionRecorder.RecordedAction>(options);
+            if (action == null)
+            {
+                throw new InvalidOperationException($"Could not deserialize a recorded action from '{recordingPath}'.");
+            }
+
+            actions.Add(action);
+        }
+
+        return actions;
+    }
+
+    private static void AppendRecordedAction(InkkOopsScriptBuilder builder, InkkOopsInteractionRecorder.RecordedAction action)
+    {
+        switch (action.Kind)
+        {
+            case InkkOopsInteractionRecorder.RecordedActionKind.WaitFrames:
+                builder.WaitFrames(action.FrameCount ?? 1);
+                break;
+            case InkkOopsInteractionRecorder.RecordedActionKind.ResizeWindow:
+                builder.ResizeWindow(action.Width ?? 1, action.Height ?? 1);
+                break;
+            case InkkOopsInteractionRecorder.RecordedActionKind.MovePointer:
+                builder.MovePointer(new System.Numerics.Vector2(action.X ?? 0, action.Y ?? 0));
+                break;
+            case InkkOopsInteractionRecorder.RecordedActionKind.PointerDown:
+                builder.PointerDown(new System.Numerics.Vector2(action.X ?? 0, action.Y ?? 0));
+                break;
+            case InkkOopsInteractionRecorder.RecordedActionKind.PointerUp:
+                builder.PointerUp(new System.Numerics.Vector2(action.X ?? 0, action.Y ?? 0));
+                break;
+            case InkkOopsInteractionRecorder.RecordedActionKind.Wheel:
+                builder.Wheel(action.WheelDelta ?? 0);
+                break;
+            case InkkOopsInteractionRecorder.RecordedActionKind.KeyDown:
+                if (action.Key is Keys keyDown)
+                {
+                    builder.KeyDown(keyDown);
+                }
+                break;
+            case InkkOopsInteractionRecorder.RecordedActionKind.KeyUp:
+                if (action.Key is Keys keyUp)
+                {
+                    builder.KeyUp(keyUp);
+                }
+                break;
+            case InkkOopsInteractionRecorder.RecordedActionKind.TextInput:
+                if (action.Character is char character)
+                {
+                    builder.TextInput(character);
+                }
+                break;
+            default:
+                throw new InvalidOperationException($"Unsupported recorded action kind '{action.Kind}'.");
+        }
     }
 
     private static bool TryFindLoggedFpsForAction(string actionLog, string actionDescription, out double fps)
@@ -881,6 +995,37 @@ public sealed class InkkOopsTestScriptUsageTests
                 .WaitFrames(12)
                 .CaptureFrame("source-property-inspector-after-maximize-settled")
                 .DumpTelemetry("source-property-inspector-after-maximize-settled");
+        }
+    }
+
+    public sealed class RuntimeDesignerColorPickerFirstClickFrameEvidenceScenario : InkkOopsRuntimeScenario
+    {
+        private const int FirstSuspiciousActionIndex = 303;
+        private const int FinalCapturedActionIndex = 306;
+
+        public override string Name => "runtime-designer-color-picker-first-click-frame-evidence-scenario";
+
+        protected override void Build(InkkOopsScriptBuilder builder)
+        {
+            var actions = LoadRecordedActions(GetPhase4ColorPickerRecordingPath());
+
+            if (actions.Count <= FinalCapturedActionIndex)
+            {
+                throw new InvalidOperationException($"Expected at least {FinalCapturedActionIndex + 1} recorded actions, found {actions.Count}.");
+            }
+
+            for (var i = 0; i < FirstSuspiciousActionIndex; i++)
+            {
+                AppendRecordedAction(builder, actions[i]);
+            }
+
+            builder.CaptureFrame("color-picker-before-action-303");
+
+            for (var i = FirstSuspiciousActionIndex; i <= FinalCapturedActionIndex; i++)
+            {
+                AppendRecordedAction(builder, actions[i]);
+                builder.CaptureFrame($"color-picker-after-action-{i}");
+            }
         }
     }
 }

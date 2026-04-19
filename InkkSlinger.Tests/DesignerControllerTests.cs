@@ -1348,6 +1348,168 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourcePropertyInspector_BorderBackgroundColorEditor_WhenRecordedColorPickerClickIsApplied_ShouldSelectClickedPoint()
+    {
+        var scenario = CreateRecordedColorEditorScenario("#E7EDF5");
+        var initialPicker = scenario.ColorPicker.GetColorPickerSnapshotForDiagnostics();
+        var pointer = new Vector2(
+            initialPicker.SpectrumRect.X + (initialPicker.SpectrumRect.Width * 0.20817845f),
+            initialPicker.SpectrumRect.Y + (initialPicker.SpectrumRect.Height * 0.6142857f));
+        var expectedSaturation = ColorControlUtilities.Clamp01((pointer.X - initialPicker.SpectrumRect.X) / initialPicker.SpectrumRect.Width);
+        var expectedValue = 1f - ColorControlUtilities.Clamp01((pointer.Y - initialPicker.SpectrumRect.Y) / initialPicker.SpectrumRect.Height);
+        var expectedColor = ColorControlUtilities.FromHsva(initialPicker.Hue, expectedSaturation, expectedValue, initialPicker.Alpha);
+
+        var hovered = VisualTreeHelper.HitTest(scenario.Shell, pointer);
+        Assert.NotNull(FindSelfOrAncestor<ColorPicker>(hovered));
+
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+
+        var pressedPicker = scenario.ColorPicker.GetColorPickerSnapshotForDiagnostics();
+        Assert.True(pressedPicker.IsDragging);
+        AssertClose(pointer.X, pressedPicker.SaturationSelector.X, 1.2f);
+        AssertClose(pointer.Y, pressedPicker.SaturationSelector.Y, 1.2f);
+
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+
+        var releasedPicker = scenario.ColorPicker.GetColorPickerSnapshotForDiagnostics();
+        Assert.False(releasedPicker.IsDragging);
+        AssertClose(pointer.X, releasedPicker.SaturationSelector.X, 1.2f);
+        AssertClose(pointer.Y, releasedPicker.SaturationSelector.Y, 1.2f);
+        AssertClose(expectedSaturation, releasedPicker.Saturation, 0.01f);
+        AssertClose(expectedValue, releasedPicker.Value, 0.01f);
+        Assert.Equal(expectedColor.PackedValue, releasedPicker.SelectedColor.PackedValue);
+        Assert.Equal(expectedColor.PackedValue, scenario.EditorHost.SelectedColorValue.PackedValue);
+        Assert.Equal(expectedColor.PackedValue, scenario.EditorHost.CurrentSelectedColor.PackedValue);
+        Assert.Contains(
+            $"Background=\"{FormatDesignerColorValue(expectedColor)}\"",
+            scenario.Shell.SourceText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_BorderBackgroundColorEditor_WhenRecordedHueSpectrumClickIsApplied_ShouldSelectClickedPoint()
+    {
+        var scenario = CreateRecordedColorEditorScenario("#0B1620");
+        var initialHue = scenario.HueSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+        var pointer = new Vector2(
+            initialHue.SpectrumRect.X + (initialHue.SpectrumRect.Width * 0.62267655f),
+            initialHue.SpectrumRect.Y + (initialHue.SpectrumRect.Height * 0.5f));
+        var expectedHue = ColorControlUtilities.NormalizeHue(
+            ColorControlUtilities.Clamp01((pointer.X - initialHue.SpectrumRect.X) / initialHue.SpectrumRect.Width) * 360f);
+        var expectedColor = ColorControlUtilities.FromHsva(expectedHue, initialHue.Saturation, initialHue.Value, initialHue.Alpha);
+
+        var hovered = VisualTreeHelper.HitTest(scenario.Shell, pointer);
+        Assert.NotNull(FindSelfOrAncestor<ColorSpectrum>(hovered));
+
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+
+        var pressedHue = scenario.HueSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+        Assert.True(pressedHue.IsDragging);
+        AssertClose(pointer.X, pressedHue.SelectorPosition, 1.2f);
+
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+
+        var releasedHue = scenario.HueSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+        Assert.False(releasedHue.IsDragging);
+        AssertClose(pointer.X, releasedHue.SelectorPosition, 1.2f);
+        AssertClose(expectedHue, releasedHue.Hue, 0.5f);
+        Assert.Equal(expectedColor.PackedValue, releasedHue.SelectedColor.PackedValue);
+        Assert.Equal(expectedColor.PackedValue, scenario.EditorHost.SelectedColorValue.PackedValue);
+        Assert.Equal(expectedColor.PackedValue, scenario.EditorHost.CurrentSelectedColor.PackedValue);
+        Assert.Contains(
+            $"Background=\"{FormatDesignerColorValue(expectedColor)}\"",
+            scenario.Shell.SourceText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_BorderBackgroundColorEditor_WhenRecordedHueSpectrumClickIsReleased_ShouldPreservePointerDerivedHueWithoutExtraPointerUpdate()
+    {
+        var scenario = CreateRecordedColorEditorScenario("#0B1620");
+        var initialHue = scenario.HueSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+        var pointer = new Vector2(
+            initialHue.SpectrumRect.X + (initialHue.SpectrumRect.Width * 0.62267655f),
+            initialHue.SpectrumRect.Y + (initialHue.SpectrumRect.Height * 0.5f));
+        var expectedHue = ColorControlUtilities.NormalizeHue(
+            ColorControlUtilities.Clamp01((pointer.X - initialHue.SpectrumRect.X) / initialHue.SpectrumRect.Width) * 360f);
+        var expectedColor = ColorControlUtilities.FromHsva(expectedHue, initialHue.Saturation, initialHue.Value, initialHue.Alpha);
+        ColorControlUtilities.ToHsva(expectedColor, out var byteRoundTripHue, out _, out _, out _);
+
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+
+        var pressedHue = scenario.HueSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true, pointerMoved: false));
+        var postReleaseHue = scenario.HueSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+
+        var releasedHue = scenario.HueSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+
+        AssertClose(initialHue.SpectrumRect.X, pressedHue.SpectrumRect.X, 0.01f);
+        AssertClose(initialHue.SpectrumRect.X, releasedHue.SpectrumRect.X, 0.01f);
+        AssertClose(initialHue.SpectrumRect.Width, pressedHue.SpectrumRect.Width, 0.01f);
+        AssertClose(initialHue.SpectrumRect.Width, releasedHue.SpectrumRect.Width, 0.01f);
+        Assert.Equal(initialHue.UpdateFromPointerCallCount + 1, pressedHue.UpdateFromPointerCallCount);
+        Assert.Equal(pressedHue.UpdateFromPointerCallCount, postReleaseHue.UpdateFromPointerCallCount);
+        Assert.Equal(pressedHue.UpdateFromPointerCallCount, releasedHue.UpdateFromPointerCallCount);
+        AssertClose(expectedHue, pressedHue.Hue, 0.5f);
+        Assert.Equal(pressedHue.SyncSelectedColorFromComponentsCallCount + 1, postReleaseHue.SyncSelectedColorFromComponentsCallCount);
+        Assert.Equal(pressedHue.SelectedColorChangedComponentWritebackCount + 1, postReleaseHue.SelectedColorChangedComponentWritebackCount);
+        Assert.Equal(pressedHue.SelectedColorChangedExternalSyncCount, postReleaseHue.SelectedColorChangedExternalSyncCount);
+        Assert.NotInRange(byteRoundTripHue, expectedHue - 0.5f, expectedHue + 0.5f);
+        AssertClose(expectedHue, postReleaseHue.Hue, 0.5f);
+        AssertClose(expectedHue, releasedHue.Hue, 0.5f);
+        AssertClose(postReleaseHue.Hue, releasedHue.Hue, 0.01f);
+        Assert.Equal(expectedColor.PackedValue, releasedHue.SelectedColor.PackedValue);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_BorderBackgroundColorEditor_WhenRecordedAlphaSpectrumClickIsApplied_ShouldSelectClickedPoint()
+    {
+        var scenario = CreateRecordedColorEditorScenario("#0B2011");
+        var initialAlpha = scenario.AlphaSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+        var pointer = new Vector2(
+            initialAlpha.SpectrumRect.X + (initialAlpha.SpectrumRect.Width * 0.33271375f),
+            initialAlpha.SpectrumRect.Y + (initialAlpha.SpectrumRect.Height * 0.5f));
+        var expectedAlpha = ColorControlUtilities.Clamp01((pointer.X - initialAlpha.SpectrumRect.X) / initialAlpha.SpectrumRect.Width);
+        var expectedColor = ColorControlUtilities.FromHsva(initialAlpha.Hue, initialAlpha.Saturation, initialAlpha.Value, expectedAlpha);
+
+        var hovered = VisualTreeHelper.HitTest(scenario.Shell, pointer);
+        Assert.NotNull(FindSelfOrAncestor<ColorSpectrum>(hovered));
+
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+
+        var pressedAlpha = scenario.AlphaSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+        Assert.True(pressedAlpha.IsDragging);
+        AssertClose(pointer.X, pressedAlpha.SelectorPosition, 1.2f);
+
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+
+        var releasedAlpha = scenario.AlphaSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+        Assert.False(releasedAlpha.IsDragging);
+        AssertClose(pointer.X, releasedAlpha.SelectorPosition, 1.2f);
+        AssertClose(expectedAlpha, releasedAlpha.Alpha, 0.01f);
+        Assert.Equal(expectedColor.PackedValue, releasedAlpha.SelectedColor.PackedValue);
+        Assert.Equal(expectedColor.PackedValue, scenario.EditorHost.SelectedColorValue.PackedValue);
+        Assert.Equal(expectedColor.PackedValue, scenario.EditorHost.CurrentSelectedColor.PackedValue);
+        Assert.Contains(
+            $"Background=\"{FormatDesignerColorValue(expectedColor)}\"",
+            scenario.Shell.SourceText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ShellView_SourcePropertyInspectorPropertyEditors_AreArrangedWithinInspectorViewport()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -3738,6 +3900,58 @@ public class DesignerControllerTests
         return Assert.IsType<Popup>(GetSourceInspectorColorEditorHost(editor).FindName("InteractivePopup"));
     }
 
+    private static RecordedColorEditorScenario CreateRecordedColorEditorScenario(string initialBackgroundHex)
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = CreateBorderOnlyViewXml(initialBackgroundHex)
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 820, 16);
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Border");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var backgroundEditor = Assert.IsAssignableFrom<ComboBox>(propertyEditors["Background"]);
+
+        EnsureSourceInspectorPropertyVisible(shell.SourceEditorView, uiRoot, backgroundEditor, "Background");
+        OpenSourceInspectorColorEditor(uiRoot, backgroundEditor);
+        RunLayout(uiRoot, 1280, 820, 16);
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        var popup = GetSourceInspectorColorEditorPopup(backgroundEditor);
+        Assert.True(popup.IsOpen);
+
+        return new RecordedColorEditorScenario(
+            shell,
+            uiRoot,
+            GetSourceInspectorColorEditorHost(backgroundEditor),
+            backgroundEditor,
+            popup,
+            GetSourceInspectorColorEditorColorPicker(backgroundEditor),
+            GetSourceInspectorColorEditorHueSpectrum(backgroundEditor),
+            GetSourceInspectorColorEditorAlphaSpectrum(backgroundEditor));
+    }
+
+    private static string CreateBorderOnlyViewXml(string backgroundHex)
+    {
+        return $$"""
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         Background="#101820">
+              <StackPanel>
+                <Border x:Name="ChromeBorder"
+                        Background="{{backgroundHex}}"
+                        BorderBrush="#334455"
+                        BorderThickness="1" />
+              </StackPanel>
+            </UserControl>
+            """;
+    }
+
     private static ListBox GetComboBoxDropDownList(ComboBox editor)
     {
         var field = typeof(ComboBox).GetField("_dropDownList", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -3776,6 +3990,18 @@ public class DesignerControllerTests
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftPressed: true, pointerMoved: false));
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true, pointerMoved: false));
+    }
+
+    private static void AssertClose(float expected, float actual, float tolerance)
+    {
+        Assert.InRange(actual, expected - tolerance, expected + tolerance);
+    }
+
+    private static string FormatDesignerColorValue(Color color)
+    {
+        return color.A == byte.MaxValue
+            ? $"#{color.R:X2}{color.G:X2}{color.B:X2}"
+            : $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
     }
 
     private static LayoutRect ResolveRenderedBounds(UIElement element)
@@ -3906,6 +4132,16 @@ public class DesignerControllerTests
 
         return false;
     }
+
+    private readonly record struct RecordedColorEditorScenario(
+        InkkSlinger.Designer.DesignerShellView Shell,
+        UiRoot UiRoot,
+        InkkSlinger.Designer.DesignerSourceColorPropertyEditor EditorHost,
+        ComboBox BackgroundEditor,
+        Popup Popup,
+        ColorPicker ColorPicker,
+        ColorSpectrum HueSpectrum,
+        ColorSpectrum AlphaSpectrum);
 
     private static Panel FindListBoxItemsHostPanel(ListBox listBox)
     {

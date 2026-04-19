@@ -563,4 +563,5 @@ public sealed class ColorPickerControlTests
         uiRoot.CompleteDrawStateForTests();
         uiRoot.ResetDirtyStateForTests();
     }
+
 }
