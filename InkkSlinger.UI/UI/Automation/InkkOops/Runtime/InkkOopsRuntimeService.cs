@@ -214,6 +214,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 var session = new InkkOopsSession(_host, artifacts, GetEffectiveActionDiagnosticsIndexes(request.ActionDiagnosticsIndexes, script));
                 result = await _runner.RunAsync(script, session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
+                WritePlaybackActionLogMirror(request.RecordingPath, artifacts.GetActionLogPath());
             }
             else if (!_scriptCatalog.TryResolve(request.ScriptName, out var scriptDefinition) || scriptDefinition == null)
             {
@@ -256,6 +257,20 @@ public sealed class InkkOopsRuntimeService : IDisposable
         {
             _requestAppExit?.Invoke(result);
         }
+    }
+
+    private static void WritePlaybackActionLogMirror(string recordingPath, string actionLogPath)
+    {
+        if (string.IsNullOrWhiteSpace(recordingPath) ||
+            string.IsNullOrWhiteSpace(actionLogPath) ||
+            !File.Exists(actionLogPath))
+        {
+            return;
+        }
+
+        var recordingDirectory = InkkOopsRecordedSessionLoader.GetRecordingDirectoryPath(recordingPath);
+        var mirrorPath = Path.Combine(recordingDirectory, "actionlog.txt");
+        File.Copy(actionLogPath, mirrorPath, overwrite: true);
     }
 
     private async Task RunPipeServerLoopAsync()

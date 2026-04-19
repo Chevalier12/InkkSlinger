@@ -106,6 +106,47 @@ public sealed class InkkOopsTestScriptUsageTests
     }
 
     [Fact]
+    public async Task RuntimePlayback_Writes_ActionLogText_Next_To_Inkkr_File()
+    {
+        var runtimeRoot = Path.Combine(Path.GetTempPath(), $"inkkoops-runtime-replay-inkkr-{Guid.NewGuid():N}");
+        var recordingDirectory = Path.Combine(runtimeRoot, "recorded-session");
+        var artifactsRoot = Path.Combine(runtimeRoot, "artifacts");
+        var recordingPath = Path.Combine(recordingDirectory, "recording.inkkr");
+        Directory.CreateDirectory(recordingDirectory);
+        Directory.CreateDirectory(artifactsRoot);
+
+        try
+        {
+            File.WriteAllText(
+                recordingPath,
+                """
+                {
+                  "actions": [
+                    { "kind": 0, "frameCount": 2 }
+                  ]
+                }
+                """);
+
+            var runDirectory = await RunRuntimeRecordingAsync(recordingPath, artifactsRoot);
+            var mirroredActionLogPath = Path.Combine(recordingDirectory, "actionlog.txt");
+
+            Assert.True(File.Exists(Path.Combine(runDirectory, "action.log")));
+            Assert.True(File.Exists(mirroredActionLogPath));
+
+            var mirroredActionLog = File.ReadAllText(mirroredActionLogPath);
+            Assert.Contains("action[0]", mirroredActionLog);
+            Assert.Contains("wait frames", mirroredActionLog);
+        }
+        finally
+        {
+            if (Directory.Exists(runtimeRoot))
+            {
+                Directory.Delete(runtimeRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task CliPlayback_Uses_Recorded_Project_Path_From_Recording()
     {
         var runtimeRoot = Path.Combine(Path.GetTempPath(), $"inkkoops-cli-replay-{Guid.NewGuid():N}");

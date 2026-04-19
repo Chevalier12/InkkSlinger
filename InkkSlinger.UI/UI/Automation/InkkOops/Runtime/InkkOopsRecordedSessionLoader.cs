@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.IO;
 using System.Text.Json;
 
 namespace InkkSlinger;
@@ -69,6 +70,13 @@ public static class InkkOopsRecordedSessionLoader
     {
         var (fullPath, session) = LoadDocument(recordingPath);
         return new InkkOopsRecordedSessionMetadata(fullPath, session.RecordedProjectPath ?? string.Empty);
+    }
+
+    public static string GetRecordingDirectoryPath(string recordingPath)
+    {
+        var fullPath = ResolveRecordingPath(recordingPath);
+        return Path.GetDirectoryName(fullPath)
+               ?? throw new InvalidOperationException($"Recording '{fullPath}' does not have a parent directory.");
     }
 
     private static (string FullPath, RecordedSessionDocument Document) LoadDocument(string recordingPath)
