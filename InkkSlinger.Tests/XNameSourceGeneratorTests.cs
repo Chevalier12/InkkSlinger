@@ -202,6 +202,49 @@ public class UserControl
     }
 
     [Fact]
+    public void CustomControlAttributes_InCurrentAssembly_DoNotReportXName042()
+    {
+        const string source = """
+namespace InkkSlinger;
+
+public class UserControl
+{
+}
+
+public class Panel : UserControl
+{
+    public object? Margin { get; set; }
+    public object? FontFamily { get; set; }
+}
+
+namespace InkkSlinger.Designer;
+
+public partial class SampleView : global::InkkSlinger.UserControl
+{
+}
+
+public sealed class DesignerSourceLineNumberPresenter : global::InkkSlinger.Panel
+{
+    public object? LineForeground { get; set; }
+}
+""";
+
+        const string xml = """
+<UserControl xmlns="urn:inkkslinger-ui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="InkkSlinger.Designer.SampleView">
+  <DesignerSourceLineNumberPresenter Margin="0,10,6,0"
+                                     FontFamily="Consolas"
+                                     LineForeground="#4A6880" />
+</UserControl>
+""";
+
+        var result = RunGenerator(source, new TestAdditionalText("Views/SampleView.xml", xml));
+        var ids = result.Results.Single().Diagnostics.Select(static d => d.Id).ToImmutableHashSet(StringComparer.Ordinal);
+        Assert.DoesNotContain("XNAME042", ids);
+    }
+
+    [Fact]
     public void UnknownEventLikeAttribute_OnReadOnlyProperty_StillReportsDiagnostic()
     {
         const string source = """

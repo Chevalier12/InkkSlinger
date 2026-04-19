@@ -304,6 +304,25 @@ public sealed class XNameGenerator : IIncrementalGenerator
             return new ResolvedType(symbol, $"global::{inkkSlingerTypeName}");
         }
 
+        var assemblyMatches = new List<INamedTypeSymbol>();
+        CollectMatchingTypes(compilation.Assembly.GlobalNamespace, mappedName, assemblyMatches);
+        if (assemblyMatches.Count == 1)
+        {
+            var assemblyMatch = assemblyMatches[0];
+            return new ResolvedType(assemblyMatch, $"global::{assemblyMatch.ToDisplayString()}");
+        }
+
+        foreach (var assemblyMatch in assemblyMatches)
+        {
+            if (string.Equals(
+                    assemblyMatch.ContainingNamespace?.ToDisplayString(),
+                    "InkkSlinger",
+                    StringComparison.Ordinal))
+            {
+                return new ResolvedType(assemblyMatch, $"global::{assemblyMatch.ToDisplayString()}");
+            }
+        }
+
         var fallback = compilation.GetTypeByMetadataName("InkkSlinger.UIElement");
         if (fallback is not null)
         {

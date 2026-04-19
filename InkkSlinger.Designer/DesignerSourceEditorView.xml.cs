@@ -86,9 +86,6 @@ public partial class DesignerSourceEditorView : UserControl
             _ = rootPanel.RemoveChild(CompletionPopup);
         }
 
-        LineNumberPanel.Margin = new Thickness(0f, 10f, 6f, 0f);
-        LineNumberPanel.LineForeground = new Color(74, 104, 128);
-        LineNumberPanel.FontFamily = new FontFamily("Consolas");
         CompletionPopup.Closed += OnCompletionPopupClosed;
         CompletionListBox.SelectionChanged += OnCompletionListSelectionChanged;
         CompletionListBox.AddHandler<MouseRoutedEventArgs>(UIElement.MouseUpEvent, OnCompletionListMouseUp, handledEventsToo: true);
@@ -114,9 +111,9 @@ public partial class DesignerSourceEditorView : UserControl
 
     public RichTextBox Editor => SourceEditor;
 
-    public Border LineNumberBorder => SourceLineNumberBorder;
+    public Border LineNumberBorder => ((DesignerSourceLineNumberGutterView)SourceLineNumberGutter).BorderHost;
 
-    public DesignerSourceLineNumberPresenter LineNumberPanel => (DesignerSourceLineNumberPresenter)SourceLineNumberPanel;
+    public DesignerSourceLineNumberPresenter LineNumberPanel => ((DesignerSourceLineNumberGutterView)SourceLineNumberGutter).Presenter;
 
     public IEnumerable SourcePropertyInspectorItems
     {

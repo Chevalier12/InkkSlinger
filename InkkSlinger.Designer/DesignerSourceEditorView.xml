@@ -204,12 +204,8 @@
       <ColumnDefinition Width="320" MinWidth="220" />
     </Grid.ColumnDefinitions>
 
-    <Border x:Name="SourceLineNumberBorder"
-            Grid.Column="0"
-            Background="#0A1017"
-            ClipToBounds="True">
-      <DesignerSourceLineNumberPresenter x:Name="SourceLineNumberPanel" />
-    </Border>
+    <DesignerSourceLineNumberGutterView x:Name="SourceLineNumberGutter"
+                                        Grid.Column="0" />
 
     <Border Grid.Column="1"
             Background="#1A2637" />
