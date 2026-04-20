@@ -3415,6 +3415,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             return false;
         }
 
+        RemoveFullyDeletedTopLevelParagraphs(afterDocument, entries, paragraphs, start, end);
         PruneEmptyStructuralScaffolding(afterDocument);
 
         RecordOperation("MutationRoute", $"DeleteSelectionStructured cmd={commandType} policy={policy} start={start} len={length}");
@@ -3727,22 +3728,22 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
     private static void PruneRedundantEmptyTopLevelParagraphs(FlowDocument document)
     {
-        var seenEmptyParagraph = false;
+        var keepTrailingEmptyParagraph = true;
         for (var i = document.Blocks.Count - 1; i >= 0; i--)
         {
             if (document.Blocks[i] is not Paragraph paragraph)
             {
-                continue;
+                break;
             }
 
             if (!string.IsNullOrWhiteSpace(FlowDocumentPlainText.GetInlineText(paragraph.Inlines)))
             {
-                continue;
+                break;
             }
 
-            if (!seenEmptyParagraph)
+            if (keepTrailingEmptyParagraph)
             {
-                seenEmptyParagraph = true;
+                keepTrailingEmptyParagraph = false;
                 continue;
             }
 
@@ -3751,6 +3752,55 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 document.Blocks.RemoveAt(i);
             }
         }
+    }
+
+    private static void RemoveFullyDeletedTopLevelParagraphs(
+        FlowDocument document,
+        IReadOnlyList<ParagraphSelectionEntry> entries,
+        IReadOnlyList<Paragraph> paragraphs,
+        int selectionStart,
+        int selectionEnd)
+    {
+        for (var i = paragraphs.Count - 1; i >= 0; i--)
+        {
+            if (!ReferenceEquals(paragraphs[i].Parent, document))
+            {
+                continue;
+            }
+
+            if (!ShouldRemoveFullyDeletedTopLevelParagraph(entries, i, selectionStart, selectionEnd))
+            {
+                continue;
+            }
+
+            document.Blocks.Remove(paragraphs[i]);
+        }
+
+        if (document.Blocks.Count == 0)
+        {
+            document.Blocks.Add(CreateParagraph(string.Empty));
+        }
+    }
+
+    private static bool ShouldRemoveFullyDeletedTopLevelParagraph(
+        IReadOnlyList<ParagraphSelectionEntry> entries,
+        int paragraphIndex,
+        int selectionStart,
+        int selectionEnd)
+    {
+        if (paragraphIndex < 0 || paragraphIndex >= entries.Count - 1)
+        {
+            return false;
+        }
+
+        var entry = entries[paragraphIndex];
+        var paragraphFullySelected = selectionStart <= entry.StartOffset && selectionEnd >= entry.EndOffset;
+        if (!paragraphFullySelected)
+        {
+            return false;
+        }
+
+        return selectionEnd > entry.EndOffset;
     }
 
     private void ExecuteEnterParagraphBreak()

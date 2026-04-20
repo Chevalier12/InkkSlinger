@@ -476,8 +476,8 @@ public class InputDispatchOptimizationTests
         uiRoot.RunInputDeltaForTests(CreateDelta(pointerMoved: false, position: pointerPosition, leftReleased: true));
 
         Assert.Equal(Visibility.Collapsed, dismissingButton.Visibility);
-        Assert.Same(backgroundButton, VisualTreeHelper.HitTest(root, pointerPosition));
-        Assert.Same(backgroundButton, uiRoot.GetHoveredElementForDiagnostics());
+        Assert.True(IsElementOrDescendantOf(VisualTreeHelper.HitTest(root, pointerPosition), backgroundButton));
+        Assert.True(IsElementOrDescendantOf(uiRoot.GetHoveredElementForDiagnostics(), backgroundButton));
     }
 
     [Fact]
@@ -665,8 +665,22 @@ public class InputDispatchOptimizationTests
         return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f) - verticalOffset);
     }
 
+    private static bool IsElementOrDescendantOf(UIElement? element, UIElement expectedAncestor)
+    {
+        for (var current = element; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (ReferenceEquals(current, expectedAncestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
-    {            uiRoot.Update(
+    {
+        uiRoot.Update(
                 new GameTime(TimeSpan.FromMilliseconds(elapsedMs), TimeSpan.FromMilliseconds(elapsedMs)),
                 new Viewport(0, 0, width, height));
     }

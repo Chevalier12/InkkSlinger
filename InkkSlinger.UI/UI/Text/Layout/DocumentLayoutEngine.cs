@@ -587,89 +587,106 @@ public sealed class DocumentLayoutEngine
 
             if (!hasHostedVisuals && !usesParagraphTabConfiguration)
             {
-                var layoutLines = plainText.Length == 0
-                    ? new[] { string.Empty }
-                    : TextLayout.Layout(plainText, _settings.Typography, width, _settings.Wrapping).Lines;
-                var scanIndex = 0;
-                for (var lineIndex = 0; lineIndex < layoutLines.Count; lineIndex++)
+                var logicalLineStart = 0;
+                var visualLineIndex = 0;
+                while (logicalLineStart <= plainText.Length)
                 {
-                    while (scanIndex < plainText.Length && plainText[scanIndex] == '\n')
+                    var nextNewlineIndex = logicalLineStart;
+                    while (nextNewlineIndex < plainText.Length && plainText[nextNewlineIndex] != '\n')
                     {
-                        scanIndex++;
+                        nextNewlineIndex++;
                     }
 
-                    var lineText = layoutLines[lineIndex];
-                    if (scanIndex + lineText.Length > plainText.Length)
+                    var logicalLineLength = nextNewlineIndex - logicalLineStart;
+                    var logicalLayoutLines = logicalLineLength == 0
+                        ? new[] { string.Empty }
+                        : TextLayout.Layout(plainText.Substring(logicalLineStart, logicalLineLength), _settings.Typography, width, _settings.Wrapping).Lines;
+                    var localScanIndex = 0;
+                    for (var wrappedLineIndex = 0; wrappedLineIndex < logicalLayoutLines.Count; wrappedLineIndex++)
                     {
-                        lineText = scanIndex < plainText.Length ? plainText[scanIndex..] : string.Empty;
-                    }
-
-                    var globalLineStart = _offset + scanIndex;
-                    var lineY = y + (lineIndex * _settings.LineHeight);
-                    var lineRuns = BuildLineRuns(
-                        segments,
-                        scanIndex,
-                        lineText.Length,
-                        textStartX,
-                        lineY,
-                        globalLineStart,
-                        isTableCell,
-                        _settings.LineHeight,
-                        _settings.Typography,
-                        paragraphDefaultIncrementalTab,
-                        paragraphTabs);
-                    var prefixWidths = BuildPrefixWidths(
-                        segments,
-                        scanIndex,
-                        lineText.Length,
-                        _settings.Typography,
-                        paragraphDefaultIncrementalTab,
-                        paragraphTabs);
-                    var lineWidth = prefixWidths[prefixWidths.Length - 1];
-                    var lineBounds = new LayoutRect(textStartX, lineY, Math.Max(lineWidth, markerWidth), _settings.LineHeight);
-                    for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
-                    {
-                        _runs.Add(lineRuns[runIndex]);
-                    }
-
-                    if (lineIndex == 0 && markerWidth > 0f)
-                    {
-                        var markerRun = new DocumentLayoutRun
+                        var lineText = logicalLayoutLines[wrappedLineIndex];
+                        if (localScanIndex + lineText.Length > logicalLineLength)
                         {
-                            Text = marker,
-                            Bounds = new LayoutRect(markerX, lineY, markerWidth, _settings.LineHeight),
+                            lineText = localScanIndex < logicalLineLength
+                                ? plainText.Substring(logicalLineStart + localScanIndex, logicalLineLength - localScanIndex)
+                                : string.Empty;
+                        }
+
+                        var globalLineStart = _offset + logicalLineStart + localScanIndex;
+                        var lineY = y + (visualLineIndex * _settings.LineHeight);
+                        var lineRuns = BuildLineRuns(
+                            segments,
+                            logicalLineStart + localScanIndex,
+                            lineText.Length,
+                            textStartX,
+                            lineY,
+                            globalLineStart,
+                            isTableCell,
+                            _settings.LineHeight,
+                            _settings.Typography,
+                            paragraphDefaultIncrementalTab,
+                            paragraphTabs);
+                        var prefixWidths = BuildPrefixWidths(
+                            segments,
+                            logicalLineStart + localScanIndex,
+                            lineText.Length,
+                            _settings.Typography,
+                            paragraphDefaultIncrementalTab,
+                            paragraphTabs);
+                        var lineWidth = prefixWidths[prefixWidths.Length - 1];
+                        var lineBounds = new LayoutRect(textStartX, lineY, Math.Max(lineWidth, markerWidth), _settings.LineHeight);
+                        for (var runIndex = 0; runIndex < lineRuns.Count; runIndex++)
+                        {
+                            _runs.Add(lineRuns[runIndex]);
+                        }
+
+                        if (visualLineIndex == 0 && markerWidth > 0f)
+                        {
+                            var markerRun = new DocumentLayoutRun
+                            {
+                                Text = marker,
+                                Bounds = new LayoutRect(markerX, lineY, markerWidth, _settings.LineHeight),
+                                StartOffset = globalLineStart,
+                                Length = 0,
+                                Style = DocumentLayoutStyle.Default,
+                                IsListMarker = true,
+                                IsTableContent = isTableCell
+                            };
+                            _runs.Add(markerRun);
+                            lineRuns.Insert(0, markerRun);
+                        }
+
+                        for (var column = 0; column <= lineText.Length; column++)
+                        {
+                            var point = new Vector2(textStartX + prefixWidths[column], lineY);
+                            _caretPositions[globalLineStart + column] = point;
+                        }
+
+                        var builtLine = new DocumentLayoutLine
+                        {
+                            Index = _lineIndex++,
                             StartOffset = globalLineStart,
-                            Length = 0,
-                            Style = DocumentLayoutStyle.Default,
-                            IsListMarker = true,
-                            IsTableContent = isTableCell
+                            Length = lineText.Length,
+                            Text = lineText,
+                            TextStartX = textStartX,
+                            Bounds = lineBounds,
+                            Runs = lineRuns,
+                            PrefixWidths = prefixWidths
                         };
-                        _runs.Add(markerRun);
-                        lineRuns.Insert(0, markerRun);
+
+                        _lines.Add(builtLine);
+                        blockBottom = Math.Max(blockBottom, lineY + _settings.LineHeight);
+                        _contentWidth = Math.Max(_contentWidth, Math.Max(lineBounds.Width + lineBounds.X, markerX + markerWidth));
+                        localScanIndex += lineText.Length;
+                        visualLineIndex++;
                     }
 
-                    for (var column = 0; column <= lineText.Length; column++)
+                    if (nextNewlineIndex >= plainText.Length)
                     {
-                        var point = new Vector2(textStartX + prefixWidths[column], lineY);
-                        _caretPositions[globalLineStart + column] = point;
+                        break;
                     }
 
-                    var builtLine = new DocumentLayoutLine
-                    {
-                        Index = _lineIndex++,
-                        StartOffset = globalLineStart,
-                        Length = lineText.Length,
-                        Text = lineText,
-                        TextStartX = textStartX,
-                        Bounds = lineBounds,
-                        Runs = lineRuns,
-                        PrefixWidths = prefixWidths
-                    };
-
-                    _lines.Add(builtLine);
-                    blockBottom = Math.Max(blockBottom, lineY + _settings.LineHeight);
-                    _contentWidth = Math.Max(_contentWidth, Math.Max(lineBounds.Width + lineBounds.X, markerX + markerWidth));
-                    scanIndex += lineText.Length;
+                    logicalLineStart = nextNewlineIndex + 1;
                 }
             }
             else

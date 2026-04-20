@@ -40,6 +40,108 @@ public sealed class RichTextBoxComplexFlowsTests
     }
 
     [Fact]
+    public void DeleteSelectedCharacterOnLaterLine_ShouldPreserveEarlierNewlines()
+    {
+        var text = string.Join("\n", Enumerable.Range(0, 12).Select(static index => $"Line {index:00}"));
+        var editor = CreateEditor(320f, 160f, text);
+
+        var deleteIndex = text.IndexOf("Line 08", System.StringComparison.Ordinal);
+        Assert.True(deleteIndex >= 0);
+
+        editor.Select(deleteIndex, 1);
+
+        var expected = text.Remove(deleteIndex, 1);
+
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Delete, ModifierKeys.None));
+
+        var actual = DocumentEditing.GetText(editor.Document).Replace("\r\n", "\n", System.StringComparison.Ordinal);
+        Assert.Equal(expected, actual);
+        Assert.Equal(text.Split('\n')[2], actual.Split('\n')[2]);
+        Assert.Equal(text.Split('\n')[7], actual.Split('\n')[7]);
+        Assert.Equal(text.Count(static ch => ch == '\n'), actual.Count(static ch => ch == '\n'));
+    }
+
+    [Fact]
+    public void DeleteSelectedWholeLine_ShouldPreserveEarlierBlankLines()
+    {
+        var text = string.Join(
+            "\n",
+            [
+                "<UserControl>",
+                string.Empty,
+                "  <Grid>",
+                string.Empty,
+                "    <Border",
+                "        Background=\"#223344\"",
+                "        Margin=\"24\"",
+                "        Padding=\"8\" />",
+                "  </Grid>",
+                "</UserControl>"
+            ]);
+        var editor = CreateEditor(320f, 180f, text);
+
+        var lineToDelete = "        Margin=\"24\"\n";
+        var deleteIndex = text.IndexOf(lineToDelete, System.StringComparison.Ordinal);
+        Assert.True(deleteIndex >= 0);
+
+        editor.Select(deleteIndex, lineToDelete.Length);
+
+        var expected = text.Remove(deleteIndex, lineToDelete.Length);
+
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Delete, ModifierKeys.None));
+
+        var actual = DocumentEditing.GetText(editor.Document).Replace("\r\n", "\n", System.StringComparison.Ordinal);
+        Assert.Equal(expected, actual);
+        Assert.Equal(string.Empty, actual.Split('\n')[1]);
+        Assert.Equal(string.Empty, actual.Split('\n')[3]);
+        Assert.DoesNotContain("Margin=\"24\"", actual, System.StringComparison.Ordinal);
+        Assert.Contains("Padding=\"8\"", actual, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DeleteSelectedWholeLine_InHighlightedRichDocument_ShouldPreserveEarlierBlankLines()
+    {
+        var text = string.Join(
+            "\n",
+            [
+                "<UserControl xmlns=\"urn:inkkslinger-ui\"",
+                "             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">",
+                string.Empty,
+                "  <Grid>",
+                string.Empty,
+                "    <Border",
+                "        Background=\"#223344\"",
+                "        Margin=\"24\"",
+                "        Padding=\"8\">",
+                "      <TextBlock Text=\"Designer Preview\" />",
+                "    </Border>",
+                "  </Grid>",
+                "</UserControl>"
+            ]);
+        var editor = new RichTextBox();
+        editor.SetLayoutSlot(new LayoutRect(0f, 0f, 320f, 220f));
+        editor.Document = InkkSlinger.Designer.DesignerXmlSyntaxHighlighter.CreateHighlightedDocument(text);
+        editor.SetFocusedFromInput(true);
+
+        var lineToDelete = "        Margin=\"24\"\n";
+        var deleteIndex = text.IndexOf(lineToDelete, System.StringComparison.Ordinal);
+        Assert.True(deleteIndex >= 0);
+
+        editor.Select(deleteIndex, lineToDelete.Length);
+
+        var expected = text.Remove(deleteIndex, lineToDelete.Length);
+
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Delete, ModifierKeys.None));
+
+        var actual = DocumentEditing.GetText(editor.Document).Replace("\r\n", "\n", System.StringComparison.Ordinal);
+        Assert.Equal(expected, actual);
+        Assert.Equal(string.Empty, actual.Split('\n')[2]);
+        Assert.Equal(string.Empty, actual.Split('\n')[4]);
+        Assert.DoesNotContain("Margin=\"24\"", actual, System.StringComparison.Ordinal);
+        Assert.Contains("Padding=\"8\"", actual, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EnterParagraphBreak_SplitsTextAtCaret()
     {
         var editor = CreateEditor(320f, 90f, "abcd");

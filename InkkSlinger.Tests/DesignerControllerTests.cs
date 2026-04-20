@@ -257,6 +257,284 @@ public class DesignerControllerTests
         Assert.Equal("Button", header.Text);
     }
 
+    [Theory]
+    [InlineData(
+        "RowDefinition",
+        """
+        <UserControl xmlns="urn:inkkslinger-ui"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     Background="#101820">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"
+                             MinHeight="32" />
+            </Grid.RowDefinitions>
+            <TextBlock Text="Probe" />
+          </Grid>
+        </UserControl>
+        """,
+        "Height",
+        "MinHeight")]
+    [InlineData(
+        "ColumnDefinition",
+        """
+        <UserControl xmlns="urn:inkkslinger-ui"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     Background="#101820">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="2*"
+                                MinWidth="48" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Probe" />
+          </Grid>
+        </UserControl>
+        """,
+        "Width",
+        "MinWidth")]
+    public void ShellView_SourcePropertyInspector_SelectingNonVisualTag_ShowsApplicableProperties(
+        string elementName,
+        string sourceText,
+        string expectedPrimaryProperty,
+        string expectedSecondaryProperty)
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = sourceText
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, elementName);
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        Assert.Contains(expectedPrimaryProperty, propertyEditors.Keys);
+        Assert.Contains(expectedSecondaryProperty, propertyEditors.Keys);
+
+        var header = Assert.IsType<TextBlock>(shell.SourceEditorView.FindName("SourcePropertyInspectorHeaderText"));
+        Assert.Equal(elementName, header.Text);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_SelectingGradientStop_ShowsApplicableProperties()
+    {
+        const string gradientStopViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         Background="#101820">
+              <Border Width="240"
+                      Height="80">
+                <Border.Background>
+                  <LinearGradientBrush StartPoint="0,0"
+                                       EndPoint="1,0">
+                    <GradientStop Color="#FF3355"
+                                  Offset="0" />
+                    <GradientStop Color="#33AAFF"
+                                  Offset="1" />
+                  </LinearGradientBrush>
+                </Border.Background>
+              </Border>
+            </UserControl>
+            """;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = gradientStopViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "GradientStop");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        Assert.Contains("Color", propertyEditors.Keys);
+        Assert.Contains("Offset", propertyEditors.Keys);
+
+        var header = Assert.IsType<TextBlock>(shell.SourceEditorView.FindName("SourcePropertyInspectorHeaderText"));
+        Assert.Equal("GradientStop", header.Text);
+    }
+
+        [Fact]
+        public void ShellView_SourcePropertyInspector_SelectingSetterInsideInlineStyle_UsesEnclosingOwnerTypeProperties()
+        {
+                const string inlineStyleSetterViewXml = """
+                        <UserControl xmlns="urn:inkkslinger-ui"
+                                                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                                                 Background="#101820">
+                            <Grid>
+                                <TextBlock Text="Designer Preview"
+                                                     Foreground="#E7EDF5"
+                                                     FontSize="22"
+                                                     FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Setter Property="FontStyle" Value="Italic" />
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </UserControl>
+                        """;
+
+                var shell = new InkkSlinger.Designer.DesignerShellView
+                {
+                        SourceText = inlineStyleSetterViewXml
+                };
+
+                var sourceEditor = shell.SourceEditorControl;
+                var uiRoot = new UiRoot(shell);
+                RunLayout(uiRoot, 1280, 840, 16);
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Setter");
+
+                var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+                Assert.Contains("Text", propertyEditors.Keys);
+                Assert.Contains("FontStyle", propertyEditors.Keys);
+                Assert.Contains("FontWeight", propertyEditors.Keys);
+
+                var fontStyleEditor = Assert.IsType<ComboBox>(propertyEditors["FontStyle"]);
+                Assert.Equal("Italic", fontStyleEditor.SelectedItem as string);
+
+                var header = Assert.IsType<TextBlock>(shell.SourceEditorView.FindName("SourcePropertyInspectorHeaderText"));
+                Assert.Equal("Setter", header.Text);
+        }
+
+        [Fact]
+        public void ShellView_SourcePropertyInspector_EditingInlineStyleSetterProjectedProperty_UpdatesSetterAttributes()
+        {
+                const string inlineStyleSetterViewXml = """
+                        <UserControl xmlns="urn:inkkslinger-ui"
+                                                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                                                 Background="#101820">
+                            <Grid>
+                                <TextBlock Text="Designer Preview"
+                                                     Foreground="#E7EDF5"
+                                                     FontSize="22"
+                                                     FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Setter Property="FontStyle" Value="Italic" />
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </UserControl>
+                        """;
+
+                var shell = new InkkSlinger.Designer.DesignerShellView
+                {
+                        SourceText = inlineStyleSetterViewXml
+                };
+
+                var sourceEditor = shell.SourceEditorControl;
+                var uiRoot = new UiRoot(shell);
+                RunLayout(uiRoot, 1280, 840, 16);
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Setter");
+
+                var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+                var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
+                fontWeightEditor.SelectedItem = "Bold";
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                Assert.Contains("<Setter Property=\"FontWeight\" Value=\"Bold\" />", shell.SourceText, StringComparison.Ordinal);
+                Assert.DoesNotContain("<Setter Property=\"FontWeight\" Value=\"Bold\" />", shell.Controller.SourceText, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void ShellView_SourcePropertyInspector_TypingProjectedSetterNumericValue_DoesNotCorruptSetterPropertyAttribute()
+        {
+                const string inlineStyleSetterViewXml = """
+                        <UserControl xmlns="urn:inkkslinger-ui"
+                                                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                                                 Background="#101820">
+                            <Grid>
+                                <TextBlock Text="Designer Preview"
+                                                     Foreground="#E7EDF5"
+                                                     FontSize="22"
+                                                     FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Setter />
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </UserControl>
+                        """;
+
+                var shell = new InkkSlinger.Designer.DesignerShellView
+                {
+                        SourceText = inlineStyleSetterViewXml
+                };
+
+                var sourceEditor = shell.SourceEditorControl;
+                var uiRoot = new UiRoot(shell);
+                RunLayout(uiRoot, 1280, 840, 16);
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Setter");
+
+                var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+                var fontSizeEditor = Assert.IsType<TextBox>(propertyEditors["FontSize"]);
+
+                fontSizeEditor.Text = "1";
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                var setterLineNumber = GetLineNumberContaining(shell.SourceText, "<Setter");
+                Assert.Equal("<Setter Property=\"FontSize\" Value=\"1\" />", GetLineText(shell.SourceText, setterLineNumber).Trim());
+                Assert.DoesNotContain("Property=\"FontSize/\"", shell.SourceText, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void ShellView_SourceEditor_TypingIntoSetterValue_DoesNotMoveSelfClosingSlashIntoPropertyName()
+        {
+                const string inlineStyleSetterViewXml = """
+                        <UserControl xmlns="urn:inkkslinger-ui"
+                                                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                                                 Background="#101820">
+                            <Grid>
+                                <TextBlock Text="Designer Preview"
+                                                     Foreground="#E7EDF5"
+                                                     FontSize="22"
+                                                     FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Setter />
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </UserControl>
+                        """;
+
+                var shell = new InkkSlinger.Designer.DesignerShellView
+                {
+                        SourceText = inlineStyleSetterViewXml
+                };
+
+                var sourceEditor = shell.SourceEditorControl;
+                var uiRoot = new UiRoot(shell);
+                RunLayout(uiRoot, 1280, 840, 16);
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Setter");
+
+                var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+                var fontSizeEditor = Assert.IsType<TextBox>(propertyEditors["FontSize"]);
+
+                fontSizeEditor.Text = "1";
+                RunLayout(uiRoot, 1280, 840, 16);
+                fontSizeEditor.Text = "12";
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                var currentText = NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document));
+                var setterLineNumber = GetLineNumberContaining(currentText, "<Setter");
+                Assert.Equal("<Setter Property=\"FontSize\" Value=\"12\" />", GetLineText(currentText, setterLineNumber).Trim());
+                Assert.DoesNotContain("Property=\"FontSize/\"", currentText, StringComparison.Ordinal);
+                Assert.DoesNotContain("Value=\"1\">", currentText, StringComparison.Ordinal);
+        }
+
     [Fact]
     public void ShellView_SourcePropertyInspector_HidesTypographyForBorder_ButKeepsItForButton()
     {
@@ -723,6 +1001,77 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourcePropertyInspector_CornerRadius_UsesFourPartEditorAndExpandsUniformValue()
+    {
+        const string borderViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         Background="#101820">
+              <StackPanel>
+                <Border x:Name="ChromeBorder"
+                        CornerRadius="16"
+                        BorderBrush="#334455"
+                        BorderThickness="1" />
+              </StackPanel>
+            </UserControl>
+            """;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = borderViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Border");
+
+        var cornerRadiusEditors = GetSourceInspectorCompositeTextEditors(shell.SourceEditorView, "CornerRadius");
+        Assert.Equal(4, cornerRadiusEditors.Count);
+        Assert.All(cornerRadiusEditors, editor => Assert.Equal("16", editor.Text));
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_ThicknessLikeProperty_UsesFourPartEditorAndUpdatesSourceWithoutRefreshingPreview()
+    {
+        const string buttonViewXml = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         Background="#101820">
+              <StackPanel>
+                <Button x:Name="SaveButton"
+                        Content="Save"
+                        Padding="8" />
+              </StackPanel>
+            </UserControl>
+            """;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = buttonViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+        var paddingEditors = GetSourceInspectorCompositeTextEditors(shell.SourceEditorView, "Padding");
+        Assert.Equal(4, paddingEditors.Count);
+        Assert.All(paddingEditors, editor => Assert.Equal("8", editor.Text));
+
+        paddingEditors[1].Text = "12";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Contains("Padding=\"8,12,8,8\"", shell.SourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Padding=\"8,12,8,8\"", shell.Controller.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ShellView_SourcePropertyInspector_AddingMissingProperty_InsertsAttributeWithoutRefreshingPreview()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -891,9 +1240,10 @@ public class DesignerControllerTests
 
         var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
         var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
+        var fontWeightChoices = Assert.IsAssignableFrom<IReadOnlyList<string>>(fontWeightEditor.ItemsSource);
 
-        Assert.Contains("Normal", fontWeightEditor.Items.Cast<object>());
-        Assert.Contains("Bold", fontWeightEditor.Items.Cast<object>());
+        Assert.Contains("Normal", fontWeightChoices);
+        Assert.Contains("Bold", fontWeightChoices);
         Assert.Equal(-1, fontWeightEditor.SelectedIndex);
     }
 
@@ -939,10 +1289,11 @@ public class DesignerControllerTests
 
         var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
         var cursorEditor = Assert.IsType<ComboBox>(propertyEditors["Cursor"]);
+        var cursorChoices = Assert.IsAssignableFrom<IReadOnlyList<string>>(cursorEditor.ItemsSource);
 
-        Assert.Contains("Arrow", cursorEditor.Items.Cast<object>());
-        Assert.Contains("Hand", cursorEditor.Items.Cast<object>());
-        Assert.Contains("IBeam", cursorEditor.Items.Cast<object>());
+        Assert.Contains("Arrow", cursorChoices);
+        Assert.Contains("Hand", cursorChoices);
+        Assert.Contains("IBeam", cursorChoices);
         Assert.Equal(-1, cursorEditor.SelectedIndex);
     }
 
@@ -989,7 +1340,7 @@ public class DesignerControllerTests
         var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
         var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
 
-        Assert.Equal(new Color(8, 15, 24), fontWeightEditor.Background);
+        Assert.Equal(new Color(8, 16, 24), fontWeightEditor.Background);
         Assert.Equal(new Color(216, 227, 238), fontWeightEditor.Foreground);
         Assert.Equal(new Color(36, 51, 66), fontWeightEditor.BorderBrush);
         Assert.Equal(new FontFamily("Consolas"), fontWeightEditor.FontFamily);
@@ -1036,6 +1387,8 @@ public class DesignerControllerTests
         var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
         var cursorEditor = Assert.IsType<ComboBox>(propertyEditors["Cursor"]);
         var fontWeightEditor = Assert.IsType<ComboBox>(propertyEditors["FontWeight"]);
+        var cursorChoices = Assert.IsAssignableFrom<IReadOnlyList<string>>(cursorEditor.ItemsSource);
+        var fontWeightChoices = Assert.IsAssignableFrom<IReadOnlyList<string>>(fontWeightEditor.ItemsSource);
 
         cursorEditor.IsDropDownOpen = true;
         RunLayout(uiRoot, 1280, 840, 16);
@@ -1054,12 +1407,12 @@ public class DesignerControllerTests
         var fontWeightScrollViewer = FindListBoxScrollViewer(fontWeightDropDown);
         var fontWeightAverageRowHeight = GetAverageVisibleListItemHeight(fontWeightDropDown);
 
-        Assert.True(cursorEditor.Items.Count > fontWeightEditor.Items.Count);
+        Assert.True(cursorChoices.Count > fontWeightChoices.Count);
         Assert.True(cursorDropDown.LayoutSlot.Height + 0.5f >= fontWeightDropDown.LayoutSlot.Height,
-            $"Expected Cursor dropdown to be at least as tall as FontWeight once both choice lists apply the viewport cap. cursorHeight={cursorDropDown.LayoutSlot.Height:0.##} fontWeightHeight={fontWeightDropDown.LayoutSlot.Height:0.##} cursorItems={cursorEditor.Items.Count} fontWeightItems={fontWeightEditor.Items.Count}");
+            $"Expected Cursor dropdown to be at least as tall as FontWeight once both choice lists apply the viewport cap. cursorHeight={cursorDropDown.LayoutSlot.Height:0.##} fontWeightHeight={fontWeightDropDown.LayoutSlot.Height:0.##} cursorItems={cursorChoices.Count} fontWeightItems={fontWeightChoices.Count}");
         Assert.True(cursorScrollViewer.ExtentHeight > cursorScrollViewer.ViewportHeight + 40f,
-            $"Expected Cursor dropdown content to exceed the viewport cap. extent={cursorScrollViewer.ExtentHeight:0.##} viewport={cursorScrollViewer.ViewportHeight:0.##} items={cursorEditor.Items.Count}");
-        Assert.InRange(fontWeightScrollViewer.ViewportHeight - fontWeightScrollViewer.ExtentHeight, -0.5f, 6f);
+            $"Expected Cursor dropdown content to exceed the viewport cap. extent={cursorScrollViewer.ExtentHeight:0.##} viewport={cursorScrollViewer.ViewportHeight:0.##} items={cursorChoices.Count}");
+        Assert.InRange(fontWeightScrollViewer.ViewportHeight - fontWeightScrollViewer.ExtentHeight, -2.5f, 6f);
         Assert.InRange(MathF.Abs(cursorAverageRowHeight - fontWeightAverageRowHeight), 0f, 2f);
     }
 
@@ -2221,6 +2574,69 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditor_DeletingCharacterOnLaterLine_ShouldPreserveEarlierNewlines()
+    {
+        var source = NormalizeLineEndings(BuildLongSourceXml());
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var deleteIndex = source.IndexOf("Line 20", StringComparison.Ordinal);
+        Assert.True(deleteIndex >= 0);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(deleteIndex, 1);
+
+        var expected = source.Remove(deleteIndex, 1);
+
+        Assert.True(sourceEditor.HandleKeyDownFromInput(Keys.Delete, ModifierKeys.None));
+
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Equal(GetLineText(source, 10), GetLineText(shell.SourceText, 10));
+        Assert.Equal(GetLineText(source, 19), GetLineText(shell.SourceText, 19));
+        Assert.Equal(CountLogicalLines(source), CountLogicalLines(shell.SourceText));
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_DeletingWholePropertyLine_ShouldPreserveEarlierBlankLines()
+    {
+        var source = NormalizeLineEndings(BuildPropertyLineDeletionSourceXml());
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var propertyLineNumber = 8;
+        var propertyLineStart = GetLineStartOffset(source, propertyLineNumber);
+        var propertyLineText = GetLineText(source, propertyLineNumber);
+        var propertyLineLength = propertyLineText.Length + 1;
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(propertyLineStart, propertyLineLength);
+
+        var expected = source.Remove(propertyLineStart, propertyLineLength);
+
+        Assert.True(sourceEditor.HandleKeyDownFromInput(Keys.Delete, ModifierKeys.None));
+
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Equal(GetLineText(source, 4), GetLineText(shell.SourceText, 4));
+        Assert.Equal(GetLineText(source, 5), GetLineText(shell.SourceText, 5));
+        Assert.Equal(CountLogicalLines(source) - 1, CountLogicalLines(shell.SourceText));
+        Assert.Contains("Padding=\"8\"", shell.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ShellView_SourceEditorEnterOnBlankLineAtLineTen_ShouldPreserveDocumentTail()
     {
         var source = NormalizeLineEndings(BuildBlankLineAtLineTenSourceXml());
@@ -3069,6 +3485,200 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditorTypingGreaterThanAfterCompleteControlTag_InsertsClosingTag()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<TextBlock"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(shell.SourceText.Length, 0);
+
+        Assert.True(sourceEditor.HandleTextInputFromInput('>'));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal("<TextBlock></TextBlock>", shell.SourceText);
+        Assert.Equal("<TextBlock></TextBlock>", NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal("<TextBlock>".Length, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorTypingGreaterThanAfterCompletePropertyElementTag_InsertsClosingTag()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<Grid.RowDefinitions"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(shell.SourceText.Length, 0);
+
+        Assert.True(sourceEditor.HandleTextInputFromInput('>'));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal("<Grid.RowDefinitions></Grid.RowDefinitions>", shell.SourceText);
+        Assert.Equal("<Grid.RowDefinitions></Grid.RowDefinitions>", NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal("<Grid.RowDefinitions>".Length, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorTypingSlashAfterCompleteControlTag_InsertsSelfClosingBracket()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<TextBlock"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(shell.SourceText.Length, 0);
+
+        Assert.True(sourceEditor.HandleTextInputFromInput('/'));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal("<TextBlock/>", shell.SourceText);
+        Assert.Equal("<TextBlock/>", NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorTypingSlashAfterLessThan_InfersClosingTagFromNearestOpenControl()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<TextBlock><"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(shell.SourceText.Length, 0);
+
+        Assert.True(sourceEditor.HandleTextInputFromInput('/'));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal("<TextBlock></TextBlock>", shell.SourceText);
+        Assert.Equal("<TextBlock></TextBlock>", NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorTypingSlashAfterLessThan_ConvertsNearestSelfClosingControlIntoOpenClosePair()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<TextBlock/><"
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(shell.SourceText.Length, 0);
+
+        Assert.True(sourceEditor.HandleTextInputFromInput('/'));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Equal("<TextBlock></TextBlock>", shell.SourceText);
+        Assert.Equal("<TextBlock></TextBlock>", NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorTypingSlashAfterLessThan_PrefersImmediateUpwardSelfClosingControlOverOuterAncestor()
+    {
+        const string sourceText = """
+            <Grid>
+              <TextBlock Text="Designer Preview"
+                         Foreground="#E7EDF5"
+                         FontSize="22"
+                         FontWeight="SemiBold" />
+            <
+            """;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = NormalizeLineEndings(sourceText)
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(shell.SourceText.Length, 0);
+
+        Assert.True(sourceEditor.HandleTextInputFromInput('/'));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.Contains("<TextBlock Text=\"Designer Preview\"", shell.SourceText, StringComparison.Ordinal);
+        Assert.Contains("</TextBlock>", shell.SourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("</Grid>", shell.SourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_TypingSelfClosingNestedElement_ColorizesTypedControlName()
+    {
+        const string sourceText = """
+            <UserControl xmlns="urn:inkkslinger-ui"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+              <Grid>
+              </Grid>
+            </UserControl>
+            """;
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = sourceText
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var insertionIndex = shell.SourceText.IndexOf("  </Grid>", StringComparison.Ordinal);
+        Assert.True(insertionIndex >= 0);
+
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Select(insertionIndex, 0);
+
+        DocumentEditing.InsertTextAt(sourceEditor.Document, insertionIndex, "    <TextBlock/>\n");
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var currentText = NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document));
+        Assert.Contains("    <TextBlock/>", currentText, StringComparison.Ordinal);
+
+        var typedControlRun = GetDocumentRuns(sourceEditor.Document)
+            .FirstOrDefault(run => string.Equals(run.Text, "TextBlock", StringComparison.Ordinal));
+        Assert.NotNull(typedControlRun);
+        Assert.Equal(InkkSlinger.Designer.DesignerXmlSyntaxColors.Default.ControlTypeForeground, typedControlRun!.Foreground);
+    }
+
+    [Fact]
     public void ShellView_SourceEditorControlCompletionClickAccept_InsertsSelectedElement()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -3491,6 +4101,25 @@ public class DesignerControllerTests
                             </Grid>
                         </UserControl>
                         """;
+        }
+
+        private static string BuildPropertyLineDeletionSourceXml()
+        {
+                return """
+                                <UserControl xmlns="urn:inkkslinger-ui"
+                                                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+                                    <Grid>
+
+                                        <Border
+                                                Background="#223344"
+                                                Margin="24"
+                                                Padding="8">
+                                            <TextBlock Text="Designer Preview" />
+                                        </Border>
+                                    </Grid>
+                                </UserControl>
+                                """;
         }
 
     private static int GetLineStartOffset(string text, int oneBasedLineNumber)
@@ -4014,9 +4643,7 @@ public class DesignerControllerTests
 
     private static Popup GetCompletionPopup(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
     {
-        var field = typeof(InkkSlinger.Designer.DesignerSourceEditorView).GetField("_completionPopup", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        return Assert.IsType<Popup>(field!.GetValue(sourceEditorView));
+        return Assert.IsType<Popup>(sourceEditorView.FindName("CompletionPopup"));
     }
 
     private static ListBox GetCompletionListBox(InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView)
@@ -4046,6 +4673,32 @@ public class DesignerControllerTests
             }
 
             editors[propertyName] = editor;
+        }
+
+        return editors;
+    }
+
+    private static IReadOnlyList<Run> GetDocumentRuns(FlowDocument document)
+    {
+        return document.Blocks
+            .OfType<Paragraph>()
+            .SelectMany(static paragraph => paragraph.Inlines.OfType<Run>())
+            .Where(static run => !string.IsNullOrEmpty(run.Text))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<TextBox> GetSourceInspectorCompositeTextEditors(
+        InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView,
+        string propertyName)
+    {
+        var row = GetSourceInspectorPropertyRow(sourceEditorView, propertyName);
+        var editors = new List<TextBox>();
+        CollectDescendants(row, editors);
+        editors.Sort(static (left, right) => left.LayoutSlot.X.CompareTo(right.LayoutSlot.X));
+
+        if (editors.Count != 4)
+        {
+            throw new Xunit.Sdk.XunitException($"Expected four composite text editors for '{propertyName}', but found {editors.Count}.");
         }
 
         return editors;

@@ -18,47 +18,46 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
             "Actual Size", "Desired Size"
         };
 
-    private const string DefaultSourceText = """
-        <UserControl xmlns="urn:inkkslinger-ui"
-                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                     Background="#111827">
-          <Grid Margin="24">
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="18" />
-              <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-
-            <TextBlock Text="Designer Preview"
-                       Foreground="#E7EDF5"
-                       FontSize="22"
-                       FontWeight="SemiBold" />
-
-            <Border Grid.Row="2"
-                    Background="#182230"
-                    BorderBrush="#35506B"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Padding="18">
-              <StackPanel>
-                <TextBlock Text="Manual refresh is enabled."
-                           Foreground="#E7EDF5"
-                           FontSize="18" />
-                <TextBlock Text="Edit the XML below, then press F5 or the toolbar button."
-                           Foreground="#8AA3B8"
-                           Margin="0,6,0,12" />
-                <Button x:Name="PreviewButton"
-                        Content="Preview Action"
-                        Width="180"
-                        Height="40"
-                        Background="#1F8EFA"
-                        BorderBrush="#56A7F7"
-                        BorderThickness="1" />
-              </StackPanel>
-            </Border>
-          </Grid>
-        </UserControl>
-        """;
+    private const string DefaultSourceText =
+        "<UserControl xmlns=\"urn:inkkslinger-ui\"\n" +
+        "             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\n" +
+        "             Background=\"#111827\">\n" +
+        "\t<Grid Margin=\"24\">\n" +
+        "\t\t<Grid.RowDefinitions>\n" +
+        "\t\t\t<RowDefinition Height=\"Auto\" />\n" +
+        "\t\t\t<RowDefinition Height=\"18\" />\n" +
+        "\t\t\t<RowDefinition Height=\"*\" />\n" +
+        "\t\t</Grid.RowDefinitions>\n" +
+        "\n" +
+        "\t\t<TextBlock Text=\"Designer Preview\"\n" +
+        "\t\t           Foreground=\"#E7EDF5\"\n" +
+        "\t\t           FontSize=\"22\"\n" +
+        "\t\t           FontWeight=\"SemiBold\" />\n" +
+        "\n" +
+        "\t\t<Border Grid.Row=\"2\"\n" +
+        "\t\t        Background=\"#182230\"\n" +
+        "\t\t        BorderBrush=\"#35506B\"\n" +
+        "\t\t        BorderThickness=\"1\"\n" +
+        "\t\t        CornerRadius=\"12\"\n" +
+        "\t\t        Padding=\"18\">\n" +
+        "\t\t\t<StackPanel>\n" +
+        "\t\t\t\t<TextBlock Text=\"Manual refresh is enabled.\"\n" +
+        "\t\t\t\t           Foreground=\"#E7EDF5\"\n" +
+        "\t\t\t\t           FontSize=\"18\" />\n" +
+        "\t\t\t\t<TextBlock Text=\"Edit the XML below, then press F5 or the toolbar button.\"\n" +
+        "\t\t\t\t           Foreground=\"#8AA3B8\"\n" +
+        "\t\t\t\t           Margin=\"0,6,0,12\" />\n" +
+        "\t\t\t\t<Button x:Name=\"PreviewButton\"\n" +
+        "\t\t\t\t        Content=\"Preview Action\"\n" +
+        "\t\t\t\t        Width=\"180\"\n" +
+        "\t\t\t\t        Height=\"40\"\n" +
+        "\t\t\t\t        Background=\"#1F8EFA\"\n" +
+        "\t\t\t\t        BorderBrush=\"#56A7F7\"\n" +
+        "\t\t\t\t        BorderThickness=\"1\" />\n" +
+        "\t\t\t</StackPanel>\n" +
+        "\t\t</Border>\n" +
+        "\t</Grid>\n" +
+        "</UserControl>\n";
 
     private string _promptPathText = string.Empty;
     private object? _previewContent;

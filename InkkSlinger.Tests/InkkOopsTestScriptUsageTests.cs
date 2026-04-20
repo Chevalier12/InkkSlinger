@@ -564,12 +564,33 @@ public sealed class InkkOopsTestScriptUsageTests
 
     private static string GetPhase4ColorPickerRecordingPath()
     {
-        return Path.GetFullPath(Path.Combine(
-            Environment.CurrentDirectory,
-            "artifacts",
-            "inkkoops-recordings",
-            "20260419-130339449-recorded-session",
-            "recording.json"));
+        var repositoryRoot = FindRepositoryRoot();
+        var recordingsRoot = Path.Combine(repositoryRoot, "artifacts", "inkkoops-recordings");
+        var candidates = Directory
+            .GetFiles(recordingsRoot, "recording.json", SearchOption.AllDirectories)
+            .Select(path => new
+            {
+                Path = path,
+                Metadata = JsonDocument.Parse(File.ReadAllText(path)).RootElement
+            })
+            .Select(candidate => new
+            {
+                candidate.Path,
+                ActionCount = candidate.Metadata.TryGetProperty("actionCount", out var actionCountElement)
+                    ? actionCountElement.GetInt32()
+                    : 0,
+                RecordedProjectPath = candidate.Metadata.TryGetProperty("recordedProjectPath", out var recordedProjectPathElement)
+                    ? recordedProjectPathElement.GetString() ?? string.Empty
+                    : string.Empty
+            })
+            .Where(candidate =>
+                candidate.ActionCount > 306 &&
+                candidate.RecordedProjectPath.EndsWith("InkkSlinger.Designer.csproj", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(candidate => candidate.Path, StringComparer.Ordinal)
+            .ToArray();
+
+        return candidates.FirstOrDefault()?.Path
+            ?? throw new FileNotFoundException("Could not find a Designer recording with at least 307 actions under artifacts/inkkoops-recordings.");
     }
 
     private static IReadOnlyList<InkkOopsInteractionRecorder.RecordedAction> LoadRecordedActions(string recordingPath)

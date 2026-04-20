@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using Microsoft.Xna.Framework;
 
 namespace InkkSlinger.Designer;
@@ -25,6 +28,11 @@ public readonly record struct DesignerXmlSyntaxColors(Color DefaultForeground, C
 
 public static class DesignerXmlSyntaxHighlighter
 {
+    private static readonly IReadOnlyDictionary<string, Type> KnownControlTypesByName = XamlLoader.GetKnownTypes()
+        .GroupBy(static knownType => knownType.Name, StringComparer.Ordinal)
+        .ToDictionary(static group => group.Key, static group => group.First().Type, StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, DesignerXmlSyntaxTokenKind?> TagNameTokenKinds = new(StringComparer.Ordinal);
+
     public static IReadOnlyList<DesignerXmlSyntaxToken> Classify(string? text)
     {
         var source = text ?? string.Empty;
@@ -61,7 +69,7 @@ public static class DesignerXmlSyntaxHighlighter
             SkipWhitespace(source, ref index);
             var tagNameStart = index;
             ReadXmlName(source, ref index);
-            AddToken(tokens, tagNameStart, index - tagNameStart, DesignerXmlSyntaxTokenKind.ControlTypeName);
+            AddTagNameToken(tokens, source, tagNameStart, index - tagNameStart);
 
             while (index < source.Length)
             {
@@ -293,6 +301,142 @@ public static class DesignerXmlSyntaxHighlighter
         }
 
         tokens.Add(new DesignerXmlSyntaxToken(start, length, kind));
+    }
+
+    private static void AddTagNameToken(List<DesignerXmlSyntaxToken> tokens, string source, int start, int length)
+    {
+        if (length <= 0)
+        {
+            return;
+        }
+
+        var tagName = source.Substring(start, length);
+        var kind = TagNameTokenKinds.GetOrAdd(tagName, static candidate => ClassifyTagName(candidate));
+        if (!kind.HasValue)
+        {
+            return;
+        }
+
+        tokens.Add(new DesignerXmlSyntaxToken(start, length, kind.Value));
+    }
+
+    internal static bool TryClassifyTagName(string? tagName, out DesignerXmlSyntaxTokenKind kind)
+    {
+        var resolvedKind = ClassifyTagName(tagName ?? string.Empty);
+        if (!resolvedKind.HasValue)
+        {
+            kind = default;
+            return false;
+        }
+
+        kind = resolvedKind.Value;
+        return true;
+    }
+
+    private static DesignerXmlSyntaxTokenKind? ClassifyTagName(string tagName)
+    {
+        var candidate = tagName.AsSpan();
+        if (TryResolveKnownType(candidate, out _))
+        {
+            return DesignerXmlSyntaxTokenKind.ControlTypeName;
+        }
+
+        if (IsKnownPropertyElement(candidate))
+        {
+            return DesignerXmlSyntaxTokenKind.PropertyName;
+        }
+
+        return null;
+    }
+
+    private static bool IsKnownPropertyElement(ReadOnlySpan<char> tagName)
+    {
+        var separatorIndex = tagName.IndexOf('.');
+        if (separatorIndex <= 0 || separatorIndex >= tagName.Length - 1)
+        {
+            return false;
+        }
+
+        if (!TryResolveKnownType(tagName[..separatorIndex], out var ownerType))
+        {
+            return false;
+        }
+
+        var propertyName = tagName[(separatorIndex + 1)..].ToString();
+        return HasInstanceProperty(ownerType, propertyName) ||
+               HasDependencyPropertyField(ownerType, propertyName) ||
+               HasAttachedSetter(ownerType, propertyName);
+    }
+
+    private static bool TryResolveKnownType(ReadOnlySpan<char> typeName, out Type type)
+    {
+        var unqualifiedName = UnqualifyXmlName(typeName).ToString();
+        return KnownControlTypesByName.TryGetValue(unqualifiedName, out type!);
+    }
+
+    private static ReadOnlySpan<char> UnqualifyXmlName(ReadOnlySpan<char> value)
+    {
+        var separatorIndex = value.IndexOf(':');
+        return separatorIndex >= 0 ? value[(separatorIndex + 1)..] : value;
+    }
+
+    private static bool HasInstanceProperty(Type ownerType, string propertyName)
+    {
+        var current = ownerType;
+        while (current != null)
+        {
+            if (current.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly) != null)
+            {
+                return true;
+            }
+
+            current = current.BaseType;
+        }
+
+        return false;
+    }
+
+    private static bool HasDependencyPropertyField(Type ownerType, string propertyName)
+    {
+        var fieldName = propertyName + "Property";
+        var current = ownerType;
+        while (current != null)
+        {
+            var field = current.GetField(fieldName, BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly);
+            if (field?.FieldType == typeof(DependencyProperty))
+            {
+                return true;
+            }
+
+            current = current.BaseType;
+        }
+
+        return false;
+    }
+
+    private static bool HasAttachedSetter(Type ownerType, string propertyName)
+    {
+        var setterName = "Set" + propertyName;
+        var current = ownerType;
+        while (current != null)
+        {
+            foreach (var method in current.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
+            {
+                if (!string.Equals(method.Name, setterName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (method.GetParameters().Length == 2)
+                {
+                    return true;
+                }
+            }
+
+            current = current.BaseType;
+        }
+
+        return false;
     }
 
     private static bool IsNamespaceDeclaration(ReadOnlySpan<char> value)

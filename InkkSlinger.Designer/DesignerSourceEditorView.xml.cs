@@ -155,10 +155,13 @@ public partial class DesignerSourceEditorView : UserControl
         }
 
         var currentText = DocumentEditing.GetText(SourceEditor.Document);
+        TryAutoInsertTagSuffix(ref currentText);
         if (!string.Equals(SourceText, currentText, StringComparison.Ordinal))
         {
             SourceText = currentText;
         }
+
+        RefreshHighlightedSourceDocument(currentText, dismissCompletionPopup: false);
 
         UpdateCachedSourceLineCount(currentText);
         UpdateSourceLineNumberGutter(force: true);
@@ -166,6 +169,128 @@ public partial class DesignerSourceEditorView : UserControl
         if (IsControlCompletionOpen)
         {
             _ = RefreshCompletionPopup(openIfPossible: false);
+        }
+    }
+
+    private void TryAutoInsertTagSuffix(ref string currentText)
+    {
+        var previousText = SourceText;
+        if (!TryGetSingleCharacterInsertion(previousText, currentText, out var insertedIndex, out var insertedCharacter))
+        {
+            return;
+        }
+
+        if (insertedCharacter == '>')
+        {
+            TryAutoInsertClosingTag(currentText, insertedIndex, out currentText);
+            return;
+        }
+
+        if (insertedCharacter == '/')
+        {
+            if (insertedIndex > 0 && currentText[insertedIndex - 1] == '<')
+            {
+                TryAutoInsertInferredClosingTag(currentText, insertedIndex, out currentText);
+                return;
+            }
+
+            TryAutoInsertSelfClosingBracket(currentText, insertedIndex, out currentText);
+        }
+    }
+
+    private void TryAutoInsertClosingTag(string currentText, int insertedIndex, out string updatedText)
+    {
+        updatedText = currentText;
+        if (!TryGetCompletedStartTagName(currentText, insertedIndex, out var tagName) ||
+            !DesignerXmlSyntaxHighlighter.TryClassifyTagName(tagName, out _) ||
+            HasImmediateClosingTag(currentText, insertedIndex + 1, tagName))
+        {
+            return;
+        }
+
+        var closingTag = "</" + tagName + ">";
+        _suppressSourceEditorChanges = true;
+        try
+        {
+            SourceEditor.Select(insertedIndex + 1, 0);
+            if (!SourceEditor.HandleTextCompositionFromInput(closingTag))
+            {
+                return;
+            }
+
+            SourceEditor.Select(insertedIndex + 1, 0);
+            updatedText = DocumentEditing.GetText(SourceEditor.Document);
+        }
+        finally
+        {
+            _suppressSourceEditorChanges = false;
+        }
+    }
+
+    private void TryAutoInsertSelfClosingBracket(string currentText, int insertedIndex, out string updatedText)
+    {
+        updatedText = currentText;
+        if (!TryGetSelfClosingTagName(currentText, insertedIndex, out var tagName) ||
+            !DesignerXmlSyntaxHighlighter.TryClassifyTagName(tagName, out _) ||
+            HasImmediateSelfClosingBracket(currentText, insertedIndex + 1))
+        {
+            return;
+        }
+
+        _suppressSourceEditorChanges = true;
+        try
+        {
+            SourceEditor.Select(insertedIndex + 1, 0);
+            if (!SourceEditor.HandleTextCompositionFromInput(">"))
+            {
+                return;
+            }
+
+            SourceEditor.Select(insertedIndex + 2, 0);
+            updatedText = DocumentEditing.GetText(SourceEditor.Document);
+        }
+        finally
+        {
+            _suppressSourceEditorChanges = false;
+        }
+    }
+
+    private void TryAutoInsertInferredClosingTag(string currentText, int slashIndex, out string updatedText)
+    {
+        updatedText = currentText;
+        if (!TryFindInferredClosingTagTarget(currentText, slashIndex - 1, out var target))
+        {
+            return;
+        }
+
+        var closingTagOpenIndex = slashIndex - 1;
+        _suppressSourceEditorChanges = true;
+        try
+        {
+            if (target.IsSelfClosing)
+            {
+                var removalStart = target.SelfClosingSlashIndex;
+                while (removalStart > target.TagStartIndex && char.IsWhiteSpace(currentText[removalStart - 1]))
+                {
+                    removalStart--;
+                }
+
+                DocumentEditing.DeleteRange(SourceEditor.Document, removalStart, target.SelfClosingSlashIndex - removalStart + 1);
+                closingTagOpenIndex -= target.SelfClosingSlashIndex - removalStart + 1;
+            }
+
+            SourceEditor.Select(closingTagOpenIndex + 2, 0);
+            if (!SourceEditor.HandleTextCompositionFromInput(target.Name + ">"))
+            {
+                return;
+            }
+
+            SourceEditor.Select(closingTagOpenIndex + target.Name.Length + 3, 0);
+            updatedText = DocumentEditing.GetText(SourceEditor.Document);
+        }
+        finally
+        {
+            _suppressSourceEditorChanges = false;
         }
     }
 
@@ -240,13 +365,22 @@ public partial class DesignerSourceEditorView : UserControl
         }
 
         DismissCompletionPopup();
-        LoadDocumentIntoEditor(newText);
+        RefreshHighlightedSourceDocument(newText, dismissCompletionPopup: false);
         RefreshSourcePropertyInspector();
     }
 
     private void LoadDocumentIntoEditor(string? text)
     {
-        DismissCompletionPopup();
+        RefreshHighlightedSourceDocument(text, dismissCompletionPopup: true);
+    }
+
+    private void RefreshHighlightedSourceDocument(string? text, bool dismissCompletionPopup)
+    {
+        if (dismissCompletionPopup)
+        {
+            DismissCompletionPopup();
+        }
+
         var normalizedText = text ?? string.Empty;
         var selectionStart = SourceEditor.SelectionStart;
         var selectionLength = SourceEditor.SelectionLength;
@@ -382,16 +516,16 @@ public partial class DesignerSourceEditorView : UserControl
             _currentSourceInspectorControlType = null;
             _currentSourceInspectorProperties = Array.Empty<DesignerSourceInspectableProperty>();
             ClearSourcePropertyInspectorEditorState();
-            SourcePropertyInspectorHeaderText.Text = "Select a control tag in the source editor.";
+            SourcePropertyInspectorHeaderText.Text = "Select a tag in the source editor.";
             SourcePropertyInspectorSummaryText.Text = "Changes update the XML source. Press F5 to refresh the preview.";
-            SourcePropertyInspectorEmptyState.Text = "Place the caret inside a control start tag such as <Button /> or <Button> to edit its properties.";
+            SourcePropertyInspectorEmptyState.Text = "Place the caret inside a start tag such as <Button /> or <RowDefinition /> to edit its properties.";
             SourcePropertyInspectorEmptyState.Visibility = Visibility.Visible;
             SourcePropertyInspectorFilterBorder.Visibility = Visibility.Collapsed;
             SourcePropertyInspectorScrollViewer.Visibility = Visibility.Collapsed;
             return;
         }
 
-        var controlType = DesignerSourcePropertyInspector.ResolveControlType(selection.ElementName);
+        var controlType = DesignerSourcePropertyInspector.ResolveInspectableType(selection);
         if (controlType == null)
         {
             _currentSourceTagSelection = selection;
@@ -399,7 +533,7 @@ public partial class DesignerSourceEditorView : UserControl
             _currentSourceInspectorProperties = Array.Empty<DesignerSourceInspectableProperty>();
             ClearSourcePropertyInspectorEditorState();
             SourcePropertyInspectorHeaderText.Text = selection.ElementName;
-            SourcePropertyInspectorSummaryText.Text = "The source tag was found, but no matching control type is registered for editing.";
+            SourcePropertyInspectorSummaryText.Text = "The source tag was found, but no matching tag type is registered for editing.";
             SourcePropertyInspectorEmptyState.Text = "This tag cannot be edited through the source property inspector yet.";
             SourcePropertyInspectorEmptyState.Visibility = Visibility.Visible;
             SourcePropertyInspectorFilterBorder.Visibility = Visibility.Collapsed;
@@ -468,8 +602,8 @@ public partial class DesignerSourceEditorView : UserControl
                     continue;
                 }
 
-                var currentValue = selection.TryGetAttribute(property.Name, out var attribute)
-                    ? attribute.Value
+                var currentValue = selection.TryGetEditablePropertyValue(property.Name, out var resolvedValue)
+                    ? resolvedValue
                     : string.Empty;
                 item.DescriptionText = BuildSourcePropertyDescription(property, currentValue);
                 if (property.EditorKind == DesignerSourcePropertyEditorKind.Text &&
@@ -490,6 +624,13 @@ public partial class DesignerSourceEditorView : UserControl
                         break;
                     case DesignerSourcePropertyEditorKind.Choice:
                         UpdateSourcePropertyChoiceEditorValue(item, property, currentValue);
+                        break;
+                    case DesignerSourcePropertyEditorKind.Composite:
+                        UpdateSourcePropertyCompositeEditorValue(
+                            item,
+                            property,
+                            currentValue,
+                            preserveVisibleValues: string.Equals(activePropertyName, property.Name, StringComparison.Ordinal));
                         break;
                     default:
                         if (!string.Equals(item.EditorText, currentValue, StringComparison.Ordinal))
@@ -546,8 +687,8 @@ public partial class DesignerSourceEditorView : UserControl
                 continue;
             }
 
-            var currentValue = selection.TryGetAttribute(property.Name, out var attribute)
-                ? attribute.Value
+            var currentValue = selection.TryGetEditablePropertyValue(property.Name, out var resolvedValue)
+                ? resolvedValue
                 : string.Empty;
             var isVisible = MatchesSourcePropertyInspectorFilter(property, currentValue, filterText);
             item.RowVisibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
@@ -601,6 +742,30 @@ public partial class DesignerSourceEditorView : UserControl
         }
 
         RefreshSourcePropertyInspector(item.Name, editor.Text);
+    }
+
+    private void OnSourcePropertyCompositeTextChanged(object? sender, RoutedSimpleEventArgs args)
+    {
+        _ = args;
+        if (_suppressSourceInspectorApply ||
+            sender is not TextBox editor ||
+            editor.Tag is not DesignerSourceInspectorCompositeComponentItem componentItem)
+        {
+            return;
+        }
+
+        if (!string.Equals(componentItem.Text, editor.Text, StringComparison.Ordinal))
+        {
+            componentItem.Text = editor.Text;
+        }
+
+        var propertyValue = componentItem.Owner.BuildCompositeEditorText();
+        if (!TryApplySourceInspectorEdit(componentItem.Owner.Name, propertyValue))
+        {
+            return;
+        }
+
+        RefreshSourcePropertyInspector(componentItem.Owner.Name);
     }
 
     private void OnSourcePropertyChoiceSelectionChanged(object? sender, SelectionChangedEventArgs args)
@@ -742,6 +907,19 @@ public partial class DesignerSourceEditorView : UserControl
         {
             item.SelectedChoice = selectedChoice;
         }
+    }
+
+    private static void UpdateSourcePropertyCompositeEditorValue(
+        DesignerSourceInspectorPropertyItem item,
+        DesignerSourceInspectableProperty property,
+        string currentValue,
+        bool preserveVisibleValues)
+    {
+        var componentValues = DesignerSourcePropertyInspector.ExpandCompositeEditorValues(
+            property.CompositeValueKind,
+            currentValue,
+            property.DefaultValueDisplay);
+        item.SetCompositeEditorValues(componentValues, preserveVisibleValues);
     }
 
     private bool RefreshCompletionPopup(bool openIfPossible)
@@ -951,6 +1129,308 @@ public partial class DesignerSourceEditorView : UserControl
     {
         return elementName + "></" + elementName + ">";
     }
+
+    private static bool TryGetSingleCharacterInsertion(
+        string previousText,
+        string currentText,
+        out int insertedIndex,
+        out char insertedCharacter)
+    {
+        insertedIndex = -1;
+        insertedCharacter = default;
+
+        if (currentText.Length != previousText.Length + 1)
+        {
+            return false;
+        }
+
+        var prefixLength = 0;
+        while (prefixLength < previousText.Length &&
+               previousText[prefixLength] == currentText[prefixLength])
+        {
+            prefixLength++;
+        }
+
+        var previousSuffixIndex = previousText.Length - 1;
+        var currentSuffixIndex = currentText.Length - 1;
+        while (previousSuffixIndex >= prefixLength &&
+               currentSuffixIndex > prefixLength &&
+               previousText[previousSuffixIndex] == currentText[currentSuffixIndex])
+        {
+            previousSuffixIndex--;
+            currentSuffixIndex--;
+        }
+
+        if (previousSuffixIndex >= prefixLength)
+        {
+            return false;
+        }
+
+        insertedIndex = prefixLength;
+        if (insertedIndex < 0 || insertedIndex >= currentText.Length)
+        {
+            return false;
+        }
+
+        insertedCharacter = currentText[insertedIndex];
+        return true;
+    }
+
+    private static bool TryGetCompletedStartTagName(string sourceText, int closingBracketIndex, out string tagName)
+    {
+        tagName = string.Empty;
+        if (closingBracketIndex <= 0 || closingBracketIndex >= sourceText.Length || sourceText[closingBracketIndex] != '>')
+        {
+            return false;
+        }
+
+        var openBracketIndex = closingBracketIndex - 1;
+        while (openBracketIndex >= 0 && sourceText[openBracketIndex] != '<')
+        {
+            if (!IsAutoCloseTagNameCharacter(sourceText[openBracketIndex]))
+            {
+                return false;
+            }
+
+            openBracketIndex--;
+        }
+
+        if (openBracketIndex < 0 || openBracketIndex + 1 >= closingBracketIndex)
+        {
+            return false;
+        }
+
+        var firstTagCharacter = sourceText[openBracketIndex + 1];
+        if (firstTagCharacter == '/' || firstTagCharacter == '!' || firstTagCharacter == '?')
+        {
+            return false;
+        }
+
+        tagName = sourceText.Substring(openBracketIndex + 1, closingBracketIndex - openBracketIndex - 1);
+        return tagName.Length > 0;
+    }
+
+    private static bool HasImmediateClosingTag(string sourceText, int closingTagStartIndex, string tagName)
+    {
+        if (closingTagStartIndex < 0 || closingTagStartIndex >= sourceText.Length)
+        {
+            return false;
+        }
+
+        return sourceText.AsSpan(closingTagStartIndex).StartsWith(("</" + tagName + ">") .AsSpan(), StringComparison.Ordinal);
+    }
+
+    private static bool TryGetSelfClosingTagName(string sourceText, int slashIndex, out string tagName)
+    {
+        tagName = string.Empty;
+        if (slashIndex <= 0 || slashIndex >= sourceText.Length || sourceText[slashIndex] != '/')
+        {
+            return false;
+        }
+
+        var openBracketIndex = slashIndex - 1;
+        while (openBracketIndex >= 0 && sourceText[openBracketIndex] != '<')
+        {
+            if (!IsAutoCloseTagNameCharacter(sourceText[openBracketIndex]))
+            {
+                return false;
+            }
+
+            openBracketIndex--;
+        }
+
+        if (openBracketIndex < 0 || openBracketIndex + 1 >= slashIndex)
+        {
+            return false;
+        }
+
+        var firstTagCharacter = sourceText[openBracketIndex + 1];
+        if (firstTagCharacter == '/' || firstTagCharacter == '!' || firstTagCharacter == '?')
+        {
+            return false;
+        }
+
+        tagName = sourceText.Substring(openBracketIndex + 1, slashIndex - openBracketIndex - 1);
+        return tagName.Length > 0;
+    }
+
+    private static bool HasImmediateSelfClosingBracket(string sourceText, int index)
+    {
+        return index >= 0 && index < sourceText.Length && sourceText[index] == '>';
+    }
+
+    private static bool TryFindInferredClosingTagTarget(string sourceText, int closingTagOpenIndex, out AutoCloseTagTarget target)
+    {
+        target = default;
+        var closedAncestorDepth = 0;
+        var searchIndex = closingTagOpenIndex - 1;
+        while (TryFindPreviousTagForInference(sourceText, searchIndex, out var tagStartIndex, out var tagCloseIndex))
+        {
+            if (tagStartIndex + 1 >= sourceText.Length)
+            {
+                searchIndex = tagStartIndex - 1;
+                continue;
+            }
+
+            var next = sourceText[tagStartIndex + 1];
+            if (next is '!' or '?')
+            {
+                searchIndex = tagStartIndex - 1;
+                continue;
+            }
+
+            if (next == '/')
+            {
+                var closingNameStart = tagStartIndex + 2;
+                if (TryReadInferenceTagName(sourceText, closingNameStart, tagCloseIndex, out var closingName) &&
+                    DesignerXmlSyntaxHighlighter.TryClassifyTagName(closingName, out _))
+                {
+                    closedAncestorDepth++;
+                }
+
+                searchIndex = tagStartIndex - 1;
+                continue;
+            }
+
+            var nameStart = tagStartIndex + 1;
+            if (!TryReadInferenceTagName(sourceText, nameStart, tagCloseIndex, out var tagName) ||
+                !DesignerXmlSyntaxHighlighter.TryClassifyTagName(tagName, out _))
+            {
+                searchIndex = tagStartIndex - 1;
+                continue;
+            }
+
+            var selfClosingSlashIndex = FindSelfClosingSlashIndex(sourceText, tagStartIndex, tagCloseIndex);
+            var parsedTag = new AutoCloseTagTarget(tagName, tagStartIndex, tagCloseIndex, selfClosingSlashIndex, selfClosingSlashIndex >= 0);
+            if (parsedTag.IsSelfClosing)
+            {
+                if (closedAncestorDepth == 0)
+                {
+                    target = parsedTag;
+                    return true;
+                }
+            }
+            else
+            {
+                if (closedAncestorDepth == 0)
+                {
+                    target = parsedTag;
+                    return true;
+                }
+
+                closedAncestorDepth--;
+            }
+
+            searchIndex = tagStartIndex - 1;
+        }
+
+        return false;
+    }
+
+    private static bool TryFindPreviousTagForInference(string sourceText, int searchIndex, out int tagStartIndex, out int tagCloseIndex)
+    {
+        tagStartIndex = -1;
+        tagCloseIndex = -1;
+
+        for (var closeIndex = Math.Min(searchIndex, sourceText.Length - 1); closeIndex >= 0; closeIndex--)
+        {
+            if (sourceText[closeIndex] != '>')
+            {
+                continue;
+            }
+
+            for (var startIndex = closeIndex - 1; startIndex >= 0; startIndex--)
+            {
+                if (sourceText[startIndex] != '<')
+                {
+                    continue;
+                }
+
+                tagStartIndex = startIndex;
+                tagCloseIndex = closeIndex;
+                return true;
+            }
+
+            break;
+        }
+
+        return false;
+    }
+
+    private static bool TryFindTagCloseForInference(string sourceText, int tagStartIndex, out int closeIndex)
+    {
+        closeIndex = -1;
+        char quoteCharacter = '\0';
+        for (var index = tagStartIndex + 1; index < sourceText.Length; index++)
+        {
+            var current = sourceText[index];
+            if (quoteCharacter != '\0')
+            {
+                if (current == quoteCharacter)
+                {
+                    quoteCharacter = '\0';
+                }
+
+                continue;
+            }
+
+            if (current is '\'' or '"')
+            {
+                quoteCharacter = current;
+                continue;
+            }
+
+            if (current == '>')
+            {
+                closeIndex = index;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryReadInferenceTagName(string sourceText, int startIndex, int closeIndex, out string tagName)
+    {
+        tagName = string.Empty;
+        var index = startIndex;
+        while (index < closeIndex && char.IsWhiteSpace(sourceText[index]))
+        {
+            index++;
+        }
+
+        var nameStart = index;
+        while (index < closeIndex && IsAutoCloseTagNameCharacter(sourceText[index]))
+        {
+            index++;
+        }
+
+        if (index <= nameStart)
+        {
+            return false;
+        }
+
+        tagName = sourceText.Substring(nameStart, index - nameStart);
+        return true;
+    }
+
+    private static int FindSelfClosingSlashIndex(string sourceText, int tagStartIndex, int closeIndex)
+    {
+        var index = closeIndex - 1;
+        while (index > tagStartIndex && char.IsWhiteSpace(sourceText[index]))
+        {
+            index--;
+        }
+
+        return index > tagStartIndex && sourceText[index] == '/' ? index : -1;
+    }
+
+    private static bool IsAutoCloseTagNameCharacter(char value)
+    {
+        return char.IsLetterOrDigit(value) || value is '_' or '.' or ':';
+    }
+
+    private readonly record struct AutoCloseTagTarget(string Name, int TagStartIndex, int TagCloseIndex, int SelfClosingSlashIndex, bool IsSelfClosing);
 
     private static bool ShouldDismissCompletionForKey(Keys key, ModifierKeys modifiers)
     {

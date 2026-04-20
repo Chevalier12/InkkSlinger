@@ -298,11 +298,9 @@ public sealed class InkkOopsAbstractionTests
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsGenericElementDiagnosticsContributor);
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsFrameworkElementDiagnosticsContributor);
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsControlDiagnosticsContributor);
-        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsContentControlDiagnosticsContributor);
-        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsComboBoxDiagnosticsContributor);
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsUserControlDiagnosticsContributor);
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsColorPickerDiagnosticsContributor);
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsColorSpectrumDiagnosticsContributor);
-        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsStackPanelDiagnosticsContributor);
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsBorderDiagnosticsContributor);
         Assert.DoesNotContain(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsButtonDiagnosticsContributor);
     }

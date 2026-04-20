@@ -160,6 +160,64 @@
                 MaxDropDownHeight="240" />
     </DataTemplate>
 
+    <DataTemplate x:Key="SourcePropertyCompositeEditorTemplate">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="8" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="8" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="8" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+          <TextBlock Text="{Binding CompositeComponent1.Label}"
+                     Foreground="#4A6880"
+                     FontSize="10"
+                     Margin="0,0,0,4" />
+          <TextBox Style="{StaticResource DesignerInspectorTextBoxStyle}"
+                   Tag="{Binding CompositeComponent1}"
+                   TextChanged="OnSourcePropertyCompositeTextChanged"
+                   Text="{Binding CompositeComponent1.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="2">
+          <TextBlock Text="{Binding CompositeComponent2.Label}"
+                     Foreground="#4A6880"
+                     FontSize="10"
+                     Margin="0,0,0,4" />
+          <TextBox Style="{StaticResource DesignerInspectorTextBoxStyle}"
+                   Tag="{Binding CompositeComponent2}"
+                   TextChanged="OnSourcePropertyCompositeTextChanged"
+                   Text="{Binding CompositeComponent2.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="4">
+          <TextBlock Text="{Binding CompositeComponent3.Label}"
+                     Foreground="#4A6880"
+                     FontSize="10"
+                     Margin="0,0,0,4" />
+          <TextBox Style="{StaticResource DesignerInspectorTextBoxStyle}"
+                   Tag="{Binding CompositeComponent3}"
+                   TextChanged="OnSourcePropertyCompositeTextChanged"
+                   Text="{Binding CompositeComponent3.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="6">
+          <TextBlock Text="{Binding CompositeComponent4.Label}"
+                     Foreground="#4A6880"
+                     FontSize="10"
+                     Margin="0,0,0,4" />
+          <TextBox Style="{StaticResource DesignerInspectorTextBoxStyle}"
+                   Tag="{Binding CompositeComponent4}"
+                   TextChanged="OnSourcePropertyCompositeTextChanged"
+                   Text="{Binding CompositeComponent4.Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        </StackPanel>
+      </Grid>
+    </DataTemplate>
+
     <DataTemplate x:Key="SourcePropertyColorEditorTemplate">
       <DesignerSourceColorPropertyEditor PropertyName="{Binding Name}"
                                          DisplayText="{Binding ColorDisplayText}"
@@ -169,6 +227,7 @@
     <DesignerSourceInspectorEditorTemplateSelector x:Key="SourcePropertyEditorTemplateSelector"
                                                    TextTemplate="{StaticResource SourcePropertyTextEditorTemplate}"
                                                    ChoiceTemplate="{StaticResource SourcePropertyChoiceEditorTemplate}"
+                                                   CompositeTemplate="{StaticResource SourcePropertyCompositeEditorTemplate}"
                                                    ColorTemplate="{StaticResource SourcePropertyColorEditorTemplate}" />
 
     <DataTemplate x:Key="SourcePropertyRowTemplate">
