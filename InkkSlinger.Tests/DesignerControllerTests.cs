@@ -200,7 +200,7 @@ public class DesignerControllerTests
 
         _ = Assert.IsType<ContentControl>(shell.FindName("PreviewHost"));
         _ = Assert.IsType<ItemsControl>(shell.FindName("VisualTreeView"));
-        _ = Assert.IsAssignableFrom<RichTextBox>(shell.SourceEditorControl);
+        _ = Assert.IsAssignableFrom<IDE_Editor>(shell.SourceEditorControl);
 
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.HorizontalScrollBarVisibility);
         Assert.Equal(ScrollBarVisibility.Auto, previewScrollViewer.VerticalScrollBarVisibility);
@@ -222,12 +222,12 @@ public class DesignerControllerTests
         Assert.Equal(HorizontalAlignment.Stretch, previewSourceSplitter.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Center, previewSourceSplitter.VerticalAlignment);
 
-        Assert.Equal(3, Grid.GetColumn(sourcePropertyInspectorSplitter));
+        Assert.Equal(1, Grid.GetColumn(sourcePropertyInspectorSplitter));
         Assert.Equal(GridResizeDirection.Columns, sourcePropertyInspectorSplitter.ResizeDirection);
         Assert.Equal(GridResizeBehavior.PreviousAndNext, sourcePropertyInspectorSplitter.ResizeBehavior);
         Assert.Equal(HorizontalAlignment.Stretch, sourcePropertyInspectorSplitter.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Stretch, sourcePropertyInspectorSplitter.VerticalAlignment);
-        Assert.Equal(4, Grid.GetColumn(sourcePropertyInspectorBorder));
+        Assert.Equal(2, Grid.GetColumn(sourcePropertyInspectorBorder));
     }
 
     [Fact]
@@ -2257,7 +2257,9 @@ public class DesignerControllerTests
             previousOffset = sourceEditor.VerticalOffset;
         }
 
-        Assert.True(sourceEditor.VerticalOffset > 0f, "Expected wheel scrolling to move the source editor viewport.");
+        Assert.True(
+            sourceEditor.VerticalOffset > 0f,
+            $"Expected wheel scrolling to move the source editor viewport, but offset={sourceEditor.VerticalOffset:0.###}, scrollable={sourceEditor.ScrollableHeight:0.###}, viewport={sourceEditor.ViewportHeight:0.###}, extent={sourceEditor.ExtentHeight:0.###}, pointer=({pointer.X:0.###},{pointer.Y:0.###}).");
         Assert.True(
             MathF.Abs(sourceEditor.ScrollableHeight - sourceEditor.VerticalOffset) <= 0.5f,
             $"Expected to reach the end of the source editor after repeated wheel scrolling, but offset={sourceEditor.VerticalOffset:0.###} scrollable={sourceEditor.ScrollableHeight:0.###} iterations={iterations}.");
@@ -4197,12 +4199,13 @@ public class DesignerControllerTests
         return count;
     }
 
-    private static Vector2 GetSourceEditorLinePoint(RichTextBox sourceEditor, int oneBasedLineNumber)
+    private static Vector2 GetSourceEditorLinePoint(IDE_Editor sourceEditor, int oneBasedLineNumber)
     {
-        var lineHeight = UiTextRenderer.GetLineHeight(sourceEditor, sourceEditor.FontSize);
+        var textHost = sourceEditor.Editor;
+        var lineHeight = UiTextRenderer.GetLineHeight(textHost, textHost.FontSize);
         return new Vector2(
-            sourceEditor.LayoutSlot.X + 1f + 8f,
-            sourceEditor.LayoutSlot.Y + 1f + 5f + ((oneBasedLineNumber - 1) * lineHeight) + 2f);
+            textHost.LayoutSlot.X + 1f + 8f,
+            textHost.LayoutSlot.Y + 1f + 5f + ((oneBasedLineNumber - 1) * lineHeight) + 2f);
     }
 
     private static Vector2 GetDiagnosticsTabHeaderPoint(TabControl tabControl)
@@ -4322,7 +4325,7 @@ public class DesignerControllerTests
 
     private static void SelectControlTagForSourceInspector(
         InkkSlinger.Designer.DesignerShellView shell,
-        RichTextBox sourceEditor,
+        IDE_Editor sourceEditor,
         UiRoot uiRoot,
         string elementName)
     {
@@ -4504,7 +4507,7 @@ public class DesignerControllerTests
             TextLayout.GetMetricsSnapshot());
     }
 
-    private static CompletionWheelTelemetryResult RunDesignerCompletionWheelTelemetryScenario(Action<InkkSlinger.Designer.DesignerShellView, RichTextBox, UiRoot>? configure = null)
+    private static CompletionWheelTelemetryResult RunDesignerCompletionWheelTelemetryScenario(Action<InkkSlinger.Designer.DesignerShellView, IDE_Editor, UiRoot>? configure = null)
     {
         const int wheelTicks = 12;
         ResetCompletionScrollTelemetry();
@@ -4555,7 +4558,7 @@ public class DesignerControllerTests
             TextLayout.GetMetricsSnapshot());
     }
 
-    private static CompletionWheelTelemetryResult RunStandaloneSourceEditorCompletionWheelTelemetryScenario(Action<InkkSlinger.Designer.DesignerSourceEditorView, RichTextBox, UiRoot>? configure = null)
+    private static CompletionWheelTelemetryResult RunStandaloneSourceEditorCompletionWheelTelemetryScenario(Action<InkkSlinger.Designer.DesignerSourceEditorView, IDE_Editor, UiRoot>? configure = null)
     {
         const int wheelTicks = 12;
         ResetCompletionScrollTelemetry();
@@ -4620,7 +4623,7 @@ public class DesignerControllerTests
 
     private static void DetachSourceEditorEventHandler(
         InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView,
-        RichTextBox sourceEditor,
+        IDE_Editor sourceEditor,
         string eventName,
         string methodName)
     {
@@ -5048,7 +5051,7 @@ public class DesignerControllerTests
 
     private static ListBoxItem OpenCompletionAndScrollToItem(
         InkkSlinger.Designer.DesignerShellView shell,
-        RichTextBox sourceEditor,
+        IDE_Editor sourceEditor,
         UiRoot uiRoot,
         string itemName)
     {
@@ -5238,7 +5241,7 @@ public class DesignerControllerTests
         };
     }
 
-    private static string GetLineNumberText(InkkSlinger.Designer.DesignerSourceLineNumberPresenter panel, int index)
+    private static string GetLineNumberText(IDEEditorLineNumberPresenter panel, int index)
     {
         return panel.VisibleLineTexts[index];
     }
@@ -5251,7 +5254,7 @@ public class DesignerControllerTests
                MathF.Abs(left.Height - right.Height) < 0.001f;
     }
 
-    private static int GetRenderedLineNumberCount(InkkSlinger.Designer.DesignerSourceLineNumberPresenter panel)
+    private static int GetRenderedLineNumberCount(IDEEditorLineNumberPresenter panel)
     {
         return panel.VisibleLineCount;
     }

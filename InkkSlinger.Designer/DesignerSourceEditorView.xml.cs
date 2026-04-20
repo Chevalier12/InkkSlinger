@@ -56,12 +56,6 @@ public partial class DesignerSourceEditorView : UserControl
             new FrameworkPropertyMetadata(Array.Empty<object>()));
 
     private bool _suppressSourceEditorChanges;
-    private int _cachedSourceLineCount = 1;
-    private int _lastRenderedSourceLineCount = -1;
-    private int _lastRenderedSourceFirstVisibleLine = -1;
-    private int _lastRenderedSourceVisibleLineCount = -1;
-    private float _lastRenderedSourceLineOffset = float.NaN;
-    private float _lastRenderedSourceLineHeight = float.NaN;
     private float _lastObservedViewportHorizontalOffset = float.NaN;
     private float _lastObservedViewportVerticalOffset = float.NaN;
     private float _lastObservedViewportWidth = float.NaN;
@@ -93,7 +87,6 @@ public partial class DesignerSourceEditorView : UserControl
         SourceEditor.AddHandler<FocusChangedRoutedEventArgs>(UIElement.LostFocusEvent, OnSourceEditorLostFocus, handledEventsToo: true);
         SourceEditor.SelectionChanged += OnSourceEditorSelectionChanged;
         LoadDocumentIntoEditor(SourceText);
-        UpdateSourceLineNumberGutter(force: true);
         RefreshSourcePropertyInspector();
     }
 
@@ -109,11 +102,11 @@ public partial class DesignerSourceEditorView : UserControl
         set => SetValue(NavigationRequestProperty, value);
     }
 
-    public RichTextBox Editor => SourceEditor;
+    public IDE_Editor Editor => SourceEditor;
 
-    public Border LineNumberBorder => ((DesignerSourceLineNumberGutterView)SourceLineNumberGutter).BorderHost;
+    public Border LineNumberBorder => SourceEditor.LineNumberBorder;
 
-    public DesignerSourceLineNumberPresenter LineNumberPanel => ((DesignerSourceLineNumberGutterView)SourceLineNumberGutter).Presenter;
+    public IDEEditorLineNumberPresenter LineNumberPanel => SourceEditor.LineNumberPresenter;
 
     public IEnumerable SourcePropertyInspectorItems
     {
@@ -163,8 +156,6 @@ public partial class DesignerSourceEditorView : UserControl
 
         RefreshHighlightedSourceDocument(currentText, dismissCompletionPopup: false);
 
-        UpdateCachedSourceLineCount(currentText);
-        UpdateSourceLineNumberGutter(force: true);
         RefreshSourcePropertyInspector();
         if (IsControlCompletionOpen)
         {
@@ -312,7 +303,6 @@ public partial class DesignerSourceEditorView : UserControl
             return;
         }
 
-        UpdateSourceLineNumberGutter(force: false);
         if (IsControlCompletionOpen)
         {
             UpdateCompletionPopupPlacement();
@@ -339,11 +329,6 @@ public partial class DesignerSourceEditorView : UserControl
         _lastObservedViewportVerticalOffset = verticalOffset;
         _lastObservedViewportWidth = viewportWidth;
         _lastObservedViewportHeight = viewportHeight;
-
-        if (scrollOffsetChanged || viewportSizeChanged)
-        {
-            UpdateSourceLineNumberGutter(force: false);
-        }
 
         if (IsControlCompletionOpen)
         {
@@ -391,7 +376,7 @@ public partial class DesignerSourceEditorView : UserControl
         try
         {
             DesignerXmlSyntaxHighlighter.PopulateDocument(SourceEditor.Document, normalizedText);
-            UpdateCachedSourceLineCount(normalizedText);
+            SourceEditor.RefreshDocumentMetrics();
 
             var updatedTextLength = DocumentEditing.GetText(SourceEditor.Document).Length;
             var clampedSelectionStart = Math.Clamp(selectionStart, 0, updatedTextLength);
@@ -399,7 +384,6 @@ public partial class DesignerSourceEditorView : UserControl
             SourceEditor.Select(clampedSelectionStart, clampedSelectionLength);
             SourceEditor.ScrollToHorizontalOffset(horizontalOffset);
             SourceEditor.ScrollToVerticalOffset(verticalOffset);
-            UpdateSourceLineNumberGutter(force: true);
         }
         finally
         {
@@ -419,11 +403,9 @@ public partial class DesignerSourceEditorView : UserControl
         SourceEditor.Select(selectionStart, selectionLength);
         SourceEditor.ScrollToHorizontalOffset(0f);
 
-        UpdateCachedSourceLineCount(sourceText);
-        var lineHeight = EstimateSourceEditorLineHeight(_cachedSourceLineCount);
+        var lineHeight = Math.Max(1f, SourceEditor.EstimatedLineHeight);
         var desiredVerticalOffset = Math.Max(0f, ((oneBasedLineNumber - 1) * lineHeight) - (SourceEditor.ViewportHeight * 0.35f));
         SourceEditor.ScrollToVerticalOffset(desiredVerticalOffset);
-        UpdateSourceLineNumberGutter(force: true);
         RefreshSourcePropertyInspector();
     }
 
@@ -1642,94 +1624,6 @@ public partial class DesignerSourceEditorView : UserControl
                MathF.Abs(left.Y - right.Y) < 0.001f &&
                MathF.Abs(left.Width - right.Width) < 0.001f &&
                MathF.Abs(left.Height - right.Height) < 0.001f;
-    }
-
-    private void UpdateCachedSourceLineCount(string? text)
-    {
-        _cachedSourceLineCount = CountSourceLines(text);
-    }
-
-    private void UpdateSourceLineNumberGutter(bool force)
-    {
-        var lineCount = Math.Max(1, _cachedSourceLineCount);
-        var lineHeight = EstimateSourceEditorLineHeight(lineCount);
-        var fontSize = SourceEditor.FontSize;
-        var viewportHeight = Math.Max(lineHeight, SourceEditor.ViewportHeight);
-        var verticalOffset = Math.Max(0f, SourceEditor.VerticalOffset);
-        var approximateVisibleLineCount = Math.Clamp((int)MathF.Ceiling(viewportHeight / lineHeight) + 1, 1, Math.Max(1, lineCount));
-        var firstVisibleLine = GetFirstVisibleSourceLine(lineCount, approximateVisibleLineCount, lineHeight, verticalOffset);
-        var visibleLineCount = Math.Clamp(approximateVisibleLineCount, 1, Math.Max(1, lineCount - firstVisibleLine));
-        var lineOffset = verticalOffset - (firstVisibleLine * lineHeight);
-
-        if (!force &&
-            lineCount == _lastRenderedSourceLineCount &&
-            firstVisibleLine == _lastRenderedSourceFirstVisibleLine &&
-            visibleLineCount == _lastRenderedSourceVisibleLineCount &&
-            Math.Abs(lineOffset - _lastRenderedSourceLineOffset) <= 0.01f &&
-            Math.Abs(lineHeight - _lastRenderedSourceLineHeight) <= 0.01f)
-        {
-            return;
-        }
-
-        LineNumberPanel.LineHeight = lineHeight;
-        LineNumberPanel.FontSize = fontSize;
-        LineNumberPanel.VerticalLineOffset = lineOffset;
-        LineNumberPanel.UpdateVisibleRange(firstVisibleLine, visibleLineCount);
-
-        _lastRenderedSourceLineCount = lineCount;
-        _lastRenderedSourceFirstVisibleLine = firstVisibleLine;
-        _lastRenderedSourceVisibleLineCount = visibleLineCount;
-        _lastRenderedSourceLineOffset = lineOffset;
-        _lastRenderedSourceLineHeight = lineHeight;
-    }
-
-    private static int CountSourceLines(string? text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return 1;
-        }
-
-        var lineCount = 1;
-        for (var i = 0; i < text.Length; i++)
-        {
-            if (text[i] == '\n')
-            {
-                lineCount++;
-            }
-        }
-
-        return lineCount;
-    }
-
-    private float EstimateSourceEditorLineHeight(int lineCount)
-    {
-        if (SourceEditor.TryGetCaretBounds(out var caretBounds) && caretBounds.Height > 0.01f)
-        {
-            return Math.Max(1f, caretBounds.Height);
-        }
-
-        if (lineCount > 0 && SourceEditor.ExtentHeight > 0.01f)
-        {
-            return Math.Max(1f, SourceEditor.ExtentHeight / lineCount);
-        }
-
-        return Math.Max(1f, SourceEditor.FontSize * 1.35f);
-    }
-
-    private int GetFirstVisibleSourceLine(int lineCount, int approximateVisibleLineCount, float lineHeight, float verticalOffset)
-    {
-        var firstVisibleLineFromScroll = Math.Clamp((int)MathF.Floor(verticalOffset / lineHeight), 0, Math.Max(0, lineCount - 1));
-        var scrollableLineCount = Math.Max(0, lineCount - approximateVisibleLineCount);
-        if (scrollableLineCount > 0 && SourceEditor.ScrollableHeight > 0.01f)
-        {
-            firstVisibleLineFromScroll = Math.Clamp(
-                (int)MathF.Round((verticalOffset / SourceEditor.ScrollableHeight) * scrollableLineCount),
-                0,
-                Math.Max(0, lineCount - 1));
-        }
-
-        return firstVisibleLineFromScroll;
     }
 
     private static bool TryGetLineSelectionRange(string text, int oneBasedLineNumber, out int selectionStart, out int selectionLength)

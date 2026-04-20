@@ -36,11 +36,11 @@ public partial class DesignerShellView : UserControl, IAppExitRequestHandler
 
     public DesignerSourceEditorView SourceEditorView => (DesignerSourceEditorView)SourceEditorPane;
 
-    public RichTextBox SourceEditorControl => SourceEditorView.Editor;
+    public IDE_Editor SourceEditorControl => SourceEditorView.Editor;
 
     public Border SourceLineNumberBorderControl => SourceEditorView.LineNumberBorder;
 
-    public DesignerSourceLineNumberPresenter SourceLineNumberPanelControl => SourceEditorView.LineNumberPanel;
+    public IDEEditorLineNumberPresenter SourceLineNumberPanelControl => SourceEditorView.LineNumberPanel;
 
     public string SourceText
     {

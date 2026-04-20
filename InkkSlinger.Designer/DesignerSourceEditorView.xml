@@ -256,39 +256,34 @@
 
   <Grid>
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="56" />
-      <ColumnDefinition Width="1" />
       <ColumnDefinition Width="*" />
       <ColumnDefinition Width="8" />
       <ColumnDefinition Width="320" MinWidth="220" />
     </Grid.ColumnDefinitions>
 
-    <DesignerSourceLineNumberGutterView x:Name="SourceLineNumberGutter"
-                                        Grid.Column="0" />
-
-    <Border Grid.Column="1"
-            Background="#1A2637" />
-
-    <RichTextBox x:Name="SourceEditor"
-                 Grid.Column="2"
-                 TextChanged="OnSourceEditorTextChanged"
-                 ViewportChanged="OnSourceEditorViewportChanged"
-                 LayoutUpdated="OnSourceEditorLayoutUpdated"
-                 Background="Transparent"
-                 BorderThickness="0"
-                 Foreground="#D8E3EE"
-                 CaretBrush="#7FD0FF"
-                 SelectionBrush="#1A4A7A"
-                 Padding="10"
-                 HorizontalScrollBarVisibility="Auto"
-                 VerticalScrollBarVisibility="Auto"
-                 AcceptsReturn="True"
-                 AcceptsTab="True"
-                 TextWrapping="NoWrap"
-                 FontFamily="Consolas" />
+    <IDE_Editor x:Name="SourceEditor"
+                Grid.Column="0"
+                TextChanged="OnSourceEditorTextChanged"
+                ViewportChanged="OnSourceEditorViewportChanged"
+                LayoutUpdated="OnSourceEditorLayoutUpdated"
+                Background="#0D131A"
+                BorderThickness="0"
+                Foreground="#D8E3EE"
+                CaretBrush="#7FD0FF"
+                SelectionBrush="#1A4A7A"
+                Padding="10"
+                HorizontalScrollBarVisibility="Auto"
+                VerticalScrollBarVisibility="Auto"
+                AcceptsReturn="True"
+                AcceptsTab="True"
+                TextWrapping="NoWrap"
+                FontFamily="Consolas"
+                LineNumberBackground="#0A1017"
+                LineNumberForeground="#4A6880"
+                LineNumberSeparatorBrush="#1A2637" />
 
     <GridSplitter x:Name="SourcePropertyInspectorSplitter"
-                  Grid.Column="3"
+                  Grid.Column="1"
                   Background="#0B0F14"
                   BorderBrush="#1E3450"
                   BorderThickness="1,0,1,0"
@@ -299,7 +294,7 @@
                   ResizeBehavior="PreviousAndNext" />
 
     <Border x:Name="SourcePropertyInspectorBorder"
-            Grid.Column="4"
+      Grid.Column="2"
             Background="#0D131A"
             BorderBrush="#1A2637"
             BorderThickness="1,0,0,0">

@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
-using InkkSlinger;
 using Microsoft.Xna.Framework;
 
-namespace InkkSlinger.Designer;
+namespace InkkSlinger;
 
-public sealed class DesignerSourceLineNumberPresenter : Panel
+public sealed class IDEEditorLineNumberPresenter : Panel
 {
     private readonly List<TextBlock> _lineTextBlocks = [];
     private readonly List<string> _visibleLineTexts = [];
@@ -13,7 +12,7 @@ public sealed class DesignerSourceLineNumberPresenter : Panel
     private float _verticalLineOffset;
     private Color _lineForeground = Color.White;
 
-    public DesignerSourceLineNumberPresenter()
+    public IDEEditorLineNumberPresenter()
     {
         IsHitTestVisible = false;
     }
