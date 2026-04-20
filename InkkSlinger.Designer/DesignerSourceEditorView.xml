@@ -278,6 +278,7 @@
                 AcceptsTab="True"
                 TextWrapping="NoWrap"
                 FontFamily="Consolas"
+                FontSize="16"
                 LineNumberBackground="#0A1017"
                 LineNumberForeground="#4A6880"
                 LineNumberSeparatorBrush="#1A2637" />

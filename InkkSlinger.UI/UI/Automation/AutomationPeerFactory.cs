@@ -16,6 +16,11 @@ public static class AutomationPeerFactory
                 return new DataGridCellAutomationPeer(manager, dataGridCell);
             }
 
+            if (element is IDE_Editor ideEditor)
+            {
+                return new IDE_EditorAutomationPeer(manager, ideEditor);
+            }
+
             if (element is RichTextBox richTextBox)
             {
                 return new RichTextBoxAutomationPeer(manager, richTextBox);
@@ -64,6 +69,7 @@ public static class AutomationPeerFactory
             DataGrid => AutomationControlType.DataGrid,
             DataGridRow => AutomationControlType.ListItem,
             DataGridCell => AutomationControlType.Custom,
+            IDE_Editor => AutomationControlType.Document,
             RichTextBox => AutomationControlType.Document,
             DocumentViewer => AutomationControlType.Document,
             Frame => AutomationControlType.Pane,

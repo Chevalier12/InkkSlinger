@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger;
@@ -9,6 +12,7 @@ namespace InkkSlinger;
 [TemplatePart("PART_LineNumberSeparator", typeof(Border))]
 [TemplatePart("PART_LineNumberPresenter", typeof(IDEEditorLineNumberPresenter))]
 [TemplatePart("PART_Editor", typeof(RichTextBox))]
+[TemplatePart("PART_IndentGuideOverlay", typeof(IDEEditorIndentGuideOverlay))]
 public sealed class IDE_Editor : Control, ITextInputControl
 {
     private static readonly Lazy<Style> DefaultStyle = new(BuildDefaultStyle);
@@ -101,7 +105,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
             new FrameworkPropertyMetadata(
                 56f,
                 FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsArrange,
-                coerceValueCallback: static (_, value) => value is float width && width >= 0f ? width : 56f));
+                coerceValueCallback: static (_, value) => value is float width && width >= 0f && float.IsFinite(width) ? width : 56f));
 
     public static readonly DependencyProperty LineNumberBackgroundProperty =
         DependencyProperty.Register(
@@ -124,10 +128,54 @@ public sealed class IDE_Editor : Control, ITextInputControl
             typeof(IDE_Editor),
             new FrameworkPropertyMetadata(new Color(26, 38, 55), FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty IndentGuideBrushProperty =
+        DependencyProperty.Register(
+            nameof(IndentGuideBrush),
+            typeof(Color),
+            typeof(IDE_Editor),
+            new FrameworkPropertyMetadata(new Color(43, 60, 82, 180), FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty SelectionTextBrushProperty =
+        DependencyProperty.Register(
+            nameof(SelectionTextBrush),
+            typeof(Color),
+            typeof(IDE_Editor),
+            new FrameworkPropertyMetadata(Color.White, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty SelectionOpacityProperty =
+        DependencyProperty.Register(
+            nameof(SelectionOpacity),
+            typeof(float),
+            typeof(IDE_Editor),
+            new FrameworkPropertyMetadata(
+                1f,
+                FrameworkPropertyMetadataOptions.AffectsRender,
+                coerceValueCallback: static (_, value) => value is float opacity
+                    ? Math.Clamp(opacity, 0f, 1f)
+                    : 1f));
+
+    public static readonly DependencyProperty IsUndoEnabledProperty =
+        DependencyProperty.Register(
+            nameof(IsUndoEnabled),
+            typeof(bool),
+            typeof(IDE_Editor),
+            new FrameworkPropertyMetadata(true));
+
+    public static readonly DependencyProperty UndoLimitProperty =
+        DependencyProperty.Register(
+            nameof(UndoLimit),
+            typeof(int),
+            typeof(IDE_Editor),
+            new FrameworkPropertyMetadata(
+                -1,
+                FrameworkPropertyMetadataOptions.None,
+                coerceValueCallback: static (_, value) => value is int limit && limit >= -1 ? limit : -1));
+
     private Grid? _root;
     private Border? _lineNumberBorder;
     private Border? _lineNumberSeparator;
     private IDEEditorLineNumberPresenter? _lineNumberPresenter;
+    private IDEEditorIndentGuideOverlay? _indentGuideOverlay;
     private RichTextBox? _editor;
     private int _cachedLineCount = 1;
     private int _lastRenderedLineCount = -1;
@@ -150,7 +198,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
 
     public FlowDocument Document
     {
-        get => GetValue<FlowDocument>(DocumentProperty) ?? CreateDefaultDocument();
+        get => GetValue<FlowDocument>(DocumentProperty)!;
         set => SetValue(DocumentProperty, value);
     }
 
@@ -238,6 +286,40 @@ public sealed class IDE_Editor : Control, ITextInputControl
         set => SetValue(LineNumberSeparatorBrushProperty, value);
     }
 
+    public Color IndentGuideBrush
+    {
+        get => GetValue<Color>(IndentGuideBrushProperty);
+        set => SetValue(IndentGuideBrushProperty, value);
+    }
+
+    public Color SelectionTextBrush
+    {
+        get => GetValue<Color>(SelectionTextBrushProperty);
+        set => SetValue(SelectionTextBrushProperty, value);
+    }
+
+    public float SelectionOpacity
+    {
+        get => GetValue<float>(SelectionOpacityProperty);
+        set => SetValue(SelectionOpacityProperty, value);
+    }
+
+    public bool IsUndoEnabled
+    {
+        get => GetValue<bool>(IsUndoEnabledProperty);
+        set => SetValue(IsUndoEnabledProperty, value);
+    }
+
+    public int UndoLimit
+    {
+        get => GetValue<int>(UndoLimitProperty);
+        set => SetValue(UndoLimitProperty, value);
+    }
+
+    public bool CanUndo => _editor?.CanUndo ?? false;
+
+    public bool CanRedo => _editor?.CanRedo ?? false;
+
     public RichTextBox Editor => _editor ?? throw new InvalidOperationException("IDE_Editor template has not been applied.");
 
     public Border LineNumberBorder => _lineNumberBorder ?? throw new InvalidOperationException("IDE_Editor template has not been applied.");
@@ -284,13 +366,19 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _lineNumberBorder = GetTemplateChild("PART_LineNumberBorder") as Border;
         _lineNumberSeparator = GetTemplateChild("PART_LineNumberSeparator") as Border;
         _lineNumberPresenter = GetTemplateChild("PART_LineNumberPresenter") as IDEEditorLineNumberPresenter;
+        _indentGuideOverlay = GetTemplateChild("PART_IndentGuideOverlay") as IDEEditorIndentGuideOverlay;
         _editor = GetTemplateChild("PART_Editor") as RichTextBox;
+
+        if (_indentGuideOverlay != null)
+        {
+            _indentGuideOverlay.Owner = this;
+        }
 
         ApplyTemplateStyling();
 
         if (_editor == null)
         {
-            return;
+            throw new InvalidOperationException("IDE_Editor template must contain a PART_Editor of type RichTextBox.");
         }
 
         SyncEditorProperties();
@@ -313,6 +401,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
             SyncEditorProperties();
             UpdateCachedLineCount(DocumentText);
             UpdateLineNumberGutter(force: true);
+            _indentGuideOverlay?.InvalidateVisual();
             return;
         }
 
@@ -328,6 +417,10 @@ public sealed class IDE_Editor : Control, ITextInputControl
             ReferenceEquals(args.Property, IsReadOnlyProperty) ||
             ReferenceEquals(args.Property, IsReadOnlyCaretVisibleProperty) ||
             ReferenceEquals(args.Property, IsInactiveSelectionHighlightEnabledProperty) ||
+            ReferenceEquals(args.Property, SelectionTextBrushProperty) ||
+            ReferenceEquals(args.Property, SelectionOpacityProperty) ||
+            ReferenceEquals(args.Property, IsUndoEnabledProperty) ||
+            ReferenceEquals(args.Property, UndoLimitProperty) ||
             ReferenceEquals(args.Property, FrameworkElement.FontFamilyProperty) ||
             ReferenceEquals(args.Property, FrameworkElement.FontSizeProperty))
         {
@@ -338,30 +431,61 @@ public sealed class IDE_Editor : Control, ITextInputControl
             ReferenceEquals(args.Property, LineNumberBackgroundProperty) ||
             ReferenceEquals(args.Property, LineNumberForegroundProperty) ||
             ReferenceEquals(args.Property, LineNumberSeparatorBrushProperty) ||
+            ReferenceEquals(args.Property, IndentGuideBrushProperty) ||
             ReferenceEquals(args.Property, FrameworkElement.FontFamilyProperty) ||
             ReferenceEquals(args.Property, FrameworkElement.FontSizeProperty))
         {
             ApplyTemplateStyling();
             UpdateLineNumberGutter(force: true);
+            _indentGuideOverlay?.InvalidateVisual();
         }
     }
 
     public void Select(int start, int length)
     {
-        _editor?.Select(start, length);
+        if (_editor == null)
+        {
+            return;
+        }
+
+        var textLength = DocumentText.Length;
+        if (start < 0 || start > textLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(start));
+        }
+
+        if (length < 0 || start + length > textLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(length));
+        }
+
+        _editor.Select(start, length);
         UpdateLineNumberGutter(force: false);
+        _indentGuideOverlay?.InvalidateVisual();
     }
 
     public void ScrollToHorizontalOffset(float offset)
     {
+        if (!float.IsFinite(offset))
+        {
+            return;
+        }
+
         _editor?.ScrollToHorizontalOffset(offset);
         UpdateLineNumberGutter(force: false);
+        _indentGuideOverlay?.InvalidateVisual();
     }
 
     public void ScrollToVerticalOffset(float offset)
     {
+        if (!float.IsFinite(offset))
+        {
+            return;
+        }
+
         _editor?.ScrollToVerticalOffset(offset);
         UpdateLineNumberGutter(force: false);
+        _indentGuideOverlay?.InvalidateVisual();
     }
 
     public bool HandleTextInputFromInput(char character)
@@ -384,16 +508,19 @@ public sealed class IDE_Editor : Control, ITextInputControl
 
     public bool HandlePointerDownFromInput(Vector2 pointerPosition, bool extendSelection)
     {
+        EnsureEditorFocusState();
         return _editor != null && _editor.HandlePointerDownFromInput(pointerPosition, extendSelection);
     }
 
     public bool HandlePointerMoveFromInput(Vector2 pointerPosition)
     {
+        EnsureEditorFocusState();
         return _editor != null && _editor.HandlePointerMoveFromInput(pointerPosition);
     }
 
     public bool HandlePointerUpFromInput()
     {
+        EnsureEditorFocusState();
         return _editor != null && _editor.HandlePointerUpFromInput();
     }
 
@@ -424,6 +551,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
     {
         UpdateCachedLineCount(DocumentText);
         UpdateLineNumberGutter(force: true);
+        _indentGuideOverlay?.InvalidateVisual();
     }
 
     public bool TryGetCaretBounds(out LayoutRect bounds)
@@ -437,6 +565,43 @@ public sealed class IDE_Editor : Control, ITextInputControl
         return _editor.TryGetCaretBounds(out bounds);
     }
 
+    public void Undo()
+    {
+        _editor?.Undo();
+    }
+
+    public void Redo()
+    {
+        _editor?.Redo();
+    }
+
+    public void SelectAll()
+    {
+        _editor?.SelectAll();
+    }
+
+    public void Copy()
+    {
+        _editor?.Copy();
+    }
+
+    public void Cut()
+    {
+        _editor?.Cut();
+    }
+
+    public void Paste()
+    {
+        _editor?.Paste();
+    }
+
+    internal IDEEditorIndentGuideSnapshot GetIndentGuideSnapshotForDiagnostics()
+    {
+        return TryBuildIndentGuideSnapshot(out var snapshot)
+            ? snapshot
+            : new IDEEditorIndentGuideSnapshot(false, default, Array.Empty<IDEEditorIndentGuideSegmentSnapshot>());
+    }
+
     internal (float HorizontalOffset, float VerticalOffset, float ViewportWidth, float ViewportHeight, float ExtentWidth, float ExtentHeight) GetScrollMetricsSnapshot()
     {
         return _editor?.GetScrollMetricsSnapshot() ?? (0f, 0f, 0f, 0f, 0f, 0f);
@@ -447,6 +612,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _ = sender;
         UpdateCachedLineCount(DocumentText);
         UpdateLineNumberGutter(force: true);
+        _indentGuideOverlay?.InvalidateVisual();
         TextChanged?.Invoke(this, args);
     }
 
@@ -457,11 +623,13 @@ public sealed class IDE_Editor : Control, ITextInputControl
         SyncDocumentFromEditor();
         UpdateCachedLineCount(DocumentText);
         UpdateLineNumberGutter(force: true);
+        _indentGuideOverlay?.InvalidateVisual();
     }
 
     private void OnEditorSelectionChanged(object? sender, SelectionChangedEventArgs args)
     {
         _ = sender;
+        _indentGuideOverlay?.InvalidateVisual();
         SelectionChanged?.Invoke(this, args);
     }
 
@@ -469,6 +637,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
     {
         _ = sender;
         UpdateLineNumberGutter(force: false);
+        _indentGuideOverlay?.InvalidateVisual();
         ViewportChanged?.Invoke(this, args);
     }
 
@@ -477,6 +646,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _ = sender;
         _ = args;
         UpdateLineNumberGutter(force: false);
+        _indentGuideOverlay?.InvalidateVisual();
     }
 
     private void DetachEditorPart()
@@ -494,7 +664,19 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _lineNumberBorder = null;
         _lineNumberSeparator = null;
         _lineNumberPresenter = null;
+        if (_indentGuideOverlay != null)
+        {
+            _indentGuideOverlay.Owner = null;
+        }
+
+        _indentGuideOverlay = null;
         _editor = null;
+
+        _lastRenderedLineCount = -1;
+        _lastRenderedFirstVisibleLine = -1;
+        _lastRenderedVisibleLineCount = -1;
+        _lastRenderedLineOffset = float.NaN;
+        _lastRenderedLineHeight = float.NaN;
     }
 
     private void ApplyTemplateStyling()
@@ -546,6 +728,10 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _editor.IsReadOnly = IsReadOnly;
         _editor.IsReadOnlyCaretVisible = IsReadOnlyCaretVisible;
         _editor.IsInactiveSelectionHighlightEnabled = IsInactiveSelectionHighlightEnabled;
+        _editor.SelectionTextBrush = SelectionTextBrush;
+        _editor.SelectionOpacity = SelectionOpacity;
+        _editor.IsUndoEnabled = IsUndoEnabled;
+        _editor.UndoLimit = UndoLimit;
         _editor.FontFamily = FontFamily;
         _editor.FontSize = FontSize;
     }
@@ -609,6 +795,347 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _lastRenderedLineHeight = lineHeight;
     }
 
+    private bool TryBuildIndentGuideSnapshot(out IDEEditorIndentGuideSnapshot snapshot)
+    {
+        snapshot = new IDEEditorIndentGuideSnapshot(false, default, Array.Empty<IDEEditorIndentGuideSegmentSnapshot>());
+        if (_editor == null || !_editor.TryGetViewportLayoutSnapshot(out var viewport))
+        {
+            return false;
+        }
+
+        var segments = BuildIndentGuideSegments(viewport).ToArray();
+        snapshot = new IDEEditorIndentGuideSnapshot(true, viewport.TextRect, segments);
+        return true;
+    }
+
+    private IEnumerable<IDEEditorIndentGuideSegmentSnapshot> BuildIndentGuideSegments(RichTextBoxViewportLayoutSnapshot viewport)
+    {
+        var layout = viewport.Layout;
+        if (layout.Lines.Count == 0)
+        {
+            yield break;
+        }
+
+        var documentText = DocumentText;
+        var indentStepWidth = ResolveIndentStepWidth(layout, documentText);
+        if (indentStepWidth <= 0.01f)
+        {
+            yield break;
+        }
+
+        var logicalLineInfoCache = BuildLogicalLineInfoCache(layout, documentText, indentStepWidth);
+
+        var activeSegments = new Dictionary<int, IDEEditorIndentGuideSegmentSnapshot>();
+        for (var lineIndex = 0; lineIndex < layout.Lines.Count; lineIndex++)
+        {
+            var line = layout.Lines[lineIndex];
+            var rawTop = viewport.TextRect.Y + line.Bounds.Y - viewport.VerticalOffset;
+            var rawBottom = rawTop + line.Bounds.Height;
+            if (rawBottom <= viewport.TextRect.Y || rawTop >= viewport.TextRect.Y + viewport.TextRect.Height)
+            {
+                continue;
+            }
+
+            var top = Math.Max(viewport.TextRect.Y, rawTop);
+            var bottom = Math.Min(viewport.TextRect.Y + viewport.TextRect.Height, rawBottom);
+            var logicalLineInfo = ResolveLogicalLineInfo(documentText, line.StartOffset, logicalLineInfoCache);
+            var visibleLevels = new HashSet<int>();
+
+            if (logicalLineInfo.HasNonWhitespaceContent && logicalLineInfo.IndentLevelCount > 0)
+            {
+                var levelCount = logicalLineInfo.IndentLevelCount;
+                for (var indentLevel = 1; indentLevel <= levelCount; indentLevel++)
+                {
+                    visibleLevels.Add(indentLevel);
+                    var x = viewport.TextRect.X + line.TextStartX + (indentStepWidth * indentLevel) - viewport.HorizontalOffset;
+                    if (x < viewport.TextRect.X || x > viewport.TextRect.X + viewport.TextRect.Width)
+                    {
+                        continue;
+                    }
+
+                    if (activeSegments.TryGetValue(indentLevel, out var activeSegment) && activeSegment.EndVisibleLineIndex == lineIndex - 1)
+                    {
+                        activeSegments[indentLevel] = activeSegment with
+                        {
+                            EndVisibleLineIndex = lineIndex,
+                            Bottom = bottom
+                        };
+                    }
+                    else
+                    {
+                        if (activeSegments.TryGetValue(indentLevel, out activeSegment))
+                        {
+                            yield return activeSegment;
+                        }
+
+                        activeSegments[indentLevel] = new IDEEditorIndentGuideSegmentSnapshot(indentLevel, lineIndex, lineIndex, x, top, bottom);
+                    }
+                }
+            }
+            else if (logicalLineInfo.IsBlankLine && activeSegments.Count > 0)
+            {
+                var continuationLevelCount = ResolveContinuationIndentLevelCount(layout, documentText, lineIndex, logicalLineInfoCache);
+                for (var indentLevel = 1; indentLevel <= continuationLevelCount; indentLevel++)
+                {
+                    if (!activeSegments.TryGetValue(indentLevel, out var activeSegment))
+                    {
+                        continue;
+                    }
+
+                    visibleLevels.Add(indentLevel);
+                    activeSegments[indentLevel] = activeSegment with
+                    {
+                        EndVisibleLineIndex = lineIndex,
+                        Bottom = bottom
+                    };
+                }
+            }
+
+            foreach (var entry in activeSegments.Where(entry => !visibleLevels.Contains(entry.Key)).ToArray())
+            {
+                yield return entry.Value;
+                activeSegments.Remove(entry.Key);
+            }
+        }
+
+        foreach (var segment in activeSegments.Values.OrderBy(static segment => segment.IndentLevel).ThenBy(static segment => segment.StartVisibleLineIndex))
+        {
+            yield return segment;
+        }
+    }
+
+    private static Dictionary<int, IDEEditorLogicalLineInfo> BuildLogicalLineInfoCache(DocumentLayoutResult layout, string documentText, float indentStepWidth)
+    {
+        var cache = new Dictionary<int, IDEEditorLogicalLineInfo>();
+        var useXmlContinuationHeuristics = LooksLikeXmlDocument(documentText);
+        var lastStructuralIndentLevelCount = 0;
+
+        for (var logicalLineStart = 0; logicalLineStart <= documentText.Length; logicalLineStart = AdvanceToNextLogicalLine(documentText, logicalLineStart))
+        {
+            var lineText = ResolveLogicalLineText(documentText, logicalLineStart);
+            var trimmedLineText = lineText.TrimStart();
+            if (trimmedLineText.Length == 0)
+            {
+                cache[logicalLineStart] = new IDEEditorLogicalLineInfo(false, true, lastStructuralIndentLevelCount);
+            }
+            else
+            {
+                var indentLevelCount = ResolveLogicalLineIndentLevelCount(layout, documentText, logicalLineStart, indentStepWidth);
+                if (useXmlContinuationHeuristics && !IsXmlStructuralLine(trimmedLineText))
+                {
+                    indentLevelCount = lastStructuralIndentLevelCount;
+                }
+                else
+                {
+                    lastStructuralIndentLevelCount = indentLevelCount;
+                }
+
+                cache[logicalLineStart] = new IDEEditorLogicalLineInfo(true, false, indentLevelCount);
+            }
+
+            if (logicalLineStart >= documentText.Length)
+            {
+                break;
+            }
+        }
+
+        return cache;
+    }
+
+    private static int ResolveLogicalLineIndentLevelCount(DocumentLayoutResult layout, string documentText, int logicalLineStart, float indentStepWidth)
+    {
+        var leadingWhitespaceCount = ResolveLogicalLineLeadingWhitespaceCount(documentText, logicalLineStart);
+        if (leadingWhitespaceCount <= 0)
+        {
+            return 0;
+        }
+
+        if (!layout.TryGetCaretPosition(logicalLineStart, out var lineStartPosition) ||
+            !layout.TryGetCaretPosition(logicalLineStart + leadingWhitespaceCount, out var firstContentPosition))
+        {
+            return 0;
+        }
+
+        var indentWidth = Math.Max(0f, firstContentPosition.X - lineStartPosition.X);
+        if (indentWidth <= 0.01f || indentStepWidth <= 0.01f)
+        {
+            return 0;
+        }
+
+        return Math.Max(0, (int)MathF.Floor((indentWidth + 0.01f) / indentStepWidth));
+    }
+
+    private static int ResolveContinuationIndentLevelCount(DocumentLayoutResult layout, string documentText, int lineIndex, IReadOnlyDictionary<int, IDEEditorLogicalLineInfo> logicalLineInfoCache)
+    {
+        for (var nextLineIndex = lineIndex + 1; nextLineIndex < layout.Lines.Count; nextLineIndex++)
+        {
+            var nextLine = layout.Lines[nextLineIndex];
+            var logicalLineInfo = ResolveLogicalLineInfo(documentText, nextLine.StartOffset, logicalLineInfoCache);
+            if (logicalLineInfo.IsBlankLine)
+            {
+                continue;
+            }
+
+            return logicalLineInfo.IndentLevelCount;
+        }
+
+        for (var prevLineIndex = lineIndex - 1; prevLineIndex >= 0; prevLineIndex--)
+        {
+            var prevLine = layout.Lines[prevLineIndex];
+            var logicalLineInfo = ResolveLogicalLineInfo(documentText, prevLine.StartOffset, logicalLineInfoCache);
+            if (logicalLineInfo.IsBlankLine)
+            {
+                continue;
+            }
+
+            return logicalLineInfo.IndentLevelCount;
+        }
+
+        return 0;
+    }
+
+    private static IDEEditorLogicalLineInfo ResolveLogicalLineInfo(string documentText, int offset, IReadOnlyDictionary<int, IDEEditorLogicalLineInfo> logicalLineInfoCache)
+    {
+        if (string.IsNullOrEmpty(documentText))
+        {
+            return new IDEEditorLogicalLineInfo(false, true, 0);
+        }
+
+        var clampedOffset = Math.Clamp(offset, 0, documentText.Length);
+        var lineStart = ResolveLogicalLineStart(documentText, clampedOffset);
+        return logicalLineInfoCache.TryGetValue(lineStart, out var logicalLineInfo)
+            ? logicalLineInfo
+            : new IDEEditorLogicalLineInfo(false, true, 0);
+    }
+
+    private static int ResolveLogicalLineStart(string documentText, int offset)
+    {
+        var lineStart = Math.Clamp(offset, 0, documentText.Length);
+        while (lineStart > 0 && documentText[lineStart - 1] != '\n')
+        {
+            lineStart--;
+        }
+
+        return lineStart;
+    }
+
+    private static int ResolveLogicalLineLeadingWhitespaceCount(string documentText, int logicalLineStart)
+    {
+        return CountLeadingWhitespace(ResolveLogicalLineText(documentText, logicalLineStart));
+    }
+
+    private static string ResolveLogicalLineText(string documentText, int logicalLineStart)
+    {
+        var lineEnd = logicalLineStart;
+        while (lineEnd < documentText.Length && documentText[lineEnd] != '\n')
+        {
+            lineEnd++;
+        }
+
+        return documentText.Substring(logicalLineStart, lineEnd - logicalLineStart);
+    }
+
+    private static bool LooksLikeXmlDocument(string documentText)
+    {
+        for (var index = 0; index < documentText.Length; index++)
+        {
+            if (char.IsWhiteSpace(documentText[index]))
+            {
+                continue;
+            }
+
+            return documentText[index] == '<';
+        }
+
+        return false;
+    }
+
+    private static bool IsXmlStructuralLine(string trimmedLineText)
+    {
+        return trimmedLineText.StartsWith("<", StringComparison.Ordinal);
+    }
+
+    private static int AdvanceToNextLogicalLine(string documentText, int logicalLineStart)
+    {
+        if (logicalLineStart >= documentText.Length)
+        {
+            return logicalLineStart + 1;
+        }
+
+        var index = logicalLineStart;
+        while (index < documentText.Length && documentText[index] != '\n')
+        {
+            index++;
+        }
+
+        return index < documentText.Length ? index + 1 : documentText.Length;
+    }
+
+    private static int ResolveIndentLevelCount(DocumentLayoutLine line, float indentStepWidth)
+    {
+        var leadingWhitespaceCount = CountLeadingWhitespace(line.Text);
+        if (leadingWhitespaceCount <= 0 || leadingWhitespaceCount >= line.Text.Length)
+        {
+            return 0;
+        }
+
+        var totalIndentWidth = line.PrefixWidths[leadingWhitespaceCount];
+        return Math.Max(0, (int)MathF.Floor((totalIndentWidth + 0.01f) / indentStepWidth));
+    }
+
+    private static float ResolveIndentStepWidth(DocumentLayoutResult layout, string documentText)
+    {
+        var indentStepWidth = float.PositiveInfinity;
+        for (var logicalLineStart = 0; logicalLineStart <= documentText.Length; logicalLineStart = AdvanceToNextLogicalLine(documentText, logicalLineStart))
+        {
+            var leadingWhitespaceCount = ResolveLogicalLineLeadingWhitespaceCount(documentText, logicalLineStart);
+            if (leadingWhitespaceCount <= 0)
+            {
+                if (logicalLineStart >= documentText.Length)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            if (!layout.TryGetCaretPosition(logicalLineStart, out var lineStartPosition) ||
+                !layout.TryGetCaretPosition(logicalLineStart + leadingWhitespaceCount, out var firstContentPosition))
+            {
+                if (logicalLineStart >= documentText.Length)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            var indentWidth = Math.Max(0f, firstContentPosition.X - lineStartPosition.X);
+            if (indentWidth > 0.01f && indentWidth < indentStepWidth)
+            {
+                indentStepWidth = indentWidth;
+            }
+
+            if (logicalLineStart >= documentText.Length)
+            {
+                break;
+            }
+        }
+
+        return float.IsFinite(indentStepWidth) ? indentStepWidth : 0f;
+    }
+
+    private static int CountLeadingWhitespace(string text)
+    {
+        var count = 0;
+        while (count < text.Length && char.IsWhiteSpace(text[count]))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
     private float EstimateLineHeight(int lineCount)
     {
         if (_editor != null && _editor.TryGetCaretBounds(out var caretBounds) && caretBounds.Height > 0.01f)
@@ -657,6 +1184,14 @@ public sealed class IDE_Editor : Control, ITextInputControl
             if (text[index] == '\n')
             {
                 lineCount++;
+            }
+            else if (text[index] == '\r')
+            {
+                lineCount++;
+                if (index + 1 < text.Length && text[index + 1] == '\n')
+                {
+                    index++;
+                }
             }
         }
 
@@ -732,6 +1267,13 @@ public sealed class IDE_Editor : Control, ITextInputControl
             Grid.SetColumn(editor, 2);
             root.AddChild(editor);
 
+            var indentGuideOverlay = new IDEEditorIndentGuideOverlay
+            {
+                Name = "PART_IndentGuideOverlay"
+            };
+            Grid.SetColumn(indentGuideOverlay, 2);
+            root.AddChild(indentGuideOverlay);
+
             border.Child = root;
             return border;
         })
@@ -755,9 +1297,87 @@ public sealed class IDE_Editor : Control, ITextInputControl
         template.BindTemplate("PART_Editor", RichTextBox.IsReadOnlyProperty, IsReadOnlyProperty);
         template.BindTemplate("PART_Editor", RichTextBox.IsReadOnlyCaretVisibleProperty, IsReadOnlyCaretVisibleProperty);
         template.BindTemplate("PART_Editor", RichTextBox.IsInactiveSelectionHighlightEnabledProperty, IsInactiveSelectionHighlightEnabledProperty);
+        template.BindTemplate("PART_Editor", RichTextBox.SelectionTextBrushProperty, SelectionTextBrushProperty);
+        template.BindTemplate("PART_Editor", RichTextBox.SelectionOpacityProperty, SelectionOpacityProperty);
+        template.BindTemplate("PART_Editor", RichTextBox.IsUndoEnabledProperty, IsUndoEnabledProperty);
+        template.BindTemplate("PART_Editor", RichTextBox.UndoLimitProperty, UndoLimitProperty);
         template.BindTemplate("PART_Editor", FrameworkElement.FontFamilyProperty, FrameworkElement.FontFamilyProperty);
         template.BindTemplate("PART_Editor", FrameworkElement.FontSizeProperty, FrameworkElement.FontSizeProperty);
 
         return template;
+    }
+}
+
+internal readonly record struct IDEEditorIndentGuideSnapshot(
+    bool HasTextViewport,
+    LayoutRect TextRect,
+    IReadOnlyList<IDEEditorIndentGuideSegmentSnapshot> Segments);
+
+internal readonly record struct IDEEditorIndentGuideSegmentSnapshot(
+    int IndentLevel,
+    int StartVisibleLineIndex,
+    int EndVisibleLineIndex,
+    float X,
+    float Top,
+    float Bottom);
+
+internal readonly record struct IDEEditorLogicalLineInfo(
+    bool HasNonWhitespaceContent,
+    bool IsBlankLine,
+    int IndentLevelCount);
+
+internal sealed class IDEEditorIndentGuideOverlay : FrameworkElement
+{
+    public IDE_Editor? Owner { get; set; }
+
+    public IDEEditorIndentGuideOverlay()
+    {
+        IsHitTestVisible = false;
+        ClipToBounds = true;
+    }
+
+    protected override Vector2 MeasureOverride(Vector2 availableSize)
+    {
+        return new Vector2(
+            float.IsFinite(availableSize.X) ? Math.Max(0f, availableSize.X) : 0f,
+            float.IsFinite(availableSize.Y) ? Math.Max(0f, availableSize.Y) : 0f);
+    }
+
+    protected override Vector2 ArrangeOverride(Vector2 finalSize)
+    {
+        return finalSize;
+    }
+
+    protected override void OnRender(SpriteBatch spriteBatch)
+    {
+        if (Owner == null)
+        {
+            return;
+        }
+
+        var snapshot = Owner.GetIndentGuideSnapshotForDiagnostics();
+        if (!snapshot.HasTextViewport || snapshot.Segments.Count == 0)
+        {
+            return;
+        }
+
+        UiDrawing.PushClip(spriteBatch, snapshot.TextRect);
+        try
+        {
+            for (var index = 0; index < snapshot.Segments.Count; index++)
+            {
+                var segment = snapshot.Segments[index];
+                var height = Math.Max(1f, segment.Bottom - segment.Top);
+                UiDrawing.DrawFilledRect(
+                    spriteBatch,
+                    new LayoutRect(segment.X, segment.Top, 1f, height),
+                    Owner.IndentGuideBrush,
+                    Owner.Opacity);
+            }
+        }
+        finally
+        {
+            UiDrawing.PopClip(spriteBatch);
+        }
     }
 }

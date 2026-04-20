@@ -293,6 +293,25 @@ public partial class RichTextBox
         return MathF.Abs(left - right) <= 0.01f;
     }
 
+    internal bool TryGetViewportLayoutSnapshot(out RichTextBoxViewportLayoutSnapshot snapshot)
+    {
+        var textRect = GetTextRect();
+        if (textRect.Width <= 0f || textRect.Height <= 0f)
+        {
+            snapshot = default;
+            return false;
+        }
+
+        var layout = BuildOrGetLayout(textRect.Width);
+        ClampScrollOffsets(layout, textRect);
+        snapshot = new RichTextBoxViewportLayoutSnapshot(
+            layout,
+            textRect,
+            GetEffectiveHorizontalOffset(),
+            GetEffectiveVerticalOffset());
+        return true;
+    }
+
     private void RenderHostedScrollContent(SpriteBatch spriteBatch, LayoutRect slot)
     {
         var layout = BuildOrGetLayout(ResolveHostedContentLayoutWidth(slot.Width));
@@ -489,3 +508,9 @@ public partial class RichTextBox
         }
     }
 }
+
+internal readonly record struct RichTextBoxViewportLayoutSnapshot(
+    DocumentLayoutResult Layout,
+    LayoutRect TextRect,
+    float HorizontalOffset,
+    float VerticalOffset);
