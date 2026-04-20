@@ -237,19 +237,19 @@ public partial class DesignerSourceColorPropertyEditor : UserControl
         try
         {
             EditorComboBox.SelectedIndex = 0;
+            ColorPickerControl.SelectedColor = _currentColor;
             ColorPickerControl.Hue = _currentHue;
             ColorPickerControl.Saturation = _currentSaturation;
             ColorPickerControl.Value = _currentValue;
             ColorPickerControl.Alpha = _currentAlpha;
-            ColorPickerControl.SelectedColor = _currentColor;
 
+            HueSpectrumControl.SelectedColor = _currentColor;
             HueSpectrumControl.Hue = _currentHue;
             HueSpectrumControl.Alpha = _currentAlpha;
-            HueSpectrumControl.SelectedColor = _currentColor;
 
+            AlphaSpectrumControl.SelectedColor = _currentColor;
             AlphaSpectrumControl.Hue = _currentHue;
             AlphaSpectrumControl.Alpha = _currentAlpha;
-            AlphaSpectrumControl.SelectedColor = _currentColor;
 
             DisplayItem.Text = _displayText;
             ColorPickerItem.Text = _displayText;

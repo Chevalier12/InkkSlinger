@@ -584,6 +584,116 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditor_RecordedResizeScrollThenMaximize_ShouldPreserveViewportAndGutter()
+    {
+        int[] recordedWheelDeltas =
+        [
+            -120,
+            -240,
+            -120,
+            -120,
+            -120,
+            -120,
+            -360,
+            -120,
+            -240,
+            -120,
+            -240,
+            -240,
+            -240,
+            -120,
+            -360,
+            -240,
+            -240,
+            -120,
+            -360,
+            -240,
+            -240,
+            -120,
+            -360,
+            -360,
+            -120,
+            -120,
+            -120,
+            -120
+        ];
+
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = BuildNumberedSource(160)
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
+        var previewSourceSplitter = Assert.IsType<GridSplitter>(shell.FindName("PreviewSourceSplitter"));
+        var sourcePropertyInspectorSplitter = Assert.IsType<GridSplitter>(shell.SourceEditorView.FindName("SourcePropertyInspectorSplitter"));
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 820, 16);
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        var previewStart = GetCenter(previewSourceSplitter.LayoutSlot);
+        var previewEnd = previewStart + new Vector2(130f, -265f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previewStart, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 820, 16);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previewStart, leftPressed: true, pointerMoved: false));
+        RunLayout(uiRoot, 1280, 820, 16);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previewEnd, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 820, 16);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(previewEnd, leftReleased: true, pointerMoved: false));
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        var inspectorStart = GetCenter(sourcePropertyInspectorSplitter.LayoutSlot);
+        var inspectorEnd = inspectorStart + new Vector2(-203f, 15f);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(inspectorStart, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 820, 16);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(inspectorStart, leftPressed: true, pointerMoved: false));
+        RunLayout(uiRoot, 1280, 820, 16);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(inspectorEnd, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 820, 16);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(inspectorEnd, leftReleased: true, pointerMoved: false));
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        var pointer = GetSourceEditorLinePoint(sourceEditor, 1);
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 820, 16);
+
+        for (var i = 0; i < recordedWheelDeltas.Length; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, recordedWheelDeltas[i]));
+            RunLayout(uiRoot, 1280, 820, 16);
+        }
+
+        var verticalOffsetBeforeMaximize = sourceEditor.VerticalOffset;
+        Assert.True(verticalOffsetBeforeMaximize > 0f, "Expected the recorded wheel-scroll segment to move the source editor viewport before maximize.");
+        Assert.True(GetRenderedLineNumberCount(sourceLineNumberPanel) > 0);
+        Assert.True(int.TryParse(GetLineNumberText(sourceLineNumberPanel, 0), out var firstRenderedLineNumberBeforeMaximize));
+        Assert.Equal(sourceLineNumberPanel.FirstVisibleLine + 1, firstRenderedLineNumberBeforeMaximize);
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        shell.ClearRenderInvalidationRecursive();
+
+        RunLayout(uiRoot, 1920, 1080, 16);
+        RunLayout(uiRoot, 1920, 1080, 16);
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
+        var verticalOffsetAfterMaximize = sourceEditor.VerticalOffset;
+        Assert.InRange(
+            MathF.Abs(verticalOffsetAfterMaximize - verticalOffsetBeforeMaximize),
+            0f,
+            0.5f);
+        Assert.True(GetRenderedLineNumberCount(sourceLineNumberPanel) > 0);
+        Assert.True(int.TryParse(GetLineNumberText(sourceLineNumberPanel, 0), out var firstRenderedLineNumberAfterMaximize));
+        Assert.Equal(sourceLineNumberPanel.FirstVisibleLine + 1, firstRenderedLineNumberAfterMaximize);
+        Assert.InRange(
+            Math.Abs(firstRenderedLineNumberAfterMaximize - firstRenderedLineNumberBeforeMaximize),
+            0,
+            1);
+    }
+
+    [Fact]
     public void ShellView_SourcePropertyInspector_EditingExistingProperty_UpdatesSourceWithoutRefreshingPreview()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -1393,6 +1503,7 @@ public class DesignerControllerTests
     public void ShellView_SourcePropertyInspector_BorderBackgroundColorEditor_WhenRecordedHueSpectrumClickIsApplied_ShouldSelectClickedPoint()
     {
         var scenario = CreateRecordedColorEditorScenario("#0B1620");
+        var initialPicker = scenario.ColorPicker.GetColorPickerSnapshotForDiagnostics();
         var initialHue = scenario.HueSpectrum.GetColorSpectrumSnapshotForDiagnostics();
         var pointer = new Vector2(
             initialHue.SpectrumRect.X + (initialHue.SpectrumRect.Width * 0.62267655f),
@@ -1415,11 +1526,18 @@ public class DesignerControllerTests
         scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true, pointerMoved: false));
         RunLayout(scenario.UiRoot, 1280, 820, 16);
 
+        var releasedPicker = scenario.ColorPicker.GetColorPickerSnapshotForDiagnostics();
         var releasedHue = scenario.HueSpectrum.GetColorSpectrumSnapshotForDiagnostics();
         Assert.False(releasedHue.IsDragging);
         AssertClose(pointer.X, releasedHue.SelectorPosition, 1.2f);
         AssertClose(expectedHue, releasedHue.Hue, 0.5f);
+        Assert.NotEqual(initialPicker.SelectedColor.PackedValue, releasedPicker.SelectedColor.PackedValue);
+        AssertClose(initialPicker.SaturationSelector.X, releasedPicker.SaturationSelector.X, 0.01f);
+        AssertClose(initialPicker.SaturationSelector.Y, releasedPicker.SaturationSelector.Y, 0.01f);
+        AssertClose(initialPicker.Saturation, releasedPicker.Saturation, 0.0001f);
+        AssertClose(initialPicker.Value, releasedPicker.Value, 0.0001f);
         Assert.Equal(expectedColor.PackedValue, releasedHue.SelectedColor.PackedValue);
+        Assert.Equal(expectedColor.PackedValue, releasedPicker.SelectedColor.PackedValue);
         Assert.Equal(expectedColor.PackedValue, scenario.EditorHost.SelectedColorValue.PackedValue);
         Assert.Equal(expectedColor.PackedValue, scenario.EditorHost.CurrentSelectedColor.PackedValue);
         Assert.Contains(
@@ -1469,6 +1587,44 @@ public class DesignerControllerTests
         AssertClose(expectedHue, releasedHue.Hue, 0.5f);
         AssertClose(postReleaseHue.Hue, releasedHue.Hue, 0.01f);
         Assert.Equal(expectedColor.PackedValue, releasedHue.SelectedColor.PackedValue);
+    }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_BorderBackgroundColorEditor_AfterBottomCornerColorPickerSelection_HueChange_ShouldNotMoveColorPickerSelector()
+    {
+        var scenario = CreateRecordedColorEditorScenario("#0B1620");
+        var initialPicker = scenario.ColorPicker.GetColorPickerSnapshotForDiagnostics();
+        var colorPickerPointer = new Vector2(
+            initialPicker.SpectrumRect.X + (initialPicker.SpectrumRect.Width * 0.95f),
+            initialPicker.SpectrumRect.Y + (initialPicker.SpectrumRect.Height * 0.95f));
+
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(colorPickerPointer, pointerMoved: true));
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(colorPickerPointer, leftPressed: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(colorPickerPointer, leftReleased: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+
+        var selectedPicker = scenario.ColorPicker.GetColorPickerSnapshotForDiagnostics();
+        AssertClose(colorPickerPointer.X, selectedPicker.SaturationSelector.X, 1.2f);
+        AssertClose(colorPickerPointer.Y, selectedPicker.SaturationSelector.Y, 1.2f);
+
+        var initialHue = scenario.HueSpectrum.GetColorSpectrumSnapshotForDiagnostics();
+        var huePointer = new Vector2(
+            initialHue.SpectrumRect.X + (initialHue.SpectrumRect.Width * 0.62267655f),
+            initialHue.SpectrumRect.Y + (initialHue.SpectrumRect.Height * 0.5f));
+
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(huePointer, pointerMoved: true));
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(huePointer, leftPressed: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+        scenario.UiRoot.RunInputDeltaForTests(CreatePointerDelta(huePointer, leftReleased: true, pointerMoved: false));
+        RunLayout(scenario.UiRoot, 1280, 820, 16);
+
+        var releasedPicker = scenario.ColorPicker.GetColorPickerSnapshotForDiagnostics();
+        Assert.NotEqual(selectedPicker.SelectedColor.PackedValue, releasedPicker.SelectedColor.PackedValue);
+        AssertClose(selectedPicker.SaturationSelector.X, releasedPicker.SaturationSelector.X, 0.01f);
+        AssertClose(selectedPicker.SaturationSelector.Y, releasedPicker.SaturationSelector.Y, 0.01f);
+        AssertClose(selectedPicker.Saturation, releasedPicker.Saturation, 0.0001f);
+        AssertClose(selectedPicker.Value, releasedPicker.Value, 0.0001f);
     }
 
     [Fact]
