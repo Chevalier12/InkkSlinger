@@ -45,6 +45,179 @@ public sealed class IDEEditorControlTests
             editor.LineNumberPresenter.VisibleLineTexts[0]);
     }
 
+    [Theory]
+    [InlineData(26f, 0.05f)]
+    [InlineData(32f, 0.49f)]
+    [InlineData(48f, 0.99f)]
+    [InlineData(64f, 1.01f)]
+    [InlineData(92f, 1.49f)]
+    [InlineData(128f, 2.25f)]
+    public void ScrollToVerticalOffset_FractionalOffsetsAcrossViewportSizes_PreserveGutterIntegrity(float height, float offsetMultiplier)
+    {
+        var (uiRoot, editor) = CreateLaidOutEditor(220f, height, CreateNumberedText(120));
+
+        editor.ScrollToVerticalOffset(editor.EstimatedLineHeight * offsetMultiplier);
+        RunLayout(uiRoot, 260, (int)height + 40, 16);
+
+        AssertGutterIntegrity(editor);
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(0.15f)]
+    [InlineData(0.5f)]
+    [InlineData(0.95f)]
+    [InlineData(1.5f)]
+    [InlineData(3f)]
+    public void ScrollToVerticalOffset_NearDocumentEnd_PreservesBoundedTailRange(float tailBackoffLineCount)
+    {
+        var (uiRoot, editor) = CreateLaidOutEditor(220f, 72f, CreateNumberedText(160));
+        var targetOffset = Math.Max(0f, editor.ScrollableHeight - (editor.EstimatedLineHeight * tailBackoffLineCount));
+
+        editor.ScrollToVerticalOffset(targetOffset);
+        RunLayout(uiRoot, 260, 112, 16);
+
+        AssertGutterIntegrity(editor);
+        Assert.Equal(editor.LineCount.ToString(), editor.LineNumberPresenter.VisibleLineTexts[^1]);
+    }
+
+    [Fact]
+    public void ScrollToVerticalOffset_RoundTripAcrossDocument_DoesNotCollapseGutterState()
+    {
+        var (uiRoot, editor) = CreateLaidOutEditor(220f, 80f, CreateNumberedText(180));
+        var offsets = new[]
+        {
+            0f,
+            editor.EstimatedLineHeight * 0.35f,
+            editor.EstimatedLineHeight * 1.1f,
+            editor.EstimatedLineHeight * 2.75f,
+            editor.ScrollableHeight * 0.5f,
+            Math.Max(0f, editor.ScrollableHeight - (editor.EstimatedLineHeight * 0.4f)),
+            editor.ScrollableHeight,
+            editor.ScrollableHeight * 0.67f,
+            editor.EstimatedLineHeight * 1.6f,
+            0f
+        };
+
+        foreach (var offset in offsets)
+        {
+            editor.ScrollToVerticalOffset(offset);
+            RunLayout(uiRoot, 260, 120, 16);
+            AssertGutterIntegrity(editor);
+        }
+
+        Assert.Equal(0, editor.LineNumberPresenter.FirstVisibleLine);
+        Assert.Equal("1", editor.LineNumberPresenter.VisibleLineTexts[0]);
+    }
+
+    [Fact]
+    public void ScrollToVerticalOffset_IncreasingOffsetsAcrossLineBoundaries_KeepVisibleRangeMonotonic()
+    {
+        var (uiRoot, editor) = CreateLaidOutEditor(220f, 84f, CreateNumberedText(140));
+        var lineHeight = editor.EstimatedLineHeight;
+        var offsets = new[]
+        {
+            lineHeight * 0.99f,
+            lineHeight * 1.01f,
+            lineHeight * 1.99f,
+            lineHeight * 2.01f,
+            lineHeight * 2.99f,
+            lineHeight * 3.01f,
+            lineHeight * 4.5f
+        };
+
+        var previousFirstVisibleLine = -1;
+        foreach (var offset in offsets)
+        {
+            editor.ScrollToVerticalOffset(offset);
+            RunLayout(uiRoot, 260, 124, 16);
+
+            AssertGutterIntegrity(editor);
+            Assert.True(
+                editor.LineNumberPresenter.FirstVisibleLine >= previousFirstVisibleLine,
+                $"Expected first visible gutter line to stay monotonic as scroll offsets increased, but previous={previousFirstVisibleLine}, current={editor.LineNumberPresenter.FirstVisibleLine}, offset={offset:0.###}, verticalOffset={editor.VerticalOffset:0.###}.");
+
+            previousFirstVisibleLine = editor.LineNumberPresenter.FirstVisibleLine;
+        }
+    }
+
+    [Fact]
+    public void HandleMouseWheelFromInput_RepeatedVerticalScroll_PreservesGutterIntegrity()
+    {
+        var (uiRoot, editor) = CreateLaidOutEditor(220f, 88f, CreateNumberedText(120));
+
+        editor.SetFocusedFromInput(true);
+        editor.SetMouseOverFromInput(true);
+
+        var handledWheelDeltas = 0;
+        for (var iteration = 0; iteration < 24; iteration++)
+        {
+            if (editor.HandleMouseWheelFromInput(-120))
+            {
+                handledWheelDeltas++;
+            }
+
+            RunLayout(uiRoot, 260, 128, 16);
+            AssertGutterIntegrity(editor);
+        }
+
+        Assert.True(handledWheelDeltas > 0, "Expected mouse-wheel input to move the IDE editor viewport at least once.");
+        Assert.True(editor.VerticalOffset > 0f, $"Expected repeated wheel input to produce vertical movement, but offset={editor.VerticalOffset:0.###}.");
+    }
+
+    [Fact]
+    public void RefreshDocumentMetrics_WhenDocumentShrinksWhileScrolledToEnd_ClampsGutterRange()
+    {
+        var (uiRoot, editor) = CreateLaidOutEditor(220f, 76f, CreateNumberedText(120));
+
+        editor.ScrollToVerticalOffset(editor.ScrollableHeight);
+        RunLayout(uiRoot, 260, 116, 16);
+        AssertGutterIntegrity(editor);
+
+        DocumentEditing.ReplaceAllText(editor.Document, CreateNumberedText(6));
+        editor.RefreshDocumentMetrics();
+        RunLayout(uiRoot, 260, 116, 16);
+
+        Assert.Equal(6, editor.LineCount);
+        AssertGutterIntegrity(editor);
+        Assert.Equal("6", editor.LineNumberPresenter.VisibleLineTexts[^1]);
+        Assert.InRange(editor.VerticalOffset, 0f, editor.ScrollableHeight + 0.01f);
+    }
+
+    [Fact]
+    public void RefreshDocumentMetrics_WhenDocumentGrowsWhilePartiallyScrolled_PreservesSequentialLabels()
+    {
+        var (uiRoot, editor) = CreateLaidOutEditor(220f, 76f, CreateNumberedText(8));
+
+        editor.ScrollToVerticalOffset(editor.EstimatedLineHeight * 1.4f);
+        RunLayout(uiRoot, 260, 116, 16);
+        AssertGutterIntegrity(editor);
+
+        DocumentEditing.ReplaceAllText(editor.Document, CreateNumberedText(80));
+        editor.RefreshDocumentMetrics();
+        RunLayout(uiRoot, 260, 116, 16);
+
+        Assert.Equal(80, editor.LineCount);
+        AssertGutterIntegrity(editor);
+        Assert.True(editor.LineNumberPresenter.FirstVisibleLine > 0, $"Expected partial scroll position to remain below the top after the document grew, but firstVisible={editor.LineNumberPresenter.FirstVisibleLine}.");
+    }
+
+    [Fact]
+    public void ScrollToVerticalOffset_SingleLineDocument_DoesNotDuplicateOrOffsetGutterRows()
+    {
+        var (uiRoot, editor) = CreateLaidOutEditor(220f, 72f, "only line");
+
+        editor.ScrollToVerticalOffset(999f);
+        RunLayout(uiRoot, 260, 112, 16);
+
+        Assert.Equal(1, editor.LineCount);
+        AssertGutterIntegrity(editor);
+        Assert.Equal(0, editor.LineNumberPresenter.FirstVisibleLine);
+        Assert.Equal(1, editor.LineNumberPresenter.VisibleLineCount);
+        Assert.Equal("1", editor.LineNumberPresenter.VisibleLineTexts[0]);
+        Assert.Equal(0f, editor.LineNumberPresenter.VerticalLineOffset);
+    }
+
     [Fact]
     public void TextInput_RefreshesGutterLineCountWithoutSurfaceOwnedSync()
     {
@@ -406,6 +579,32 @@ public sealed class IDEEditorControlTests
         }
 
         return lineCount;
+    }
+
+    private static string CreateNumberedText(int lineCount)
+    {
+        return string.Join("\n", Enumerable.Range(1, lineCount).Select(static index => $"Line {index:000}"));
+    }
+
+    private static void AssertGutterIntegrity(IDE_Editor editor)
+    {
+        var presenter = editor.LineNumberPresenter;
+
+        Assert.InRange(presenter.FirstVisibleLine, 0, Math.Max(0, editor.LineCount - 1));
+        Assert.InRange(presenter.VisibleLineCount, 1, editor.LineCount);
+        Assert.True(
+            presenter.FirstVisibleLine + presenter.VisibleLineCount <= editor.LineCount,
+            $"Expected gutter visible range to stay within the document, but firstVisible={presenter.FirstVisibleLine}, visibleCount={presenter.VisibleLineCount}, lineCount={editor.LineCount}.");
+        Assert.True(presenter.LineHeight >= 1f, $"Expected the gutter to use a positive line height, but LineHeight={presenter.LineHeight:0.###}.");
+        Assert.InRange(presenter.VerticalLineOffset, 0f, presenter.LineHeight + 0.01f);
+
+        for (var index = 0; index < presenter.VisibleLineTexts.Count; index++)
+        {
+            Assert.True(
+                int.TryParse(presenter.VisibleLineTexts[index], out var parsedLineNumber),
+                $"Expected gutter text at index {index} to be numeric, but value was '{presenter.VisibleLineTexts[index]}'.");
+            Assert.Equal(presenter.FirstVisibleLine + index + 1, parsedLineNumber);
+        }
     }
 
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)

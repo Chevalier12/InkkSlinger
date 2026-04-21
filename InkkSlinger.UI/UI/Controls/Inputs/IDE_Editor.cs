@@ -1136,11 +1136,54 @@ public sealed class IDE_Editor : Control, ITextInputControl
         return count;
     }
 
+    private bool TryGetSelectionLineHeight(out float lineHeight)
+    {
+        lineHeight = 0f;
+        if (_editor == null || !_editor.TryGetViewportLayoutSnapshot(out var viewport))
+        {
+            return false;
+        }
+
+        var selectionStart = SelectionStart;
+        var lines = viewport.Layout.Lines;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            var endOffset = line.StartOffset + line.Length;
+            if (selectionStart > endOffset)
+            {
+                continue;
+            }
+
+            if (line.Bounds.Height <= 0.01f)
+            {
+                return false;
+            }
+
+            lineHeight = line.Bounds.Height;
+            return true;
+        }
+
+        if (lines.Count == 0)
+        {
+            return false;
+        }
+
+        var lastLineHeight = lines[lines.Count - 1].Bounds.Height;
+        if (lastLineHeight <= 0.01f)
+        {
+            return false;
+        }
+
+        lineHeight = lastLineHeight;
+        return true;
+    }
+
     private float EstimateLineHeight(int lineCount)
     {
-        if (_editor != null && _editor.TryGetCaretBounds(out var caretBounds) && caretBounds.Height > 0.01f)
+        if (TryGetSelectionLineHeight(out var lineHeight))
         {
-            return Math.Max(1f, caretBounds.Height);
+            return Math.Max(1f, lineHeight);
         }
 
         if (_editor != null && lineCount > 0 && _editor.ExtentHeight > 0.01f)

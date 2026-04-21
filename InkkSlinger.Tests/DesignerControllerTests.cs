@@ -2,6 +2,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -969,6 +970,480 @@ public class DesignerControllerTests
             Math.Abs(firstRenderedLineNumberAfterMaximize - firstRenderedLineNumberBeforeMaximize),
             0,
             1);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ShouldKeepLineNumberRowsDisjoint()
+    {
+        var recordingPath = Path.Combine(
+            TestApplicationResources.GetRepositoryRoot(),
+            "artifacts",
+            "inkkoops-recordings",
+            "20260421-111323195-recorded-session",
+            "recording.json");
+        var actions = LoadRecordedActions(recordingPath);
+
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var sourceEditor = shell.SourceEditorControl;
+        var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
+        var uiRoot = new UiRoot(shell);
+
+        ReplayRecordedDesignerSession(uiRoot, actions);
+
+        Assert.True(
+            sourceEditor.VerticalOffset > 0f,
+            $"Expected the recorded replay to scroll the source editor vertically, but offset={sourceEditor.VerticalOffset:0.###}, scrollable={sourceEditor.ScrollableHeight:0.###}, viewport={sourceEditor.ViewportHeight:0.###}.");
+
+        AssertLineNumberRowsDisjoint(sourceLineNumberPanel, sourceEditor, recordingPath);
+        AssertLineNumberGutterWidthRemainsReadable(sourceLineNumberPanel, sourceEditor.LineNumberBorder.LayoutSlot.Width, recordingPath);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ShouldKeepGutterLineHeightNearEditorLineHeight()
+    {
+        var recordingPath = Path.Combine(
+            TestApplicationResources.GetRepositoryRoot(),
+            "artifacts",
+            "inkkoops-recordings",
+            "20260421-111323195-recorded-session",
+            "recording.json");
+        var actions = LoadRecordedActions(recordingPath);
+
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var sourceEditor = shell.SourceEditorControl;
+        var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
+        var uiRoot = new UiRoot(shell);
+
+        ReplayRecordedDesignerSession(uiRoot, actions);
+
+        var editorLineHeight = UiTextRenderer.GetLineHeight(sourceEditor.Editor, sourceEditor.Editor.FontSize);
+        Assert.InRange(
+            sourceLineNumberPanel.LineHeight,
+            Math.Max(1f, editorLineHeight - 2f),
+            editorLineHeight + 2f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ShouldKeepHealthyGutterMetricsEvenWhenCaretBoundsStayClipped()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        var editorLineHeight = UiTextRenderer.GetLineHeight(scenario.SourceEditor.Editor, scenario.SourceEditor.Editor.FontSize);
+        var hasCaretBounds = scenario.SourceEditor.TryGetCaretBounds(out var caretBounds);
+
+        Assert.True(hasCaretBounds, "Expected the replayed source editor to expose caret bounds.");
+        Assert.True(
+            caretBounds.Height < editorLineHeight - 10f,
+            $"Expected the visible caret bounds to remain top-clipped after replay, but caret={caretBounds.Height:0.###} editorLineHeight={editorLineHeight:0.###}.");
+        Assert.InRange(scenario.SourceEditor.EstimatedLineHeight, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+        Assert.InRange(scenario.SourceLineNumberPanel.LineHeight, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ShouldKeepExtentHeightPerLineNearEditorLineHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        var editorLineHeight = UiTextRenderer.GetLineHeight(scenario.SourceEditor.Editor, scenario.SourceEditor.Editor.FontSize);
+        var extentHeightPerLine = scenario.SourceEditor.ExtentHeight / Math.Max(1, scenario.SourceEditor.LineCount);
+
+        Assert.InRange(extentHeightPerLine, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ViewportLayoutLineHeight_RemainsNearEditorLineHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        Assert.True(scenario.SourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+
+        var editorLineHeight = UiTextRenderer.GetLineHeight(scenario.SourceEditor.Editor, scenario.SourceEditor.Editor.FontSize);
+        var visibleLineHeights = viewportSnapshot.Layout.Lines
+            .Select(static line => line.Bounds.Height)
+            .Where(static height => height > 0.01f)
+            .ToArray();
+
+        Assert.NotEmpty(visibleLineHeights);
+        Assert.All(
+            visibleLineHeights,
+            height => Assert.InRange(height, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f));
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_GutterLineHeight_ShouldNotTrackClippedCaretBoundsHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        Assert.True(scenario.SourceEditor.TryGetCaretBounds(out var caretBounds));
+        Assert.True(
+            scenario.SourceLineNumberPanel.LineHeight - caretBounds.Height > 10f,
+            $"Expected gutter line height to stay materially larger than the clipped visible caret bounds, but gutter={scenario.SourceLineNumberPanel.LineHeight:0.###} caret={caretBounds.Height:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_GutterLineHeight_ShouldTrackExtentHeightPerLine()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        var extentHeightPerLine = scenario.SourceEditor.ExtentHeight / Math.Max(1, scenario.SourceEditor.LineCount);
+        Assert.InRange(
+            MathF.Abs(scenario.SourceLineNumberPanel.LineHeight - extentHeightPerLine),
+            0f,
+            0.5f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ViewportLayoutLineHeight_ShouldStayNearHealthyGutterHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        Assert.True(scenario.SourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+        var maxViewportLineHeight = viewportSnapshot.Layout.Lines.Max(static line => line.Bounds.Height);
+
+        Assert.InRange(
+            MathF.Abs(maxViewportLineHeight - scenario.SourceLineNumberPanel.LineHeight),
+            0f,
+            2f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_RichTextBoxDiagnostics_ShouldRetainNormalExtentAndViewportMetrics()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        var runtime = scenario.SourceEditor.Editor.GetRichTextBoxSnapshotForDiagnostics();
+        Assert.True(runtime.HasContentHost);
+        Assert.True(runtime.HasUsableContentHostMetrics);
+        Assert.True(runtime.ViewportHeight > 100f, $"Expected replayed viewport height to remain substantial, but viewportHeight={runtime.ViewportHeight:0.###}.");
+        Assert.True(runtime.ExtentHeight > runtime.ViewportHeight, $"Expected extent height to remain larger than the viewport after scroll replay, but extent={runtime.ExtentHeight:0.###} viewport={runtime.ViewportHeight:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_EstimatedLineHeight_ShouldStayLargerThanClippedCaretBoundsHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        Assert.True(scenario.SourceEditor.TryGetCaretBounds(out var caretBounds));
+        Assert.True(
+            scenario.SourceEditor.EstimatedLineHeight - caretBounds.Height > 10f,
+            $"Expected estimated line height to remain materially larger than the clipped visible caret bounds, but estimated={scenario.SourceEditor.EstimatedLineHeight:0.###} caret={caretBounds.Height:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_EstimatedLineHeight_ShouldFollowHealthyExtentHeightPerLine()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        var extentHeightPerLine = scenario.SourceEditor.ExtentHeight / Math.Max(1, scenario.SourceEditor.LineCount);
+        Assert.InRange(
+            MathF.Abs(scenario.SourceEditor.EstimatedLineHeight - extentHeightPerLine),
+            0f,
+            0.5f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_GutterLineHeight_ShouldMatchEstimatedLineHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        Assert.InRange(MathF.Abs(scenario.SourceLineNumberPanel.LineHeight - scenario.SourceEditor.EstimatedLineHeight), 0f, 0.5f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_SourceEditorTransformChain_ShouldPreserveUnitScale()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        var transform = GetCombinedRenderTransformToRoot(scenario.SourceEditor.Editor);
+        Assert.InRange(GetYAxisScale(transform), 0.98f, 1.02f);
+        Assert.InRange(GetXAxisScale(transform), 0.98f, 1.02f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_GutterTextTransformChain_ShouldPreserveUnitScale()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var firstText = Assert.IsType<TextBlock>(scenario.SourceLineNumberPanel.GetVisualChildren().First());
+
+        var transform = GetCombinedRenderTransformToRoot(firstText);
+        Assert.InRange(GetYAxisScale(transform), 0.98f, 1.02f);
+        Assert.InRange(GetXAxisScale(transform), 0.98f, 1.02f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_RootSpaceGutterTextHeights_ShouldRemainNearViewportLineHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        Assert.True(scenario.SourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+        var viewportLineHeight = viewportSnapshot.Layout.Lines.Max(static line => line.Bounds.Height);
+        var textHeights = scenario.SourceLineNumberPanel.GetVisualChildren()
+            .OfType<TextBlock>()
+            .Select(ResolveRenderedBounds)
+            .Select(static bounds => bounds.Height)
+            .ToArray();
+
+        Assert.NotEmpty(textHeights);
+        Assert.All(textHeights, height => Assert.InRange(height, Math.Max(1f, viewportLineHeight - 2f), viewportLineHeight + 2f));
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_CaretBoundsHeight_ShouldBeFarSmallerThanRootSpaceGutterTextHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        Assert.True(scenario.SourceEditor.TryGetCaretBounds(out var caretBounds));
+        var maxGutterTextHeight = scenario.SourceLineNumberPanel.GetVisualChildren()
+            .OfType<TextBlock>()
+            .Select(ResolveRenderedBounds)
+            .Max(static bounds => bounds.Height);
+
+        Assert.True(
+            maxGutterTextHeight - caretBounds.Height > 10f,
+            $"Expected the collapsed caret bounds to be materially smaller than rendered gutter glyph heights, but caret={caretBounds.Height:0.###} gutterMax={maxGutterTextHeight:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_SourceEditorViewport_ShouldRemainSizedNormally()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        Assert.True(scenario.SourceEditor.ViewportHeight > 100f, $"Expected source editor viewport height to remain normal after replay, but viewportHeight={scenario.SourceEditor.ViewportHeight:0.###}.");
+        Assert.True(scenario.SourceEditor.Editor.ActualHeight > 100f, $"Expected source editor render height to remain normal after replay, but actualHeight={scenario.SourceEditor.Editor.ActualHeight:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_CaretRectClipHeight_ShouldExactlyExplainCollapsedCaretBounds()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var metrics = GetRecordedReplayCaretMetrics(scenario);
+
+        Assert.InRange(MathF.Abs(metrics.ExpectedClippedHeight - metrics.CaretBoundsHeight), 0f, 0.5f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_CaretRect_ShouldBeClippedAtViewportTopEdge()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var metrics = GetRecordedReplayCaretMetrics(scenario);
+
+        Assert.True(metrics.IsTopClipped, $"Expected replay caret to be clipped by the top edge of the text viewport, but rawTop={metrics.RawCaretTop:0.###} viewportTop={metrics.TextViewportTop:0.###} rawBottom={metrics.RawCaretBottom:0.###} viewportBottom={metrics.TextViewportBottom:0.###}.");
+        Assert.False(metrics.IsBottomClipped, $"Expected replay caret collapse to come from top clipping only, but rawBottom={metrics.RawCaretBottom:0.###} viewportBottom={metrics.TextViewportBottom:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_RawCaretHeight_ShouldRemainNearEditorLineHeightBeforeClipping()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var metrics = GetRecordedReplayCaretMetrics(scenario);
+
+        Assert.InRange(metrics.EditorLineHeight, 17f, 21f);
+        Assert.InRange(MathF.Abs(metrics.RawCaretHeight - metrics.EditorLineHeight), 0f, 0.5f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_MovingCaretToMiddleVisibleLine_ShouldRestoreNormalCaretAndGutterHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        Assert.True(scenario.SourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+
+        var middleLine = viewportSnapshot.Layout.Lines[viewportSnapshot.Layout.Lines.Count / 2];
+        scenario.SourceEditor.Select(middleLine.StartOffset, 0);
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+
+        var editorLineHeight = UiTextRenderer.GetLineHeight(scenario.SourceEditor.Editor, scenario.SourceEditor.Editor.FontSize);
+        Assert.True(scenario.SourceEditor.TryGetCaretBounds(out var caretBounds));
+        Assert.InRange(caretBounds.Height, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+        Assert.InRange(scenario.SourceLineNumberPanel.LineHeight, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+        AssertLineNumberRowsDisjoint(scenario.SourceLineNumberPanel, scenario.SourceEditor, scenario.RecordingPath);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ReSelectingRecordedOffset_AfterCaretRelocation_ShouldScrollCaretIntoViewAndNormalizeHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var recordedOffset = scenario.SourceEditor.SelectionStart;
+        var replayVerticalOffset = scenario.SourceEditor.VerticalOffset;
+        Assert.True(scenario.SourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+
+        var middleLine = viewportSnapshot.Layout.Lines[viewportSnapshot.Layout.Lines.Count / 2];
+        scenario.SourceEditor.Select(middleLine.StartOffset, 0);
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+
+        scenario.SourceEditor.Select(recordedOffset, 0);
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+
+        var editorLineHeight = UiTextRenderer.GetLineHeight(scenario.SourceEditor.Editor, scenario.SourceEditor.Editor.FontSize);
+        Assert.True(scenario.SourceEditor.TryGetCaretBounds(out var caretBounds));
+        Assert.True(MathF.Abs(scenario.SourceEditor.VerticalOffset - replayVerticalOffset) > 10f, $"Expected re-selecting the recorded offset to change the vertical offset via EnsureCaretVisible, but before={replayVerticalOffset:0.###} after={scenario.SourceEditor.VerticalOffset:0.###}.");
+        Assert.InRange(caretBounds.Height, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+        Assert.InRange(scenario.SourceLineNumberPanel.LineHeight, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_CaretLocalPosition_ShouldSitAboveVisibleViewportWhileRemainingOnscreenByHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var metrics = GetRecordedReplayCaretMetrics(scenario);
+
+        Assert.True(metrics.RawCaretTop < metrics.TextViewportTop, $"Expected replay caret local top to sit above the visible text viewport, but rawTop={metrics.RawCaretTop:0.###} viewportTop={metrics.TextViewportTop:0.###}.");
+        Assert.True(metrics.RawCaretBottom > metrics.TextViewportTop, $"Expected replay caret to remain partially onscreen after top-edge clipping, but rawBottom={metrics.RawCaretBottom:0.###} viewportTop={metrics.TextViewportTop:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_PrivateCaretRenderRect_ShouldAlreadyBeCollapsedBeforeProjection()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var metrics = GetRecordedReplayCaretMetrics(scenario);
+        var localCaretRect = GetPrivateCaretRenderRect(scenario.SourceEditor.Editor);
+
+        Assert.InRange(MathF.Abs(localCaretRect.Height - metrics.CaretBoundsHeight), 0f, 0.5f);
+        Assert.InRange(MathF.Abs(localCaretRect.Y - metrics.TextViewportTop), 0f, 0.5f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_PrivateCaretRenderRect_ShouldRecoverWithScrollWithoutProjectionChanges()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var metrics = GetRecordedReplayCaretMetrics(scenario);
+
+        scenario.SourceEditor.ScrollToVerticalOffset(MathF.Max(0f, scenario.SourceEditor.VerticalOffset - metrics.HiddenTopHeight));
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+
+        var editorLineHeight = UiTextRenderer.GetLineHeight(scenario.SourceEditor.Editor, scenario.SourceEditor.Editor.FontSize);
+        var localCaretRect = GetPrivateCaretRenderRect(scenario.SourceEditor.Editor);
+        Assert.InRange(localCaretRect.Height, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_EstimatedLineHeight_ShouldNotTrackPrivateCaretRenderRectHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var localCaretRect = GetPrivateCaretRenderRect(scenario.SourceEditor.Editor);
+
+        Assert.True(
+            scenario.SourceEditor.EstimatedLineHeight - localCaretRect.Height > 10f,
+            $"Expected estimated line height to remain materially larger than the private clipped caret render rect, but estimated={scenario.SourceEditor.EstimatedLineHeight:0.###} caretRect={localCaretRect.Height:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_GutterLineHeight_ShouldNotTrackPrivateCaretRenderRectHeight()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var localCaretRect = GetPrivateCaretRenderRect(scenario.SourceEditor.Editor);
+
+        Assert.True(
+            scenario.SourceLineNumberPanel.LineHeight - localCaretRect.Height > 10f,
+            $"Expected gutter line height to remain materially larger than the private clipped caret render rect, but gutter={scenario.SourceLineNumberPanel.LineHeight:0.###} caretRect={localCaretRect.Height:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ScrollRecovery_ShouldRestoreEstimatedLineHeightAlongsidePrivateCaretRenderRect()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var metrics = GetRecordedReplayCaretMetrics(scenario);
+
+        scenario.SourceEditor.ScrollToVerticalOffset(MathF.Max(0f, scenario.SourceEditor.VerticalOffset - metrics.HiddenTopHeight));
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+
+        var localCaretRect = GetPrivateCaretRenderRect(scenario.SourceEditor.Editor);
+        Assert.InRange(MathF.Abs(scenario.SourceEditor.EstimatedLineHeight - localCaretRect.Height), 0f, 0.5f);
+        Assert.InRange(MathF.Abs(scenario.SourceLineNumberPanel.LineHeight - localCaretRect.Height), 0f, 0.5f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_PartialScrollRecovery_ShouldIncreaseCaretHeightByApproximatelyTheSameDelta()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var beforeMetrics = GetRecordedReplayCaretMetrics(scenario);
+        var adjustment = MathF.Max(0.5f, beforeMetrics.HiddenTopHeight * 0.5f);
+
+        scenario.SourceEditor.ScrollToVerticalOffset(MathF.Max(0f, scenario.SourceEditor.VerticalOffset - adjustment));
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+
+        Assert.True(scenario.SourceEditor.TryGetCaretBounds(out var caretBoundsAfter));
+        Assert.InRange(MathF.Abs((caretBoundsAfter.Height - beforeMetrics.CaretBoundsHeight) - adjustment), 0f, 1f);
+        Assert.True(caretBoundsAfter.Height > beforeMetrics.CaretBoundsHeight, $"Expected partial upward scroll to increase visible caret height, but before={beforeMetrics.CaretBoundsHeight:0.###} after={caretBoundsAfter.Height:0.###} adjustment={adjustment:0.###}.");
+        Assert.True(caretBoundsAfter.Height < beforeMetrics.RawCaretHeight - 0.5f, $"Expected partial upward scroll to leave the caret still clipped, but after={caretBoundsAfter.Height:0.###} raw={beforeMetrics.RawCaretHeight:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ScrollToggle_ShouldLeaveExtentLineAdvanceStable()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var beforeExtentPerLine = scenario.SourceEditor.ExtentHeight / scenario.SourceEditor.LineCount;
+        var metrics = GetRecordedReplayCaretMetrics(scenario);
+
+        scenario.SourceEditor.ScrollToVerticalOffset(MathF.Max(0f, scenario.SourceEditor.VerticalOffset - metrics.HiddenTopHeight));
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+        var restoredExtentPerLine = scenario.SourceEditor.ExtentHeight / scenario.SourceEditor.LineCount;
+
+        scenario.SourceEditor.ScrollToVerticalOffset(scenario.SourceEditor.VerticalOffset + metrics.HiddenTopHeight);
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+        var recollapsedExtentPerLine = scenario.SourceEditor.ExtentHeight / scenario.SourceEditor.LineCount;
+
+        Assert.InRange(MathF.Abs(restoredExtentPerLine - beforeExtentPerLine), 0f, 0.5f);
+        Assert.InRange(MathF.Abs(recollapsedExtentPerLine - beforeExtentPerLine), 0f, 0.5f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ScrollingUpByHiddenCaretHeight_ShouldRestoreNormalCaretAndGutterWithoutReselecting()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var recordedSelectionStart = scenario.SourceEditor.SelectionStart;
+        var metrics = GetRecordedReplayCaretMetrics(scenario);
+
+        scenario.SourceEditor.ScrollToVerticalOffset(MathF.Max(0f, scenario.SourceEditor.VerticalOffset - metrics.HiddenTopHeight));
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+
+        var editorLineHeight = UiTextRenderer.GetLineHeight(scenario.SourceEditor.Editor, scenario.SourceEditor.Editor.FontSize);
+        Assert.Equal(recordedSelectionStart, scenario.SourceEditor.SelectionStart);
+        Assert.True(scenario.SourceEditor.TryGetCaretBounds(out var caretBounds));
+        Assert.InRange(caretBounds.Height, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+        Assert.InRange(scenario.SourceLineNumberPanel.LineHeight, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_ScrollingBackDownByHiddenCaretHeight_ShouldKeepGutterHealthyEvenIfCaretBoundsReCollapse()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+        var recordedSelectionStart = scenario.SourceEditor.SelectionStart;
+        var originalVerticalOffset = scenario.SourceEditor.VerticalOffset;
+        var metrics = GetRecordedReplayCaretMetrics(scenario);
+
+        scenario.SourceEditor.ScrollToVerticalOffset(MathF.Max(0f, originalVerticalOffset - metrics.HiddenTopHeight));
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+
+        scenario.SourceEditor.ScrollToVerticalOffset(originalVerticalOffset);
+        RunLayout(scenario.UiRoot, scenario.ViewportWidth, scenario.ViewportHeight, 16);
+
+        var editorLineHeight = UiTextRenderer.GetLineHeight(scenario.SourceEditor.Editor, scenario.SourceEditor.Editor.FontSize);
+        Assert.Equal(recordedSelectionStart, scenario.SourceEditor.SelectionStart);
+        Assert.True(scenario.SourceEditor.TryGetCaretBounds(out var caretBounds));
+        Assert.InRange(caretBounds.Height, 1f, 3f);
+        Assert.InRange(scenario.SourceEditor.EstimatedLineHeight, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+        Assert.InRange(scenario.SourceLineNumberPanel.LineHeight, Math.Max(1f, editorLineHeight - 2f), editorLineHeight + 2f);
+        AssertLineNumberRowsDisjoint(scenario.SourceLineNumberPanel, scenario.SourceEditor, scenario.RecordingPath);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_CaretSelection_ShouldBeCollapsedToSingleOffset()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        Assert.Equal(0, scenario.SourceEditor.SelectionLength);
+        Assert.True(scenario.SourceEditor.SelectionStart >= 0);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_RecordedPreviewResizeWheelAndInspectorDrag_GutterTextSequence_RemainsLogicallyContiguous()
+    {
+        var scenario = CreateRecordedPreviewResizeWheelAndInspectorDragScenario();
+
+        for (var index = 0; index < scenario.SourceLineNumberPanel.VisibleLineTexts.Count; index++)
+        {
+            Assert.Equal((scenario.SourceLineNumberPanel.FirstVisibleLine + index + 1).ToString(), scenario.SourceLineNumberPanel.VisibleLineTexts[index]);
+        }
     }
 
     [Fact]
@@ -4221,6 +4696,195 @@ public class DesignerControllerTests
         return new Vector2(rect.X + (rect.Width * 0.5f), rect.Y + (rect.Height * 0.5f));
     }
 
+    private static RecordedPreviewResizeWheelAndInspectorDragScenario CreateRecordedPreviewResizeWheelAndInspectorDragScenario()
+    {
+        var recordingPath = Path.Combine(
+            TestApplicationResources.GetRepositoryRoot(),
+            "artifacts",
+            "inkkoops-recordings",
+            "20260421-111323195-recorded-session",
+            "recording.json");
+        var actions = LoadRecordedActions(recordingPath);
+
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var uiRoot = new UiRoot(shell);
+        ReplayRecordedDesignerSession(uiRoot, actions);
+
+        return new RecordedPreviewResizeWheelAndInspectorDragScenario(
+            recordingPath,
+            shell,
+            uiRoot,
+            1280,
+            820,
+            shell.SourceEditorControl,
+            shell.SourceLineNumberPanelControl);
+    }
+
+    private static IReadOnlyList<InkkOopsInteractionRecorder.RecordedAction> LoadRecordedActions(string recordingPath)
+    {
+        Assert.True(File.Exists(recordingPath), $"Expected recording to exist at '{recordingPath}'.");
+
+        using var document = JsonDocument.Parse(File.ReadAllText(recordingPath));
+        if (!document.RootElement.TryGetProperty("actions", out var actionsElement) || actionsElement.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException($"Recording '{recordingPath}' does not contain an actions array.");
+        }
+
+        var options = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        var actions = new List<InkkOopsInteractionRecorder.RecordedAction>();
+        foreach (var actionElement in actionsElement.EnumerateArray())
+        {
+            var action = actionElement.Deserialize<InkkOopsInteractionRecorder.RecordedAction>(options)
+                ?? throw new InvalidOperationException($"Could not deserialize a recorded action from '{recordingPath}'.");
+            actions.Add(action);
+        }
+
+        return actions;
+    }
+
+    private static void ReplayRecordedDesignerSession(UiRoot uiRoot, IReadOnlyList<InkkOopsInteractionRecorder.RecordedAction> actions)
+    {
+        var pointer = Vector2.Zero;
+        var hasPointer = false;
+        var viewportWidth = 1280;
+        var viewportHeight = 820;
+        var heldKeys = new HashSet<Keys>();
+
+        for (var index = 0; index < actions.Count; index++)
+        {
+            var action = actions[index];
+            switch (action.Kind)
+            {
+                case InkkOopsInteractionRecorder.RecordedActionKind.WaitFrames:
+                {
+                    var frameCount = Math.Max(1, action.FrameCount ?? 1);
+                    for (var frame = 0; frame < frameCount; frame++)
+                    {
+                        RunLayout(uiRoot, viewportWidth, viewportHeight, 16);
+                    }
+
+                    break;
+                }
+                case InkkOopsInteractionRecorder.RecordedActionKind.ResizeWindow:
+                    viewportWidth = Math.Max(1, action.Width ?? viewportWidth);
+                    viewportHeight = Math.Max(1, action.Height ?? viewportHeight);
+                    break;
+                case InkkOopsInteractionRecorder.RecordedActionKind.MovePointer:
+                {
+                    var previous = hasPointer ? pointer : new Vector2(action.X ?? 0, action.Y ?? 0);
+                    pointer = new Vector2(action.X ?? 0, action.Y ?? 0);
+                    hasPointer = true;
+                    var keyboard = CreateReplayKeyboardState(heldKeys);
+                    uiRoot.RunInputDeltaForTests(CreateRecordedInputDelta(previous, pointer, keyboard, keyboard, pointerMoved: true));
+                    break;
+                }
+                case InkkOopsInteractionRecorder.RecordedActionKind.PointerDown:
+                {
+                    var previous = hasPointer ? pointer : new Vector2(action.X ?? 0, action.Y ?? 0);
+                    pointer = new Vector2(action.X ?? 0, action.Y ?? 0);
+                    hasPointer = true;
+                    var keyboard = CreateReplayKeyboardState(heldKeys);
+                    uiRoot.RunInputDeltaForTests(CreateRecordedInputDelta(previous, pointer, keyboard, keyboard, buttonPressed: MouseButton.Left));
+                    break;
+                }
+                case InkkOopsInteractionRecorder.RecordedActionKind.PointerUp:
+                {
+                    var previous = hasPointer ? pointer : new Vector2(action.X ?? 0, action.Y ?? 0);
+                    pointer = new Vector2(action.X ?? 0, action.Y ?? 0);
+                    hasPointer = true;
+                    var keyboard = CreateReplayKeyboardState(heldKeys);
+                    uiRoot.RunInputDeltaForTests(CreateRecordedInputDelta(previous, pointer, keyboard, keyboard, buttonReleased: MouseButton.Left));
+                    break;
+                }
+                case InkkOopsInteractionRecorder.RecordedActionKind.Wheel:
+                {
+                    var keyboard = CreateReplayKeyboardState(heldKeys);
+                    uiRoot.RunInputDeltaForTests(CreateRecordedInputDelta(pointer, pointer, keyboard, keyboard, wheelDelta: action.WheelDelta ?? 0));
+                    break;
+                }
+                case InkkOopsInteractionRecorder.RecordedActionKind.KeyDown:
+                {
+                    if (action.Key is not Keys keyDown)
+                    {
+                        break;
+                    }
+
+                    var previousKeyboard = CreateReplayKeyboardState(heldKeys);
+                    heldKeys.Add(keyDown);
+                    var currentKeyboard = CreateReplayKeyboardState(heldKeys);
+                    uiRoot.RunInputDeltaForTests(CreateRecordedInputDelta(pointer, pointer, previousKeyboard, currentKeyboard, pressedKeys: [keyDown]));
+                    break;
+                }
+                case InkkOopsInteractionRecorder.RecordedActionKind.KeyUp:
+                {
+                    if (action.Key is not Keys keyUp)
+                    {
+                        break;
+                    }
+
+                    var previousKeyboard = CreateReplayKeyboardState(heldKeys);
+                    heldKeys.Remove(keyUp);
+                    var currentKeyboard = CreateReplayKeyboardState(heldKeys);
+                    uiRoot.RunInputDeltaForTests(CreateRecordedInputDelta(pointer, pointer, previousKeyboard, currentKeyboard, releasedKeys: [keyUp]));
+                    break;
+                }
+                case InkkOopsInteractionRecorder.RecordedActionKind.TextInput:
+                {
+                    if (action.Character is not char character)
+                    {
+                        break;
+                    }
+
+                    var keyboard = CreateReplayKeyboardState(heldKeys);
+                    uiRoot.RunInputDeltaForTests(CreateRecordedInputDelta(pointer, pointer, keyboard, keyboard, textInput: [character]));
+                    break;
+                }
+                default:
+                    throw new InvalidOperationException($"Unsupported recorded action kind '{action.Kind}' at index {index}.");
+            }
+        }
+    }
+
+    private static InputDelta CreateRecordedInputDelta(
+        Vector2 previous,
+        Vector2 current,
+        KeyboardState previousKeyboard,
+        KeyboardState currentKeyboard,
+        IReadOnlyList<Keys>? pressedKeys = null,
+        IReadOnlyList<Keys>? releasedKeys = null,
+        IReadOnlyList<char>? textInput = null,
+        bool pointerMoved = false,
+        MouseButton? buttonPressed = null,
+        MouseButton? buttonReleased = null,
+        int wheelDelta = 0)
+    {
+        return new InputDelta
+        {
+            Previous = new InputSnapshot(previousKeyboard, default, previous),
+            Current = new InputSnapshot(currentKeyboard, default, current),
+            PressedKeys = pressedKeys ?? Array.Empty<Keys>(),
+            ReleasedKeys = releasedKeys ?? Array.Empty<Keys>(),
+            TextInput = textInput ?? Array.Empty<char>(),
+            PointerMoved = pointerMoved || buttonPressed != null || buttonReleased != null,
+            WheelDelta = wheelDelta,
+            LeftPressed = buttonPressed == MouseButton.Left,
+            LeftReleased = buttonReleased == MouseButton.Left,
+            RightPressed = buttonPressed == MouseButton.Right,
+            RightReleased = buttonReleased == MouseButton.Right,
+            MiddlePressed = buttonPressed == MouseButton.Middle,
+            MiddleReleased = buttonReleased == MouseButton.Middle
+        };
+    }
+
+    private static KeyboardState CreateReplayKeyboardState(HashSet<Keys> heldKeys)
+    {
+        return heldKeys.Count == 0 ? default : new KeyboardState([.. heldKeys.OrderBy(static key => (int)key)]);
+    }
+
     private static bool IsWithinViewport(LayoutRect slot, LayoutRect viewport)
     {
         return slot.X >= viewport.X &&
@@ -4233,6 +4897,143 @@ public class DesignerControllerTests
     {
         return $"x={rect.X:0.###},y={rect.Y:0.###},w={rect.Width:0.###},h={rect.Height:0.###}";
     }
+
+    private static void AssertLineNumberRowsDisjoint(IDEEditorLineNumberPresenter panel, IDE_Editor editor, string recordingPath)
+    {
+        var rowBounds = panel.GetVisualChildren()
+            .OfType<TextBlock>()
+            .Select(ResolveRenderedBounds)
+            .OrderBy(static bounds => bounds.Y)
+            .ToArray();
+
+        Assert.True(
+            rowBounds.Length > 2,
+            $"Expected the recording replay from '{recordingPath}' to render multiple gutter rows, but only found {rowBounds.Length}. firstVisible={panel.FirstVisibleLine} visibleCount={panel.VisibleLineCount} verticalOffset={editor.VerticalOffset:0.###}.");
+
+        for (var index = 1; index < rowBounds.Length; index++)
+        {
+            Assert.True(
+                rowBounds[index].Y + 0.25f >= rowBounds[index - 1].Y,
+                $"Expected gutter rows to remain vertically ordered after replay '{recordingPath}', but row {index - 1}={FormatRect(rowBounds[index - 1])} and row {index}={FormatRect(rowBounds[index])}.");
+            Assert.True(
+                rowBounds[index].Y >= rowBounds[index - 1].Y + rowBounds[index - 1].Height - 0.5f,
+                $"Expected gutter rows to stay disjoint after replay '{recordingPath}', but row {index - 1}={FormatRect(rowBounds[index - 1])} overlaps row {index}={FormatRect(rowBounds[index])}. firstVisible={panel.FirstVisibleLine} visibleCount={panel.VisibleLineCount} lineHeight={panel.LineHeight:0.###} verticalLineOffset={panel.VerticalLineOffset:0.###} editorOffset={editor.VerticalOffset:0.###}.");
+        }
+    }
+
+    private static void AssertLineNumberGutterWidthRemainsReadable(IDEEditorLineNumberPresenter panel, float lineNumberBorderWidth, string recordingPath)
+    {
+        var textBounds = panel.GetVisualChildren()
+            .OfType<TextBlock>()
+            .Select(ResolveRenderedBounds)
+            .ToArray();
+
+        Assert.NotEmpty(textBounds);
+
+        var widestTextWidth = textBounds.Max(static bounds => bounds.Width);
+        Assert.True(
+            lineNumberBorderWidth + 0.5f >= widestTextWidth,
+            $"Expected the line-number gutter width to remain readable after replay '{recordingPath}', but borderWidth={lineNumberBorderWidth:0.###} and widestRenderedTextWidth={widestTextWidth:0.###}." );
+    }
+
+    private static RecordedReplayCaretMetrics GetRecordedReplayCaretMetrics(RecordedPreviewResizeWheelAndInspectorDragScenario scenario)
+    {
+        Assert.True(scenario.SourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+        Assert.True(scenario.SourceEditor.Editor.TryGetCaretBounds(out var caretBounds));
+        Assert.True(viewportSnapshot.Layout.TryGetCaretPosition(scenario.SourceEditor.SelectionStart, out var caretPosition));
+
+        var editorLineHeight = UiTextRenderer.GetLineHeight(scenario.SourceEditor.Editor, scenario.SourceEditor.Editor.FontSize);
+        var textViewportTop = viewportSnapshot.TextRect.Y;
+        var rawCaretTop = viewportSnapshot.TextRect.Y + caretPosition.Y - viewportSnapshot.VerticalOffset;
+        var rawCaretHeight = Math.Max(1f, editorLineHeight);
+        var rawCaretBottom = rawCaretTop + rawCaretHeight;
+        var textViewportBottom = viewportSnapshot.TextRect.Y + viewportSnapshot.TextRect.Height;
+        var expectedClippedHeight = MathF.Max(0f, MathF.Min(rawCaretBottom, textViewportBottom) - MathF.Max(rawCaretTop, textViewportTop));
+        var hiddenTopHeight = MathF.Max(0f, textViewportTop - rawCaretTop);
+
+        return new RecordedReplayCaretMetrics(
+            editorLineHeight,
+            textViewportTop,
+            rawCaretTop,
+            rawCaretHeight,
+            rawCaretBottom,
+            textViewportBottom,
+            expectedClippedHeight,
+            hiddenTopHeight,
+            caretBounds.Height,
+            rawCaretTop < textViewportTop - 0.01f,
+            rawCaretBottom > textViewportBottom + 0.01f);
+    }
+
+    private static LayoutRect GetPrivateCaretRenderRect(RichTextBox editor)
+    {
+        Assert.True(editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+
+        var method = typeof(RichTextBox).GetMethod("TryGetCaretRenderRect", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var args = new object?[]
+        {
+            viewportSnapshot.TextRect,
+            viewportSnapshot.Layout,
+            viewportSnapshot.HorizontalOffset,
+            viewportSnapshot.VerticalOffset,
+            null
+        };
+
+        var returned = method!.Invoke(editor, args);
+        Assert.True(returned is bool success && success, "Expected private TryGetCaretRenderRect to succeed for the replayed source editor.");
+        Assert.NotNull(args[4]);
+        return Assert.IsType<LayoutRect>(args[4]);
+    }
+
+    private static Matrix GetCombinedRenderTransformToRoot(UIElement element)
+    {
+        var transform = Matrix.Identity;
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (!current.TryGetLocalRenderTransformSnapshot(out var localTransform))
+            {
+                continue;
+            }
+
+            transform *= localTransform;
+        }
+
+        return transform;
+    }
+
+    private static float GetXAxisScale(Matrix transform)
+    {
+        return MathF.Sqrt((transform.M11 * transform.M11) + (transform.M12 * transform.M12));
+    }
+
+    private static float GetYAxisScale(Matrix transform)
+    {
+        return MathF.Sqrt((transform.M21 * transform.M21) + (transform.M22 * transform.M22));
+    }
+
+    private readonly record struct RecordedPreviewResizeWheelAndInspectorDragScenario(
+        string RecordingPath,
+        InkkSlinger.Designer.DesignerShellView Shell,
+        UiRoot UiRoot,
+        int ViewportWidth,
+        int ViewportHeight,
+        IDE_Editor SourceEditor,
+        IDEEditorLineNumberPresenter SourceLineNumberPanel);
+
+    private readonly record struct RecordedReplayCaretMetrics(
+        float EditorLineHeight,
+        float TextViewportTop,
+        float RawCaretTop,
+        float RawCaretHeight,
+        float RawCaretBottom,
+        float TextViewportBottom,
+        float ExpectedClippedHeight,
+        float HiddenTopHeight,
+        float CaretBoundsHeight,
+        bool IsTopClipped,
+        bool IsBottomClipped);
 
     private static string DescribeElement(UIElement? element)
     {
