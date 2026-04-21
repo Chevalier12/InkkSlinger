@@ -177,6 +177,12 @@ public partial class DesignerSourceEditorView : UserControl
             return;
         }
 
+        if (insertedCharacter == '\n')
+        {
+            TryAutoIndentImmediateClosingTag(previousText, currentText, insertedIndex, out currentText);
+            return;
+        }
+
         if (insertedCharacter == '/')
         {
             if (insertedIndex > 0 && currentText[insertedIndex - 1] == '<')
@@ -953,7 +959,9 @@ public partial class DesignerSourceEditorView : UserControl
             return false;
         }
 
-        var items = DesignerControlCompletionCatalog.GetItems(context.Prefix);
+        var items = context.Prefix.Contains('.', StringComparison.Ordinal)
+            ? DesignerControlCompletionCatalog.GetPropertyElementItems(context.Prefix)
+            : DesignerControlCompletionCatalog.GetItems(context.Prefix);
         if (items.Count == 0)
         {
             DismissCompletionPopup();
@@ -962,7 +970,7 @@ public partial class DesignerSourceEditorView : UserControl
 
         _completionContext = context;
         _completionItems = items;
-        var itemNames = items.Select(static item => item.ElementName).ToArray();
+        var itemNames = items.Select(static item => item.DisplayName).ToArray();
         if (!AreCompletionNamesEqual(_completionItemNames, itemNames))
         {
             _completionItemNames = itemNames;
@@ -1196,6 +1204,64 @@ public partial class DesignerSourceEditorView : UserControl
 
         insertedCharacter = currentText[insertedIndex];
         return true;
+    }
+
+    private static void TryAutoIndentImmediateClosingTag(
+        string previousText,
+        string currentText,
+        int insertedIndex,
+        out string updatedText)
+    {
+        updatedText = currentText;
+
+        if (insertedIndex <= 0 || insertedIndex >= currentText.Length)
+        {
+            return;
+        }
+
+        if (!TryGetCompletedStartTagName(previousText, insertedIndex - 1, out var tagName) ||
+            !HasImmediateClosingTag(currentText, insertedIndex + 1, tagName))
+        {
+            return;
+        }
+
+        var lineStartIndex = GetLineStartIndex(currentText, insertedIndex);
+        var indentationLength = 0;
+        while (lineStartIndex + indentationLength < currentText.Length &&
+               IsIndentationCharacter(currentText[lineStartIndex + indentationLength]))
+        {
+            indentationLength++;
+        }
+
+        if (indentationLength == 0)
+        {
+            return;
+        }
+
+        var indentation = currentText.Substring(lineStartIndex, indentationLength);
+        updatedText = currentText.Insert(insertedIndex + 1, indentation);
+    }
+
+    private static int GetLineStartIndex(string text, int index)
+    {
+        var clampedIndex = Math.Clamp(index, 0, text.Length);
+        while (clampedIndex > 0)
+        {
+            var previous = text[clampedIndex - 1];
+            if (previous is '\r' or '\n')
+            {
+                break;
+            }
+
+            clampedIndex--;
+        }
+
+        return clampedIndex;
+    }
+
+    private static bool IsIndentationCharacter(char value)
+    {
+        return value is ' ' or '\t';
     }
 
     private static bool TryGetCompletedStartTagName(string sourceText, int closingBracketIndex, out string tagName)

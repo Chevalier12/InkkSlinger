@@ -3641,6 +3641,32 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditorCtrlSpaceAfterPropertyElementOwnerPrefix_OpensFilteredCompletionPopup()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "<TextBlock."
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 1);
+        Click(uiRoot, clickPoint);
+        sourceEditor.Select(shell.SourceText.Length, 0);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Space, clickPoint, heldModifiers: [Keys.LeftControl]));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        Assert.True(shell.SourceEditorView.IsControlCompletionOpen);
+        Assert.Contains("Style", shell.SourceEditorView.ControlCompletionItems);
+        Assert.DoesNotContain("TextBlock.Style", shell.SourceEditorView.ControlCompletionItems);
+        Assert.True(shell.SourceEditorView.ControlCompletionSelectedIndex >= 0);
+    }
+
+    [Fact]
     public void ShellView_SourceEditorControlCompletionWheelScroll_WritesHotTelemetryReport_ForFixedVirtualizedBranchBehavior()
     {
         _ = ScrollViewer.GetTelemetryAndReset();
@@ -4311,6 +4337,47 @@ public class DesignerControllerTests
         Assert.Equal("<TextBlock></TextBlock>", NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
         Assert.Equal("<TextBlock>".Length, sourceEditor.SelectionStart);
         Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditorEnterBetweenEmptyControlTags_ViaUiRootInput_MovesClosingTagToIndentedNextLine()
+    {
+        var source = NormalizeLineEndings(
+            """
+            <Grid>
+              <TextBlock></TextBlock>
+            </Grid>
+            """);
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var clickPoint = GetSourceEditorLinePoint(sourceEditor, 2);
+        Click(uiRoot, clickPoint);
+
+        var caretIndex = source.IndexOf("<TextBlock>", StringComparison.Ordinal) + "<TextBlock>".Length;
+        Assert.True(caretIndex >= "<TextBlock>".Length);
+        sourceEditor.Select(caretIndex, 0);
+
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Enter, clickPoint));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var expected = NormalizeLineEndings(
+            """
+            <Grid>
+              <TextBlock>
+              </TextBlock>
+            </Grid>
+            """);
+
+        Assert.Equal(expected, shell.SourceText);
+        Assert.Equal(expected, NormalizeLineEndings(DocumentEditing.GetText(sourceEditor.Document)));
     }
 
     [Fact]

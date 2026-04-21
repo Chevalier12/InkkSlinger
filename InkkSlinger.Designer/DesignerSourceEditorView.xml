@@ -21,7 +21,7 @@
               StrokeThickness="1.25"
               Stretch="Uniform" />
         </Border>
-        <TextBlock Text="{Binding ElementName}"
+        <TextBlock Text="{Binding DisplayName}"
                    Foreground="#F0F7FF"
                    FontFamily="Segoe UI"
                    FontSize="12"
