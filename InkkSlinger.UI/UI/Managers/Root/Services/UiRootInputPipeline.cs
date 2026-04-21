@@ -1360,7 +1360,9 @@ public sealed partial class UiRoot
                 ? ancestorExpander
                 : null);
 
-        if (target is not Menu && target is not MenuItem)
+        var deferTextInputFocusUntilAfterPointerDown = button == MouseButton.Left && textInputTarget != null;
+
+        if (target is not Menu && target is not MenuItem && !deferTextInputFocusUntilAfterPointerDown)
         {
             SetFocus(dataGridFocusTarget ?? textInputTarget ?? target);
         }
@@ -1439,6 +1441,7 @@ public sealed partial class UiRoot
         else if (button == MouseButton.Left && textInputTarget is ITextInputControl textInput)
         {
             textInput.HandlePointerDownFromInput(pointerPosition, extendSelection: (_inputState.CurrentModifiers & ModifierKeys.Shift) != 0);
+            SetFocus(textInputTarget);
             CapturePointer(textInputTarget);
         }
         else if (button == MouseButton.Left && target is ScrollViewer scrollViewer &&

@@ -10,10 +10,10 @@ static int PrintUsage()
 {
     Console.Error.WriteLine("Usage:");
     Console.Error.WriteLine("  inkkoops list");
-    Console.Error.WriteLine("  inkkoops run --script <name> --launch [--project <path>] [--pipe <name>] [--artifacts <path>]");
+    Console.Error.WriteLine("  inkkoops run --script <name> --launch [--project <path>] [--pipe <name>] [--artifacts <path>] [--object-observer <name[,name]>]");
     Console.Error.WriteLine("  inkkoops run --script <name> --attach [--pipe <name>] [--timeout <ms>] [--artifacts <path>]");
     Console.Error.WriteLine("  inkkoops record --launch [--project <path>] [--artifacts <path>]");
-    Console.Error.WriteLine("  inkkoops <recording-path> [--project <path>] [--artifacts <path>]");
+    Console.Error.WriteLine("  inkkoops <recording-path> [--project <path>] [--artifacts <path>] [--object-observer <name[,name]>]");
     return 1;
 }
 
@@ -127,6 +127,11 @@ static int RunLaunch(Dictionary<string, string> options, InkkOopsHostConfigurati
         arguments.Append("--inkkoops-action-diagnostics \"").Append(actionDiagnostics).Append("\" ");
     }
 
+    if (options.TryGetValue("object-observer", out var objectObserver))
+    {
+        arguments.Append("--inkkoops-object-observer \"").Append(objectObserver).Append("\" ");
+    }
+
     using var process = Process.Start(new ProcessStartInfo
     {
         FileName = "dotnet",
@@ -196,6 +201,11 @@ static int RunRecordingAutoLaunch(string recordingPath, Dictionary<string, strin
     if (options.TryGetValue("artifacts", out var artifacts))
     {
         arguments.Append("--inkkoops-artifacts \"").Append(artifacts).Append("\" ");
+    }
+
+    if (options.TryGetValue("object-observer", out var objectObserver))
+    {
+        arguments.Append("--inkkoops-object-observer \"").Append(objectObserver).Append("\" ");
     }
 
     using var process = Process.Start(new ProcessStartInfo

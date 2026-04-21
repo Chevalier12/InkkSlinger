@@ -240,6 +240,68 @@ public sealed class IDEEditorControlTests
     }
 
     [Fact]
+    public void HandleKeyDownFromInput_Tab_InsertsTwoSpacesInsteadOfTabCharacter()
+    {
+        var (_, editor) = CreateLaidOutEditor(180f, 96f, "alpha");
+
+        editor.SetFocusedFromInput(true);
+        editor.Select(editor.DocumentText.Length, 0);
+
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Tab, ModifierKeys.None));
+
+        Assert.Equal("alpha  ", editor.DocumentText);
+        Assert.DoesNotContain('\t', editor.DocumentText);
+        Assert.Equal(editor.DocumentText.Length, editor.SelectionStart);
+        Assert.Equal(0, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void HandleKeyDownFromInput_Tab_ReplacesSelectionWithTwoSpaces()
+    {
+        var (_, editor) = CreateLaidOutEditor(180f, 96f, "alpha");
+
+        editor.SetFocusedFromInput(true);
+        editor.Select(1, 3);
+
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Tab, ModifierKeys.None));
+
+        Assert.Equal("a  a", editor.DocumentText);
+        Assert.DoesNotContain('\t', editor.DocumentText);
+        Assert.Equal(3, editor.SelectionStart);
+        Assert.Equal(0, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void HandleKeyDownFromInput_Backspace_AdjacentSpaces_DeleteBothSpaces()
+    {
+        var (_, editor) = CreateLaidOutEditor(180f, 96f, "alpha  ");
+
+        editor.SetFocusedFromInput(true);
+        editor.Select(editor.DocumentText.Length, 0);
+
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Back, ModifierKeys.None));
+
+        Assert.Equal("alpha", editor.DocumentText);
+        Assert.Equal(editor.DocumentText.Length, editor.SelectionStart);
+        Assert.Equal(0, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void HandleKeyDownFromInput_Backspace_SingleSpace_DeletesOnlyOneSpace()
+    {
+        var (_, editor) = CreateLaidOutEditor(180f, 96f, "alpha ");
+
+        editor.SetFocusedFromInput(true);
+        editor.Select(editor.DocumentText.Length, 0);
+
+        Assert.True(editor.HandleKeyDownFromInput(Keys.Back, ModifierKeys.None));
+
+        Assert.Equal("alpha", editor.DocumentText);
+        Assert.Equal(editor.DocumentText.Length, editor.SelectionStart);
+        Assert.Equal(0, editor.SelectionLength);
+    }
+
+    [Fact]
     public void IndentGuides_MergeAcrossSiblingLinesAtSharedIndentColumns()
     {
         var (_, editor) = CreateLaidOutEditor(

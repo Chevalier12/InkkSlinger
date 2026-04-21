@@ -184,6 +184,55 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditor_TabKey_RoutedInput_InsertsTwoSpacesInsteadOfTabCharacter()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "alpha"
+        };
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Editor.SetFocusedFromInput(true);
+        sourceEditor.Select(sourceEditor.DocumentText.Length, 0);
+
+        var pointer = new Vector2(sourceEditor.Editor.LayoutSlot.X + 4f, sourceEditor.Editor.LayoutSlot.Y + 4f);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Tab, pointer));
+
+        Assert.Equal("alpha  ", sourceEditor.DocumentText);
+        Assert.DoesNotContain('\t', sourceEditor.DocumentText);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_BackspaceKey_RoutedInput_DeletesAdjacentSpacePair()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = "alpha  "
+        };
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.Editor.SetFocusedFromInput(true);
+        sourceEditor.Select(sourceEditor.DocumentText.Length, 0);
+
+        var pointer = new Vector2(sourceEditor.Editor.LayoutSlot.X + 4f, sourceEditor.Editor.LayoutSlot.Y + 4f);
+        uiRoot.RunInputDeltaForTests(CreateKeyDownDelta(Keys.Back, pointer));
+
+        Assert.Equal("alpha", sourceEditor.DocumentText);
+        Assert.Equal(sourceEditor.DocumentText.Length, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
     public void ShellView_ContainsRequiredPreviewSplitters()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView();
@@ -2698,6 +2747,42 @@ public class DesignerControllerTests
     }
 
     [Fact]
+    public void ShellView_SourceEditor_RecordedObserverAction334_PartialScrollShouldNotAdvanceFirstVisibleGutterLine()
+    {
+        var recordingPath = Path.Combine(
+            TestApplicationResources.GetRepositoryRoot(),
+            "artifacts",
+            "inkkoops-recordings",
+            "20260421-134724004-recorded-session",
+            "recording.json");
+        var actions = LoadRecordedActions(recordingPath);
+
+        var shell = new InkkSlinger.Designer.DesignerShellView();
+        var sourceEditor = shell.SourceEditorControl;
+        var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
+        var uiRoot = new UiRoot(shell);
+
+        ReplayRecordedDesignerSession(uiRoot, actions, maxActionCount: 336);
+
+        Assert.InRange(sourceEditor.EstimatedLineHeight, 17f, 21f);
+        Assert.InRange(MathF.Abs(sourceLineNumberPanel.LineHeight - sourceEditor.EstimatedLineHeight), 0f, 0.5f);
+        Assert.InRange(sourceEditor.VerticalOffset, 11f, 13f);
+        Assert.True(
+            sourceEditor.VerticalOffset < sourceEditor.EstimatedLineHeight,
+            $"Expected the recorded partial scroll to stay below one full line height, but verticalOffset={sourceEditor.VerticalOffset:0.###} estimatedLineHeight={sourceEditor.EstimatedLineHeight:0.###}.");
+        Assert.Equal(
+            0,
+            sourceLineNumberPanel.FirstVisibleLine);
+        Assert.Equal(
+            "1",
+            Assert.Single(sourceLineNumberPanel.VisibleLineTexts.Take(1)));
+        Assert.InRange(
+            MathF.Abs(sourceLineNumberPanel.VerticalLineOffset - sourceEditor.VerticalOffset),
+            0f,
+            0.5f);
+    }
+
+    [Fact]
     public void ShellView_SourceEditorLineNumberGutter_WheelScrollToEnd_FollowsEditorViewport()
     {
         var shell = new InkkSlinger.Designer.DesignerShellView
@@ -2744,6 +2829,101 @@ public class DesignerControllerTests
         Assert.True(
             firstRenderedLineNumber > 10,
             $"Expected the line-number gutter to follow the wheel-scrolled viewport near the end of the document, but the first rendered line stayed at {firstRenderedLineNumber}. offset={sourceEditor.VerticalOffset:0.###} scrollable={sourceEditor.ScrollableHeight:0.###}.");
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_WhenWheelScrolledWhileUnfocused_ClickShouldPlaceCaretOnClickedVisibleLine()
+    {
+        var source = BuildNumberedSource(160);
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var pointer = GetSourceEditorLinePoint(sourceEditor, 1);
+        uiRoot.SetFocusedElementForTests(null);
+        sourceEditor.SetFocusedFromInput(false);
+        sourceEditor.Editor.SetFocusedFromInput(false);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        for (var i = 0; i < 10; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        Assert.True(sourceEditor.VerticalOffset > 0f, $"Expected wheel scrolling to move the source editor while unfocused, but offset={sourceEditor.VerticalOffset:0.###}.");
+        Assert.False(sourceEditor.IsFocused, "Expected the outer IDE_Editor to remain unfocused before the click repro.");
+        Assert.False(sourceEditor.Editor.IsFocused, "Expected the inner RichTextBox to remain unfocused before the click repro.");
+        Assert.True(GetRenderedLineNumberCount(sourceLineNumberPanel) >= 6, $"Expected several visible gutter lines after scrolling, but rendered={GetRenderedLineNumberCount(sourceLineNumberPanel)}.");
+        Assert.True(sourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+        var visibleLines = GetVisibleViewportLines(viewportSnapshot).ToArray();
+        Assert.True(visibleLines.Length >= 6, $"Expected several visible layout lines after scrolling, but visibleCount={visibleLines.Length}, totalCount={viewportSnapshot.Layout.Lines.Count}.");
+
+        var targetLine = visibleLines[3];
+        var clickPoint = GetVisibleSourceEditorLineClickPoint(viewportSnapshot, targetLine);
+        Click(uiRoot, clickPoint);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var expectedSelectionStart = targetLine.StartOffset;
+
+        Assert.Equal(expectedSelectionStart, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
+    }
+
+    [Fact]
+    public void ShellView_SourceEditor_WhenWheelScrolledWhileFocused_ClickShouldPlaceCaretOnClickedVisibleLine()
+    {
+        var source = BuildNumberedSource(160);
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = source
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var sourceLineNumberPanel = shell.SourceLineNumberPanelControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var pointer = GetSourceEditorLinePoint(sourceEditor, 1);
+        uiRoot.SetFocusedElementForTests(sourceEditor.Editor);
+        sourceEditor.SetFocusedFromInput(true);
+        sourceEditor.Editor.SetFocusedFromInput(true);
+
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, pointerMoved: true));
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        for (var i = 0; i < 10; i++)
+        {
+            uiRoot.RunInputDeltaForTests(CreatePointerWheelDelta(pointer, wheelDelta: -120));
+            RunLayout(uiRoot, 1280, 840, 16);
+        }
+
+        Assert.True(sourceEditor.VerticalOffset > 0f, $"Expected wheel scrolling to move the focused source editor, but offset={sourceEditor.VerticalOffset:0.###}.");
+        Assert.True(sourceEditor.Editor.IsFocused, "Expected the inner RichTextBox to stay focused for the focused control scenario.");
+        Assert.True(GetRenderedLineNumberCount(sourceLineNumberPanel) >= 6, $"Expected several visible gutter lines after scrolling, but rendered={GetRenderedLineNumberCount(sourceLineNumberPanel)}.");
+        Assert.True(sourceEditor.Editor.TryGetViewportLayoutSnapshot(out var viewportSnapshot));
+        var visibleLines = GetVisibleViewportLines(viewportSnapshot).ToArray();
+        Assert.True(visibleLines.Length >= 6, $"Expected several visible layout lines after scrolling, but visibleCount={visibleLines.Length}, totalCount={viewportSnapshot.Layout.Lines.Count}.");
+
+        var targetLine = visibleLines[3];
+        var clickPoint = GetVisibleSourceEditorLineClickPoint(viewportSnapshot, targetLine);
+        Click(uiRoot, clickPoint);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var expectedSelectionStart = targetLine.StartOffset;
+
+        Assert.Equal(expectedSelectionStart, sourceEditor.SelectionStart);
+        Assert.Equal(0, sourceEditor.SelectionLength);
     }
 
     [Fact]
@@ -4683,6 +4863,21 @@ public class DesignerControllerTests
             textHost.LayoutSlot.Y + 1f + 5f + ((oneBasedLineNumber - 1) * lineHeight) + 2f);
     }
 
+    private static Vector2 GetVisibleSourceEditorLineClickPoint(RichTextBoxViewportLayoutSnapshot viewportSnapshot, DocumentLayoutLine line)
+    {
+        return new Vector2(
+            viewportSnapshot.TextRect.X + line.Bounds.X - viewportSnapshot.HorizontalOffset + 1f,
+            viewportSnapshot.TextRect.Y + line.Bounds.Y - viewportSnapshot.VerticalOffset + (line.Bounds.Height * 0.5f));
+    }
+
+    private static IEnumerable<DocumentLayoutLine> GetVisibleViewportLines(RichTextBoxViewportLayoutSnapshot viewportSnapshot)
+    {
+        var top = viewportSnapshot.VerticalOffset;
+        var bottom = top + viewportSnapshot.TextRect.Height;
+        return viewportSnapshot.Layout.Lines.Where(line =>
+            line.Bounds.Y + line.Bounds.Height > top && line.Bounds.Y < bottom);
+    }
+
     private static Vector2 GetDiagnosticsTabHeaderPoint(TabControl tabControl)
     {
         var sourceHeaderWidth = MathF.Max(
@@ -4746,15 +4941,19 @@ public class DesignerControllerTests
         return actions;
     }
 
-    private static void ReplayRecordedDesignerSession(UiRoot uiRoot, IReadOnlyList<InkkOopsInteractionRecorder.RecordedAction> actions)
+    private static void ReplayRecordedDesignerSession(
+        UiRoot uiRoot,
+        IReadOnlyList<InkkOopsInteractionRecorder.RecordedAction> actions,
+        int? maxActionCount = null)
     {
         var pointer = Vector2.Zero;
         var hasPointer = false;
         var viewportWidth = 1280;
         var viewportHeight = 820;
         var heldKeys = new HashSet<Keys>();
+        var actionCount = Math.Clamp(maxActionCount ?? actions.Count, 0, actions.Count);
 
-        for (var index = 0; index < actions.Count; index++)
+        for (var index = 0; index < actionCount; index++)
         {
             var action = actions[index];
             switch (action.Kind)

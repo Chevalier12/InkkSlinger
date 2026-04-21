@@ -211,7 +211,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
                 var script = InkkOopsRecordedSessionLoader.LoadFromJson(request.RecordingPath);
-                var session = new InkkOopsSession(_host, artifacts, GetEffectiveActionDiagnosticsIndexes(request.ActionDiagnosticsIndexes, script));
+                var session = new InkkOopsSession(_host, artifacts, GetEffectiveActionDiagnosticsIndexes(request.ActionDiagnosticsIndexes, script), _options.ObjectObservers);
                 result = await _runner.RunAsync(script, session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
                 WritePlaybackActionLogMirror(request.RecordingPath, artifacts.GetActionLogPath());
@@ -232,7 +232,7 @@ public sealed class InkkOopsRuntimeService : IDisposable
                 _host.SetArtifactRoot(artifacts.DirectoryPath);
                 _host.ClearAutomationEvents();
                 var script = scriptDefinition.CreateScript();
-                var session = new InkkOopsSession(_host, artifacts, GetEffectiveActionDiagnosticsIndexes(request.ActionDiagnosticsIndexes, script));
+                var session = new InkkOopsSession(_host, artifacts, GetEffectiveActionDiagnosticsIndexes(request.ActionDiagnosticsIndexes, script), _options.ObjectObservers);
                 result = await _runner.RunAsync(script, session, _shutdown.Token).ConfigureAwait(false);
                 artifacts.WriteResult(result);
             }

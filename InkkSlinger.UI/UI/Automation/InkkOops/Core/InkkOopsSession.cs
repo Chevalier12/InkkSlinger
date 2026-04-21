@@ -15,14 +15,25 @@ public sealed class InkkOopsSession
     private Vector2? _lastActionPoint;
     private int? _currentActionCommandIndex;
     private readonly HashSet<int> _actionDiagnosticsIndexes;
+    private readonly IReadOnlyList<InkkOopsObjectObserver> _objectObservers;
+    private readonly Dictionary<string, List<string>> _objectObserverArtifactLines = new(StringComparer.OrdinalIgnoreCase);
 
-    public InkkOopsSession(IInkkOopsHost host, InkkOopsArtifacts artifacts, IEnumerable<int>? actionDiagnosticsIndexes = null)
+    public InkkOopsSession(
+        IInkkOopsHost host,
+        InkkOopsArtifacts artifacts,
+        IEnumerable<int>? actionDiagnosticsIndexes = null,
+        IEnumerable<InkkOopsObjectObserver>? objectObservers = null)
     {
         Host = host ?? throw new ArgumentNullException(nameof(host));
         Artifacts = artifacts ?? throw new ArgumentNullException(nameof(artifacts));
         _actionDiagnosticsIndexes = actionDiagnosticsIndexes == null
             ? []
             : [.. actionDiagnosticsIndexes.Where(static index => index >= 0)];
+        _objectObservers = objectObservers == null
+            ? []
+            : [.. objectObservers
+                .OrderBy(static observer => observer.Order)
+                .ThenBy(static observer => observer.GetType().FullName, StringComparer.Ordinal)];
         Host.SetArtifactRoot(artifacts.DirectoryPath);
     }
 
@@ -204,6 +215,28 @@ public sealed class InkkOopsSession
         Artifacts.BufferTextArtifact(artifactName + ".txt", builder.ToString());
     }
 
+    public async Task WriteObjectObserverArtifactsAsync(int actionIndex, string actionDescription, CancellationToken cancellationToken = default)
+    {
+        if (_objectObservers.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _objectObservers.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var observer = _objectObservers[i];
+            var context = new InkkOopsObjectObserverContext
+            {
+                Session = this,
+                ActionIndex = actionIndex,
+                ActionDescription = actionDescription
+            };
+            var line = await QueryOnUiThreadAsync(() => observer.CaptureLine(context), cancellationToken).ConfigureAwait(false);
+            AppendObjectObserverLine(observer.DumpFileName, line);
+        }
+    }
+
     public IReadOnlyList<AutomationEventRecord> GetAutomationEventsSnapshot()
     {
         return Host.GetAutomationEventsSnapshot();
@@ -212,6 +245,18 @@ public sealed class InkkOopsSession
     public void ClearAutomationEvents()
     {
         Host.ClearAutomationEvents();
+    }
+
+    private void AppendObjectObserverLine(string fileName, string line)
+    {
+        if (!_objectObserverArtifactLines.TryGetValue(fileName, out var lines))
+        {
+            lines = new List<string>();
+            _objectObserverArtifactLines[fileName] = lines;
+        }
+
+        lines.Add(line);
+        Artifacts.BufferTextArtifact(fileName, string.Join(Environment.NewLine, lines) + Environment.NewLine);
     }
 
     public InkkOopsTargetStateSnapshot EvaluateTargetState(

@@ -264,6 +264,137 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
     }
 
     [Fact]
+    public async Task Runner_Writes_ObjectObserver_Dump_Per_Action()
+    {
+        var button = new Button
+        {
+            Name = "PlaygroundButton",
+            Content = "Playground",
+            Width = 120f,
+            Height = 32f
+        };
+        var root = new Canvas { Name = "RootCanvas" };
+        root.AddChild(button);
+
+        using var host = new InkkOopsTestHost(root);
+        string observerDumpPath;
+
+        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-object-observer"))
+        {
+            var session = new InkkOopsSession(host, artifacts, objectObservers: [new TestSizeObserver("PlaygroundButton")]);
+            var script = new InkkOopsScript("runner-object-observer")
+                .Add(new InkkOopsHoverTargetCommand(new InkkOopsTargetReference("PlaygroundButton")))
+                .Add(new InkkOopsClickTargetCommand(new InkkOopsTargetReference("PlaygroundButton")));
+
+            var runner = new InkkOopsScriptRunner();
+            var result = await runner.RunAsync(script, session, CancellationToken.None);
+
+            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
+            observerDumpPath = artifacts.GetPath("PlaygroundButtonObserverDump.txt");
+            Assert.False(File.Exists(observerDumpPath));
+        }
+
+        var dumpLines = File.ReadAllLines(observerDumpPath);
+        Assert.Equal(2, dumpLines.Length);
+        Assert.Contains("action[0] PlaygroundButton", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("status=\"resolved\"", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("width=120", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("height=32", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("action[1] PlaygroundButton", dumpLines[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Runner_Writes_Unresolved_ObjectObserver_Dump_When_Target_Is_Missing()
+    {
+        using var host = new InkkOopsTestHost(new Canvas { Name = "RootCanvas" });
+        string observerDumpPath;
+
+        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-object-observer-missing"))
+        {
+            var session = new InkkOopsSession(host, artifacts, objectObservers: [new TestSizeObserver("MissingButton")]);
+            var script = new InkkOopsScript("runner-object-observer-missing")
+                .Add(new TestCommand("noop"));
+
+            var runner = new InkkOopsScriptRunner();
+            var result = await runner.RunAsync(script, session, CancellationToken.None);
+
+            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
+            observerDumpPath = artifacts.GetPath("MissingButtonObserverDump.txt");
+            Assert.False(File.Exists(observerDumpPath));
+        }
+
+        var dumpText = File.ReadAllText(observerDumpPath);
+        Assert.Contains("action[0] MissingButton", dumpText, StringComparison.Ordinal);
+        Assert.Contains("status=\"unresolved\"", dumpText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Runner_Writes_SourceEditor_GutterObserver_Dump_With_Editor_And_Gutter_Metrics()
+    {
+        var editor = new IDE_Editor
+        {
+            Name = "SourceEditor",
+            Width = 320f,
+            Height = 160f,
+            FontSize = 16f,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        DocumentEditing.ReplaceAllText(editor.Document, string.Join("\n", Enumerable.Range(1, 40).Select(static index => $"Line {index:000}")));
+
+        var root = new Canvas { Name = "RootCanvas" };
+        root.AddChild(editor);
+
+        using var host = new InkkOopsTestHost(root, width: 480, height: 260);
+        string observerDumpPath;
+
+        using (var artifacts = new InkkOopsArtifacts(host.ArtifactRoot, "runner-source-editor-observer"))
+        {
+            var session = new InkkOopsSession(host, artifacts, objectObservers: [new SourceEditorGutterObjectObserver()]);
+            var script = new InkkOopsScript("runner-source-editor-observer")
+                .Add(new InkkOopsScrollToCommand(new InkkOopsTargetReference("SourceEditor"), 0f, 60f))
+                .Add(new TestCommand("noop"));
+
+            var runner = new InkkOopsScriptRunner();
+            var result = await runner.RunAsync(script, session, CancellationToken.None);
+
+            Assert.Equal(InkkOopsRunStatus.Completed, result.Status);
+            observerDumpPath = artifacts.GetPath("SourceEditorObserverDump.txt");
+            Assert.False(File.Exists(observerDumpPath));
+        }
+
+        var dumpLines = File.ReadAllLines(observerDumpPath);
+        Assert.Equal(2, dumpLines.Length);
+        Assert.Contains("action[0] SourceEditor", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("elementType=\"IDE_Editor\"", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("estimatedLineHeight=", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("gutterLineHeight=", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("gutterVerticalLineOffset=", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("gutterFirstVisibleLine=", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("extentHeightPerLine=", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("hasCaretBounds=", dumpLines[0], StringComparison.Ordinal);
+        Assert.Contains("action[1] SourceEditor", dumpLines[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ObjectObserverParser_Resolves_SourceEditorGutter_Alias()
+    {
+        var observer = Assert.Single(InkkOopsObjectObserverParser.Parse("source-editor-gutter"));
+
+        var typedObserver = Assert.IsType<SourceEditorGutterObjectObserver>(observer);
+        Assert.Equal("SourceEditor", typedObserver.TargetName);
+    }
+
+    [Fact]
+    public void ObjectObserverParser_Rejects_Unknown_Observer_Name()
+    {
+        var exception = Assert.Throws<ArgumentException>(() => InkkOopsObjectObserverParser.Parse("missing-observer"));
+
+        Assert.Contains("Unknown InkkOops object observer", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("source-editor-gutter", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PipeMessages_RoundTrip_Through_Json()
     {
         var request = new InkkOopsPipeRequest
@@ -364,6 +495,28 @@ public sealed class ScriptTwo : IInkkOopsBuiltinScript
         public Task ExecuteAsync(InkkOopsSession session, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException(_message);
+        }
+    }
+
+    private sealed class TestSizeObserver : InkkOopsObjectObserver
+    {
+        public TestSizeObserver(string targetName)
+            : base(targetName)
+        {
+        }
+
+        protected override void Observe(InkkOopsObjectObserverContext context, UIElement element, InkkOopsObjectObserverDumpBuilder builder)
+        {
+            _ = context;
+            if (element is not FrameworkElement frameworkElement)
+            {
+                builder.Add("elementType", element.GetType().Name);
+                return;
+            }
+
+            builder.Add("width", frameworkElement.Width);
+            builder.Add("height", frameworkElement.Height);
+            builder.Add("isVisible", frameworkElement.IsVisible);
         }
     }
 }

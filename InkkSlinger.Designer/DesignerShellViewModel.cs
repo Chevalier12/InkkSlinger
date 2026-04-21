@@ -22,41 +22,41 @@ public sealed class DesignerShellViewModel : INotifyPropertyChanged
         "<UserControl xmlns=\"urn:inkkslinger-ui\"\n" +
         "             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\n" +
         "             Background=\"#111827\">\n" +
-        "\t<Grid Margin=\"24\">\n" +
-        "\t\t<Grid.RowDefinitions>\n" +
-        "\t\t\t<RowDefinition Height=\"Auto\" />\n" +
-        "\t\t\t<RowDefinition Height=\"18\" />\n" +
-        "\t\t\t<RowDefinition Height=\"*\" />\n" +
-        "\t\t</Grid.RowDefinitions>\n" +
+        "    <Grid Margin=\"24\">\n" +
+        "        <Grid.RowDefinitions>\n" +
+        "            <RowDefinition Height=\"Auto\" />\n" +
+        "            <RowDefinition Height=\"18\" />\n" +
+        "            <RowDefinition Height=\"*\" />\n" +
+        "        </Grid.RowDefinitions>\n" +
         "\n" +
-        "\t\t<TextBlock Text=\"Designer Preview\"\n" +
-        "\t\t           Foreground=\"#E7EDF5\"\n" +
-        "\t\t           FontSize=\"22\"\n" +
-        "\t\t           FontWeight=\"SemiBold\" />\n" +
+        "        <TextBlock Text=\"Designer Preview\"\n" +
+        "                   Foreground=\"#E7EDF5\"\n" +
+        "                   FontSize=\"22\"\n" +
+        "                   FontWeight=\"SemiBold\" />\n" +
         "\n" +
-        "\t\t<Border Grid.Row=\"2\"\n" +
-        "\t\t        Background=\"#182230\"\n" +
-        "\t\t        BorderBrush=\"#35506B\"\n" +
-        "\t\t        BorderThickness=\"1\"\n" +
-        "\t\t        CornerRadius=\"12\"\n" +
-        "\t\t        Padding=\"18\">\n" +
-        "\t\t\t<StackPanel>\n" +
-        "\t\t\t\t<TextBlock Text=\"Manual refresh is enabled.\"\n" +
-        "\t\t\t\t           Foreground=\"#E7EDF5\"\n" +
-        "\t\t\t\t           FontSize=\"18\" />\n" +
-        "\t\t\t\t<TextBlock Text=\"Edit the XML below, then press F5 or the toolbar button.\"\n" +
-        "\t\t\t\t           Foreground=\"#8AA3B8\"\n" +
-        "\t\t\t\t           Margin=\"0,6,0,12\" />\n" +
-        "\t\t\t\t<Button x:Name=\"PreviewButton\"\n" +
-        "\t\t\t\t        Content=\"Preview Action\"\n" +
-        "\t\t\t\t        Width=\"180\"\n" +
-        "\t\t\t\t        Height=\"40\"\n" +
-        "\t\t\t\t        Background=\"#1F8EFA\"\n" +
-        "\t\t\t\t        BorderBrush=\"#56A7F7\"\n" +
-        "\t\t\t\t        BorderThickness=\"1\" />\n" +
-        "\t\t\t</StackPanel>\n" +
-        "\t\t</Border>\n" +
-        "\t</Grid>\n" +
+        "        <Border Grid.Row=\"2\"\n" +
+        "                Background=\"#182230\"\n" +
+        "                BorderBrush=\"#35506B\"\n" +
+        "                BorderThickness=\"1\"\n" +
+        "                CornerRadius=\"12\"\n" +
+        "                Padding=\"18\">\n" +
+        "            <StackPanel>\n" +
+        "                <TextBlock Text=\"Manual refresh is enabled.\"\n" +
+        "                           Foreground=\"#E7EDF5\"\n" +
+        "                           FontSize=\"18\" />\n" +
+        "                <TextBlock Text=\"Edit the XML below, then press F5 or the toolbar button.\"\n" +
+        "                           Foreground=\"#8AA3B8\"\n" +
+        "                           Margin=\"0,6,0,12\" />\n" +
+        "                <Button x:Name=\"PreviewButton\"\n" +
+        "                        Content=\"Preview Action\"\n" +
+        "                        Width=\"180\"\n" +
+        "                        Height=\"40\"\n" +
+        "                        Background=\"#1F8EFA\"\n" +
+        "                        BorderBrush=\"#56A7F7\"\n" +
+        "                        BorderThickness=\"1\" />\n" +
+        "            </StackPanel>\n" +
+        "        </Border>\n" +
+        "    </Grid>\n" +
         "</UserControl>\n";
 
     private string _promptPathText = string.Empty;

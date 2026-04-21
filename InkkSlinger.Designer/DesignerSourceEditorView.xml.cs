@@ -419,6 +419,18 @@ public partial class DesignerSourceEditorView : UserControl
             return;
         }
 
+        if (args.Key == Keys.Tab && args.Modifiers == ModifierKeys.None && !IsControlCompletionOpen)
+        {
+            args.Handled = SourceEditor.HandleTextCompositionFromInput("  ");
+            return;
+        }
+
+        if (args.Key == Keys.Back && args.Modifiers == ModifierKeys.None)
+        {
+            args.Handled = SourceEditor.HandleKeyDownFromInput(Keys.Back, ModifierKeys.None);
+            return;
+        }
+
         if (!IsControlCompletionOpen)
         {
             return;

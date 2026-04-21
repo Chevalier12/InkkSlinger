@@ -44,6 +44,11 @@ internal static class App
                 case "--inkkoops-recording" when i + 1 < args.Length:
                     options = CopyOptions(options, startupRecordingPath: args[++i]);
                     break;
+                case "--inkkoops-object-observer" when i + 1 < args.Length:
+                    options = CopyOptions(
+                        options,
+                        objectObservers: AppendObjectObservers(options.ObjectObservers, InkkOopsObjectObserverParser.Parse(args[++i])));
+                    break;
                 case "--inkkoops-disable-retained":
                     options = CopyOptions(options, disableRetainedRenderList: true);
                     break;
@@ -86,10 +91,23 @@ internal static class App
         return [.. existing, assemblyPath];
     }
 
+    private static InkkOopsObjectObserver[] AppendObjectObservers(
+        InkkOopsObjectObserver[] existing,
+        InkkOopsObjectObserver[] appended)
+    {
+        if (appended.Length == 0)
+        {
+            return existing;
+        }
+
+        return [.. existing, .. appended];
+    }
+
     private static InkkOopsRuntimeOptions CopyOptions(
         InkkOopsRuntimeOptions options,
         string? startupScriptName = null,
         string[]? additionalScriptAssemblyPaths = null,
+        InkkOopsObjectObserver[]? objectObservers = null,
         int[]? actionDiagnosticsIndexes = null,
         string? namedPipeName = null,
         string? artifactRoot = null,
@@ -104,6 +122,7 @@ internal static class App
         {
             StartupScriptName = startupScriptName ?? options.StartupScriptName,
             AdditionalScriptAssemblyPaths = additionalScriptAssemblyPaths ?? options.AdditionalScriptAssemblyPaths,
+            ObjectObservers = objectObservers ?? options.ObjectObservers,
             ActionDiagnosticsIndexes = actionDiagnosticsIndexes ?? options.ActionDiagnosticsIndexes,
             NamedPipeName = namedPipeName ?? options.NamedPipeName,
             ArtifactRoot = artifactRoot ?? options.ArtifactRoot,

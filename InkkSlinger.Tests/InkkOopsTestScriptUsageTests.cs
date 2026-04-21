@@ -193,6 +193,55 @@ public sealed class InkkOopsTestScriptUsageTests
     }
 
     [Fact]
+    public async Task CliPlayback_ObjectObserverFlag_Writes_SourceEditorObserverDump()
+    {
+        var runtimeRoot = Path.Combine(Path.GetTempPath(), $"inkkoops-cli-replay-observer-{Guid.NewGuid():N}");
+        var recordingDirectory = Path.Combine(runtimeRoot, "recorded-session");
+        var artifactsRoot = Path.Combine(runtimeRoot, "artifacts");
+        Directory.CreateDirectory(recordingDirectory);
+        Directory.CreateDirectory(artifactsRoot);
+
+        try
+        {
+            var repositoryRoot = FindRepositoryRoot();
+            var designerProjectPath = Path.Combine(repositoryRoot, "InkkSlinger.Designer", "InkkSlinger.Designer.csproj");
+            var cliProjectPath = Path.Combine(repositoryRoot, "InkkOops.Cli", "InkkOops.Cli.csproj");
+
+            File.WriteAllText(
+                Path.Combine(recordingDirectory, "recording.json"),
+                $$"""
+                {
+                  "recordedProjectPath": "{{designerProjectPath.Replace("\\", "\\\\")}}",
+                  "actions": [
+                    { "kind": 0, "frameCount": 2 }
+                  ]
+                }
+                """);
+
+            await RunDotNetProcessAsync(
+                repositoryRoot,
+                $"run --project \"{cliProjectPath}\" --no-restore -- \"{recordingDirectory}\" --artifacts \"{artifactsRoot}\" --object-observer source-editor-gutter",
+                "CLI playback with object observer failed.");
+
+            var runDirectory = Assert.Single(Directory.GetDirectories(artifactsRoot));
+            var observerDumpPath = Path.Combine(runDirectory, "SourceEditorObserverDump.txt");
+
+            Assert.True(File.Exists(observerDumpPath));
+
+            var observerDump = File.ReadAllText(observerDumpPath);
+            Assert.Contains("action[0] SourceEditor", observerDump, StringComparison.Ordinal);
+            Assert.Contains("elementType=\"IDE_Editor\"", observerDump, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(runtimeRoot))
+            {
+                Directory.Delete(runtimeRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task RuntimeRun_Calendar_Month_Navigation_Path_Passes_And_Preserves_Artifacts()
     {
         var artifactsRoot = CreatePreservedArtifactsRoot("runtime-calendar-month-navigation-fps-drop");

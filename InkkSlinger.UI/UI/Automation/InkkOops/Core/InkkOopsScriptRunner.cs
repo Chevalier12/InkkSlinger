@@ -47,6 +47,8 @@ public sealed class InkkOopsScriptRunner
                 {
                     await session.WriteActionDiagnosticsAsync(i, currentDescription, cancellationToken).ConfigureAwait(false);
                 }
+
+                await session.WriteObjectObserverArtifactsAsync(i, currentDescription, cancellationToken).ConfigureAwait(false);
             }
 
             return new InkkOopsRunResult(

@@ -6,6 +6,8 @@ public sealed class InkkOopsRuntimeOptions
 
     public string[] AdditionalScriptAssemblyPaths { get; init; } = [];
 
+    public InkkOopsObjectObserver[] ObjectObservers { get; init; } = [];
+
     public int[] ActionDiagnosticsIndexes { get; init; } = [];
 
     public string NamedPipeName { get; init; } = string.Empty;

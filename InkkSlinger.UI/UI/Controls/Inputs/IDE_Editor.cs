@@ -503,7 +503,48 @@ public sealed class IDE_Editor : Control, ITextInputControl
     public bool HandleKeyDownFromInput(Keys key, ModifierKeys modifiers)
     {
         EnsureEditorFocusState();
-        return _editor != null && _editor.HandleKeyDownFromInput(key, modifiers);
+        if (_editor == null)
+        {
+            return false;
+        }
+
+        if (key == Keys.Tab && modifiers == ModifierKeys.None)
+        {
+            return _editor.HandleTextCompositionFromInput("  ");
+        }
+
+        if (key == Keys.Back && modifiers == ModifierKeys.None && TryHandleSpaceAwareBackspace())
+        {
+            return true;
+        }
+
+        return _editor.HandleKeyDownFromInput(key, modifiers);
+    }
+
+    private bool TryHandleSpaceAwareBackspace()
+    {
+        if (_editor == null || SelectionLength != 0)
+        {
+            return false;
+        }
+
+        var documentText = DocumentText;
+        var selectionStart = Math.Clamp(SelectionStart, 0, documentText.Length);
+        if (selectionStart == 0 || documentText[selectionStart - 1] != ' ')
+        {
+            return false;
+        }
+
+        var deleteStart = selectionStart - 1;
+        var deleteLength = 1;
+        if (deleteStart > 0 && documentText[deleteStart - 1] == ' ')
+        {
+            deleteStart--;
+            deleteLength++;
+        }
+
+        _editor.Select(deleteStart, deleteLength);
+        return _editor.HandleKeyDownFromInput(Keys.Back, ModifierKeys.None);
     }
 
     public bool HandlePointerDownFromInput(Vector2 pointerPosition, bool extendSelection)
@@ -1201,17 +1242,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
             return 0;
         }
 
-        var firstVisibleLineFromScroll = Math.Clamp((int)MathF.Floor(verticalOffset / lineHeight), 0, Math.Max(0, lineCount - 1));
-        var scrollableLineCount = Math.Max(0, lineCount - approximateVisibleLineCount);
-        if (scrollableLineCount > 0 && _editor.ScrollableHeight > 0.01f)
-        {
-            firstVisibleLineFromScroll = Math.Clamp(
-                (int)MathF.Round((verticalOffset / _editor.ScrollableHeight) * scrollableLineCount),
-                0,
-                Math.Max(0, lineCount - 1));
-        }
-
-        return firstVisibleLineFromScroll;
+        return Math.Clamp((int)MathF.Floor(verticalOffset / lineHeight), 0, Math.Max(0, lineCount - 1));
     }
 
     private static int CountLines(string? text)
