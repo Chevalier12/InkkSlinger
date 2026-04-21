@@ -88,6 +88,7 @@ internal sealed record DesignerSourceTagSelection(
 internal enum DesignerSourcePropertyEditorKind
 {
     Text,
+    TextChoice,
     Choice,
     Color,
     Composite
@@ -156,6 +157,8 @@ internal static class DesignerSourcePropertyInspector
         "SizeWE",
         "UpArrow"
     ];
+    private static readonly IReadOnlyList<string> AutoChoiceValues = ["Auto"];
+    private static readonly IReadOnlyList<string> GridLengthChoiceValues = ["Auto", "*"];
 
     public static bool TryResolveTagSelection(string? sourceText, int anchorIndex, out DesignerSourceTagSelection selection)
     {
@@ -305,11 +308,10 @@ internal static class DesignerSourcePropertyInspector
             return false;
         }
 
-        var insertion = string.Create(
-            CultureInfo.InvariantCulture,
-            $" {propertyName}=\"{EscapeAttributeValue(propertyValue)}\"");
-        updatedText = text.Insert(selection.AttributeInsertionIndex, insertion);
-        updatedAnchorIndex = AdjustAnchorIndex(selection.AnchorIndex, selection.AttributeInsertionIndex, 0, insertion.Length);
+        var insertionIndex = selection.AttributeInsertionIndex;
+        var insertion = CreateFormattedAttributeInsertion(text, selection, propertyName, EscapeAttributeValue(propertyValue));
+        updatedText = text.Insert(insertionIndex, insertion);
+        updatedAnchorIndex = AdjustAnchorIndex(selection.AnchorIndex, insertionIndex, 0, insertion.Length);
         return true;
     }
 
@@ -571,16 +573,17 @@ internal static class DesignerSourcePropertyInspector
 
         if (projectedPropertyAttribute == null)
         {
-            var insertion = string.Create(CultureInfo.InvariantCulture, $" {projection.PropertyAttributeName}=\"{propertyName}\"");
-            updatedText = updatedText.Insert(selection.AttributeInsertionIndex, insertion);
-            updatedAnchorIndex = AdjustAnchorIndex(updatedAnchorIndex, selection.AttributeInsertionIndex, 0, insertion.Length);
+            var insertionIndex = selection.AttributeInsertionIndex;
+            var insertion = CreateFormattedAttributeInsertion(updatedText, selection, projection.PropertyAttributeName, propertyName);
+            updatedText = updatedText.Insert(insertionIndex, insertion);
+            updatedAnchorIndex = AdjustAnchorIndex(updatedAnchorIndex, insertionIndex, 0, insertion.Length);
         }
 
         if (projectedValueAttribute == null)
         {
             var valueInsertionIndex = FindTagAttributeInsertionIndex(updatedText, selection.TagStartIndex);
 
-            var insertion = string.Create(CultureInfo.InvariantCulture, $" {projection.ValueAttributeName}=\"{escapedValue}\"");
+            var insertion = CreateFormattedAttributeInsertion(updatedText, selection, projection.ValueAttributeName, escapedValue);
             updatedText = updatedText.Insert(valueInsertionIndex, insertion);
             updatedAnchorIndex = AdjustAnchorIndex(updatedAnchorIndex, valueInsertionIndex, 0, insertion.Length);
         }
@@ -618,6 +621,57 @@ internal static class DesignerSourcePropertyInspector
         return insertionIndex;
     }
 
+    private static string CreateFormattedAttributeInsertion(
+        string text,
+        DesignerSourceTagSelection selection,
+        string attributeName,
+        string attributeValue)
+    {
+        var lineEnding = DetectLineEnding(text);
+        var indentation = GetAttributeIndentation(text, selection);
+        var trailingWhitespace = selection.IsSelfClosing ? " " : string.Empty;
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{lineEnding}{indentation}{attributeName}=\"{attributeValue}\"{trailingWhitespace}");
+    }
+
+    private static string DetectLineEnding(string text)
+    {
+        if (text.Contains("\r\n", StringComparison.Ordinal))
+        {
+            return "\r\n";
+        }
+
+        return text.Contains('\n') ? "\n" : Environment.NewLine;
+    }
+
+    private static string GetAttributeIndentation(string text, DesignerSourceTagSelection selection)
+    {
+        var attributeStartIndex = selection.Attributes.Count > 0
+            ? selection.Attributes.Values.Min(static attribute => attribute.TokenStartIndex)
+            : selection.NameStartIndex + selection.NameLength + 1;
+        var attributeLineStartIndex = GetLineStartIndex(text, attributeStartIndex);
+        var attributeColumn = Math.Max(0, attributeStartIndex - attributeLineStartIndex + 1);
+        return new string(' ', attributeColumn);
+    }
+
+    private static int GetLineStartIndex(string text, int index)
+    {
+        index = Math.Clamp(index, 0, text.Length);
+        while (index > 0)
+        {
+            var previous = text[index - 1];
+            if (previous is '\r' or '\n')
+            {
+                break;
+            }
+
+            index--;
+        }
+
+        return index;
+    }
+
     private static void NormalizeSelfClosingTagWhitespace(ref string text, ref int anchorIndex, int tagStartIndex, int nameEndIndex)
     {
         if (!TryFindTagClose(text, tagStartIndex, out var closeIndex))
@@ -631,7 +685,15 @@ internal static class DesignerSourcePropertyInspector
             firstContentIndex++;
         }
 
-        if (firstContentIndex < closeIndex && text[firstContentIndex] != '/' && firstContentIndex > nameEndIndex + 1)
+        var interstitialWhitespace = firstContentIndex > nameEndIndex
+            ? text.Substring(nameEndIndex, firstContentIndex - nameEndIndex)
+            : string.Empty;
+        var containsLineBreak = interstitialWhitespace.IndexOfAny(['\r', '\n']) >= 0;
+
+        if (firstContentIndex < closeIndex &&
+            text[firstContentIndex] != '/' &&
+            firstContentIndex > nameEndIndex + 1 &&
+            !containsLineBreak)
         {
             var removalStart = nameEndIndex + 1;
             var removalLength = firstContentIndex - removalStart;
@@ -733,7 +795,7 @@ internal static class DesignerSourcePropertyInspector
                     property.PropertyType.Name,
                     FormatInspectorValue(element.GetValue(property)),
                     GetEditorKind(property.PropertyType, property.Name),
-                    GetChoiceValues(property.PropertyType, property.Name),
+                    GetEditorChoiceValues(property.PropertyType, property.Name),
                     GetCompositeValueKind(property.PropertyType)))
             .ToArray();
     }
@@ -755,7 +817,7 @@ internal static class DesignerSourcePropertyInspector
                     property.PropertyType.Name,
                     FormatInspectorValue(GetClrDefaultValue(instance, property)),
                     GetEditorKind(property.PropertyType, property.Name),
-                    GetChoiceValues(property.PropertyType, property.Name),
+                    GetEditorChoiceValues(property.PropertyType, property.Name),
                     GetCompositeValueKind(property.PropertyType)))
             .ToArray();
     }
@@ -846,6 +908,11 @@ internal static class DesignerSourcePropertyInspector
         if (IsColorLikeProperty(propertyType))
         {
             return DesignerSourcePropertyEditorKind.Color;
+        }
+
+        if (GetTextChoiceValues(propertyType, propertyName).Count > 0)
+        {
+            return DesignerSourcePropertyEditorKind.TextChoice;
         }
 
         return GetChoiceValues(propertyType, propertyName).Count > 0
@@ -958,6 +1025,34 @@ internal static class DesignerSourcePropertyInspector
             {
                 return FontStyleChoiceValues;
             }
+        }
+
+        return Array.Empty<string>();
+    }
+
+    private static IReadOnlyList<string> GetEditorChoiceValues(Type propertyType, string propertyName)
+    {
+        var textChoiceValues = GetTextChoiceValues(propertyType, propertyName);
+        return textChoiceValues.Count > 0
+            ? textChoiceValues
+            : GetChoiceValues(propertyType, propertyName);
+    }
+
+    private static IReadOnlyList<string> GetTextChoiceValues(Type propertyType, string propertyName)
+    {
+        ArgumentNullException.ThrowIfNull(propertyType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
+
+        if (propertyType == typeof(GridLength))
+        {
+            return GridLengthChoiceValues;
+        }
+
+        if (propertyType == typeof(float) &&
+            (string.Equals(propertyName, nameof(FrameworkElement.Width), StringComparison.Ordinal) ||
+             string.Equals(propertyName, nameof(FrameworkElement.Height), StringComparison.Ordinal)))
+        {
+            return AutoChoiceValues;
         }
 
         return Array.Empty<string>();
@@ -1239,7 +1334,9 @@ internal static class DesignerSourcePropertyInspector
             null => string.Empty,
             string text => text,
             bool boolean => boolean ? "True" : "False",
-            float number => number.ToString("0.##", CultureInfo.InvariantCulture),
+            float number => float.IsNaN(number)
+                ? "Auto"
+                : number.ToString("0.##", CultureInfo.InvariantCulture),
             double doubleNumber => doubleNumber.ToString("0.##", CultureInfo.InvariantCulture),
             GridLength gridLength => FormatGridLength(gridLength),
             Thickness thickness => FormatThickness(thickness),

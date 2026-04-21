@@ -219,6 +219,8 @@ public sealed class DesignerSourceInspectorEditorTemplateSelector : DataTemplate
 {
     public DataTemplate? TextTemplate { get; set; }
 
+    public DataTemplate? TextChoiceTemplate { get; set; }
+
     public DataTemplate? ChoiceTemplate { get; set; }
 
     public DataTemplate? ColorTemplate { get; set; }
@@ -236,6 +238,7 @@ public sealed class DesignerSourceInspectorEditorTemplateSelector : DataTemplate
         return propertyItem.EditorKind switch
         {
             DesignerSourcePropertyEditorKind.Color => ColorTemplate,
+            DesignerSourcePropertyEditorKind.TextChoice => TextChoiceTemplate,
             DesignerSourcePropertyEditorKind.Choice => ChoiceTemplate,
             DesignerSourcePropertyEditorKind.Composite => CompositeTemplate,
             _ => TextTemplate

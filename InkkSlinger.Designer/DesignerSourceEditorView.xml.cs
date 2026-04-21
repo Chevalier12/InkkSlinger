@@ -600,12 +600,18 @@ public partial class DesignerSourceEditorView : UserControl
                     ? resolvedValue
                     : string.Empty;
                 item.DescriptionText = BuildSourcePropertyDescription(property, currentValue);
-                if (property.EditorKind == DesignerSourcePropertyEditorKind.Text &&
+                if ((property.EditorKind == DesignerSourcePropertyEditorKind.Text ||
+                     property.EditorKind == DesignerSourcePropertyEditorKind.TextChoice) &&
                     string.Equals(activePropertyName, property.Name, StringComparison.Ordinal))
                 {
                     if (activeEditorText != null && !string.Equals(item.EditorText, activeEditorText, StringComparison.Ordinal))
                     {
                         item.EditorText = activeEditorText;
+                    }
+
+                    if (property.EditorKind == DesignerSourcePropertyEditorKind.TextChoice)
+                    {
+                        UpdateSourcePropertyChoiceEditorValue(item, property, activeEditorText ?? currentValue);
                     }
 
                     continue;
@@ -618,6 +624,9 @@ public partial class DesignerSourceEditorView : UserControl
                         break;
                     case DesignerSourcePropertyEditorKind.Choice:
                         UpdateSourcePropertyChoiceEditorValue(item, property, currentValue);
+                        break;
+                    case DesignerSourcePropertyEditorKind.TextChoice:
+                        UpdateSourcePropertyTextChoiceEditorValue(item, property, currentValue);
                         break;
                     case DesignerSourcePropertyEditorKind.Composite:
                         UpdateSourcePropertyCompositeEditorValue(
@@ -773,6 +782,12 @@ public partial class DesignerSourceEditorView : UserControl
         }
 
         var selectedValue = comboBox.SelectedItem as string;
+        if (item.EditorKind == DesignerSourcePropertyEditorKind.TextChoice &&
+            !string.Equals(item.EditorText, selectedValue ?? string.Empty, StringComparison.Ordinal))
+        {
+            item.EditorText = selectedValue ?? string.Empty;
+        }
+
         if (!TryApplySourceInspectorEdit(item.Name, selectedValue))
         {
             return;
@@ -901,6 +916,19 @@ public partial class DesignerSourceEditorView : UserControl
         {
             item.SelectedChoice = selectedChoice;
         }
+    }
+
+    private static void UpdateSourcePropertyTextChoiceEditorValue(
+        DesignerSourceInspectorPropertyItem item,
+        DesignerSourceInspectableProperty property,
+        string currentValue)
+    {
+        if (!string.Equals(item.EditorText, currentValue, StringComparison.Ordinal))
+        {
+            item.EditorText = currentValue;
+        }
+
+        UpdateSourcePropertyChoiceEditorValue(item, property, currentValue);
     }
 
     private static void UpdateSourcePropertyCompositeEditorValue(

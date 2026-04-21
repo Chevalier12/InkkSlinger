@@ -533,8 +533,15 @@ public class DesignerControllerTests
                 fontSizeEditor.Text = "1";
                 RunLayout(uiRoot, 1280, 840, 16);
 
-                var setterLineNumber = GetLineNumberContaining(shell.SourceText, "<Setter");
-                Assert.Equal("<Setter Property=\"FontSize\" Value=\"1\" />", GetLineText(shell.SourceText, setterLineNumber).Trim());
+                var sourceLines = NormalizeLineEndings(shell.SourceText).Split('\n');
+                var setterLine = Assert.Single(sourceLines.Where(static line => line.Contains("<Setter", StringComparison.Ordinal)));
+                var propertyLine = Assert.Single(sourceLines.Where(static line => line.Contains("Property=\"FontSize\"", StringComparison.Ordinal)));
+                var valueLine = Assert.Single(sourceLines.Where(static line => line.Contains("Value=\"1\"", StringComparison.Ordinal)));
+
+                Assert.Equal("<Setter", setterLine.Trim());
+                Assert.Equal("Property=\"FontSize\"", propertyLine.TrimStart());
+                Assert.Equal("Value=\"1\" />", valueLine.TrimStart());
+                Assert.Equal(GetLeadingWhitespaceCount(propertyLine), GetLeadingWhitespaceCount(valueLine));
                 Assert.DoesNotContain("Property=\"FontSize/\"", shell.SourceText, StringComparison.Ordinal);
         }
 
@@ -1621,9 +1628,149 @@ public class DesignerControllerTests
         widthEditor.Text = "180";
         RunLayout(uiRoot, 1280, 840, 16);
 
-        Assert.Contains("Width=\"180\"", shell.SourceText, StringComparison.Ordinal);
+        var sourceLines = NormalizeLineEndings(shell.SourceText).Split('\n');
+        var contentLine = Assert.Single(sourceLines.Where(static line => line.Contains("Content=\"Save\"", StringComparison.Ordinal)));
+        var widthLine = Assert.Single(sourceLines.Where(static line => line.Contains("Width=\"180\"", StringComparison.Ordinal)));
+
+        Assert.Equal("Width=\"180\" />", widthLine.TrimStart());
+        Assert.Equal(GetLeadingWhitespaceCount(contentLine), GetLeadingWhitespaceCount(widthLine));
         Assert.DoesNotContain("Width=\"180\"", shell.Controller.SourceText, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ShellView_SourcePropertyInspector_AddingMissingProperty_ToSingleLineSelfClosingTag_InsertsNewIndentedLine()
+    {
+        var shell = new InkkSlinger.Designer.DesignerShellView
+        {
+            SourceText = ValidViewXml
+        };
+
+        var sourceEditor = shell.SourceEditorControl;
+        var uiRoot = new UiRoot(shell);
+        RunLayout(uiRoot, 1280, 840, 16);
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "TextBlock");
+
+        var propertyEditors = GetSourceInspectorPropertyEditors(shell.SourceEditorView);
+        var widthEditor = Assert.IsType<TextBox>(propertyEditors["Width"]);
+        Assert.True(string.IsNullOrEmpty(widthEditor.Text));
+
+        widthEditor.Text = "180";
+        RunLayout(uiRoot, 1280, 840, 16);
+
+        var sourceLines = NormalizeLineEndings(shell.SourceText).Split('\n');
+        var textBlockLine = Assert.Single(sourceLines.Where(static line => line.Contains("<TextBlock Text=\"Hello designer\"", StringComparison.Ordinal)));
+        var widthLine = Assert.Single(sourceLines.Where(static line => line.Contains("Width=\"180\"", StringComparison.Ordinal)));
+
+        Assert.Equal("Width=\"180\" />", widthLine.TrimStart());
+        Assert.Equal(textBlockLine.IndexOf("Text=", StringComparison.Ordinal), GetLeadingWhitespaceCount(widthLine));
+        Assert.DoesNotContain("Width=\"180\"", shell.Controller.SourceText, StringComparison.Ordinal);
+    }
+
+        [Fact]
+        public void ShellView_SourcePropertyInspector_GridLengthProperty_UsesHybridTextAndPresetEditors()
+        {
+                const string rowDefinitionViewXml = """
+                        <UserControl xmlns="urn:inkkslinger-ui"
+                                                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                                                 Background="#101820">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"
+                                                                 MinHeight="32" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="Probe" />
+                            </Grid>
+                        </UserControl>
+                        """;
+
+                var shell = new InkkSlinger.Designer.DesignerShellView
+                {
+                        SourceText = rowDefinitionViewXml
+                };
+
+                var sourceEditor = shell.SourceEditorControl;
+                var uiRoot = new UiRoot(shell);
+                RunLayout(uiRoot, 1280, 840, 16);
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "RowDefinition");
+
+                var editors = GetSourceInspectorTextChoiceEditors(shell.SourceEditorView, "Height");
+                var presetValues = Assert.IsAssignableFrom<IReadOnlyList<string>>(editors.ComboBox.ItemsSource);
+
+                Assert.Equal("Auto", editors.TextBox.Text);
+                Assert.Equal("Auto", editors.ComboBox.SelectedItem as string);
+                Assert.Equal(["Auto", "*"], presetValues.ToArray());
+        }
+
+        [Fact]
+        public void ShellView_SourcePropertyInspector_SelectingGridLengthPreset_UpdatesSourceWithoutRefreshingPreview()
+        {
+                const string columnDefinitionViewXml = """
+                        <UserControl xmlns="urn:inkkslinger-ui"
+                                                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                                                 Background="#101820">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Probe" />
+                            </Grid>
+                        </UserControl>
+                        """;
+
+                var shell = new InkkSlinger.Designer.DesignerShellView
+                {
+                        SourceText = columnDefinitionViewXml
+                };
+
+                var sourceEditor = shell.SourceEditorControl;
+                var uiRoot = new UiRoot(shell);
+                RunLayout(uiRoot, 1280, 840, 16);
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "ColumnDefinition");
+
+                var editors = GetSourceInspectorTextChoiceEditors(shell.SourceEditorView, "Width");
+                editors.ComboBox.SelectedItem = "*";
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                Assert.Contains("<ColumnDefinition Width=\"*\" />", shell.SourceText, StringComparison.Ordinal);
+                Assert.DoesNotContain("<ColumnDefinition Width=\"*\" />", shell.Controller.SourceText, StringComparison.Ordinal);
+                Assert.Equal("*", editors.TextBox.Text);
+        }
+
+            [Fact]
+            public void ShellView_SourcePropertyInspector_FrameworkWidth_UsesHybridTextAndAutoPreset()
+            {
+                var shell = new InkkSlinger.Designer.DesignerShellView
+                {
+                    SourceText = ValidViewXml
+                };
+
+                var sourceEditor = shell.SourceEditorControl;
+                var uiRoot = new UiRoot(shell);
+                RunLayout(uiRoot, 1280, 840, 16);
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                SelectControlTagForSourceInspector(shell, sourceEditor, uiRoot, "Button");
+
+                var editors = GetSourceInspectorTextChoiceEditors(shell.SourceEditorView, "Width");
+                var presetValues = Assert.IsAssignableFrom<IReadOnlyList<string>>(editors.ComboBox.ItemsSource);
+
+                Assert.True(string.IsNullOrEmpty(editors.TextBox.Text));
+                Assert.Null(editors.ComboBox.SelectedItem);
+                Assert.Equal(["Auto"], presetValues.ToArray());
+
+                editors.ComboBox.SelectedItem = "Auto";
+                RunLayout(uiRoot, 1280, 840, 16);
+
+                Assert.Contains("Width=\"Auto\"", shell.SourceText, StringComparison.Ordinal);
+                Assert.DoesNotContain("Width=\"Auto\"", shell.Controller.SourceText, StringComparison.Ordinal);
+                Assert.Equal("Auto", editors.TextBox.Text);
+            }
 
     [Fact]
     public void ShellView_SourcePropertyInspector_EditingProperty_F5RefreshesPreviewOnDemand()
@@ -5690,6 +5837,17 @@ public class DesignerControllerTests
             .ToArray();
     }
 
+    private static int GetLeadingWhitespaceCount(string text)
+    {
+        var count = 0;
+        while (count < text.Length && char.IsWhiteSpace(text[count]))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
     private static IReadOnlyList<TextBox> GetSourceInspectorCompositeTextEditors(
         InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView,
         string propertyName)
@@ -5705,6 +5863,20 @@ public class DesignerControllerTests
         }
 
         return editors;
+    }
+
+    private static (TextBox TextBox, ComboBox ComboBox) GetSourceInspectorTextChoiceEditors(
+        InkkSlinger.Designer.DesignerSourceEditorView sourceEditorView,
+        string propertyName)
+    {
+        var row = GetSourceInspectorPropertyRow(sourceEditorView, propertyName);
+        var textBox = FindDescendantOrDefault<TextBox>(row);
+        var comboBox = FindDescendantOrDefault<ComboBox>(row);
+
+        Assert.NotNull(textBox);
+        Assert.NotNull(comboBox);
+
+        return (textBox!, comboBox!);
     }
 
     private static Popup GetSourceInspectorColorEditorPopup(ComboBox editor)

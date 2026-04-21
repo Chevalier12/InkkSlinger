@@ -160,6 +160,31 @@
                 MaxDropDownHeight="240" />
     </DataTemplate>
 
+    <DataTemplate x:Key="SourcePropertyTextChoiceEditorTemplate">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="8" />
+          <ColumnDefinition Width="84" />
+        </Grid.ColumnDefinitions>
+
+        <TextBox Grid.Column="0"
+                 Style="{StaticResource DesignerInspectorTextBoxStyle}"
+                 TextChanged="OnSourcePropertyEditorTextChanged"
+                 Text="{Binding EditorText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+        <ComboBox Grid.Column="2"
+                  Style="{StaticResource DesignerInspectorComboBoxStyle}"
+                  SelectionChanged="OnSourcePropertyChoiceSelectionChanged"
+                  ItemsSource="{Binding ChoiceValues}"
+                  SelectedItem="{Binding SelectedChoice, Mode=TwoWay}"
+                  ItemContainerStyle="{StaticResource DesignerComboBoxItemStyle}"
+                  DropDownListStyle="{StaticResource DesignerComboBoxDropDownListStyle}"
+                  DropDownPopupStyle="{StaticResource DesignerComboBoxDropDownPopupStyle}"
+                  MaxDropDownHeight="240" />
+      </Grid>
+    </DataTemplate>
+
     <DataTemplate x:Key="SourcePropertyCompositeEditorTemplate">
       <Grid>
         <Grid.ColumnDefinitions>
@@ -226,6 +251,7 @@
 
     <DesignerSourceInspectorEditorTemplateSelector x:Key="SourcePropertyEditorTemplateSelector"
                                                    TextTemplate="{StaticResource SourcePropertyTextEditorTemplate}"
+                                                   TextChoiceTemplate="{StaticResource SourcePropertyTextChoiceEditorTemplate}"
                                                    ChoiceTemplate="{StaticResource SourcePropertyChoiceEditorTemplate}"
                                                    CompositeTemplate="{StaticResource SourcePropertyCompositeEditorTemplate}"
                                                    ColorTemplate="{StaticResource SourcePropertyColorEditorTemplate}" />
