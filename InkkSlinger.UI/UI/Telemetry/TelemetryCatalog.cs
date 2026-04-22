@@ -99,6 +99,13 @@ public static class TelemetryCatalog
     // - RichTextBoxTelemetrySnapshot
     // - RichTextBoxRuntimeDiagnosticsSnapshot
     // - RichTextBoxPerformanceSnapshot
+    // - IDE_Editor (UI/Telemetry/IDEEditorSnapshots.cs)
+    // - IDEEditorTelemetrySnapshot
+    // - IDEEditorRuntimeDiagnosticsSnapshot
+    // - IDEEditorLineNumberPresenterTelemetrySnapshot
+    // - IDEEditorLineNumberPresenterRuntimeDiagnosticsSnapshot
+    // - IDEEditorIndentGuideOverlayTelemetrySnapshot
+    // - IDEEditorIndentGuideOverlayRuntimeDiagnosticsSnapshot
     // - GridSplitter (UI/Telemetry/GridSplitterSnapshots.cs)
     // - GridSplitterTelemetrySnapshot
     // - GridSplitterRuntimeDiagnosticsSnapshot

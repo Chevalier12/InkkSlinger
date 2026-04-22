@@ -147,14 +147,18 @@ public partial class DesignerSourceEditorView : UserControl
             return;
         }
 
+        var previousText = SourceText;
         var currentText = DocumentEditing.GetText(SourceEditor.Document);
         TryAutoInsertTagSuffix(ref currentText);
-        if (!string.Equals(SourceText, currentText, StringComparison.Ordinal))
+        if (!string.Equals(previousText, currentText, StringComparison.Ordinal))
         {
             SourceText = currentText;
         }
 
-        RefreshHighlightedSourceDocument(currentText, dismissCompletionPopup: false);
+        if (ShouldRefreshHighlightedSourceDocument(previousText, currentText))
+        {
+            RefreshHighlightedSourceDocument(currentText, dismissCompletionPopup: false);
+        }
 
         RefreshSourcePropertyInspector();
         if (IsControlCompletionOpen)
@@ -1203,6 +1207,48 @@ public partial class DesignerSourceEditorView : UserControl
         }
 
         insertedCharacter = currentText[insertedIndex];
+        return true;
+    }
+
+    private static bool ShouldRefreshHighlightedSourceDocument(string previousText, string currentText)
+    {
+        return !IsWhitespaceOnlyEdit(previousText, currentText);
+    }
+
+    private static bool IsWhitespaceOnlyEdit(string previousText, string currentText)
+    {
+        var prefixLength = 0;
+        var maxPrefixLength = Math.Min(previousText.Length, currentText.Length);
+        while (prefixLength < maxPrefixLength &&
+               previousText[prefixLength] == currentText[prefixLength])
+        {
+            prefixLength++;
+        }
+
+        var previousSuffixIndex = previousText.Length - 1;
+        var currentSuffixIndex = currentText.Length - 1;
+        while (previousSuffixIndex >= prefixLength &&
+               currentSuffixIndex >= prefixLength &&
+               previousText[previousSuffixIndex] == currentText[currentSuffixIndex])
+        {
+            previousSuffixIndex--;
+            currentSuffixIndex--;
+        }
+
+        return IsWhitespaceOnlyRange(previousText, prefixLength, previousSuffixIndex) &&
+               IsWhitespaceOnlyRange(currentText, prefixLength, currentSuffixIndex);
+    }
+
+    private static bool IsWhitespaceOnlyRange(string text, int start, int end)
+    {
+        for (var index = start; index <= end; index++)
+        {
+            if (!char.IsWhiteSpace(text[index]))
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -16,6 +18,29 @@ namespace InkkSlinger;
 public sealed class IDE_Editor : Control, ITextInputControl
 {
     private static readonly Lazy<Style> DefaultStyle = new(BuildDefaultStyle);
+    private static int _diagUpdateLineNumberGutterCallCount;
+    private static int _diagUpdateLineNumberGutterForcedCount;
+    private static int _diagUpdateLineNumberGutterAppliedCount;
+    private static int _diagUpdateLineNumberGutterNoOpCount;
+    private static int _diagUpdateLineNumberGutterVisibleLineTotal;
+    private static long _diagUpdateLineNumberGutterElapsedTicks;
+    private static int _diagEditorTextChangedCallCount;
+    private static long _diagEditorTextChangedElapsedTicks;
+    private static long _diagEditorTextChangedUpdateCachedLineCountElapsedTicks;
+    private static long _diagEditorTextChangedUpdateLineNumberGutterElapsedTicks;
+    private static double _diagEditorTextChangedLineNumberPresenterUpdateMilliseconds;
+    private static double _diagEditorTextChangedLineNumberPresenterMeasureMilliseconds;
+    private static double _diagEditorTextChangedLineNumberPresenterArrangeMilliseconds;
+    private static long _diagEditorTextChangedIndentInvalidateElapsedTicks;
+    private static long _diagEditorTextChangedSubscriberElapsedTicks;
+    private static int _diagEditorDocumentChangedCallCount;
+    private static int _diagEditorViewportChangedCallCount;
+    private static int _diagEditorLayoutUpdatedCallCount;
+    private static int _diagIndentGuideInvalidateVisualCallCount;
+    private static int _diagBuildIndentGuideSnapshotCallCount;
+    private static int _diagBuildIndentGuideSnapshotSuccessCount;
+    private static int _diagBuildIndentGuideSnapshotSegmentTotal;
+    private static long _diagBuildIndentGuideSnapshotElapsedTicks;
 
     public static readonly DependencyProperty DocumentProperty =
         DependencyProperty.Register(
@@ -177,17 +202,57 @@ public sealed class IDE_Editor : Control, ITextInputControl
     private IDEEditorLineNumberPresenter? _lineNumberPresenter;
     private IDEEditorIndentGuideOverlay? _indentGuideOverlay;
     private RichTextBox? _editor;
+    private string _cachedDocumentText = string.Empty;
+    private IDEEditorIndentGuideSnapshot _cachedIndentGuideSnapshot = new(false, default, Array.Empty<IDEEditorIndentGuideSegmentSnapshot>());
+    private bool _isIndentGuideSnapshotDirty = true;
     private int _cachedLineCount = 1;
     private int _lastRenderedLineCount = -1;
     private int _lastRenderedFirstVisibleLine = -1;
     private int _lastRenderedVisibleLineCount = -1;
     private float _lastRenderedLineOffset = float.NaN;
     private float _lastRenderedLineHeight = float.NaN;
+    private float _lastViewportPresentationHorizontalOffset = float.NaN;
+    private float _lastViewportPresentationVerticalOffset = float.NaN;
+    private float _lastViewportPresentationViewportWidth = float.NaN;
+    private float _lastViewportPresentationViewportHeight = float.NaN;
+    private float _lastViewportPresentationExtentWidth = float.NaN;
+    private float _lastViewportPresentationExtentHeight = float.NaN;
+    private int _runtimeUpdateLineNumberGutterCallCount;
+    private int _runtimeUpdateLineNumberGutterForcedCount;
+    private int _runtimeUpdateLineNumberGutterAppliedCount;
+    private int _runtimeUpdateLineNumberGutterNoOpCount;
+    private int _runtimeUpdateLineNumberGutterVisibleLineTotal;
+    private long _runtimeUpdateLineNumberGutterElapsedTicks;
+    private int _runtimeEditorTextChangedCallCount;
+    private long _runtimeEditorTextChangedElapsedTicks;
+    private long _runtimeEditorTextChangedUpdateCachedLineCountElapsedTicks;
+    private long _runtimeEditorTextChangedUpdateLineNumberGutterElapsedTicks;
+    private double _runtimeEditorTextChangedLineNumberPresenterUpdateMilliseconds;
+    private double _runtimeEditorTextChangedLineNumberPresenterMeasureMilliseconds;
+    private double _runtimeEditorTextChangedLineNumberPresenterArrangeMilliseconds;
+    private long _runtimeEditorTextChangedIndentInvalidateElapsedTicks;
+    private long _runtimeEditorTextChangedSubscriberElapsedTicks;
+    private long _runtimeLastEditorTextChangedElapsedTicks;
+    private long _runtimeLastEditorTextChangedUpdateCachedLineCountElapsedTicks;
+    private long _runtimeLastEditorTextChangedUpdateLineNumberGutterElapsedTicks;
+    private double _runtimeLastEditorTextChangedLineNumberPresenterUpdateMilliseconds;
+    private double _runtimeLastEditorTextChangedLineNumberPresenterMeasureMilliseconds;
+    private double _runtimeLastEditorTextChangedLineNumberPresenterArrangeMilliseconds;
+    private long _runtimeLastEditorTextChangedIndentInvalidateElapsedTicks;
+    private long _runtimeLastEditorTextChangedSubscriberElapsedTicks;
+    private int _runtimeEditorDocumentChangedCallCount;
+    private int _runtimeEditorViewportChangedCallCount;
+    private int _runtimeEditorLayoutUpdatedCallCount;
+    private int _runtimeIndentGuideInvalidateVisualCallCount;
+    private int _runtimeBuildIndentGuideSnapshotCallCount;
+    private int _runtimeBuildIndentGuideSnapshotSuccessCount;
+    private int _runtimeBuildIndentGuideSnapshotSegmentTotal;
+    private long _runtimeBuildIndentGuideSnapshotElapsedTicks;
 
     public IDE_Editor()
     {
         SetValue(DocumentProperty, CreateDefaultDocument());
-        UpdateCachedLineCount(DocumentText);
+        UpdateCachedDocumentSnapshot(Document);
     }
 
     public event EventHandler? ViewportChanged;
@@ -348,7 +413,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
 
     public float ScrollableHeight => _editor?.ScrollableHeight ?? 0f;
 
-    public int LineCount => CountLines(DocumentText);
+    public int LineCount => CountLines(Document);
 
     public float EstimatedLineHeight => EstimateLineHeight(LineCount);
 
@@ -388,7 +453,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _editor.ViewportChanged += OnEditorViewportChanged;
         _editor.LayoutUpdated += OnEditorLayoutUpdated;
 
-        UpdateCachedLineCount(DocumentText);
+        UpdateCachedDocumentSnapshot(Document);
         UpdateLineNumberGutter(force: true);
     }
 
@@ -399,7 +464,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
         if (ReferenceEquals(args.Property, DocumentProperty))
         {
             SyncEditorProperties();
-            UpdateCachedLineCount(DocumentText);
+            UpdateCachedDocumentSnapshot(Document);
             UpdateLineNumberGutter(force: true);
             _indentGuideOverlay?.InvalidateVisual();
             return;
@@ -590,7 +655,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
 
     public void RefreshDocumentMetrics()
     {
-        UpdateCachedLineCount(DocumentText);
+        UpdateCachedDocumentSnapshot(Document);
         UpdateLineNumberGutter(force: true);
         _indentGuideOverlay?.InvalidateVisual();
     }
@@ -643,6 +708,79 @@ public sealed class IDE_Editor : Control, ITextInputControl
             : new IDEEditorIndentGuideSnapshot(false, default, Array.Empty<IDEEditorIndentGuideSegmentSnapshot>());
     }
 
+    internal IDEEditorIndentGuideSnapshot GetIndentGuideSnapshotForRender()
+    {
+        if (!_isIndentGuideSnapshotDirty)
+        {
+            return _cachedIndentGuideSnapshot;
+        }
+
+        _cachedIndentGuideSnapshot = TryBuildIndentGuideSnapshot(out var snapshot)
+            ? snapshot
+            : new IDEEditorIndentGuideSnapshot(false, default, Array.Empty<IDEEditorIndentGuideSegmentSnapshot>());
+        _isIndentGuideSnapshotDirty = false;
+        return _cachedIndentGuideSnapshot;
+    }
+
+    internal IDEEditorRuntimeDiagnosticsSnapshot GetIDEEditorSnapshotForDiagnostics()
+    {
+        var metrics = GetScrollMetricsSnapshot();
+        return new IDEEditorRuntimeDiagnosticsSnapshot(
+            UpdateLineNumberGutterCallCount: _runtimeUpdateLineNumberGutterCallCount,
+            UpdateLineNumberGutterForcedCount: _runtimeUpdateLineNumberGutterForcedCount,
+            UpdateLineNumberGutterAppliedCount: _runtimeUpdateLineNumberGutterAppliedCount,
+            UpdateLineNumberGutterNoOpCount: _runtimeUpdateLineNumberGutterNoOpCount,
+            UpdateLineNumberGutterVisibleLineTotal: _runtimeUpdateLineNumberGutterVisibleLineTotal,
+            UpdateLineNumberGutterMilliseconds: TicksToMilliseconds(_runtimeUpdateLineNumberGutterElapsedTicks),
+            EditorTextChangedCallCount: _runtimeEditorTextChangedCallCount,
+            EditorTextChangedMilliseconds: TicksToMilliseconds(_runtimeEditorTextChangedElapsedTicks),
+            EditorTextChangedUpdateCachedLineCountMilliseconds: TicksToMilliseconds(_runtimeEditorTextChangedUpdateCachedLineCountElapsedTicks),
+            EditorTextChangedUpdateLineNumberGutterMilliseconds: TicksToMilliseconds(_runtimeEditorTextChangedUpdateLineNumberGutterElapsedTicks),
+            EditorTextChangedLineNumberPresenterUpdateMilliseconds: _runtimeEditorTextChangedLineNumberPresenterUpdateMilliseconds,
+            EditorTextChangedLineNumberPresenterMeasureMilliseconds: _runtimeEditorTextChangedLineNumberPresenterMeasureMilliseconds,
+            EditorTextChangedLineNumberPresenterArrangeMilliseconds: _runtimeEditorTextChangedLineNumberPresenterArrangeMilliseconds,
+            EditorTextChangedIndentInvalidateMilliseconds: TicksToMilliseconds(_runtimeEditorTextChangedIndentInvalidateElapsedTicks),
+            EditorTextChangedSubscriberMilliseconds: TicksToMilliseconds(_runtimeEditorTextChangedSubscriberElapsedTicks),
+            LastEditorTextChangedMilliseconds: TicksToMilliseconds(_runtimeLastEditorTextChangedElapsedTicks),
+            LastEditorTextChangedUpdateCachedLineCountMilliseconds: TicksToMilliseconds(_runtimeLastEditorTextChangedUpdateCachedLineCountElapsedTicks),
+            LastEditorTextChangedUpdateLineNumberGutterMilliseconds: TicksToMilliseconds(_runtimeLastEditorTextChangedUpdateLineNumberGutterElapsedTicks),
+            LastEditorTextChangedLineNumberPresenterUpdateMilliseconds: _runtimeLastEditorTextChangedLineNumberPresenterUpdateMilliseconds,
+            LastEditorTextChangedLineNumberPresenterMeasureMilliseconds: _runtimeLastEditorTextChangedLineNumberPresenterMeasureMilliseconds,
+            LastEditorTextChangedLineNumberPresenterArrangeMilliseconds: _runtimeLastEditorTextChangedLineNumberPresenterArrangeMilliseconds,
+            LastEditorTextChangedIndentInvalidateMilliseconds: TicksToMilliseconds(_runtimeLastEditorTextChangedIndentInvalidateElapsedTicks),
+            LastEditorTextChangedSubscriberMilliseconds: TicksToMilliseconds(_runtimeLastEditorTextChangedSubscriberElapsedTicks),
+            EditorDocumentChangedCallCount: _runtimeEditorDocumentChangedCallCount,
+            EditorViewportChangedCallCount: _runtimeEditorViewportChangedCallCount,
+            EditorLayoutUpdatedCallCount: _runtimeEditorLayoutUpdatedCallCount,
+            IndentGuideInvalidateVisualCallCount: _runtimeIndentGuideInvalidateVisualCallCount,
+            BuildIndentGuideSnapshotCallCount: _runtimeBuildIndentGuideSnapshotCallCount,
+            BuildIndentGuideSnapshotSuccessCount: _runtimeBuildIndentGuideSnapshotSuccessCount,
+            BuildIndentGuideSnapshotSegmentTotal: _runtimeBuildIndentGuideSnapshotSegmentTotal,
+            BuildIndentGuideSnapshotMilliseconds: TicksToMilliseconds(_runtimeBuildIndentGuideSnapshotElapsedTicks),
+            CachedLineCount: _cachedLineCount,
+            LastRenderedLineCount: _lastRenderedLineCount,
+            LastRenderedFirstVisibleLine: _lastRenderedFirstVisibleLine,
+            LastRenderedVisibleLineCount: _lastRenderedVisibleLineCount,
+            LastRenderedLineOffset: _lastRenderedLineOffset,
+            LastRenderedLineHeight: _lastRenderedLineHeight,
+            HorizontalOffset: metrics.HorizontalOffset,
+            VerticalOffset: metrics.VerticalOffset,
+            ViewportWidth: metrics.ViewportWidth,
+            ViewportHeight: metrics.ViewportHeight,
+            ExtentWidth: metrics.ExtentWidth,
+            ExtentHeight: metrics.ExtentHeight);
+    }
+
+    internal new static IDEEditorTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateTelemetrySnapshot(reset: false);
+    }
+
+    internal new static IDEEditorTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateTelemetrySnapshot(reset: true);
+    }
+
     internal (float HorizontalOffset, float VerticalOffset, float ViewportWidth, float ViewportHeight, float ExtentWidth, float ExtentHeight) GetScrollMetricsSnapshot()
     {
         return _editor?.GetScrollMetricsSnapshot() ?? (0f, 0f, 0f, 0f, 0f, 0f);
@@ -651,34 +789,86 @@ public sealed class IDE_Editor : Control, ITextInputControl
     private void OnEditorTextChanged(object? sender, RoutedSimpleEventArgs args)
     {
         _ = sender;
-        UpdateCachedLineCount(DocumentText);
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagEditorTextChangedCallCount++;
+        _runtimeEditorTextChangedCallCount++;
+
+        var lineNumberBefore = CaptureLineNumberPresenterRuntimeSnapshot();
+
+        var cachedLineCountStartTicks = Stopwatch.GetTimestamp();
+        UpdateCachedDocumentSnapshot(Document);
+        var cachedLineCountElapsedTicks = Stopwatch.GetTimestamp() - cachedLineCountStartTicks;
+
+        var updateLineNumberGutterStartTicks = Stopwatch.GetTimestamp();
         UpdateLineNumberGutter(force: true);
-        _indentGuideOverlay?.InvalidateVisual();
+        var updateLineNumberGutterElapsedTicks = Stopwatch.GetTimestamp() - updateLineNumberGutterStartTicks;
+        var lineNumberAfter = CaptureLineNumberPresenterRuntimeSnapshot();
+        var lineNumberUpdateDeltaMs = Math.Max(0d, lineNumberAfter.UpdateVisibleRangeMilliseconds - lineNumberBefore.UpdateVisibleRangeMilliseconds);
+        var lineNumberMeasureDeltaMs = Math.Max(0d, lineNumberAfter.MeasureOverrideMilliseconds - lineNumberBefore.MeasureOverrideMilliseconds);
+        var lineNumberArrangeDeltaMs = Math.Max(0d, lineNumberAfter.ArrangeOverrideMilliseconds - lineNumberBefore.ArrangeOverrideMilliseconds);
+
+        var indentInvalidateStartTicks = Stopwatch.GetTimestamp();
+        InvalidateIndentGuideOverlay();
+        var indentInvalidateElapsedTicks = Stopwatch.GetTimestamp() - indentInvalidateStartTicks;
+
+        var subscriberStartTicks = Stopwatch.GetTimestamp();
         TextChanged?.Invoke(this, args);
+        var subscriberElapsedTicks = Stopwatch.GetTimestamp() - subscriberStartTicks;
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+
+        _diagEditorTextChangedElapsedTicks += elapsedTicks;
+        _diagEditorTextChangedUpdateCachedLineCountElapsedTicks += cachedLineCountElapsedTicks;
+        _diagEditorTextChangedUpdateLineNumberGutterElapsedTicks += updateLineNumberGutterElapsedTicks;
+        _diagEditorTextChangedLineNumberPresenterUpdateMilliseconds += lineNumberUpdateDeltaMs;
+        _diagEditorTextChangedLineNumberPresenterMeasureMilliseconds += lineNumberMeasureDeltaMs;
+        _diagEditorTextChangedLineNumberPresenterArrangeMilliseconds += lineNumberArrangeDeltaMs;
+        _diagEditorTextChangedIndentInvalidateElapsedTicks += indentInvalidateElapsedTicks;
+        _diagEditorTextChangedSubscriberElapsedTicks += subscriberElapsedTicks;
+
+        _runtimeEditorTextChangedElapsedTicks += elapsedTicks;
+        _runtimeEditorTextChangedUpdateCachedLineCountElapsedTicks += cachedLineCountElapsedTicks;
+        _runtimeEditorTextChangedUpdateLineNumberGutterElapsedTicks += updateLineNumberGutterElapsedTicks;
+        _runtimeEditorTextChangedLineNumberPresenterUpdateMilliseconds += lineNumberUpdateDeltaMs;
+        _runtimeEditorTextChangedLineNumberPresenterMeasureMilliseconds += lineNumberMeasureDeltaMs;
+        _runtimeEditorTextChangedLineNumberPresenterArrangeMilliseconds += lineNumberArrangeDeltaMs;
+        _runtimeEditorTextChangedIndentInvalidateElapsedTicks += indentInvalidateElapsedTicks;
+        _runtimeEditorTextChangedSubscriberElapsedTicks += subscriberElapsedTicks;
+
+        _runtimeLastEditorTextChangedElapsedTicks = elapsedTicks;
+        _runtimeLastEditorTextChangedUpdateCachedLineCountElapsedTicks = cachedLineCountElapsedTicks;
+        _runtimeLastEditorTextChangedUpdateLineNumberGutterElapsedTicks = updateLineNumberGutterElapsedTicks;
+        _runtimeLastEditorTextChangedLineNumberPresenterUpdateMilliseconds = lineNumberUpdateDeltaMs;
+        _runtimeLastEditorTextChangedLineNumberPresenterMeasureMilliseconds = lineNumberMeasureDeltaMs;
+        _runtimeLastEditorTextChangedLineNumberPresenterArrangeMilliseconds = lineNumberArrangeDeltaMs;
+        _runtimeLastEditorTextChangedIndentInvalidateElapsedTicks = indentInvalidateElapsedTicks;
+        _runtimeLastEditorTextChangedSubscriberElapsedTicks = subscriberElapsedTicks;
     }
 
     private void OnEditorDocumentChanged(object? sender, RoutedSimpleEventArgs args)
     {
         _ = sender;
         _ = args;
+        _diagEditorDocumentChangedCallCount++;
+        _runtimeEditorDocumentChangedCallCount++;
         SyncDocumentFromEditor();
-        UpdateCachedLineCount(DocumentText);
+        UpdateCachedDocumentSnapshot(Document);
         UpdateLineNumberGutter(force: true);
-        _indentGuideOverlay?.InvalidateVisual();
+        InvalidateIndentGuideOverlay();
     }
 
     private void OnEditorSelectionChanged(object? sender, SelectionChangedEventArgs args)
     {
         _ = sender;
-        _indentGuideOverlay?.InvalidateVisual();
+        InvalidateIndentGuideOverlay();
         SelectionChanged?.Invoke(this, args);
     }
 
     private void OnEditorViewportChanged(object? sender, EventArgs args)
     {
         _ = sender;
-        UpdateLineNumberGutter(force: false);
-        _indentGuideOverlay?.InvalidateVisual();
+        _diagEditorViewportChangedCallCount++;
+        _runtimeEditorViewportChangedCallCount++;
+        RefreshViewportDependentPresentationIfNeeded();
         ViewportChanged?.Invoke(this, args);
     }
 
@@ -686,8 +876,23 @@ public sealed class IDE_Editor : Control, ITextInputControl
     {
         _ = sender;
         _ = args;
-        UpdateLineNumberGutter(force: false);
-        _indentGuideOverlay?.InvalidateVisual();
+        _diagEditorLayoutUpdatedCallCount++;
+        _runtimeEditorLayoutUpdatedCallCount++;
+        RefreshViewportDependentPresentationIfNeeded();
+    }
+
+    private void InvalidateIndentGuideOverlay()
+    {
+        _isIndentGuideSnapshotDirty = true;
+
+        if (_indentGuideOverlay == null)
+        {
+            return;
+        }
+
+        _diagIndentGuideInvalidateVisualCallCount++;
+        _runtimeIndentGuideInvalidateVisualCallCount++;
+        _indentGuideOverlay.InvalidateVisual();
     }
 
     private void DetachEditorPart()
@@ -718,6 +923,9 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _lastRenderedVisibleLineCount = -1;
         _lastRenderedLineOffset = float.NaN;
         _lastRenderedLineHeight = float.NaN;
+        _cachedIndentGuideSnapshot = new IDEEditorIndentGuideSnapshot(false, default, Array.Empty<IDEEditorIndentGuideSegmentSnapshot>());
+        _isIndentGuideSnapshotDirty = true;
+        ResetViewportPresentationCache();
     }
 
     private void ApplyTemplateStyling()
@@ -793,15 +1001,71 @@ public sealed class IDE_Editor : Control, ITextInputControl
         }
     }
 
-    private void UpdateCachedLineCount(string? text)
+    private void UpdateCachedLineCount(FlowDocument? document)
     {
-        _cachedLineCount = CountLines(text);
+        _cachedLineCount = CountLines(document);
+    }
+
+    private void UpdateCachedDocumentSnapshot(FlowDocument? document)
+    {
+        UpdateCachedLineCount(document);
+        _cachedDocumentText = document == null ? string.Empty : DocumentEditing.GetText(document);
+    }
+
+    private void RefreshViewportDependentPresentationIfNeeded()
+    {
+        if (_editor == null)
+        {
+            return;
+        }
+
+        var metrics = GetScrollMetricsSnapshot();
+        if (Math.Abs(metrics.HorizontalOffset - _lastViewportPresentationHorizontalOffset) <= 0.01f &&
+            Math.Abs(metrics.VerticalOffset - _lastViewportPresentationVerticalOffset) <= 0.01f &&
+            Math.Abs(metrics.ViewportWidth - _lastViewportPresentationViewportWidth) <= 0.01f &&
+            Math.Abs(metrics.ViewportHeight - _lastViewportPresentationViewportHeight) <= 0.01f &&
+            Math.Abs(metrics.ExtentWidth - _lastViewportPresentationExtentWidth) <= 0.01f &&
+            Math.Abs(metrics.ExtentHeight - _lastViewportPresentationExtentHeight) <= 0.01f)
+        {
+            return;
+        }
+
+        _lastViewportPresentationHorizontalOffset = metrics.HorizontalOffset;
+        _lastViewportPresentationVerticalOffset = metrics.VerticalOffset;
+        _lastViewportPresentationViewportWidth = metrics.ViewportWidth;
+        _lastViewportPresentationViewportHeight = metrics.ViewportHeight;
+        _lastViewportPresentationExtentWidth = metrics.ExtentWidth;
+        _lastViewportPresentationExtentHeight = metrics.ExtentHeight;
+        UpdateLineNumberGutter(force: false);
+        InvalidateIndentGuideOverlay();
+    }
+
+    private void ResetViewportPresentationCache()
+    {
+        _lastViewportPresentationHorizontalOffset = float.NaN;
+        _lastViewportPresentationVerticalOffset = float.NaN;
+        _lastViewportPresentationViewportWidth = float.NaN;
+        _lastViewportPresentationViewportHeight = float.NaN;
+        _lastViewportPresentationExtentWidth = float.NaN;
+        _lastViewportPresentationExtentHeight = float.NaN;
     }
 
     private void UpdateLineNumberGutter(bool force)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagUpdateLineNumberGutterCallCount++;
+        _runtimeUpdateLineNumberGutterCallCount++;
+        if (force)
+        {
+            _diagUpdateLineNumberGutterForcedCount++;
+            _runtimeUpdateLineNumberGutterForcedCount++;
+        }
+
         if (_editor == null || _lineNumberPresenter == null)
         {
+            var earlyElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagUpdateLineNumberGutterElapsedTicks += earlyElapsedTicks;
+            _runtimeUpdateLineNumberGutterElapsedTicks += earlyElapsedTicks;
             return;
         }
 
@@ -821,6 +1085,11 @@ public sealed class IDE_Editor : Control, ITextInputControl
             Math.Abs(lineOffset - _lastRenderedLineOffset) <= 0.01f &&
             Math.Abs(lineHeight - _lastRenderedLineHeight) <= 0.01f)
         {
+            _diagUpdateLineNumberGutterNoOpCount++;
+            _runtimeUpdateLineNumberGutterNoOpCount++;
+            var noOpElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagUpdateLineNumberGutterElapsedTicks += noOpElapsedTicks;
+            _runtimeUpdateLineNumberGutterElapsedTicks += noOpElapsedTicks;
             return;
         }
 
@@ -829,24 +1098,113 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _lineNumberPresenter.VerticalLineOffset = lineOffset;
         _lineNumberPresenter.UpdateVisibleRange(firstVisibleLine, visibleLineCount);
 
+        _diagUpdateLineNumberGutterAppliedCount++;
+        _runtimeUpdateLineNumberGutterAppliedCount++;
+        _diagUpdateLineNumberGutterVisibleLineTotal += visibleLineCount;
+        _runtimeUpdateLineNumberGutterVisibleLineTotal += visibleLineCount;
+
         _lastRenderedLineCount = lineCount;
         _lastRenderedFirstVisibleLine = firstVisibleLine;
         _lastRenderedVisibleLineCount = visibleLineCount;
         _lastRenderedLineOffset = lineOffset;
         _lastRenderedLineHeight = lineHeight;
+
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagUpdateLineNumberGutterElapsedTicks += elapsedTicks;
+        _runtimeUpdateLineNumberGutterElapsedTicks += elapsedTicks;
     }
 
     private bool TryBuildIndentGuideSnapshot(out IDEEditorIndentGuideSnapshot snapshot)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagBuildIndentGuideSnapshotCallCount++;
+        _runtimeBuildIndentGuideSnapshotCallCount++;
         snapshot = new IDEEditorIndentGuideSnapshot(false, default, Array.Empty<IDEEditorIndentGuideSegmentSnapshot>());
         if (_editor == null || !_editor.TryGetViewportLayoutSnapshot(out var viewport))
         {
+            var failedElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagBuildIndentGuideSnapshotElapsedTicks += failedElapsedTicks;
+            _runtimeBuildIndentGuideSnapshotElapsedTicks += failedElapsedTicks;
             return false;
         }
 
         var segments = BuildIndentGuideSegments(viewport).ToArray();
         snapshot = new IDEEditorIndentGuideSnapshot(true, viewport.TextRect, segments);
+        _diagBuildIndentGuideSnapshotSuccessCount++;
+        _runtimeBuildIndentGuideSnapshotSuccessCount++;
+        _diagBuildIndentGuideSnapshotSegmentTotal += segments.Length;
+        _runtimeBuildIndentGuideSnapshotSegmentTotal += segments.Length;
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagBuildIndentGuideSnapshotElapsedTicks += elapsedTicks;
+        _runtimeBuildIndentGuideSnapshotElapsedTicks += elapsedTicks;
         return true;
+    }
+
+    private static IDEEditorTelemetrySnapshot CreateTelemetrySnapshot(bool reset)
+    {
+        var snapshot = new IDEEditorTelemetrySnapshot(
+            UpdateLineNumberGutterCallCount: _diagUpdateLineNumberGutterCallCount,
+            UpdateLineNumberGutterForcedCount: _diagUpdateLineNumberGutterForcedCount,
+            UpdateLineNumberGutterAppliedCount: _diagUpdateLineNumberGutterAppliedCount,
+            UpdateLineNumberGutterNoOpCount: _diagUpdateLineNumberGutterNoOpCount,
+            UpdateLineNumberGutterVisibleLineTotal: _diagUpdateLineNumberGutterVisibleLineTotal,
+            UpdateLineNumberGutterMilliseconds: TicksToMilliseconds(_diagUpdateLineNumberGutterElapsedTicks),
+            EditorTextChangedCallCount: _diagEditorTextChangedCallCount,
+            EditorTextChangedMilliseconds: TicksToMilliseconds(_diagEditorTextChangedElapsedTicks),
+            EditorTextChangedUpdateCachedLineCountMilliseconds: TicksToMilliseconds(_diagEditorTextChangedUpdateCachedLineCountElapsedTicks),
+            EditorTextChangedUpdateLineNumberGutterMilliseconds: TicksToMilliseconds(_diagEditorTextChangedUpdateLineNumberGutterElapsedTicks),
+            EditorTextChangedLineNumberPresenterUpdateMilliseconds: _diagEditorTextChangedLineNumberPresenterUpdateMilliseconds,
+            EditorTextChangedLineNumberPresenterMeasureMilliseconds: _diagEditorTextChangedLineNumberPresenterMeasureMilliseconds,
+            EditorTextChangedLineNumberPresenterArrangeMilliseconds: _diagEditorTextChangedLineNumberPresenterArrangeMilliseconds,
+            EditorTextChangedIndentInvalidateMilliseconds: TicksToMilliseconds(_diagEditorTextChangedIndentInvalidateElapsedTicks),
+            EditorTextChangedSubscriberMilliseconds: TicksToMilliseconds(_diagEditorTextChangedSubscriberElapsedTicks),
+            EditorDocumentChangedCallCount: _diagEditorDocumentChangedCallCount,
+            EditorViewportChangedCallCount: _diagEditorViewportChangedCallCount,
+            EditorLayoutUpdatedCallCount: _diagEditorLayoutUpdatedCallCount,
+            IndentGuideInvalidateVisualCallCount: _diagIndentGuideInvalidateVisualCallCount,
+            BuildIndentGuideSnapshotCallCount: _diagBuildIndentGuideSnapshotCallCount,
+            BuildIndentGuideSnapshotSuccessCount: _diagBuildIndentGuideSnapshotSuccessCount,
+            BuildIndentGuideSnapshotSegmentTotal: _diagBuildIndentGuideSnapshotSegmentTotal,
+            BuildIndentGuideSnapshotMilliseconds: TicksToMilliseconds(_diagBuildIndentGuideSnapshotElapsedTicks));
+
+        if (reset)
+        {
+            _diagUpdateLineNumberGutterCallCount = 0;
+            _diagUpdateLineNumberGutterForcedCount = 0;
+            _diagUpdateLineNumberGutterAppliedCount = 0;
+            _diagUpdateLineNumberGutterNoOpCount = 0;
+            _diagUpdateLineNumberGutterVisibleLineTotal = 0;
+            _diagUpdateLineNumberGutterElapsedTicks = 0;
+            _diagEditorTextChangedCallCount = 0;
+            _diagEditorTextChangedElapsedTicks = 0;
+            _diagEditorTextChangedUpdateCachedLineCountElapsedTicks = 0;
+            _diagEditorTextChangedUpdateLineNumberGutterElapsedTicks = 0;
+            _diagEditorTextChangedLineNumberPresenterUpdateMilliseconds = 0d;
+            _diagEditorTextChangedLineNumberPresenterMeasureMilliseconds = 0d;
+            _diagEditorTextChangedLineNumberPresenterArrangeMilliseconds = 0d;
+            _diagEditorTextChangedIndentInvalidateElapsedTicks = 0;
+            _diagEditorTextChangedSubscriberElapsedTicks = 0;
+            _diagEditorDocumentChangedCallCount = 0;
+            _diagEditorViewportChangedCallCount = 0;
+            _diagEditorLayoutUpdatedCallCount = 0;
+            _diagIndentGuideInvalidateVisualCallCount = 0;
+            _diagBuildIndentGuideSnapshotCallCount = 0;
+            _diagBuildIndentGuideSnapshotSuccessCount = 0;
+            _diagBuildIndentGuideSnapshotSegmentTotal = 0;
+            _diagBuildIndentGuideSnapshotElapsedTicks = 0;
+        }
+
+        return snapshot;
+    }
+
+    private IDEEditorLineNumberPresenterRuntimeDiagnosticsSnapshot CaptureLineNumberPresenterRuntimeSnapshot()
+    {
+        return _lineNumberPresenter?.GetIDEEditorLineNumberPresenterSnapshotForDiagnostics() ?? default;
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return ticks * 1000d / Stopwatch.Frequency;
     }
 
     private IEnumerable<IDEEditorIndentGuideSegmentSnapshot> BuildIndentGuideSegments(RichTextBoxViewportLayoutSnapshot viewport)
@@ -857,7 +1215,7 @@ public sealed class IDE_Editor : Control, ITextInputControl
             yield break;
         }
 
-        var documentText = DocumentText;
+        var documentText = _cachedDocumentText;
         var indentStepWidth = ResolveIndentStepWidth(layout, documentText);
         if (indentStepWidth <= 0.01f)
         {
@@ -949,10 +1307,14 @@ public sealed class IDE_Editor : Control, ITextInputControl
     {
         var cache = new Dictionary<int, IDEEditorLogicalLineInfo>();
         var useXmlContinuationHeuristics = LooksLikeXmlDocument(documentText);
-        var lastStructuralIndentLevelCount = 0;
+        var visibleLogicalLineStarts = ResolveVisibleLogicalLineStarts(layout, documentText);
+        var lastStructuralIndentLevelCount = useXmlContinuationHeuristics && visibleLogicalLineStarts.Count > 0
+            ? ResolvePreviousStructuralIndentLevelCount(layout, documentText, visibleLogicalLineStarts[0], indentStepWidth)
+            : 0;
 
-        for (var logicalLineStart = 0; logicalLineStart <= documentText.Length; logicalLineStart = AdvanceToNextLogicalLine(documentText, logicalLineStart))
+        for (var index = 0; index < visibleLogicalLineStarts.Count; index++)
         {
+            var logicalLineStart = visibleLogicalLineStarts[index];
             var lineText = ResolveLogicalLineText(documentText, logicalLineStart);
             var trimmedLineText = lineText.TrimStart();
             if (trimmedLineText.Length == 0)
@@ -974,13 +1336,43 @@ public sealed class IDE_Editor : Control, ITextInputControl
                 cache[logicalLineStart] = new IDEEditorLogicalLineInfo(true, false, indentLevelCount);
             }
 
-            if (logicalLineStart >= documentText.Length)
-            {
-                break;
-            }
         }
 
         return cache;
+    }
+
+    private static List<int> ResolveVisibleLogicalLineStarts(DocumentLayoutResult layout, string documentText)
+    {
+        var starts = new List<int>();
+        var seenStarts = new HashSet<int>();
+        for (var lineIndex = 0; lineIndex < layout.Lines.Count; lineIndex++)
+        {
+            var logicalLineStart = ResolveLogicalLineStart(documentText, layout.Lines[lineIndex].StartOffset);
+            if (seenStarts.Add(logicalLineStart))
+            {
+                starts.Add(logicalLineStart);
+            }
+        }
+
+        return starts;
+    }
+
+    private static int ResolvePreviousStructuralIndentLevelCount(DocumentLayoutResult layout, string documentText, int firstVisibleLogicalLineStart, float indentStepWidth)
+    {
+        for (var logicalLineStart = ResolvePreviousLogicalLineStart(documentText, firstVisibleLogicalLineStart);
+             logicalLineStart >= 0;
+             logicalLineStart = ResolvePreviousLogicalLineStart(documentText, logicalLineStart))
+        {
+            var trimmedLineText = ResolveLogicalLineText(documentText, logicalLineStart).TrimStart();
+            if (trimmedLineText.Length == 0 || !IsXmlStructuralLine(trimmedLineText))
+            {
+                continue;
+            }
+
+            return ResolveLogicalLineIndentLevelCount(layout, documentText, logicalLineStart, indentStepWidth);
+        }
+
+        return 0;
     }
 
     private static int ResolveLogicalLineIndentLevelCount(DocumentLayoutResult layout, string documentText, int logicalLineStart, float indentStepWidth)
@@ -1060,6 +1452,27 @@ public sealed class IDE_Editor : Control, ITextInputControl
         return lineStart;
     }
 
+    private static int ResolvePreviousLogicalLineStart(string documentText, int logicalLineStart)
+    {
+        if (logicalLineStart <= 0)
+        {
+            return -1;
+        }
+
+        var index = Math.Min(logicalLineStart - 1, documentText.Length - 1);
+        if (index >= 0 && documentText[index] == '\n')
+        {
+            index--;
+        }
+
+        while (index >= 0 && documentText[index] != '\n')
+        {
+            index--;
+        }
+
+        return index + 1;
+    }
+
     private static int ResolveLogicalLineLeadingWhitespaceCount(string documentText, int logicalLineStart)
     {
         return CountLeadingWhitespace(ResolveLogicalLineText(documentText, logicalLineStart));
@@ -1127,27 +1540,19 @@ public sealed class IDE_Editor : Control, ITextInputControl
     private static float ResolveIndentStepWidth(DocumentLayoutResult layout, string documentText)
     {
         var indentStepWidth = float.PositiveInfinity;
-        for (var logicalLineStart = 0; logicalLineStart <= documentText.Length; logicalLineStart = AdvanceToNextLogicalLine(documentText, logicalLineStart))
+        var visibleLogicalLineStarts = ResolveVisibleLogicalLineStarts(layout, documentText);
+        for (var index = 0; index < visibleLogicalLineStarts.Count; index++)
         {
+            var logicalLineStart = visibleLogicalLineStarts[index];
             var leadingWhitespaceCount = ResolveLogicalLineLeadingWhitespaceCount(documentText, logicalLineStart);
             if (leadingWhitespaceCount <= 0)
             {
-                if (logicalLineStart >= documentText.Length)
-                {
-                    break;
-                }
-
                 continue;
             }
 
             if (!layout.TryGetCaretPosition(logicalLineStart, out var lineStartPosition) ||
                 !layout.TryGetCaretPosition(logicalLineStart + leadingWhitespaceCount, out var firstContentPosition))
             {
-                if (logicalLineStart >= documentText.Length)
-                {
-                    break;
-                }
-
                 continue;
             }
 
@@ -1155,11 +1560,6 @@ public sealed class IDE_Editor : Control, ITextInputControl
             if (indentWidth > 0.01f && indentWidth < indentStepWidth)
             {
                 indentStepWidth = indentWidth;
-            }
-
-            if (logicalLineStart >= documentText.Length)
-            {
-                break;
             }
         }
 
@@ -1245,14 +1645,53 @@ public sealed class IDE_Editor : Control, ITextInputControl
         return Math.Clamp((int)MathF.Floor(verticalOffset / lineHeight), 0, Math.Max(0, lineCount - 1));
     }
 
-    private static int CountLines(string? text)
+    private static int CountLines(FlowDocument? document)
     {
-        if (string.IsNullOrEmpty(text))
+        if (document == null)
         {
             return 1;
         }
 
-        var lineCount = 1;
+        var lineCount = 0;
+        foreach (var paragraph in FlowDocumentPlainText.EnumerateParagraphs(document))
+        {
+            lineCount++;
+            lineCount += CountInlineLineBreaks(paragraph.Inlines);
+        }
+
+        return Math.Max(1, lineCount);
+    }
+
+    private static int CountInlineLineBreaks(IEnumerable<Inline> inlines)
+    {
+        var lineBreakCount = 0;
+        foreach (var inline in inlines)
+        {
+            switch (inline)
+            {
+                case Run run:
+                    lineBreakCount += CountTextLineBreaks(run.Text);
+                    break;
+                case LineBreak:
+                    lineBreakCount++;
+                    break;
+                case Span span:
+                    lineBreakCount += CountInlineLineBreaks(span.Inlines);
+                    break;
+            }
+        }
+
+        return lineBreakCount;
+    }
+
+    private static int CountTextLineBreaks(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 0;
+        }
+
+        var lineCount = 0;
         for (var index = 0; index < text.Length; index++)
         {
             if (text[index] == '\n')
@@ -1402,7 +1841,18 @@ internal readonly record struct IDEEditorLogicalLineInfo(
 
 internal sealed class IDEEditorIndentGuideOverlay : FrameworkElement
 {
+    private static int _diagRenderCallCount;
+    private static int _diagRenderSkippedNoOwnerCount;
+    private static int _diagRenderSkippedEmptySnapshotCount;
+    private static int _diagRenderSegmentTotal;
+    private static long _diagRenderElapsedTicks;
+
     public IDE_Editor? Owner { get; set; }
+    private int _runtimeRenderCallCount;
+    private int _runtimeRenderSkippedNoOwnerCount;
+    private int _runtimeRenderSkippedEmptySnapshotCount;
+    private int _runtimeRenderSegmentTotal;
+    private long _runtimeRenderElapsedTicks;
 
     public IDEEditorIndentGuideOverlay()
     {
@@ -1424,16 +1874,32 @@ internal sealed class IDEEditorIndentGuideOverlay : FrameworkElement
 
     protected override void OnRender(SpriteBatch spriteBatch)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagRenderCallCount++;
+        _runtimeRenderCallCount++;
         if (Owner == null)
         {
+            _diagRenderSkippedNoOwnerCount++;
+            _runtimeRenderSkippedNoOwnerCount++;
+            var noOwnerElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagRenderElapsedTicks += noOwnerElapsedTicks;
+            _runtimeRenderElapsedTicks += noOwnerElapsedTicks;
             return;
         }
 
-        var snapshot = Owner.GetIndentGuideSnapshotForDiagnostics();
+        var snapshot = Owner.GetIndentGuideSnapshotForRender();
         if (!snapshot.HasTextViewport || snapshot.Segments.Count == 0)
         {
+            _diagRenderSkippedEmptySnapshotCount++;
+            _runtimeRenderSkippedEmptySnapshotCount++;
+            var emptyElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagRenderElapsedTicks += emptyElapsedTicks;
+            _runtimeRenderElapsedTicks += emptyElapsedTicks;
             return;
         }
+
+        _diagRenderSegmentTotal += snapshot.Segments.Count;
+        _runtimeRenderSegmentTotal += snapshot.Segments.Count;
 
         UiDrawing.PushClip(spriteBatch, snapshot.TextRect);
         try
@@ -1453,5 +1919,56 @@ internal sealed class IDEEditorIndentGuideOverlay : FrameworkElement
         {
             UiDrawing.PopClip(spriteBatch);
         }
+
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagRenderElapsedTicks += elapsedTicks;
+        _runtimeRenderElapsedTicks += elapsedTicks;
+    }
+
+    internal IDEEditorIndentGuideOverlayRuntimeDiagnosticsSnapshot GetIDEEditorIndentGuideOverlaySnapshotForDiagnostics()
+    {
+        return new IDEEditorIndentGuideOverlayRuntimeDiagnosticsSnapshot(
+            RenderCallCount: _runtimeRenderCallCount,
+            RenderSkippedNoOwnerCount: _runtimeRenderSkippedNoOwnerCount,
+            RenderSkippedEmptySnapshotCount: _runtimeRenderSkippedEmptySnapshotCount,
+            RenderSegmentTotal: _runtimeRenderSegmentTotal,
+            RenderMilliseconds: TicksToMilliseconds(_runtimeRenderElapsedTicks),
+            HasOwner: Owner != null);
+    }
+
+    internal new static IDEEditorIndentGuideOverlayTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateTelemetrySnapshot(reset: false);
+    }
+
+    internal new static IDEEditorIndentGuideOverlayTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateTelemetrySnapshot(reset: true);
+    }
+
+    private static IDEEditorIndentGuideOverlayTelemetrySnapshot CreateTelemetrySnapshot(bool reset)
+    {
+        var snapshot = new IDEEditorIndentGuideOverlayTelemetrySnapshot(
+            RenderCallCount: _diagRenderCallCount,
+            RenderSkippedNoOwnerCount: _diagRenderSkippedNoOwnerCount,
+            RenderSkippedEmptySnapshotCount: _diagRenderSkippedEmptySnapshotCount,
+            RenderSegmentTotal: _diagRenderSegmentTotal,
+            RenderMilliseconds: TicksToMilliseconds(_diagRenderElapsedTicks));
+
+        if (reset)
+        {
+            _diagRenderCallCount = 0;
+            _diagRenderSkippedNoOwnerCount = 0;
+            _diagRenderSkippedEmptySnapshotCount = 0;
+            _diagRenderSegmentTotal = 0;
+            _diagRenderElapsedTicks = 0;
+        }
+
+        return snapshot;
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return ticks * 1000d / Stopwatch.Frequency;
     }
 }

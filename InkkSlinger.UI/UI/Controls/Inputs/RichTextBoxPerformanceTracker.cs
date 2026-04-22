@@ -51,6 +51,18 @@ internal sealed class RichTextBoxPerformanceTracker
     private double _structuredEnterLastCommitMs;
     private double _structuredEnterLastTotalMs;
     private bool _structuredEnterLastUsedDocumentReplacement;
+    private double _structuredEnterLastCommitMutationBatchMs;
+    private double _structuredEnterLastCommitApplyOperationMs;
+    private double _structuredEnterLastCommitTransactionMs;
+    private double _structuredEnterLastCommitSelectionMs;
+    private double _structuredEnterLastCommitTraceInvariantsMs;
+    private double _structuredEnterLastCommitEnsureCaretVisibleMs;
+    private double _structuredEnterLastCommitInvalidateAfterMutationMs;
+    private double _structuredEnterLastCommitFlushPendingEventsMs;
+    private double _structuredEnterLastCommitFlushMaintenanceMs;
+    private double _structuredEnterLastCommitFlushDocumentChangedEventMs;
+    private double _structuredEnterLastCommitFlushTextChangedEventMs;
+    private double _structuredEnterLastCommitFlushInvalidateAfterDocumentChangeMs;
 
     public RichTextBoxPerformanceSnapshot GetSnapshot(DocumentUndoManager undoManager)
     {
@@ -100,6 +112,18 @@ internal sealed class RichTextBoxPerformanceTracker
             _structuredEnterLastCommitMs,
             _structuredEnterLastTotalMs,
             _structuredEnterLastUsedDocumentReplacement,
+            _structuredEnterLastCommitMutationBatchMs,
+            _structuredEnterLastCommitApplyOperationMs,
+            _structuredEnterLastCommitTransactionMs,
+            _structuredEnterLastCommitSelectionMs,
+            _structuredEnterLastCommitTraceInvariantsMs,
+            _structuredEnterLastCommitEnsureCaretVisibleMs,
+            _structuredEnterLastCommitInvalidateAfterMutationMs,
+            _structuredEnterLastCommitFlushPendingEventsMs,
+            _structuredEnterLastCommitFlushMaintenanceMs,
+            _structuredEnterLastCommitFlushDocumentChangedEventMs,
+            _structuredEnterLastCommitFlushTextChangedEventMs,
+            _structuredEnterLastCommitFlushInvalidateAfterDocumentChangeMs,
             undoManager.UndoDepth,
             undoManager.RedoDepth,
             undoManager.UndoOperationCount,
@@ -152,6 +176,18 @@ internal sealed class RichTextBoxPerformanceTracker
         _structuredEnterLastCommitMs = 0d;
         _structuredEnterLastTotalMs = 0d;
         _structuredEnterLastUsedDocumentReplacement = false;
+        _structuredEnterLastCommitMutationBatchMs = 0d;
+        _structuredEnterLastCommitApplyOperationMs = 0d;
+        _structuredEnterLastCommitTransactionMs = 0d;
+        _structuredEnterLastCommitSelectionMs = 0d;
+        _structuredEnterLastCommitTraceInvariantsMs = 0d;
+        _structuredEnterLastCommitEnsureCaretVisibleMs = 0d;
+        _structuredEnterLastCommitInvalidateAfterMutationMs = 0d;
+        _structuredEnterLastCommitFlushPendingEventsMs = 0d;
+        _structuredEnterLastCommitFlushMaintenanceMs = 0d;
+        _structuredEnterLastCommitFlushDocumentChangedEventMs = 0d;
+        _structuredEnterLastCommitFlushTextChangedEventMs = 0d;
+        _structuredEnterLastCommitFlushInvalidateAfterDocumentChangeMs = 0d;
     }
 
     public void RecordLayoutCacheHit() => _layoutCacheHitCount++;
@@ -253,6 +289,54 @@ internal sealed class RichTextBoxPerformanceTracker
         _structuredEnterLastCommitMs = Math.Max(0d, commitMs);
         _structuredEnterLastTotalMs = Math.Max(0d, totalMs);
         _structuredEnterLastUsedDocumentReplacement = usedDocumentReplacement;
+    }
+
+    public void ClearStructuredEnterCommitBreakdown()
+    {
+        _structuredEnterLastCommitMutationBatchMs = 0d;
+        _structuredEnterLastCommitApplyOperationMs = 0d;
+        _structuredEnterLastCommitTransactionMs = 0d;
+        _structuredEnterLastCommitSelectionMs = 0d;
+        _structuredEnterLastCommitTraceInvariantsMs = 0d;
+        _structuredEnterLastCommitEnsureCaretVisibleMs = 0d;
+        _structuredEnterLastCommitInvalidateAfterMutationMs = 0d;
+        _structuredEnterLastCommitFlushPendingEventsMs = 0d;
+        _structuredEnterLastCommitFlushMaintenanceMs = 0d;
+        _structuredEnterLastCommitFlushDocumentChangedEventMs = 0d;
+        _structuredEnterLastCommitFlushTextChangedEventMs = 0d;
+        _structuredEnterLastCommitFlushInvalidateAfterDocumentChangeMs = 0d;
+    }
+
+    public void RecordStructuredEnterCommitBreakdown(
+        double mutationBatchMs,
+        double applyOperationMs,
+        double commitTransactionMs,
+        double selectionMs,
+        double traceInvariantsMs,
+        double ensureCaretVisibleMs,
+        double invalidateAfterMutationMs)
+    {
+        _structuredEnterLastCommitMutationBatchMs = Math.Max(0d, mutationBatchMs);
+        _structuredEnterLastCommitApplyOperationMs = Math.Max(0d, applyOperationMs);
+        _structuredEnterLastCommitTransactionMs = Math.Max(0d, commitTransactionMs);
+        _structuredEnterLastCommitSelectionMs = Math.Max(0d, selectionMs);
+        _structuredEnterLastCommitTraceInvariantsMs = Math.Max(0d, traceInvariantsMs);
+        _structuredEnterLastCommitEnsureCaretVisibleMs = Math.Max(0d, ensureCaretVisibleMs);
+        _structuredEnterLastCommitInvalidateAfterMutationMs = Math.Max(0d, invalidateAfterMutationMs);
+    }
+
+    public void RecordStructuredEnterFlushBreakdown(
+        double flushPendingEventsMs,
+        double flushMaintenanceMs,
+        double flushDocumentChangedEventMs,
+        double flushTextChangedEventMs,
+        double flushInvalidateAfterDocumentChangeMs)
+    {
+        _structuredEnterLastCommitFlushPendingEventsMs = Math.Max(0d, flushPendingEventsMs);
+        _structuredEnterLastCommitFlushMaintenanceMs = Math.Max(0d, flushMaintenanceMs);
+        _structuredEnterLastCommitFlushDocumentChangedEventMs = Math.Max(0d, flushDocumentChangedEventMs);
+        _structuredEnterLastCommitFlushTextChangedEventMs = Math.Max(0d, flushTextChangedEventMs);
+        _structuredEnterLastCommitFlushInvalidateAfterDocumentChangeMs = Math.Max(0d, flushInvalidateAfterDocumentChangeMs);
     }
 
     private static void AppendSample(List<double> samples, double value)

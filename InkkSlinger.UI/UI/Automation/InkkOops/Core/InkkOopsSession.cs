@@ -162,6 +162,25 @@ public sealed class InkkOopsSession
         _currentActionCommandIndex = commandIndex;
     }
 
+    internal Task ResetActionDiagnosticsTelemetryAsync(CancellationToken cancellationToken = default)
+    {
+        return QueryOnUiThreadAsync(
+            () =>
+            {
+                UiRoot.GetTelemetryAndReset();
+                FrameworkElement.GetTelemetryAndReset();
+                Control.GetTelemetryAndReset();
+                UserControl.GetTelemetryAndReset();
+                ScrollViewer.GetTelemetryAndReset();
+                RichTextBox.GetTelemetryAndReset();
+                IDE_Editor.GetTelemetryAndReset();
+                IDEEditorLineNumberPresenter.GetTelemetryAndReset();
+                IDEEditorIndentGuideOverlay.GetTelemetryAndReset();
+                return true;
+            },
+            cancellationToken);
+    }
+
     internal void EndActionCommand()
     {
         _currentActionCommandIndex = null;

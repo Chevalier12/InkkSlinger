@@ -30,6 +30,11 @@ public sealed class InkkOopsScriptRunner
 
                 try
                 {
+                    if (session.ShouldCaptureActionDiagnostics(i))
+                    {
+                        await session.ResetActionDiagnosticsTelemetryAsync(cancellationToken).ConfigureAwait(false);
+                    }
+
                     var plannedDisplayedFps = await session.QueryOnUiThreadAsync(() => session.Host.GetDisplayedFps(), cancellationToken).ConfigureAwait(false);
                     foreach (var entry in InkkOopsActionLogFormatter.CreatePlannedEntries(command, i, currentDescription, plannedDisplayedFps))
                     {

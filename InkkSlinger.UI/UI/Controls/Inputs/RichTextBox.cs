@@ -1150,6 +1150,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     undoDepthBefore,
                     redoDepthBefore,
                     editStart);
+                _perfTracker.ClearStructuredEnterCommitBreakdown();
                 _perfTracker.RecordStructuredEnter(
                     collectEntriesMs,
                     cloneDocumentMs,
@@ -1305,8 +1306,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 caretAfter,
                 0,
                 commandType));
+        var applyOperationMs = 0d;
+        var commitTransactionMs = 0d;
+        var mutationBatchStart = Stopwatch.GetTimestamp();
         ExecuteTextMutationBatch(() =>
         {
+            var applyOperationStart = Stopwatch.GetTimestamp();
             session.ApplyOperation(
                 new SplitStructuredParagraphOperation(
                     paragraphIndex,
@@ -1315,16 +1320,36 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     beforeParagraph,
                     currentParagraphAfterSplit,
                     insertedParagraph));
+            applyOperationMs = Stopwatch.GetElapsedTime(applyOperationStart).TotalMilliseconds;
+            var commitTransactionStart = Stopwatch.GetTimestamp();
             session.CommitTransaction();
+            commitTransactionMs = Stopwatch.GetElapsedTime(commitTransactionStart).TotalMilliseconds;
         });
+        var mutationBatchMs = Stopwatch.GetElapsedTime(mutationBatchStart).TotalMilliseconds;
+        var selectionStart = Stopwatch.GetTimestamp();
         UpdateSelectionState(caretAfter, caretAfter, ensureCaretVisible: false);
+        var selectionMs = Stopwatch.GetElapsedTime(selectionStart).TotalMilliseconds;
         var elapsedMs = Stopwatch.GetElapsedTime(editStart).TotalMilliseconds;
         _perfTracker.RecordEdit(elapsedMs);
+        var traceInvariantsStart = Stopwatch.GetTimestamp();
         TraceInvariants(commandType);
+        var traceInvariantsMs = Stopwatch.GetElapsedTime(traceInvariantsStart).TotalMilliseconds;
+        var ensureCaretVisibleStart = Stopwatch.GetTimestamp();
         EnsureCaretVisible();
+        var ensureCaretVisibleMs = Stopwatch.GetElapsedTime(ensureCaretVisibleStart).TotalMilliseconds;
         _caretBlinkSeconds = 0f;
         _isCaretVisible = true;
+        var invalidateAfterMutationStart = Stopwatch.GetTimestamp();
         InvalidateAfterTextMutation(commandType);
+        var invalidateAfterMutationMs = Stopwatch.GetElapsedTime(invalidateAfterMutationStart).TotalMilliseconds;
+        _perfTracker.RecordStructuredEnterCommitBreakdown(
+            mutationBatchMs,
+            applyOperationMs,
+            commitTransactionMs,
+            selectionMs,
+            traceInvariantsMs,
+            ensureCaretVisibleMs,
+            invalidateAfterMutationMs);
         return true;
     }
 
@@ -2660,15 +2685,14 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         var active = newDocument ?? CreateDefaultDocument();
         active.Changed += OnDocumentChanged;
-        SyncHostedDocumentChildren();
-        ApplyHyperlinkImplicitStyles();
-        ClampSelectionToTextLength();
+        var currentDocumentRichness = CaptureDocumentRichness(Document);
+        PerformDocumentMaintenance(currentDocumentRichness);
         _layoutCache.Invalidate();
         _lastMeasuredLayout = null;
         RaiseRoutedEventInternal(DocumentChangedEvent, new RoutedSimpleEventArgs(DocumentChangedEvent));
         RaiseTextChangedEvent();
         InvalidateAfterDocumentChange();
-        _lastDocumentRichness = CaptureDocumentRichness(Document);
+        _lastDocumentRichness = currentDocumentRichness;
         RecordOperation("DocumentPropertyChanged", $"blocks={Document.Blocks.Count}");
     }
 
@@ -2684,15 +2708,14 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             return;
         }
 
-        SyncHostedDocumentChildren();
-        ApplyHyperlinkImplicitStyles();
-        ClampSelectionToTextLength();
+        var currentDocumentRichness = CaptureDocumentRichness(Document);
+        PerformDocumentMaintenance(currentDocumentRichness);
         _layoutCache.Invalidate();
         _lastMeasuredLayout = null;
         RaiseRoutedEventInternal(DocumentChangedEvent, new RoutedSimpleEventArgs(DocumentChangedEvent));
         RaiseTextChangedEvent();
         InvalidateAfterDocumentChange();
-        _lastDocumentRichness = CaptureDocumentRichness(Document);
+        _lastDocumentRichness = currentDocumentRichness;
     }
 
     private bool ExecuteUndo()
@@ -2822,27 +2845,66 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             return;
         }
 
+        var flushStart = Stopwatch.GetTimestamp();
         var raiseTextChanged = _hasPendingTextChangedEvent;
+        var currentDocumentRichness = _lastDocumentRichness;
+        var maintenanceMs = 0d;
+        var documentChangedEventMs = 0d;
+        var textChangedEventMs = 0d;
+        var invalidateAfterDocumentChangeMs = 0d;
         _hasPendingDocumentChangedEvent = false;
         _hasPendingTextChangedEvent = false;
         if (_hasPendingDocumentMaintenanceWork)
         {
             _hasPendingDocumentMaintenanceWork = false;
-            SyncHostedDocumentChildren();
-            ApplyHyperlinkImplicitStyles();
-            ClampSelectionToTextLength();
+            var maintenanceStart = Stopwatch.GetTimestamp();
+            currentDocumentRichness = CaptureDocumentRichness(Document);
+            PerformDocumentMaintenance(currentDocumentRichness);
+            maintenanceMs = Stopwatch.GetElapsedTime(maintenanceStart).TotalMilliseconds;
         }
 
         _layoutCache.Invalidate();
         _lastMeasuredLayout = null;
+        var documentChangedEventStart = Stopwatch.GetTimestamp();
         RaiseRoutedEventInternal(DocumentChangedEvent, new RoutedSimpleEventArgs(DocumentChangedEvent));
+        documentChangedEventMs = Stopwatch.GetElapsedTime(documentChangedEventStart).TotalMilliseconds;
         if (raiseTextChanged)
         {
+            var textChangedEventStart = Stopwatch.GetTimestamp();
             RaiseTextChangedEvent();
+            textChangedEventMs = Stopwatch.GetElapsedTime(textChangedEventStart).TotalMilliseconds;
         }
 
+        var invalidateAfterDocumentChangeStart = Stopwatch.GetTimestamp();
         InvalidateAfterDocumentChange();
-        _lastDocumentRichness = CaptureDocumentRichness(Document);
+        invalidateAfterDocumentChangeMs = Stopwatch.GetElapsedTime(invalidateAfterDocumentChangeStart).TotalMilliseconds;
+        _lastDocumentRichness = currentDocumentRichness;
+        _perfTracker.RecordStructuredEnterFlushBreakdown(
+            Stopwatch.GetElapsedTime(flushStart).TotalMilliseconds,
+            maintenanceMs,
+            documentChangedEventMs,
+            textChangedEventMs,
+            invalidateAfterDocumentChangeMs);
+    }
+
+    private void PerformDocumentMaintenance(DocumentRichnessSnapshot currentDocumentRichness)
+    {
+        if (_lastDocumentRichness.HostedChildCount > 0 ||
+            currentDocumentRichness.HostedChildCount > 0 ||
+            _documentHostedVisualChildren.Count > 0)
+        {
+            SyncHostedDocumentChildren();
+        }
+
+        if (_lastDocumentRichness.HyperlinkCount > 0 ||
+            currentDocumentRichness.HyperlinkCount > 0 ||
+            _appliedImplicitHyperlinkStyles.Count > 0 ||
+            _hoveredHyperlink != null)
+        {
+            ApplyHyperlinkImplicitStyles();
+        }
+
+        ClampSelectionToTextLength();
     }
 
     private void RaiseSelectionChangedEventIfNeeded(int previousStart, int previousLength)
@@ -2914,7 +2976,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             _hasPendingContentHostScrollOffsets = false;
             _contentHost.ScrollToHorizontalOffset(clampedHorizontal);
             _contentHost.ScrollToVerticalOffset(clampedVertical);
-            NotifyViewportChangedIfNeeded();
+            NotifyViewportChangedIfNeeded(ViewportNotificationSource.SetScrollOffsets);
             EnsureHostedDocumentChildLayout();
             return true;
         }
@@ -2922,39 +2984,66 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _horizontalOffset = clampedHorizontal;
         _verticalOffset = clampedVertical;
         _hasPendingContentHostScrollOffsets = _contentHost != null;
-        NotifyViewportChangedIfNeeded();
+        NotifyViewportChangedIfNeeded(ViewportNotificationSource.SetScrollOffsets);
         InvalidateVisualWithReason(reason);
         return true;
     }
 
     private void QueueViewportChangedNotification()
     {
+        _diagQueueViewportChangedNotificationCallCount++;
+        _runtimeQueueViewportChangedNotificationCallCount++;
+        if (_hasPendingViewportChangedNotification)
+        {
+            _diagQueueViewportChangedNotificationAlreadyPendingCount++;
+            _runtimeQueueViewportChangedNotificationAlreadyPendingCount++;
+        }
+
         _hasPendingViewportChangedNotification = true;
     }
 
     private void FlushPendingViewportChangedNotification()
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagFlushPendingViewportChangedNotificationCallCount++;
+        _runtimeFlushPendingViewportChangedNotificationCallCount++;
         if (!_hasPendingViewportChangedNotification)
         {
+            _diagFlushPendingViewportChangedNotificationSkippedNoPendingCount++;
+            _runtimeFlushPendingViewportChangedNotificationSkippedNoPendingCount++;
+            var elapsedNoPendingTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagFlushPendingViewportChangedNotificationElapsedTicks += elapsedNoPendingTicks;
+            _runtimeFlushPendingViewportChangedNotificationElapsedTicks += elapsedNoPendingTicks;
             return;
         }
 
         _hasPendingViewportChangedNotification = false;
-        NotifyViewportChangedIfNeeded();
+        var notifyStartTicks = Stopwatch.GetTimestamp();
+        NotifyViewportChangedIfNeeded(ViewportNotificationSource.PendingFlush);
+        var notifyElapsedTicks = Stopwatch.GetTimestamp() - notifyStartTicks;
+        _diagFlushPendingViewportChangedNotificationNotifyElapsedTicks += notifyElapsedTicks;
+        _runtimeFlushPendingViewportChangedNotificationNotifyElapsedTicks += notifyElapsedTicks;
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _diagFlushPendingViewportChangedNotificationElapsedTicks += elapsedTicks;
+        _runtimeFlushPendingViewportChangedNotificationElapsedTicks += elapsedTicks;
     }
 
-    private void NotifyViewportChangedIfNeeded()
+    private void NotifyViewportChangedIfNeeded(ViewportNotificationSource source = ViewportNotificationSource.Unknown)
     {
         var startTicks = Stopwatch.GetTimestamp();
         _diagNotifyViewportChangedCallCount++;
         _runtimeNotifyViewportChangedCallCount++;
+        TrackNotifyViewportChangedCallSource(source);
         var metrics = GetScrollMetrics();
-        if (Math.Abs(metrics.HorizontalOffset - _lastViewportChangedHorizontalOffset) <= 0.01f &&
-            Math.Abs(metrics.VerticalOffset - _lastViewportChangedVerticalOffset) <= 0.01f &&
-            Math.Abs(metrics.ViewportWidth - _lastViewportChangedViewportWidth) <= 0.01f &&
-            Math.Abs(metrics.ViewportHeight - _lastViewportChangedViewportHeight) <= 0.01f &&
-            Math.Abs(metrics.ExtentWidth - _lastViewportChangedExtentWidth) <= 0.01f &&
-            Math.Abs(metrics.ExtentHeight - _lastViewportChangedExtentHeight) <= 0.01f)
+        var changeMask = GetViewportMetricChangeMask(
+            metrics,
+            _lastViewportChangedHorizontalOffset,
+            _lastViewportChangedVerticalOffset,
+            _lastViewportChangedViewportWidth,
+            _lastViewportChangedViewportHeight,
+            _lastViewportChangedExtentWidth,
+            _lastViewportChangedExtentHeight);
+        if (changeMask == ViewportMetricChangeMask.None)
         {
             _diagNotifyViewportChangedSkippedNoChangeCount++;
             _runtimeNotifyViewportChangedSkippedNoChangeCount++;
@@ -2972,6 +3061,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         _lastViewportChangedExtentHeight = metrics.ExtentHeight;
         _diagNotifyViewportChangedRaisedCount++;
         _runtimeNotifyViewportChangedRaisedCount++;
+        TrackNotifyViewportChangedRaise(source, changeMask, metrics);
         var subscriberStartTicks = Stopwatch.GetTimestamp();
         ViewportChanged?.Invoke(this, EventArgs.Empty);
         var subscriberElapsedTicks = Stopwatch.GetTimestamp() - subscriberStartTicks;
@@ -4444,9 +4534,11 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var tables = 0;
         var sections = 0;
         var richInlines = 0;
+        var hyperlinks = 0;
+        var hostedChildren = 0;
         foreach (var block in document.Blocks)
         {
-            AccumulateBlockRichness(block, ref blocks, ref lists, ref tables, ref sections, ref richInlines);
+            AccumulateBlockRichness(block, ref blocks, ref lists, ref tables, ref sections, ref richInlines, ref hyperlinks, ref hostedChildren);
         }
 
         return new DocumentRichnessSnapshot(
@@ -4455,6 +4547,8 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             tables,
             sections,
             richInlines,
+            hyperlinks,
+            hostedChildren,
             HasRichStructure: lists > 0 || tables > 0 || sections > 0 || richInlines > 0,
             IsPlainTextCompatible: !DocumentContainsRichInlineFormatting(document));
     }
@@ -4465,7 +4559,9 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         ref int lists,
         ref int tables,
         ref int sections,
-        ref int richInlines)
+        ref int richInlines,
+        ref int hyperlinks,
+        ref int hostedChildren)
     {
         blocks++;
         switch (block)
@@ -4473,7 +4569,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             case Paragraph paragraph:
                 for (var i = 0; i < paragraph.Inlines.Count; i++)
                 {
-                    AccumulateInlineRichness(paragraph.Inlines[i], ref richInlines);
+                    AccumulateInlineRichness(paragraph.Inlines[i], ref richInlines, ref hyperlinks, ref hostedChildren);
                 }
 
                 break;
@@ -4484,7 +4580,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                     var item = list.Items[i];
                     for (var j = 0; j < item.Blocks.Count; j++)
                     {
-                        AccumulateBlockRichness(item.Blocks[j], ref blocks, ref lists, ref tables, ref sections, ref richInlines);
+                        AccumulateBlockRichness(item.Blocks[j], ref blocks, ref lists, ref tables, ref sections, ref richInlines, ref hyperlinks, ref hostedChildren);
                     }
                 }
 
@@ -4502,7 +4598,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                             var cell = row.Cells[k];
                             for (var m = 0; m < cell.Blocks.Count; m++)
                             {
-                                AccumulateBlockRichness(cell.Blocks[m], ref blocks, ref lists, ref tables, ref sections, ref richInlines);
+                                AccumulateBlockRichness(cell.Blocks[m], ref blocks, ref lists, ref tables, ref sections, ref richInlines, ref hyperlinks, ref hostedChildren);
                             }
                         }
                     }
@@ -4513,14 +4609,17 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 sections++;
                 for (var i = 0; i < section.Blocks.Count; i++)
                 {
-                    AccumulateBlockRichness(section.Blocks[i], ref blocks, ref lists, ref tables, ref sections, ref richInlines);
+                    AccumulateBlockRichness(section.Blocks[i], ref blocks, ref lists, ref tables, ref sections, ref richInlines, ref hyperlinks, ref hostedChildren);
                 }
 
+                break;
+            case BlockUIContainer blockUiContainer when blockUiContainer.Child != null:
+                hostedChildren++;
                 break;
         }
     }
 
-    private static void AccumulateInlineRichness(Inline inline, ref int richInlines)
+    private static void AccumulateInlineRichness(Inline inline, ref int richInlines, ref int hyperlinks, ref int hostedChildren)
     {
         switch (inline)
         {
@@ -4528,7 +4627,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 richInlines++;
                 for (var i = 0; i < bold.Inlines.Count; i++)
                 {
-                    AccumulateInlineRichness(bold.Inlines[i], ref richInlines);
+                    AccumulateInlineRichness(bold.Inlines[i], ref richInlines, ref hyperlinks, ref hostedChildren);
                 }
 
                 break;
@@ -4536,7 +4635,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 richInlines++;
                 for (var i = 0; i < italic.Inlines.Count; i++)
                 {
-                    AccumulateInlineRichness(italic.Inlines[i], ref richInlines);
+                    AccumulateInlineRichness(italic.Inlines[i], ref richInlines, ref hyperlinks, ref hostedChildren);
                 }
 
                 break;
@@ -4544,15 +4643,16 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 richInlines++;
                 for (var i = 0; i < underline.Inlines.Count; i++)
                 {
-                    AccumulateInlineRichness(underline.Inlines[i], ref richInlines);
+                    AccumulateInlineRichness(underline.Inlines[i], ref richInlines, ref hyperlinks, ref hostedChildren);
                 }
 
                 break;
             case Hyperlink hyperlink:
                 richInlines++;
+                hyperlinks++;
                 for (var i = 0; i < hyperlink.Inlines.Count; i++)
                 {
-                    AccumulateInlineRichness(hyperlink.Inlines[i], ref richInlines);
+                    AccumulateInlineRichness(hyperlink.Inlines[i], ref richInlines, ref hyperlinks, ref hostedChildren);
                 }
 
                 break;
@@ -4560,9 +4660,12 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
                 richInlines++;
                 for (var i = 0; i < span.Inlines.Count; i++)
                 {
-                    AccumulateInlineRichness(span.Inlines[i], ref richInlines);
+                    AccumulateInlineRichness(span.Inlines[i], ref richInlines, ref hyperlinks, ref hostedChildren);
                 }
 
+                break;
+            case InlineUIContainer inlineUiContainer when inlineUiContainer.Child != null:
+                hostedChildren++;
                 break;
         }
     }
@@ -4711,6 +4814,16 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         var startTicks = Stopwatch.GetTimestamp();
         _diagEnsureHostedDocumentChildLayoutCallCount++;
         _runtimeEnsureHostedDocumentChildLayoutCallCount++;
+        if (_documentHostedVisualChildren.Count == 0)
+        {
+            _diagEnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount++;
+            _runtimeEnsureHostedDocumentChildLayoutSkippedNoHostedChildrenCount++;
+            var skippedElapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagEnsureHostedDocumentChildLayoutElapsedTicks += skippedElapsedTicks;
+            _runtimeEnsureHostedDocumentChildLayoutElapsedTicks += skippedElapsedTicks;
+            return;
+        }
+
         var textRect = GetTextRect();
         if (textRect.Width <= 0f || textRect.Height <= 0f)
         {
@@ -6172,14 +6285,16 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         int TableCount,
         int SectionCount,
         int RichInlineCount,
+        int HyperlinkCount,
+        int HostedChildCount,
         bool HasRichStructure,
         bool IsPlainTextCompatible)
     {
-        public static readonly DocumentRichnessSnapshot Empty = new(0, 0, 0, 0, 0, false, true);
+        public static readonly DocumentRichnessSnapshot Empty = new(0, 0, 0, 0, 0, 0, 0, false, true);
 
         public string ToSummary()
         {
-            return $"blocks={BlockCount},lists={ListCount},tables={TableCount},sections={SectionCount},richInlines={RichInlineCount},plain={IsPlainTextCompatible}";
+            return $"blocks={BlockCount},lists={ListCount},tables={TableCount},sections={SectionCount},richInlines={RichInlineCount},hyperlinks={HyperlinkCount},hostedChildren={HostedChildCount},plain={IsPlainTextCompatible}";
         }
     }
 
