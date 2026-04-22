@@ -130,3 +130,32 @@ internal readonly record struct UiGlyphEntry(
     float BearingY,
     float AdvanceX,
     UiTextAntialiasMode AntialiasMode);
+
+internal readonly record struct UiDrawableTextLayoutCacheKey(
+    GraphicsDevice GraphicsDevice,
+    UiTypography Typography,
+    string Text);
+
+internal readonly record struct UiShapedTextLayoutCacheKey(
+    UiTypography Typography,
+    string Text);
+
+internal readonly record struct UiLineHeightCacheKey(
+    UiTypography Typography);
+
+internal readonly record struct UiTextMetricsCacheKey(
+    UiTypography Typography,
+    string Text);
+
+internal readonly record struct UiShapedTextLayout(
+    int[] CodePoints,
+    Vector2[] DrawPositions,
+    float Width);
+
+internal readonly record struct UiDrawableTextLayout(
+    UiDrawableGlyphOperation[] Operations);
+
+internal readonly record struct UiDrawableGlyphOperation(
+    Texture2D Texture,
+    Rectangle SourceRect,
+    Vector2 DrawOffset);

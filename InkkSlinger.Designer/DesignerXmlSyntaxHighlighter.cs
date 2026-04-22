@@ -28,6 +28,18 @@ public readonly record struct DesignerXmlSyntaxColors(Color DefaultForeground, C
 
 public static class DesignerXmlSyntaxHighlighter
 {
+    private enum XmlHighlightLineState
+    {
+        Normal,
+        InsideTag,
+        InsideSingleQuotedValue,
+        InsideDoubleQuotedValue,
+        InsideComment,
+        InsideCData,
+        InsideProcessingInstruction,
+        InsideDeclaration
+    }
+
     private static readonly IReadOnlyDictionary<string, Type> KnownControlTypesByName = XamlLoader.GetKnownTypes()
         .GroupBy(static knownType => knownType.Name, StringComparer.Ordinal)
         .ToDictionary(static group => group.Key, static group => group.First().Type, StringComparer.Ordinal);
@@ -166,6 +178,58 @@ public static class DesignerXmlSyntaxHighlighter
         }
     }
 
+    public static bool TryPopulateDocumentIncrementally(
+        FlowDocument document,
+        string? previousText,
+        string? currentText,
+        DesignerXmlSyntaxColors? colors = null)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var previousNormalized = NormalizeLineEndings(previousText);
+        var currentNormalized = NormalizeLineEndings(currentText);
+        if (string.Equals(previousNormalized, currentNormalized, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var previousLines = previousNormalized.Split('\n');
+        var currentLines = currentNormalized.Split('\n');
+        if (previousLines.Length != currentLines.Length || document.Blocks.Count != currentLines.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < document.Blocks.Count; i++)
+        {
+            if (document.Blocks[i] is not Paragraph)
+            {
+                return false;
+            }
+        }
+
+        var previousLineStates = ComputeLineStartStates(previousNormalized, previousLines.Length);
+        var currentLineStates = ComputeLineStartStates(currentNormalized, currentLines.Length);
+        var currentTokens = Classify(currentNormalized);
+        var lineStarts = ComputeLineStarts(currentLines);
+        var palette = colors ?? DesignerXmlSyntaxColors.Default;
+        var refreshedAnyParagraph = false;
+
+        for (var i = 0; i < currentLines.Length; i++)
+        {
+            if (string.Equals(previousLines[i], currentLines[i], StringComparison.Ordinal) &&
+                previousLineStates[i] == currentLineStates[i])
+            {
+                continue;
+            }
+
+            document.Blocks[i] = CreateHighlightedParagraph(currentNormalized, lineStarts[i], currentLines[i].Length, currentTokens, palette);
+            refreshedAnyParagraph = true;
+        }
+
+        return refreshedAnyParagraph;
+    }
+
     private static void AddLineRuns(
         Paragraph paragraph,
         string source,
@@ -222,6 +286,193 @@ public static class DesignerXmlSyntaxHighlighter
         }
 
         paragraph.Inlines.Add(new Run(text) { Foreground = foreground });
+    }
+
+    private static Paragraph CreateHighlightedParagraph(
+        string source,
+        int lineStart,
+        int lineLength,
+        IReadOnlyList<DesignerXmlSyntaxToken> tokens,
+        DesignerXmlSyntaxColors colors)
+    {
+        var paragraph = new Paragraph();
+        AddLineRuns(paragraph, source, lineStart, lineLength, tokens, colors);
+        if (paragraph.Inlines.Count == 0)
+        {
+            paragraph.Inlines.Add(new Run(string.Empty) { Foreground = colors.DefaultForeground });
+        }
+
+        return paragraph;
+    }
+
+    private static int[] ComputeLineStarts(string[] lines)
+    {
+        var starts = new int[lines.Length];
+        var offset = 0;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            starts[i] = offset;
+            offset += lines[i].Length + 1;
+        }
+
+        return starts;
+    }
+
+    private static XmlHighlightLineState[] ComputeLineStartStates(string source, int lineCount)
+    {
+        var states = new XmlHighlightLineState[Math.Max(lineCount, 1)];
+        var lineIndex = 0;
+        var state = XmlHighlightLineState.Normal;
+
+        states[0] = state;
+
+        var index = 0;
+        while (index < source.Length)
+        {
+            if (source[index] == '\n')
+            {
+                lineIndex++;
+                if (lineIndex < states.Length)
+                {
+                    states[lineIndex] = state;
+                }
+
+                index++;
+                continue;
+            }
+
+            switch (state)
+            {
+                case XmlHighlightLineState.Normal:
+                    if (source[index] != '<')
+                    {
+                        index++;
+                        continue;
+                    }
+
+                    if (Matches(source, index, "<!--"))
+                    {
+                        index += 4;
+                        state = XmlHighlightLineState.InsideComment;
+                        continue;
+                    }
+
+                    if (Matches(source, index, "<![CDATA["))
+                    {
+                        index += 9;
+                        state = XmlHighlightLineState.InsideCData;
+                        continue;
+                    }
+
+                    if (Matches(source, index, "<?"))
+                    {
+                        index += 2;
+                        state = XmlHighlightLineState.InsideProcessingInstruction;
+                        continue;
+                    }
+
+                    if (Matches(source, index, "<!"))
+                    {
+                        index += 2;
+                        state = XmlHighlightLineState.InsideDeclaration;
+                        continue;
+                    }
+
+                    index++;
+                    if (index < source.Length && source[index] == '/')
+                    {
+                        index++;
+                    }
+
+                    state = XmlHighlightLineState.InsideTag;
+                    continue;
+
+                case XmlHighlightLineState.InsideTag:
+                    if (source[index] == '"')
+                    {
+                        state = XmlHighlightLineState.InsideDoubleQuotedValue;
+                        index++;
+                        continue;
+                    }
+
+                    if (source[index] == '\'')
+                    {
+                        state = XmlHighlightLineState.InsideSingleQuotedValue;
+                        index++;
+                        continue;
+                    }
+
+                    if (source[index] == '>')
+                    {
+                        state = XmlHighlightLineState.Normal;
+                    }
+
+                    index++;
+                    continue;
+
+                case XmlHighlightLineState.InsideSingleQuotedValue:
+                    if (source[index] == '\'')
+                    {
+                        state = XmlHighlightLineState.InsideTag;
+                    }
+
+                    index++;
+                    continue;
+
+                case XmlHighlightLineState.InsideDoubleQuotedValue:
+                    if (source[index] == '"')
+                    {
+                        state = XmlHighlightLineState.InsideTag;
+                    }
+
+                    index++;
+                    continue;
+
+                case XmlHighlightLineState.InsideComment:
+                    if (Matches(source, index, "-->"))
+                    {
+                        index += 3;
+                        state = XmlHighlightLineState.Normal;
+                        continue;
+                    }
+
+                    index++;
+                    continue;
+
+                case XmlHighlightLineState.InsideCData:
+                    if (Matches(source, index, "]]>") )
+                    {
+                        index += 3;
+                        state = XmlHighlightLineState.Normal;
+                        continue;
+                    }
+
+                    index++;
+                    continue;
+
+                case XmlHighlightLineState.InsideProcessingInstruction:
+                    if (Matches(source, index, "?>"))
+                    {
+                        index += 2;
+                        state = XmlHighlightLineState.Normal;
+                        continue;
+                    }
+
+                    index++;
+                    continue;
+
+                case XmlHighlightLineState.InsideDeclaration:
+                    if (source[index] == '>')
+                    {
+                        state = XmlHighlightLineState.Normal;
+                    }
+
+                    index++;
+                    continue;
+            }
+        }
+
+        return states;
     }
 
     private static bool TrySkip(string source, ref int index, string prefix, string suffix)

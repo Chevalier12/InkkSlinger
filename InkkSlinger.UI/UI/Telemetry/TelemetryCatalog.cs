@@ -145,6 +145,8 @@ public static class TelemetryCatalog
     // View (UI/Telemetry/ViewSnapshots.cs)
     // - CanvasViewDiagnosticsSnapshot
     // - RichTextBoxViewDiagnosticsSnapshot
+    // - DesignerSourceEditorViewTelemetrySnapshot (UI/Telemetry/DesignerViewSnapshots.cs)
+    // - DesignerSourceEditorViewRuntimeDiagnosticsSnapshot (UI/Telemetry/DesignerViewSnapshots.cs)
     // Freezable (UI/Telemetry/FreezableSnapshots.cs)
     // - FreezableTelemetrySnapshot
     // 

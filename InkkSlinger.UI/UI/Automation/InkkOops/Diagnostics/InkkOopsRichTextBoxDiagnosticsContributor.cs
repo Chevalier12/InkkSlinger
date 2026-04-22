@@ -63,6 +63,13 @@ public sealed class InkkOopsRichTextBoxDiagnosticsContributor : IInkkOopsDiagnos
         builder.Add("runtimeHostedScrollContentArrangeCalls", runtime.HostedScrollContentArrangeCallCount);
         builder.Add("runtimeHostedScrollContentArrangeMs", FormatMilliseconds(runtime.HostedScrollContentArrangeMilliseconds));
         builder.Add("runtimeHostedScrollContentArrangeSize", $"{runtime.LastHostedScrollContentArrangeWidth:0.###},{runtime.LastHostedScrollContentArrangeHeight:0.###}");
+        builder.Add("runtimeHostedRootRenderCalls", runtime.HostedRootRenderCallCount);
+        builder.Add("runtimeHostedRootRenderMs", FormatMilliseconds(runtime.HostedRootRenderMilliseconds));
+        builder.Add("runtimeHostedRootRenderLayoutResolveMs", FormatMilliseconds(runtime.HostedRootRenderLayoutResolveMilliseconds));
+        builder.Add("runtimeHostedScrollContentRenderCalls", runtime.HostedScrollContentRenderCallCount);
+        builder.Add("runtimeHostedScrollContentRenderMs", FormatMilliseconds(runtime.HostedScrollContentRenderMilliseconds));
+        builder.Add("runtimeHostedScrollContentRenderLayoutResolveMs", FormatMilliseconds(runtime.HostedScrollContentRenderLayoutResolveMilliseconds));
+        builder.Add("runtimeHostedScrollContentRenderDocumentSurfaceMs", FormatMilliseconds(runtime.HostedScrollContentRenderDocumentSurfaceMilliseconds));
         builder.Add("runtimeCanReuseHostedContentMeasureCalls", runtime.CanReuseHostedContentMeasureCallCount);
         builder.Add("runtimeCanReuseHostedContentMeasureTrue", runtime.CanReuseHostedContentMeasureTrueCount);
         builder.Add("runtimeCanReuseHostedContentMeasureEquivalentWidthTrue", runtime.CanReuseHostedContentMeasureEquivalentWidthTrueCount);
@@ -118,6 +125,13 @@ public sealed class InkkOopsRichTextBoxDiagnosticsContributor : IInkkOopsDiagnos
         builder.Add("telemetryHostedScrollContentMeasureMs", FormatMilliseconds(telemetry.HostedScrollContentMeasureMilliseconds));
         builder.Add("telemetryHostedScrollContentArrangeCalls", telemetry.HostedScrollContentArrangeCallCount);
         builder.Add("telemetryHostedScrollContentArrangeMs", FormatMilliseconds(telemetry.HostedScrollContentArrangeMilliseconds));
+        builder.Add("telemetryHostedRootRenderCalls", telemetry.HostedRootRenderCallCount);
+        builder.Add("telemetryHostedRootRenderMs", FormatMilliseconds(telemetry.HostedRootRenderMilliseconds));
+        builder.Add("telemetryHostedRootRenderLayoutResolveMs", FormatMilliseconds(telemetry.HostedRootRenderLayoutResolveMilliseconds));
+        builder.Add("telemetryHostedScrollContentRenderCalls", telemetry.HostedScrollContentRenderCallCount);
+        builder.Add("telemetryHostedScrollContentRenderMs", FormatMilliseconds(telemetry.HostedScrollContentRenderMilliseconds));
+        builder.Add("telemetryHostedScrollContentRenderLayoutResolveMs", FormatMilliseconds(telemetry.HostedScrollContentRenderLayoutResolveMilliseconds));
+        builder.Add("telemetryHostedScrollContentRenderDocumentSurfaceMs", FormatMilliseconds(telemetry.HostedScrollContentRenderDocumentSurfaceMilliseconds));
         builder.Add("telemetryCanReuseHostedContentMeasureCalls", telemetry.CanReuseHostedContentMeasureCallCount);
         builder.Add("telemetryCanReuseHostedContentMeasureTrue", telemetry.CanReuseHostedContentMeasureTrueCount);
         builder.Add("telemetryCanReuseHostedContentMeasureEquivalentWidthTrue", telemetry.CanReuseHostedContentMeasureEquivalentWidthTrueCount);

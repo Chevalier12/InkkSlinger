@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text;
 using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -13,6 +14,7 @@ internal static class UiTextRenderer
     private const int MetricsCacheCapacity = 4096;
     private const int LineHeightCacheCapacity = 256;
     private const int ShapedTextLayoutCacheCapacity = 2048;
+    private const int DrawableTextLayoutCacheCapacity = 2048;
     private const int DefaultTabColumnCount = 4;
     private static readonly object SyncRoot = new();
     private static readonly HashSet<string> PrewarmedGlyphBuckets = new(StringComparer.Ordinal);
@@ -26,6 +28,8 @@ internal static class UiTextRenderer
     private static readonly Queue<UiLineHeightCacheKey> LineHeightCacheOrder = new();
     private static readonly Dictionary<UiShapedTextLayoutCacheKey, UiShapedTextLayout> ShapedTextLayoutCache = new();
     private static readonly Queue<UiShapedTextLayoutCacheKey> ShapedTextLayoutCacheOrder = new();
+    private static readonly Dictionary<UiDrawableTextLayoutCacheKey, UiDrawableTextLayout> DrawableTextLayoutCache = new();
+    private static readonly Queue<UiDrawableTextLayoutCacheKey> DrawableTextLayoutCacheOrder = new();
     private static IUiFontCatalog _fontCatalog = CreateDefaultFontCatalog();
     private static IUiFontRasterizer _rasterizer = CreateDefaultRasterizer();
     private static UiTypography _defaultTypography = new("Segoe UI", 12f, "Normal", "Normal", 0);
@@ -73,6 +77,8 @@ internal static class UiTextRenderer
             LineHeightCacheOrder.Clear();
             ShapedTextLayoutCache.Clear();
             ShapedTextLayoutCacheOrder.Clear();
+            DrawableTextLayoutCache.Clear();
+            DrawableTextLayoutCacheOrder.Clear();
             PrewarmedGlyphBuckets.Clear();
 
             var nextCatalog = fontCatalog ?? CreateDefaultFontCatalog();
@@ -179,13 +185,10 @@ internal static class UiTextRenderer
             var mode = UiTextAntialiasMode.Grayscale;
             var effectiveTypography = typography.Apply(styleOverride);
             var scaledTypography = effectiveTypography with { Size = effectiveTypography.Size * scaleY };
-            var typeface = ResolveTypefaceCached(scaledTypography);
-            var pixelSize = Math.Max(1, (int)MathF.Round(scaledTypography.Size));
-            var shapedLayout = ResolveShapedTextLayout(scaledTypography, text);
-            for (var i = 0; i < shapedLayout.CodePoints.Length; i++)
+            var drawableLayout = ResolveDrawableTextLayout(spriteBatch.GraphicsDevice, scaledTypography, mode, text);
+            for (var i = 0; i < drawableLayout.Operations.Length; i++)
             {
-                var glyph = ResolveGlyph(spriteBatch.GraphicsDevice, typeface, pixelSize, shapedLayout.CodePoints[i], mode);
-                DrawGlyphAtPosition(spriteBatch, glyph, transformedPosition + shapedLayout.DrawPositions[i], color);
+                DrawGlyphOperation(spriteBatch, drawableLayout.Operations[i], transformedPosition, color);
             }
         }
         finally
@@ -565,6 +568,62 @@ internal static class UiTextRenderer
         return layout;
     }
 
+    private static UiDrawableTextLayout ResolveDrawableTextLayout(
+        GraphicsDevice graphicsDevice,
+        UiTypography typography,
+        UiTextAntialiasMode mode,
+        string text)
+    {
+        var cacheKey = new UiDrawableTextLayoutCacheKey(graphicsDevice, typography, text);
+        lock (SyncRoot)
+        {
+            if (DrawableTextLayoutCache.TryGetValue(cacheKey, out var cached))
+            {
+                return cached;
+            }
+        }
+
+        var shapedLayout = ResolveShapedTextLayout(typography, text);
+        if (shapedLayout.CodePoints.Length == 0)
+        {
+            var empty = new UiDrawableTextLayout(Array.Empty<UiDrawableGlyphOperation>());
+            lock (SyncRoot)
+            {
+                AddDrawableTextLayoutEntryNoLock(cacheKey, empty);
+            }
+
+            return empty;
+        }
+
+        var typeface = ResolveTypefaceCached(typography);
+        var pixelSize = Math.Max(1, (int)MathF.Round(typography.Size));
+        var operations = new List<UiDrawableGlyphOperation>(shapedLayout.CodePoints.Length);
+
+        for (var i = 0; i < shapedLayout.CodePoints.Length; i++)
+        {
+            if (IsAlwaysNonDrawingWhitespace(shapedLayout.CodePoints[i]))
+            {
+                continue;
+            }
+
+            var glyph = ResolveGlyph(graphicsDevice, typeface, pixelSize, shapedLayout.CodePoints[i], mode);
+            if (glyph.SourceRect.Width <= 0 || glyph.SourceRect.Height <= 0)
+            {
+                continue;
+            }
+
+            operations.Add(new UiDrawableGlyphOperation(glyph.Texture, glyph.SourceRect, shapedLayout.DrawPositions[i]));
+        }
+
+        var layout = new UiDrawableTextLayout(operations.ToArray());
+        lock (SyncRoot)
+        {
+            AddDrawableTextLayoutEntryNoLock(cacheKey, layout);
+        }
+
+        return layout;
+    }
+
     private static UiResolvedTypeface ResolveTypefaceCached(UiTypography typography)
     {
         lock (SyncRoot)
@@ -675,6 +734,23 @@ internal static class UiTextRenderer
         ShapedTextLayoutCacheOrder.Enqueue(key);
     }
 
+    private static void AddDrawableTextLayoutEntryNoLock(UiDrawableTextLayoutCacheKey key, UiDrawableTextLayout layout)
+    {
+        if (DrawableTextLayoutCache.ContainsKey(key))
+        {
+            return;
+        }
+
+        if (DrawableTextLayoutCache.Count >= DrawableTextLayoutCacheCapacity)
+        {
+            var evicted = DrawableTextLayoutCacheOrder.Dequeue();
+            DrawableTextLayoutCache.Remove(evicted);
+        }
+
+        DrawableTextLayoutCache[key] = layout;
+        DrawableTextLayoutCacheOrder.Enqueue(key);
+    }
+
     private static IUiFontCatalog CreateDefaultFontCatalog()
     {
         return new WindowsInstalledFontCatalog();
@@ -755,6 +831,14 @@ internal static class UiTextRenderer
 
         GrayscaleAtlases.Clear();
         LcdAtlases.Clear();
+    }
+
+    private static bool IsAlwaysNonDrawingWhitespace(int codePoint)
+    {
+        return Rune.IsWhiteSpace(new Rune(codePoint)) &&
+            codePoint != '\u00A0' &&
+            codePoint != '\u2007' &&
+            codePoint != '\u202F';
     }
 
     private static Vector2 GetGlyphDrawPosition(float penX, float baselineY, float bearingX, float bearingY)
@@ -913,33 +997,12 @@ internal static class UiTextRenderer
             color);
     }
 
-    private static void DrawGlyphAtPosition(SpriteBatch spriteBatch, UiGlyphEntry glyph, Vector2 position, Color color)
+    private static void DrawGlyphOperation(SpriteBatch spriteBatch, UiDrawableGlyphOperation operation, Vector2 transformedOrigin, Color color)
     {
-        if (glyph.SourceRect.Width <= 0 || glyph.SourceRect.Height <= 0)
-        {
-            return;
-        }
-
         spriteBatch.Draw(
-            glyph.Texture,
-            position,
-            glyph.SourceRect,
+            operation.Texture,
+            transformedOrigin + operation.DrawOffset,
+            operation.SourceRect,
             color);
     }
 }
-
-internal readonly record struct UiTextMetricsCacheKey(
-    UiTypography Typography,
-    string Text);
-
-internal readonly record struct UiLineHeightCacheKey(
-    UiTypography Typography);
-
-internal readonly record struct UiShapedTextLayoutCacheKey(
-    UiTypography Typography,
-    string Text);
-
-internal readonly record struct UiShapedTextLayout(
-    int[] CodePoints,
-    Vector2[] DrawPositions,
-    float Width);

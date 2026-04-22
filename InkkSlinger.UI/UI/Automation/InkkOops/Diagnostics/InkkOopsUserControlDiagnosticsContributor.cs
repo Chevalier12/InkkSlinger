@@ -155,6 +155,11 @@ public sealed class InkkOopsUserControlDiagnosticsContributor : IInkkOopsDiagnos
         builder.Add("userControlDetachPresenterVisited", telemetry.DetachTemplateContentPresentersVisitedElementCount);
         builder.Add("userControlDetachPresenterDetachCount", telemetry.DetachTemplateContentPresentersPresenterDetachCount);
         builder.Add("userControlDetachPresenterTraversed", telemetry.DetachTemplateContentPresentersTraversedChildCount);
+
+        if (target is IInkkOopsCustomDiagnosticsSource customDiagnosticsSource)
+        {
+            customDiagnosticsSource.ContributeInkkOopsDiagnostics(builder);
+        }
     }
 
     private static string FormatMilliseconds(double milliseconds)

@@ -2421,15 +2421,26 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
 
         if (_contentHost != null)
         {
+            var hostedRootRenderStartTicks = Stopwatch.GetTimestamp();
+            _diagHostedRootRenderCallCount++;
+            _runtimeHostedRootRenderCallCount++;
             var hostedTextRect = GetTextRect();
             if (hostedTextRect.Width > 0f && hostedTextRect.Height > 0f)
             {
+                var hostedRootLayoutResolveStartTicks = Stopwatch.GetTimestamp();
                 var hostedLayout = BuildOrGetLayout(hostedTextRect.Width);
                 ClampScrollOffsets(hostedLayout, hostedTextRect);
+                var hostedRootLayoutResolveElapsedTicks = Stopwatch.GetTimestamp() - hostedRootLayoutResolveStartTicks;
+                _diagHostedRootRenderLayoutResolveElapsedTicks += hostedRootLayoutResolveElapsedTicks;
+                _runtimeHostedRootRenderLayoutResolveElapsedTicks += hostedRootLayoutResolveElapsedTicks;
                 EnsureHostedDocumentChildLayout(hostedTextRect, hostedLayout);
                 CaptureDirtyHint(hostedLayout, hostedTextRect);
                 _lastRenderedLayout = hostedLayout;
             }
+
+            var hostedRootRenderElapsedTicks = Stopwatch.GetTimestamp() - hostedRootRenderStartTicks;
+            _diagHostedRootRenderElapsedTicks += hostedRootRenderElapsedTicks;
+            _runtimeHostedRootRenderElapsedTicks += hostedRootRenderElapsedTicks;
 
             return;
         }
@@ -2613,32 +2624,34 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             selectionMs = Stopwatch.GetElapsedTime(selectionStart).TotalMilliseconds;
 
             var runsStart = Stopwatch.GetTimestamp();
-            for (var i = 0; i < layout.Runs.Count; i++)
+            if (TryGetVisibleLineRange(layout, textRect, verticalOffset, out var firstVisibleLineIndex, out var lastVisibleLineIndex))
             {
-                var run = layout.Runs[i];
-                if (string.IsNullOrEmpty(run.Text))
+                for (var lineIndex = firstVisibleLineIndex; lineIndex <= lastVisibleLineIndex; lineIndex++)
                 {
-                    continue;
-                }
+                    var line = layout.Lines[lineIndex];
+                    var lineBottom = textRect.Y + line.Bounds.Y + line.Bounds.Height - verticalOffset;
+                    var lineTop = textRect.Y + line.Bounds.Y - verticalOffset;
+                    if (lineBottom < textRect.Y || lineTop > textRect.Y + textRect.Height)
+                    {
+                        continue;
+                    }
 
-                var color = ResolveRunColor(run.Style);
-                var position = new Vector2(textRect.X + run.Bounds.X - horizontalOffset, textRect.Y + run.Bounds.Y - verticalOffset);
-                if (position.Y + run.Bounds.Height < textRect.Y || position.Y > textRect.Y + textRect.Height)
-                {
-                    continue;
-                }
+                    for (var runIndex = 0; runIndex < line.Runs.Count; runIndex++)
+                    {
+                        var run = line.Runs[runIndex];
+                        if (string.IsNullOrEmpty(run.Text))
+                        {
+                            continue;
+                        }
 
-                runCount++;
-                runCharacterCount += run.Text.Length;
-                DrawRunText(spriteBatch, run, position, color);
+                        var color = ResolveRunColor(run.Style);
+                        runCount++;
+                        runCharacterCount += run.Text.Length;
 
-                if (run.Style.IsUnderline)
-                {
-                    var underlineY = position.Y + run.Bounds.Height - 1f;
-                    UiDrawing.DrawFilledRect(
-                        spriteBatch,
-                        new LayoutRect(position.X, underlineY, Math.Max(1f, run.Bounds.Width), 1f),
-                        color * Opacity);
+                        var position = new Vector2(textRect.X + run.Bounds.X - horizontalOffset, textRect.Y + run.Bounds.Y - verticalOffset);
+                        DrawRunText(spriteBatch, run, position, color);
+                        DrawRunUnderline(spriteBatch, run, position, color);
+                    }
                 }
             }
 
@@ -5248,6 +5261,93 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         {
             UiTextRenderer.DrawString(spriteBatch, typography, suffixText, new Vector2(currentX, position.Y), baseColor * Opacity);
         }
+    }
+
+    private void DrawRunUnderline(SpriteBatch spriteBatch, DocumentLayoutRun run, Vector2 position, Color color)
+    {
+        if (!run.Style.IsUnderline)
+        {
+            return;
+        }
+
+        var underlineY = position.Y + run.Bounds.Height - 1f;
+        UiDrawing.DrawFilledRect(
+            spriteBatch,
+            new LayoutRect(position.X, underlineY, Math.Max(1f, run.Bounds.Width), 1f),
+            color * Opacity);
+    }
+
+    private static bool TryGetVisibleLineRange(
+        DocumentLayoutResult layout,
+        LayoutRect textRect,
+        float verticalOffset,
+        out int firstVisibleLineIndex,
+        out int lastVisibleLineIndex)
+    {
+        firstVisibleLineIndex = -1;
+        lastVisibleLineIndex = -1;
+        if (layout.Lines.Count == 0 || textRect.Height <= 0f)
+        {
+            return false;
+        }
+
+        var visibleTop = verticalOffset;
+        var visibleBottom = verticalOffset + textRect.Height;
+        firstVisibleLineIndex = FindFirstVisibleLineIndex(layout.Lines, visibleTop);
+        if (firstVisibleLineIndex < 0)
+        {
+            return false;
+        }
+
+        lastVisibleLineIndex = FindLastVisibleLineIndex(layout.Lines, visibleBottom, firstVisibleLineIndex);
+        return lastVisibleLineIndex >= firstVisibleLineIndex;
+    }
+
+    private static int FindFirstVisibleLineIndex(IReadOnlyList<DocumentLayoutLine> lines, float visibleTop)
+    {
+        var low = 0;
+        var high = lines.Count - 1;
+        var result = -1;
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            var line = lines[mid];
+            var lineBottom = line.Bounds.Y + line.Bounds.Height;
+            if (lineBottom >= visibleTop)
+            {
+                result = mid;
+                high = mid - 1;
+            }
+            else
+            {
+                low = mid + 1;
+            }
+        }
+
+        return result;
+    }
+
+    private static int FindLastVisibleLineIndex(IReadOnlyList<DocumentLayoutLine> lines, float visibleBottom, int firstVisibleLineIndex)
+    {
+        var low = firstVisibleLineIndex;
+        var high = lines.Count - 1;
+        var result = firstVisibleLineIndex;
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            var line = lines[mid];
+            if (line.Bounds.Y <= visibleBottom)
+            {
+                result = mid;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return result;
     }
 
     private static string NormalizeNewlines(string? text)

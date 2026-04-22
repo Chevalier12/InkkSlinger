@@ -7,15 +7,23 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
 {
     private static readonly int[] TargetedActionIndexes =
     [
-        117,
-        122,
-        123,
+        235,
+        236,
+        237,
+        238,
+        239,
+        240,
+        241,
+        286,
+        287,
+        288,
+        289,
     ];
 
     private static readonly InkkOopsDiagnosticsFilter TargetedActionFilter = new()
     {
         NodeRetention = InkkOopsDiagnosticsNodeRetention.MatchedNodesAndAncestors,
-        Rules = CreateEditorEnterRules()
+        Rules = CreateDesignerTypingRules()
     };
 
     public InkkOopsDiagnosticsFilter CreateFilter(string artifactName)
@@ -30,7 +38,7 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             : InkkOopsDiagnosticsFilter.None;
     }
 
-    private static InkkOopsDiagnosticsFactRule[] CreateEditorEnterRules()
+    private static InkkOopsDiagnosticsFactRule[] CreateDesignerTypingRules()
     {
         var rules = new List<InkkOopsDiagnosticsFactRule>();
 
@@ -51,12 +59,37 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             "userControlRuntimeMeasureOverrideMs",
             "userControlRuntimeArrangeOverrideCalls",
             "userControlRuntimeArrangeOverrideMs",
+            "runtimeDesignerSourceEditorTextChangedCalls",
+            "runtimeDesignerSourceEditorTextChangedMs",
+            "runtimeDesignerSourceEditorTextChangedHighlightRefreshCalls",
+            "runtimeDesignerSourceEditorTextChangedHighlightRefreshMs",
+            "runtimeDesignerSourceEditorTextChangedPropertyInspectorCalls",
+            "runtimeDesignerSourceEditorTextChangedPropertyInspectorMs",
+            "runtimeDesignerSourceEditorTextChangedCompletionRefreshCalls",
+            "runtimeDesignerSourceEditorTextChangedCompletionRefreshMs",
+            "runtimeDesignerSourceEditorLastTextChangedMs",
+            "runtimeDesignerSourceEditorLastTextChangedRefreshedHighlighted",
+            "runtimeDesignerSourceEditorLastTextChangedHighlightRefreshMs",
+            "runtimeDesignerSourceEditorLastTextChangedPropertyInspectorMs",
+            "runtimeDesignerSourceEditorLastTextChangedRefreshedCompletion",
+            "runtimeDesignerSourceEditorLastTextChangedCompletionRefreshMs",
+            "telemetryDesignerSourceEditorTextChangedCalls",
+            "telemetryDesignerSourceEditorTextChangedMs",
+            "telemetryDesignerSourceEditorTextChangedHighlightRefreshCalls",
+            "telemetryDesignerSourceEditorTextChangedHighlightRefreshMs",
+            "telemetryDesignerSourceEditorTextChangedPropertyInspectorCalls",
+            "telemetryDesignerSourceEditorTextChangedPropertyInspectorMs",
+            "telemetryDesignerSourceEditorTextChangedCompletionRefreshCalls",
+            "telemetryDesignerSourceEditorTextChangedCompletionRefreshMs",
             "measureInvalidations",
             "arrangeInvalidations",
             "renderInvalidations",
             "measureInvalidationLast",
             "arrangeInvalidationLast",
             "renderInvalidationLast",
+            "measureInvalidationTopSources",
+            "arrangeInvalidationTopSources",
+            "renderInvalidationTopSources",
             "frameworkUpdateLayoutPasses");
 
         AddNamedRules(
@@ -83,6 +116,9 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             "measureInvalidationLast",
             "arrangeInvalidationLast",
             "renderInvalidationLast",
+            "measureInvalidationTopSources",
+            "arrangeInvalidationTopSources",
+            "renderInvalidationTopSources",
             "frameworkInvalidateMeasureCalls",
             "frameworkInvalidateArrangeCalls",
             "frameworkInvalidateVisualCalls",
@@ -163,6 +199,9 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             "measureInvalidationLast",
             "arrangeInvalidationLast",
             "renderInvalidationLast",
+            "measureInvalidationTopSources",
+            "arrangeInvalidationTopSources",
+            "renderInvalidationTopSources",
             "frameworkInvalidateMeasureCalls",
             "frameworkInvalidateArrangeCalls",
             "frameworkInvalidateVisualCalls",
@@ -212,6 +251,13 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             "runtimeHostedScrollContentArrangeCalls",
             "runtimeHostedScrollContentArrangeMs",
             "runtimeHostedScrollContentArrangeSize",
+            "runtimeHostedRootRenderCalls",
+            "runtimeHostedRootRenderMs",
+            "runtimeHostedRootRenderLayoutResolveMs",
+            "runtimeHostedScrollContentRenderCalls",
+            "runtimeHostedScrollContentRenderMs",
+            "runtimeHostedScrollContentRenderLayoutResolveMs",
+            "runtimeHostedScrollContentRenderDocumentSurfaceMs",
             "runtimeCanReuseHostedContentMeasureCalls",
             "runtimeCanReuseHostedContentMeasureTrue",
             "runtimeCanReuseHostedContentMeasureEquivalentWidthTrue",
@@ -257,33 +303,100 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             "telemetryHostedScrollContentMeasureMs",
             "telemetryHostedScrollContentArrangeCalls",
             "telemetryHostedScrollContentArrangeMs",
+            "telemetryHostedRootRenderCalls",
+            "telemetryHostedRootRenderMs",
+            "telemetryHostedRootRenderLayoutResolveMs",
+            "telemetryHostedScrollContentRenderCalls",
+            "telemetryHostedScrollContentRenderMs",
+            "telemetryHostedScrollContentRenderLayoutResolveMs",
+            "telemetryHostedScrollContentRenderDocumentSurfaceMs",
             "telemetryCanReuseHostedContentMeasureCalls",
             "telemetryCanReuseHostedContentMeasureTrue",
             "telemetryCanReuseHostedContentMeasureEquivalentWidthTrue",
             "telemetryCanReuseHostedContentMeasureLayoutReuseTrue",
             "telemetryNotifyViewportChangedCalls",
             "telemetryNotifyViewportChangedMs",
-            "telemetryNotifyViewportChangedSubscriberMs",
-            "richTextBoxStructuredEnterCount",
-            "richTextBoxStructuredEnterParagraphEntriesMs",
-            "richTextBoxStructuredEnterCloneMs",
-            "richTextBoxStructuredEnterEnumerateMs",
-            "richTextBoxStructuredEnterPrepareMs",
-            "richTextBoxStructuredEnterCommitMs",
-            "richTextBoxStructuredEnterTotalMs",
-            "richTextBoxStructuredEnterReplacedDocument",
-            "richTextBoxStructuredEnterCommitMutationBatchMs",
-            "richTextBoxStructuredEnterCommitApplyOperationMs",
-            "richTextBoxStructuredEnterCommitTransactionMs",
-            "richTextBoxStructuredEnterCommitSelectionMs",
-            "richTextBoxStructuredEnterCommitTraceInvariantsMs",
-            "richTextBoxStructuredEnterCommitEnsureCaretVisibleMs",
-            "richTextBoxStructuredEnterCommitInvalidateAfterMutationMs",
-            "richTextBoxStructuredEnterCommitFlushPendingEventsMs",
-            "richTextBoxStructuredEnterCommitFlushMaintenanceMs",
-            "richTextBoxStructuredEnterCommitFlushDocumentChangedEventMs",
-            "richTextBoxStructuredEnterCommitFlushTextChangedEventMs",
-            "richTextBoxStructuredEnterCommitFlushInvalidateAfterDocumentChangeMs");
+            "telemetryNotifyViewportChangedSubscriberMs");
+
+        AddNamedRules(
+            rules,
+            "PART_ContentHost",
+            "name",
+            "slot",
+            "actual",
+            "renderSize",
+            "desired",
+            "previousAvailable",
+            "measureCalls",
+            "measureWork",
+            "arrangeCalls",
+            "arrangeWork",
+            "measureMs",
+            "measureExclusiveMs",
+            "arrangeMs",
+            "measureValid",
+            "arrangeValid",
+            "measureInvalidations",
+            "arrangeInvalidations",
+            "renderInvalidations",
+            "measureInvalidationLast",
+            "arrangeInvalidationLast",
+            "renderInvalidationLast",
+            "measureInvalidationTopSources",
+            "arrangeInvalidationTopSources",
+            "renderInvalidationTopSources",
+            "horizontalOffset",
+            "verticalOffset",
+            "extent",
+            "viewport",
+            "scrollable",
+            "contentViewport",
+            "contentType",
+            "contentSummary",
+            "contentMeasureCalls",
+            "contentMeasureWork",
+            "contentArrangeCalls",
+            "contentArrangeWork",
+            "contentMeasureMs",
+            "contentArrangeMs",
+            "contentMeasureValid",
+            "contentArrangeValid",
+            "runtimeMeasureOverrideCalls",
+            "runtimeMeasureOverrideMs",
+            "runtimeArrangeOverrideCalls",
+            "runtimeArrangeOverrideMs",
+            "runtimeMeasureContentCalls",
+            "runtimeMeasureContentMs",
+            "runtimeResolveBarsMeasureCalls",
+            "runtimeResolveBarsMeasureMs",
+            "runtimeResolveBarsMeasureIterations",
+            "runtimeResolveBarsMeasureRemeasurePathCalls",
+            "runtimeResolveBarsMeasureHorizontalFlips",
+            "runtimeResolveBarsMeasureVerticalFlips",
+            "runtimeResolveBarsMeasureLastTrace",
+            "runtimeResolveBarsMeasureHottestTrace",
+            "runtimeResolveBarsMeasureHottestMs",
+            "runtimeUpdateScrollBarsCalls",
+            "runtimeUpdateScrollBarsMs",
+            "runtimeSetOffsetsCalls",
+            "runtimeSetOffsetsMs",
+            "runtimeSetOffsetsWork",
+            "runtimeSetOffsetsNoOp",
+            "runtimeInvalidateScrollInfoCalls",
+            "telemetryMeasureOverrideCalls",
+            "telemetryMeasureOverrideMs",
+            "telemetryArrangeOverrideCalls",
+            "telemetryArrangeOverrideMs",
+            "telemetryResolveBarsMeasureCalls",
+            "telemetryResolveBarsMeasureMs",
+            "telemetryResolveBarsMeasureIterations",
+            "telemetryResolveBarsMeasureRemeasurePathCalls",
+            "telemetryMeasureContentCalls",
+            "telemetryMeasureContentMs",
+            "telemetryUpdateScrollBarsCalls",
+            "telemetryUpdateScrollBarsMs",
+            "telemetrySetOffsetsCalls",
+            "telemetrySetOffsetsNoOp");
 
         AddNamedRules(
             rules,
@@ -306,6 +419,9 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             "measureInvalidationLast",
             "arrangeInvalidationLast",
             "renderInvalidationLast",
+            "measureInvalidationTopSources",
+            "arrangeInvalidationTopSources",
+            "renderInvalidationTopSources",
             "ideLineNumberRange",
             "ideLineNumberMetrics",
             "runtimeIdeLineNumberUpdateCalls",
@@ -348,6 +464,9 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             "measureInvalidationLast",
             "arrangeInvalidationLast",
             "renderInvalidationLast",
+            "measureInvalidationTopSources",
+            "arrangeInvalidationTopSources",
+            "renderInvalidationTopSources",
             "ideIndentGuideHasOwner",
             "runtimeIdeIndentRenderCalls",
             "runtimeIdeIndentRenderSkippedNoOwner",
@@ -360,49 +479,6 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             "telemetryIdeIndentRenderSegments",
             "telemetryIdeIndentRenderMs");
 
-        AddElementTypeRules(
-            rules,
-            "ScrollViewer",
-            "contentType",
-            "contentSummary",
-            "horizontalOffset",
-            "verticalOffset",
-            "extent",
-            "viewport",
-            "scrollable",
-            "contentMeasureCalls",
-            "contentMeasureWork",
-            "contentArrangeCalls",
-            "contentArrangeWork",
-            "contentMeasureMs",
-            "contentArrangeMs",
-            "contentMeasureValid",
-            "contentArrangeValid",
-            "runtimeMeasureOverrideCalls",
-            "runtimeMeasureOverrideMs",
-            "runtimeArrangeOverrideCalls",
-            "runtimeArrangeOverrideMs",
-            "runtimeMeasureContentCalls",
-            "runtimeMeasureContentMs",
-            "runtimeResolveBarsMeasureCalls",
-            "runtimeResolveBarsMeasureMs",
-            "runtimeResolveBarsMeasureIterations",
-            "runtimeResolveBarsMeasureRemeasurePathCalls",
-            "runtimeResolveBarsMeasureHorizontalFlips",
-            "runtimeResolveBarsMeasureVerticalFlips",
-            "runtimeResolveBarsMeasureLastTrace",
-            "runtimeResolveBarsMeasureHottestTrace",
-            "telemetryMeasureOverrideCalls",
-            "telemetryMeasureOverrideMs",
-            "telemetryArrangeOverrideCalls",
-            "telemetryArrangeOverrideMs",
-            "telemetryResolveBarsMeasureCalls",
-            "telemetryResolveBarsMeasureMs",
-            "telemetryResolveBarsMeasureIterations",
-            "telemetryResolveBarsMeasureRemeasurePathCalls",
-            "telemetryMeasureContentCalls",
-            "telemetryMeasureContentMs");
-
         return [.. rules];
     }
 
@@ -413,19 +489,6 @@ public sealed class DefaultInkkOopsDiagnosticsFilterPolicy : IInkkOopsDiagnostic
             rules.Add(new InkkOopsDiagnosticsFactRule
             {
                 DisplayNameContains = displayNameContains,
-                Key = keys[i],
-                Comparison = InkkOopsDiagnosticsComparison.Exists
-            });
-        }
-    }
-
-    private static void AddElementTypeRules(List<InkkOopsDiagnosticsFactRule> rules, string elementTypeName, params string[] keys)
-    {
-        for (var i = 0; i < keys.Length; i++)
-        {
-            rules.Add(new InkkOopsDiagnosticsFactRule
-            {
-                ElementTypeName = elementTypeName,
                 Key = keys[i],
                 Comparison = InkkOopsDiagnosticsComparison.Exists
             });

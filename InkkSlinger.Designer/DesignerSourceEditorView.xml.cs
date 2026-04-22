@@ -2,14 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using InkkSlinger;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
 namespace InkkSlinger.Designer;
 
-public partial class DesignerSourceEditorView : UserControl
+public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiagnosticsSource
 {
     private const float CompletionPopupVerticalOffset = 4f;
     private const float CompletionPopupMaxHeight = 260f;
@@ -71,6 +73,28 @@ public partial class DesignerSourceEditorView : UserControl
     private DesignerSourceTagSelection? _currentSourceTagSelection;
     private bool _suppressSourceInspectorApply;
     private bool _suppressSourceInspectorFilterTextChanged;
+    private static long _diagSourceEditorTextChangedCallCount;
+    private static long _diagSourceEditorTextChangedElapsedTicks;
+    private static long _diagSourceEditorTextChangedRefreshHighlightedCallCount;
+    private static long _diagSourceEditorTextChangedRefreshHighlightedElapsedTicks;
+    private static long _diagSourceEditorTextChangedRefreshPropertyInspectorCallCount;
+    private static long _diagSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks;
+    private static long _diagSourceEditorTextChangedRefreshCompletionCallCount;
+    private static long _diagSourceEditorTextChangedRefreshCompletionElapsedTicks;
+    private long _runtimeSourceEditorTextChangedCallCount;
+    private long _runtimeSourceEditorTextChangedElapsedTicks;
+    private long _runtimeSourceEditorTextChangedRefreshHighlightedCallCount;
+    private long _runtimeSourceEditorTextChangedRefreshHighlightedElapsedTicks;
+    private long _runtimeSourceEditorTextChangedRefreshPropertyInspectorCallCount;
+    private long _runtimeSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks;
+    private long _runtimeSourceEditorTextChangedRefreshCompletionCallCount;
+    private long _runtimeSourceEditorTextChangedRefreshCompletionElapsedTicks;
+    private long _runtimeLastSourceEditorTextChangedElapsedTicks;
+    private bool _runtimeLastSourceEditorTextChangedRefreshedHighlighted;
+    private long _runtimeLastSourceEditorTextChangedRefreshHighlightedElapsedTicks;
+    private long _runtimeLastSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks;
+    private bool _runtimeLastSourceEditorTextChangedRefreshedCompletion;
+    private long _runtimeLastSourceEditorTextChangedRefreshCompletionElapsedTicks;
 
     public DesignerSourceEditorView()
     {
@@ -137,6 +161,63 @@ public partial class DesignerSourceEditorView : UserControl
         DismissCompletionPopup();
     }
 
+    public DesignerSourceEditorViewRuntimeDiagnosticsSnapshot GetDesignerSourceEditorViewSnapshotForDiagnostics()
+    {
+        return new DesignerSourceEditorViewRuntimeDiagnosticsSnapshot(
+            SourceEditorTextChangedCallCount: _runtimeSourceEditorTextChangedCallCount,
+            SourceEditorTextChangedMilliseconds: TicksToMilliseconds(_runtimeSourceEditorTextChangedElapsedTicks),
+            SourceEditorTextChangedRefreshHighlightedCallCount: _runtimeSourceEditorTextChangedRefreshHighlightedCallCount,
+            SourceEditorTextChangedRefreshHighlightedMilliseconds: TicksToMilliseconds(_runtimeSourceEditorTextChangedRefreshHighlightedElapsedTicks),
+            SourceEditorTextChangedRefreshPropertyInspectorCallCount: _runtimeSourceEditorTextChangedRefreshPropertyInspectorCallCount,
+            SourceEditorTextChangedRefreshPropertyInspectorMilliseconds: TicksToMilliseconds(_runtimeSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks),
+            SourceEditorTextChangedRefreshCompletionCallCount: _runtimeSourceEditorTextChangedRefreshCompletionCallCount,
+            SourceEditorTextChangedRefreshCompletionMilliseconds: TicksToMilliseconds(_runtimeSourceEditorTextChangedRefreshCompletionElapsedTicks),
+            LastSourceEditorTextChangedMilliseconds: TicksToMilliseconds(_runtimeLastSourceEditorTextChangedElapsedTicks),
+            LastSourceEditorTextChangedRefreshedHighlighted: _runtimeLastSourceEditorTextChangedRefreshedHighlighted,
+            LastSourceEditorTextChangedRefreshHighlightedMilliseconds: TicksToMilliseconds(_runtimeLastSourceEditorTextChangedRefreshHighlightedElapsedTicks),
+            LastSourceEditorTextChangedRefreshPropertyInspectorMilliseconds: TicksToMilliseconds(_runtimeLastSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks),
+            LastSourceEditorTextChangedRefreshedCompletion: _runtimeLastSourceEditorTextChangedRefreshedCompletion,
+            LastSourceEditorTextChangedRefreshCompletionMilliseconds: TicksToMilliseconds(_runtimeLastSourceEditorTextChangedRefreshCompletionElapsedTicks));
+    }
+
+    public new static DesignerSourceEditorViewTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateTelemetrySnapshot(reset: false);
+    }
+
+    public new static DesignerSourceEditorViewTelemetrySnapshot GetTelemetryAndReset()
+    {
+        return CreateTelemetrySnapshot(reset: true);
+    }
+
+    public void ContributeInkkOopsDiagnostics(InkkOopsElementDiagnosticsBuilder builder)
+    {
+        var runtime = GetDesignerSourceEditorViewSnapshotForDiagnostics();
+        var telemetry = GetAggregateTelemetrySnapshotForDiagnostics();
+        builder.Add("runtimeDesignerSourceEditorTextChangedCalls", runtime.SourceEditorTextChangedCallCount);
+        builder.Add("runtimeDesignerSourceEditorTextChangedMs", FormatMilliseconds(runtime.SourceEditorTextChangedMilliseconds));
+        builder.Add("runtimeDesignerSourceEditorTextChangedHighlightRefreshCalls", runtime.SourceEditorTextChangedRefreshHighlightedCallCount);
+        builder.Add("runtimeDesignerSourceEditorTextChangedHighlightRefreshMs", FormatMilliseconds(runtime.SourceEditorTextChangedRefreshHighlightedMilliseconds));
+        builder.Add("runtimeDesignerSourceEditorTextChangedPropertyInspectorCalls", runtime.SourceEditorTextChangedRefreshPropertyInspectorCallCount);
+        builder.Add("runtimeDesignerSourceEditorTextChangedPropertyInspectorMs", FormatMilliseconds(runtime.SourceEditorTextChangedRefreshPropertyInspectorMilliseconds));
+        builder.Add("runtimeDesignerSourceEditorTextChangedCompletionRefreshCalls", runtime.SourceEditorTextChangedRefreshCompletionCallCount);
+        builder.Add("runtimeDesignerSourceEditorTextChangedCompletionRefreshMs", FormatMilliseconds(runtime.SourceEditorTextChangedRefreshCompletionMilliseconds));
+        builder.Add("runtimeDesignerSourceEditorLastTextChangedMs", FormatMilliseconds(runtime.LastSourceEditorTextChangedMilliseconds));
+        builder.Add("runtimeDesignerSourceEditorLastTextChangedRefreshedHighlighted", runtime.LastSourceEditorTextChangedRefreshedHighlighted);
+        builder.Add("runtimeDesignerSourceEditorLastTextChangedHighlightRefreshMs", FormatMilliseconds(runtime.LastSourceEditorTextChangedRefreshHighlightedMilliseconds));
+        builder.Add("runtimeDesignerSourceEditorLastTextChangedPropertyInspectorMs", FormatMilliseconds(runtime.LastSourceEditorTextChangedRefreshPropertyInspectorMilliseconds));
+        builder.Add("runtimeDesignerSourceEditorLastTextChangedRefreshedCompletion", runtime.LastSourceEditorTextChangedRefreshedCompletion);
+        builder.Add("runtimeDesignerSourceEditorLastTextChangedCompletionRefreshMs", FormatMilliseconds(runtime.LastSourceEditorTextChangedRefreshCompletionMilliseconds));
+        builder.Add("telemetryDesignerSourceEditorTextChangedCalls", telemetry.SourceEditorTextChangedCallCount);
+        builder.Add("telemetryDesignerSourceEditorTextChangedMs", FormatMilliseconds(telemetry.SourceEditorTextChangedMilliseconds));
+        builder.Add("telemetryDesignerSourceEditorTextChangedHighlightRefreshCalls", telemetry.SourceEditorTextChangedRefreshHighlightedCallCount);
+        builder.Add("telemetryDesignerSourceEditorTextChangedHighlightRefreshMs", FormatMilliseconds(telemetry.SourceEditorTextChangedRefreshHighlightedMilliseconds));
+        builder.Add("telemetryDesignerSourceEditorTextChangedPropertyInspectorCalls", telemetry.SourceEditorTextChangedRefreshPropertyInspectorCallCount);
+        builder.Add("telemetryDesignerSourceEditorTextChangedPropertyInspectorMs", FormatMilliseconds(telemetry.SourceEditorTextChangedRefreshPropertyInspectorMilliseconds));
+        builder.Add("telemetryDesignerSourceEditorTextChangedCompletionRefreshCalls", telemetry.SourceEditorTextChangedRefreshCompletionCallCount);
+        builder.Add("telemetryDesignerSourceEditorTextChangedCompletionRefreshMs", FormatMilliseconds(telemetry.SourceEditorTextChangedRefreshCompletionMilliseconds));
+    }
+
     private void OnSourceEditorTextChanged(object? sender, RoutedSimpleEventArgs args)
     {
         _ = sender;
@@ -147,6 +228,10 @@ public partial class DesignerSourceEditorView : UserControl
             return;
         }
 
+        var startTicks = Stopwatch.GetTimestamp();
+        _runtimeSourceEditorTextChangedCallCount++;
+        _diagSourceEditorTextChangedCallCount++;
+
         var previousText = SourceText;
         var currentText = DocumentEditing.GetText(SourceEditor.Document);
         TryAutoInsertTagSuffix(ref currentText);
@@ -155,16 +240,50 @@ public partial class DesignerSourceEditorView : UserControl
             SourceText = currentText;
         }
 
-        if (ShouldRefreshHighlightedSourceDocument(previousText, currentText))
+        var refreshedHighlighted = ShouldRefreshHighlightedSourceDocument(previousText, currentText);
+        long refreshHighlightedElapsedTicks = 0;
+        if (refreshedHighlighted)
         {
-            RefreshHighlightedSourceDocument(currentText, dismissCompletionPopup: false);
+            var refreshHighlightedStartTicks = Stopwatch.GetTimestamp();
+                RefreshHighlightedSourceDocument(previousText, currentText, dismissCompletionPopup: false);
+            refreshHighlightedElapsedTicks = Stopwatch.GetTimestamp() - refreshHighlightedStartTicks;
+            _runtimeSourceEditorTextChangedRefreshHighlightedCallCount++;
+            _runtimeSourceEditorTextChangedRefreshHighlightedElapsedTicks += refreshHighlightedElapsedTicks;
+            _diagSourceEditorTextChangedRefreshHighlightedCallCount++;
+            _diagSourceEditorTextChangedRefreshHighlightedElapsedTicks += refreshHighlightedElapsedTicks;
         }
 
+        var refreshPropertyInspectorStartTicks = Stopwatch.GetTimestamp();
         RefreshSourcePropertyInspector();
+        var refreshPropertyInspectorElapsedTicks = Stopwatch.GetTimestamp() - refreshPropertyInspectorStartTicks;
+        _runtimeSourceEditorTextChangedRefreshPropertyInspectorCallCount++;
+        _runtimeSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks += refreshPropertyInspectorElapsedTicks;
+        _diagSourceEditorTextChangedRefreshPropertyInspectorCallCount++;
+        _diagSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks += refreshPropertyInspectorElapsedTicks;
+
+        var refreshedCompletion = false;
+        long refreshCompletionElapsedTicks = 0;
         if (IsControlCompletionOpen)
         {
+            refreshedCompletion = true;
+            var refreshCompletionStartTicks = Stopwatch.GetTimestamp();
             _ = RefreshCompletionPopup(openIfPossible: false);
+            refreshCompletionElapsedTicks = Stopwatch.GetTimestamp() - refreshCompletionStartTicks;
+            _runtimeSourceEditorTextChangedRefreshCompletionCallCount++;
+            _runtimeSourceEditorTextChangedRefreshCompletionElapsedTicks += refreshCompletionElapsedTicks;
+            _diagSourceEditorTextChangedRefreshCompletionCallCount++;
+            _diagSourceEditorTextChangedRefreshCompletionElapsedTicks += refreshCompletionElapsedTicks;
         }
+
+        var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+        _runtimeSourceEditorTextChangedElapsedTicks += elapsedTicks;
+        _diagSourceEditorTextChangedElapsedTicks += elapsedTicks;
+        _runtimeLastSourceEditorTextChangedElapsedTicks = elapsedTicks;
+        _runtimeLastSourceEditorTextChangedRefreshedHighlighted = refreshedHighlighted;
+        _runtimeLastSourceEditorTextChangedRefreshHighlightedElapsedTicks = refreshHighlightedElapsedTicks;
+        _runtimeLastSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks = refreshPropertyInspectorElapsedTicks;
+        _runtimeLastSourceEditorTextChangedRefreshedCompletion = refreshedCompletion;
+        _runtimeLastSourceEditorTextChangedRefreshCompletionElapsedTicks = refreshCompletionElapsedTicks;
     }
 
     private void TryAutoInsertTagSuffix(ref string currentText)
@@ -360,23 +479,23 @@ public partial class DesignerSourceEditorView : UserControl
         }
 
         DismissCompletionPopup();
-        RefreshHighlightedSourceDocument(newText, dismissCompletionPopup: false);
+            RefreshHighlightedSourceDocument(previousText: null, currentText: newText, dismissCompletionPopup: false);
         RefreshSourcePropertyInspector();
     }
 
     private void LoadDocumentIntoEditor(string? text)
     {
-        RefreshHighlightedSourceDocument(text, dismissCompletionPopup: true);
+            RefreshHighlightedSourceDocument(previousText: null, currentText: text, dismissCompletionPopup: true);
     }
 
-    private void RefreshHighlightedSourceDocument(string? text, bool dismissCompletionPopup)
+        private void RefreshHighlightedSourceDocument(string? previousText, string? currentText, bool dismissCompletionPopup)
     {
         if (dismissCompletionPopup)
         {
             DismissCompletionPopup();
         }
 
-        var normalizedText = text ?? string.Empty;
+            var normalizedText = currentText ?? string.Empty;
         var selectionStart = SourceEditor.SelectionStart;
         var selectionLength = SourceEditor.SelectionLength;
         var horizontalOffset = SourceEditor.HorizontalOffset;
@@ -385,7 +504,13 @@ public partial class DesignerSourceEditorView : UserControl
         _suppressSourceEditorChanges = true;
         try
         {
-            DesignerXmlSyntaxHighlighter.PopulateDocument(SourceEditor.Document, normalizedText);
+                var refreshedIncrementally = !string.IsNullOrEmpty(previousText) &&
+                    DesignerXmlSyntaxHighlighter.TryPopulateDocumentIncrementally(SourceEditor.Document, previousText, normalizedText);
+                if (!refreshedIncrementally)
+                {
+                    DesignerXmlSyntaxHighlighter.PopulateDocument(SourceEditor.Document, normalizedText);
+                }
+
             SourceEditor.RefreshDocumentMetrics();
 
             var updatedTextLength = DocumentEditing.GetText(SourceEditor.Document).Length;
@@ -1213,6 +1338,43 @@ public partial class DesignerSourceEditorView : UserControl
     private static bool ShouldRefreshHighlightedSourceDocument(string previousText, string currentText)
     {
         return !IsWhitespaceOnlyEdit(previousText, currentText);
+    }
+
+    private static DesignerSourceEditorViewTelemetrySnapshot CreateTelemetrySnapshot(bool reset)
+    {
+        var snapshot = new DesignerSourceEditorViewTelemetrySnapshot(
+            SourceEditorTextChangedCallCount: _diagSourceEditorTextChangedCallCount,
+            SourceEditorTextChangedMilliseconds: TicksToMilliseconds(_diagSourceEditorTextChangedElapsedTicks),
+            SourceEditorTextChangedRefreshHighlightedCallCount: _diagSourceEditorTextChangedRefreshHighlightedCallCount,
+            SourceEditorTextChangedRefreshHighlightedMilliseconds: TicksToMilliseconds(_diagSourceEditorTextChangedRefreshHighlightedElapsedTicks),
+            SourceEditorTextChangedRefreshPropertyInspectorCallCount: _diagSourceEditorTextChangedRefreshPropertyInspectorCallCount,
+            SourceEditorTextChangedRefreshPropertyInspectorMilliseconds: TicksToMilliseconds(_diagSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks),
+            SourceEditorTextChangedRefreshCompletionCallCount: _diagSourceEditorTextChangedRefreshCompletionCallCount,
+            SourceEditorTextChangedRefreshCompletionMilliseconds: TicksToMilliseconds(_diagSourceEditorTextChangedRefreshCompletionElapsedTicks));
+
+        if (reset)
+        {
+            _diagSourceEditorTextChangedCallCount = 0;
+            _diagSourceEditorTextChangedElapsedTicks = 0;
+            _diagSourceEditorTextChangedRefreshHighlightedCallCount = 0;
+            _diagSourceEditorTextChangedRefreshHighlightedElapsedTicks = 0;
+            _diagSourceEditorTextChangedRefreshPropertyInspectorCallCount = 0;
+            _diagSourceEditorTextChangedRefreshPropertyInspectorElapsedTicks = 0;
+            _diagSourceEditorTextChangedRefreshCompletionCallCount = 0;
+            _diagSourceEditorTextChangedRefreshCompletionElapsedTicks = 0;
+        }
+
+        return snapshot;
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return ticks * 1000d / Stopwatch.Frequency;
+    }
+
+    private static string FormatMilliseconds(double milliseconds)
+    {
+        return milliseconds.ToString("0.###");
     }
 
     private static bool IsWhitespaceOnlyEdit(string previousText, string currentText)
