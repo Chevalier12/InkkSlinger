@@ -813,37 +813,48 @@ public partial class RichTextBox
         float previousExtentHeight)
     {
         var changeMask = ViewportMetricChangeMask.None;
-        if (Math.Abs(metrics.HorizontalOffset - previousHorizontalOffset) > 0.01f)
+        if (HasViewportMetricChanged(metrics.HorizontalOffset, previousHorizontalOffset))
         {
             changeMask |= ViewportMetricChangeMask.HorizontalOffset;
         }
 
-        if (Math.Abs(metrics.VerticalOffset - previousVerticalOffset) > 0.01f)
+        if (HasViewportMetricChanged(metrics.VerticalOffset, previousVerticalOffset))
         {
             changeMask |= ViewportMetricChangeMask.VerticalOffset;
         }
 
-        if (Math.Abs(metrics.ViewportWidth - previousViewportWidth) > 0.01f)
+        if (HasViewportMetricChanged(metrics.ViewportWidth, previousViewportWidth))
         {
             changeMask |= ViewportMetricChangeMask.ViewportWidth;
         }
 
-        if (Math.Abs(metrics.ViewportHeight - previousViewportHeight) > 0.01f)
+        if (HasViewportMetricChanged(metrics.ViewportHeight, previousViewportHeight))
         {
             changeMask |= ViewportMetricChangeMask.ViewportHeight;
         }
 
-        if (Math.Abs(metrics.ExtentWidth - previousExtentWidth) > 0.01f)
+        if (HasViewportMetricChanged(metrics.ExtentWidth, previousExtentWidth))
         {
             changeMask |= ViewportMetricChangeMask.ExtentWidth;
         }
 
-        if (Math.Abs(metrics.ExtentHeight - previousExtentHeight) > 0.01f)
+        if (HasViewportMetricChanged(metrics.ExtentHeight, previousExtentHeight))
         {
             changeMask |= ViewportMetricChangeMask.ExtentHeight;
         }
 
         return changeMask;
+    }
+
+    private static bool HasViewportMetricChanged(float currentValue, float previousValue)
+    {
+        if (!float.IsFinite(previousValue) || !float.IsFinite(currentValue))
+        {
+            return !float.IsFinite(previousValue) != !float.IsFinite(currentValue) ||
+                   (float.IsFinite(currentValue) && !float.IsFinite(previousValue));
+        }
+
+        return Math.Abs(currentValue - previousValue) > 0.01f;
     }
 
     private static string FormatViewportMetricChangeMask(ViewportMetricChangeMask changeMask)
