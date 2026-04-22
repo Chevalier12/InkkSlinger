@@ -47,13 +47,13 @@ public sealed class InkkOopsHostConfiguration
 
         var contributors = new List<IInkkOopsDiagnosticsContributor>
         {
+            // Rebuilt from zero for the completion dropdown scroll FPS investigation.
             new InkkOopsGenericElementDiagnosticsContributor(),
             new InkkOopsFrameworkElementDiagnosticsContributor(),
             new InkkOopsControlDiagnosticsContributor(),
             new InkkOopsUserControlDiagnosticsContributor(),
-            new InkkOopsBorderDiagnosticsContributor(),
-            new InkkOopsColorPickerDiagnosticsContributor(),
-            new InkkOopsColorSpectrumDiagnosticsContributor()
+            new InkkOopsScrollViewerDiagnosticsContributor(),
+            new InkkOopsVirtualizingStackPanelDiagnosticsContributor()
         };
 
         contributors.Sort(static (left, right) =>

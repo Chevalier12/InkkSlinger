@@ -54,3 +54,6 @@ diagnostics-instrumentation-guide.md
 InkkSlinger.Template/
 InkkSlinger.TemplatePack/
 
+# Node
+package-lock.json
+

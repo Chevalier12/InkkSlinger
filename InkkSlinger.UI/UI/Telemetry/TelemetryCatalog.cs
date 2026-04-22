@@ -117,6 +117,8 @@ public static class TelemetryCatalog
     // - CanvasTelemetrySnapshot (UI/Telemetry/CanvasTelemetrySnapshot.cs)
     // - StackPanelTelemetrySnapshot (UI/Telemetry/StackPanelTelemetrySnapshot.cs)
     // - StackPanelRuntimeDiagnosticsSnapshot (UI/Telemetry/StackPanelTelemetrySnapshot.cs)
+    // - VirtualizingStackPanelTelemetrySnapshot (UI/Telemetry/VirtualizingStackPanelSnapshots.cs)
+    // - VirtualizingStackPanelRuntimeDiagnosticsSnapshot (UI/Telemetry/VirtualizingStackPanelSnapshots.cs)
     // - WrapPanelTelemetrySnapshot (UI/Telemetry/WrapPanelTelemetrySnapshot.cs)
     // - GridTelemetrySnapshot (UI/Telemetry/GridTelemetrySnapshot.cs)
     // - GridRuntimeDiagnosticsSnapshot (UI/Telemetry/GridTelemetrySnapshot.cs)

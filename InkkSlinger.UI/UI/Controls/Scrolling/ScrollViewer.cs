@@ -1880,7 +1880,13 @@ public class ScrollViewer : ContentControl
         {
             if (ContentElement is VirtualizingStackPanel virtualizingStackPanel)
             {
-                if (virtualizingStackPanel.RequiresMeasureForViewerOwnedOffsetChange(beforeHorizontal, nextHorizontal, beforeVertical, nextVertical))
+                if (virtualizingStackPanel.TryHandleViewerOwnedOffsetChange(beforeHorizontal, nextHorizontal, beforeVertical, nextVertical, out var requiresMeasure))
+                {
+                    _diagSetOffsetsVirtualizingArrangeOnlyPathCount++;
+                    _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount++;
+                    InvalidateArrange();
+                }
+                else if (requiresMeasure)
                 {
                     _diagSetOffsetsVirtualizingMeasureInvalidationPathCount++;
                     _runtimeSetOffsetsVirtualizingMeasureInvalidationPathCount++;

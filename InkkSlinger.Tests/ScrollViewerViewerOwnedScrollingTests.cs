@@ -141,12 +141,17 @@ public class ScrollViewerViewerOwnedScrollingTests
         Assert.True(initialFirst >= 0);
         Assert.True(initialLast > initialFirst);
 
+        uiRoot.ResetDirtyStateForTests();
         viewer.ScrollToVerticalOffset(600f);
         RunLayout(uiRoot, 320, 200, 32);
+        var runtime = viewer.GetScrollViewerSnapshotForDiagnostics();
 
         Assert.True(viewer.VerticalOffset > 0f);
         Assert.True(virtualizingPanel.FirstRealizedIndex > initialFirst);
         Assert.True(virtualizingPanel.LastRealizedIndex > initialLast);
+        Assert.False(viewer.NeedsMeasure);
+        Assert.True(runtime.SetOffsetsVirtualizingArrangeOnlyPathCount > 0);
+        Assert.Equal(0, runtime.SetOffsetsVirtualizingMeasureInvalidationPathCount);
     }
 
     [Fact]
@@ -182,7 +187,6 @@ public class ScrollViewerViewerOwnedScrollingTests
 
         Assert.True(handled);
         Assert.True(viewer.VerticalOffset > 0f);
-        Assert.True(virtualizingPanel.NeedsMeasure || virtualizingPanel.NeedsArrange);
         Assert.True(
             runtime.SetOffsetsVirtualizingMeasureInvalidationPathCount > 0 || runtime.SetOffsetsVirtualizingArrangeOnlyPathCount > 0,
             $"Expected viewer-owned virtualized wheel scrolling to stay on a virtualizing SetOffsets path, but runtime was {runtime}.");

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using InkkSlinger.UI.Telemetry;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -7,6 +9,45 @@ namespace InkkSlinger;
 
 public class VirtualizingStackPanel : Panel
 {
+    private enum ViewerOwnedOffsetChangeHandling
+    {
+        ArrangeOnly,
+        InvalidateMeasure
+    }
+
+    private static long _diagMeasureOverrideCallCount;
+    private static long _diagMeasureOverrideElapsedTicks;
+    private static long _diagMeasureOverrideReusedRangeCount;
+    private static long _diagMeasureAllChildrenCallCount;
+    private static long _diagMeasureAllChildrenElapsedTicks;
+    private static long _diagMeasureRangeCallCount;
+    private static long _diagMeasureRangeElapsedTicks;
+    private static long _diagArrangeOverrideCallCount;
+    private static long _diagArrangeOverrideElapsedTicks;
+    private static long _diagArrangeOverrideReusedRangeCount;
+    private static long _diagArrangeRangeCallCount;
+    private static long _diagArrangeRangeElapsedTicks;
+    private static long _diagCanReuseMeasureForAvailableSizeChangeCallCount;
+    private static long _diagCanReuseMeasureForAvailableSizeChangeTrueCount;
+    private static long _diagResolveViewportContextCallCount;
+    private static long _diagViewerOwnedOffsetDecisionCallCount;
+    private static long _diagViewerOwnedOffsetDecisionRequireMeasureCount;
+    private static long _diagViewerOwnedOffsetDecisionOrientationMismatchCount;
+    private static long _diagViewerOwnedOffsetDecisionInactiveOrNoChildrenOrNoDeltaCount;
+    private static long _diagViewerOwnedOffsetDecisionNonFiniteViewportCount;
+    private static long _diagViewerOwnedOffsetDecisionMissingRealizedRangeCount;
+    private static long _diagViewerOwnedOffsetDecisionBeforeGuardBandCount;
+    private static long _diagViewerOwnedOffsetDecisionAfterGuardBandCount;
+    private static long _diagViewerOwnedOffsetDecisionWithinRealizedWindowCount;
+    private static long _diagSetHorizontalOffsetCallCount;
+    private static long _diagSetHorizontalOffsetNoOpCount;
+    private static long _diagSetHorizontalOffsetRelayoutCount;
+    private static long _diagSetHorizontalOffsetVisualOnlyCount;
+    private static long _diagSetVerticalOffsetCallCount;
+    private static long _diagSetVerticalOffsetNoOpCount;
+    private static long _diagSetVerticalOffsetRelayoutCount;
+    private static long _diagSetVerticalOffsetVisualOnlyCount;
+
     private uint _childOrderVersion;
     private uint _lastMeasuredChildOrderVersion;
     private uint _lastArrangedChildOrderVersion;
@@ -70,10 +111,56 @@ public class VirtualizingStackPanel : Panel
     private float _verticalOffset;
 
     private bool _startOffsetsDirty = true;
+    private int _startOffsetsDirtyIndex;
     private bool _isVirtualizationActive;
     private bool _relayoutQueuedFromOffset;
+    private int _runtimeMeasureOverrideCallCount;
+    private long _runtimeMeasureOverrideElapsedTicks;
+    private int _runtimeMeasureOverrideReusedRangeCount;
+    private int _runtimeMeasureAllChildrenCallCount;
+    private long _runtimeMeasureAllChildrenElapsedTicks;
+    private int _runtimeMeasureRangeCallCount;
+    private long _runtimeMeasureRangeElapsedTicks;
+    private int _runtimeArrangeOverrideCallCount;
+    private long _runtimeArrangeOverrideElapsedTicks;
+    private int _runtimeArrangeOverrideReusedRangeCount;
+    private int _runtimeArrangeRangeCallCount;
+    private long _runtimeArrangeRangeElapsedTicks;
+    private int _runtimeCanReuseMeasureForAvailableSizeChangeCallCount;
+    private int _runtimeCanReuseMeasureForAvailableSizeChangeTrueCount;
+    private int _runtimeResolveViewportContextCallCount;
+    private int _runtimeViewerOwnedOffsetDecisionCallCount;
+    private int _runtimeViewerOwnedOffsetDecisionRequireMeasureCount;
+    private int _runtimeViewerOwnedOffsetDecisionOrientationMismatchCount;
+    private int _runtimeViewerOwnedOffsetDecisionInactiveOrNoChildrenOrNoDeltaCount;
+    private int _runtimeViewerOwnedOffsetDecisionNonFiniteViewportCount;
+    private int _runtimeViewerOwnedOffsetDecisionMissingRealizedRangeCount;
+    private int _runtimeViewerOwnedOffsetDecisionBeforeGuardBandCount;
+    private int _runtimeViewerOwnedOffsetDecisionAfterGuardBandCount;
+    private int _runtimeViewerOwnedOffsetDecisionWithinRealizedWindowCount;
+    private int _runtimeSetHorizontalOffsetCallCount;
+    private int _runtimeSetHorizontalOffsetNoOpCount;
+    private int _runtimeSetHorizontalOffsetRelayoutCount;
+    private int _runtimeSetHorizontalOffsetVisualOnlyCount;
+    private int _runtimeSetVerticalOffsetCallCount;
+    private int _runtimeSetVerticalOffsetNoOpCount;
+    private int _runtimeSetVerticalOffsetRelayoutCount;
+    private int _runtimeSetVerticalOffsetVisualOnlyCount;
+    private string _runtimeLastOffsetDecisionReason = "none";
+    private float _runtimeLastOffsetDecisionOldOffset;
+    private float _runtimeLastOffsetDecisionNewOffset;
+    private float _runtimeLastOffsetDecisionViewportPrimary;
+    private float _runtimeLastOffsetDecisionRealizedStart;
+    private float _runtimeLastOffsetDecisionRealizedEnd;
+    private float _runtimeLastOffsetDecisionGuardBand;
+    private float _runtimeLastViewportContextViewportPrimary;
+    private float _runtimeLastViewportContextOffsetPrimary;
+    private float _runtimeLastViewportContextStartOffset;
+    private float _runtimeLastViewportContextEndOffset;
     private int _lastMeasuredFirst = -1;
     private int _lastMeasuredLast = -1;
+    private Vector2 _lastMeasureConstraint;
+    private bool _hasMeasuredConstraint;
     private int _lastArrangedFirst = -1;
     private int _lastArrangedLast = -1;
     private Vector2 _lastArrangeSize;
@@ -300,90 +387,136 @@ public class VirtualizingStackPanel : Panel
 
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagMeasureOverrideCallCount++;
+        _runtimeMeasureOverrideCallCount++;
+
         _relayoutQueuedFromOffset = false;
         EnsureCacheLength();
 
-        if (Children.Count == 0)
+        try
         {
-            SetRealization(-1, -1);
-            _isVirtualizationActive = false;
-            _maxSecondarySize = 0f;
-            _extentWidth = 0f;
-            _extentHeight = 0f;
-            _viewportWidth = 0f;
-            _viewportHeight = 0f;
-            CoerceOffsets();
-            return Vector2.Zero;
-        }
+            if (Children.Count == 0)
+            {
+                SetRealization(-1, -1);
+                _isVirtualizationActive = false;
+                _maxSecondarySize = 0f;
+                _extentWidth = 0f;
+                _extentHeight = 0f;
+                _viewportWidth = 0f;
+                _viewportHeight = 0f;
+                CoerceOffsets();
+                return Vector2.Zero;
+            }
 
-        var context = ResolveViewportContext(availableSize);
-        _isVirtualizationActive = IsVirtualizationActiveContext(context);
+            var context = ResolveViewportContext(availableSize);
+            _isVirtualizationActive = IsVirtualizationActiveContext(context);
 
-        if (!_isVirtualizationActive)
-        {
-            return MeasureAllChildren(availableSize);
-        }
+            if (!_isVirtualizationActive)
+            {
+                return MeasureAllChildren(availableSize);
+            }
 
-        var first = ResolveStartIndex(context.StartOffset);
-        var last = ResolveEndIndex(context.EndOffset, first);
-        var canReuseMeasuredRange = first == _lastMeasuredFirst &&
-                                    last == _lastMeasuredLast &&
-                                    _lastMeasuredChildOrderVersion == _childOrderVersion &&
-                                    !RangeNeedsMeasure(first, last);
-        if (!canReuseMeasuredRange)
-        {
-            MeasureRange(availableSize, first, last);
+            var first = ResolveStartIndex(context.StartOffset);
+            var last = ResolveEndIndex(context.EndOffset, first);
+            var childConstraint = GetChildConstraint(availableSize);
+            var canReuseMeasuredRange = first == _lastMeasuredFirst &&
+                                        last == _lastMeasuredLast &&
+                                        _lastMeasuredChildOrderVersion == _childOrderVersion &&
+                                        !RangeNeedsMeasure(first, last);
+            if (canReuseMeasuredRange)
+            {
+                _diagMeasureOverrideReusedRangeCount++;
+                _runtimeMeasureOverrideReusedRangeCount++;
+            }
+            else if (TryMeasureShiftedRange(childConstraint, first, last))
+            {
+                _diagMeasureOverrideReusedRangeCount++;
+                _runtimeMeasureOverrideReusedRangeCount++;
+            }
+            else
+            {
+                MeasureRange(childConstraint, first, last);
+            }
+
             _lastMeasuredFirst = first;
             _lastMeasuredLast = last;
             _lastMeasuredChildOrderVersion = _childOrderVersion;
+            _lastMeasureConstraint = childConstraint;
+            _hasMeasuredConstraint = true;
+
+            SetRealization(first, last);
+
+            var extentPrimary = GetTotalPrimarySize();
+            var extentSecondary = ResolveExtentSecondary(availableSize);
+
+            var desired = Orientation == Orientation.Vertical
+                ? new Vector2(extentSecondary, extentPrimary)
+                : new Vector2(extentPrimary, extentSecondary);
+            UpdateScrollDataFromMeasure(availableSize, desired);
+            return desired;
         }
-        SetRealization(first, last);
-
-        var extentPrimary = GetTotalPrimarySize();
-        var extentSecondary = ResolveExtentSecondary(availableSize);
-
-        var desired = Orientation == Orientation.Vertical
-            ? new Vector2(extentSecondary, extentPrimary)
-            : new Vector2(extentPrimary, extentSecondary);
-        UpdateScrollDataFromMeasure(availableSize, desired);
-        return desired;
+        finally
+        {
+            var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagMeasureOverrideElapsedTicks += elapsedTicks;
+            _runtimeMeasureOverrideElapsedTicks += elapsedTicks;
+        }
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize)
     {
-        if (Children.Count == 0)
-        {
-            SetRealization(-1, -1);
-            _isVirtualizationActive = false;
-            _extentWidth = 0f;
-            _extentHeight = 0f;
-            _viewportWidth = MathF.Max(0f, finalSize.X);
-            _viewportHeight = MathF.Max(0f, finalSize.Y);
-            CoerceOffsets();
-            return finalSize;
-        }
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagArrangeOverrideCallCount++;
+        _runtimeArrangeOverrideCallCount++;
 
-        var context = ResolveViewportContext(finalSize);
-        _isVirtualizationActive = IsVirtualizationActiveContext(context);
-
-        if (_isVirtualizationActive)
+        try
         {
-            var first = ResolveStartIndex(context.StartOffset);
-            var last = ResolveEndIndex(context.EndOffset, first);
-            SetRealization(first, last);
-            var currentOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
-            var canReuseArrangeRange = _hasArrangedRange &&
-                                       first == _lastArrangedFirst &&
-                                       last == _lastArrangedLast &&
-                                       _lastArrangedChildOrderVersion == _childOrderVersion &&
-                                       AreClose(_lastArrangeSize.X, finalSize.X) &&
-                                       AreClose(_lastArrangeSize.Y, finalSize.Y) &&
-                                       AreClose(_lastArrangeOrigin.X, currentOrigin.X) &&
-                                       AreClose(_lastArrangeOrigin.Y, currentOrigin.Y) &&
-                                       !RangeNeedsArrange(first, last);
-            if (!canReuseArrangeRange)
+            if (Children.Count == 0)
             {
-                ArrangeRange(finalSize, first, last);
+                SetRealization(-1, -1);
+                _isVirtualizationActive = false;
+                _extentWidth = 0f;
+                _extentHeight = 0f;
+                _viewportWidth = MathF.Max(0f, finalSize.X);
+                _viewportHeight = MathF.Max(0f, finalSize.Y);
+                CoerceOffsets();
+                return finalSize;
+            }
+
+            var context = ResolveViewportContext(finalSize);
+            _isVirtualizationActive = IsVirtualizationActiveContext(context);
+
+            if (_isVirtualizationActive)
+            {
+                var first = ResolveStartIndex(context.StartOffset);
+                var last = ResolveEndIndex(context.EndOffset, first);
+                SetRealization(first, last);
+                var currentOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
+                var canReuseArrangeRange = _hasArrangedRange &&
+                                           first == _lastArrangedFirst &&
+                                           last == _lastArrangedLast &&
+                                           _lastArrangedChildOrderVersion == _childOrderVersion &&
+                                           AreClose(_lastArrangeSize.X, finalSize.X) &&
+                                           AreClose(_lastArrangeSize.Y, finalSize.Y) &&
+                                           AreClose(_lastArrangeOrigin.X, currentOrigin.X) &&
+                                           AreClose(_lastArrangeOrigin.Y, currentOrigin.Y) &&
+                                           !RangeNeedsArrange(first, last);
+                if (canReuseArrangeRange)
+                {
+                    _diagArrangeOverrideReusedRangeCount++;
+                    _runtimeArrangeOverrideReusedRangeCount++;
+                }
+                else if (TryArrangeShiftedRange(finalSize, currentOrigin, first, last))
+                {
+                    _diagArrangeOverrideReusedRangeCount++;
+                    _runtimeArrangeOverrideReusedRangeCount++;
+                }
+                else
+                {
+                    ArrangeRange(finalSize, first, last);
+                }
+
                 _hasArrangedRange = true;
                 _lastArrangedFirst = first;
                 _lastArrangedLast = last;
@@ -391,25 +524,34 @@ public class VirtualizingStackPanel : Panel
                 _lastArrangeOrigin = currentOrigin;
                 _lastArrangedChildOrderVersion = _childOrderVersion;
             }
-        }
-        else
-        {
-            SetRealization(0, Children.Count - 1);
-            ArrangeRange(finalSize, 0, Children.Count - 1);
-            _hasArrangedRange = true;
-            _lastArrangedFirst = 0;
-            _lastArrangedLast = Children.Count - 1;
-            _lastArrangeSize = finalSize;
-            _lastArrangeOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
-            _lastArrangedChildOrderVersion = _childOrderVersion;
-        }
+            else
+            {
+                SetRealization(0, Children.Count - 1);
+                ArrangeRange(finalSize, 0, Children.Count - 1);
+                _hasArrangedRange = true;
+                _lastArrangedFirst = 0;
+                _lastArrangedLast = Children.Count - 1;
+                _lastArrangeSize = finalSize;
+                _lastArrangeOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
+                _lastArrangedChildOrderVersion = _childOrderVersion;
+            }
 
-        UpdateViewportFromFinalSize(finalSize);
-        return finalSize;
+            UpdateViewportFromFinalSize(finalSize);
+            return finalSize;
+        }
+        finally
+        {
+            var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagArrangeOverrideElapsedTicks += elapsedTicks;
+            _runtimeArrangeOverrideElapsedTicks += elapsedTicks;
+        }
     }
 
     protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)
     {
+        _diagCanReuseMeasureForAvailableSizeChangeCallCount++;
+        _runtimeCanReuseMeasureForAvailableSizeChangeCallCount++;
+
         if (GetType() != typeof(VirtualizingStackPanel))
         {
             return false;
@@ -444,6 +586,8 @@ public class VirtualizingStackPanel : Panel
                 }
             }
 
+            _diagCanReuseMeasureForAvailableSizeChangeTrueCount++;
+            _runtimeCanReuseMeasureForAvailableSizeChangeTrueCount++;
             return true;
         }
 
@@ -479,6 +623,8 @@ public class VirtualizingStackPanel : Panel
             }
         }
 
+        _diagCanReuseMeasureForAvailableSizeChangeTrueCount++;
+        _runtimeCanReuseMeasureForAvailableSizeChangeTrueCount++;
         return true;
     }
 
@@ -588,9 +734,14 @@ public class VirtualizingStackPanel : Panel
 
     public void SetHorizontalOffset(float offset)
     {
+        _diagSetHorizontalOffsetCallCount++;
+        _runtimeSetHorizontalOffsetCallCount++;
+
         var next = MathF.Max(0f, MathF.Min(MaxHorizontalOffset(), offset));
         if (AreClose(next, _horizontalOffset))
         {
+            _diagSetHorizontalOffsetNoOpCount++;
+            _runtimeSetHorizontalOffsetNoOpCount++;
             return;
         }
 
@@ -598,6 +749,8 @@ public class VirtualizingStackPanel : Panel
         _horizontalOffset = next;
         if (ShouldRelayoutForOffsetChange(oldOffset, next, isVertical: false))
         {
+            _diagSetHorizontalOffsetRelayoutCount++;
+            _runtimeSetHorizontalOffsetRelayoutCount++;
             if (!_relayoutQueuedFromOffset)
             {
                 _relayoutQueuedFromOffset = true;
@@ -607,6 +760,8 @@ public class VirtualizingStackPanel : Panel
         }
         else
         {
+            _diagSetHorizontalOffsetVisualOnlyCount++;
+            _runtimeSetHorizontalOffsetVisualOnlyCount++;
             InvalidateVisual();
         }
     }
@@ -617,16 +772,61 @@ public class VirtualizingStackPanel : Panel
         float oldVerticalOffset,
         float newVerticalOffset)
     {
-        return Orientation == Orientation.Vertical
-            ? ShouldRelayoutForOffsetChange(oldVerticalOffset, newVerticalOffset, isVertical: true)
-            : ShouldRelayoutForOffsetChange(oldHorizontalOffset, newHorizontalOffset, isVertical: false);
+        return HandleViewerOwnedOffsetChange(
+                   oldHorizontalOffset,
+                   newHorizontalOffset,
+                   oldVerticalOffset,
+                   newVerticalOffset) == ViewerOwnedOffsetChangeHandling.InvalidateMeasure;
+    }
+
+    internal bool TryHandleViewerOwnedOffsetChange(
+        float oldHorizontalOffset,
+        float newHorizontalOffset,
+        float oldVerticalOffset,
+        float newVerticalOffset,
+        out bool requiresMeasure)
+    {
+        var handling = HandleViewerOwnedOffsetChange(
+            oldHorizontalOffset,
+            newHorizontalOffset,
+            oldVerticalOffset,
+            newVerticalOffset);
+        requiresMeasure = handling == ViewerOwnedOffsetChangeHandling.InvalidateMeasure;
+        return handling == ViewerOwnedOffsetChangeHandling.ArrangeOnly;
+    }
+
+    private ViewerOwnedOffsetChangeHandling HandleViewerOwnedOffsetChange(
+        float oldHorizontalOffset,
+        float newHorizontalOffset,
+        float oldVerticalOffset,
+        float newVerticalOffset)
+    {
+        _diagViewerOwnedOffsetDecisionCallCount++;
+        _runtimeViewerOwnedOffsetDecisionCallCount++;
+
+        var handling = Orientation == Orientation.Vertical
+            ? ResolveViewerOwnedOffsetChangeHandling(oldVerticalOffset, newVerticalOffset, isVertical: true)
+            : ResolveViewerOwnedOffsetChangeHandling(oldHorizontalOffset, newHorizontalOffset, isVertical: false);
+
+        if (handling == ViewerOwnedOffsetChangeHandling.InvalidateMeasure)
+        {
+            _diagViewerOwnedOffsetDecisionRequireMeasureCount++;
+            _runtimeViewerOwnedOffsetDecisionRequireMeasureCount++;
+        }
+
+        return handling;
     }
 
     public void SetVerticalOffset(float offset)
     {
+        _diagSetVerticalOffsetCallCount++;
+        _runtimeSetVerticalOffsetCallCount++;
+
         var next = MathF.Max(0f, MathF.Min(MaxVerticalOffset(), offset));
         if (AreClose(next, _verticalOffset))
         {
+            _diagSetVerticalOffsetNoOpCount++;
+            _runtimeSetVerticalOffsetNoOpCount++;
             return;
         }
 
@@ -634,6 +834,8 @@ public class VirtualizingStackPanel : Panel
         _verticalOffset = next;
         if (ShouldRelayoutForOffsetChange(oldOffset, next, isVertical: true))
         {
+            _diagSetVerticalOffsetRelayoutCount++;
+            _runtimeSetVerticalOffsetRelayoutCount++;
             if (!_relayoutQueuedFromOffset)
             {
                 _relayoutQueuedFromOffset = true;
@@ -643,6 +845,8 @@ public class VirtualizingStackPanel : Panel
         }
         else
         {
+            _diagSetVerticalOffsetVisualOnlyCount++;
+            _runtimeSetVerticalOffsetVisualOnlyCount++;
             InvalidateVisual();
         }
     }
@@ -681,37 +885,50 @@ public class VirtualizingStackPanel : Panel
 
     private void ArrangeRange(Vector2 finalSize, int firstIndex, int lastIndex)
     {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagArrangeRangeCallCount++;
+        _runtimeArrangeRangeCallCount++;
+
         EnsureStartOffsets();
 
         var first = Math.Max(0, firstIndex);
         var last = Math.Min(Children.Count - 1, lastIndex);
 
-        for (var i = first; i <= last; i++)
+        try
         {
-            if (Children[i] is not FrameworkElement child)
+            for (var i = first; i <= last; i++)
             {
-                continue;
-            }
+                if (Children[i] is not FrameworkElement child)
+                {
+                    continue;
+                }
 
-            var primary = ResolvePrimarySizeForArrange(child, i);
-            var start = _startOffsets[i];
+                var primary = ResolvePrimarySizeForArrange(child, i);
+                var start = _startOffsets[i];
 
-            if (Orientation == Orientation.Vertical)
-            {
-                child.Arrange(new LayoutRect(
-                    LayoutSlot.X,
-                    LayoutSlot.Y + start,
-                    finalSize.X,
-                    primary));
+                if (Orientation == Orientation.Vertical)
+                {
+                    child.Arrange(new LayoutRect(
+                        LayoutSlot.X,
+                        LayoutSlot.Y + start,
+                        finalSize.X,
+                        primary));
+                }
+                else
+                {
+                    child.Arrange(new LayoutRect(
+                        LayoutSlot.X + start,
+                        LayoutSlot.Y,
+                        primary,
+                        finalSize.Y));
+                }
             }
-            else
-            {
-                child.Arrange(new LayoutRect(
-                    LayoutSlot.X + start,
-                    LayoutSlot.Y,
-                    primary,
-                    finalSize.Y));
-            }
+        }
+        finally
+        {
+            var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagArrangeRangeElapsedTicks += elapsedTicks;
+            _runtimeArrangeRangeElapsedTicks += elapsedTicks;
         }
     }
 
@@ -724,6 +941,7 @@ public class VirtualizingStackPanel : Panel
     {
         _childOrderVersion++;
         _startOffsetsDirty = true;
+        _startOffsetsDirtyIndex = 0;
         _lastMeasuredFirst = -1;
         _lastMeasuredLast = -1;
         _lastArrangedFirst = -1;
@@ -750,96 +968,202 @@ public class VirtualizingStackPanel : Panel
 
     private Vector2 MeasureAllChildren(Vector2 availableSize)
     {
-        var desiredPrimary = 0f;
-        var desiredSecondary = 0f;
-        var measuredPrimaryTotal = 0f;
-        var measuredPrimaryCount = 0;
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagMeasureAllChildrenCallCount++;
+        _runtimeMeasureAllChildrenCallCount++;
 
-        var childConstraint = GetChildConstraint(availableSize);
-        for (var i = 0; i < Children.Count; i++)
+        try
         {
-            if (Children[i] is not FrameworkElement child)
+            var desiredPrimary = 0f;
+            var desiredSecondary = 0f;
+            var measuredPrimaryTotal = 0f;
+            var measuredPrimaryCount = 0;
+
+            var childConstraint = GetChildConstraint(availableSize);
+            for (var i = 0; i < Children.Count; i++)
             {
-                continue;
+                if (Children[i] is not FrameworkElement child)
+                {
+                    continue;
+                }
+
+                child.Measure(childConstraint);
+
+                var childPrimary = Orientation == Orientation.Vertical ? child.DesiredSize.Y : child.DesiredSize.X;
+                var childSecondary = Orientation == Orientation.Vertical ? child.DesiredSize.X : child.DesiredSize.Y;
+
+                if (childPrimary <= 0f || float.IsNaN(childPrimary) || float.IsInfinity(childPrimary))
+                {
+                    childPrimary = MathF.Max(1f, _averagePrimarySize);
+                }
+
+                SetSizeCache(i, childPrimary, childSecondary);
+
+                desiredPrimary += childPrimary;
+                desiredSecondary = MathF.Max(desiredSecondary, childSecondary);
+                measuredPrimaryTotal += childPrimary;
+                measuredPrimaryCount++;
             }
 
-            child.Measure(childConstraint);
-
-            var childPrimary = Orientation == Orientation.Vertical ? child.DesiredSize.Y : child.DesiredSize.X;
-            var childSecondary = Orientation == Orientation.Vertical ? child.DesiredSize.X : child.DesiredSize.Y;
-
-            if (childPrimary <= 0f || float.IsNaN(childPrimary) || float.IsInfinity(childPrimary))
+            if (measuredPrimaryCount > 0)
             {
-                childPrimary = MathF.Max(1f, _averagePrimarySize);
+                _averagePrimarySize = MathF.Max(1f, measuredPrimaryTotal / measuredPrimaryCount);
             }
 
-            SetSizeCache(i, childPrimary, childSecondary);
+            _maxSecondarySize = desiredSecondary;
+            SetRealization(0, Children.Count - 1);
 
-            desiredPrimary += childPrimary;
-            desiredSecondary = MathF.Max(desiredSecondary, childSecondary);
-            measuredPrimaryTotal += childPrimary;
-            measuredPrimaryCount++;
+            return Orientation == Orientation.Vertical
+                ? new Vector2(desiredSecondary, desiredPrimary)
+                : new Vector2(desiredPrimary, desiredSecondary);
         }
-
-        if (measuredPrimaryCount > 0)
+        finally
         {
-            _averagePrimarySize = MathF.Max(1f, measuredPrimaryTotal / measuredPrimaryCount);
+            var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagMeasureAllChildrenElapsedTicks += elapsedTicks;
+            _runtimeMeasureAllChildrenElapsedTicks += elapsedTicks;
         }
-
-        _maxSecondarySize = desiredSecondary;
-        SetRealization(0, Children.Count - 1);
-
-        return Orientation == Orientation.Vertical
-            ? new Vector2(desiredSecondary, desiredPrimary)
-            : new Vector2(desiredPrimary, desiredSecondary);
     }
 
-    private void MeasureRange(Vector2 availableSize, int first, int last)
+    private bool TryArrangeShiftedRange(Vector2 finalSize, Vector2 origin, int first, int last)
     {
-        var childConstraint = GetChildConstraint(availableSize);
-
-        var measuredPrimaryTotal = 0f;
-        var measuredPrimaryCount = 0;
-        var measuredSecondaryMax = _maxSecondarySize;
-
-        for (var i = first; i <= last; i++)
+        if (!_hasArrangedRange ||
+            _lastArrangedChildOrderVersion != _childOrderVersion ||
+            !AreClose(_lastArrangeSize, finalSize) ||
+            !AreClose(_lastArrangeOrigin, origin))
         {
-            if (i < 0 || i >= Children.Count)
-            {
-                continue;
-            }
-
-            if (Children[i] is not FrameworkElement child)
-            {
-                continue;
-            }
-
-            if (child.NeedsMeasure)
-            {
-                child.Measure(childConstraint);
-            }
-
-            var childPrimary = Orientation == Orientation.Vertical ? child.DesiredSize.Y : child.DesiredSize.X;
-            var childSecondary = Orientation == Orientation.Vertical ? child.DesiredSize.X : child.DesiredSize.Y;
-
-            if (childPrimary <= 0f || float.IsNaN(childPrimary) || float.IsInfinity(childPrimary))
-            {
-                childPrimary = MathF.Max(1f, _averagePrimarySize);
-            }
-
-            SetSizeCache(i, childPrimary, childSecondary);
-
-            measuredPrimaryTotal += childPrimary;
-            measuredPrimaryCount++;
-            measuredSecondaryMax = MathF.Max(measuredSecondaryMax, childSecondary);
+            return false;
         }
 
-        if (measuredPrimaryCount > 0)
+        var overlapFirst = Math.Max(first, _lastArrangedFirst);
+        var overlapLast = Math.Min(last, _lastArrangedLast);
+        if (overlapFirst > overlapLast)
         {
-            _averagePrimarySize = MathF.Max(1f, measuredPrimaryTotal / measuredPrimaryCount);
+            return false;
         }
 
-        _maxSecondarySize = measuredSecondaryMax;
+        var reusedAny = false;
+        if (first < overlapFirst)
+        {
+            return false;
+        }
+
+        if (RangeNeedsArrange(overlapFirst, overlapLast))
+        {
+            ArrangeRange(finalSize, overlapFirst, overlapLast);
+        }
+        else
+        {
+            reusedAny = true;
+        }
+
+        if (overlapLast < last)
+        {
+            ArrangeRange(finalSize, overlapLast + 1, last);
+            reusedAny = true;
+        }
+
+        return reusedAny;
+    }
+
+    private void MeasureRange(Vector2 childConstraint, int first, int last)
+    {
+        var startTicks = Stopwatch.GetTimestamp();
+        _diagMeasureRangeCallCount++;
+        _runtimeMeasureRangeCallCount++;
+
+        try
+        {
+            var measuredPrimaryTotal = 0f;
+            var measuredPrimaryCount = 0;
+            var measuredSecondaryMax = _maxSecondarySize;
+
+            for (var i = first; i <= last; i++)
+            {
+                if (i < 0 || i >= Children.Count)
+                {
+                    continue;
+                }
+
+                if (Children[i] is not FrameworkElement child)
+                {
+                    continue;
+                }
+
+                if (child.NeedsMeasure)
+                {
+                    child.Measure(childConstraint);
+                }
+
+                var childPrimary = Orientation == Orientation.Vertical ? child.DesiredSize.Y : child.DesiredSize.X;
+                var childSecondary = Orientation == Orientation.Vertical ? child.DesiredSize.X : child.DesiredSize.Y;
+
+                if (childPrimary <= 0f || float.IsNaN(childPrimary) || float.IsInfinity(childPrimary))
+                {
+                    childPrimary = MathF.Max(1f, _averagePrimarySize);
+                }
+
+                SetSizeCache(i, childPrimary, childSecondary);
+
+                measuredPrimaryTotal += childPrimary;
+                measuredPrimaryCount++;
+                measuredSecondaryMax = MathF.Max(measuredSecondaryMax, childSecondary);
+            }
+
+            if (measuredPrimaryCount > 0)
+            {
+                _averagePrimarySize = MathF.Max(1f, measuredPrimaryTotal / measuredPrimaryCount);
+            }
+
+            _maxSecondarySize = measuredSecondaryMax;
+        }
+        finally
+        {
+            var elapsedTicks = Stopwatch.GetTimestamp() - startTicks;
+            _diagMeasureRangeElapsedTicks += elapsedTicks;
+            _runtimeMeasureRangeElapsedTicks += elapsedTicks;
+        }
+    }
+
+    private bool TryMeasureShiftedRange(Vector2 childConstraint, int first, int last)
+    {
+        if (!_hasMeasuredConstraint ||
+            _lastMeasuredChildOrderVersion != _childOrderVersion ||
+            !AreClose(_lastMeasureConstraint, childConstraint))
+        {
+            return false;
+        }
+
+        var overlapFirst = Math.Max(first, _lastMeasuredFirst);
+        var overlapLast = Math.Min(last, _lastMeasuredLast);
+        if (overlapFirst > overlapLast)
+        {
+            return false;
+        }
+
+        var reusedAny = false;
+        if (first < overlapFirst)
+        {
+            MeasureRange(childConstraint, first, overlapFirst - 1);
+            reusedAny = true;
+        }
+
+        if (RangeNeedsMeasure(overlapFirst, overlapLast))
+        {
+            MeasureRange(childConstraint, overlapFirst, overlapLast);
+        }
+        else
+        {
+            reusedAny = true;
+        }
+
+        if (overlapLast < last)
+        {
+            MeasureRange(childConstraint, overlapLast + 1, last);
+            reusedAny = true;
+        }
+
+        return reusedAny;
     }
 
 
@@ -873,27 +1197,31 @@ public class VirtualizingStackPanel : Panel
         return false;
     }
 
-    private bool ShouldRelayoutForOffsetChange(float oldOffset, float newOffset, bool isVertical)
+    private bool ShouldRelayoutForOffsetChange(float oldOffset, float newOffset, bool isVertical, bool viewerOwnedDecision = false)
     {
         if ((Orientation == Orientation.Vertical) != isVertical)
         {
+            RecordOffsetDecision("orientation-mismatch", viewerOwnedDecision, oldOffset, newOffset, 0f, 0f, 0f, 0f);
             return false;
         }
 
         if (!_isVirtualizationActive || Children.Count == 0 || AreClose(oldOffset, newOffset))
         {
+            RecordOffsetDecision("inactive-or-no-children-or-no-delta", viewerOwnedDecision, oldOffset, newOffset, 0f, 0f, 0f, 0f);
             return false;
         }
 
         var viewportPrimary = isVertical ? _viewportHeight : _viewportWidth;
         if (!IsFinitePositive(viewportPrimary))
         {
+            RecordOffsetDecision("non-finite-viewport", viewerOwnedDecision, oldOffset, newOffset, viewportPrimary, 0f, 0f, 0f);
             return true;
         }
 
         EnsureStartOffsets();
         if (FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex || _startOffsets.Count == 0)
         {
+            RecordOffsetDecision("missing-realized-range", viewerOwnedDecision, oldOffset, newOffset, viewportPrimary, 0f, 0f, 0f);
             return true;
         }
 
@@ -904,7 +1232,64 @@ public class VirtualizingStackPanel : Panel
         var windowStart = newOffset;
         var windowEnd = newOffset + viewportPrimary;
         var guardBand = MathF.Max(MathF.Max(1f, _averagePrimarySize) * 4f, viewportPrimary * 0.15f);
-        return windowStart < realizedStart + guardBand || windowEnd > realizedEnd - guardBand;
+        if (windowStart < realizedStart + guardBand)
+        {
+            RecordOffsetDecision("window-before-guard-band", viewerOwnedDecision, oldOffset, newOffset, viewportPrimary, realizedStart, realizedEnd, guardBand);
+            return true;
+        }
+
+        if (windowEnd > realizedEnd - guardBand)
+        {
+            RecordOffsetDecision("window-after-guard-band", viewerOwnedDecision, oldOffset, newOffset, viewportPrimary, realizedStart, realizedEnd, guardBand);
+            return true;
+        }
+
+        RecordOffsetDecision("within-realized-window", viewerOwnedDecision, oldOffset, newOffset, viewportPrimary, realizedStart, realizedEnd, guardBand);
+        return false;
+    }
+
+    private ViewerOwnedOffsetChangeHandling ResolveViewerOwnedOffsetChangeHandling(float oldOffset, float newOffset, bool isVertical)
+    {
+        if ((Orientation == Orientation.Vertical) != isVertical)
+        {
+            RecordOffsetDecision("orientation-mismatch", viewerOwnedDecision: true, oldOffset, newOffset, 0f, 0f, 0f, 0f);
+            return ViewerOwnedOffsetChangeHandling.ArrangeOnly;
+        }
+
+        if (!_isVirtualizationActive || Children.Count == 0 || AreClose(oldOffset, newOffset))
+        {
+            RecordOffsetDecision("inactive-or-no-children-or-no-delta", viewerOwnedDecision: true, oldOffset, newOffset, 0f, 0f, 0f, 0f);
+            return ViewerOwnedOffsetChangeHandling.ArrangeOnly;
+        }
+
+        var viewportPrimary = isVertical ? _viewportHeight : _viewportWidth;
+        if (!IsFinitePositive(viewportPrimary))
+        {
+            RecordOffsetDecision("non-finite-viewport", viewerOwnedDecision: true, oldOffset, newOffset, viewportPrimary, 0f, 0f, 0f);
+            return ViewerOwnedOffsetChangeHandling.InvalidateMeasure;
+        }
+
+        EnsureStartOffsets();
+        if (FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex || _startOffsets.Count == 0)
+        {
+            RecordOffsetDecision("missing-realized-range", viewerOwnedDecision: true, oldOffset, newOffset, viewportPrimary, 0f, 0f, 0f);
+            return ViewerOwnedOffsetChangeHandling.InvalidateMeasure;
+        }
+
+        var nextContext = CreateViewportContext(viewportPrimary, newOffset);
+        if (TryRefreshForViewerOwnedOffsetChange(nextContext))
+        {
+            var first = Math.Clamp(FirstRealizedIndex, 0, _startOffsets.Count - 1);
+            var last = Math.Clamp(LastRealizedIndex, first, _startOffsets.Count - 1);
+            var realizedStart = _startOffsets[first];
+            var realizedEnd = _startOffsets[last] + _primarySizes[last];
+            RecordOffsetDecision("viewer-owned-range-advance", viewerOwnedDecision: true, oldOffset, newOffset, viewportPrimary, realizedStart, realizedEnd, ResolveCacheLength(viewportPrimary));
+            return ViewerOwnedOffsetChangeHandling.ArrangeOnly;
+        }
+
+        return ShouldRelayoutForOffsetChange(oldOffset, newOffset, isVertical, viewerOwnedDecision: true)
+            ? ViewerOwnedOffsetChangeHandling.InvalidateMeasure
+            : ViewerOwnedOffsetChangeHandling.ArrangeOnly;
     }
 
     private Vector2 GetChildConstraint(Vector2 availableSize)
@@ -938,6 +1323,7 @@ public class VirtualizingStackPanel : Panel
             _secondarySizes.Add(0f);
             _startOffsets.Add(0f);
             _startOffsetsDirty = true;
+            _startOffsetsDirtyIndex = 0;
         }
 
         if (_primarySizes.Count == count)
@@ -949,6 +1335,7 @@ public class VirtualizingStackPanel : Panel
         _secondarySizes.RemoveRange(count, _secondarySizes.Count - count);
         _startOffsets.RemoveRange(count, _startOffsets.Count - count);
         _startOffsetsDirty = true;
+        _startOffsetsDirtyIndex = 0;
         RecomputeCachedEstimates();
     }
 
@@ -1000,6 +1387,9 @@ public class VirtualizingStackPanel : Panel
         {
             _primarySizes[index] = primary;
             _startOffsetsDirty = true;
+            _startOffsetsDirtyIndex = _startOffsetsDirtyIndex < 0
+                ? index
+                : Math.Min(_startOffsetsDirtyIndex, index);
         }
 
         _secondarySizes[index] = secondary;
@@ -1008,6 +1398,89 @@ public class VirtualizingStackPanel : Panel
     private static bool AreClose(float left, float right)
     {
         return MathF.Abs(left - right) <= 0.01f;
+    }
+
+    private static bool AreClose(Vector2 left, Vector2 right)
+    {
+        return AreClose(left.X, right.X) && AreClose(left.Y, right.Y);
+    }
+
+    private bool TryRefreshForViewerOwnedOffsetChange(ViewportContext context)
+    {
+        if (!TryGetViewerOwnedAvailableSize(context, out var availableSize))
+        {
+            return false;
+        }
+
+        var childConstraint = GetChildConstraint(availableSize);
+        var first = ResolveStartIndex(context.StartOffset);
+        var last = ResolveEndIndex(context.EndOffset, first);
+        if (first < 0 || last < first)
+        {
+            return false;
+        }
+
+        if (_hasMeasuredConstraint &&
+            _lastMeasuredChildOrderVersion == _childOrderVersion &&
+            AreClose(_lastMeasureConstraint, childConstraint) &&
+            TryMeasureShiftedRange(childConstraint, first, last))
+        {
+            // Shifted reuse already measured the newly entered slice.
+        }
+        else
+        {
+            MeasureRange(childConstraint, first, last);
+        }
+
+        _lastMeasuredFirst = first;
+        _lastMeasuredLast = last;
+        _lastMeasuredChildOrderVersion = _childOrderVersion;
+        _lastMeasureConstraint = childConstraint;
+        _hasMeasuredConstraint = true;
+        SetRealization(first, last);
+
+        var extentPrimary = GetTotalPrimarySize();
+        var extentSecondary = ResolveExtentSecondary(availableSize);
+        var desired = Orientation == Orientation.Vertical
+            ? new Vector2(extentSecondary, extentPrimary)
+            : new Vector2(extentPrimary, extentSecondary);
+        UpdateScrollDataFromMeasure(availableSize, desired);
+        return true;
+    }
+
+    private bool TryGetViewerOwnedAvailableSize(ViewportContext context, out Vector2 availableSize)
+    {
+        var ancestorViewer = FindAncestorScrollViewer();
+        var viewportWidth = _viewportWidth;
+        var viewportHeight = _viewportHeight;
+
+        if (!IsFinitePositive(viewportWidth) && ancestorViewer != null && IsFinitePositive(ancestorViewer.ViewportWidth))
+        {
+            viewportWidth = ancestorViewer.ViewportWidth;
+        }
+
+        if (!IsFinitePositive(viewportHeight) && ancestorViewer != null && IsFinitePositive(ancestorViewer.ViewportHeight))
+        {
+            viewportHeight = ancestorViewer.ViewportHeight;
+        }
+
+        if (Orientation == Orientation.Vertical)
+        {
+            viewportHeight = context.ViewportPrimary;
+        }
+        else
+        {
+            viewportWidth = context.ViewportPrimary;
+        }
+
+        if (!IsFinitePositive(viewportWidth) || !IsFinitePositive(viewportHeight))
+        {
+            availableSize = default;
+            return false;
+        }
+
+        availableSize = new Vector2(viewportWidth, viewportHeight);
+        return true;
     }
 
     private void SetRealization(int first, int last)
@@ -1091,6 +1564,14 @@ public class VirtualizingStackPanel : Panel
         return _startOffsets[last] + _primarySizes[last];
     }
 
+    private ViewportContext CreateViewportContext(float viewportPrimary, float offsetPrimary)
+    {
+        var cacheLength = ResolveCacheLength(viewportPrimary);
+        var startOffset = MathF.Max(0f, offsetPrimary - cacheLength);
+        var endOffset = offsetPrimary + viewportPrimary + cacheLength;
+        return new ViewportContext(viewportPrimary, offsetPrimary, startOffset, endOffset);
+    }
+
     private void EnsureStartOffsets()
     {
         if (!_startOffsetsDirty && _startOffsets.Count == Children.Count)
@@ -1110,14 +1591,16 @@ public class VirtualizingStackPanel : Panel
             _startOffsets.RemoveRange(Children.Count, _startOffsets.Count - Children.Count);
         }
 
-        var offset = 0f;
-        for (var i = 0; i < _primarySizes.Count; i++)
+        var startIndex = Math.Clamp(_startOffsetsDirtyIndex, 0, Math.Max(0, _primarySizes.Count - 1));
+        var offset = startIndex > 0 ? _startOffsets[startIndex] : 0f;
+        for (var i = startIndex; i < _primarySizes.Count; i++)
         {
             _startOffsets[i] = offset;
             offset += _primarySizes[i];
         }
 
         _startOffsetsDirty = false;
+        _startOffsetsDirtyIndex = -1;
     }
 
     private static int UpperBound(IReadOnlyList<float> values, float value)
@@ -1143,6 +1626,9 @@ public class VirtualizingStackPanel : Panel
 
     private ViewportContext ResolveViewportContext(Vector2 availableSize)
     {
+        _diagResolveViewportContextCallCount++;
+        _runtimeResolveViewportContextCallCount++;
+
         var fallbackViewer = FindAncestorScrollViewer();
         var viewportPrimary = Orientation == Orientation.Vertical
             ? ViewportHeight
@@ -1184,11 +1670,259 @@ public class VirtualizingStackPanel : Panel
         var startOffset = MathF.Max(0f, offsetPrimary - cacheLength);
         var endOffset = offsetPrimary + viewportPrimary + cacheLength;
 
+        _runtimeLastViewportContextViewportPrimary = viewportPrimary;
+        _runtimeLastViewportContextOffsetPrimary = offsetPrimary;
+        _runtimeLastViewportContextStartOffset = startOffset;
+        _runtimeLastViewportContextEndOffset = endOffset;
+
         return new ViewportContext(
             viewportPrimary,
             offsetPrimary,
             startOffset,
             endOffset);
+    }
+
+    internal VirtualizingStackPanelRuntimeDiagnosticsSnapshot GetVirtualizingStackPanelSnapshotForDiagnostics()
+    {
+        var realizedStart = 0f;
+        var realizedEnd = 0f;
+        _ = TryGetRealizedRange(out realizedStart, out realizedEnd);
+
+        return new VirtualizingStackPanelRuntimeDiagnosticsSnapshot(
+            Orientation,
+            IsVirtualizing,
+            VirtualizationMode,
+            CacheLength,
+            CacheLengthUnit,
+            _isVirtualizationActive,
+            Children.Count,
+            FirstRealizedIndex,
+            LastRealizedIndex,
+            RealizedChildrenCount,
+            realizedStart,
+            realizedEnd,
+            _extentWidth,
+            _extentHeight,
+            _viewportWidth,
+            _viewportHeight,
+            _horizontalOffset,
+            _verticalOffset,
+            _averagePrimarySize,
+            _maxSecondarySize,
+            _startOffsetsDirty,
+            _relayoutQueuedFromOffset,
+            _lastMeasuredFirst,
+            _lastMeasuredLast,
+            _lastArrangedFirst,
+            _lastArrangedLast,
+            _hasArrangedRange,
+            _runtimeLastOffsetDecisionReason,
+            _runtimeLastOffsetDecisionOldOffset,
+            _runtimeLastOffsetDecisionNewOffset,
+            _runtimeLastOffsetDecisionViewportPrimary,
+            _runtimeLastOffsetDecisionRealizedStart,
+            _runtimeLastOffsetDecisionRealizedEnd,
+            _runtimeLastOffsetDecisionGuardBand,
+            _runtimeLastViewportContextViewportPrimary,
+            _runtimeLastViewportContextOffsetPrimary,
+            _runtimeLastViewportContextStartOffset,
+            _runtimeLastViewportContextEndOffset,
+            _runtimeMeasureOverrideCallCount,
+            TicksToMilliseconds(_runtimeMeasureOverrideElapsedTicks),
+            _runtimeMeasureOverrideReusedRangeCount,
+            _runtimeMeasureAllChildrenCallCount,
+            TicksToMilliseconds(_runtimeMeasureAllChildrenElapsedTicks),
+            _runtimeMeasureRangeCallCount,
+            TicksToMilliseconds(_runtimeMeasureRangeElapsedTicks),
+            _runtimeArrangeOverrideCallCount,
+            TicksToMilliseconds(_runtimeArrangeOverrideElapsedTicks),
+            _runtimeArrangeOverrideReusedRangeCount,
+            _runtimeArrangeRangeCallCount,
+            TicksToMilliseconds(_runtimeArrangeRangeElapsedTicks),
+            _runtimeCanReuseMeasureForAvailableSizeChangeCallCount,
+            _runtimeCanReuseMeasureForAvailableSizeChangeTrueCount,
+            _runtimeResolveViewportContextCallCount,
+            _runtimeViewerOwnedOffsetDecisionCallCount,
+            _runtimeViewerOwnedOffsetDecisionRequireMeasureCount,
+            _runtimeViewerOwnedOffsetDecisionOrientationMismatchCount,
+            _runtimeViewerOwnedOffsetDecisionInactiveOrNoChildrenOrNoDeltaCount,
+            _runtimeViewerOwnedOffsetDecisionNonFiniteViewportCount,
+            _runtimeViewerOwnedOffsetDecisionMissingRealizedRangeCount,
+            _runtimeViewerOwnedOffsetDecisionBeforeGuardBandCount,
+            _runtimeViewerOwnedOffsetDecisionAfterGuardBandCount,
+            _runtimeViewerOwnedOffsetDecisionWithinRealizedWindowCount,
+            _runtimeSetHorizontalOffsetCallCount,
+            _runtimeSetHorizontalOffsetNoOpCount,
+            _runtimeSetHorizontalOffsetRelayoutCount,
+            _runtimeSetHorizontalOffsetVisualOnlyCount,
+            _runtimeSetVerticalOffsetCallCount,
+            _runtimeSetVerticalOffsetNoOpCount,
+            _runtimeSetVerticalOffsetRelayoutCount,
+            _runtimeSetVerticalOffsetVisualOnlyCount);
+    }
+
+    internal new static VirtualizingStackPanelTelemetrySnapshot GetAggregateTelemetrySnapshotForDiagnostics()
+    {
+        return CreateAggregateTelemetrySnapshot();
+    }
+
+    internal new static VirtualizingStackPanelTelemetrySnapshot GetTelemetryAndReset()
+    {
+        var snapshot = CreateAggregateTelemetrySnapshot();
+        _diagMeasureOverrideCallCount = 0;
+        _diagMeasureOverrideElapsedTicks = 0;
+        _diagMeasureOverrideReusedRangeCount = 0;
+        _diagMeasureAllChildrenCallCount = 0;
+        _diagMeasureAllChildrenElapsedTicks = 0;
+        _diagMeasureRangeCallCount = 0;
+        _diagMeasureRangeElapsedTicks = 0;
+        _diagArrangeOverrideCallCount = 0;
+        _diagArrangeOverrideElapsedTicks = 0;
+        _diagArrangeOverrideReusedRangeCount = 0;
+        _diagArrangeRangeCallCount = 0;
+        _diagArrangeRangeElapsedTicks = 0;
+        _diagCanReuseMeasureForAvailableSizeChangeCallCount = 0;
+        _diagCanReuseMeasureForAvailableSizeChangeTrueCount = 0;
+        _diagResolveViewportContextCallCount = 0;
+        _diagViewerOwnedOffsetDecisionCallCount = 0;
+        _diagViewerOwnedOffsetDecisionRequireMeasureCount = 0;
+        _diagViewerOwnedOffsetDecisionOrientationMismatchCount = 0;
+        _diagViewerOwnedOffsetDecisionInactiveOrNoChildrenOrNoDeltaCount = 0;
+        _diagViewerOwnedOffsetDecisionNonFiniteViewportCount = 0;
+        _diagViewerOwnedOffsetDecisionMissingRealizedRangeCount = 0;
+        _diagViewerOwnedOffsetDecisionBeforeGuardBandCount = 0;
+        _diagViewerOwnedOffsetDecisionAfterGuardBandCount = 0;
+        _diagViewerOwnedOffsetDecisionWithinRealizedWindowCount = 0;
+        _diagSetHorizontalOffsetCallCount = 0;
+        _diagSetHorizontalOffsetNoOpCount = 0;
+        _diagSetHorizontalOffsetRelayoutCount = 0;
+        _diagSetHorizontalOffsetVisualOnlyCount = 0;
+        _diagSetVerticalOffsetCallCount = 0;
+        _diagSetVerticalOffsetNoOpCount = 0;
+        _diagSetVerticalOffsetRelayoutCount = 0;
+        _diagSetVerticalOffsetVisualOnlyCount = 0;
+        return snapshot;
+    }
+
+    private static VirtualizingStackPanelTelemetrySnapshot CreateAggregateTelemetrySnapshot()
+    {
+        return new VirtualizingStackPanelTelemetrySnapshot(
+            _diagMeasureOverrideCallCount,
+            TicksToMilliseconds(_diagMeasureOverrideElapsedTicks),
+            _diagMeasureOverrideReusedRangeCount,
+            _diagMeasureAllChildrenCallCount,
+            TicksToMilliseconds(_diagMeasureAllChildrenElapsedTicks),
+            _diagMeasureRangeCallCount,
+            TicksToMilliseconds(_diagMeasureRangeElapsedTicks),
+            _diagArrangeOverrideCallCount,
+            TicksToMilliseconds(_diagArrangeOverrideElapsedTicks),
+            _diagArrangeOverrideReusedRangeCount,
+            _diagArrangeRangeCallCount,
+            TicksToMilliseconds(_diagArrangeRangeElapsedTicks),
+            _diagCanReuseMeasureForAvailableSizeChangeCallCount,
+            _diagCanReuseMeasureForAvailableSizeChangeTrueCount,
+            _diagResolveViewportContextCallCount,
+            _diagViewerOwnedOffsetDecisionCallCount,
+            _diagViewerOwnedOffsetDecisionRequireMeasureCount,
+            _diagViewerOwnedOffsetDecisionOrientationMismatchCount,
+            _diagViewerOwnedOffsetDecisionInactiveOrNoChildrenOrNoDeltaCount,
+            _diagViewerOwnedOffsetDecisionNonFiniteViewportCount,
+            _diagViewerOwnedOffsetDecisionMissingRealizedRangeCount,
+            _diagViewerOwnedOffsetDecisionBeforeGuardBandCount,
+            _diagViewerOwnedOffsetDecisionAfterGuardBandCount,
+            _diagViewerOwnedOffsetDecisionWithinRealizedWindowCount,
+            _diagSetHorizontalOffsetCallCount,
+            _diagSetHorizontalOffsetNoOpCount,
+            _diagSetHorizontalOffsetRelayoutCount,
+            _diagSetHorizontalOffsetVisualOnlyCount,
+            _diagSetVerticalOffsetCallCount,
+            _diagSetVerticalOffsetNoOpCount,
+            _diagSetVerticalOffsetRelayoutCount,
+            _diagSetVerticalOffsetVisualOnlyCount);
+    }
+
+    private void RecordOffsetDecision(
+        string reason,
+        bool viewerOwnedDecision,
+        float oldOffset,
+        float newOffset,
+        float viewportPrimary,
+        float realizedStart,
+        float realizedEnd,
+        float guardBand)
+    {
+        _runtimeLastOffsetDecisionReason = reason;
+        _runtimeLastOffsetDecisionOldOffset = oldOffset;
+        _runtimeLastOffsetDecisionNewOffset = newOffset;
+        _runtimeLastOffsetDecisionViewportPrimary = viewportPrimary;
+        _runtimeLastOffsetDecisionRealizedStart = realizedStart;
+        _runtimeLastOffsetDecisionRealizedEnd = realizedEnd;
+        _runtimeLastOffsetDecisionGuardBand = guardBand;
+
+        if (!viewerOwnedDecision)
+        {
+            return;
+        }
+
+        switch (reason)
+        {
+            case "orientation-mismatch":
+                _diagViewerOwnedOffsetDecisionOrientationMismatchCount++;
+                _runtimeViewerOwnedOffsetDecisionOrientationMismatchCount++;
+                break;
+            case "inactive-or-no-children-or-no-delta":
+                _diagViewerOwnedOffsetDecisionInactiveOrNoChildrenOrNoDeltaCount++;
+                _runtimeViewerOwnedOffsetDecisionInactiveOrNoChildrenOrNoDeltaCount++;
+                break;
+            case "non-finite-viewport":
+                _diagViewerOwnedOffsetDecisionNonFiniteViewportCount++;
+                _runtimeViewerOwnedOffsetDecisionNonFiniteViewportCount++;
+                break;
+            case "missing-realized-range":
+                _diagViewerOwnedOffsetDecisionMissingRealizedRangeCount++;
+                _runtimeViewerOwnedOffsetDecisionMissingRealizedRangeCount++;
+                break;
+            case "window-before-guard-band":
+                _diagViewerOwnedOffsetDecisionBeforeGuardBandCount++;
+                _runtimeViewerOwnedOffsetDecisionBeforeGuardBandCount++;
+                break;
+            case "window-after-guard-band":
+                _diagViewerOwnedOffsetDecisionAfterGuardBandCount++;
+                _runtimeViewerOwnedOffsetDecisionAfterGuardBandCount++;
+                break;
+            case "within-realized-window":
+                _diagViewerOwnedOffsetDecisionWithinRealizedWindowCount++;
+                _runtimeViewerOwnedOffsetDecisionWithinRealizedWindowCount++;
+                break;
+        }
+    }
+
+    private bool TryGetRealizedRange(out float realizedStart, out float realizedEnd)
+    {
+        realizedStart = 0f;
+        realizedEnd = 0f;
+
+        if (FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex || Children.Count == 0)
+        {
+            return false;
+        }
+
+        EnsureStartOffsets();
+        if (_startOffsets.Count == 0)
+        {
+            return false;
+        }
+
+        var first = Math.Clamp(FirstRealizedIndex, 0, _startOffsets.Count - 1);
+        var last = Math.Clamp(LastRealizedIndex, first, _startOffsets.Count - 1);
+        realizedStart = _startOffsets[first];
+        realizedEnd = _startOffsets[last] + _primarySizes[last];
+        return true;
+    }
+
+    private static double TicksToMilliseconds(long ticks)
+    {
+        return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 
     private float ResolveCacheLength(float viewportPrimary)
