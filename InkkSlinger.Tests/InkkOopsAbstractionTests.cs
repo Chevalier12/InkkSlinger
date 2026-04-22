@@ -291,7 +291,7 @@ public sealed class InkkOopsAbstractionTests
     }
 
     [Fact]
-    public void DefaultHostConfiguration_Registers_ColorEditorInvestigationContributors()
+    public void DefaultHostConfiguration_Registers_DefaultDiagnosticsContributors()
     {
         var configuration = InkkOopsHostConfiguration.CreateDefault(typeof(ControlsCatalogView).Assembly);
 
@@ -299,9 +299,11 @@ public sealed class InkkOopsAbstractionTests
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsFrameworkElementDiagnosticsContributor);
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsControlDiagnosticsContributor);
         Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsUserControlDiagnosticsContributor);
-        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsColorPickerDiagnosticsContributor);
-        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsColorSpectrumDiagnosticsContributor);
-        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsBorderDiagnosticsContributor);
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsScrollViewerDiagnosticsContributor);
+        Assert.Contains(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsVirtualizingStackPanelDiagnosticsContributor);
+        Assert.DoesNotContain(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsColorPickerDiagnosticsContributor);
+        Assert.DoesNotContain(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsColorSpectrumDiagnosticsContributor);
+        Assert.DoesNotContain(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsBorderDiagnosticsContributor);
         Assert.DoesNotContain(configuration.DiagnosticsContributors, static contributor => contributor is InkkOopsButtonDiagnosticsContributor);
     }
 

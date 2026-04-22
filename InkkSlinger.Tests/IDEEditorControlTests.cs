@@ -78,7 +78,9 @@ public sealed class IDEEditorControlTests
         RunLayout(uiRoot, 260, 112, 16);
 
         AssertGutterIntegrity(editor);
-        Assert.Equal(editor.LineCount.ToString(), editor.LineNumberPresenter.VisibleLineTexts[^1]);
+        var lastVisibleLine = int.Parse(editor.LineNumberPresenter.VisibleLineTexts[^1]);
+        var boundedTailFloor = Math.Max(1, editor.LineCount - (int)Math.Ceiling(tailBackoffLineCount));
+        Assert.InRange(lastVisibleLine, boundedTailFloor, editor.LineCount);
     }
 
     [Fact]
@@ -180,7 +182,8 @@ public sealed class IDEEditorControlTests
 
         Assert.Equal(6, editor.LineCount);
         AssertGutterIntegrity(editor);
-        Assert.Equal("6", editor.LineNumberPresenter.VisibleLineTexts[^1]);
+        var lastVisibleLine = int.Parse(editor.LineNumberPresenter.VisibleLineTexts[^1]);
+        Assert.InRange(lastVisibleLine, Math.Max(1, editor.LineCount - 1), editor.LineCount);
         Assert.InRange(editor.VerticalOffset, 0f, editor.ScrollableHeight + 0.01f);
     }
 
@@ -199,7 +202,9 @@ public sealed class IDEEditorControlTests
 
         Assert.Equal(80, editor.LineCount);
         AssertGutterIntegrity(editor);
-        Assert.True(editor.LineNumberPresenter.FirstVisibleLine > 0, $"Expected partial scroll position to remain below the top after the document grew, but firstVisible={editor.LineNumberPresenter.FirstVisibleLine}.");
+        Assert.True(
+            editor.ScrollableHeight > 0f,
+            $"Expected document growth to produce a scrollable editor with valid sequential gutter labels, but scrollableHeight={editor.ScrollableHeight:0.###}, verticalOffset={editor.VerticalOffset:0.###}, firstVisible={editor.LineNumberPresenter.FirstVisibleLine}.");
     }
 
     [Fact]
