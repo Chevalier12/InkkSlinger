@@ -223,7 +223,14 @@ public static class DesignerXmlSyntaxHighlighter
                 continue;
             }
 
-            document.Blocks[i] = CreateHighlightedParagraph(currentNormalized, lineStarts[i], currentLines[i].Length, currentTokens, palette);
+            var existingParagraph = (Paragraph)document.Blocks[i];
+            document.Blocks[i] = CreateHighlightedParagraph(
+                currentNormalized,
+                lineStarts[i],
+                currentLines[i].Length,
+                currentTokens,
+                palette,
+                existingParagraph);
             refreshedAnyParagraph = true;
         }
 
@@ -293,9 +300,15 @@ public static class DesignerXmlSyntaxHighlighter
         int lineStart,
         int lineLength,
         IReadOnlyList<DesignerXmlSyntaxToken> tokens,
-        DesignerXmlSyntaxColors colors)
+        DesignerXmlSyntaxColors colors,
+        Paragraph? templateParagraph = null)
     {
         var paragraph = new Paragraph();
+        if (templateParagraph is not null)
+        {
+            CopyParagraphSettings(templateParagraph, paragraph);
+        }
+
         AddLineRuns(paragraph, source, lineStart, lineLength, tokens, colors);
         if (paragraph.Inlines.Count == 0)
         {
@@ -303,6 +316,16 @@ public static class DesignerXmlSyntaxHighlighter
         }
 
         return paragraph;
+    }
+
+    private static void CopyParagraphSettings(Paragraph source, Paragraph destination)
+    {
+        destination.DefaultIncrementalTab = source.DefaultIncrementalTab;
+        for (var i = 0; i < source.Tabs.Count; i++)
+        {
+            var tab = source.Tabs[i];
+            destination.Tabs.Add(new TextTabProperties(tab.Alignment, tab.Location, tab.TabLeader, tab.AligningCharacter));
+        }
     }
 
     private static int[] ComputeLineStarts(string[] lines)

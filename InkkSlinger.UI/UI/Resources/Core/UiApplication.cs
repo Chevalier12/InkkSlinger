@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace InkkSlinger;
 
@@ -48,5 +49,13 @@ public sealed class UiApplication
             _mainWindow = null;
             _shutdownRequest = null;
         }
+    }
+
+    internal void ResetForTests()
+    {
+        _mainWindow = null;
+        _shutdownRequest = null;
+        FpsEnabled = true;
+        Resources.ReplaceContents(Array.Empty<KeyValuePair<object, object>>(), Array.Empty<ResourceDictionary>(), notifyChanged: false);
     }
 }

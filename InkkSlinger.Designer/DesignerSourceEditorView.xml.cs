@@ -519,6 +519,7 @@ public partial class DesignerSourceEditorView : UserControl, IInkkOopsCustomDiag
             SourceEditor.Select(clampedSelectionStart, clampedSelectionLength);
             SourceEditor.ScrollToHorizontalOffset(horizontalOffset);
             SourceEditor.ScrollToVerticalOffset(verticalOffset);
+            SourceEditor.PreserveCurrentScrollOffsetsOnNextLayout();
         }
         finally
         {

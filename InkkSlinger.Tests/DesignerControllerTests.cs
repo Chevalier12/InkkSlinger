@@ -5881,6 +5881,14 @@ public class DesignerControllerTests
     private static void ResetDesignerTestState()
     {
         Dispatcher.ResetForTests();
+        AnimationManager.Current.ResetForTests();
+        UiApplication.Current.ResetForTests();
+        FocusManager.ClearFocus();
+        FocusManager.ClearPointerCapture();
+        InputGestureService.Clear();
+        Popup.ResetForTests();
+        TextClipboard.ResetForTests();
+        UiTextRenderer.ConfigureRuntimeServicesForTests();
         VisualTreeHelper.ResetInstrumentationForTests();
         ResetCompletionScrollTelemetry();
     }

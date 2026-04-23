@@ -780,6 +780,13 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
         SetScrollOffsets(GetEffectiveHorizontalOffset(), offset, "ScrollToVerticalOffset");
     }
 
+    public void PreserveCurrentScrollOffsetsOnNextLayout()
+    {
+        _horizontalOffset = GetEffectiveHorizontalOffset();
+        _verticalOffset = GetEffectiveVerticalOffset();
+        _hasPendingContentHostScrollOffsets = _contentHost != null;
+    }
+
     public bool HandleTextInputFromInput(char character)
     {
         if (character == ' ' && ShouldSuppressDuplicateSpaceTextInput())

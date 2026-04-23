@@ -328,6 +328,22 @@ public class Popup : ContentControl
         }
     }
 
+    internal static void ResetForTests()
+    {
+        Dispatcher.VerifyAccess();
+
+        Popup[] snapshot;
+        lock (OpenPopups)
+        {
+            snapshot = OpenPopups.ToArray();
+        }
+
+        for (var i = 0; i < snapshot.Length; i++)
+        {
+            snapshot[i].Close();
+        }
+    }
+
     public Popup()
     {
         HorizontalAlignment = HorizontalAlignment.Left;

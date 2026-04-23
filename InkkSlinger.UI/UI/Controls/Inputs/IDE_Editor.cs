@@ -553,6 +553,11 @@ public sealed class IDE_Editor : Control, ITextInputControl
         _indentGuideOverlay?.InvalidateVisual();
     }
 
+    public void PreserveCurrentScrollOffsetsOnNextLayout()
+    {
+        _editor?.PreserveCurrentScrollOffsetsOnNextLayout();
+    }
+
     public bool HandleTextInputFromInput(char character)
     {
         EnsureEditorFocusState();
