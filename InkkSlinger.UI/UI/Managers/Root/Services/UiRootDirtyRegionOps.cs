@@ -300,12 +300,6 @@ public sealed partial class UiRoot
         {
             if (AreRectsEqual(oldBounds, newBounds))
             {
-                if (ShouldSkipUnchangedDirtyBoundsForVisual(visual))
-                {
-                    _dirtyBoundsEventTrace.Add($"dirty-skip:unchanged:{DescribeDirtyBoundsVisual(visual)}:{oldBounds.X:0.##},{oldBounds.Y:0.##},{oldBounds.Width:0.##},{oldBounds.Height:0.##}");
-                    return;
-                }
-
                 AddDirtyRegionForDiagnostics(oldBounds, "unchanged");
                 return;
             }
@@ -334,20 +328,6 @@ public sealed partial class UiRoot
         }
 
     }
-
-    private static bool ShouldSkipUnchangedDirtyBoundsForVisual(UIElement? visual)
-    {
-        return visual switch
-        {
-            Grid grid => !grid.ShowGridLines,
-            Canvas => true,
-            StackPanel => true,
-            WrapPanel => true,
-            VirtualizingStackPanel => true,
-            _ => false
-        };
-    }
-
     private static string DescribeDirtyBoundsVisual(UIElement? visual)
     {
         return visual switch

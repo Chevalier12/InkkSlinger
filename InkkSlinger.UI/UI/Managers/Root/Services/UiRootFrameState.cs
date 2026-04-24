@@ -71,14 +71,11 @@ public sealed partial class UiRoot
         var shouldDraw = !UseConditionalDrawScheduling || AlwaysDrawCompatibilityMode || reasons != UiRedrawReason.None;
         LastShouldDrawReasons = reasons;
         _scheduledDrawReasons = shouldDraw ? reasons : UiRedrawReason.None;
-        if (shouldDraw)
-        {
-            DrawExecutedFrameCount++;
-        }
-        else
+        if (!shouldDraw)
         {
             DrawSkippedFrameCount++;
         }
+
         return shouldDraw;
     }
 

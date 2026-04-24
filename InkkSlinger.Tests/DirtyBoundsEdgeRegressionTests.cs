@@ -181,7 +181,7 @@ public sealed class DirtyBoundsEdgeRegressionTests
     }
 
     [Fact]
-    public void RenderInvalidation_OnGridWithoutGridLines_DoesNotAddUnchangedDirtyRegion()
+    public void RenderInvalidation_OnGridWithoutGridLines_PreservesUnchangedDirtyRegion()
     {
         var root = new Panel();
         var grid = new Grid
@@ -204,10 +204,14 @@ public sealed class DirtyBoundsEdgeRegressionTests
         uiRoot.ResetDirtyStateForTests();
         root.ClearRenderInvalidationRecursive();
 
+        Assert.True(grid.TryGetRenderBoundsInRootSpace(out var gridBounds));
+
         grid.InvalidateVisual();
 
-        Assert.Empty(uiRoot.GetDirtyRegionsSnapshotForTests());
         Assert.Contains(
+            uiRoot.GetDirtyRegionsSnapshotForTests(),
+            region => Contains(region, gridBounds));
+        Assert.DoesNotContain(
             uiRoot.GetDirtyBoundsEventTraceForTests(),
             entry => entry.StartsWith("dirty-skip:unchanged:Grid", StringComparison.Ordinal));
     }
@@ -243,6 +247,40 @@ public sealed class DirtyBoundsEdgeRegressionTests
         Assert.DoesNotContain(
             uiRoot.GetDirtyBoundsEventTraceForTests(),
             entry => entry.StartsWith("dirty-skip:unchanged:Grid", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RenderInvalidation_OnSelfRenderingPanelWithUnchangedBounds_PreservesDirtyRegionDuringPartialRedraw()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 800f, 400f));
+
+        var panel = new StackPanel
+        {
+            Background = Color.Transparent
+        };
+        panel.SetLayoutSlot(new LayoutRect(20f, 20f, 100f, 100f));
+
+        var marker = new Border();
+        marker.SetLayoutSlot(new LayoutRect(700f, 20f, 10f, 10f));
+
+        root.AddChild(panel);
+        root.AddChild(marker);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 800f, 400f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+
+        Assert.True(panel.TryGetRenderBoundsInRootSpace(out var panelBounds));
+
+        panel.Background = new Color(0x30, 0x70, 0xB0);
+        marker.InvalidateVisual();
+
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+
+        Assert.True(uiRoot.WouldUsePartialDirtyRedrawForTests());
+        Assert.Contains(dirtyRegions, region => Contains(region, panelBounds));
     }
 
     [Fact]
@@ -642,6 +680,14 @@ public sealed class DirtyBoundsEdgeRegressionTests
             _hasPendingHint = false;
             return true;
         }
+    }
+
+    private static bool Contains(LayoutRect outer, LayoutRect inner)
+    {
+        return inner.X >= outer.X &&
+               inner.Y >= outer.Y &&
+               inner.X + inner.Width <= outer.X + outer.Width &&
+               inner.Y + inner.Height <= outer.Y + outer.Height;
     }
 
 }

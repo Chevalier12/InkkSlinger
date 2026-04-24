@@ -151,6 +151,27 @@ public sealed class RedrawSchedulingRegressionTests
         Assert.Equal(UiRedrawReason.Resize, uiRoot.GetScheduledDrawReasonsForTests());
     }
 
+
+    [Fact]
+    public void DrawExecutedCounter_TracksCompletedDraws_NotRepeatedShouldDrawChecks()
+    {
+        var uiRoot = new UiRoot(new Panel());
+        var viewport = new Viewport(0, 0, 800, 600);
+
+        Assert.True(uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.Zero, TimeSpan.FromMilliseconds(16)),
+            viewport));
+        Assert.True(uiRoot.ShouldDrawThisFrame(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            viewport));
+
+        Assert.Equal(0, uiRoot.DrawExecutedFrameCount);
+
+        uiRoot.CompleteDrawStateForTests();
+
+        Assert.Equal(1, uiRoot.DrawExecutedFrameCount);
+    }
+
     [Fact]
     public void MeasureArrangeInvalidation_SetsLayoutInvalidatedReason()
     {
@@ -283,7 +304,7 @@ public sealed class RedrawSchedulingRegressionTests
             new GameTime(TimeSpan.FromMilliseconds(32), TimeSpan.FromMilliseconds(16)),
             viewport);
 
-        Assert.Equal(2, uiRoot.DrawExecutedFrameCount);
+        Assert.Equal(1, uiRoot.DrawExecutedFrameCount);
         Assert.Equal(1, uiRoot.DrawSkippedFrameCount);
     }
 

@@ -60,7 +60,6 @@ public class UIElement : DependencyObject
     private int _layoutVersionStamp;
     private int _updateCallCount;
     private int _drawCallCount;
-    private bool _suppressNextLogicalBindingTreeNotify;
     private bool _suppressNextLogicalParentChanged;
     private bool _hasDirectMeasureInvalidation;
     private bool _hasDirectArrangeInvalidation;
@@ -752,12 +751,17 @@ public class UIElement : DependencyObject
             ValidateAcyclicParentAssignment(parent, useVisualChain: true);
         }
 
+        var oldTreeParent = GetTreeParent(this);
         var oldParent = VisualParent;
         VisualParent = parent;
         UiRoot.Current?.NotifyVisualStructureChanged(this, oldParent, parent);
         OnVisualParentChanged(oldParent, parent);
-        NotifyBindingTreeChanged(this);
-        _suppressNextLogicalBindingTreeNotify = true;
+
+        if (!ReferenceEquals(oldTreeParent, GetTreeParent(this)))
+        {
+            NotifyBindingTreeChanged(this);
+        }
+
         _suppressNextLogicalParentChanged = true;
     }
 
@@ -773,6 +777,7 @@ public class UIElement : DependencyObject
             ValidateAcyclicParentAssignment(parent, useVisualChain: false);
         }
 
+        var oldTreeParent = GetTreeParent(this);
         var oldParent = LogicalParent;
         LogicalParent = parent;
         var shouldRunLogicalParentChanged = !(ReferenceEquals(parent, VisualParent) && _suppressNextLogicalParentChanged);
@@ -783,13 +788,10 @@ public class UIElement : DependencyObject
 
         _suppressNextLogicalParentChanged = false;
 
-        var shouldNotifyBindingTree = !ReferenceEquals(parent, VisualParent) && !_suppressNextLogicalBindingTreeNotify;
-        if (shouldNotifyBindingTree)
+        if (!ReferenceEquals(oldTreeParent, GetTreeParent(this)))
         {
             NotifyBindingTreeChanged(this);
         }
-
-        _suppressNextLogicalBindingTreeNotify = false;
     }
     
     private void ValidateAcyclicParentAssignment(UIElement parent, bool useVisualChain)

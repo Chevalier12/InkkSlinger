@@ -134,6 +134,80 @@ public sealed class ItemsControlPresentationParityTests
         Assert.IsType<GroupItem>(listBox.GetItemContainersForPresenter()[0]);
     }
 
+    [Fact]
+    public void ListBox_GroupStyle_WithGroupedView_AppliesOuterItemTemplateToLeafItems()
+    {
+        var rows = new ObservableCollection<Row>
+        {
+            new("Alpha", "Art"),
+            new("Beta", "UI"),
+            new("Gamma", "Art")
+        };
+        var viewSource = new CollectionViewSource
+        {
+            Source = rows
+        };
+        viewSource.GroupDescriptions.Add(new PropertyGroupDescription { PropertyName = nameof(Row.Category) });
+        viewSource.Refresh();
+
+        var listBox = new ListBox
+        {
+            ItemsSource = viewSource,
+            ItemTemplate = new DataTemplate((item, _) =>
+            {
+                var row = Assert.IsType<Row>(item);
+                return new TextBlock
+                {
+                    Text = $"templated:{row.Name}"
+                };
+            })
+        };
+        listBox.GroupStyle.Add(new GroupStyle());
+
+        var uiRoot = BuildUiRootWithSingleChild(listBox);
+        RunLayout(uiRoot);
+
+        var texts = FindDescendants<TextBlock>(listBox).Select(textBlock => textBlock.Text).ToList();
+
+        Assert.Contains("templated:Alpha", texts);
+        Assert.Contains("templated:Beta", texts);
+        Assert.Contains("templated:Gamma", texts);
+    }
+
+    [Fact]
+    public void ListBox_GroupStyle_WithGroupedView_AppliesOuterDisplayMemberPathToLeafItems()
+    {
+        var rows = new ObservableCollection<Row>
+        {
+            new("Alpha", "Art"),
+            new("Beta", "UI"),
+            new("Gamma", "Art")
+        };
+        var viewSource = new CollectionViewSource
+        {
+            Source = rows
+        };
+        viewSource.GroupDescriptions.Add(new PropertyGroupDescription { PropertyName = nameof(Row.Category) });
+        viewSource.Refresh();
+
+        var listBox = new ListBox
+        {
+            ItemsSource = viewSource,
+            DisplayMemberPath = nameof(Row.Name)
+        };
+        listBox.GroupStyle.Add(new GroupStyle());
+
+        var uiRoot = BuildUiRootWithSingleChild(listBox);
+        RunLayout(uiRoot);
+
+        var texts = FindDescendants<TextBlock>(listBox).Select(textBlock => textBlock.Text).ToList();
+
+        Assert.Contains("Alpha", texts);
+        Assert.Contains("Beta", texts);
+        Assert.Contains("Gamma", texts);
+        Assert.DoesNotContain("Row { Name = Alpha, Category = Art }", texts);
+    }
+
     private static UiRoot BuildUiRootWithSingleChild(UIElement child)
     {
         var root = new Panel();
@@ -183,6 +257,26 @@ public sealed class ItemsControlPresentationParityTests
         }
 
         return null;
+    }
+
+    private static IReadOnlyList<T> FindDescendants<T>(UIElement root) where T : UIElement
+    {
+        var matches = new Collection<T>();
+        CollectDescendants(root, matches);
+        return matches;
+    }
+
+    private static void CollectDescendants<T>(UIElement root, Collection<T> matches) where T : UIElement
+    {
+        if (root is T match)
+        {
+            matches.Add(match);
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            CollectDescendants(child, matches);
+        }
     }
 
     private static void RunLayout(UiRoot uiRoot)

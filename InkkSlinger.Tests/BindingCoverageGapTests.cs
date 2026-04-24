@@ -266,6 +266,34 @@ public class BindingCoverageGapTests
     }
 
     [Fact]
+    public void RelativeSourceFindAncestor_WhenDetached_UsesFallbackAfterParentRemoval()
+    {
+        var host = new Grid
+        {
+            Width = 77f
+        };
+        var probe = new ContentControl();
+        host.AddChild(probe);
+
+        BindingOperations.SetBinding(
+            probe,
+            ContentControl.ContentProperty,
+            new Binding
+            {
+                Path = nameof(FrameworkElement.Width),
+                RelativeSourceMode = RelativeSourceMode.FindAncestor,
+                RelativeSourceAncestorType = typeof(Grid),
+                FallbackValue = "detached"
+            });
+
+        Assert.Equal(77f, Assert.IsType<float>(probe.Content));
+
+        _ = host.RemoveChild(probe);
+
+        Assert.Equal("detached", probe.Content);
+    }
+
+    [Fact]
     public void ClearBinding_MultiBinding_ClearsErrorsProducedByThatBinding()
     {
         var vm = new PairViewModel { Left = "L", Right = "R" };

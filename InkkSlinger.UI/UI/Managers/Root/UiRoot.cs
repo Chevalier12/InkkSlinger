@@ -948,6 +948,11 @@ public sealed partial class UiRoot
 
     internal void CompleteDrawStateForTests()
     {
+        if (_scheduledDrawReasons != UiRedrawReason.None)
+        {
+            DrawExecutedFrameCount++;
+        }
+
         _visualRoot.ClearRenderInvalidationRecursive();
         _hasMeasureInvalidation = false;
         _hasArrangeInvalidation = false;

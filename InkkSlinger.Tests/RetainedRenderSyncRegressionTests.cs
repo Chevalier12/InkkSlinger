@@ -644,4 +644,29 @@ public sealed class RetainedRenderSyncRegressionTests
         Assert.True(right.SubtreeDirty);
         Assert.True(root.SubtreeDirty);
     }
+
+    [Fact]
+    public void IncrementalCleanup_ClearsPreviouslySynchronizedDirtyFlags_AfterCatchUpSyncBeforeDraw()
+    {
+        var root = new Panel();
+        var child = new Border();
+        root.AddChild(child);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        child.InvalidateVisual();
+        uiRoot.SynchronizeRetainedRenderListForTests();
+
+        uiRoot.SynchronizeRetainedRenderListForTests();
+        uiRoot.ApplyRenderInvalidationCleanupForTests();
+
+        Assert.False(child.NeedsRender);
+        Assert.False(child.SubtreeDirty);
+        Assert.False(root.NeedsRender);
+        Assert.False(root.SubtreeDirty);
+    }
 }

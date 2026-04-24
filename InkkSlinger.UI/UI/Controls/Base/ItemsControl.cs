@@ -541,7 +541,11 @@ public class ItemsControl : Control
         var groupItem = new GroupItem
         {
             Header = headerText,
-            HeaderTemplate = style.HeaderTemplate
+            HeaderTemplate = style.HeaderTemplate,
+            DisplayMemberPath = DisplayMemberPath,
+            ItemStringFormat = ItemStringFormat,
+            ItemTemplate = ItemTemplate,
+            ItemTemplateSelector = ItemTemplateSelector
         };
 
         _isApplyingGroupProjection = true;

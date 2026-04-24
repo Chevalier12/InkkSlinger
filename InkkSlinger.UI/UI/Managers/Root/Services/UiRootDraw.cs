@@ -16,6 +16,8 @@ public sealed partial class UiRoot
             throw new ArgumentNullException(nameof(spriteBatch));
         }
 
+        DrawExecutedFrameCount++;
+
         var drawStart = Stopwatch.GetTimestamp();
         DrawCalls = 1;
         LastDrawUsedPartialRedraw = false;
@@ -159,12 +161,11 @@ public sealed partial class UiRoot
 
         if (_lastSynchronizedDirtyRenderRoots.Count == 0)
         {
-            if (_dirtyRenderSet.Count == 0 && !_hasRenderInvalidation)
+            if (_dirtyRenderSet.Count == 0)
             {
-                // Animation-only redraws can still occur after a previous retained draw left stale
-                // render dirty flags on visuals. With no synchronized dirty roots and no newly
-                // queued invalidations, those flags are stale and must be cleared here so future
-                // InvalidateVisual calls are not short-circuited.
+                // When no roots were synchronized in this draw phase and nothing remains queued,
+                // any surviving render flags were already synchronized earlier in the frame and
+                // must not leak past cleanup.
                 _visualRoot.ClearRenderInvalidationRecursive();
             }
 
