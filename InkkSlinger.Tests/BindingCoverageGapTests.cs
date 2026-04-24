@@ -327,8 +327,8 @@ public class BindingCoverageGapTests
         };
         priorityBinding.Bindings.Add(new Binding
         {
-            Source = new NumberHolder { Number = 42f },
-            Path = nameof(NumberHolder.Number)
+            Source = null,
+            Path = "NonExistent"
         });
 
         BindingOperations.SetBinding(textBox, TextBox.TextProperty, priorityBinding);

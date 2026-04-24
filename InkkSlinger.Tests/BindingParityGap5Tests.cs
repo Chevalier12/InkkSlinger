@@ -53,8 +53,8 @@ public class BindingParityGap5Tests
         };
         priorityBinding.Bindings.Add(new Binding
         {
-            Source = new NumberHolder { Number = 42f },
-            Path = nameof(NumberHolder.Number)
+            Source = null,
+            Path = "NonExistent"
         });
 
         BindingOperations.SetBinding(textBlock, TextBlock.TextProperty, priorityBinding);
