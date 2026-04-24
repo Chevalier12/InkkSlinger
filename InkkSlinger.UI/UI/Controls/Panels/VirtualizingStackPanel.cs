@@ -272,9 +272,13 @@ public class VirtualizingStackPanel : Panel
 
         var first = Math.Max(0, FirstRealizedIndex);
         var last = Math.Min(Children.Count - 1, LastRealizedIndex);
-        for (var i = first; i <= last; i++)
+        foreach (var child in GetChildrenOrderedByZIndex())
         {
-            yield return Children[i];
+            var childIndex = IndexOfChild(child);
+            if (childIndex >= first && childIndex <= last)
+            {
+                yield return child;
+            }
         }
     }
 
@@ -358,9 +362,26 @@ public class VirtualizingStackPanel : Panel
         var first = Math.Max(0, FirstRealizedIndex);
         var last = Math.Min(Children.Count - 1, LastRealizedIndex);
         var count = Math.Max(0, last - first + 1);
-        if ((uint)index < (uint)count)
+        if ((uint)index >= (uint)count)
         {
-            return Children[first + index];
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+
+        var currentIndex = 0;
+        foreach (var child in GetChildrenOrderedByZIndex())
+        {
+            var childIndex = IndexOfChild(child);
+            if (childIndex < first || childIndex > last)
+            {
+                continue;
+            }
+
+            if (currentIndex == index)
+            {
+                return child;
+            }
+
+            currentIndex++;
         }
 
         throw new ArgumentOutOfRangeException(nameof(index));
@@ -409,7 +430,10 @@ public class VirtualizingStackPanel : Panel
             var first = ResolveStartIndex(context.StartOffset);
             var last = ResolveEndIndex(context.EndOffset, first);
             var childConstraint = GetChildConstraint(availableSize);
-            var canReuseMeasuredRange = first == _lastMeasuredFirst &&
+            var hasReusableMeasureConstraint = _hasMeasuredConstraint &&
+                                               AreClose(_lastMeasureConstraint, childConstraint);
+            var canReuseMeasuredRange = hasReusableMeasureConstraint &&
+                                        first == _lastMeasuredFirst &&
                                         last == _lastMeasuredLast &&
                                         _lastMeasuredChildOrderVersion == _childOrderVersion &&
                                         !RangeNeedsMeasure(first, last);
@@ -425,7 +449,7 @@ public class VirtualizingStackPanel : Panel
             }
             else
             {
-                MeasureRange(childConstraint, first, last);
+                MeasureRange(childConstraint, first, last, forceMeasure: _hasMeasuredConstraint && !hasReusableMeasureConstraint);
             }
 
             _lastMeasuredFirst = first;
@@ -845,17 +869,8 @@ public class VirtualizingStackPanel : Panel
 
     public LayoutRect MakeVisible(UIElement visual, LayoutRect rectangle)
     {
-        var targetRectangle = rectangle;
-        if (visual is FrameworkElement targetElement)
-        {
-            targetRectangle = new LayoutRect(
-                rectangle.X + (targetElement.LayoutSlot.X - LayoutSlot.X),
-                rectangle.Y + (targetElement.LayoutSlot.Y - LayoutSlot.Y),
-                rectangle.Width,
-                rectangle.Height);
-        }
-
         var ownerViewer = FindAncestorScrollViewer();
+        var targetRectangle = ResolveMakeVisibleRectangle(visual, rectangle, ownerViewer);
         if (ownerViewer != null)
         {
             if (Orientation == Orientation.Vertical)
@@ -918,6 +933,75 @@ public class VirtualizingStackPanel : Panel
         return targetRectangle;
     }
 
+    private LayoutRect ResolveMakeVisibleRectangle(UIElement visual, LayoutRect rectangle, ScrollViewer? ownerViewer)
+    {
+        var childIndex = IndexOfChild(visual);
+        if (childIndex >= 0)
+        {
+            EnsureStartOffsets();
+            if (childIndex < _startOffsets.Count)
+            {
+                return Orientation == Orientation.Vertical
+                    ? new LayoutRect(
+                        rectangle.X,
+                        _startOffsets[childIndex] + rectangle.Y,
+                        rectangle.Width,
+                        rectangle.Height)
+                    : new LayoutRect(
+                        _startOffsets[childIndex] + rectangle.X,
+                        rectangle.Y,
+                        rectangle.Width,
+                        rectangle.Height);
+            }
+        }
+
+        if (visual is not FrameworkElement targetElement)
+        {
+            return rectangle;
+        }
+
+        var targetX = rectangle.X + (targetElement.LayoutSlot.X - LayoutSlot.X);
+        var targetY = rectangle.Y + (targetElement.LayoutSlot.Y - LayoutSlot.Y);
+        if (ownerViewer != null)
+        {
+            if (Orientation == Orientation.Vertical)
+            {
+                targetY += ownerViewer.VerticalOffset;
+            }
+            else
+            {
+                targetX += ownerViewer.HorizontalOffset;
+            }
+        }
+        else if (Orientation == Orientation.Vertical)
+        {
+            targetY += VerticalOffset;
+        }
+        else
+        {
+            targetX += HorizontalOffset;
+        }
+
+        return new LayoutRect(
+            targetX,
+            targetY,
+            rectangle.Width,
+            rectangle.Height);
+    }
+
+    private int IndexOfChild(UIElement visual)
+    {
+        for (var i = 0; i < Children.Count; i++)
+        {
+            if (ReferenceEquals(Children[i], visual))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     private void ArrangeRange(Vector2 finalSize, int firstIndex, int lastIndex, float viewportOffset)
     {
         var startTicks = Stopwatch.GetTimestamp();
@@ -975,10 +1059,16 @@ public class VirtualizingStackPanel : Panel
     private void OnChildOrderChanged()
     {
         _childOrderVersion++;
+        _primarySizes.Clear();
+        _secondarySizes.Clear();
+        _startOffsets.Clear();
+        _averagePrimarySize = 28f;
+        _maxSecondarySize = 0f;
         _startOffsetsDirty = true;
         _startOffsetsDirtyIndex = 0;
         _lastMeasuredFirst = -1;
         _lastMeasuredLast = -1;
+        _hasMeasuredConstraint = false;
         _lastArrangedFirst = -1;
         _lastArrangedLast = -1;
         _hasArrangedRange = false;
@@ -1102,7 +1192,7 @@ public class VirtualizingStackPanel : Panel
         return reusedAny;
     }
 
-    private void MeasureRange(Vector2 childConstraint, int first, int last)
+    private void MeasureRange(Vector2 childConstraint, int first, int last, bool forceMeasure = false)
     {
         var startTicks = Stopwatch.GetTimestamp();
         _diagMeasureRangeCallCount++;
@@ -1112,7 +1202,7 @@ public class VirtualizingStackPanel : Panel
         {
             var measuredPrimaryTotal = 0f;
             var measuredPrimaryCount = 0;
-            var measuredSecondaryMax = _maxSecondarySize;
+            var measuredSecondaryMax = 0f;
 
             for (var i = first; i <= last; i++)
             {
@@ -1126,7 +1216,7 @@ public class VirtualizingStackPanel : Panel
                     continue;
                 }
 
-                if (child.NeedsMeasure)
+                if (forceMeasure || child.NeedsMeasure)
                 {
                     child.Measure(childConstraint);
                 }
@@ -1151,7 +1241,7 @@ public class VirtualizingStackPanel : Panel
                 _averagePrimarySize = MathF.Max(1f, measuredPrimaryTotal / measuredPrimaryCount);
             }
 
-            _maxSecondarySize = measuredSecondaryMax;
+            _maxSecondarySize = MathF.Max(measuredSecondaryMax, GetCachedSecondaryMax());
         }
         finally
         {
@@ -1412,6 +1502,21 @@ public class VirtualizingStackPanel : Panel
         _maxSecondarySize = maxSecondary;
     }
 
+    private float GetCachedSecondaryMax()
+    {
+        var maxSecondary = 0f;
+        for (var i = 0; i < _secondarySizes.Count; i++)
+        {
+            var secondary = _secondarySizes[i];
+            if (secondary > maxSecondary && !float.IsNaN(secondary) && !float.IsInfinity(secondary))
+            {
+                maxSecondary = secondary;
+            }
+        }
+
+        return maxSecondary;
+    }
+
     private void SetSizeCache(int index, float primary, float secondary)
     {
         if (index < 0 || index >= _primarySizes.Count)
@@ -1546,7 +1651,6 @@ public class VirtualizingStackPanel : Panel
 
     private void NotifyRealizedVisualRangeChanged()
     {
-        UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
         InvalidateVisual();
     }
 
@@ -2048,12 +2152,14 @@ public class VirtualizingStackPanel : Panel
 
     private ScrollViewer? FindAncestorScrollViewer()
     {
-        for (var current = VisualParent ?? LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
+        if (VisualParent is ScrollViewer visualViewer)
         {
-            if (current is ScrollViewer scrollViewer)
-            {
-                return scrollViewer;
-            }
+            return visualViewer;
+        }
+
+        if (LogicalParent is ScrollViewer logicalViewer)
+        {
+            return logicalViewer;
         }
 
         return null;
