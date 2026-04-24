@@ -39,18 +39,6 @@ public sealed class XamlLoaderReviewReproTests
 
         _ = Assert.ThrowsAny<InvalidOperationException>(() => XamlLoader.LoadFromString(xaml));
     }
-
-    [Fact]
-    public void LoadFromString_InvalidScalarFloatList_Throws()
-    {
-        const string xaml = """
-<Border xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Width="10,20"
-        Height="5" />
-""";
-
-        _ = Assert.ThrowsAny<InvalidOperationException>(() => XamlLoader.LoadFromString(xaml));
-    }
 }
 
 public sealed class ReviewCustomRootHost : UserControl

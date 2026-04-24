@@ -1652,6 +1652,7 @@ public class VirtualizingStackPanel : Panel
     private void NotifyRealizedVisualRangeChanged()
     {
         InvalidateVisual();
+        UiRoot.Current?.NotifyDirectRenderInvalidation(this, requireDeepSync: true);
     }
 
     private int ResolveStartIndex(float startOffset)

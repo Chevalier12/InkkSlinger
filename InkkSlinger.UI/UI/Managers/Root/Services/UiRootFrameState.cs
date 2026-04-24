@@ -353,7 +353,22 @@ public sealed partial class UiRoot
 
     private UIElement? ResolveRetainedSyncSource(UIElement? requestedSource, UIElement? effectiveSource, bool requireDeepSync)
     {
-        _ = requireDeepSync;
+        if (requireDeepSync)
+        {
+            var deepSyncSource = requestedSource ?? effectiveSource;
+            _lastRenderInvalidationRetainedSyncSourceElement = deepSyncSource;
+            _lastRenderInvalidationRetainedSyncSourceType = deepSyncSource?.GetType().Name ?? "none";
+            _lastRenderInvalidationRetainedSyncSourceName = deepSyncSource is FrameworkElement deepSyncFrameworkElement
+                ? deepSyncFrameworkElement.Name
+                : string.Empty;
+            _lastRenderInvalidationRetainedSyncSourceResolution = deepSyncSource == null
+                ? "none"
+                : requestedSource != null
+                    ? "explicit-deep-sync-requested"
+                    : "explicit-deep-sync-effective";
+            return deepSyncSource;
+        }
+
         if (TryFindTransformScrollDirtyBoundsAnchor(requestedSource, out var transformScrollAnchor))
         {
             _lastRenderInvalidationRetainedSyncSourceElement = transformScrollAnchor;

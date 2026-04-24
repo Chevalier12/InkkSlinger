@@ -813,9 +813,17 @@ public sealed partial class UiRoot
             previous.SubtreeEndIndexExclusive,
             parentNode);
         var metadata = CreateSubtreeMetadataForNode(updated);
+        var expectedChildNodeIndex = renderNodeIndex + 1;
 
         foreach (var child in visual.GetRetainedRenderChildren())
         {
+            if (!_renderNodeIndices.TryGetValue(child, out var childNodeIndex) ||
+                childNodeIndex != expectedChildNodeIndex)
+            {
+                _renderListNeedsFullRebuild = true;
+                return default;
+            }
+
             var childMetadata = UpdateRenderNodeSubtreeRecursive(child, updated);
             if (_renderListNeedsFullRebuild)
             {
@@ -823,10 +831,17 @@ public sealed partial class UiRoot
             }
 
             metadata = MergeSubtreeMetadata(metadata, childMetadata);
+            expectedChildNodeIndex = _retainedRenderList[childNodeIndex].SubtreeEndIndexExclusive;
+        }
+
+        if (expectedChildNodeIndex != previous.SubtreeEndIndexExclusive)
+        {
+            _renderListNeedsFullRebuild = true;
+            return default;
         }
 
         updated = updated.WithSubtreeMetadata(
-            previous.SubtreeEndIndexExclusive,
+            expectedChildNodeIndex,
             metadata.HasBoundsSnapshot,
             metadata.BoundsSnapshot,
             metadata.VisualCount,
@@ -971,11 +986,18 @@ public sealed partial class UiRoot
             parentNode);
 
         var metadata = CreateSubtreeMetadataForNode(updated);
+        var expectedChildNodeIndex = renderNodeIndex + 1;
         foreach (var child in visual.GetRetainedRenderChildren())
         {
             if (!_renderNodeIndices.TryGetValue(child, out var childNodeIndex))
             {
                 _renderListNeedsFullRebuild = true;
+                updated = default;
+                return false;
+            }
+
+            if (childNodeIndex != expectedChildNodeIndex)
+            {
                 updated = default;
                 return false;
             }
@@ -993,6 +1015,13 @@ public sealed partial class UiRoot
             metadata = MergeSubtreeMetadata(
                 metadata,
                 CreateSubtreeMetadataFromSubtreeNode(currentChild));
+            expectedChildNodeIndex = currentChild.SubtreeEndIndexExclusive;
+        }
+
+        if (previous.SubtreeEndIndexExclusive != expectedChildNodeIndex)
+        {
+            updated = default;
+            return false;
         }
 
         updated = updated.WithSubtreeMetadata(

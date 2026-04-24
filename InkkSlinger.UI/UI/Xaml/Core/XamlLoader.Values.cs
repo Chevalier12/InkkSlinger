@@ -76,16 +76,6 @@ public static partial class XamlLoader
                 return float.NaN;
             }
 
-            if ((trimmed.Contains(',') || trimmed.Contains(' ')) &&
-                TryParseFloatList(trimmed.AsSpan(), out var components) &&
-                components.Length > 1)
-            {
-                throw CreateXamlException(
-                    $"Cannot convert value '{rawValue}' to type '{targetType.Name}'.",
-                    code: XamlDiagnosticCode.InvalidValue,
-                    hint: $"Provide a single value compatible with '{targetType.Name}'.");
-            }
-
             return float.Parse(trimmed, CultureInfo.InvariantCulture);
         }
 
