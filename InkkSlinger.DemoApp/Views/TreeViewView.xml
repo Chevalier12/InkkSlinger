@@ -17,17 +17,196 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <Border Grid.Row="0" Background="{StaticResource DarkElevatedBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,8">
-      <Label Content="Control Demo: TreeView" Foreground="{StaticResource TextPrimaryBrush}" />
+    <Border Grid.Row="0"
+            Background="{StaticResource DarkElevatedBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14"
+            Margin="0,0,0,10">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+          <TextBlock Text="Control Demo: TreeView"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     FontSize="18"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+          <TextBlock Text="A real TreeView workbench covering deep hierarchy, expand/collapse, single selection with SelectedItemChanged, indent sizing, typography propagation, and programmatic manipulation."
+                     Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Column="1"
+                Background="{StaticResource DarkBgBrush}"
+                BorderBrush="#BFA060"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="12,6"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center">
+          <TextBlock Text="Hierarchy / Expand / Select"
+                     Foreground="#F0DFC0"
+                     FontWeight="SemiBold"
+                     TextWrapping="Wrap" />
+        </Border>
+      </Grid>
     </Border>
 
-    <Border Grid.Row="1" Background="{StaticResource DarkBgBrush}" BorderBrush="{StaticResource DarkBorderBrush}" BorderThickness="1" Padding="8">
-      <ContentControl x:Name="DemoHost" />
+    <Border Grid.Row="1"
+            Background="{StaticResource DarkBgBrush}"
+            BorderBrush="{StaticResource DarkBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="12">
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                     TextWrapping="Wrap"
+                     Text="TreeView provides a hierarchical items surface built on ItemsControl. Each TreeViewItem can host child items, supports expand/collapse via a glyph click target or programmatic IsExpanded, and participates in the single-selection model with SelectedItemChanged bubbling. This page keeps the core API paths live on screen so nesting, expansion, selection, indent, typography, and programmatic control can be exercised without dropping into a generic sample host." />
+
+          <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="16" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Padding="14"
+                      Margin="0,0,0,12">
+                <StackPanel>
+                  <Label Content="File system tree with deep nesting" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="This tree models a project source layout at four levels of depth. Click items to select, click the expander glyph (plus/minus box) to toggle a branch open or closed. The root and a few branches start expanded so the depth is immediately visible." />
+
+                  <TreeView x:Name="FileSystemTree"
+                            Height="420"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top"
+                            Margin="0,0,0,10" />
+
+                  <TextBlock x:Name="FileSystemSelectionText"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Text="File system selection"
+                             TextWrapping="Wrap" />
+                  <TextBlock x:Name="FileSystemChangeCountText"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             Margin="0,4,0,0"
+                             Text="File system change count"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Padding="14">
+                <StackPanel>
+                  <Label Content="Styled variant with custom indent and typography" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="The same tree hierarchy rendered with a deeper indent, warm orange foreground that cascades to all children via typography propagation, and a teal selection background. This validates that TreeView and TreeViewItem styling properties compose correctly together." />
+
+                  <TreeView x:Name="StyledTree"
+                            Height="340"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top"
+                            Margin="0,0,0,10" />
+
+                  <TextBlock x:Name="StyledSelectionText"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Text="Styled selection"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2">
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Padding="14"
+                      Margin="0,0,0,12">
+                <StackPanel>
+                  <Label Content="Programmatic expand, collapse, and select" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="Use the buttons below to drive the tree from code. Expand All flattens every branch recursively, Collapse All folds everything back, and the Select buttons exercise SelectItem() on specific nodes. The readout tracks every SelectedItemChanged firing." />
+
+                  <WrapPanel Margin="0,0,0,10">
+                    <Button x:Name="ExpandAllButton" Content="Expand All" Margin="0,0,8,8" />
+                    <Button x:Name="CollapseAllButton" Content="Collapse All" Margin="0,0,8,8" />
+                    <Button x:Name="SelectRootButton" Content="Select Root" Margin="0,0,8,8" />
+                    <Button x:Name="SelectLeafButton" Content="Select Leaf" Margin="0,0,8,8" />
+                    <Button x:Name="DeselectButton" Content="Clear Selection" Margin="0,0,0,8" />
+                  </WrapPanel>
+
+                  <TreeView x:Name="InteractiveTree"
+                            Height="300"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top"
+                            Margin="0,0,0,10" />
+
+                  <TextBlock x:Name="InteractiveSelectionText"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Text="Interactive selection"
+                             TextWrapping="Wrap" />
+                  <TextBlock x:Name="InteractiveChangeCountText"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             Margin="0,4,0,0"
+                             Text="Interactive change count"
+                             TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <Border Background="{StaticResource DarkElevatedBrush}"
+                      BorderBrush="{StaticResource DarkBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="6"
+                      Padding="14">
+                <StackPanel>
+                  <Label Content="What this page covers" Foreground="{StaticResource TextPrimaryBrush}" />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Text="Deep hierarchy with four or more nesting levels proves TreeViewItem recursion stays correct through measure, arrange, and render." />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,6,0,0"
+                             Text="Expand / collapse is exercised through both glyph clicks and programmatic IsExpanded toggling, which validates the visual-structure notification path." />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,6,0,0"
+                             Text="Single selection is tested through pointer clicks and the SelectItem() API, with SelectedItemChanged event tracking on every selection change." />
+                  <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,6,0,0"
+                             Text="The styled variant verifies that Indent, Foreground (with typography propagation), Background, Border styling, and SelectedBackground compose correctly." />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </ScrollViewer>
     </Border>
   </Grid>
 </UserControl>
-
-
 
 
 

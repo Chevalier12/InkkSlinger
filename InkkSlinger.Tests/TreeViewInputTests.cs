@@ -51,6 +51,132 @@ public sealed class TreeViewInputTests
     }
 
     [Fact]
+    public void DefaultTreeViewTemplate_ShouldHostItemsInScrollViewer()
+    {
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 280f
+        };
+
+        var treeView = new TreeView
+        {
+            Width = 180f,
+            Height = 80f
+        };
+
+        for (var i = 0; i < 12; i++)
+        {
+            treeView.Items.Add(new TreeViewItem { Header = $"Node {i}" });
+        }
+
+        host.AddChild(treeView);
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        Assert.Same(treeView.GetItemContainersForPresenter()[0], FindDescendant<TreeViewItem>(scrollViewer));
+        Assert.Equal(ScrollBarVisibility.Auto, scrollViewer.VerticalScrollBarVisibility);
+        Assert.True(scrollViewer.ExtentHeight > scrollViewer.ViewportHeight);
+    }
+
+    [Fact]
+    public void MouseWheel_OnOverflowingTreeView_ShouldScrollContainedItems()
+    {
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 280f
+        };
+
+        var treeView = new TreeView
+        {
+            Width = 180f,
+            Height = 80f
+        };
+
+        for (var i = 0; i < 12; i++)
+        {
+            treeView.Items.Add(new TreeViewItem { Header = $"Node {i}" });
+        }
+
+        host.AddChild(treeView);
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        Assert.Equal(0f, scrollViewer.VerticalOffset, 3);
+
+        var pointer = new Vector2(treeView.LayoutSlot.X + 20f, treeView.LayoutSlot.Y + 20f);
+        Wheel(uiRoot, pointer, -120);
+
+        Assert.True(scrollViewer.VerticalOffset > 0f);
+    }
+
+    [Fact]
+    public void ClickingExpanderAfterTreeViewScroll_ShouldToggleVisibleBranch()
+    {
+        var host = new Canvas
+        {
+            Width = 460f,
+            Height = 280f
+        };
+
+        var treeView = new TreeView
+        {
+            Width = 220f,
+            Height = 90f
+        };
+
+        var root = new TreeViewItem
+        {
+            Header = "Project Root",
+            IsExpanded = true
+        };
+
+        var src = new TreeViewItem
+        {
+            Header = "src",
+            IsExpanded = true
+        };
+
+        for (var i = 0; i < 8; i++)
+        {
+            src.Items.Add(new TreeViewItem { Header = $"File {i}.cs" });
+        }
+
+        var docs = new TreeViewItem
+        {
+            Header = "docs"
+        };
+        docs.Items.Add(new TreeViewItem { Header = "architecture.md" });
+
+        root.Items.Add(src);
+        root.Items.Add(docs);
+        treeView.Items.Add(root);
+        host.AddChild(treeView);
+
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot);
+
+        var scrollViewer = Assert.IsType<ScrollViewer>(Assert.Single(treeView.GetVisualChildren()));
+        scrollViewer.ScrollToVerticalOffset(scrollViewer.ExtentHeight - scrollViewer.ViewportHeight);
+        RunLayout(uiRoot);
+
+        Assert.False(docs.IsExpanded);
+        var visibleDocsExpanderPoint = new Vector2(
+            docs.LayoutSlot.X + 8f,
+            docs.LayoutSlot.Y - scrollViewer.VerticalOffset + 9f);
+        var hit = VisualTreeHelper.HitTest(host, visibleDocsExpanderPoint);
+        Assert.True(IsDescendantOrSelf(docs, hit));
+        Assert.False(docs.HitExpander(visibleDocsExpanderPoint));
+
+        Click(uiRoot, visibleDocsExpanderPoint);
+
+        Assert.True(docs.IsExpanded);
+    }
+
+    [Fact]
     public void ClickingExpanderGlyph_ShouldToggleExpandedState()
     {
         var host = new Canvas
@@ -145,9 +271,15 @@ public sealed class TreeViewInputTests
         uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, leftReleased: true));
     }
 
+    private static void Wheel(UiRoot uiRoot, Vector2 pointer, int delta)
+    {
+        uiRoot.RunInputDeltaForTests(CreatePointerDelta(pointer, wheelDelta: delta));
+    }
+
     private static InputDelta CreatePointerDelta(
         Vector2 pointer,
         bool pointerMoved = false,
+        int wheelDelta = 0,
         bool leftPressed = false,
         bool leftReleased = false)
     {
@@ -159,7 +291,7 @@ public sealed class TreeViewInputTests
             ReleasedKeys = new List<Keys>(),
             TextInput = new List<char>(),
             PointerMoved = pointerMoved || leftPressed || leftReleased,
-            WheelDelta = 0,
+            WheelDelta = wheelDelta,
             LeftPressed = leftPressed,
             LeftReleased = leftReleased,
             RightPressed = false,
@@ -174,6 +306,39 @@ public sealed class TreeViewInputTests
         uiRoot.Update(
             new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
             new Viewport(0, 0, 460, 280));
+    }
+
+    private static TElement? FindDescendant<TElement>(UIElement root)
+        where TElement : UIElement
+    {
+        if (root is TElement match)
+        {
+            return match;
+        }
+
+        foreach (var child in root.GetVisualChildren())
+        {
+            var found = FindDescendant<TElement>(child);
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsDescendantOrSelf(UIElement ancestor, UIElement? candidate)
+    {
+        for (var current = candidate; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     [Fact]

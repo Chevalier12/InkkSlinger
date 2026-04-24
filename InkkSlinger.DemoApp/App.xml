@@ -18,11 +18,15 @@
       <Color x:Key="TextSecondary">#A0A0A0</Color>
       <Color x:Key="TextDisabled">#5A5A5A</Color>
       <Color x:Key="DangerRed">#E74C3C</Color>
+      <Color x:Key="OrangeTreeBorder">#28CC7000</Color>
+      <Color x:Key="OrangeTreeSelection">#4DFF8C00</Color>
 
       <SolidColorBrush x:Key="OrangePrimaryBrush" Color="{StaticResource OrangePrimary}" />
       <SolidColorBrush x:Key="OrangeLightBrush" Color="{StaticResource OrangeLight}" />
       <SolidColorBrush x:Key="OrangeDarkBrush" Color="{StaticResource OrangeDark}" />
       <SolidColorBrush x:Key="OrangeSubtleBrush" Color="{StaticResource OrangeSubtle}" />
+      <SolidColorBrush x:Key="OrangeTreeBorderBrush" Color="{StaticResource OrangeTreeBorder}" />
+      <SolidColorBrush x:Key="OrangeTreeSelectionBrush" Color="{StaticResource OrangeTreeSelection}" />
       <SolidColorBrush x:Key="DarkBgBrush" Color="{StaticResource DarkBg}" />
       <SolidColorBrush x:Key="DarkSurfaceBrush" Color="{StaticResource DarkSurface}" />
       <SolidColorBrush x:Key="DarkElevatedBrush" Color="{StaticResource DarkElevated}" />
@@ -1020,17 +1024,33 @@
       <!-- ═══════════════════════════════════════════════════════════ -->
       <!-- TREEVIEW                                                   -->
       <!-- ═══════════════════════════════════════════════════════════ -->
+      <!--
+        Design: dark-orange explorer panel
+        • The container sits on DarkBg and wears a barely-visible warm amber
+          border so it reads as a distinct panel without fighting the content.
+        • Each row gets generous vertical padding (5,5) for comfortable
+          line-height, matching the breathing room of other controls.
+        • Indent is bumped to 20 px — VS-Code-style deeper nesting that makes
+          hierarchy instantly legible.
+        • The selection highlight uses a semi-transparent orange wash
+          (OrangeTreeSelection, ~30 % opacity) so the selected row glows
+          warmly while the text stays readable underneath.
+        • Selected text lifts to OrangeLight (#FFA940) so the active item
+          pops against both the selection wash and any unselected siblings.
+      -->
       <Style TargetType="{x:Type TreeView}">
-        <Setter Property="Background" Value="{StaticResource DarkSurfaceBrush}" />
+        <Setter Property="Background" Value="{StaticResource DarkBgBrush}" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource DarkBorderBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource OrangeTreeBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="4" />
+        <Setter Property="Padding" Value="8" />
       </Style>
 
       <Style TargetType="{x:Type TreeViewItem}">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-        <Setter Property="Padding" Value="4,2" />
+        <Setter Property="SelectedBackground" Value="{StaticResource OrangeTreeSelectionBrush}" />
+        <Setter Property="Indent" Value="20" />
+        <Setter Property="Padding" Value="5,5" />
         <Style.Triggers>
           <Trigger Property="IsSelected" Value="True">
             <Setter Property="Foreground" Value="{StaticResource OrangeLightBrush}" />

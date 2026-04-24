@@ -203,13 +203,36 @@ public class TreeViewItem : ItemsControl
 
         if (HasChildItems())
         {
-            var glyphX = LayoutSlot.X + padding.Left + 4f;
-            var glyphY = LayoutSlot.Y + ((rowHeight - 8f) / 2f);
-            UiDrawing.DrawRectStroke(spriteBatch, new LayoutRect(glyphX, glyphY, 8f, 8f), 1f, Foreground, Opacity);
-            UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(glyphX + 2f, glyphY + 3f, 4f, 1f), Foreground, Opacity);
-            if (!IsExpanded)
+            // Modern chevron glyph: solid filled triangle
+            //   ▶  right-pointing  →  branch is collapsed
+            //   ▼  down-pointing   →  branch is expanded
+            // The glyph is rendered at 65 % of the row's Foreground so it reads
+            // as a subtle affordance rather than competing with the label text.
+            var glyphCx = LayoutSlot.X + padding.Left + 7f;   // horizontal centre of the glyph zone
+            var glyphCy = LayoutSlot.Y + (rowHeight / 2f);    // vertical centre of the row
+            var glyphColor = Foreground * 0.65f;
+
+            if (IsExpanded)
             {
-                UiDrawing.DrawFilledRect(spriteBatch, new LayoutRect(glyphX + 3f, glyphY + 2f, 1f, 4f), Foreground, Opacity);
+                // ▼  down-pointing triangle  (8 wide × 5.5 tall)
+                ReadOnlySpan<Vector2> tri =
+                [
+                    new Vector2(glyphCx - 4f,  glyphCy - 2.75f),
+                    new Vector2(glyphCx + 4f,  glyphCy - 2.75f),
+                    new Vector2(glyphCx,        glyphCy + 2.75f),
+                ];
+                UiDrawing.DrawFilledPolygon(spriteBatch, tri, glyphColor, Opacity);
+            }
+            else
+            {
+                // ▶  right-pointing triangle  (5.5 wide × 8 tall)
+                ReadOnlySpan<Vector2> tri =
+                [
+                    new Vector2(glyphCx - 2.75f, glyphCy - 4f),
+                    new Vector2(glyphCx - 2.75f, glyphCy + 4f),
+                    new Vector2(glyphCx + 2.75f, glyphCy),
+                ];
+                UiDrawing.DrawFilledPolygon(spriteBatch, tri, glyphColor, Opacity);
             }
         }
 
@@ -229,7 +252,12 @@ public class TreeViewItem : ItemsControl
         }
 
         var rowHeight = GetRowHeight();
-        var rect = new LayoutRect(LayoutSlot.X + 4f, LayoutSlot.Y + ((rowHeight - 10f) / 2f), 10f, 10f);
+        // Hit zone is centred on the glyph centre (glyphCx = X + padding.Left + 7, glyphCy = Y + rowHeight/2)
+        // Use a 14×14 box so the small triangle remains easy to click.
+        var padding = Padding;
+        var glyphCx = LayoutSlot.X + padding.Left + 7f;
+        var glyphCy = LayoutSlot.Y + (rowHeight / 2f);
+        var rect = new LayoutRect(glyphCx - 7f, glyphCy - 7f, 14f, 14f);
         return point.X >= rect.X && point.X <= rect.X + rect.Width && point.Y >= rect.Y && point.Y <= rect.Y + rect.Height;
     }
 

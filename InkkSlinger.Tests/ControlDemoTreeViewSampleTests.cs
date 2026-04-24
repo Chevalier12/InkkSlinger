@@ -11,7 +11,7 @@ public sealed class ControlDemoTreeViewSampleTests
         var element = ControlDemoSupport.BuildSampleElement("TreeView");
         var treeView = Assert.IsType<TreeView>(element);
 
-        var roots = treeView.GetVisualChildren().OfType<TreeViewItem>().ToArray();
+        var roots = treeView.GetItemContainersForPresenter().OfType<TreeViewItem>().ToArray();
         var root = Assert.Single(roots);
         Assert.Equal("Root", root.Header);
         Assert.True(root.IsExpanded);
