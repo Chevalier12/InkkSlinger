@@ -88,6 +88,21 @@ public abstract class Shape : FrameworkElement
 
     protected abstract Geometry? DefiningGeometry { get; }
 
+    protected override LayoutRect GetLocalRenderBoundsCore(LayoutRect slot)
+    {
+        if (Stroke.A == 0 || StrokeThickness <= 0f)
+        {
+            return slot;
+        }
+
+        var strokeOverhang = StrokeThickness / 2f;
+        return new LayoutRect(
+            slot.X - strokeOverhang,
+            slot.Y - strokeOverhang,
+            slot.Width + StrokeThickness,
+            slot.Height + StrokeThickness);
+    }
+
     protected override Vector2 MeasureOverride(Vector2 availableSize)
     {
         var geometry = DefiningGeometry;

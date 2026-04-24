@@ -1986,6 +1986,11 @@ public class UIElement : DependencyObject
         return !float.IsNaN(value) && !float.IsInfinity(value);
     }
 
+    protected virtual LayoutRect GetLocalRenderBoundsCore(LayoutRect slot)
+    {
+        return slot;
+    }
+
     private bool TryGetLocalRenderBounds(out LayoutRect bounds)
     {
         var slot = LayoutSlot;
@@ -1995,8 +2000,22 @@ public class UIElement : DependencyObject
             return false;
         }
 
-        bounds = Effect?.GetRenderBounds(this) ?? slot;
+        bounds = GetLocalRenderBoundsCore(slot);
+        if (Effect != null)
+        {
+            bounds = Union(bounds, Effect.GetRenderBounds(this));
+        }
+
         return bounds.Width > 0f && bounds.Height > 0f;
+    }
+
+    private static LayoutRect Union(LayoutRect left, LayoutRect right)
+    {
+        var x = MathF.Min(left.X, right.X);
+        var y = MathF.Min(left.Y, right.Y);
+        var rightEdge = MathF.Max(left.X + left.Width, right.X + right.Width);
+        var bottomEdge = MathF.Max(left.Y + left.Height, right.Y + right.Height);
+        return new LayoutRect(x, y, MathF.Max(0f, rightEdge - x), MathF.Max(0f, bottomEdge - y));
     }
 
     private readonly struct RoutedHandlerEntry

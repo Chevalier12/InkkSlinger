@@ -128,6 +128,24 @@ public sealed class DirtyBoundsEdgeRegressionTests
     }
 
     [Fact]
+    public void ShapeRenderBounds_IncludeStrokeOverhang_ForDirtyRegionClearing()
+    {
+        var shape = new EllipseShape
+        {
+            Stroke = Color.White,
+            StrokeThickness = 2f,
+            Fill = Color.Orange
+        };
+        shape.SetLayoutSlot(new LayoutRect(24f, 24f, 72f, 72f));
+
+        Assert.True(shape.TryGetRenderBoundsInRootSpace(out var bounds));
+        Assert.Equal(23f, bounds.X);
+        Assert.Equal(23f, bounds.Y);
+        Assert.Equal(74f, bounds.Width);
+        Assert.Equal(74f, bounds.Height);
+    }
+
+    [Fact]
     public void MeasureInvalidation_FromGridChild_DoesNotPromoteDirtyBoundsToAncestorGrid()
     {
         var root = new Panel();
