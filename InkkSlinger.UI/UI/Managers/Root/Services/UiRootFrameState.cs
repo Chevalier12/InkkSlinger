@@ -85,6 +85,7 @@ public sealed partial class UiRoot
     public void Shutdown()
     {
         Automation.Shutdown();
+        UnregisterRoot(this);
         if (ReferenceEquals(Current, this))
         {
             Current = null;
@@ -564,6 +565,13 @@ public sealed partial class UiRoot
 
     internal void NotifyVisualStructureChanged(UIElement element, UIElement? oldParent, UIElement? newParent)
     {
+        var owningRoot = ResolveVisualStructureNotificationRoot(element, oldParent, newParent);
+        if (!ReferenceEquals(owningRoot, this))
+        {
+            owningRoot.NotifyVisualStructureChanged(element, oldParent, newParent);
+            return;
+        }
+
         if (!ReferenceEquals(element, _visualRoot) &&
             !IsElementConnectedToVisualRootCore(element) &&
             !IsElementConnectedToVisualRootCore(oldParent) &&
@@ -575,6 +583,7 @@ public sealed partial class UiRoot
         _visualStructureChangeCount++;
         _visualStructureVersion++;
         MarkVisualIndexDirty();
+        ClearDetachedInputState(element);
         InvalidateInputCachesForSubtree(element);
         InvalidateOverlayCandidateCache();
         BumpPointerResolveStateVersion();
@@ -583,6 +592,48 @@ public sealed partial class UiRoot
         MarkFullFrameDirty(UiFullDirtyReason.VisualStructureChanged);
         EnqueueDirtyRenderNode(element);
         Automation.NotifyVisualStructureChanged(element, oldParent, newParent);
+    }
+
+    private void ClearDetachedInputState(UIElement mutationRoot)
+    {
+        if (_inputState.CapturedPointerElement != null &&
+            IsElementWithinSubtree(_inputState.CapturedPointerElement, mutationRoot) &&
+            !IsElementConnectedToVisualRootCore(_inputState.CapturedPointerElement))
+        {
+            ReleasePointer(_inputState.CapturedPointerElement);
+        }
+
+        if (_inputState.FocusedElement != null &&
+            IsElementWithinSubtree(_inputState.FocusedElement, mutationRoot) &&
+            !IsElementConnectedToVisualRootCore(_inputState.FocusedElement))
+        {
+            SetFocus(null);
+        }
+
+        if (_inputState.HoveredElement != null &&
+            IsElementWithinSubtree(_inputState.HoveredElement, mutationRoot) &&
+            !IsElementConnectedToVisualRootCore(_inputState.HoveredElement))
+        {
+            UpdateHover(null);
+        }
+    }
+
+    private static bool IsElementWithinSubtree(UIElement element, UIElement subtreeRoot)
+    {
+        if (ReferenceEquals(element, subtreeRoot))
+        {
+            return true;
+        }
+
+        for (var current = element.VisualParent ?? element.LogicalParent; current != null; current = current.VisualParent ?? current.LogicalParent)
+        {
+            if (ReferenceEquals(current, subtreeRoot))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 }

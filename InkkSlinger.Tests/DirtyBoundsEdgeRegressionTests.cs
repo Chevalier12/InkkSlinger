@@ -575,4 +575,73 @@ public sealed class DirtyBoundsEdgeRegressionTests
         Assert.Equal(1, tracker.FullRedrawFallbackCount);
     }
 
+    [Fact]
+    public void RenderDirtyHint_UnderTranslatedClipAncestor_PreservesRootSpaceDirtyRegion()
+    {
+        var root = new Panel();
+        root.SetLayoutSlot(new LayoutRect(0f, 0f, 400f, 200f));
+
+        var clipHost = new Border
+        {
+            ClipToBounds = true,
+            RenderTransform = new TranslateTransform { X = 120f, Y = 0f }
+        };
+        clipHost.SetLayoutSlot(new LayoutRect(0f, 0f, 100f, 100f));
+
+        var child = new HintDirtyBorder();
+        child.SetLayoutSlot(new LayoutRect(70f, 10f, 60f, 20f));
+        clipHost.Child = child;
+        root.AddChild(clipHost);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.SetDirtyRegionViewportForTests(new LayoutRect(0f, 0f, 400f, 200f));
+        uiRoot.RebuildRenderListForTests();
+        uiRoot.CompleteDrawStateForTests();
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+
+        Assert.True(child.TryGetRenderBoundsInRootSpace(out var hintBounds));
+        Assert.True(clipHost.TryGetRenderBoundsInRootSpace(out var clipHostBounds));
+
+        child.PrimeRootSpaceHintAndInvalidate(hintBounds);
+
+        var invalidation = uiRoot.GetRenderInvalidationDebugSnapshotForTests();
+        var dirtyRegions = uiRoot.GetDirtyRegionsSnapshotForTests();
+
+        Assert.True(invalidation.DirtyBoundsUsedHint);
+        Assert.Single(dirtyRegions);
+        Assert.Equal(190f, dirtyRegions[0].X);
+        Assert.Equal(10f, dirtyRegions[0].Y);
+        Assert.Equal(30f, dirtyRegions[0].Width);
+        Assert.Equal(20f, dirtyRegions[0].Height);
+        Assert.True(dirtyRegions[0].X >= clipHostBounds.X, $"Expected dirty region to remain inside translated clip host. host={clipHostBounds} dirty={dirtyRegions[0]}");
+        Assert.True(dirtyRegions[0].X + dirtyRegions[0].Width <= clipHostBounds.X + clipHostBounds.Width, $"Expected dirty region to remain inside translated clip host. host={clipHostBounds} dirty={dirtyRegions[0]}");
+    }
+
+    private sealed class HintDirtyBorder : Border, IRenderDirtyBoundsHintProvider
+    {
+        private bool _hasPendingHint;
+        private LayoutRect _pendingHint;
+
+        public void PrimeRootSpaceHintAndInvalidate(LayoutRect bounds)
+        {
+            _pendingHint = bounds;
+            _hasPendingHint = true;
+            base.InvalidateVisual();
+        }
+
+        bool IRenderDirtyBoundsHintProvider.TryConsumeRenderDirtyBoundsHint(out LayoutRect bounds)
+        {
+            if (!_hasPendingHint)
+            {
+                bounds = default;
+                return false;
+            }
+
+            bounds = _pendingHint;
+            _hasPendingHint = false;
+            return true;
+        }
+    }
+
 }

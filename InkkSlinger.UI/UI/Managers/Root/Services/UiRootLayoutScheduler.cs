@@ -92,7 +92,8 @@ public sealed partial class UiRoot
                               _hasMeasureInvalidation ||
                               _hasArrangeInvalidation ||
                               _layoutRoot.NeedsMeasure ||
-                              _layoutRoot.NeedsArrange;
+                              _layoutRoot.NeedsArrange ||
+                              HasInvalidLayout(_layoutRoot);
         if (!shouldRunLayout)
         {
             LayoutSkippedFrameCount++;

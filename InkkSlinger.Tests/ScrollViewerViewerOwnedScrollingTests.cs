@@ -297,10 +297,10 @@ public class ScrollViewerViewerOwnedScrollingTests
     }
 
     [Fact]
-    public void TransformDefault_RepeatedOffsetChangesBeforeNextFrame_ContinueTrackingRenderInvalidation()
+    public void TransformDefault_RepeatedOffsetChangesBeforeNextFrame_KeepsViewportDirtyHintActive()
     {
         var root = new Panel();
-        var content = CreateTallStackPanel(120);
+        var content = CreateTransformCapableTallStackPanel(120);
         var viewer = new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
@@ -325,13 +325,12 @@ public class ScrollViewerViewerOwnedScrollingTests
 
         var offsetAfterFirst = viewer.VerticalOffset;
         var secondHandled = viewer.HandleMouseWheelFromInput(-120);
-        var renderInvalidationsAfterSecond = uiRoot.RenderInvalidationCount;
-        var secondDelta = renderInvalidationsAfterSecond - renderInvalidationsAfterFirst;
 
         Assert.True(secondHandled);
         Assert.True(viewer.VerticalOffset > offsetAfterFirst);
-        Assert.True(secondDelta > 0,
-            $"Expected repeated transform-scroll updates to keep contributing render invalidation bookkeeping before the next frame. secondDelta={secondDelta}.");
+        Assert.True(
+            viewer.ShouldUseTransformScrollViewportDirtyHint(),
+            "Expected repeated transform-scroll updates before the next draw to keep the viewport dirty hint active.");
         Assert.NotEmpty(uiRoot.GetDirtyRegionsSnapshotForTests());
     }
 
@@ -502,6 +501,17 @@ public class ScrollViewerViewerOwnedScrollingTests
         return panel;
     }
 
+    private static TransformCapableStackPanel CreateTransformCapableTallStackPanel(int itemCount)
+    {
+        var panel = new TransformCapableStackPanel();
+        for (var i = 0; i < itemCount; i++)
+        {
+            panel.AddChild(new Border { Height = 20f, Margin = new Thickness(0f, 0f, 0f, 2f) });
+        }
+
+        return panel;
+    }
+
     private static void RunLayout(UiRoot uiRoot, int width, int height, int elapsedMs)
     {
         uiRoot.Update(
@@ -525,5 +535,9 @@ public class ScrollViewerViewerOwnedScrollingTests
         }
 
         return false;
+    }
+
+    private sealed class TransformCapableStackPanel : StackPanel, IScrollTransformContent
+    {
     }
 }

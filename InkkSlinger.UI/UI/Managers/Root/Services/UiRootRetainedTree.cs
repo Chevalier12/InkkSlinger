@@ -70,6 +70,9 @@ public sealed partial class UiRoot
     private void CompactDirtyRenderQueueForSync()
     {
         var compactionStart = Stopwatch.GetTimestamp();
+        var deepSyncRoots = _dirtyRenderRootsRequireDeepSync.Count == 0
+            ? null
+            : new HashSet<UIElement>(_dirtyRenderRootsRequireDeepSync);
         _dirtyRenderRootsRequireDeepSync.Clear();
         _dirtyRenderWorkItems.Clear();
         _dirtyRenderCandidates.Clear();
@@ -91,7 +94,10 @@ public sealed partial class UiRoot
         EnsureVisualIndexCurrent();
         var requiresFullRebuild = _renderListNeedsFullRebuild || _retainedRenderList.Count == 0;
         if (_dirtyRenderCompactionBuffer.Count == 1 &&
-            TryCompactSingleDirtyRenderCandidate(_dirtyRenderCompactionBuffer[0], requiresFullRebuild))
+            TryCompactSingleDirtyRenderCandidate(
+                _dirtyRenderCompactionBuffer[0],
+                requiresFullRebuild,
+                deepSyncRoots?.Contains(_dirtyRenderCompactionBuffer[0]) == true))
         {
             _lastDirtyRootCountAfterCoalescing = _dirtyRenderWorkItems.Count;
             for (var i = 0; i < _dirtyRenderWorkItems.Count; i++)
@@ -130,7 +136,7 @@ public sealed partial class UiRoot
                 candidate,
                 renderNodeIndex,
                 node.SubtreeEndIndexExclusive,
-                _dirtyRenderRootsRequireDeepSync.Contains(candidate)));
+                deepSyncRoots?.Contains(candidate) == true));
         }
 
         var coalesceStart = Stopwatch.GetTimestamp();
@@ -146,7 +152,7 @@ public sealed partial class UiRoot
         _lastRetainedQueueCompactionMs += Stopwatch.GetElapsedTime(compactionStart).TotalMilliseconds;
     }
 
-    private bool TryCompactSingleDirtyRenderCandidate(UIElement candidate, bool requiresFullRebuild)
+    private bool TryCompactSingleDirtyRenderCandidate(UIElement candidate, bool requiresFullRebuild, bool requiresDeepSync)
     {
         if (!TryGetIndexedVisualNodeCore(candidate, out _))
         {
@@ -171,7 +177,7 @@ public sealed partial class UiRoot
             candidate,
             renderNodeIndex,
             node.SubtreeEndIndexExclusive,
-            false));
+            requiresDeepSync));
         return true;
     }
 

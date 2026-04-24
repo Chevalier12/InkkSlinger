@@ -1,4 +1,6 @@
 using System;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Xunit;
 
 namespace InkkSlinger.Tests;
@@ -118,6 +120,34 @@ public sealed class RetainedRenderSyncRegressionTests
         Assert.Equal(1, uiRoot.GetPerformanceTelemetrySnapshotForTests().DirtyRootCount);
         Assert.Equal(0, uiRoot.DirtyRenderQueueCount);
         Assert.Contains(child, uiRoot.GetRetainedVisualOrderForTests());
+    }
+
+    [Fact]
+    public void NotifyDirectRenderInvalidation_ExplicitDeepSyncRequest_IsPreservedDuringRetainedSync()
+    {
+        var root = new Panel();
+        var child = new Border();
+        root.AddChild(child);
+
+        var uiRoot = new UiRoot(root);
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(16), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 260, 160));
+        uiRoot.ResetDirtyStateForTests();
+        root.ClearRenderInvalidationRecursive();
+        uiRoot.CompleteDrawStateForTests();
+
+        uiRoot.NotifyDirectRenderInvalidation(child, requireDeepSync: true);
+
+        uiRoot.Update(
+            new GameTime(TimeSpan.FromMilliseconds(32), TimeSpan.FromMilliseconds(16)),
+            new Viewport(0, 0, 260, 160));
+
+        var perfSnapshot = uiRoot.GetPerformanceTelemetrySnapshotForTests();
+        Assert.True(
+            perfSnapshot.RetainedForceDeepSyncCount >= 1,
+            $"Expected explicit retained deep-sync requests to survive queue compaction, but RetainedForceDeepSyncCount was {perfSnapshot.RetainedForceDeepSyncCount}.");
+        Assert.Equal("ok", uiRoot.ValidateRetainedTreeAgainstCurrentVisualStateForTests());
     }
 
     [Fact]
@@ -484,6 +514,32 @@ public sealed class RetainedRenderSyncRegressionTests
 
         _ = uiRoot.GetRetainedNodeSubtreeEndIndexForTests(second);
         Assert.Equal(uiRoot.RetainedRenderNodeCount, uiRoot.GetRetainedNodeSubtreeEndIndexForTests(root));
+    }
+
+    [Fact]
+    public void StructureChange_WithLaterUiRootCurrent_NotifiesOwningRoot()
+    {
+        var firstRootVisual = new Panel();
+        var firstChild = new Border();
+        firstRootVisual.AddChild(firstChild);
+        var firstRoot = new UiRoot(firstRootVisual);
+        firstRoot.RebuildRenderListForTests();
+        firstRoot.ResetDirtyStateForTests();
+        firstRootVisual.ClearRenderInvalidationRecursive();
+        firstRoot.CompleteDrawStateForTests();
+
+        var secondRootVisual = new Panel();
+        _ = new UiRoot(secondRootVisual);
+
+        var addedChild = new Border();
+        firstRootVisual.AddChild(addedChild);
+        firstRoot.SynchronizeRetainedRenderListForTests();
+
+        Assert.True(
+            firstRoot.VisualStructureChangeCount > 0,
+            "Expected the UiRoot that owns the mutated tree to receive the visual structure change, even when another UiRoot is current.");
+        _ = firstRoot.GetRetainedNodeSubtreeEndIndexForTests(addedChild);
+        Assert.Equal(firstRoot.RetainedRenderNodeCount, firstRoot.GetRetainedNodeSubtreeEndIndexForTests(firstRootVisual));
     }
 
     [Fact]

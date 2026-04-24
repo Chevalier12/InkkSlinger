@@ -380,6 +380,11 @@ public sealed partial class UiRoot
                 continue;
             }
 
+            if (TryGetTransformFromVisualToRoot(current, out var transformToRoot))
+            {
+                clipRect = TransformRect(clipRect, transformToRoot);
+            }
+
             clipped = IntersectRect(clipped, clipRect);
             intersectedAnyClip = true;
             if (clipped.Width <= 0f || clipped.Height <= 0f)
@@ -435,6 +440,41 @@ public sealed partial class UiRoot
         return false;
     }
 
+    private static bool TryGetTransformFromVisualToRoot(UIElement element, out Matrix transform)
+    {
+        transform = Matrix.Identity;
+        var hasTransform = false;
+        for (var current = element; current != null; current = current.VisualParent)
+        {
+            if (!current.TryGetLocalRenderTransformSnapshot(out var localTransform))
+            {
+                continue;
+            }
+
+            transform *= localTransform;
+            hasTransform = true;
+        }
+
+        return hasTransform;
+    }
+
+    private static LayoutRect TransformRect(LayoutRect rect, Matrix transform)
+    {
+        if (transform == Matrix.Identity)
+        {
+            return rect;
+        }
+
+        var topLeft = Vector2.Transform(new Vector2(rect.X, rect.Y), transform);
+        var topRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y), transform);
+        var bottomLeft = Vector2.Transform(new Vector2(rect.X, rect.Y + rect.Height), transform);
+        var bottomRight = Vector2.Transform(new Vector2(rect.X + rect.Width, rect.Y + rect.Height), transform);
+        var minX = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+        var minY = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+        var maxX = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+        var maxY = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+        return new LayoutRect(minX, minY, MathF.Max(0f, maxX - minX), MathF.Max(0f, maxY - minY));
+    }
     private static bool TryGetDirectTransformScrollOwner(UIElement element, out ScrollViewer owner)
     {
         owner = null!;

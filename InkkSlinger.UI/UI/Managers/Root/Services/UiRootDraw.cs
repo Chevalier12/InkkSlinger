@@ -72,6 +72,7 @@ public sealed partial class UiRoot
             var treeDrawStart = Stopwatch.GetTimestamp();
             if (UseRetainedRenderList)
             {
+                SynchronizeRetainedRenderListForDrawIfNeeded();
                 if (UseDirtyRegionRendering && usePartialClear)
                 {
                     DrawRetainedRenderListWithDirtyRegions(spriteBatch);
@@ -125,6 +126,15 @@ public sealed partial class UiRoot
         ConsumeFullRedrawSettleFrame();
         _lastDrawCleanupMs = Stopwatch.GetElapsedTime(cleanupStart).TotalMilliseconds;
         LastDrawMs = Stopwatch.GetElapsedTime(drawStart).TotalMilliseconds;
+    }
+
+    private void SynchronizeRetainedRenderListForDrawIfNeeded()
+    {
+        if (_renderListNeedsFullRebuild || _dirtyRenderQueue.Count > 0 || _dirtyRenderSet.Count > 0)
+        {
+            EnsureVisualIndexCurrent();
+            SynchronizeRetainedRenderList();
+        }
     }
 
     private void DrawSoftwareCursor(SpriteBatch spriteBatch, Vector2 pointer)

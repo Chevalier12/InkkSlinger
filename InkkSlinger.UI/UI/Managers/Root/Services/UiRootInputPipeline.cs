@@ -341,12 +341,19 @@ public sealed partial class UiRoot
 
         if (_inputState.CapturedPointerElement != null)
         {
-            if (delta.LeftPressed || delta.LeftReleased)
+            if (!IsElementConnectedToVisualRoot(_inputState.CapturedPointerElement))
             {
-                _clickCpuResolveCapturedCount++;
+                ReleasePointer(_inputState.CapturedPointerElement);
             }
+            else
+            {
+                if (delta.LeftPressed || delta.LeftReleased)
+                {
+                    _clickCpuResolveCapturedCount++;
+                }
 
-            return FinalizePointerResolve("Captured", _inputState.CapturedPointerElement);
+                return FinalizePointerResolve("Captured", _inputState.CapturedPointerElement);
+            }
         }
 
         if (delta.LeftPressed &&
@@ -3074,7 +3081,8 @@ public sealed partial class UiRoot
 
     private bool DispatchKeyDown(Keys key, ModifierKeys modifiers)
     {
-        var target = _inputState.FocusedElement ?? _visualRoot;
+        var focusedElement = GetConnectedFocusedElementOrNull();
+        var target = focusedElement ?? _visualRoot;
         var dispatchStart = Stopwatch.GetTimestamp();
         var previousScope = _activeKeyboardMenuScope;
         var hadActiveScope = _hasActiveKeyboardMenuScope;
@@ -3091,7 +3099,7 @@ public sealed partial class UiRoot
             if (key == Keys.F10 && modifiers == ModifierKeys.None)
             {
                 if (TryResolveScopedMenuForKeyboard(out var menu) &&
-                    menu.TryActivateMenuBarFromKeyboard(_inputState.FocusedElement))
+                    menu.TryActivateMenuBarFromKeyboard(focusedElement))
                 {
                     TrySynchronizeMenuFocusRestore(menu);
                     return true;
@@ -3106,7 +3114,7 @@ public sealed partial class UiRoot
                     return true;
                 }
 
-                if (AccessKeyService.TryExecute(accessKey, _visualRoot, _inputState.FocusedElement))
+                if (AccessKeyService.TryExecute(accessKey, _visualRoot, focusedElement))
                 {
                     return true;
                 }
@@ -3120,7 +3128,7 @@ public sealed partial class UiRoot
             }
 
             if ((key == Keys.Apps || (key == Keys.F10 && modifiers == ModifierKeys.Shift)) &&
-                TryOpenContextMenuForElement(_inputState.FocusedElement))
+                TryOpenContextMenuForElement(focusedElement))
             {
                 return true;
             }
@@ -3139,13 +3147,13 @@ public sealed partial class UiRoot
                 return true;
             }
 
-            if (_inputState.FocusedElement is DataGrid focusedDataGrid &&
+            if (focusedElement is DataGrid focusedDataGrid &&
                 focusedDataGrid.HandleKeyDownFromInput(key, modifiers))
             {
                 return true;
             }
 
-            if (_inputState.FocusedElement is ITextInputControl focusedTextInput &&
+            if (focusedElement is ITextInputControl focusedTextInput &&
                 focusedTextInput.HandleKeyDownFromInput(key, modifiers))
             {
                 return true;
@@ -3157,19 +3165,19 @@ public sealed partial class UiRoot
                 return true;
             }
 
-            if (_inputState.FocusedElement is Button button && (key == Keys.Enter || key == Keys.Space))
+            if (focusedElement is Button button && (key == Keys.Enter || key == Keys.Space))
             {
                 button.InvokeFromInput();
                 return true;
             }
 
-            if (_inputState.FocusedElement is Menu focusedMenu && focusedMenu.TryHandleKeyDownFromInput(key, modifiers))
+            if (focusedElement is Menu focusedMenu && focusedMenu.TryHandleKeyDownFromInput(key, modifiers))
             {
                 TrySynchronizeMenuFocusRestore(focusedMenu);
                 return true;
             }
 
-            return InputGestureService.Execute(key, modifiers, _inputState.FocusedElement, _visualRoot);
+            return InputGestureService.Execute(key, modifiers, focusedElement, _visualRoot);
         }
         finally
         {
@@ -3260,7 +3268,7 @@ public sealed partial class UiRoot
 
     private void DispatchKeyUp(Keys key, ModifierKeys modifiers)
     {
-        var target = _inputState.FocusedElement ?? _visualRoot;
+        var target = GetConnectedFocusedElementOrNull() ?? _visualRoot;
         var dispatchStart = Stopwatch.GetTimestamp();
         _lastInputKeyEventCount++;
         _lastInputRoutedEventCount += 2;
@@ -3273,7 +3281,7 @@ public sealed partial class UiRoot
 
     private bool TryFindFocusedListBox(out ListBox listBox)
     {
-        for (var current = _inputState.FocusedElement; current != null; current = current.VisualParent ?? current.LogicalParent)
+        for (var current = GetConnectedFocusedElementOrNull(); current != null; current = current.VisualParent ?? current.LogicalParent)
         {
             if (current is ListBox focusedListBox)
             {
@@ -3288,7 +3296,7 @@ public sealed partial class UiRoot
 
     private void DispatchTextInput(char character)
     {
-        var focused = _inputState.FocusedElement;
+        var focused = GetConnectedFocusedElementOrNull();
         if (focused == null)
         {
             return;
@@ -3562,6 +3570,11 @@ public sealed partial class UiRoot
 
     private void SetFocus(UIElement? element)
     {
+        if (element != null && !IsElementConnectedToVisualRoot(element))
+        {
+            element = null;
+        }
+
         if (ReferenceEquals(_inputState.FocusedElement, element))
         {
             return;
@@ -3599,6 +3612,23 @@ public sealed partial class UiRoot
             element.RaiseRoutedEventInternal(UIElement.GotFocusEvent, new FocusChangedRoutedEventArgs(UIElement.GotFocusEvent, old, element));
             _lastInputRoutedEventCount++;
         }
+    }
+
+    private UIElement? GetConnectedFocusedElementOrNull()
+    {
+        var focused = _inputState.FocusedElement;
+        if (focused == null)
+        {
+            return null;
+        }
+
+        if (IsElementConnectedToVisualRoot(focused))
+        {
+            return focused;
+        }
+
+        SetFocus(null);
+        return null;
     }
 
     private void CapturePointer(UIElement? element)

@@ -15,6 +15,7 @@ public sealed partial class UiRoot
     private const bool EnableConditionalDrawByDefault = true;
     private const int InputCacheTrimFloor = 256;
     private const int FullRedrawSettleFrameCountAfterResize = 6;
+    private static readonly List<WeakReference<UiRoot>> RegisteredRoots = new();
     private static readonly RasterizerState UiRasterizerState = new()
     {
         ScissorTestEnable = true
@@ -91,6 +92,7 @@ public sealed partial class UiRoot
     private GraphicsDevice? _lastGraphicsDevice;
     private UiRedrawReason _scheduledDrawReasons;
     private bool _forceAnimationActiveForTests;
+    private bool _useRetainedRenderList;
     private Color _clearColor = Color.CornflowerBlue;
     private int _visualStructureVersion;
     private int _renderStateVersion;
@@ -200,21 +202,109 @@ public sealed partial class UiRoot
         _visualRoot = visualRoot ?? throw new ArgumentNullException(nameof(visualRoot));
         _layoutRoot = visualRoot as FrameworkElement;
         Automation = new AutomationManager(_visualRoot);
-        UseRetainedRenderList = EnableRetainedRenderListByDefault;
+        _useRetainedRenderList = EnableRetainedRenderListByDefault;
         UseDirtyRegionRendering = EnableDirtyRegionRenderingByDefault;
         UseConditionalDrawScheduling = EnableConditionalDrawByDefault;
         MarkFullFrameDirty(UiFullDirtyReason.InitialState);
         EnsureVisualIndexCurrent();
+        RegisterRoot(this);
         Current = this;
     }
 
     public static UiRoot? Current { get; private set; }
 
+    private static void RegisterRoot(UiRoot root)
+    {
+        for (var i = RegisteredRoots.Count - 1; i >= 0; i--)
+        {
+            if (!RegisteredRoots[i].TryGetTarget(out var registeredRoot))
+            {
+                RegisteredRoots.RemoveAt(i);
+                continue;
+            }
+
+            if (ReferenceEquals(registeredRoot, root))
+            {
+                return;
+            }
+        }
+
+        RegisteredRoots.Add(new WeakReference<UiRoot>(root));
+    }
+
+    private static void UnregisterRoot(UiRoot root)
+    {
+        for (var i = RegisteredRoots.Count - 1; i >= 0; i--)
+        {
+            if (!RegisteredRoots[i].TryGetTarget(out var registeredRoot) ||
+                ReferenceEquals(registeredRoot, root))
+            {
+                RegisteredRoots.RemoveAt(i);
+            }
+        }
+    }
+
+    private UiRoot ResolveVisualStructureNotificationRoot(
+        UIElement element,
+        UIElement? oldParent,
+        UIElement? newParent)
+    {
+        if (OwnsVisualStructureNotification(element, oldParent, newParent))
+        {
+            return this;
+        }
+
+        for (var i = RegisteredRoots.Count - 1; i >= 0; i--)
+        {
+            if (!RegisteredRoots[i].TryGetTarget(out var candidate))
+            {
+                RegisteredRoots.RemoveAt(i);
+                continue;
+            }
+
+            if (candidate.OwnsVisualStructureNotification(element, oldParent, newParent))
+            {
+                return candidate;
+            }
+        }
+
+        return this;
+    }
+
+    private bool OwnsVisualStructureNotification(
+        UIElement element,
+        UIElement? oldParent,
+        UIElement? newParent)
+    {
+        return ReferenceEquals(element, _visualRoot) ||
+               IsElementConnectedToVisualRootCore(element) ||
+               IsElementConnectedToVisualRootCore(oldParent) ||
+               IsElementConnectedToVisualRootCore(newParent);
+    }
+
     internal UIElement VisualRoot => _visualRoot;
 
     public AutomationManager Automation { get; }
 
-    public bool UseRetainedRenderList { get; set; }
+    public bool UseRetainedRenderList
+    {
+        get => _useRetainedRenderList;
+        set
+        {
+            if (_useRetainedRenderList == value)
+            {
+                return;
+            }
+
+            _useRetainedRenderList = value;
+            if (value)
+            {
+                _renderListNeedsFullRebuild = true;
+                _mustDrawNextFrame = true;
+                MarkFullFrameDirty(UiFullDirtyReason.RetainedRebuild);
+            }
+        }
+    }
 
     public bool UseDirtyRegionRendering { get; set; }
 

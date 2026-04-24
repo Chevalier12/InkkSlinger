@@ -165,6 +165,7 @@ public class VirtualizingStackPanel : Panel
     private int _lastArrangedLast = -1;
     private Vector2 _lastArrangeSize;
     private Vector2 _lastArrangeOrigin;
+    private float _lastArrangeViewportOffset;
     private bool _hasArrangedRange;
 
     public Orientation Orientation
@@ -367,21 +368,9 @@ public class VirtualizingStackPanel : Panel
 
     public override IEnumerable<UIElement> GetLogicalChildren()
     {
-        if (!_isVirtualizationActive || FirstRealizedIndex < 0 || LastRealizedIndex < FirstRealizedIndex)
+        foreach (var child in Children)
         {
-            foreach (var child in Children)
-            {
-                yield return child;
-            }
-
-            yield break;
-        }
-
-        var first = Math.Max(0, FirstRealizedIndex);
-        var last = Math.Min(Children.Count - 1, LastRealizedIndex);
-        for (var i = first; i <= last; i++)
-        {
-            yield return Children[i];
+            yield return child;
         }
     }
 
@@ -501,20 +490,21 @@ public class VirtualizingStackPanel : Panel
                                            AreClose(_lastArrangeSize.Y, finalSize.Y) &&
                                            AreClose(_lastArrangeOrigin.X, currentOrigin.X) &&
                                            AreClose(_lastArrangeOrigin.Y, currentOrigin.Y) &&
+                                           AreClose(_lastArrangeViewportOffset, context.OffsetPrimary) &&
                                            !RangeNeedsArrange(first, last);
                 if (canReuseArrangeRange)
                 {
                     _diagArrangeOverrideReusedRangeCount++;
                     _runtimeArrangeOverrideReusedRangeCount++;
                 }
-                else if (TryArrangeShiftedRange(finalSize, currentOrigin, first, last))
+                else if (TryArrangeShiftedRange(finalSize, currentOrigin, context.OffsetPrimary, first, last))
                 {
                     _diagArrangeOverrideReusedRangeCount++;
                     _runtimeArrangeOverrideReusedRangeCount++;
                 }
                 else
                 {
-                    ArrangeRange(finalSize, first, last);
+                    ArrangeRange(finalSize, first, last, context.OffsetPrimary);
                 }
 
                 _hasArrangedRange = true;
@@ -522,17 +512,19 @@ public class VirtualizingStackPanel : Panel
                 _lastArrangedLast = last;
                 _lastArrangeSize = finalSize;
                 _lastArrangeOrigin = currentOrigin;
+                _lastArrangeViewportOffset = context.OffsetPrimary;
                 _lastArrangedChildOrderVersion = _childOrderVersion;
             }
             else
             {
                 SetRealization(0, Children.Count - 1);
-                ArrangeRange(finalSize, 0, Children.Count - 1);
+                ArrangeRange(finalSize, 0, Children.Count - 1, viewportOffset: 0f);
                 _hasArrangedRange = true;
                 _lastArrangedFirst = 0;
                 _lastArrangedLast = Children.Count - 1;
                 _lastArrangeSize = finalSize;
                 _lastArrangeOrigin = new Vector2(LayoutSlot.X, LayoutSlot.Y);
+                _lastArrangeViewportOffset = 0f;
                 _lastArrangedChildOrderVersion = _childOrderVersion;
             }
 
@@ -853,10 +845,53 @@ public class VirtualizingStackPanel : Panel
 
     public LayoutRect MakeVisible(UIElement visual, LayoutRect rectangle)
     {
+        var targetRectangle = rectangle;
+        if (visual is FrameworkElement targetElement)
+        {
+            targetRectangle = new LayoutRect(
+                rectangle.X + (targetElement.LayoutSlot.X - LayoutSlot.X),
+                rectangle.Y + (targetElement.LayoutSlot.Y - LayoutSlot.Y),
+                rectangle.Width,
+                rectangle.Height);
+        }
+
+        var ownerViewer = FindAncestorScrollViewer();
+        if (ownerViewer != null)
+        {
+            if (Orientation == Orientation.Vertical)
+            {
+                var start = targetRectangle.Y;
+                var end = targetRectangle.Y + targetRectangle.Height;
+                if (start < ownerViewer.VerticalOffset)
+                {
+                    ownerViewer.ScrollToVerticalOffset(start);
+                }
+                else if (end > ownerViewer.VerticalOffset + ownerViewer.ViewportHeight)
+                {
+                    ownerViewer.ScrollToVerticalOffset(end - ownerViewer.ViewportHeight);
+                }
+            }
+            else
+            {
+                var start = targetRectangle.X;
+                var end = targetRectangle.X + targetRectangle.Width;
+                if (start < ownerViewer.HorizontalOffset)
+                {
+                    ownerViewer.ScrollToHorizontalOffset(start);
+                }
+                else if (end > ownerViewer.HorizontalOffset + ownerViewer.ViewportWidth)
+                {
+                    ownerViewer.ScrollToHorizontalOffset(end - ownerViewer.ViewportWidth);
+                }
+            }
+
+            return targetRectangle;
+        }
+
         if (Orientation == Orientation.Vertical)
         {
-            var start = rectangle.Y;
-            var end = rectangle.Y + rectangle.Height;
+            var start = targetRectangle.Y;
+            var end = targetRectangle.Y + targetRectangle.Height;
             if (start < VerticalOffset)
             {
                 SetVerticalOffset(start);
@@ -868,8 +903,8 @@ public class VirtualizingStackPanel : Panel
         }
         else
         {
-            var start = rectangle.X;
-            var end = rectangle.X + rectangle.Width;
+            var start = targetRectangle.X;
+            var end = targetRectangle.X + targetRectangle.Width;
             if (start < HorizontalOffset)
             {
                 SetHorizontalOffset(start);
@@ -880,10 +915,10 @@ public class VirtualizingStackPanel : Panel
             }
         }
 
-        return rectangle;
+        return targetRectangle;
     }
 
-    private void ArrangeRange(Vector2 finalSize, int firstIndex, int lastIndex)
+    private void ArrangeRange(Vector2 finalSize, int firstIndex, int lastIndex, float viewportOffset)
     {
         var startTicks = Stopwatch.GetTimestamp();
         _diagArrangeRangeCallCount++;
@@ -910,14 +945,14 @@ public class VirtualizingStackPanel : Panel
                 {
                     child.Arrange(new LayoutRect(
                         LayoutSlot.X,
-                        LayoutSlot.Y + start,
+                        LayoutSlot.Y + start - viewportOffset,
                         finalSize.X,
                         primary));
                 }
                 else
                 {
                     child.Arrange(new LayoutRect(
-                        LayoutSlot.X + start,
+                        LayoutSlot.X + start - viewportOffset,
                         LayoutSlot.Y,
                         primary,
                         finalSize.Y));
@@ -1025,12 +1060,13 @@ public class VirtualizingStackPanel : Panel
         }
     }
 
-    private bool TryArrangeShiftedRange(Vector2 finalSize, Vector2 origin, int first, int last)
+    private bool TryArrangeShiftedRange(Vector2 finalSize, Vector2 origin, float viewportOffset, int first, int last)
     {
         if (!_hasArrangedRange ||
             _lastArrangedChildOrderVersion != _childOrderVersion ||
             !AreClose(_lastArrangeSize, finalSize) ||
-            !AreClose(_lastArrangeOrigin, origin))
+            !AreClose(_lastArrangeOrigin, origin) ||
+            !AreClose(_lastArrangeViewportOffset, viewportOffset))
         {
             return false;
         }
@@ -1050,7 +1086,7 @@ public class VirtualizingStackPanel : Panel
 
         if (RangeNeedsArrange(overlapFirst, overlapLast))
         {
-            ArrangeRange(finalSize, overlapFirst, overlapLast);
+            ArrangeRange(finalSize, overlapFirst, overlapLast, viewportOffset);
         }
         else
         {
@@ -1059,7 +1095,7 @@ public class VirtualizingStackPanel : Panel
 
         if (overlapLast < last)
         {
-            ArrangeRange(finalSize, overlapLast + 1, last);
+            ArrangeRange(finalSize, overlapLast + 1, last, viewportOffset);
             reusedAny = true;
         }
 
@@ -1494,6 +1530,7 @@ public class VirtualizingStackPanel : Panel
             RealizedChildrenCount = 0;
             if (prevFirst != FirstRealizedIndex || prevLast != LastRealizedIndex)
             {
+                NotifyRealizedVisualRangeChanged();
             }
             return;
         }
@@ -1503,7 +1540,14 @@ public class VirtualizingStackPanel : Panel
         RealizedChildrenCount = LastRealizedIndex - FirstRealizedIndex + 1;
         if (prevFirst != FirstRealizedIndex || prevLast != LastRealizedIndex)
         {
+            NotifyRealizedVisualRangeChanged();
         }
+    }
+
+    private void NotifyRealizedVisualRangeChanged()
+    {
+        UiRoot.Current?.NotifyVisualStructureChanged(this, VisualParent, VisualParent);
+        InvalidateVisual();
     }
 
     private int ResolveStartIndex(float startOffset)
@@ -1645,7 +1689,7 @@ public class VirtualizingStackPanel : Panel
                 : fallbackViewer.ViewportWidth;
         }
 
-        if (AreClose(offsetPrimary, 0f) && fallbackViewer != null)
+        if (fallbackViewer != null)
         {
             offsetPrimary = Orientation == Orientation.Vertical
                 ? fallbackViewer.VerticalOffset

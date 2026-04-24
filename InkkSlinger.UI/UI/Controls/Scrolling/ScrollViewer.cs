@@ -65,14 +65,54 @@ public class ScrollViewer : ContentControl
             nameof(HorizontalOffset),
             typeof(float),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(0f));
+            new FrameworkPropertyMetadata(
+                0f,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is not ScrollViewer viewer ||
+                        viewer._suppressOffsetPropertyChange ||
+                        args.OldValue is not float oldValue ||
+                        args.NewValue is not float newValue ||
+                        AreClose(oldValue, newValue))
+                    {
+                        return;
+                    }
+
+                    viewer.SetOffsets(
+                        newValue,
+                        viewer.VerticalOffset,
+                        ScrollOffsetUpdateSource.External,
+                        previousHorizontalOverride: oldValue,
+                        previousVerticalOverride: viewer.VerticalOffset);
+                },
+                coerceValueCallback: static (dependencyObject, value) => CoerceOffsetValue(dependencyObject, value, horizontalAxis: true)));
 
     public static readonly DependencyProperty VerticalOffsetProperty =
         DependencyProperty.Register(
             nameof(VerticalOffset),
             typeof(float),
             typeof(ScrollViewer),
-            new FrameworkPropertyMetadata(0f));
+            new FrameworkPropertyMetadata(
+                0f,
+                propertyChangedCallback: static (dependencyObject, args) =>
+                {
+                    if (dependencyObject is not ScrollViewer viewer ||
+                        viewer._suppressOffsetPropertyChange ||
+                        args.OldValue is not float oldValue ||
+                        args.NewValue is not float newValue ||
+                        AreClose(oldValue, newValue))
+                    {
+                        return;
+                    }
+
+                    viewer.SetOffsets(
+                        viewer.HorizontalOffset,
+                        newValue,
+                        ScrollOffsetUpdateSource.External,
+                        previousHorizontalOverride: viewer.HorizontalOffset,
+                        previousVerticalOverride: oldValue);
+                },
+                coerceValueCallback: static (dependencyObject, value) => CoerceOffsetValue(dependencyObject, value, horizontalAxis: false)));
 
     public static readonly DependencyProperty ExtentWidthProperty =
         DependencyProperty.Register(
@@ -153,6 +193,7 @@ public class ScrollViewer : ContentControl
     private bool _isReconcilingDescendantMeasureInvalidation;
     private int _inputScrollMutationDepth;
     private bool _suppressInternalScrollBarValueChange;
+    private bool _suppressOffsetPropertyChange;
     private int _runtimeMeasureOverrideCallCount;
     private long _runtimeMeasureOverrideElapsedTicks;
     private int _runtimeArrangeOverrideCallCount;
@@ -317,11 +358,6 @@ public class ScrollViewer : ContentControl
         _verticalBar = new ScrollBar { Orientation = Orientation.Vertical };
         _horizontalBar.ValueChanged += OnHorizontalScrollBarValueChanged;
         _verticalBar.ValueChanged += OnVerticalScrollBarValueChanged;
-
-        _horizontalBar.SetVisualParent(this);
-        _horizontalBar.SetLogicalParent(this);
-        _verticalBar.SetVisualParent(this);
-        _verticalBar.SetLogicalParent(this);
     }
 
     public ScrollBarVisibility HorizontalScrollBarVisibility
@@ -469,6 +505,7 @@ public class ScrollViewer : ContentControl
             ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight, publishViewportMetrics: false);
             _showHorizontalBar = decision.ShowHorizontalBar;
             _showVerticalBar = decision.ShowVerticalBar;
+            SyncInternalScrollBarParents();
             CacheResolvedScrollBarVisibility(decision.ShowHorizontalBar, decision.ShowVerticalBar);
             MarkMeasureValidAfterLocalReconciliation();
 
@@ -498,19 +535,19 @@ public class ScrollViewer : ContentControl
 
     public new Color Background
     {
-        get => GetValue<Color>(BackgroundProperty);
+        get => ResolveBackgroundColor();
         set => SetValue(BackgroundProperty, value);
     }
 
     public new Color BorderBrush
     {
-        get => GetValue<Color>(BorderBrushProperty);
+        get => ResolveBorderBrushColor();
         set => SetValue(BorderBrushProperty, value);
     }
 
     public new float BorderThickness
     {
-        get => GetValue<float>(BorderThicknessProperty);
+        get => ResolveBorderThicknessValue();
         set => SetValue(BorderThicknessProperty, value);
     }
 
@@ -929,6 +966,7 @@ public class ScrollViewer : ContentControl
         ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight, publishViewportMetrics: false);
         _showHorizontalBar = decision.ShowHorizontalBar;
         _showVerticalBar = decision.ShowVerticalBar;
+        SyncInternalScrollBarParents();
         CacheResolvedScrollBarVisibility(decision.ShowHorizontalBar, decision.ShowVerticalBar);
         _contentViewportRect = decision.ViewportRect;
         UpdateScrollBars();
@@ -960,16 +998,17 @@ public class ScrollViewer : ContentControl
         var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
         var fullRect = new LayoutRect(LayoutSlot.X + border, LayoutSlot.Y + border, MathF.Max(0f, finalSize.X - (border * 2f)), MathF.Max(0f, finalSize.Y - (border * 2f)));
         var decision = ResolveBarsForArrange(fullRect);
-        ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight, publishViewportMetrics: true);
+        var viewportMetricsChanged = ApplyScrollMetrics(decision.ExtentWidth, decision.ExtentHeight, decision.ViewportWidth, decision.ViewportHeight, publishViewportMetrics: true);
         _showHorizontalBar = decision.ShowHorizontalBar;
         _showVerticalBar = decision.ShowVerticalBar;
+        SyncInternalScrollBarParents();
         CacheResolvedScrollBarVisibility(decision.ShowHorizontalBar, decision.ShowVerticalBar);
         _contentViewportRect = decision.ViewportRect;
         var clipStateChanged =
             previousShowHorizontalBar != _showHorizontalBar ||
             previousShowVerticalBar != _showVerticalBar ||
             !AreLayoutRectsClose(previousViewportRect, _contentViewportRect);
-        CoerceOffsetsToCurrentMetrics();
+        var offsetsChanged = CoerceOffsetsToCurrentMetrics(closeAnchoredPopups: true);
         ArrangeContentForCurrentOffsets(previousViewportRect);
 
         if (clipStateChanged)
@@ -996,6 +1035,11 @@ public class ScrollViewer : ContentControl
         }
 
         UpdateScrollBars();
+        if (viewportMetricsChanged || offsetsChanged)
+        {
+            ViewportChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         _diagArrangeOverrideCallCount++;
         _diagArrangeOverrideElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
         _runtimeArrangeOverrideCallCount++;
@@ -1100,13 +1144,7 @@ public class ScrollViewer : ContentControl
 
     protected override bool TryGetClipRect(out LayoutRect clipRect)
     {
-        var horizontalBarThickness = ResolveHorizontalBarThicknessForLayout();
-        var verticalBarThickness = ResolveVerticalBarThicknessForLayout();
-        clipRect = new LayoutRect(
-            _contentViewportRect.X,
-            _contentViewportRect.Y,
-            _contentViewportRect.Width + GetVerticalBarReservation(_showVerticalBar, verticalBarThickness),
-            _contentViewportRect.Height + GetHorizontalBarReservation(_showHorizontalBar, horizontalBarThickness));
+        clipRect = LayoutSlot;
         return true;
     }
 
@@ -1721,7 +1759,7 @@ public class ScrollViewer : ContentControl
         };
     }
 
-    private void ApplyScrollMetrics(
+    private bool ApplyScrollMetrics(
         float extentWidth,
         float extentHeight,
         float viewportWidth,
@@ -1737,29 +1775,40 @@ public class ScrollViewer : ContentControl
         SetIfChanged(ExtentHeightProperty, CoerceNonNegativeFinite(extentHeight, previousExtentHeight), "scrollviewer_extent_height_write_count");
         if (!publishViewportMetrics)
         {
-            return;
+            return false;
         }
 
         SetIfChanged(ViewportWidthProperty, CoerceViewportMetric(viewportWidth, previousViewportWidth, ExtentWidth), "scrollviewer_viewport_width_write_count");
         SetIfChanged(ViewportHeightProperty, CoerceViewportMetric(viewportHeight, previousViewportHeight, ExtentHeight), "scrollviewer_viewport_height_write_count");
 
-        if (MathF.Abs(previousExtentWidth - ExtentWidth) > 0.01f ||
-            MathF.Abs(previousExtentHeight - ExtentHeight) > 0.01f ||
-            MathF.Abs(previousViewportWidth - ViewportWidth) > 0.01f ||
-            MathF.Abs(previousViewportHeight - ViewportHeight) > 0.01f)
-        {
-            ViewportChanged?.Invoke(this, EventArgs.Empty);
-        }
+        return MathF.Abs(previousExtentWidth - ExtentWidth) > 0.01f ||
+               MathF.Abs(previousExtentHeight - ExtentHeight) > 0.01f ||
+               MathF.Abs(previousViewportWidth - ViewportWidth) > 0.01f ||
+               MathF.Abs(previousViewportHeight - ViewportHeight) > 0.01f;
     }
 
-    private void CoerceOffsetsToCurrentMetrics()
+    private bool CoerceOffsetsToCurrentMetrics(bool closeAnchoredPopups)
     {
+        var previousHorizontal = HorizontalOffset;
+        var previousVertical = VerticalOffset;
         var maxHorizontal = MathF.Max(0f, ExtentWidth - ViewportWidth);
         var maxVertical = MathF.Max(0f, ExtentHeight - ViewportHeight);
-        var nextHorizontal = Math.Clamp(HorizontalOffset, 0f, maxHorizontal);
-        var nextVertical = Math.Clamp(VerticalOffset, 0f, maxVertical);
-        SetIfChanged(HorizontalOffsetProperty, nextHorizontal);
-        SetIfChanged(VerticalOffsetProperty, nextVertical);
+        var nextHorizontal = ClampOffsetCandidate(previousHorizontal, maxHorizontal, previousHorizontal);
+        var nextVertical = ClampOffsetCandidate(previousVertical, maxVertical, previousVertical);
+        if (AreClose(previousHorizontal, nextHorizontal) && AreClose(previousVertical, nextVertical))
+        {
+            return false;
+        }
+
+        WriteOffsetProperties(nextHorizontal, nextVertical);
+        if (closeAnchoredPopups)
+        {
+            Popup.CloseAnchoredPopupsWithin(this);
+            _diagPopupCloseCallCount++;
+            _runtimePopupCloseCallCount++;
+        }
+
+        return true;
     }
 
     internal bool HandleMouseWheelFromInput(int delta)
@@ -1819,7 +1868,12 @@ public class ScrollViewer : ContentControl
         return handled;
     }
 
-    private void SetOffsets(float horizontal, float vertical, ScrollOffsetUpdateSource updateSource = ScrollOffsetUpdateSource.External)
+    private void SetOffsets(
+        float horizontal,
+        float vertical,
+        ScrollOffsetUpdateSource updateSource = ScrollOffsetUpdateSource.External,
+        float? previousHorizontalOverride = null,
+        float? previousVerticalOverride = null)
     {
         var startTicks = Stopwatch.GetTimestamp();
         _diagSetOffsetCalls++;
@@ -1840,12 +1894,12 @@ public class ScrollViewer : ContentControl
                 _runtimeSetOffsetsVerticalScrollBarSourceCount++;
                 break;
         }
-        var beforeHorizontal = HorizontalOffset;
-        var beforeVertical = VerticalOffset;
+        var beforeHorizontal = previousHorizontalOverride ?? HorizontalOffset;
+        var beforeVertical = previousVerticalOverride ?? VerticalOffset;
         var maxHorizontal = MathF.Max(0f, ExtentWidth - ViewportWidth);
         var maxVertical = MathF.Max(0f, ExtentHeight - ViewportHeight);
-        var nextHorizontal = MathF.Max(0f, MathF.Min(maxHorizontal, horizontal));
-        var nextVertical = MathF.Max(0f, MathF.Min(maxVertical, vertical));
+        var nextHorizontal = ClampOffsetCandidate(horizontal, maxHorizontal, beforeHorizontal);
+        var nextVertical = ClampOffsetCandidate(vertical, maxVertical, beforeVertical);
         var horizontalDelta = MathF.Abs(beforeHorizontal - nextHorizontal);
         var verticalDelta = MathF.Abs(beforeVertical - nextVertical);
 
@@ -1871,9 +1925,14 @@ public class ScrollViewer : ContentControl
 
         _diagSetOffsetsWorkCount++;
         _runtimeSetOffsetsWorkCount++;
-        SetIfChanged(HorizontalOffsetProperty, nextHorizontal);
-        SetIfChanged(VerticalOffsetProperty, nextVertical);
+        WriteOffsetProperties(nextHorizontal, nextVertical);
         ViewportChanged?.Invoke(this, EventArgs.Empty);
+
+        var isViewerOwnedVirtualizingScroll = ContentElement is VirtualizingStackPanel;
+        if (isViewerOwnedVirtualizingScroll)
+        {
+            InvalidateVisual();
+        }
 
         if (!NeedsMeasure &&
             !NeedsArrange)
@@ -1884,6 +1943,7 @@ public class ScrollViewer : ContentControl
                 {
                     _diagSetOffsetsVirtualizingArrangeOnlyPathCount++;
                     _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount++;
+                    virtualizingStackPanel.InvalidateArrange();
                     InvalidateArrange();
                 }
                 else if (requiresMeasure)
@@ -1896,6 +1956,7 @@ public class ScrollViewer : ContentControl
                 {
                     _diagSetOffsetsVirtualizingArrangeOnlyPathCount++;
                     _runtimeSetOffsetsVirtualizingArrangeOnlyPathCount++;
+                    virtualizingStackPanel.InvalidateArrange();
                     InvalidateArrange();
                 }
             }
@@ -1921,14 +1982,6 @@ public class ScrollViewer : ContentControl
         {
             _diagSetOffsetsDeferredLayoutPathCount++;
             _runtimeSetOffsetsDeferredLayoutPathCount++;
-        }
-
-        if (ContentElement is UIElement transformScrollContent &&
-            UsesTransformBasedContentScrolling() &&
-            ContentElement is not VirtualizingStackPanel)
-        {
-            RecordTransformScrollDirtyHintFrame();
-            UiRoot.Current?.NotifyDirectRenderInvalidation(transformScrollContent);
         }
 
         switch (updateSource)
@@ -2017,8 +2070,14 @@ public class ScrollViewer : ContentControl
             _diagArrangeContentOffsetPathCount++;
             _runtimeArrangeContentOffsetPathCount++;
         }
-        var contentX = useTransformScrolling ? _contentViewportRect.X : _contentViewportRect.X - HorizontalOffset;
-        var contentY = useTransformScrolling ? _contentViewportRect.Y : _contentViewportRect.Y - VerticalOffset;
+        var contentOwnsHorizontalOffset = ShouldArrangeVirtualizedContentToViewport(content, horizontalAxis: true);
+        var contentOwnsVerticalOffset = ShouldArrangeVirtualizedContentToViewport(content, horizontalAxis: false);
+        var contentX = useTransformScrolling || contentOwnsHorizontalOffset
+            ? _contentViewportRect.X
+            : _contentViewportRect.X - HorizontalOffset;
+        var contentY = useTransformScrolling || contentOwnsVerticalOffset
+            ? _contentViewportRect.Y
+            : _contentViewportRect.Y - VerticalOffset;
 
         var arrangeRect = new LayoutRect(
             contentX,
@@ -2157,9 +2216,10 @@ public class ScrollViewer : ContentControl
             return false;
         }
 
-        return horizontalAxis
-            ? panel.Orientation == Orientation.Horizontal
-            : panel.Orientation == Orientation.Vertical;
+        return panel.IsVirtualizing &&
+               (horizontalAxis
+                   ? panel.Orientation == Orientation.Horizontal
+                   : panel.Orientation == Orientation.Vertical);
     }
 
     private Vector2 CreateContentMeasureConstraint(float viewportWidth, float viewportHeight)
@@ -2173,13 +2233,138 @@ public class ScrollViewer : ContentControl
 
     private bool UsesTransformBasedContentScrolling()
     {
-        return ContentElement is IScrollTransformContent;
+        return ContentElement is UIElement contentElement &&
+               contentElement is IScrollTransformContent &&
+               GetUseTransformContentScrolling(contentElement);
+    }
+
+    private void SyncInternalScrollBarParents()
+    {
+        SyncInternalScrollBarParent(_horizontalBar, _showHorizontalBar);
+        SyncInternalScrollBarParent(_verticalBar, _showVerticalBar);
+    }
+
+    private void SyncInternalScrollBarParent(ScrollBar scrollBar, bool showInTree)
+    {
+        if (!showInTree)
+        {
+            if (scrollBar.IsLoaded)
+            {
+                scrollBar.RaiseUnloaded();
+            }
+
+            scrollBar.SetVisualParent(null);
+            scrollBar.SetLogicalParent(null);
+            return;
+        }
+
+        scrollBar.SetVisualParent(this);
+        scrollBar.SetLogicalParent(this);
+        if (!scrollBar.IsLoaded)
+        {
+            scrollBar.RaiseLoaded();
+        }
+    }
+
+    private Color ResolveBackgroundColor()
+    {
+        if (GetValueSource(BackgroundProperty) != DependencyPropertyValueSource.Default)
+        {
+            return GetValue<Color>(BackgroundProperty);
+        }
+
+        if (GetValueSource(Control.BackgroundProperty) != DependencyPropertyValueSource.Default)
+        {
+            return GetValue<Color>(Control.BackgroundProperty);
+        }
+
+        return GetValue<Color>(BackgroundProperty);
+    }
+
+    private Color ResolveBorderBrushColor()
+    {
+        if (GetValueSource(BorderBrushProperty) != DependencyPropertyValueSource.Default)
+        {
+            return GetValue<Color>(BorderBrushProperty);
+        }
+
+        if (GetValueSource(Control.BorderBrushProperty) != DependencyPropertyValueSource.Default)
+        {
+            return GetValue<Color>(Control.BorderBrushProperty);
+        }
+
+        return GetValue<Color>(BorderBrushProperty);
+    }
+
+    private float ResolveBorderThicknessValue()
+    {
+        if (GetValueSource(BorderThicknessProperty) != DependencyPropertyValueSource.Default)
+        {
+            return GetValue<float>(BorderThicknessProperty);
+        }
+
+        if (GetValueSource(Control.BorderThicknessProperty) != DependencyPropertyValueSource.Default)
+        {
+            var thickness = GetValue<Thickness>(Control.BorderThicknessProperty);
+            return MathF.Max(MathF.Max(thickness.Left, thickness.Right), MathF.Max(thickness.Top, thickness.Bottom));
+        }
+
+        return GetValue<float>(BorderThicknessProperty);
+    }
+
+    private void WriteOffsetProperties(float horizontalOffset, float verticalOffset)
+    {
+        _suppressOffsetPropertyChange = true;
+        try
+        {
+            SetIfChanged(HorizontalOffsetProperty, horizontalOffset);
+            SetIfChanged(VerticalOffsetProperty, verticalOffset);
+        }
+        finally
+        {
+            _suppressOffsetPropertyChange = false;
+        }
+    }
+
+    private static object CoerceOffsetValue(DependencyObject dependencyObject, object value, bool horizontalAxis)
+    {
+        if (dependencyObject is not ScrollViewer viewer)
+        {
+            return value is float numeric && float.IsFinite(numeric)
+                ? MathF.Max(0f, numeric)
+                : 0f;
+        }
+
+        var fallback = horizontalAxis ? viewer.HorizontalOffset : viewer.VerticalOffset;
+        var max = MathF.Max(
+            0f,
+            horizontalAxis
+                ? viewer.ExtentWidth - viewer.ViewportWidth
+                : viewer.ExtentHeight - viewer.ViewportHeight);
+        var candidate = value is float numericValue ? numericValue : fallback;
+        return ClampOffsetCandidate(candidate, max, fallback);
+    }
+
+    private static float ClampOffsetCandidate(float candidate, float maxOffset, float fallback)
+    {
+        if (!float.IsFinite(candidate))
+        {
+            candidate = fallback;
+        }
+
+        if (!float.IsFinite(candidate))
+        {
+            return 0f;
+        }
+
+        return Math.Clamp(candidate, 0f, MathF.Max(0f, maxOffset));
     }
 
     private void UpdateScrollBars()
     {
         var startTicks = Stopwatch.GetTimestamp();
         _runtimeUpdateScrollBarsCallCount++;
+        EnsureVisibleInternalScrollBarsLoaded();
         var desiredHorizontalViewportSize = ViewportWidth;
         var desiredVerticalViewportSize = ViewportHeight;
         var desiredHorizontalMaximum = ExtentWidth;
@@ -2236,6 +2421,19 @@ public class ScrollViewer : ContentControl
         }
         _diagUpdateScrollBarsCallCount++;
         _diagUpdateScrollBarsElapsedTicks += Stopwatch.GetTimestamp() - startTicks;
+    }
+
+    private void EnsureVisibleInternalScrollBarsLoaded()
+    {
+        if (_showHorizontalBar && !_horizontalBar.IsLoaded)
+        {
+            _horizontalBar.RaiseLoaded();
+        }
+
+        if (_showVerticalBar && !_verticalBar.IsLoaded)
+        {
+            _verticalBar.RaiseLoaded();
+        }
     }
 
     private float ResolveHorizontalBarThicknessForLayout()
