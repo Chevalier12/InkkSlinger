@@ -80,16 +80,10 @@ public static partial class XamlLoader
                 TryParseFloatList(trimmed.AsSpan(), out var components) &&
                 components.Length > 1)
             {
-                var max = 0f;
-                for (var i = 0; i < components.Length; i++)
-                {
-                    if (components[i] > max)
-                    {
-                        max = components[i];
-                    }
-                }
-
-                return max;
+                throw CreateXamlException(
+                    $"Cannot convert value '{rawValue}' to type '{targetType.Name}'.",
+                    code: XamlDiagnosticCode.InvalidValue,
+                    hint: $"Provide a single value compatible with '{targetType.Name}'.");
             }
 
             return float.Parse(trimmed, CultureInfo.InvariantCulture);

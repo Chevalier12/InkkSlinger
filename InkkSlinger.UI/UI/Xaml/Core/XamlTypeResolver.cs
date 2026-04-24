@@ -58,21 +58,7 @@ internal static class XamlTypeResolver
         return AttachedSetters.GetOrAdd((ownerType, targetType, propertyName, valueType), key =>
         {
             var setterName = $"Set{key.PropertyName}";
-            var ownerSetter = FindCompatibleAttachedSetter(key.OwnerType, setterName, key.TargetType, key.ValueType);
-            if (ownerSetter != null)
-            {
-                return ownerSetter;
-            }
-
-            foreach (var method in GetGlobalAttachedSetterCandidates(setterName))
-            {
-                if (IsCompatibleAttachedSetter(method, setterName, key.TargetType, key.ValueType))
-                {
-                    return method;
-                }
-            }
-
-            return null;
+            return FindCompatibleAttachedSetter(key.OwnerType, setterName, key.TargetType, key.ValueType);
         });
     }
 
@@ -81,21 +67,7 @@ internal static class XamlTypeResolver
         return AttachedSettersByTarget.GetOrAdd((ownerType, targetType, propertyName), key =>
         {
             var setterName = $"Set{key.PropertyName}";
-            var ownerSetter = FindCompatibleAttachedSetterForTarget(key.OwnerType, setterName, key.TargetType);
-            if (ownerSetter != null)
-            {
-                return ownerSetter;
-            }
-
-            foreach (var method in GetGlobalAttachedSetterCandidates(setterName))
-            {
-                if (IsCompatibleAttachedSetterForTarget(method, setterName, key.TargetType))
-                {
-                    return method;
-                }
-            }
-
-            return null;
+            return FindCompatibleAttachedSetterForTarget(key.OwnerType, setterName, key.TargetType);
         });
     }
 

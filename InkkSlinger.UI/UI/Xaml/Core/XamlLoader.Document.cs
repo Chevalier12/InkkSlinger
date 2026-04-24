@@ -163,36 +163,30 @@ public static partial class XamlLoader
 
         var root = document.Root;
         var previousLoadCodeBehind = CurrentLoadCodeBehind;
+        var previousRootScope = CurrentLoadRootScope;
         CurrentLoadCodeBehind = codeBehind;
-        var rootType = ResolveElementType(root.Name.LocalName);
+        CurrentLoadRootScope = target;
         try
         {
+            var rootType = ResolveElementType(root.Name.LocalName);
             if (!typeof(UserControl).IsAssignableFrom(rootType))
             {
                 throw CreateXamlException("LoadInto expects a UserControl root element.", root);
             }
 
-            var previousRootScope = CurrentLoadRootScope;
-            CurrentLoadRootScope = target;
-            try
+            RunWithinDeferredFinalizeActions(() =>
             {
-                RunWithinDeferredFinalizeActions(() =>
+                RunWithinConstructionScope(target, () =>
                 {
-                    RunWithinConstructionScope(target, () =>
-                    {
-                        ApplyAttributes(target, root, codeBehind, target);
-                        target.Content = null;
-                        ApplyChildren(target, root, codeBehind, target);
-                    });
+                    ApplyAttributes(target, root, codeBehind, target);
+                    target.Content = null;
+                    ApplyChildren(target, root, codeBehind, target);
                 });
-            }
-            finally
-            {
-                CurrentLoadRootScope = previousRootScope;
-            }
+            });
         }
         finally
         {
+            CurrentLoadRootScope = previousRootScope;
             CurrentLoadCodeBehind = previousLoadCodeBehind;
         }
     }
