@@ -429,6 +429,168 @@ public sealed class RichTextBoxScrollHostTests
         }
     }
 
+    [Fact]
+    public void ControlsCatalog_RichTextBoxWelcome_RecordedSecondBulletClicks_ShouldLeaveFirstBulletUnchanged()
+    {
+        var snapshot = SnapshotApplicationResources();
+        try
+        {
+            TestApplicationResources.LoadDemoAppResources();
+
+            var catalog = new ControlsCatalogView();
+            catalog.ShowControl("RichTextBox");
+
+            var previewHost = Assert.IsType<ContentControl>(catalog.FindName("PreviewHost"));
+            var richTextView = Assert.IsType<RichTextBoxView>(previewHost.Content);
+            var editor = Assert.IsType<RichTextBox>(richTextView.FindName("Editor"));
+            var uiRoot = new UiRoot(catalog);
+            const string firstBulletText = "Toggle formatting on a live selection.";
+            const string secondBulletText = "Round-trip the full document through Flow XML, XAML, XamlPackage, RTF, or plain text.";
+            const char typedCharacter = '~';
+
+            RunLayout(uiRoot, 1280, 820, 16);
+            RunLayout(uiRoot, 1280, 820, 32);
+            RunLayout(uiRoot, 1280, 820, 48);
+
+            var recordedClickPoints = new[]
+            {
+                new Vector2(567f, 583f),
+                new Vector2(470f, 579f),
+                new Vector2(407f, 588f),
+                new Vector2(512f, 592f)
+            };
+
+            for (var i = 0; i < recordedClickPoints.Length; i++)
+            {
+                var clickPoint = recordedClickPoints[i];
+
+                uiRoot.RunInputDeltaForTests(CreatePointerDelta(clickPoint, pointerMoved: true));
+                uiRoot.RunInputDeltaForTests(CreatePointerDelta(clickPoint, leftPressed: true));
+                uiRoot.RunInputDeltaForTests(CreatePointerDelta(clickPoint, leftReleased: true));
+                RunLayout(uiRoot, 1280, 820, 64 + i);
+
+                Assert.True(editor.HandleTextInputFromInput(typedCharacter));
+
+                var currentText = DocumentEditing.GetText(editor.Document);
+                var insertedIndex = currentText.IndexOf(typedCharacter);
+                Assert.True(insertedIndex >= 0, $"Expected typed character '{typedCharacter}' to appear in the document after recorded click at ({clickPoint.X:0},{clickPoint.Y:0}).");
+                var insertedLine = GetLogicalLineContainingOffset(currentText, insertedIndex);
+                var normalizedInsertedLine = insertedLine.Replace(typedCharacter.ToString(), string.Empty, StringComparison.Ordinal);
+                Assert.True(
+                    currentText.Contains(firstBulletText, StringComparison.Ordinal),
+                    $"Expected recorded click at ({clickPoint.X:0},{clickPoint.Y:0}) to leave the first bullet unchanged, but document text no longer contains '{firstBulletText}'. Inserted line: '{insertedLine}'.");
+                Assert.True(
+                    normalizedInsertedLine.Contains(secondBulletText, StringComparison.Ordinal),
+                    $"Expected recorded click at ({clickPoint.X:0},{clickPoint.Y:0}) to type into the second bullet, but the inserted character landed in '{insertedLine}'.");
+
+                editor.Undo();
+                RunLayout(uiRoot, 1280, 820, 80 + i);
+            }
+        }
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
+    }
+
+    [Fact]
+    public void HostedRichTextBox_WrappedAutoHorizontalScroll_UsesFiniteMeasureAndWrappedListHitTesting()
+    {
+        var snapshot = SnapshotApplicationResources();
+        try
+        {
+            TestApplicationResources.LoadDemoAppResources();
+
+            var catalog = new ControlsCatalogView();
+            catalog.ShowControl("RichTextBox");
+
+            var previewHost = Assert.IsType<ContentControl>(catalog.FindName("PreviewHost"));
+            var richTextView = Assert.IsType<RichTextBoxView>(previewHost.Content);
+            var editor = Assert.IsType<RichTextBox>(richTextView.FindName("Editor"));
+            var uiRoot = new UiRoot(catalog);
+
+            RunLayout(uiRoot, 1280, 820, 16);
+            RunLayout(uiRoot, 1280, 820, 32);
+            RunLayout(uiRoot, 1280, 820, 48);
+
+            Assert.True(editor.TryGetViewportLayoutSnapshot(out var viewport));
+            var diagnostics = editor.GetRichTextBoxSnapshotForDiagnostics();
+            Assert.True(
+                double.IsFinite(diagnostics.LastHostedScrollContentMeasureLayoutWidth),
+                $"Expected wrapped RichTextBox hosted in an Auto horizontal ScrollViewer to measure at the viewport width, but it measured with {diagnostics.LastHostedScrollContentMeasureLayoutWidth:0.###}.");
+
+            var recordedFourthClick = new Vector2(512f, 592f);
+            var localPoint = new Vector2(
+                (recordedFourthClick.X - viewport.TextRect.X) + viewport.HorizontalOffset,
+                (recordedFourthClick.Y - viewport.TextRect.Y) + viewport.VerticalOffset);
+            var hit = viewport.Layout.HitTestOffset(localPoint);
+            var line = GetLogicalLineContainingOffset(DocumentEditing.GetText(editor.Document), hit);
+            var lines = string.Join(" | ", viewport.Layout.Lines.Select(l => $"{l.Index}:{l.Bounds.Y:0.###}-{l.Bounds.Y + l.Bounds.Height:0.###}:{l.Text}"));
+
+            Assert.True(
+                line.Contains("Round-trip the full document", StringComparison.Ordinal),
+                $"Expected recorded click to hit the wrapped second bullet, but hit '{line}'. textRect={FormatRect(viewport.TextRect)}, local=({localPoint.X:0.###},{localPoint.Y:0.###}), layoutWidth={diagnostics.LastHostedScrollContentMeasureLayoutWidth:0.###}, lines={lines}");
+        }
+        finally
+        {
+            RestoreApplicationResources(snapshot);
+        }
+    }
+
+    [Fact]
+    public void HostedRichTextBox_NoWrapAutoHorizontalScroll_MeasuresDocumentWithInfiniteWidth()
+    {
+        var (uiRoot, editor, _) = CreateUiRootEditorFixture(
+            180f,
+            76f,
+            "line00 abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz",
+            static editor =>
+            {
+                editor.TextWrapping = TextWrapping.NoWrap;
+                editor.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
+                editor.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+            });
+
+        RunLayout(uiRoot, 220, 116, 32);
+
+        var diagnostics = editor.GetRichTextBoxSnapshotForDiagnostics();
+        Assert.True(
+            double.IsPositiveInfinity(diagnostics.LastHostedScrollContentMeasureLayoutWidth),
+            $"Expected NoWrap RichTextBox content to keep an infinite horizontal layout width for horizontal scrolling, but measured width was {diagnostics.LastHostedScrollContentMeasureLayoutWidth:0.###}.");
+    }
+
+    [Fact]
+    public void DocumentLayout_HitTestOffset_ChoosesLineByVerticalBoundsWhenListItemTextWraps()
+    {
+        var editor = new RichTextBox
+        {
+            Width = 380f,
+            Height = 220f,
+            Document = BuildWrappedThreeItemListDocument()
+        };
+
+        var host = new Canvas
+        {
+            Width = 420f,
+            Height = 260f
+        };
+
+        host.AddChild(editor);
+        var uiRoot = new UiRoot(host);
+        RunLayout(uiRoot, 420, 260, 16);
+
+        Assert.True(editor.TryGetViewportLayoutSnapshot(out var viewport));
+        var secondLine = Assert.Single(viewport.Layout.Lines, line => line.Text.Contains("Round-trip", StringComparison.Ordinal));
+        var thirdLine = Assert.Single(viewport.Layout.Lines, line => line.Text.Contains("Swap into", StringComparison.Ordinal));
+
+        var secondHit = viewport.Layout.HitTestOffset(new Vector2(secondLine.TextStartX + 48f, secondLine.Bounds.Y + (secondLine.Bounds.Height * 0.5f)));
+        var thirdHit = viewport.Layout.HitTestOffset(new Vector2(thirdLine.TextStartX + 48f, thirdLine.Bounds.Y + (thirdLine.Bounds.Height * 0.5f)));
+        var text = DocumentEditing.GetText(editor.Document);
+
+        Assert.Contains("Round-trip", GetLogicalLineContainingOffset(text, secondHit), StringComparison.Ordinal);
+        Assert.Contains("Swap into", GetLogicalLineContainingOffset(text, thirdHit), StringComparison.Ordinal);
+    }
+
     private static FlowDocument BuildStructuredHorizontalIndicatorDocument()
     {
         var document = new FlowDocument();
@@ -459,6 +621,17 @@ public sealed class RichTextBoxScrollHostTests
             document.Blocks.Add(paragraph);
         }
 
+        return document;
+    }
+
+    private static FlowDocument BuildWrappedThreeItemListDocument()
+    {
+        var document = new FlowDocument();
+        var list = new InkkSlinger.List();
+        list.Items.Add(CreateListItem("Toggle formatting on a live selection."));
+        list.Items.Add(CreateListItem("Round-trip the full document through Flow XML, XAML, XamlPackage, RTF, or plain text."));
+        list.Items.Add(CreateListItem("Swap into embedded UI mode to click hosted buttons inside the document."));
+        document.Blocks.Add(list);
         return document;
     }
 
@@ -562,6 +735,28 @@ public sealed class RichTextBoxScrollHostTests
     private static string FormatRect(LayoutRect rect)
     {
         return $"({rect.X:0.###},{rect.Y:0.###},{rect.Width:0.###},{rect.Height:0.###})";
+    }
+
+    private static string GetLogicalLineContainingOffset(string text, int offset)
+    {
+        var clamped = Math.Clamp(offset, 0, text.Length);
+        var start = clamped > 0 ? text.LastIndexOf('\n', clamped - 1) : -1;
+        var end = text.IndexOf('\n', clamped);
+        if (start < 0)
+        {
+            start = 0;
+        }
+        else
+        {
+            start++;
+        }
+
+        if (end < 0)
+        {
+            end = text.Length;
+        }
+
+        return text.Substring(start, end - start);
     }
 
     private static DocumentLayoutResult Layout(RichTextBox editor, float availableWidth)

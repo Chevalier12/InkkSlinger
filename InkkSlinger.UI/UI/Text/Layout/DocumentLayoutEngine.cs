@@ -83,7 +83,8 @@ public sealed class DocumentLayoutResult
         Dictionary<int, Vector2> caretPositions,
         float contentWidth,
         float contentHeight,
-        int textLength)
+        int textLength,
+        bool hasConstrainedWrapping)
     {
         Lines = lines;
         Runs = runs;
@@ -94,6 +95,7 @@ public sealed class DocumentLayoutResult
         ContentWidth = contentWidth;
         ContentHeight = contentHeight;
         TextLength = textLength;
+        HasConstrainedWrapping = hasConstrainedWrapping;
     }
 
     public static DocumentLayoutResult Empty { get; } = new(
@@ -105,7 +107,8 @@ public sealed class DocumentLayoutResult
         new Dictionary<int, Vector2> { [0] = Vector2.Zero },
         0f,
         0f,
-        0);
+        0,
+        hasConstrainedWrapping: false);
 
     public IReadOnlyList<DocumentLayoutLine> Lines { get; }
 
@@ -122,6 +125,8 @@ public sealed class DocumentLayoutResult
     public float ContentHeight { get; }
 
     public int TextLength { get; }
+
+    public bool HasConstrainedWrapping { get; }
 
     public bool TryGetCaretPosition(int offset, out Vector2 position)
     {
@@ -351,6 +356,7 @@ public sealed class DocumentLayoutEngine
         private int _offset;
         private float _cursorY;
         private float _contentWidth;
+        private bool _hasConstrainedWrapping;
 
         public Builder(DocumentLayoutEngine owner, FlowDocument document, in DocumentLayoutSettings settings)
         {
@@ -374,7 +380,8 @@ public sealed class DocumentLayoutEngine
                 _caretPositions,
                 _contentWidth,
                 contentHeight,
-                _offset);
+                _offset,
+                _hasConstrainedWrapping);
         }
 
         private void LayoutBlocks(
@@ -575,6 +582,7 @@ public sealed class DocumentLayoutEngine
                 width = float.PositiveInfinity;
             }
 
+            TrackNaturalInlineContentWidth(plainText, textStartX, markerX + markerWidth);
             MeasureHostedSegments(segments, width);
             var hasHostedVisuals = ContainsHostedVisuals(segments);
             var usesParagraphTabConfiguration = plainText.IndexOf('\t') >= 0 ||
@@ -601,6 +609,14 @@ public sealed class DocumentLayoutEngine
                     var logicalLayoutLines = logicalLineLength == 0
                         ? new[] { string.Empty }
                         : TextLayout.Layout(plainText.Substring(logicalLineStart, logicalLineLength), _settings.Typography, width, _settings.Wrapping).Lines;
+                    if (_settings.Wrapping != TextWrapping.NoWrap &&
+                        float.IsFinite(width) &&
+                        logicalLineLength > 0 &&
+                        logicalLayoutLines.Count > 1)
+                    {
+                        _hasConstrainedWrapping = true;
+                    }
+
                     var localScanIndex = 0;
                     for (var wrappedLineIndex = 0; wrappedLineIndex < logicalLayoutLines.Count; wrappedLineIndex++)
                     {
@@ -699,6 +715,13 @@ public sealed class DocumentLayoutEngine
                     _settings.Typography,
                     paragraphDefaultIncrementalTab,
                     paragraphTabs);
+                if (_settings.Wrapping != TextWrapping.NoWrap &&
+                    float.IsFinite(width) &&
+                    layoutLines.Count > CountLogicalLines(segments))
+                {
+                    _hasConstrainedWrapping = true;
+                }
+
                 var currentLineY = y;
                 for (var lineIndex = 0; lineIndex < layoutLines.Count; lineIndex++)
                 {
@@ -876,6 +899,35 @@ public sealed class DocumentLayoutEngine
 
             var left = baseX + (listDepth * _settings.ListIndent) + extraOffset;
             return Math.Max(1f, _settings.AvailableWidth - left);
+        }
+
+        private void TrackNaturalInlineContentWidth(string text, float textStartX, float markerRight)
+        {
+            if (text.Length == 0)
+            {
+                _contentWidth = Math.Max(_contentWidth, markerRight);
+                return;
+            }
+
+            var lineStart = 0;
+            while (lineStart <= text.Length)
+            {
+                var lineEnd = lineStart;
+                while (lineEnd < text.Length && text[lineEnd] != '\n')
+                {
+                    lineEnd++;
+                }
+
+                var line = text.Substring(lineStart, lineEnd - lineStart);
+                var lineWidth = line.Length == 0 ? 0f : UiTextRenderer.MeasureWidth(_settings.Typography, line);
+                _contentWidth = Math.Max(_contentWidth, Math.Max(markerRight, textStartX + lineWidth));
+                if (lineEnd >= text.Length)
+                {
+                    break;
+                }
+
+                lineStart = lineEnd + 1;
+            }
         }
 
         private static List<DocumentLayoutRun> BuildLineRuns(
@@ -1320,6 +1372,20 @@ public sealed class DocumentLayoutEngine
             return new string(buffer);
         }
 
+        private static int CountLogicalLines(IReadOnlyList<StyledChar> chars)
+        {
+            var count = 1;
+            for (var i = 0; i < chars.Count; i++)
+            {
+                if (chars[i].Character == '\n')
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
         private static int CountParagraphs(FlowDocument document)
         {
             var count = 0;
@@ -1698,6 +1764,11 @@ public sealed class DocumentViewportLayoutCache
         }
 
         if (requestedKey.Width > cachedKey.Width + 0.01f)
+        {
+            return false;
+        }
+
+        if (result.HasConstrainedWrapping)
         {
             return false;
         }

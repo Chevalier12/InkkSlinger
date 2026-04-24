@@ -1209,6 +1209,9 @@ public class ScrollViewer : ContentControl
             _runtimeResolveBarsAndMeasureContentSingleMeasurePathCount++;
             var extentWidth = 0f;
             var extentHeight = 0f;
+            var hasMeasuredViewport = false;
+            var previousViewportWidth = 0f;
+            var previousViewportHeight = 0f;
 
             for (var i = 0; i < 3; i++)
             {
@@ -1217,14 +1220,21 @@ public class ScrollViewer : ContentControl
                 var viewportWidth = MathF.Max(0f, bounds.Width - GetVerticalBarReservation(showVertical, verticalBarThickness));
                 var viewportHeight = MathF.Max(0f, bounds.Height - GetHorizontalBarReservation(showHorizontal, horizontalBarThickness));
 
-                if (i == 0)
+                var reusedMeasure = hasMeasuredViewport && TryReuseMeasuredContent(
+                    previousViewportWidth,
+                    previousViewportHeight,
+                    viewportWidth,
+                    viewportHeight,
+                    out extentWidth,
+                    out extentHeight);
+                if (!reusedMeasure && !TryReuseCurrentMeasuredContentForViewport(viewportWidth, viewportHeight, out extentWidth, out extentHeight))
                 {
-                    if (!TryReuseCurrentMeasuredContentForViewport(viewportWidth, viewportHeight, out extentWidth, out extentHeight))
-                    {
-                        MeasureContent(viewportWidth, viewportHeight, out extentWidth, out extentHeight);
-                    }
+                    MeasureContent(viewportWidth, viewportHeight, out extentWidth, out extentHeight);
                 }
 
+                hasMeasuredViewport = true;
+                previousViewportWidth = viewportWidth;
+                previousViewportHeight = viewportHeight;
                 var nextShowHorizontal = ResolveHorizontalAutoBarVisibility(showHorizontal, extentWidth, viewportWidth);
                 var nextShowVertical = ResolveVerticalAutoBarVisibility(showVertical, extentHeight, viewportHeight);
                 trace += $"|i{i}:vp={viewportWidth:0.##}x{viewportHeight:0.##},ext={extentWidth:0.##}x{extentHeight:0.##},next={(nextShowHorizontal ? 1 : 0)},{(nextShowVertical ? 1 : 0)}";
@@ -1530,15 +1540,10 @@ public class ScrollViewer : ContentControl
     private void MeasureContent(float viewportWidth, float viewportHeight, out float extentWidth, out float extentHeight)
     {
         var startTicks = Stopwatch.GetTimestamp();
-        var canScrollHorizontally = HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled;
-        var canScrollVertically = VerticalScrollBarVisibility != ScrollBarVisibility.Disabled;
 
         if (ContentElement is FrameworkElement content)
         {
-            var constraint = new Vector2(
-                canScrollHorizontally ? float.PositiveInfinity : viewportWidth,
-                canScrollVertically ? float.PositiveInfinity : viewportHeight);
-            content.Measure(constraint);
+            content.Measure(CreateContentMeasureConstraint(viewportWidth, viewportHeight));
         }
 
         extentWidth = (ContentElement as FrameworkElement)?.DesiredSize.X ?? 0f;
@@ -2226,6 +2231,15 @@ public class ScrollViewer : ContentControl
     {
         var canScrollHorizontally = HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled;
         var canScrollVertically = VerticalScrollBarVisibility != ScrollBarVisibility.Disabled;
+        if (ContentElement is IScrollViewerMeasureConstraintProvider constraintProvider)
+        {
+            return constraintProvider.GetScrollViewerMeasureConstraint(
+                viewportWidth,
+                viewportHeight,
+                canScrollHorizontally,
+                canScrollVertically);
+        }
+
         return new Vector2(
             canScrollHorizontally ? float.PositiveInfinity : MathF.Max(0f, viewportWidth),
             canScrollVertically ? float.PositiveInfinity : MathF.Max(0f, viewportHeight));

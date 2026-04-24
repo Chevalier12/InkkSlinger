@@ -506,6 +506,11 @@ public partial class RichTextBox
             return false;
         }
 
+        if (layout.HasConstrainedWrapping)
+        {
+            return false;
+        }
+
         return layout.ContentWidth <= nextWidth + 0.01f;
     }
 
@@ -1008,7 +1013,7 @@ public partial class RichTextBox
         return (double)ticks * 1000d / Stopwatch.Frequency;
     }
 
-    private sealed class RichTextBoxScrollContentPresenter : FrameworkElement, IHyperlinkHoverHost
+    private sealed class RichTextBoxScrollContentPresenter : FrameworkElement, IHyperlinkHoverHost, IScrollViewerMeasureConstraintProvider
     {
         private readonly RichTextBox _owner;
 
@@ -1021,6 +1026,21 @@ public partial class RichTextBox
         protected override Vector2 MeasureOverride(Vector2 availableSize)
         {
             return _owner.MeasureHostedScrollContent(availableSize);
+        }
+
+        public Vector2 GetScrollViewerMeasureConstraint(
+            float viewportWidth,
+            float viewportHeight,
+            bool canScrollHorizontally,
+            bool canScrollVertically)
+        {
+            var horizontalConstraint = canScrollHorizontally && _owner.TextWrapping == TextWrapping.NoWrap
+                ? float.PositiveInfinity
+                : MathF.Max(0f, viewportWidth);
+            var verticalConstraint = canScrollVertically
+                ? float.PositiveInfinity
+                : MathF.Max(0f, viewportHeight);
+            return new Vector2(horizontalConstraint, verticalConstraint);
         }
 
         protected override bool CanReuseMeasureForAvailableSizeChange(Vector2 previousAvailableSize, Vector2 nextAvailableSize)

@@ -6446,7 +6446,7 @@ public partial class RichTextBox : Control, ITextInputControl, IRenderDirtyBound
             Wrapping: TextWrapping,
             Foreground: Foreground,
             LineHeight: lineHeight,
-            ListIndent: lineHeight * 1.2f,
+            ListIndent: lineHeight * 2.2f,
             ListMarkerGap: 4f,
             TableCellPadding: 4f,
             TableBorderThickness: 1f,
